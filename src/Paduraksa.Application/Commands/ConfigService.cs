@@ -238,6 +238,9 @@ public sealed partial class ConfigService : IDisposable
         {
             var (latest, current) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
             var head = latest is null ? null : Ref(latest.Info);
+
+            // Before anything validates, stores or audits: a plain password becomes a hash and is forgotten.
+            command = AccessListPasswords.Prepare(command, current);
             var plan = command switch
             {
                 UpsertHostCommand c => Upsert(head, Required(c.Host), "hosts", current.Hosts, h => h.Id.ToString(),
@@ -252,6 +255,10 @@ public sealed partial class ConfigService : IDisposable
                     p => p.Id.ToString(), p => p.Version, l => current with { RateLimitPolicies = l }),
                 DeleteRateLimitPolicyCommand c => Delete(head, c.RateLimitPolicyId.ToString(), c.Version, current.RateLimitPolicies,
                     p => p.Id.ToString(), p => p.Version, l => current with { RateLimitPolicies = l }),
+                UpsertAccessListCommand c => Upsert(head, Required(c.AccessList), "accessLists", current.AccessLists,
+                    l => l.Id.ToString(), l => l.Version, l => current with { AccessLists = l }),
+                DeleteAccessListCommand c => Delete(head, c.AccessListId.ToString(), c.Version, current.AccessLists,
+                    l => l.Id.ToString(), l => l.Version, l => current with { AccessLists = l }),
                 UpsertProfileCommand c => Upsert(head, Required(c.Profile), "profiles", current.Profiles,
                     p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
                 DeleteProfileCommand c => Delete(head, c.ProfileId.ToString(), c.Version, current.Profiles,
@@ -1052,6 +1059,8 @@ public sealed partial class ConfigService : IDisposable
             UpsertRateLimitPolicyCommand c => new($"config.rate_limit_policy.{Verb(Required(c.Policy).Version)}",
                 c.Policy.Id.ToString()),
             DeleteRateLimitPolicyCommand c => new("config.rate_limit_policy.delete", c.RateLimitPolicyId.ToString()),
+            UpsertAccessListCommand c => new($"config.access_list.{Verb(Required(c.AccessList).Version)}", c.AccessList.Id.ToString()),
+            DeleteAccessListCommand c => new("config.access_list.delete", c.AccessListId.ToString()),
             UpsertProfileCommand c => new($"config.profile.{Verb(Required(c.Profile).Version)}",
                 c.Profile.Id.ToString()),
             DeleteProfileCommand c => new("config.profile.delete", c.ProfileId.ToString()),
@@ -1124,6 +1133,8 @@ public sealed partial class ConfigService : IDisposable
         DeleteUpstreamCommand c => current.Upstreams.FirstOrDefault(u => u.Id == c.UpstreamId)?.Version,
         UpsertRateLimitPolicyCommand c => current.RateLimitPolicies.FirstOrDefault(p => p.Id == c.Policy.Id)?.Version,
         DeleteRateLimitPolicyCommand c => current.RateLimitPolicies.FirstOrDefault(p => p.Id == c.RateLimitPolicyId)?.Version,
+        UpsertAccessListCommand c => current.AccessLists.FirstOrDefault(l => l.Id == c.AccessList.Id)?.Version,
+        DeleteAccessListCommand c => current.AccessLists.FirstOrDefault(l => l.Id == c.AccessListId)?.Version,
         UpsertProfileCommand c => current.Profiles.FirstOrDefault(p => p.Id == c.Profile.Id)?.Version,
         DeleteProfileCommand c => current.Profiles.FirstOrDefault(p => p.Id == c.ProfileId)?.Version,
         UpdateSettingsCommand => current.Settings.Version,

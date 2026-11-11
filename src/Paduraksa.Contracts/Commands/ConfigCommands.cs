@@ -25,6 +25,8 @@ namespace Paduraksa.Contracts.Commands;
 [JsonDerivedType(typeof(DeleteUpstreamCommand), "deleteUpstream")]
 [JsonDerivedType(typeof(UpsertRateLimitPolicyCommand), "upsertRateLimitPolicy")]
 [JsonDerivedType(typeof(DeleteRateLimitPolicyCommand), "deleteRateLimitPolicy")]
+[JsonDerivedType(typeof(UpsertAccessListCommand), "upsertAccessList")]
+[JsonDerivedType(typeof(DeleteAccessListCommand), "deleteAccessList")]
 [JsonDerivedType(typeof(UpsertProfileCommand), "upsertProfile")]
 [JsonDerivedType(typeof(DeleteProfileCommand), "deleteProfile")]
 [JsonDerivedType(typeof(UpdateSettingsCommand), "updateSettings")]
@@ -72,6 +74,17 @@ public sealed record UpsertRateLimitPolicyCommand(RateLimitPolicyConfig Policy) 
 /// <param name="RateLimitPolicyId">The policy.</param>
 /// <param name="Version">The version the caller saw.</param>
 public sealed record DeleteRateLimitPolicyCommand(RateLimitPolicyId RateLimitPolicyId, long Version) : ConfigCommand;
+
+/// <summary>Creates an access list (<see cref="AccessListConfig.Version"/> 0) or replaces one. A user's
+/// <see cref="AccessListUserConfig.Password"/> is hashed before anything else happens to the command; a user sent with
+/// neither a password nor a hash keeps the hash the list already has for that name.</summary>
+/// <param name="AccessList">The list as it should be. Its <see cref="AccessListConfig.Version"/> is the version edited.</param>
+public sealed record UpsertAccessListCommand(AccessListConfig AccessList) : ConfigCommand;
+
+/// <summary>Deletes an access list; no host, profile, global default or route may still name it.</summary>
+/// <param name="AccessListId">The list.</param>
+/// <param name="Version">The version the caller saw.</param>
+public sealed record DeleteAccessListCommand(AccessListId AccessListId, long Version) : ConfigCommand;
 
 /// <summary>Creates a profile (<see cref="ProfileConfig.Version"/> 0) or replaces one.</summary>
 /// <param name="Profile">The profile as it should be. Its <see cref="ProfileConfig.Version"/> is the version edited.</param>

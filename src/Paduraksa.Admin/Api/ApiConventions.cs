@@ -74,6 +74,11 @@ internal static class ApiBody
                 ? new(null, ApiProblems.Problem(StatusCodes.Status400BadRequest, "The request body is required."))
                 : new(value, null);
         }
+        catch (JsonException ex) when (ex.Message.Contains("'ipAllowList'", StringComparison.Ordinal))
+        {
+            // The one unknown member worth its own sentence: it was a setting, and the way to say it now is different.
+            return new(null, ApiProblems.Problem(StatusCodes.Status400BadRequest, "The request body sets 'ipAllowList', which access lists replaced: create an access list (POST /api/v1/accessLists) and name it from the 'accessList' setting of the host, route, profile or global defaults."));
+        }
         catch (JsonException ex)
         {
             // A fixed sentence and the path of the member: the serializer's own message names CLR types.

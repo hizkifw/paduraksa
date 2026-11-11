@@ -35,9 +35,12 @@ public sealed class PublicHstsTests : IAsyncLifetime
         _certificates.Dispose();
     }
 
+    private static readonly AccessListSpec Private = TestAccessLists.Allow("private", "10.0.0.0/8");
+
     private ProxyConfigModel App(params HostSpec[] more) => new()
     {
         Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), Upstream.Address)] }],
+        AccessLists = [Private],
         Hosts =
         [
             ProxyHost("app", "app.test") with { Hsts = new HostHstsSpec { Enabled = true } },
@@ -100,7 +103,7 @@ public sealed class PublicHstsTests : IAsyncLifetime
     public async Task HstsGoesOnHttpsResponsesOfEveryKindAndReplacesTheUpstreams()
     {
         await using var host = await StartedAsync(App(
-            ProxyHost("deny", "deny.test") with { Hsts = new HostHstsSpec { Enabled = true }, Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])] },
+            ProxyHost("deny", "deny.test") with { Hsts = new HostHstsSpec { Enabled = true }, Policies = [Private.Policy()] },
             new HostSpec
             {
                 Id = TestIds.Host("api"),

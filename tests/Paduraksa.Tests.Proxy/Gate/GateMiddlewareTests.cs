@@ -18,16 +18,21 @@ namespace Paduraksa.Tests.Proxy.Gate;
 
 public sealed class GateMiddlewareTests : IDisposable
 {
+    private static readonly AccessListSpec AppLan = TestAccessLists.Allow("app-lan", "127.0.0.1", "10.0.0.5");
+
+    private static readonly AccessListSpec Lan = TestAccessLists.Allow("lan", "10.0.0.5");
+
     private static readonly ProxyConfigModel Config = new()
     {
         Upstreams = [Upstream("web", "http://127.0.0.1:1/"), Upstream("api", "http://127.0.0.1:2/")],
+        AccessLists = [AppLan, Lan],
         Hosts =
         [
             new HostSpec
             {
                 Id = TestIds.Host("app"),
                 Names = ["app.test", "*.app.test"],
-                Policies = [new IpAllowListPolicySpec(["127.0.0.1", "10.0.0.5"])],
+                Policies = [AppLan.Policy()],
                 Routes =
                 [
                     Route("app-api", "api", "/api"),
@@ -47,7 +52,7 @@ public sealed class GateMiddlewareTests : IDisposable
         ],
     };
 
-    private static IpAllowListPolicySpec LanOnly => new(["10.0.0.5"]);
+    private static AccessListPolicySpec LanOnly => Lan.Policy();
 
     private readonly SnapshotStore _store = new();
     private readonly GateMiddleware _gate;

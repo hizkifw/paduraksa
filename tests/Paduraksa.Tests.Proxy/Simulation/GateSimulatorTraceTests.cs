@@ -716,7 +716,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
 
         Assert.Equal("generic", Fact(Step(run, GateStepKind.ClientAddress), "trustedProxyMode"));
         Assert.Equal("tls1.3", Fact(Step(run, GateStepKind.TlsHandshake), "tlsVersion"));
-        Assert.Equal("ipAllowList", Fact(Step(run, GateStepKind.HostPolicy), "policy"));
+        Assert.Equal("accessList", Fact(Step(run, GateStepKind.HostPolicy), "policy"));
         Assert.Equal("prefix", Fact(Step(run, GateStepKind.RouteMatch), "match"));
         Assert.Equal("http2AndHttp11", Fact(Step(run, GateStepKind.TlsPolicy), "tcpAlpn"));
         Assert.Equal("tls1.2", Fact(Step(run, GateStepKind.TlsPolicy), "minimumVersion"));
@@ -772,17 +772,20 @@ public sealed class GateSimulatorTraceTests : IDisposable
 
     private static string Fact(GateStep step, string name) => Assert.Single(step.Facts, f => f.Name == name).Value;
 
+    private static readonly AccessListSpec AppLan = TestAccessLists.Allow("app-lan", "127.0.0.1", "10.0.0.5");
+
     private static ProxyConfigModel Model(DefaultsSpec defaults) => new()
     {
         Upstreams = [Upstream("web", "http://127.0.0.1:1/"), Upstream("api", "http://127.0.0.1:2/", "http://127.0.0.1:3/")],
         Defaults = defaults,
+        AccessLists = [AppLan],
         Hosts =
         [
             new HostSpec
             {
                 Id = TestIds.Host("app"),
                 Names = ["app.test", "*.app.test"],
-                Policies = [new IpAllowListPolicySpec(["127.0.0.1", "10.0.0.5"])],
+                Policies = [AppLan.Policy()],
                 Routes =
                 [
                     Route("app-api", "api", "/api"),

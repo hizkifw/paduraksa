@@ -2,6 +2,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.RateLimiting;
 
@@ -65,12 +66,19 @@ public static class ProxyConfigMapping
             profiles.TryAdd(profile.Id, profile.Settings);
         }
 
+        // First one wins on a duplicate ID (invalid anyway).
+        Dictionary<AccessListId, AccessListConfig> accessLists = [];
+        foreach (var list in canonical.AccessLists)
+        {
+            accessLists.TryAdd(list.Id, list);
+        }
+
         var hosts = new HostSpec[canonical.Hosts.Count];
         for (var i = 0; i < hosts.Length; i++)
         {
             var host = canonical.Hosts[i];
             var profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
-            hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), settings.TrustedProxies.Mode, inventory, errors, warnings);
+            hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), settings.TrustedProxies.Mode, inventory, accessLists, errors, warnings);
         }
 
         ProxyConfigModel model = new()
@@ -85,6 +93,7 @@ public static class ProxyConfigMapping
                     .Where(static p => p is not null)
                     .Select(static p => p!),
             ],
+            AccessLists = [.. canonical.AccessLists.Select(MapAccessList)],
             Defaults = new DefaultsSpec
             {
                 UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
@@ -200,7 +209,13 @@ public static class ProxyConfigMapping
         inventory.TryGet(id, out var entry) ? entry.UnusableReason ?? "it isn't loaded" : "the inventory has no such certificate";
 
     private static HostSpec MapHost(
-        HostConfig host, EffectiveHostSettings effective, TrustedProxyMode proxyMode, CertificateInventory inventory, List<CompileError> errors, List<MappedWarning> warnings)
+        HostConfig host,
+        EffectiveHostSettings effective,
+        TrustedProxyMode proxyMode,
+        CertificateInventory inventory,
+        Dictionary<AccessListId, AccessListConfig> accessLists,
+        List<CompileError> errors,
+        List<MappedWarning> warnings)
     {
         var where = CompileErrorSource.Host(host.Id);
         if (host.Kind == HostKind.Admin && host.Settings.ForceHttps is false)
@@ -214,11 +229,7 @@ public static class ProxyConfigMapping
 
         AddCloudflareWarnings(host, effective.Cloudflare, proxyMode, where, warnings);
 
-        IpAllowListSettings?[] routeLists = [.. host.Routes.Select(r => HostSettingsLayers.ResolveRoute(effective, r.Settings))];
-        var uniform = routeLists.All(list => HostSettingsLayers.SameRestriction(list, routeLists[0]));
-        var hostChain = routeLists.Length == 0 ? AllowListPolicy(effective.IpAllowList)
-            : uniform ? AllowListPolicy(routeLists[0])
-            : AllowListPolicy(Union(routeLists));
+        var (hostChain, routeChains) = AccessListChains(host, effective, accessLists);
 
         var routes = new RouteSpec[host.Routes.Count];
         for (var j = 0; j < routes.Length; j++)
@@ -232,12 +243,24 @@ public static class ProxyConfigMapping
                 Path = route.Path,
                 Order = route.Order,
                 Upstream = route.UpstreamId,
-                Policies = uniform ? [] : AllowListPolicy(routeLists[j]),
+                Policies = routeChains[j],
                 ProofOfWork = HostSettingsLayers.ResolveRouteProofOfWork(effective, route.Settings),
                 ProofOfWorkRouteOverride = HostSettingsLayers.RouteOverridesProofOfWork(route.Settings),
                 RateLimit = rateLimit.EffectivePolicyId,
                 RateLimitRouteOverride = HostSettingsLayers.RouteOverridesRateLimit(route.Settings),
             };
+        }
+
+        // A password over plain HTTP travels in the clear. A host that forces the redirect never asks for one there (the
+        // route chain runs after the redirect), so only the rest are worth a warning.
+        if (host is { Enabled: true } && host.Kind != HostKind.Admin && !effective.ForceHttps
+            && UsedLists(effective, host).Any(id => accessLists.TryGetValue(id, out var list) && list.BasicAuth is { Users.Count: > 0 }))
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                string.Empty,
+                ConfigWarningCodes.AccessListInsecureCredentials,
+                "an access list with users guards this host, which also answers plain HTTP without forcing HTTPS, so a password could be sent in the clear; turn on forceHttps"));
         }
 
         // A plain-HTTP cookie cannot be Secure. A host that forces the redirect never serves a page over plain HTTP, so
@@ -288,6 +311,7 @@ public static class ProxyConfigMapping
             ServerHeader = effective.ServerHeader,
             ProofOfWork = effective.ProofOfWork,
             RateLimit = effective.RateLimit,
+            AccessList = effective.AccessList,
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
             Routes = routes,
@@ -339,22 +363,87 @@ public static class ProxyConfigMapping
         }
     }
 
-    /// <summary>The union of route lists, or null when one of them restricts nothing. Denied requests are dropped only
-    /// when every list drops them.</summary>
-    private static IpAllowListSettings? Union(IpAllowListSettings?[] lists)
+    /// <summary>
+    /// The access-list policies of a host's chain and of each route's chain. A route's chain asks for the passwords (after
+    /// the HTTPS redirect, so none is asked over plain HTTP); the host's chain only refuses by address, before the
+    /// redirect and the fixed answers, so a blocked client gets 403 and never a redirect. A host without routes (a Redirect
+    /// or Respond host) has nothing after its host chain, so it carries the whole list there.
+    /// </summary>
+    private static (PolicySpec[] Host, PolicySpec[][] Routes) AccessListChains(
+        HostConfig host, EffectiveHostSettings effective, Dictionary<AccessListId, AccessListConfig> lists)
     {
-        if (lists.Any(list => list is null))
+        PolicySpec[][] routeChains = [.. host.Routes.Select(static _ => Array.Empty<PolicySpec>())];
+        if (host.Routes.Count == 0)
         {
-            return null;
+            // Nothing follows the host chain but the HTTPS redirect, which it would answer before a password is asked: so on
+            // a host that redirects, the password waits for the HTTPS request.
+            var redirects = host.Kind == HostKind.Admin || effective.ForceHttps;
+            return (effective.AccessList.Effective is { } only ? [new AccessListPolicySpec(only, AccessListStage.Full, redirects)] : [], routeChains);
         }
 
-        return new IpAllowListSettings(
-            [.. lists.SelectMany(list => list!.Addresses).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
-            lists.All(list => list!.DropDenied));
+        AccessListId?[] named = [.. host.Routes.Select(r => HostSettingsLayers.ResolveRouteAccessList(effective, r.Settings).Effective)];
+        var uniform = named.All(id => id == named[0]);
+        PolicySpec[] hostChain = [];
+        if (uniform && named[0] is { } shared)
+        {
+            var list = lists.GetValueOrDefault(shared);
+            if (list is null or { BasicAuth: null or { Users.Count: 0 } })
+            {
+                return ([new AccessListPolicySpec(shared)], routeChains);
+            }
+
+            hostChain = RefusesByAddress(list) ? [new AccessListPolicySpec(shared, AccessListStage.AddressOnly)] : [];
+        }
+        else if (!uniform && named.All(static id => id is not null))
+        {
+            AccessListId[] distinct = [.. named.Select(static id => id!.Value).Distinct()];
+            hostChain = distinct.All(id => lists.TryGetValue(id, out var list) && RefusesByAddress(list))
+                ? [new AccessListUnionPolicySpec(distinct)]
+                : [];
+        }
+
+        for (var j = 0; j < routeChains.Length; j++)
+        {
+            routeChains[j] = named[j] is { } id ? [new AccessListPolicySpec(id)] : [];
+        }
+
+        return (hostChain, routeChains);
     }
 
-    private static PolicySpec[] AllowListPolicy(IpAllowListSettings? allowList) =>
-        allowList is null ? [] : [new IpAllowListPolicySpec(allowList.Addresses, allowList.DropDenied)];
+    /// <summary>Whether the address rules alone can turn a request away before a route is known: a deny entry always, an
+    /// allow list unless a password can still let the others in.</summary>
+    private static bool RefusesByAddress(AccessListConfig list) =>
+        list.Ip is { } ip
+        && (ip.Deny.Count > 0 || (ip.Allow.Count > 0 && !(list.BasicAuth is { Users.Count: > 0 } && list.Satisfy == AccessListSatisfy.Any)));
+
+    private static IEnumerable<AccessListId> UsedLists(EffectiveHostSettings effective, HostConfig host)
+    {
+        if (effective.AccessList.Effective is { } own)
+        {
+            yield return own;
+        }
+
+        foreach (var route in host.Routes)
+        {
+            if (HostSettingsLayers.ResolveRouteAccessList(effective, route.Settings).Effective is { } id)
+            {
+                yield return id;
+            }
+        }
+    }
+
+    private static AccessListSpec MapAccessList(AccessListConfig list) => new()
+    {
+        Id = list.Id,
+        Name = list.Name,
+        Allow = list.Ip?.Allow ?? [],
+        Deny = list.Ip?.Deny ?? [],
+        DropDenied = list.Ip?.DropDenied ?? false,
+        Satisfy = list.Satisfy,
+        PassCredentialsUpstream = list.PassCredentialsUpstream,
+        Realm = list.BasicAuth?.Realm ?? list.Name,
+        Users = [.. (list.BasicAuth?.Users ?? []).Select(static u => new AccessListUserSpec(u.Username, u.PasswordHash ?? string.Empty))],
+    };
 
     /// <summary>
     /// One rate-limit policy's numbers. The validator has already judged them; a value the engine would throw on is

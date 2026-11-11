@@ -93,7 +93,8 @@ public sealed class RequestSimulatorEndToEndTests
         var draft = before.Document with
         {
             Upstreams = [Upstream("app", "http://127.0.0.1:9/")],
-            Hosts = [ProxyHost("app", "app.test", "app") with { Settings = new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) } }],
+            AccessLists = [new AccessListConfig(TestIds.AccessList("lan"), "lan", Ip: new AccessListIp(Allow: ["10.0.0.0/8"]))],
+            Hosts = [ProxyHost("app", "app.test", "app") with { Settings = new HostSettings { AccessList = new AccessListSettings { AccessListId = TestIds.AccessList("lan") } } }],
         };
 
         var blocked = await host.Shared.Simulator.SimulateAsync(new DraftDocumentSimulationTarget(draft), Request, Origin, ct);

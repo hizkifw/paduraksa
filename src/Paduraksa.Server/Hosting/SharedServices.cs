@@ -17,6 +17,7 @@ using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Vault;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
@@ -67,6 +68,7 @@ internal sealed class SharedServices : IAsyncDisposable
         EdgeRanges = Get<CloudflareEdgeRangeSource>();
         RangeReport = Get<CloudflareRangeReport>();
         RangeRefresher = _registrations.FirstOrDefault(static r => r.Key == typeof(CloudflareRangeRefresher)).Value as CloudflareRangeRefresher;
+        AccessLists = Get<AccessListRuntime>();
         LogFiles = Get<ServerLogFiles>();
         LogStore = Get<ILogFileStore>();
         Catalog = Get<ICertificateCatalog>();
@@ -168,6 +170,9 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The rate-limit engine's table, slots and counters; the compiler, the publisher and the public app share it.</summary>
     public RateLimitRuntime RateLimits { get; }
+
+    /// <summary>The access lists' verification cache and counters, shared by every compile.</summary>
+    public AccessListRuntime AccessLists { get; }
 
     /// <summary>
     /// The process's log files: the error log's writer and provider, and the access log's writer, which the access log's
@@ -272,6 +277,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // The rate-limit table, slots and counters: the compiler assigns pairs slots in this registry, the publisher
             // makes a live snapshot's pairs the live parameters, and every compiled policy takes from this table.
             var rateLimits = builder.Add(RateLimitServiceCollectionExtensions.CreateRuntime(configuration));
+            var accessLists = builder.Add(new AccessListRuntime(timeProvider));
             // Built here so its start time is the process's: the counters it reports begin at zero with them.
             builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
@@ -302,7 +308,7 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             var originPullCa = LoadOriginPullCa(options.Cloudflare.OriginPullCaFile);
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 

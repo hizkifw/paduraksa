@@ -17,6 +17,8 @@ namespace Paduraksa.Tests.Proxy.EndToEnd;
 /// </summary>
 public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {
+    private static readonly AccessListSpec Loopback = TestAccessLists.Allow("loopback", "127.0.0.1");
+
     private const int Connections = 4;
     private const int Warmup = 1_000;
     private const int Measured = 3_000;
@@ -39,6 +41,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         ProxyConfigModel model = new()
         {
             Upstreams = [Upstream("web", upstream.Address("a"))],
+            AccessLists = [Loopback],
             RateLimitPolicies =
             [
                 // Enough tokens for the whole measured run, so the allowed path stays allowed.
@@ -52,7 +55,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
                 {
                     Id = TestIds.Host("app"),
                     Names = ["app.test", "*.app.test"],
-                    Policies = [new IpAllowListPolicySpec(["127.0.0.1"])],
+                    Policies = [Loopback.Policy()],
                     Routes =
                     [
                         Route("app-blocked", "web", "/blocked") with { Policies = [new DenyPolicySpec()] },
@@ -154,16 +157,18 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
     [InlineData(TrustedProxyMode.Generic, "X-Forwarded-For", "203.0.113.5, 198.51.100.7, 127.0.0.2", "198.51.100.7")]
     public async Task ResolvingTheClientBehindTrustedProxiesAllocatesNothingOnKestrel(TrustedProxyMode mode, string header, string value, string expectedClient)
     {
+        var client = TestAccessLists.Allow("client", expectedClient);
         ProxyConfigModel model = new()
         {
             Upstreams = [Upstream("web", upstream.Address("a"))],
+            AccessLists = [client],
             Hosts =
             [
                 new HostSpec
                 {
                     Id = TestIds.Host("app"),
                     Names = ["app.test"],
-                    Policies = [new IpAllowListPolicySpec([expectedClient])],
+                    Policies = [client.Policy()],
                     Routes = [Route("app-root", "web")],
                 },
             ],
@@ -179,12 +184,12 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         // Loopback stands in for Cloudflare's edge.
         SnapshotCompilerOptions options = new() { CloudflareEdgeRanges = CidrSet.Parse(["127.0.0.0/8"]) };
         await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, CompilerOptions = options, ClientInfo = true });
-        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        using var http = ProxyTestServer.CreateClient(maxConnections: Connections);
         void WithHeader(HttpRequestMessage request) => request.Headers.TryAddWithoutValidation(header, value);
 
-        await SendAsync(server, client, "app.test", "/", HttpStatusCode.OK, Warmup, WithHeader);
+        await SendAsync(server, http, "app.test", "/", HttpStatusCode.OK, Warmup, WithHeader);
         server.GateStats!.Reset();
-        await SendAsync(server, client, "app.test", "/", HttpStatusCode.OK, Measured, WithHeader);
+        await SendAsync(server, http, "app.test", "/", HttpStatusCode.OK, Measured, WithHeader);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
         // Steady state is 0 B a request: one request in the run may carry a one-off of the runtime's own on that thread

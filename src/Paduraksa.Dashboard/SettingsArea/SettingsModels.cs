@@ -57,6 +57,15 @@ public static class HostSettingsEdit
         return settings with { RateLimit = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its access-list record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithAccessList(HostSettings settings, Func<AccessListSettings, AccessListSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.AccessList ?? new AccessListSettings());
+        return settings with { AccessList = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary><paramref name="settings"/> with its robots.txt record changed, and no record at all when nothing is left set.</summary>
     public static HostSettings WithRobots(HostSettings settings, Func<RobotsSettings, RobotsSettings> change)
     {
@@ -113,11 +122,6 @@ public static class SettingsSummary
         static (settings, _) => settings.Tls?.MinimumVersion is { } minimum ? $"{TlsText(minimum)} minimum" : null,
         static (settings, _) => settings.Tls?.TcpAlpn is { } alpn ? AlpnText(alpn) : null,
         static (settings, _) => settings.Tls?.Http3 is { } http3 ? (http3 ? "HTTP/3 on" : "HTTP/3 off") : null,
-
-        // Set but empty is not "no list": it overrides whatever list the layer below sets, so every client is let through again.
-        static (settings, _) => settings.IpAllowList is { } allow
-            ? (allow.Addresses.Count == 0 ? "Allow list: none (overrides the inherited one)" : $"Allow list: {allow.Addresses.Count} {(allow.Addresses.Count == 1 ? "entry" : "entries")}")
-            : null,
         static (settings, _) => settings.Hsts is { } hsts ? HstsText(hsts) : null,
         static (settings, _) => settings.AccessLog is { } accessLog ? (accessLog ? "Access log on" : "Access log off") : null,
         static (settings, _) => settings.RequestIdPropagation is { } propagation ? $"Request ID: {PropagationText(propagation)}" : null,
@@ -126,6 +130,7 @@ public static class SettingsSummary
         static (settings, document) => settings.RateLimit is { } rateLimit ? RateLimitText(rateLimit, document) : null,
         static (settings, _) => settings.Robots is { } robots ? RobotsSummary(robots) : null,
         static (settings, _) => settings.Cloudflare is { } cloudflare ? CloudflareText(cloudflare) : null,
+        static (settings, document) => settings.AccessList is { } accessList ? AccessListSummary(accessList, document) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -311,6 +316,27 @@ public static class SettingsSummary
         }
 
         return robots.Mode is { } mode ? $"robots.txt: {RobotsModeText(mode, robots.CustomText)}" : "robots.txt: custom text set";
+    }
+
+    private static string? AccessListSummary(AccessListSettings accessList, ConfigDocument? document)
+    {
+        if (accessList is { Enabled: null, AccessListId: null })
+        {
+            return null;
+        }
+
+        if (accessList.Enabled == false)
+        {
+            return "Access list off";
+        }
+
+        if (accessList.AccessListId is not { IsEmpty: false } id)
+        {
+            return "Access list: the inherited one";
+        }
+
+        var name = document?.AccessLists.FirstOrDefault(candidate => candidate.Id == id)?.Name;
+        return $"Access list: {name ?? "a list"}";
     }
 
     private static string? RateLimitText(RateLimitSettings rateLimit, ConfigDocument? document)

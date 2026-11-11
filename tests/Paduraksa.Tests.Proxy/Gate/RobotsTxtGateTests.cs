@@ -23,10 +23,13 @@ public sealed class RobotsTxtGateTests : IDisposable
     private static readonly RateLimitPolicyId Tight = TestIds.RateLimitPolicy("tight");
     private static readonly IPAddress Lan = IPAddress.Parse("10.0.0.5");
 
+    private static readonly AccessListSpec LockedList = TestAccessLists.Allow("locked", "10.0.0.5");
+
     private static readonly ProxyConfigModel Config = new()
     {
         Upstreams = [Upstream("web", "http://127.0.0.1:1/")],
         RateLimitPolicies = [new RateLimitPolicySpec { Id = Tight, Name = "tight", Parameters = new RateLimitParameters(1, 1) }],
+        AccessLists = [LockedList],
         Hosts =
         [
             ProxyHost("robots", "robots.test", Route("robots-root", "web")) with { Robots = DisallowAll },
@@ -39,7 +42,7 @@ public sealed class RobotsTxtGateTests : IDisposable
             ProxyHost("secure-robots", "secure-robots.test", Route("secure-root", "web")) with { ForceHttps = true, Robots = DisallowAll },
             ProxyHost("locked-robots", "locked-robots.test", Route("locked-root", "web")) with
             {
-                Policies = [new IpAllowListPolicySpec(["10.0.0.5"])],
+                Policies = [LockedList.Policy()],
                 Robots = DisallowAll,
             },
             ProxyHost("limited-robots", "limited-robots.test", Route("limited-root", "web") with { RateLimit = Tight }) with { Robots = DisallowAll },

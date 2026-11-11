@@ -18,9 +18,8 @@ namespace Paduraksa.Application.Compilation;
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
-/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>) merge field by field and stay absent when neither layer sets a field of
-/// theirs. The IP allow list replaces as a whole, and an empty one means no restriction (that is how a layer lifts an
-/// inherited list). Everything else is a plain override.</para>
+/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>) merge field by field and stay absent when
+/// neither layer sets a field of theirs. Everything else is a plain override.</para>
 /// </remarks>
 public static class HostSettingsLayers
 {
@@ -44,13 +43,13 @@ public static class HostSettingsLayers
     private const RobotsMode BuiltInRobotsMode = RobotsMode.Passthrough;
     private const OriginLockdownMode BuiltInOriginLockdown = OriginLockdownMode.Off;
     private const bool BuiltInAuthenticatedOriginPulls = false;
+    private const bool BuiltInAccessListEnabled = true;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
     {
         ForceHttps = BuiltInForceHttps,
         Tls = new TlsSettings { MinimumVersion = BuiltInMinimumTlsVersion, TcpAlpn = BuiltInTcpAlpn, Http3 = BuiltInHttp3 },
-        IpAllowList = null,
         Hsts = new HstsSettings { Enabled = BuiltInHstsEnabled, MaxAge = BuiltInHstsMaxAge, IncludeSubDomains = BuiltInHstsIncludeSubDomains, Preload = BuiltInHstsPreload },
         AccessLog = BuiltInAccessLog,
         RequestIdPropagation = BuiltInRequestIdPropagation,
@@ -64,6 +63,7 @@ public static class HostSettingsLayers
         RateLimit = new RateLimitSettings { Enabled = BuiltInRateLimitEnabled },
         Robots = new RobotsSettings { Mode = BuiltInRobotsMode },
         Cloudflare = new CloudflareSettings { OriginLockdown = BuiltInOriginLockdown, AuthenticatedOriginPulls = BuiltInAuthenticatedOriginPulls },
+        AccessList = new AccessListSettings { Enabled = BuiltInAccessListEnabled },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -83,7 +83,6 @@ public static class HostSettingsLayers
         {
             ForceHttps = upper.ForceHttps ?? lower.ForceHttps,
             Tls = Merge(lower.Tls, upper.Tls),
-            IpAllowList = upper.IpAllowList ?? lower.IpAllowList,
             Hsts = Merge(lower.Hsts, upper.Hsts),
             AccessLog = upper.AccessLog ?? lower.AccessLog,
             RequestIdPropagation = upper.RequestIdPropagation ?? lower.RequestIdPropagation,
@@ -92,6 +91,7 @@ public static class HostSettingsLayers
             RateLimit = Merge(lower.RateLimit, upper.RateLimit),
             Robots = Merge(lower.Robots, upper.Robots),
             Cloudflare = Merge(lower.Cloudflare, upper.Cloudflare),
+            AccessList = Merge(lower.AccessList, upper.AccessList),
         };
     }
 
@@ -235,13 +235,37 @@ public static class HostSettingsLayers
         return merged is { OriginLockdown: null, AuthenticatedOriginPulls: null } ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static AccessListSettings? Merge(AccessListSettings? lower, AccessListSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        AccessListSettings merged = new()
+        {
+            Enabled = upper.Enabled ?? lower?.Enabled,
+            AccessListId = upper.AccessListId ?? lower?.AccessListId,
+        };
+
+        return merged is { Enabled: null, AccessListId: null } ? null : merged;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));
 
-    /// <summary>The effective allow list of a route: its own when set, else the host's.</summary>
-    internal static IpAllowListSettings? ResolveRoute(EffectiveHostSettings host, RouteSettings? route) =>
-        route?.IpAllowList is { } own ? Restriction(own) : host.IpAllowList;
+    /// <summary>The effective access list of a route: the route's own switch and list, field by field, over the host's
+    /// resolved ones. So a route inherits, names another list, or turns the list off.</summary>
+    internal static HostAccessListSpec ResolveRouteAccessList(EffectiveHostSettings host, RouteSettings? route)
+    {
+        var own = route?.AccessList;
+        return own is null
+            ? host.AccessList
+            : new HostAccessListSpec { Enabled = own.Enabled ?? host.AccessList.Enabled, AccessListId = own.AccessListId ?? host.AccessList.AccessListId };
+    }
 
     /// <summary>The effective proof of work of a route: its own switch over the host's resolved values.</summary>
     internal static HostProofOfWorkSpec ResolveRouteProofOfWork(EffectiveHostSettings host, RouteSettings? route) =>
@@ -271,16 +295,6 @@ public static class HostSettingsLayers
     /// <summary>Whether the route's own layer decides its rate limit.</summary>
     internal static bool RouteOverridesRateLimit(RouteSettings? route) =>
         route?.RateLimit is { Enabled: not null } or { PolicyId: not null };
-
-    /// <summary>Whether two effective allow lists restrict the same way (both null, or the same addresses in the same
-    /// order and the same denial).</summary>
-    internal static bool SameRestriction(IpAllowListSettings? a, IpAllowListSettings? b) =>
-        (a, b) switch
-        {
-            (null, null) => true,
-            ({ } x, { } y) => x.DropDenied == y.DropDenied && x.Addresses.SequenceEqual(y.Addresses, StringComparer.Ordinal),
-            _ => false,
-        };
 
     /// <summary>
     /// Which of a host's layers set a field: the one to go and change when a message has to name it, or
@@ -324,6 +338,7 @@ public static class HostSettingsLayers
         var rateLimit = settings.RateLimit ?? new RateLimitSettings();
         var robots = settings.Robots ?? new RobotsSettings();
         var cloudflare = settings.Cloudflare ?? new CloudflareSettings();
+        var accessList = settings.AccessList ?? new AccessListSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -332,7 +347,6 @@ public static class HostSettingsLayers
                 TcpAlpn = tls.TcpAlpn ?? BuiltInTcpAlpn,
                 Http3 = tls.Http3 ?? BuiltInHttp3,
             },
-            Restriction(settings.IpAllowList),
             new HostHstsSpec
             {
                 Enabled = hsts.Enabled ?? BuiltInHstsEnabled,
@@ -372,12 +386,14 @@ public static class HostSettingsLayers
             {
                 OriginLockdown = cloudflare.OriginLockdown ?? BuiltInOriginLockdown,
                 AuthenticatedOriginPulls = cloudflare.AuthenticatedOriginPulls ?? BuiltInAuthenticatedOriginPulls,
+            },
+            new HostAccessListSpec
+            {
+                // Naming a list is enough: only a layer that says otherwise turns it off.
+                Enabled = accessList.Enabled ?? BuiltInAccessListEnabled,
+                AccessListId = accessList.AccessListId ?? AccessListId.Empty,
             });
     }
-
-    // An allow list without addresses restricts nothing.
-    private static IpAllowListSettings? Restriction(IpAllowListSettings? allowList) =>
-        allowList is { Addresses.Count: > 0 } ? allowList : null;
 }
 
 /// <summary>Which layer of a host's chain set a field, when a message has to name it.</summary>
@@ -396,7 +412,6 @@ public enum SettingsLayer
 /// <summary>A host's settings with every layer resolved, in <see cref="HostSettings"/>'s field order.</summary>
 /// <param name="ForceHttps">Redirect plain HTTP to HTTPS.</param>
 /// <param name="Tls">Concrete TLS settings.</param>
-/// <param name="IpAllowList">The allow list in force, or null for no restriction (never an empty list).</param>
 /// <param name="Hsts">Concrete HSTS settings.</param>
 /// <param name="AccessLog">Write a line per request to the access log (built-in default: on).</param>
 /// <param name="RequestIdPropagation">Where the request ID is sent (built-in default: upstream and response).</param>
@@ -405,10 +420,10 @@ public enum SettingsLayer
 /// <param name="RateLimit">The policy in force, with the switch as it resolved.</param>
 /// <param name="Robots">What the host answers at <c>/robots.txt</c>.</param>
 /// <param name="Cloudflare">Origin lockdown and Authenticated Origin Pulls.</param>
+/// <param name="AccessList">The access list in force, with the switch as it resolved.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
-    IpAllowListSettings? IpAllowList,
     HostHstsSpec Hsts,
     bool AccessLog,
     RequestIdPropagation RequestIdPropagation,
@@ -416,4 +431,5 @@ internal sealed record EffectiveHostSettings(
     HostProofOfWorkSpec ProofOfWork,
     HostRateLimitSpec RateLimit,
     HostRobotsSpec Robots,
-    HostCloudflareSpec Cloudflare);
+    HostCloudflareSpec Cloudflare,
+    HostAccessListSpec AccessList);

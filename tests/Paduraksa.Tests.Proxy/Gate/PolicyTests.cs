@@ -44,35 +44,6 @@ public sealed class PolicyTests
         Assert.Equal(PolicyDecision.Respond(Forbidden), Evaluate(new StaticPolicy(PolicyDecision.Respond(Forbidden)), context, state));
     }
 
-    [Theory]
-    [InlineData("192.0.2.1", true)]
-    [InlineData("::ffff:192.0.2.1", true)] // the IPv4-mapped spelling (TCP on [::]) is the same client
-    [InlineData("10.200.0.1", true)]
-    [InlineData("2001:db8::1", true)]
-    [InlineData("192.0.2.2", false)]
-    [InlineData("2001:db9::1", false)]
-    public void AllowListUsesTheResolvedClientAddress(string client, bool allowed)
-    {
-        IpAllowListPolicy policy = new(CidrSet.Parse(["192.0.2.1", "10.0.0.0/8", "2001:db8::/32"]), PolicyDecision.Respond(Forbidden));
-        var context = TestContexts.Create("a.test");
-        GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse(client), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
-
-        Assert.Equal(allowed ? PolicyDecision.Continue : PolicyDecision.Respond(Forbidden), Evaluate(policy, context, state));
-    }
-
-    [Fact]
-    public void AllowListDenialMustStopTheRequest() =>
-        Assert.Throws<ArgumentException>(() => new IpAllowListPolicy(CidrSet.Empty, PolicyDecision.Continue));
-
-    [Fact]
-    public void AllowListDoesNotAllocate()
-    {
-        IpAllowListPolicy policy = new(CidrSet.Parse(["192.0.2.0/24", "2001:db8::/32"]), PolicyDecision.Respond(Forbidden));
-        GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse("2001:db8::7"), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
-        (IpAllowListPolicy Policy, DefaultHttpContext Context, GateRequestState State) run = (policy, TestContexts.Create("a.test"), state);
-        AllocAssert.Zero(run, static r => _ = Evaluate(r.Policy, r.Context, r.State), "IpAllowListPolicy.Evaluate");
-    }
-
     [Fact]
     public void TheFormattedClientAddressIsCachedWhileTheClientRepeats()
     {

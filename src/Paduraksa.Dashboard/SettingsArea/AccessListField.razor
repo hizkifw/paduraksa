@@ -1,0 +1,144 @@
+@using Paduraksa.Contracts.Config
+@using Paduraksa.Core.Model
+@* One picker for a layer's access list: inherit what the layer below resolves, none, or one of the lists by name.
+   The three choices are the contract's AccessListSettings exactly: no record inherits, Enabled false is none, and a
+   list is Enabled true with its ID. A list is never shown by ID. *@
+<RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
+           ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New access list..." OnNew="@OnNew"
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+    <MudSelectItem T="string" Value="@InheritChoice">
+        <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
+    </MudSelectItem>
+    <MudSelectItem T="string" Value="@OffChoice">
+        <span class="pdk-picker-item"><span>No access list</span><span class="pdk-picker-hint">anyone may reach it</span></span>
+    </MudSelectItem>
+    @if (Missing is not null)
+    {
+        <MudSelectItem T="string" Value="@MissingChoice">
+            <span class="pdk-picker-item"><span>A list that isn't here</span><span class="pdk-picker-hint">choose another, or none</span></span>
+        </MudSelectItem>
+    }
+    @for (var i = 0; i < Lists.Count; i++)
+    {
+        var index = i;
+        var list = Lists[index];
+        <MudSelectItem T="string" Value="@ListChoice(index)">
+            <span class="pdk-picker-item">
+                <span>@list.Name</span>
+                @if (Staged.Contains(list.Id))
+                {
+                    <span class="pdk-chip pdk-tone-primary">New</span>
+                }
+                <span class="pdk-picker-hint">@AccessListText.Summary(list)</span>
+            </span>
+        </MudSelectItem>
+    }
+</RefPicker>
+
+@code {
+    private const string InheritChoice = "inherit";
+    private const string OffChoice = "off";
+    private const string MissingChoice = "missing";
+    private const string NewChoice = "new";
+
+    /// <summary>This layer's record; null inherits.</summary>
+    [Parameter]
+    public AccessListSettings? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<AccessListSettings?> ValueChanged { get; set; }
+
+    /// <summary>What the layer below resolves to, which the inherit choice names in words.</summary>
+    [Parameter, EditorRequired]
+    public AccessListSettings Inherited { get; set; } = new();
+
+    /// <summary>The lists a choice can name: the document's, and those staged in a host's draft.</summary>
+    [Parameter]
+    public IReadOnlyList<AccessListConfig> Lists { get; set; } = [];
+
+    /// <summary>The lists made in the host's drawer, marked "New".</summary>
+    [Parameter]
+    public IReadOnlySet<AccessListId> Staged { get; set; } = new HashSet<AccessListId>();
+
+    /// <summary>"New access list...": the caller opens the editor and selects what it hands back.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    /// <summary>The words of the inherit choice: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter]
+    public string Label { get; set; } = "Access list";
+
+    /// <summary>The <c>data-field</c> the tests and the browser select it by.</summary>
+    [Parameter]
+    public string Field { get; set; } = "access-list";
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>The list this layer names that the document doesn't have; it gets an option of its own so the select still says so.</summary>
+    private AccessListId? Missing =>
+        Value?.AccessListId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    private string Choice => Value switch
+    {
+        { Enabled: false } => OffChoice,
+        { AccessListId: { IsEmpty: false } id } when IndexOf(id) >= 0 => ListChoice(IndexOf(id)),
+        { AccessListId: { IsEmpty: false } } => MissingChoice,
+        _ => InheritChoice,
+    };
+
+    private string? ChoiceText(string? key) => key switch
+    {
+        InheritChoice => $"{InheritWord} ({AccessListText.Inherited(Inherited, Lists)})",
+        OffChoice => "No access list",
+        MissingChoice => "A list that isn't here",
+        _ when key is not null && key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Lists.Count => Lists[index].Name,
+        _ => string.Empty,
+    };
+
+    private int IndexOf(AccessListId id)
+    {
+        for (var i = 0; i < Lists.Count; i++)
+        {
+            if (Lists[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string ListChoice(int index) => $"p{index}";
+
+    private async Task OnChoiceAsync(string key)
+    {
+        if (key == InheritChoice)
+        {
+            await ValueChanged.InvokeAsync(null);
+        }
+        else if (key == OffChoice)
+        {
+            await ValueChanged.InvokeAsync(new AccessListSettings { Enabled = false });
+        }
+        else if (key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Lists.Count)
+        {
+            await ValueChanged.InvokeAsync(new AccessListSettings { Enabled = true, AccessListId = Lists[index].Id });
+        }
+    }
+}

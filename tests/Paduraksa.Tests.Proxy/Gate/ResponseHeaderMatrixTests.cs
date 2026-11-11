@@ -281,16 +281,19 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         AssertSet("Server=Paduraksa|Strict-Transport-Security|Alt-Svc|X-Request-Id=*", context);
     }
 
+    private static readonly AccessListSpec Private = TestAccessLists.Allow("private", "10.0.0.0/8");
+
     [Fact]
     public async Task ARefusalCarriesTheHeadersToo()
     {
         // A policy's 403 is the host's answer as much as a forwarded response.
         var model = Model() with
         {
+            AccessLists = [Private],
             Hosts =
             [
                 .. Model().Hosts.Select(h => h.Id == TestIds.Host("app")
-                    ? h with { Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])] }
+                    ? h with { Policies = [Private.Policy()] }
                     : h),
             ],
         };

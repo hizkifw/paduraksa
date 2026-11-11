@@ -121,14 +121,14 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
     {
         await CreateAdminHostAsync();
         var admin = Assert.Single((await _h.CurrentAsync()).Hosts);
+        var list = await CreateListAsync("10.0.0.0/8");
+        HostSettings guarded = new() { AccessList = new AccessListSettings { AccessListId = list } };
 
-        var refused = await _h.RunAsync(
-            new UpsertHostCommand(admin with { Settings = new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) } }), Proxied);
+        var refused = await _h.RunAsync(new UpsertHostCommand(admin with { Settings = guarded }), Proxied);
 
         AssertLockout(refused, "/hosts/0");
 
-        var forced = await _h.RunAsync(
-            new UpsertHostCommand(admin with { Settings = new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) } }) { Force = true }, Proxied);
+        var forced = await _h.RunAsync(new UpsertHostCommand(admin with { Settings = guarded }) { Force = true }, Proxied);
         Assert.Equal(ConfigCommandStatus.Committed, forced.Status);
     }
 
@@ -136,8 +136,10 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
     public async Task AProfilePolicyThatExcludesTheCallerIsRefusedThroughTheProxy()
     {
         var profileId = ProfileId.New();
+        var open = await CreateListAsync(Client.ToString());
+        var closed = await CreateListAsync("10.0.0.0/8");
         var profile = await _h.RunAsync(new UpsertProfileCommand(
-            new ProfileConfig(profileId, "locked", Settings: new HostSettings { IpAllowList = new IpAllowListSettings([Client.ToString()]) })));
+            new ProfileConfig(profileId, "locked", Settings: new HostSettings { AccessList = new AccessListSettings { AccessListId = open } })));
         Assert.Equal(ConfigCommandStatus.Committed, profile.Status);
 
         var id = HostId.New();
@@ -146,7 +148,7 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
         Assert.Equal(ConfigCommandStatus.Committed, admin.Status);
 
         var refused = await _h.RunAsync(new UpsertProfileCommand(
-            new ProfileConfig(profileId, "locked", Version: 1, Settings: new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) })), Proxied);
+            new ProfileConfig(profileId, "locked", Version: (await _h.CurrentAsync()).Profiles[0].Version, Settings: new HostSettings { AccessList = new AccessListSettings { AccessListId = closed } })), Proxied);
 
         AssertLockout(refused, "/hosts/0");
     }
@@ -295,6 +297,14 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
         Assert.Equal(path, error.Path);
         Assert.Equal(ConfigErrorCodes.HostAdminLockout, error.Code);
         Assert.Contains("force=true", error.Message, StringComparison.Ordinal);
+    }
+
+    private async Task<AccessListId> CreateListAsync(params string[] allow)
+    {
+        var id = AccessListId.New();
+        var created = await _h.RunAsync(new UpsertAccessListCommand(new AccessListConfig(id, $"list {id}", Ip: new AccessListIp(allow))));
+        Assert.Equal(ConfigCommandStatus.Committed, created.Status);
+        return id;
     }
 
     private async Task<HostId> CreateAdminHostAsync()

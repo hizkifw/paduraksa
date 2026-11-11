@@ -22,6 +22,10 @@ public sealed class HostSettingsFieldsTests
 
     private static readonly RateLimitPolicyId SamplePolicy = RateLimitPolicyId.New();
 
+    private static readonly AccessListId SampleList = AccessListId.New();
+
+    private static readonly AccessListConfig SampleListConfig = new(SampleList, "Office", Ip: new AccessListIp(["10.0.0.0/8"]));
+
     private static readonly RateLimitPolicyConfig SamplePolicyConfig = new(
         SamplePolicy, "Strict API", Requests: 10, Per: RateLimitPeriod.Second, Burst: 50);
 
@@ -30,7 +34,6 @@ public sealed class HostSettingsFieldsTests
     {
         ForceHttps = true,
         Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls13, TcpAlpn = TcpAlpn.Http11Only, Http3 = false },
-        IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]),
         Hsts = new HstsSettings { Enabled = true, MaxAge = HstsMaxAgePresets.SixMonths, IncludeSubDomains = true, Preload = true },
         AccessLog = false,
         RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
@@ -39,6 +42,7 @@ public sealed class HostSettingsFieldsTests
         RateLimit = new RateLimitSettings { PolicyId = SamplePolicy },
         Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
         Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true },
+        AccessList = new AccessListSettings { AccessListId = SampleList },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -97,25 +101,6 @@ public sealed class HostSettingsFieldsTests
             "Inherit (off)")
         {
             GroupKey = true,
-        },
-        new(
-            "ipAllowList",
-            "allow-list-set",
-            "/ipAllowList",
-            new HostSettings(),
-            async (fields, holder) =>
-            {
-                await Toggle(fields, "allow-list-set", true);
-                fields.Render(parameters => parameters.Add(f => f.Settings, holder.Value));
-                await Input(fields, "allow-list", "10.0.0.5");
-            },
-            new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.5"]) },
-            (fields, _) => Toggle(fields, "allow-list-set", false),
-            new HostSettings(),
-            "inherits 1 entry from the built-in defaults")
-        {
-            ValidatorPath = "/ipAllowList",
-            ShowsAtField = true,
         },
         // Group key: HSTS's errors are at maxAge and preload; the switch itself has none.
         new(
@@ -365,6 +350,34 @@ public sealed class HostSettingsFieldsTests
         {
             GroupKey = true,
         },
+        new(
+            "accessList.enabled",
+            "access-list",
+            "/accessList/enabled",
+            new HostSettings(),
+            (fields, _) => SetAccessList(fields, "off"),
+            new HostSettings { AccessList = new AccessListSettings { Enabled = false } },
+            (fields, _) => SetAccessList(fields, "inherit"),
+            new HostSettings(),
+            "Inherit (Office)")
+        {
+            ValidatorPath = "/accessList/enabled",
+            ShowsAtField = true,
+        },
+        new(
+            "accessList.accessListId",
+            "access-list",
+            "/accessList/accessListId",
+            new HostSettings(),
+            (fields, _) => SetAccessList(fields, "p0"),
+            new HostSettings { AccessList = new AccessListSettings { Enabled = true, AccessListId = SampleList } },
+            (fields, _) => SetAccessList(fields, "inherit"),
+            new HostSettings(),
+            "Inherit (Office)")
+        {
+            ValidatorPath = "/accessList/accessListId",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -600,7 +613,8 @@ public sealed class HostSettingsFieldsTests
             .Add(f => f.PathPrefix, "/settings")
             .Add(f => f.Errors, errors ?? new Dictionary<string, string>())
             .Add(f => f.ShowAll, true)
-            .Add(f => f.Policies, [SamplePolicyConfig]));
+            .Add(f => f.Policies, [SamplePolicyConfig])
+            .Add(f => f.AccessLists, [SampleListConfig]));
 
     private static Task SetSelect<T>(IRenderedComponent<HostSettingsFields> fields, string label, T? value)
         where T : struct =>
@@ -612,6 +626,12 @@ public sealed class HostSettingsFieldsTests
     private static Task SetRateLimit(IRenderedComponent<HostSettingsFields> fields, string key) =>
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
             .Single(select => select.Instance.Label == "Rate limit")
+            .Instance.ValueChanged.InvokeAsync(key));
+
+    /// <summary>Chooses the access-list picker's inherit, none, or nth-list item by its key.</summary>
+    private static Task SetAccessList(IRenderedComponent<HostSettingsFields> fields, string key) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Access list")
             .Instance.ValueChanged.InvokeAsync(key));
 
     private static async Task SetMaxAgeAsync(IRenderedComponent<HostSettingsFields> fields)
@@ -683,9 +703,8 @@ public sealed class HostSettingsFieldsTests
         HostSettings AfterClear,
         string? InheritText)
     {
-        /// <summary>A layer that shows the field when an error has to be displayed at it (the IP allow list's text field is
-        /// only there once the list is set).</summary>
-        public HostSettings ErrorLayer => Name == "ipAllowList" ? AfterSet : Layer;
+        /// <summary>A layer that shows the field when an error has to be displayed at it.</summary>
+        public HostSettings ErrorLayer => Layer;
 
         /// <summary>The validator's path for this field, when it has one; null is a <see cref="GroupKey"/> row.</summary>
         public string? ValidatorPath { get; init; }

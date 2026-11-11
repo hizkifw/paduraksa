@@ -17,6 +17,10 @@ internal static class ConfigSamples
     public static readonly RouteId ApiRoute = Id<RouteId>(2);
     public static readonly RateLimitPolicyId ApiPolicy = Id<RateLimitPolicyId>(1);
     public static readonly RateLimitPolicyId OtherPolicy = Id<RateLimitPolicyId>(2);
+    public static readonly AccessListId LanList = Id<AccessListId>(1);
+
+    /// <summary>One PBKDF2 hash for every sample user: making one is slow on purpose.</summary>
+    public static readonly string SampleHash = Paduraksa.Core.Security.PasswordHash.Create("sample");
 
     /// <summary>A small valid document: one profile, one upstream, a proxy, a redirect and a respond host.</summary>
     public static ConfigDocument Valid() => new(
@@ -25,7 +29,7 @@ internal static class ConfigSamples
             TrustedProxies: new TrustedProxySettings(TrustedProxyMode.Generic, ["10.0.0.0/8"])),
         Profiles:
         [
-            new ProfileConfig(LanProfile, "LAN only", Settings: new HostSettings { IpAllowList = new IpAllowListSettings(["192.168.0.0/16"]) }),
+            new ProfileConfig(LanProfile, "LAN only", Settings: new HostSettings { AccessList = new AccessListSettings { AccessListId = LanList } }),
         ],
         Upstreams:
         [
@@ -46,7 +50,8 @@ internal static class ConfigSamples
             new HostConfig(RedirectHost, ["old.example.com"], Kind: HostKind.Redirect, Redirect: new RedirectConfig("https://app.example.com")),
             new HostConfig(RespondHost, ["soon.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(503, "coming soon")),
         ],
-        RateLimitPolicies: [new RateLimitPolicyConfig(ApiPolicy, "api")]);
+        RateLimitPolicies: [new RateLimitPolicyConfig(ApiPolicy, "api")],
+        AccessLists: [new AccessListConfig(LanList, "lan", Ip: new AccessListIp(Allow: ["192.168.0.0/16"]))]);
 
     /// <summary>A deterministic ID: <paramref name="n"/> in the low bits of a UUIDv7-shaped value.</summary>
     public static T Id<T>(int n)
@@ -71,11 +76,30 @@ internal static class ConfigSamples
         string[] Some(string[] pool) => [.. pool.Where(_ => Coin())];
 
         string[] addresses = ["10.0.0.0/8", "192.168.1.0/24", "2001:db8::/32", "203.0.113.7", "::1"];
-        IpAllowListSettings AllowList()
+        AccessListConfig[] lists =
+        [
+            .. Enumerable.Range(0, random.Next(4)).Select(i =>
+            {
+                var allow = Some(addresses);
+                var deny = Some(addresses);
+                return new AccessListConfig(
+                    NewId<AccessListId>(),
+                    $"list {i}",
+                    Version: random.Next(5),
+                    Notes: Maybe(() => "list notes"),
+                    Ip: allow.Length + deny.Length == 0 ? null : new AccessListIp(allow, deny, DropDenied: Coin()),
+                    BasicAuth: Coin() ? null : new AccessListBasicAuth(
+                        Coin() ? null : "Members only",
+                        [.. Enumerable.Range(0, 1 + random.Next(2)).Select(u => new AccessListUserConfig($"user{u}", SampleHash))]),
+                    Satisfy: (AccessListSatisfy)random.Next(2),
+                    PassCredentialsUpstream: Coin());
+            }),
+        ];
+        AccessListSettings? ListReference() => Maybe(() => new AccessListSettings
         {
-            var list = Some(addresses);
-            return new IpAllowListSettings(list, DropDenied: list.Length > 0 && Coin());
-        }
+            Enabled = Coin() ? Coin() : null,
+            AccessListId = lists.Length > 0 && Coin() ? lists[random.Next(lists.Length)].Id : null,
+        });
 
         HostSettings Settings() => new()
         {
@@ -86,7 +110,7 @@ internal static class ConfigSamples
                 TcpAlpn = Coin() ? (TcpAlpn)random.Next(2) : null,
                 Http3 = Coin() ? Coin() : null,
             }),
-            IpAllowList = Maybe(AllowList),
+            AccessList = ListReference(),
             Hsts = Maybe(() => new HstsSettings
             {
                 Enabled = Coin() ? Coin() : null,
@@ -186,7 +210,7 @@ internal static class ConfigSamples
                                 Path: j == 0 ? "/" : $"/p{j}",
                                 Settings: new RouteSettings
                                 {
-                                    IpAllowList = Maybe(AllowList),
+                                    AccessList = ListReference(),
                                     // As on the host: off, so a generated document can't turn the gate on for the
                                     // compiled-behaviour reference. Enabled route overrides have their own tests.
                                     ProofOfWork = Maybe(() => new ProofOfWorkSettings { Enabled = false }),
@@ -210,7 +234,8 @@ internal static class ConfigSamples
             Profiles: profiles,
             Upstreams: upstreams,
             Hosts: hosts,
-            RateLimitPolicies: policies);
+            RateLimitPolicies: policies,
+            AccessLists: lists);
     }
 
     /// <summary>
@@ -229,8 +254,6 @@ internal static class ConfigSamples
         }
 
         string[] WithDuplicates(IReadOnlyList<string> values) => Shuffle(values.Concat(values.Where(_ => random.Next(2) == 0)));
-        IpAllowListSettings? AllowList(IpAllowListSettings? list) =>
-            list is null ? null : list with { Addresses = WithDuplicates([.. list.Addresses.Select(Respell)]) };
         string Respell(string address) => random.Next(3) switch
         {
             0 => $" {address} ",
@@ -240,12 +263,12 @@ internal static class ConfigSamples
         HostSettings Settings(HostSettings settings) => settings with
         {
             Tls = settings.Tls ?? (random.Next(2) == 0 ? new TlsSettings() : null),
-            IpAllowList = AllowList(settings.IpAllowList),
             // A layer that sets nothing is no layer (canonical JSON writes no key for it).
             Hsts = settings.Hsts ?? (random.Next(2) == 0 ? new HstsSettings() : null),
             ServerHeader = settings.ServerHeader ?? (random.Next(2) == 0 ? new ServerHeaderSettings() : null),
             ProofOfWork = settings.ProofOfWork ?? (random.Next(2) == 0 ? new ProofOfWorkSettings() : null),
             RateLimit = settings.RateLimit ?? (random.Next(2) == 0 ? new RateLimitSettings() : null),
+            AccessList = settings.AccessList ?? (random.Next(2) == 0 ? new AccessListSettings() : null),
         };
 
         return document with
@@ -272,13 +295,22 @@ internal static class ConfigSamples
                 Header = p.Header?.ToUpperInvariant(),
                 Notes = p.Notes ?? "   ",
             })),
+            AccessLists = Shuffle(document.AccessLists.Select(l => l with
+            {
+                Name = $"  {l.Name}\t",
+                Notes = l.Notes ?? "   ",
+                Ip = l.Ip is null ? new AccessListIp() : l.Ip with { Allow = WithDuplicates([.. l.Ip.Allow.Select(Respell)]), Deny = WithDuplicates([.. l.Ip.Deny.Select(Respell)]) },
+                BasicAuth = l.BasicAuth is null
+                    ? new AccessListBasicAuth(" ")
+                    : l.BasicAuth with { Realm = l.BasicAuth.Realm is null ? "  " : $" {l.BasicAuth.Realm} ", Users = Shuffle(l.BasicAuth.Users) },
+            })),
             Hosts = Shuffle(document.Hosts.Select(h => h with
             {
                 Names = WithDuplicates([.. h.Names.Select(n => random.Next(2) == 0 ? $" {n.ToUpperInvariant()}. " : n)]),
                 Settings = Settings(h.Settings),
                 // Routes keep their listed order: canonicalisation only reorders routes that differ in kind, path
                 // length or Order, and this list order is the final tiebreaker.
-                Routes = [.. h.Routes.Select(r => r with { Settings = r.Settings with { IpAllowList = AllowList(r.Settings.IpAllowList) } })],
+                Routes = h.Routes,
                 Tags = WithDuplicates([.. h.Tags.Select(t => $" {t.ToUpperInvariant()}")]),
                 Notes = h.Notes ?? string.Empty,
             })),

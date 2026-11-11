@@ -74,8 +74,11 @@
 
     <h4 class="pdk-setting-section">Access</h4>
 
-    <AllowListField Value="_current.IpAllowList" ValueChanged="@(value => Update(_current with { IpAllowList = value }, "/ipAllowList"))"
-                    Inherited="Inherited.IpAllowList" InheritedFrom="@InheritedFrom" Error="@FirstUnder("/ipAllowList")" ReadOnly="@ReadOnly" />
+    <SettingRow Title="Access list" Help="Who may reach it: the addresses a list allows or denies, and the users it asks a password of.">
+        <AccessListField Value="_current.AccessList" ValueChanged="SetAccessList" Inherited="@(Resolved.AccessList ?? new AccessListSettings())"
+                         Lists="AccessLists" Staged="StagedAccessLists" InheritWord="@InheritWord" OnNew="OnNewAccessList"
+                         Error="@AccessListError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
 
     <SettingRow Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately.">
         <RateLimitField Value="_current.RateLimit" ValueChanged="SetRateLimit" Inherited="@(Resolved.RateLimit ?? new RateLimitSettings())"
@@ -233,10 +236,6 @@
     [Parameter, EditorRequired]
     public HostSettings Inherited { get; set; } = HostSettingsLayers.BuiltIn;
 
-    /// <summary>Where the inherited values come from, in words ("the global defaults", "the built-in defaults").</summary>
-    [Parameter]
-    public string InheritedFrom { get; set; } = "the built-in defaults";
-
     /// <summary>The words of the "inherit" choice: "Inherit" or "Built-in default".</summary>
     [Parameter]
     public string InheritWord { get; set; } = "Inherit";
@@ -284,6 +283,18 @@
     [Parameter]
     public IReadOnlySet<RateLimitPolicyId> StagedRateLimits { get; set; } = new HashSet<RateLimitPolicyId>();
 
+    /// <summary>The access lists a host or a profile can pick, including those staged in a host's draft.</summary>
+    [Parameter]
+    public IReadOnlyList<AccessListConfig> AccessLists { get; set; } = [];
+
+    /// <summary>The access lists made in this host's drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<AccessListId> StagedAccessLists { get; set; } = new HashSet<AccessListId>();
+
+    /// <summary>"New access list..." in the picker: the host's drawer makes one and selects it.</summary>
+    [Parameter]
+    public EventCallback OnNewAccessList { get; set; }
+
     /// <summary>"New rate limit..." in the picker: the host's drawer makes one and selects it.</summary>
     [Parameter]
     public EventCallback OnNewRateLimit { get; set; }
@@ -322,6 +333,8 @@
     /// <summary>An error at either field the picker owns: the reference the validator refuses, or the old switch's path.</summary>
     private string? RateLimitError => E("/rateLimit/policyId") ?? E("/rateLimit/enabled");
 
+    private string? AccessListError => E("/accessList/accessListId") ?? E("/accessList/enabled");
+
     /// <summary>The custom value shows for a custom mode, or when this layer or an error has one to show.</summary>
     private bool ServerValueVisible =>
         _current.ServerHeader?.Mode == ServerHeaderMode.Custom || !string.IsNullOrEmpty(_current.ServerHeader?.Value) || E("/serverHeader/value") is not null;
@@ -359,6 +372,9 @@
     /// <summary>The picker's record: null (or one that sets nothing) is no layer at all, which is how a layer inherits.</summary>
     private Task SetRateLimit(RateLimitSettings? value) =>
         Update(HostSettingsEdit.WithRateLimit(_current, _ => value ?? new RateLimitSettings()), "/rateLimit/policyId");
+
+    private Task SetAccessList(AccessListSettings? value) =>
+        Update(HostSettingsEdit.WithAccessList(_current, _ => value ?? new AccessListSettings()), "/accessList/accessListId");
 
     /// <summary>Hands the changed layer to the form, then says which field changed (so its errors show and it revalidates).</summary>
     private async Task Update(HostSettings settings, string path)

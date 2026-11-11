@@ -105,7 +105,7 @@ public sealed class HostFormTests
     public void Editing_KeepsTheStoredVersion_AndWhatTheFormDoesNotShow()
     {
         var route = RouteId.New();
-        RouteSettings routeSettings = new() { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) };
+        RouteSettings routeSettings = new() { AccessList = new AccessListSettings { AccessListId = AccessListId.New() } };
         HostConfig stored = new(HostId.New(), ["app.example.com"], Version: 7, Routes: [new RouteConfig(route, App.Id, Path: "/api", Settings: routeSettings)], Tags: ["media"]);
 
         var model = HostEditModel.From(stored);
@@ -123,7 +123,7 @@ public sealed class HostFormTests
     public async Task TheRouteBrowserCheckSwitch_OverridesTheHost_AndKeepsTheRoutesOtherSettings()
     {
         var route = RouteId.New();
-        RouteSettings settings = new() { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) };
+        RouteSettings settings = new() { AccessList = new AccessListSettings { AccessListId = AccessListId.New() } };
         var stored = new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(route, App.Id, Settings: settings)]);
         var model = HostEditModel.From(stored);
         await using DashboardTestContext context = new();
@@ -140,7 +140,7 @@ public sealed class HostFormTests
 
         var kept = Assert.Single(model.ToConfig().Routes);
         Assert.Equal((route, false), (kept.Id, kept.Settings.ProofOfWork?.Enabled));
-        Assert.Same(settings.IpAllowList, kept.Settings.IpAllowList);
+        Assert.Same(settings.AccessList, kept.Settings.AccessList);
     }
 
     [Fact]

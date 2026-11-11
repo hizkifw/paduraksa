@@ -3,6 +3,7 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
@@ -12,7 +13,28 @@ namespace Paduraksa.Tests.Unit.Compilation;
 public sealed class ProxyConfigMappingTests
 {
     private static readonly ConfigRevisionId Revision = Id<ConfigRevisionId>(7);
-    private static readonly IpAllowListSettings Lan = new(["192.168.0.0/16"]);
+    private static readonly string Hash = Paduraksa.Core.Security.PasswordHash.Create("secret");
+    private static readonly AccessListConfig Lan = List(1, "lan", allow: ["192.168.0.0/16"]);
+    private static readonly AccessListConfig Ten = List(2, "ten", allow: ["10.0.0.0/8"], drop: true);
+    private static readonly AccessListConfig Seven = List(3, "seven", allow: ["192.168.1.7"], drop: true);
+    private static readonly AccessListConfig Passwords = List(4, "passwords", users: true);
+    private static readonly AccessListConfig LanOrPassword = List(5, "lan-or-password", allow: ["192.168.0.0/16"], users: true, satisfy: AccessListSatisfy.Any);
+    private static readonly AccessListConfig LanAndPassword = List(6, "lan-and-password", allow: ["192.168.0.0/16"], users: true);
+    private static readonly AccessListSettings Off = new() { Enabled = false };
+    private static readonly AccessListConfig[] AllLists = [Lan, Ten, Seven, Passwords, LanOrPassword, LanAndPassword];
+
+    private static AccessListConfig List(int id, string name, string[]? allow = null, bool drop = false, bool users = false, AccessListSatisfy satisfy = AccessListSatisfy.All) => new(
+        Id<AccessListId>(id),
+        name,
+        Ip: allow is null ? null : new AccessListIp(allow, DropDenied: drop),
+        BasicAuth: users ? new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Hash)]) : null,
+        Satisfy: satisfy);
+
+    private static AccessListSettings Use(AccessListConfig list) => new() { AccessListId = list.Id };
+
+    private static AccessListPolicySpec Full(AccessListConfig list) => new(list.Id);
+
+    private static AccessListPolicySpec AddressOnly(AccessListConfig list) => new(list.Id, AccessListStage.AddressOnly);
 
     [Fact]
     public void ARepresentativeDocumentMapsToTheExpectedModel()
@@ -23,7 +45,8 @@ public sealed class ProxyConfigMappingTests
                 UnknownHost: UnknownHostBehaviour.MisdirectedRequest,
                 DefaultCertificateId: Id<CertificateId>(1),
                 TrustedProxies: new TrustedProxySettings(TrustedProxyMode.Generic, [" 10.0.0.0/8 ", "192.168.1.1/32"], Header: "X-Real-IP")),
-            Profiles: [new ProfileConfig(LanProfile, "LAN only", Settings: new HostSettings { Tls = new TlsSettings { Http3 = false }, IpAllowList = Lan })],
+            Profiles: [new ProfileConfig(LanProfile, "LAN only", Settings: new HostSettings { Tls = new TlsSettings { Http3 = false }, AccessList = Use(Lan) })],
+            AccessLists: [Lan, Ten],
             Upstreams:
             [
                 new UpstreamConfig(
@@ -46,13 +69,13 @@ public sealed class ProxyConfigMappingTests
                     Routes:
                     [
                         new RouteConfig(RootRoute, AppUpstream, Order: 10),
-                        new RouteConfig(ApiRoute, Id<UpstreamId>(2), Path: "/api", Settings: new RouteSettings { IpAllowList = new IpAllowListSettings([]) }),
+                        new RouteConfig(ApiRoute, Id<UpstreamId>(2), Path: "/api", Settings: new RouteSettings { AccessList = Off }),
                         new RouteConfig(
                             Id<RouteId>(3),
                             AppUpstream,
                             Match: RouteMatchKind.Exact,
                             Path: "/admin",
-                            Settings: new RouteSettings { IpAllowList = new IpAllowListSettings(["192.168.1.0/24"], DropDenied: true) }),
+                            Settings: new RouteSettings { AccessList = Use(Ten) }),
                     ]),
                 new HostConfig(
                     Id<HostId>(2),
@@ -92,13 +115,14 @@ public sealed class ProxyConfigMappingTests
                             Match = RouteMatchKind.Exact,
                             Path = "/admin",
                             Upstream = AppUpstream,
-                            Policies = [new IpAllowListPolicySpec(["192.168.1.0/24"], DropDenied: true)],
+                            Policies = [Full(Ten)],
                         },
                         new RouteSpec { Id = ApiRoute, Path = "/api", Upstream = Id<UpstreamId>(2), Policies = [] },
-                        new RouteSpec { Id = RootRoute, Order = 10, Upstream = AppUpstream, Policies = [new IpAllowListPolicySpec(["192.168.0.0/16"])] },
+                        new RouteSpec { Id = RootRoute, Order = 10, Upstream = AppUpstream, Policies = [Full(Lan)] },
                     ],
                     Policies = [],
                     RateLimit = new HostRateLimitSpec { Enabled = true },
+                    AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Lan.Id },
                 },
                 new HostSpec
                 {
@@ -108,6 +132,7 @@ public sealed class ProxyConfigMappingTests
                     Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
                     Routes = [new RouteSpec { Id = Id<RouteId>(4), Upstream = AppUpstream }],
                     RateLimit = new HostRateLimitSpec { Enabled = true },
+                    AccessList = new HostAccessListSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -116,9 +141,11 @@ public sealed class ProxyConfigMappingTests
                     Kind = HostKind.Redirect,
                     ForceHttps = true,
                     Tls = lanTls,
-                    Policies = [new IpAllowListPolicySpec(["192.168.0.0/16"])],
+                    // No route to ask a password on, and the host redirects: the list is the host chain's, its password deferred.
+                    Policies = [new AccessListPolicySpec(Lan.Id, AccessListStage.Full, DeferPasswordsOnPlainHttp: true)],
                     Redirect = new RedirectSpec { Target = "https://app.example.com", StatusCode = 308 },
                     RateLimit = new HostRateLimitSpec { Enabled = true },
+                    AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Lan.Id },
                 },
                 new HostSpec
                 {
@@ -130,7 +157,13 @@ public sealed class ProxyConfigMappingTests
                     Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
                     Respond = new RespondSpec { StatusCode = 503, Body = "soon" },
                     RateLimit = new HostRateLimitSpec { Enabled = true },
+                    AccessList = new HostAccessListSpec { Enabled = true },
                 },
+            ],
+            AccessLists =
+            [
+                new AccessListSpec { Id = Lan.Id, Name = "lan", Realm = "lan", Allow = ["192.168.0.0/16"] },
+                new AccessListSpec { Id = Ten.Id, Name = "ten", Realm = "ten", Allow = ["10.0.0.0/8"], DropDenied = true },
             ],
             Upstreams =
             [
@@ -186,71 +219,165 @@ public sealed class ProxyConfigMappingTests
     public void WithoutRouteOverridesTheListGuardsTheWholeHost()
     {
         // Also when a route "overrides" it with the same list.
-        var host = MapOnlyHost(
-            new HostSettings { IpAllowList = Lan },
-            new RouteSettings(),
-            new RouteSettings { IpAllowList = new IpAllowListSettings([" 192.168.0.0/16", "192.168.0.0/16"]) });
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(Lan) }, new RouteSettings(), new RouteSettings { AccessList = Use(Lan) });
 
-        Assert.Equal(["192.168.0.0/16"], Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Policies)).Addresses);
+        Assert.Equal(Full(Lan), Assert.Single(host.Policies));
         Assert.All(host.Routes, r => Assert.Empty(r.Policies));
     }
 
     [Fact]
-    public void RoutesThatAllOverrideAlikeGuardTheWholeHost()
+    public void RoutesThatAllNameTheSameListGuardTheWholeHost()
     {
-        var host = MapOnlyHost(null, new RouteSettings { IpAllowList = Lan }, new RouteSettings { IpAllowList = Lan });
+        var host = MapOnlyHost(null, new RouteSettings { AccessList = Use(Lan) }, new RouteSettings { AccessList = Use(Lan) });
 
-        Assert.Equal(Lan.Addresses, Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Policies)).Addresses);
+        Assert.Equal(Full(Lan), Assert.Single(host.Policies));
         Assert.All(host.Routes, r => Assert.Empty(r.Policies));
     }
 
     [Fact]
-    public void ARouteCanTightenTheHostsList()
+    public void ARouteCanNameAnotherList()
     {
-        var host = MapOnlyHost(
-            new HostSettings { IpAllowList = Lan },
-            new RouteSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"], DropDenied: true) },
-            new RouteSettings { IpAllowList = new IpAllowListSettings(["192.168.1.7"], DropDenied: true) });
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(Lan) }, new RouteSettings { AccessList = Use(Ten) }, new RouteSettings { AccessList = Use(Seven) });
 
-        // Each route carries its own list, so an override replaces the host's instead of stacking under it; the host
-        // chain carries their union, so a client no route admits can't tell the paths apart. Every route drops.
-        Assert.Equal(new IpAllowListPolicySpec(["10.0.0.0/8", "192.168.1.7"], DropDenied: true), Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Policies)), AllowListComparer.Instance);
-        Assert.Equal(new IpAllowListPolicySpec(["10.0.0.0/8"], DropDenied: true), Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Routes[0].Policies)), AllowListComparer.Instance);
-        Assert.Equal(new IpAllowListPolicySpec(["192.168.1.7"], DropDenied: true), Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Routes[1].Policies)), AllowListComparer.Instance);
+        // Each route carries its own list, so an override replaces the host's instead of stacking under it; the host chain
+        // carries their address rules together, so a client no route admits can't tell the paths apart.
+        Assert.Equal([Ten.Id, Seven.Id], Assert.IsType<AccessListUnionPolicySpec>(Assert.Single(host.Policies)).Lists);
+        Assert.Equal(Full(Ten), Assert.Single(host.Routes[0].Policies));
+        Assert.Equal(Full(Seven), Assert.Single(host.Routes[1].Policies));
     }
 
     [Fact]
-    public void TheUnionDropsOnlyWhenEveryRouteDrops()
+    public void TheUnionNamesEachListOnceInRouteOrder()
     {
-        var host = MapOnlyHost(
-            new HostSettings { IpAllowList = Lan },
-            new RouteSettings(),
-            new RouteSettings { IpAllowList = new IpAllowListSettings(["192.168.1.7", "10.0.0.1"], DropDenied: true) });
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(Lan) }, new RouteSettings(), new RouteSettings { AccessList = Use(Seven) });
 
-        Assert.Equal(new IpAllowListPolicySpec(["10.0.0.1", "192.168.0.0/16", "192.168.1.7"]), Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Policies)), AllowListComparer.Instance);
-        Assert.Equal(new IpAllowListPolicySpec(Lan.Addresses), Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Routes[0].Policies)), AllowListComparer.Instance);
-        Assert.Equal(new IpAllowListPolicySpec(["10.0.0.1", "192.168.1.7"], DropDenied: true), Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Routes[1].Policies)), AllowListComparer.Instance);
+        Assert.Equal([Lan.Id, Seven.Id], Assert.IsType<AccessListUnionPolicySpec>(Assert.Single(host.Policies)).Lists);
+        Assert.Equal(Full(Lan), Assert.Single(host.Routes[0].Policies));
+        Assert.Equal(Full(Seven), Assert.Single(host.Routes[1].Policies));
     }
 
     [Fact]
-    public void ARouteCanLiftTheHostsList()
+    public void ARouteCanTurnTheHostsListOff()
     {
-        var host = MapOnlyHost(new HostSettings { IpAllowList = Lan }, new RouteSettings(), new RouteSettings { IpAllowList = new IpAllowListSettings([]) });
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(Lan) }, new RouteSettings(), new RouteSettings { AccessList = Off });
 
         // Anyone may reach the lifted route, so the host chain hides nothing.
         Assert.Empty(host.Policies);
-        Assert.Equal(Lan.Addresses, Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Routes[0].Policies)).Addresses);
+        Assert.Equal(Full(Lan), Assert.Single(host.Routes[0].Policies));
         Assert.Empty(host.Routes[1].Policies);
     }
 
     [Fact]
-    public void ARouteCanRestrictAnUnrestrictedHost()
+    public void ARouteCanGuardAnUnguardedHost()
     {
-        var host = MapOnlyHost(null, new RouteSettings(), new RouteSettings { IpAllowList = Lan });
+        var host = MapOnlyHost(null, new RouteSettings(), new RouteSettings { AccessList = Use(Lan) });
 
         Assert.Empty(host.Policies);
         Assert.Empty(host.Routes[0].Policies);
-        Assert.Equal(Lan.Addresses, Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Routes[1].Policies)).Addresses);
+        Assert.Equal(Full(Lan), Assert.Single(host.Routes[1].Policies));
+    }
+
+    [Fact]
+    public void ARouteKeepsTheReferenceWhileItIsOff()
+    {
+        var host = MapOnlyHost(null, new RouteSettings(), new RouteSettings { AccessList = new AccessListSettings { Enabled = false, AccessListId = Lan.Id } });
+
+        Assert.All(host.Routes, r => Assert.Empty(r.Policies));
+        Assert.Empty(host.Policies);
+    }
+
+    [Fact]
+    public void PasswordsAreAskedOnTheRouteAndTheHostChainOnlyRefusesByAddress()
+    {
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(LanAndPassword) }, new RouteSettings(), new RouteSettings());
+
+        Assert.Equal(AddressOnly(LanAndPassword), Assert.Single(host.Policies));
+        Assert.All(host.Routes, r => Assert.Equal(Full(LanAndPassword), Assert.Single(r.Policies)));
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(4)]
+    public void AListThatNoAddressCanRefuseLeavesTheHostChainEmpty(int list)
+    {
+        // Satisfy "any" with an allow list, or users alone: only the password can turn a request away, and it is asked on the route.
+        var config = AllLists.Single(l => l.Id == Id<AccessListId>(list));
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(config) }, new RouteSettings(), new RouteSettings());
+
+        Assert.Empty(host.Policies);
+        Assert.All(host.Routes, r => Assert.Equal(Full(config), Assert.Single(r.Policies)));
+    }
+
+    [Fact]
+    public void ADenyEntryRefusesByAddressWhateverTheSatisfyMode()
+    {
+        AccessListConfig vetoed = LanOrPassword with { Id = Id<AccessListId>(7), Ip = new AccessListIp(Allow: ["192.168.0.0/16"], Deny: ["192.168.9.0/24"]) };
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(vetoed) }, new RouteSettings(), new RouteSettings(), vetoed);
+
+        Assert.Equal(AddressOnly(vetoed), Assert.Single(host.Policies));
+    }
+
+    [Fact]
+    public void AHostWithoutRoutesCarriesTheWholeListAndDefersPasswordsOnlyWhenItRedirects()
+    {
+        foreach (var (forceHttps, deferred) in new[] { (true, true), (false, false) })
+        {
+            var document = Document(null, null, new HostSettings { ForceHttps = forceHttps, AccessList = Use(Passwords) });
+            var host = document.Hosts[0] with { Kind = HostKind.Respond, Routes = [], Respond = new RespondConfig(503, "soon"), Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } };
+
+            var mapped = Assert.Single(ProxyConfigMapping.Map(document with { Hosts = [host], AccessLists = AllLists }, Revision, CertificateInventory.Empty).Model.Hosts);
+
+            Assert.Equal(new AccessListPolicySpec(Passwords.Id, AccessListStage.Full, deferred), Assert.Single(mapped.Policies));
+        }
+    }
+
+    [Fact]
+    public void AHostThatAsksForPasswordsOverPlainHttpIsWarnedAbout()
+    {
+        var mapped = (bool forceHttps) => ProxyConfigMapping.Map(
+            Document(null, null, new HostSettings { ForceHttps = forceHttps, AccessList = Use(Passwords) }) with { AccessLists = AllLists }, Revision, CertificateInventory.Empty);
+
+        Assert.Contains(mapped(false).Warnings, w => w.Code == ConfigWarningCodes.AccessListInsecureCredentials);
+        Assert.DoesNotContain(mapped(true).Warnings, w => w.Code == ConfigWarningCodes.AccessListInsecureCredentials);
+    }
+
+    [Fact]
+    public void AnAddressOnlyListNeverWarnsAboutPasswords()
+    {
+        var document = Document(null, null, new HostSettings { AccessList = Use(Lan) }) with { AccessLists = AllLists };
+
+        Assert.DoesNotContain(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Warnings, w => w.Code == ConfigWarningCodes.AccessListInsecureCredentials);
+    }
+
+    [Fact]
+    public void AnAccessListMapsItsAddressesUsersRealmAndSatisfyMode()
+    {
+        AccessListConfig config = new(
+            Id<AccessListId>(9),
+            "Staff area",
+            Ip: new AccessListIp([" 10.0.0.0/8", "10.0.0.0/8", "192.168.1.7/32"], ["::ffff:10.9.0.0/112"], DropDenied: true),
+            BasicAuth: new AccessListBasicAuth(" Staff only ", [new AccessListUserConfig("bob", Hash), new AccessListUserConfig("alice", Hash)]),
+            Satisfy: AccessListSatisfy.Any,
+            PassCredentialsUpstream: true);
+
+        var spec = Assert.Single(ProxyConfigMapping.Map(Document(null, null, null) with { AccessLists = [config] }, Revision, CertificateInventory.Empty).Model.AccessLists);
+
+        Assert.Equal(["10.0.0.0/8", "192.168.1.7"], spec.Allow);
+        Assert.Equal(["10.9.0.0/16"], spec.Deny);
+        Assert.True(spec.DropDenied);
+        Assert.True(spec.PassCredentialsUpstream);
+        Assert.Equal(AccessListSatisfy.Any, spec.Satisfy);
+        Assert.Equal("Staff only", spec.Realm);
+        Assert.Equal(["alice", "bob"], spec.Users.Select(u => u.Username));
+        Assert.All(spec.Users, u => Assert.Equal(Hash, u.PasswordHash));
+    }
+
+    [Fact]
+    public void TheRealmIsTheListsNameUnlessItSaysOtherwise()
+    {
+        var spec = Assert.Single(ProxyConfigMapping.Map(Document(null, null, null) with { AccessLists = [List(1, "  Family  ", users: true)] }, Revision, CertificateInventory.Empty).Model.AccessLists);
+
+        Assert.Equal("Family", spec.Realm);
     }
 
     [Fact]
@@ -272,14 +399,18 @@ public sealed class ProxyConfigMappingTests
     }
 
     [Fact]
-    public void AnEmptyListLiftsAnInheritedOne()
+    public void AHostCanTurnAnInheritedListOff()
     {
         var document = Document(
-            defaults: new HostSettings { IpAllowList = Lan },
+            defaults: new HostSettings { AccessList = Use(Lan) },
             profile: new HostSettings(),
-            host: new HostSettings { IpAllowList = new IpAllowListSettings([]) });
+            host: new HostSettings { AccessList = Off }) with
+        { AccessLists = AllLists };
 
-        Assert.Empty(Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts).Policies);
+        var host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
+
+        Assert.Empty(host.Policies);
+        Assert.Equal(new HostAccessListSpec { Enabled = false, AccessListId = Lan.Id }, host.AccessList);
     }
 
     [Fact]
@@ -513,9 +644,9 @@ public sealed class ProxyConfigMappingTests
 
     // One proxy host with two equally specific routes ("/a" and "/b") under a profile-less, default-less document,
     // so their listed order is the evaluation order and each index is the route the caller passed.
-    private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second)
+    private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second, params AccessListConfig[] more)
     {
-        var document = Document(null, null, host);
+        var document = Document(null, null, host) with { AccessLists = [.. AllLists, .. more] };
         var config = document.Hosts[0] with
         {
             Routes = [new RouteConfig(RootRoute, AppUpstream, Path: "/a", Settings: first), new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: second)],
@@ -528,14 +659,4 @@ public sealed class ProxyConfigMappingTests
         Profiles: profile is null ? [] : [new ProfileConfig(LanProfile, "profile", Settings: profile)],
         Upstreams: [new UpstreamConfig(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "http://app")])],
         Hosts: [new HostConfig(AppHost, ["app.example.com"], ProfileId: profile is null ? null : LanProfile, Settings: host, Routes: [new RouteConfig(RootRoute, AppUpstream)])]);
-
-    private sealed class AllowListComparer : IEqualityComparer<IpAllowListPolicySpec>
-    {
-        public static readonly AllowListComparer Instance = new();
-
-        public bool Equals(IpAllowListPolicySpec? x, IpAllowListPolicySpec? y) =>
-            x is not null && y is not null && x.DropDenied == y.DropDenied && x.Addresses.SequenceEqual(y.Addresses, StringComparer.Ordinal);
-
-        public int GetHashCode(IpAllowListPolicySpec obj) => obj.DropDenied.GetHashCode();
-    }
 }

@@ -293,6 +293,7 @@ public sealed class AccessLogEndToEndTests
                 new UpstreamSpec { Id = TestIds.Upstream("app"), Destinations = [new(TestIds.Destination("app-1"), upstream.Address)] },
                 new UpstreamSpec { Id = TestIds.Upstream("dead"), Destinations = [new(TestIds.Destination("dead-1"), deadAddress ?? upstream.Address)] },
             ],
+            AccessLists = [TestAccessLists.Allow("lan", "10.0.0.5")],
             Hosts =
             [
                 new HostSpec
@@ -319,7 +320,7 @@ public sealed class AccessLogEndToEndTests
                     {
                         Id = TestIds.Host("blocked"),
                         Names = ["blocked.test"],
-                        Policies = [new IpAllowListPolicySpec(["10.0.0.5"])],
+                        Policies = [TestAccessLists.Allow("lan", "10.0.0.5").Policy()],
                         Routes = [new RouteSpec { Id = TestIds.Route("blocked-root"), Upstream = TestIds.Upstream("app") }],
                     },
                 new HostSpec { Id = TestIds.Host("secure"), Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Id = TestIds.Route("secure-root"), Upstream = TestIds.Upstream("app") }] },

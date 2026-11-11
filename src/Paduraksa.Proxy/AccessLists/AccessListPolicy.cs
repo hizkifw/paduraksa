@@ -55,14 +55,16 @@ public sealed class AccessListPolicy : IRequestPolicy
     private readonly CompiledAccessList _list;
     private readonly AccessListStage _stage;
     private readonly AccessListRuntime _runtime;
+    private readonly bool _deferPasswords;
 
-    internal AccessListPolicy(CompiledAccessList list, AccessListStage stage, AccessListRuntime runtime)
+    internal AccessListPolicy(CompiledAccessList list, AccessListStage stage, AccessListRuntime runtime, bool deferPasswordsOnPlainHttp = false)
     {
         ArgumentNullException.ThrowIfNull(list);
         ArgumentNullException.ThrowIfNull(runtime);
         _list = list;
         _stage = stage;
         _runtime = runtime;
+        _deferPasswords = deferPasswordsOnPlainHttp;
     }
 
     public CompiledAccessList List => _list;
@@ -130,6 +132,12 @@ public sealed class AccessListPolicy : IRequestPolicy
         {
             _runtime.Stats.CountAllowed();
             return new AccessListOutcome(PolicyDecision.Continue, ip, CredentialVerdict.NotAsked);
+        }
+
+        if (_deferPasswords && !state.IsHttps)
+        {
+            _runtime.Stats.CountAllowed();
+            return new AccessListOutcome(PolicyDecision.Continue, ip, CredentialVerdict.Deferred);
         }
 
         var credentials = Authenticate(request.Http.Request, client, request.IsSimulation);
@@ -281,6 +289,9 @@ internal enum CredentialVerdict : byte
     Verified,
     VerifiedFromCache,
     Busy,
+
+    /// <summary>A plain-HTTP request to a host that redirects: the password is asked after the redirect.</summary>
+    Deferred,
 }
 
 internal readonly record struct AccessListOutcome(PolicyDecision Decision, AddressVerdict Address, CredentialVerdict Credentials);

@@ -47,4 +47,8 @@ public static class ConfigWarningCodes
     /// <summary>The trusted-proxy mode is <c>CloudflareProxy</c> and the list of Cloudflare's edge ranges is older than 30
     /// days, or several refreshes in a row failed.</summary>
     public const string CloudflareRangesStale = "cloudflare.ranges.stale";
+
+    /// <summary>An access list with users guards a host that also answers plain HTTP without forcing HTTPS, so a password
+    /// could travel in the clear.</summary>
+    public const string AccessListInsecureCredentials = "accessList.insecureCredentials";
 }

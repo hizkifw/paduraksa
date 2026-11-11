@@ -56,14 +56,6 @@ public sealed class SettingsInheritanceTests
             First: "false",
             Second: "true"),
         new(
-            "ipAllowList",
-            static s => s.IpAllowList is { } list ? string.Join(' ', list.Addresses) : null,
-            static v => new HostSettings { IpAllowList = new IpAllowListSettings([.. v.Split(' ')]) },
-            static h => h.Policies.OfType<IpAllowListPolicySpec>().FirstOrDefault() is { } list ? string.Join(' ', list.Addresses) : null,
-            BuiltIn: null,
-            First: "10.0.0.0/8",
-            Second: "192.168.1.0/24"),
-        new(
             "hsts.enabled",
             static s => s.Hsts?.Enabled?.ToString().ToLowerInvariant(),
             static v => new HostSettings { Hsts = new HstsSettings { Enabled = bool.Parse(v) } },
@@ -212,6 +204,22 @@ public sealed class SettingsInheritanceTests
             BuiltIn: "false",
             First: "true",
             Second: "false"),
+        new(
+            "accessList.enabled",
+            static s => s.AccessList?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { AccessList = new AccessListSettings { Enabled = bool.Parse(v) } },
+            static h => h.AccessList.Enabled ? "true" : "false",
+            BuiltIn: "true",
+            First: "false",
+            Second: "true"),
+        new(
+            "accessList.accessListId",
+            static s => s.AccessList?.AccessListId?.ToString(),
+            static v => new HostSettings { AccessList = new AccessListSettings { AccessListId = AccessListId.Parse(v) } },
+            static h => h.AccessList.AccessListId.IsEmpty ? null : h.AccessList.AccessListId.ToString(),
+            BuiltIn: null,
+            First: Id<AccessListId>(1).ToString()!,
+            Second: Id<AccessListId>(2).ToString()!),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -417,6 +425,11 @@ public sealed class SettingsInheritanceTests
             new RateLimitPolicyConfig(Id<RateLimitPolicyId>(1), "one"),
             new RateLimitPolicyConfig(Id<RateLimitPolicyId>(2), "two"),
         ],
+        AccessLists:
+        [
+            new AccessListConfig(Id<AccessListId>(1), "one"),
+            new AccessListConfig(Id<AccessListId>(2), "two"),
+        ],
         Hosts: [new HostConfig(AppHost, ["app.example.com"], ProfileId: profile is null ? null : LanProfile, Settings: host, Routes: [new RouteConfig(RootRoute, AppUpstream)])]);
 
     /// <summary>One nested settings record and which of its fields each layer sets.</summary>
@@ -444,6 +457,7 @@ public sealed class SettingsInheritanceTests
         new("rateLimit", Defaults: ["rateLimit.enabled"], Profile: [], Host: ["rateLimit.policyId"]),
         new("robots", Defaults: ["robots.customText"], Profile: ["robots.mode"], Host: []),
         new("cloudflare", Defaults: ["cloudflare.originLockdown"], Profile: [], Host: ["cloudflare.authenticatedOriginPulls"]),
+        new("accessList", Defaults: ["accessList.enabled"], Profile: [], Host: ["accessList.accessListId"]),
     ];
 
     /// <summary>

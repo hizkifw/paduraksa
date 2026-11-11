@@ -72,6 +72,8 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(IReadOnlyList<UpstreamConfig>))]
 [JsonSerializable(typeof(RateLimitPolicyConfig))]
 [JsonSerializable(typeof(IReadOnlyList<RateLimitPolicyConfig>))]
+[JsonSerializable(typeof(AccessListConfig))]
+[JsonSerializable(typeof(IReadOnlyList<AccessListConfig>))]
 [JsonSerializable(typeof(ProfileConfig))]
 [JsonSerializable(typeof(IReadOnlyList<ProfileConfig>))]
 [JsonSerializable(typeof(RouteConfig))]

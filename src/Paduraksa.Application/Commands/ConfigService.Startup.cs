@@ -93,6 +93,11 @@ public sealed partial class ConfigService
             return await StartOnLastKnownGoodAsync(database.Problem, acceptsCommands: false, lastGood, lastGoodProblem, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
+        if (database is { Upgraded: true, Latest: not null } && await WriteUpgradedAsync(database, lastGood, cancellationToken).ConfigureAwait(false) is { } upgraded)
+        {
+            return upgraded;
+        }
+
         var revisionId = database.Latest?.Info.Id ?? ConfigRevisionId.Empty;
         var compilation = await CompileWithCurrentInventoryAsync(database.Document!, revisionId, cancellationToken).ConfigureAwait(false);
         if (compilation.Snapshot is not { } snapshot)
@@ -115,6 +120,67 @@ public sealed partial class ConfigService
             : new LastKnownGoodEntry(revision!, database.Latest.Document, database.Latest.Info.DocumentHash);
         _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot, compilation), revisionId, entry, lastGood);
         return new ConfigStoreStatus(ConfigSource.Database, revision);
+    }
+
+    /// <summary>
+    /// The live revision still had the inline IP allow lists, which reading converted to access lists: stores the converted
+    /// document as one revision (actor System, audited, saying what was converted), so the config that is running is the
+    /// config that is stored. Every host, profile and list counts as touched, so the projection is rewritten and their
+    /// versions move. Null when the converted document can't be stored (it doesn't validate or compile, or another process
+    /// committed first): startup then runs on the converted document in memory, and the next change writes it.
+    /// </summary>
+    private async Task<ConfigStoreStatus?> WriteUpgradedAsync(DatabaseStart database, LastKnownGoodEntry? lastGood, CancellationToken cancellationToken)
+    {
+        var latest = database.Latest!;
+        try
+        {
+            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            await using (context.ConfigureAwait(false))
+            {
+                var document = database.Document!;
+                var changes = ConfigDiff.Compare(InitialDocument with { Settings = document.Settings with { Defaults = new HostSettings() } }, document);
+                var stamped = ConfigVersions.Stamp(document, document, changes, latest.Info.Seq + 1);
+                if (ConfigValidator.Validate(stamped) is { Count: > 0 } errors)
+                {
+                    LogUpgradeRefused(latest.Info.Seq, latest.Info.Id, Summarize(errors));
+                    return null;
+                }
+
+                var candidate = CanonicalConfigJson.Canonicalize(stamped);
+                var revisionId = _revisions.NextId();
+                var compilation = await CompileWithCurrentInventoryAsync(candidate, revisionId, cancellationToken).ConfigureAwait(false);
+                if (compilation.Snapshot is null)
+                {
+                    LogUpgradeRefused(latest.Info.Seq, latest.Info.Id, Summarize(compilation.Errors));
+                    return null;
+                }
+
+                var names = string.Join(", ", candidate.AccessLists.Select(static l => l.Name));
+                var message = $"Converted the inline IP allow lists to access lists: {names}";
+                if (message.Length > ConfigRevisionStore.MaxMessageLength)
+                {
+                    message = $"Converted the inline IP allow lists to {candidate.AccessLists.Count} access lists";
+                }
+
+                var execution = await CommitAsync(
+                        context, CommandOrigin.System, new Audited("config.upgrade", null), latest, candidate, changes, revisionId, compilation, message, version: null, cancellationToken)
+                    .ConfigureAwait(false);
+                if (execution?.Publish is not { } ticket)
+                {
+                    return null;
+                }
+
+                LogUpgraded(ticket.Revision.Seq, ticket.Revision.Id, latest.Info.Seq, candidate.AccessLists.Count);
+                _startupPublish = FollowStartupPublishAsync(ticket.Task, ticket.Revision.Id, ticket.LastKnownGood, lastGood);
+                ReportCertificateWarnings(compilation.Warnings);
+                return new ConfigStoreStatus(ConfigSource.Database, ticket.Revision);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogUpgradeFailed(ex, latest.Info.Seq, latest.Info.Id);
+            return null;
+        }
     }
 
     /// <summary>The last-known-good file's entry, or null with why. A damaged file is logged; it never throws.</summary>
@@ -254,7 +320,7 @@ public sealed partial class ConfigService
                     return new DatabaseStart(null, InitialDocument, null);
                 }
 
-                if (!CanonicalConfigJson.TryDeserialize(latest.Document.Span, out var document, out var error))
+                if (!CanonicalConfigJson.TryDeserialize(latest.Document.Span, out var document, out var error, out var upgraded))
                 {
                     return new DatabaseStart(
                         null,
@@ -264,7 +330,7 @@ public sealed partial class ConfigService
 
                 document = CanonicalConfigJson.Canonicalize(document);
                 await HealProjectionAsync(context, latest, document, cancellationToken).ConfigureAwait(false);
-                return new DatabaseStart(latest, document, null);
+                return new DatabaseStart(latest, document, null, upgraded);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -658,6 +724,15 @@ public sealed partial class ConfigService
     [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good file is damaged and can't be a fallback: {Problem}. It is replaced at the next publish.")]
     private partial void LogLastKnownGoodDamaged(string problem);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "UPGRADED: revision #{Seq} ({Revision}) was written from revision #{From}, with its {Lists} inline IP allow list(s) converted to access lists.")]
+    private partial void LogUpgraded(long seq, ConfigRevisionId revision, long from, int lists);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Revision #{Seq} ({Revision}) has inline IP allow lists, which this build reads as access lists, but the converted config wasn't stored: {Problem}. It is running as converted; the next change stores it.")]
+    private partial void LogUpgradeRefused(long seq, ConfigRevisionId revision, string problem);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Storing the access lists converted from revision #{Seq} ({Revision}) failed; it is running as converted, and the next change stores it.")]
+    private partial void LogUpgradeFailed(Exception exception, long seq, ConfigRevisionId revision);
+
     [LoggerMessage(Level = LogLevel.Critical, Message = "RESTORED: the config database had no revisions; committed the {Source} config as revision #{Seq} ({Revision}).")]
     private partial void LogRestored(long seq, ConfigRevisionId revision, string source);
 
@@ -689,7 +764,7 @@ public sealed partial class ConfigService
     private partial void LogRefused(string command, string problem);
 
     /// <summary>The database at startup: the latest revision (null: none yet) and its canonical document, or why not.</summary>
-    private sealed record DatabaseStart(StoredRevision? Latest, ConfigDocument? Document, string? Problem);
+    private sealed record DatabaseStart(StoredRevision? Latest, ConfigDocument? Document, string? Problem, bool Upgraded = false);
 }
 
 public enum ConfigSource

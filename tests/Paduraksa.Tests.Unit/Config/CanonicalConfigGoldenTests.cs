@@ -17,6 +17,9 @@ namespace Paduraksa.Tests.Unit.Config;
 /// </summary>
 public sealed class CanonicalConfigGoldenTests
 {
+    // A fixed verifier: a freshly made one has a random salt, and these bytes are pinned.
+    private const string Hash = "$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
+
     [Fact]
     public void ARichDocumentKeepsItsBytes()
     {
@@ -27,13 +30,13 @@ public sealed class CanonicalConfigGoldenTests
                 {
                     ForceHttps = true,
                     Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls13, TcpAlpn = TcpAlpn.Http11Only, Http3 = false },
-                    IpAllowList = new IpAllowListSettings(["10.0.0.0/8", "192.168.1.7"], DropDenied: true),
                     Hsts = new HstsSettings { Enabled = true, MaxAge = 31_536_000, IncludeSubDomains = true, Preload = true },
                     AccessLog = true,
                     RequestIdPropagation = RequestIdPropagation.UpstreamAndResponse,
                     ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Paduraksa },
                     ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 16, TokenLifetimeHours = 168 },
                     RateLimit = new RateLimitSettings { Enabled = true, PolicyId = ApiPolicy },
+                    AccessList = new AccessListSettings { Enabled = true, AccessListId = LanList },
                 },
                 UnknownHost: UnknownHostBehaviour.MisdirectedRequest,
                 TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareProxy, [], UseTrueClientIp: true)),
@@ -47,12 +50,12 @@ public sealed class CanonicalConfigGoldenTests
                     {
                         ForceHttps = false,
                         Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = TcpAlpn.Http2AndHttp11, Http3 = true },
-                        IpAllowList = new IpAllowListSettings(["192.168.0.0/16"]),
                         Hsts = new HstsSettings { Enabled = false, MaxAge = 0, IncludeSubDomains = false, Preload = false },
                         AccessLog = false,
                         RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
                         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
                         ProofOfWork = new ProofOfWorkSettings { Enabled = false, Difficulty = 20, TokenLifetimeHours = 24 },
+                        AccessList = new AccessListSettings { AccessListId = LanList },
                     },
                     Notes: "the LAN preset"),
             ],
@@ -74,22 +77,22 @@ public sealed class CanonicalConfigGoldenTests
                     {
                         ForceHttps = true,
                         Tls = new TlsSettings { Http3 = false },
-                        IpAllowList = new IpAllowListSettings([]),
                         Hsts = new HstsSettings { MaxAge = 86_400 },
                         AccessLog = true,
                         RequestIdPropagation = RequestIdPropagation.ResponseOnly,
                         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Upstream, Value = "kept but unused" },
                         ProofOfWork = new ProofOfWorkSettings { Difficulty = 18, TokenLifetimeHours = 720 },
                         RateLimit = new RateLimitSettings { PolicyId = ApiPolicy },
+                        AccessList = new AccessListSettings { Enabled = false },
                     },
                     Routes:
                     [
                         new RouteConfig(RootRoute, AppUpstream, Order: 10),
                         new RouteConfig(ApiRoute, AppUpstream, Path: "/api", Settings: new RouteSettings
                         {
-                            IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]),
                             ProofOfWork = new ProofOfWorkSettings { Enabled = true },
                             RateLimit = new RateLimitSettings { Enabled = false, PolicyId = ApiPolicy },
+                            AccessList = new AccessListSettings { Enabled = true, AccessListId = LanList },
                         }),
                     ],
                     Tags: ["media"]),
@@ -97,9 +100,21 @@ public sealed class CanonicalConfigGoldenTests
             RateLimitPolicies:
             [
                 new RateLimitPolicyConfig(ApiPolicy, "API", Version: 1, Requests: 30, Per: RateLimitPeriod.Second, Burst: 60, Key: RateLimitKey.ClientIpAndPath, Notes: "the API budget"),
+            ],
+            AccessLists:
+            [
+                new AccessListConfig(
+                    LanList,
+                    "Office",
+                    Version: 2,
+                    Notes: "the office network",
+                    Ip: new AccessListIp(["192.168.1.7", "10.0.0.0/8"], ["10.9.0.0/16"], DropDenied: true),
+                    BasicAuth: new AccessListBasicAuth("Staff", [new AccessListUserConfig("bob", Hash), new AccessListUserConfig("alice", Hash)]),
+                    Satisfy: AccessListSatisfy.Any,
+                    PassCredentialsUpstream: true),
             ]);
 
-        AssertPinned(document, "B2816999413B51F7C741B9E39FEF114359CAAA7C5327A39169891D29C3F761D2");
+        AssertPinned(document, "F78403DE8538FE6D823824E5472A351C7FADC859121E4C531F8A3318517E609B");
     }
 
     [Fact]
@@ -129,13 +144,14 @@ public sealed class CanonicalConfigGoldenTests
                         ServerHeader = new ServerHeaderSettings(),
                         ProofOfWork = new ProofOfWorkSettings(),
                         RateLimit = new RateLimitSettings(),
+                        AccessList = new AccessListSettings(),
                     },
                 },
             ],
         };
 
         Assert.Equal(CanonicalConfigJson.Serialize(bare), CanonicalConfigJson.Serialize(emptyLayers));
-        AssertPinned(bare, "AFFF22D6B9AC5A1AA34CC1F9816E7B3E6A09D7A2E2E14891E31AD8FA366DD9CB");
+        AssertPinned(bare, "A2CF517FF9E8B1D6E7DF241080EFEFD0240B076B1ABF98905B34674F09E71417");
     }
 
     private static void AssertPinned(ConfigDocument document, string expectedSha256)

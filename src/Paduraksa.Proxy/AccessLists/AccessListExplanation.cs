@@ -28,6 +28,7 @@ internal static class AccessListExplanation
             CredentialVerdict.Verified => "the password is right",
             CredentialVerdict.VerifiedFromCache => "the password was verified a moment ago",
             CredentialVerdict.Busy => "too many password checks are running",
+            CredentialVerdict.Deferred => "the password is asked after the redirect to HTTPS",
             _ => NotAsked(list, stage, outcome),
         };
 

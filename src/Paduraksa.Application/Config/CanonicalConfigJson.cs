@@ -14,7 +14,7 @@ namespace Paduraksa.Application.Config;
 /// the order and spelling of the content.
 /// </summary>
 /// <remarks>
-/// <para><b>Canonical order.</b> Profiles, upstreams, rate-limit policies and hosts by ID; destinations by ID (order means nothing to load
+/// <para><b>Canonical order.</b> Profiles, upstreams, rate-limit policies, access lists and hosts by ID; an access list's users by name (ordinal); destinations by ID (order means nothing to load
 /// balancing). Routes by the order their host evaluates them in (<see cref="RouteOrderKey"/>): exact routes first, then
 /// the longest prefix, then <see cref="RouteConfig.Order"/>, then the listed order. The canonical list reads top to
 /// bottom the way requests are matched. Sets (host names, tags, IP allow-list addresses, trusted proxies) are sorted
@@ -40,27 +40,42 @@ public static class CanonicalConfigJson
     public static byte[] Serialize(ConfigDocument document) =>
         JsonSerializer.SerializeToUtf8Bytes(Canonicalize(document), ConfigJsonContext.Default.ConfigDocument);
 
-    /// <summary>Reads a document strictly (see <see cref="ConfigJsonContext"/>), as written: not canonicalised.</summary>
+    /// <summary>Reads a document strictly (see <see cref="ConfigJsonContext"/>), as written: not canonicalised. A stored
+    /// document that still has the inline <c>ipAllowList</c> is converted to access lists on the way in
+    /// (<see cref="LegacyAccessListUpgrade"/>).</summary>
     /// <exception cref="JsonException">Not valid JSON, or not a valid document shape.</exception>
-    public static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json)
+    public static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json) => Deserialize(utf8Json, out _);
+
+    /// <summary><see cref="Deserialize(ReadOnlySpan{byte})"/>, saying whether the document had to be converted (so startup can
+    /// write the converted one back).</summary>
+    internal static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json, out bool upgraded)
     {
         if (UnsupportedApiVersion(utf8Json) is { } version)
         {
             throw new JsonException(UnsupportedApiVersionMessage(version), "$.apiVersion", null, null);
         }
 
-        var document = JsonSerializer.Deserialize(utf8Json, ConfigJsonContext.Default.ConfigDocument)
+        var converted = LegacyAccessListUpgrade.Upgrade(utf8Json);
+        upgraded = converted is not null;
+        var document = JsonSerializer.Deserialize(converted ?? utf8Json, ConfigJsonContext.Default.ConfigDocument)
                        ?? throw new JsonException("The config document can't be null.");
         RejectNullElements(document);
         return document;
     }
 
-    /// <summary><see cref="Deserialize"/>, reporting a failure as a <see cref="ConfigError"/> with the JSON pointer of
+    /// <summary><see cref="Deserialize(ReadOnlySpan{byte})"/>, reporting a failure as a <see cref="ConfigError"/> with the JSON pointer of
     /// where reading stopped. A document of another <c>apiVersion</c> is reported as
     /// <see cref="ConfigErrorCodes.ApiVersionUnsupported"/> before anything else, so a newer document says so rather
     /// than failing on its first field this build doesn't know.</summary>
-    public static bool TryDeserialize(ReadOnlySpan<byte> utf8Json, [NotNullWhen(true)] out ConfigDocument? document, [NotNullWhen(false)] out ConfigError? error)
+    public static bool TryDeserialize(ReadOnlySpan<byte> utf8Json, [NotNullWhen(true)] out ConfigDocument? document, [NotNullWhen(false)] out ConfigError? error) =>
+        TryDeserialize(utf8Json, out document, out error, out _);
+
+    /// <summary><see cref="TryDeserialize(ReadOnlySpan{byte}, out ConfigDocument?, out ConfigError?)"/>, saying whether the
+    /// document had to be converted.</summary>
+    internal static bool TryDeserialize(
+        ReadOnlySpan<byte> utf8Json, [NotNullWhen(true)] out ConfigDocument? document, [NotNullWhen(false)] out ConfigError? error, out bool upgraded)
     {
+        upgraded = false;
         if (UnsupportedApiVersion(utf8Json) is { } version)
         {
             document = null;
@@ -70,7 +85,7 @@ public static class CanonicalConfigJson
 
         try
         {
-            document = Deserialize(utf8Json);
+            document = Deserialize(utf8Json, out upgraded);
             error = null;
             return true;
         }
@@ -145,6 +160,7 @@ public static class CanonicalConfigJson
             Profiles = [.. NonNull(document.Profiles).OrderBy(p => p.Id).Select(Canonical)],
             Upstreams = [.. NonNull(document.Upstreams).OrderBy(u => u.Id).Select(Canonical)],
             RateLimitPolicies = [.. NonNull(document.RateLimitPolicies).OrderBy(p => p.Id).Select(Canonical)],
+            AccessLists = [.. NonNull(document.AccessLists).OrderBy(l => l.Id).Select(Canonical)],
             Hosts = [.. NonNull(document.Hosts).OrderBy(h => h.Id).Select(Canonical)],
         };
     }
@@ -161,9 +177,9 @@ public static class CanonicalConfigJson
         }
 
         if (document.Settings?.TrustedProxies is null || document.Profiles is null || document.Upstreams is null || document.Hosts is null
-            || document.RateLimitPolicies is null)
+            || document.RateLimitPolicies is null || document.AccessLists is null)
         {
-            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams, rate-limit policies and hosts (empty lists, not null).");
+            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams, rate-limit policies, access lists and hosts (empty lists, not null).");
         }
 
         try
@@ -201,15 +217,8 @@ public static class CanonicalConfigJson
             }
         }
 
-        static void Settings(HostSettings? settings, string path) => Check(settings?.IpAllowList?.Addresses, $"{path}.ipAllowList.addresses");
-
-        Settings(document.Settings.Defaults, "$.settings.defaults");
         Check(document.Settings.TrustedProxies.Proxies, "$.settings.trustedProxies.proxies");
         Check(document.Profiles, "$.profiles");
-        for (var i = 0; i < document.Profiles.Count; i++)
-        {
-            Settings(document.Profiles[i].Settings, $"$.profiles[{i}].settings");
-        }
 
         Check(document.Upstreams, "$.upstreams");
         for (var i = 0; i < document.Upstreams.Count; i++)
@@ -219,19 +228,22 @@ public static class CanonicalConfigJson
 
         Check(document.RateLimitPolicies, "$.rateLimitPolicies");
 
+        Check(document.AccessLists, "$.accessLists");
+        for (var i = 0; i < document.AccessLists.Count; i++)
+        {
+            var list = document.AccessLists[i];
+            Check(list.Ip?.Allow, $"$.accessLists[{i}].ip.allow");
+            Check(list.Ip?.Deny, $"$.accessLists[{i}].ip.deny");
+            Check(list.BasicAuth?.Users, $"$.accessLists[{i}].basicAuth.users");
+        }
+
         Check(document.Hosts, "$.hosts");
         for (var i = 0; i < document.Hosts.Count; i++)
         {
             var host = document.Hosts[i];
             var path = $"$.hosts[{i}]";
             Check(host.Names, $"{path}.names");
-            Settings(host.Settings, $"{path}.settings");
             Check(host.Routes, $"{path}.routes");
-            for (var j = 0; j < host.Routes.Count; j++)
-            {
-                Check(host.Routes[j].Settings.IpAllowList?.Addresses, $"{path}.routes[{j}].settings.ipAllowList.addresses");
-            }
-
             Check(host.Tags, $"{path}.tags");
         }
     }
@@ -320,6 +332,28 @@ public static class CanonicalConfigJson
         Notes = ConfigNormalization.NormalizeNotes(policy.Notes),
     };
 
+    private static AccessListConfig Canonical(AccessListConfig list) => list with
+    {
+        Name = ConfigNormalization.NormalizeName(list.Name),
+        Notes = ConfigNormalization.NormalizeNotes(list.Notes),
+        Ip = list.Ip is { } ip && (ip.Allow.Count > 0 || ip.Deny.Count > 0 || ip.DropDenied)
+            ? ip with
+            {
+                Allow = SortedSet(ip.Allow, ConfigNormalization.CanonicalAddress),
+                Deny = SortedSet(ip.Deny, ConfigNormalization.CanonicalAddress),
+            }
+            : null,
+
+        // The password of a write never reaches a document: it is hashed first, and what is left of it is dropped here.
+        BasicAuth = list.BasicAuth is { } auth && (auth.Users.Count > 0 || !string.IsNullOrWhiteSpace(auth.Realm))
+            ? auth with
+            {
+                Realm = string.IsNullOrWhiteSpace(auth.Realm) ? null : auth.Realm.Trim(),
+                Users = [.. NonNull(auth.Users).Select(u => u with { Username = u.Username ?? string.Empty, Password = null }).OrderBy(u => u.Username, StringComparer.Ordinal)],
+            }
+            : null,
+    };
+
     private static HostConfig Canonical(HostConfig host) => host with
     {
         Names = SortedSet(host.Names, ConfigNormalization.CanonicalHostName),
@@ -355,9 +389,9 @@ public static class CanonicalConfigJson
     {
         Settings = (route.Settings ?? new()) with
         {
-            IpAllowList = Canonical(route.Settings?.IpAllowList),
             ProofOfWork = DropIfNothingSet(route.Settings?.ProofOfWork),
             RateLimit = DropIfNothingSet(route.Settings?.RateLimit),
+            AccessList = DropIfNothingSet(route.Settings?.AccessList),
         },
     };
 
@@ -367,13 +401,13 @@ public static class CanonicalConfigJson
         return settings with
         {
             Tls = DropIfNothingSet(settings.Tls),
-            IpAllowList = Canonical(settings.IpAllowList),
             Hsts = DropIfNothingSet(settings.Hsts),
             ServerHeader = DropIfNothingSet(settings.ServerHeader),
             ProofOfWork = DropIfNothingSet(settings.ProofOfWork),
             RateLimit = DropIfNothingSet(settings.RateLimit),
             Robots = DropIfNothingSet(settings.Robots),
             Cloudflare = DropIfNothingSet(settings.Cloudflare),
+            AccessList = DropIfNothingSet(settings.AccessList),
         };
     }
 
@@ -384,9 +418,6 @@ public static class CanonicalConfigJson
     /// </summary>
     private static T? DropIfNothingSet<T>(T? settings)
         where T : class, ISettingsLayer => settings is { SetsNothing: true } ? null : settings;
-
-    private static IpAllowListSettings? Canonical(IpAllowListSettings? allowList) =>
-        allowList is null ? null : allowList with { Addresses = SortedSet(allowList.Addresses, ConfigNormalization.CanonicalAddress) };
 
     private static string[] SortedSet(IReadOnlyList<string>? values, Func<string?, string> normalize) =>
         [.. NonNull(values).Select(normalize).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];

@@ -48,6 +48,8 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
         PassiveNotUnhealthy,
     }
 
+    private static readonly AccessListSpec Loopback = TestAccessLists.Allow("loopback", "127.0.0.0/8");
+
     private ProxyConfigModel Model(int variant) => new()
     {
         Revision = TestIds.Revision("s6-" + variant.ToString(CultureInfo.InvariantCulture)),
@@ -60,11 +62,12 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
             Upstream("flaky", upstream.Address("f0"), $"http://127.0.0.1:{upstream.DeadPort}/") with { PassiveHealth = true, ReactivationPeriod = TimeSpan.FromMinutes(10) },
             .. variant % 3 == 1 ? [Upstream("churn", upstream.Address("c0"))] : (UpstreamSpec[])[],
         ],
+        AccessLists = [Loopback],
         Hosts =
         [
             // Variant 2 changes only policies (a YARP no-op); variant 1 adds a host, a route and a cluster (a real
             // YARP reload); variant 0 removes them again.
-            ProxyHost("stable", "stable.test", Route("stable-root", "stable")) with { Policies = variant % 3 == 2 ? [new IpAllowListPolicySpec(["127.0.0.0/8"])] : [] },
+            ProxyHost("stable", "stable.test", Route("stable-root", "stable")) with { Policies = variant % 3 == 2 ? [Loopback.Policy()] : [] },
             ProxyHost("probed", "probed.test", Route("probed-root", "probed")),
             ProxyHost("flaky", "flaky.test", Route("flaky-root", "flaky")),
             .. variant % 3 == 1 ? [ProxyHost("churn", "churn.test", Route("churn-root", "churn"))] : (HostSpec[])[],

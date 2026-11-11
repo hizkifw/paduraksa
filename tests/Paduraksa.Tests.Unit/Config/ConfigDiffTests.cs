@@ -130,7 +130,7 @@ public sealed class ConfigDiffTests
                 .. document.Hosts.Select(h => h.Id != AppHost ? h : h with
                 {
                     Tags = ["media", "lan"],
-                    Routes = [h.Routes[0] with { Path = "/app", Settings = new RouteSettings { IpAllowList = new IpAllowListSettings(["::1"]) } }],
+                    Routes = [h.Routes[0] with { Path = "/app", Settings = new RouteSettings { AccessList = new AccessListSettings { Enabled = false } } }],
                 }),
             ],
         };
@@ -147,7 +147,7 @@ public sealed class ConfigDiffTests
                     AppHost,
                     RootRoute,
                     "/hosts/0/routes/0",
-                    ["/hosts/0/routes/0/path", "/hosts/0/routes/0/settings/ipAllowList"]),
+                    ["/hosts/0/routes/0/path", "/hosts/0/routes/0/settings/accessList"]),
                 new RouteChange(ConfigChangeKind.Removed, AppHost, ApiRoute, "/hosts/0/routes/0", []),
             ],
             changes,

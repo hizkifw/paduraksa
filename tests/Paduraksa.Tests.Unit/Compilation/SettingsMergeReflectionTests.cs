@@ -34,11 +34,12 @@ public sealed class SettingsMergeReflectionTests
         foreach (var leaf in Leaves())
         {
             var value = leaf.Read(HostSettingsLayers.BuiltIn);
-            if (leaf.Name is nameof(HostSettings.IpAllowList) or $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}"
+            if (leaf.Name is $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}"
                 or $"{nameof(HostSettings.RateLimit)}.{nameof(RateLimitSettings.PolicyId)}"
+                or $"{nameof(HostSettings.AccessList)}.{nameof(AccessListSettings.AccessListId)}"
                 or $"{nameof(HostSettings.Robots)}.{nameof(RobotsSettings.CustomText)}")
             {
-                // The absence is the default: no restriction, no custom Server value and no custom robots.txt text.
+                // The absence is the default: no named policy or list, no custom Server value and no custom robots.txt text.
                 Assert.Null(value);
                 continue;
             }
@@ -104,14 +105,14 @@ public sealed class SettingsMergeReflectionTests
             return "x";
         }
 
-        if (value == typeof(IpAllowListSettings))
-        {
-            return new IpAllowListSettings(["192.0.2.1"], DropDenied: true);
-        }
-
         if (value == typeof(RateLimitPolicyId))
         {
             return RateLimitPolicyId.New();
+        }
+
+        if (value == typeof(AccessListId))
+        {
+            return AccessListId.New();
         }
 
         if (value.IsEnum)

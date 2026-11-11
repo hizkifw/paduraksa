@@ -77,9 +77,12 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
         _certificates.Dispose();
     }
 
+    private static readonly AccessListSpec Private = TestAccessLists.Allow("private", "10.0.0.0/8");
+
     private ProxyConfigModel App(DefaultsSpec? defaults = null) => new()
     {
         Defaults = defaults ?? new DefaultsSpec(),
+        AccessLists = [Private],
         Upstreams =
         [
             new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), Upstream.Address)] },
@@ -114,7 +117,7 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
             Forward("deny", "deny.test") with
             {
                 ServerHeader = CustomHeader("edge/deny"),
-                Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])],
+                Policies = [Private.Policy()],
             },
             Forward("abort", "abort.test", upstream: "abort") with { Hsts = new HostHstsSpec { Enabled = true } },
             Forward("empty", "empty.test", upstream: "empty") with { Hsts = new HostHstsSpec { Enabled = true }, ServerHeader = CustomHeader("edge/empty") },

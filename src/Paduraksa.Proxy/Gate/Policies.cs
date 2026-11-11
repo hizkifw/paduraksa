@@ -88,7 +88,7 @@ public interface IRequestPolicy
 {
     PolicyDecision Evaluate(in RequestView request);
 
-    /// <summary>A short, stable kind label for the request simulator's trace (<c>ipAllowList</c>). Never called on
+    /// <summary>A short, stable kind label for the request simulator's trace (<c>accessList</c>). Never called on
     /// the hot path.</summary>
     string Name => "policy";
 

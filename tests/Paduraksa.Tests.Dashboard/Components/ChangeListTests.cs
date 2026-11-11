@@ -118,7 +118,7 @@ public sealed class ChangeListTests
     [Theory]
     [InlineData("/names/1", "Hostname 2")]
     [InlineData("/routes/0/path", "Route 1 > Path")]
-    [InlineData("/settings/ipAllowList/addresses/2", "Settings > IP allow list > Address 3")]
+    [InlineData("/settings/accessList/accessListId", "Settings > Access list > Access list")]
     [InlineData("", "This change")]
     public void ErrorPaths_AreSaidInWords(string path, string expected) =>
         Assert.Equal(expected, ChangeView.Locate(path, null));

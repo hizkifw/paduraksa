@@ -1,4 +1,5 @@
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
@@ -13,9 +14,16 @@ namespace Paduraksa.Tests.Proxy.Config;
 
 public sealed class SnapshotCompilerTests
 {
+    private static readonly AccessListSpec SiteList = TestAccessLists.Allow("site", "192.0.2.1", "2001:db8::1");
+
+    private static readonly AccessListSpec AdminList = TestAccessLists.Allow("admin", "10.0.0.0/8");
+
+    private static readonly AccessListSpec BadList = TestAccessLists.Allow("bad", "10.0.0.0/8", "10.0.0.1/8");
+
     private static readonly ProxyConfigModel Sample = new()
     {
         Revision = TestIds.Revision("rev-1"),
+        AccessLists = [SiteList],
         Upstreams =
         [
             Upstream("web", "http://10.0.0.1:8080/", "http://10.0.0.2:8080/") with { LoadBalancing = "RoundRobin", SessionAffinity = true, PassiveHealth = true },
@@ -28,7 +36,7 @@ public sealed class SnapshotCompilerTests
                 Id = TestIds.Host("site"),
                 Names = ["example.com", "*.example.com"],
                 ForceHttps = true,
-                Policies = [new IpAllowListPolicySpec(["192.0.2.1", "2001:db8::1"])],
+                Policies = [SiteList.Policy()],
                 Routes =
                 [
                     Route("site-root", "web") with { Order = 10 },
@@ -69,7 +77,7 @@ public sealed class SnapshotCompilerTests
         }
 
         // Host policies stay on the host (the gate runs them first); routes carry only their own.
-        Assert.IsType<IpAllowListPolicy>(Assert.Single(site.Policies));
+        Assert.IsType<AccessListPolicy>(Assert.Single(site.Policies));
         Assert.IsType<StaticPolicy>(Assert.Single(site.Routes[0].Policies));
         Assert.Empty(site.Routes[1].Policies);
         Assert.NotNull(site.HttpsRedirect);
@@ -100,11 +108,11 @@ public sealed class SnapshotCompilerTests
             Names = ["admin.test"],
             Kind = HostKind.Admin,
             ForceHttps = true,
-            Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])],
+            Policies = [AdminList.Policy()],
         };
 
         var snapshot = Compile(
-            new ProxyConfigModel { Hosts = [admin] },
+            new ProxyConfigModel { AccessLists = [AdminList], Hosts = [admin] },
             new SnapshotCompilerOptions { AdminUpstream = true, PublicHttpsPort = 8443 });
 
         var host = snapshot.Hosts.Find("admin.test")!;
@@ -374,7 +382,7 @@ public sealed class SnapshotCompilerTests
             $"destination ID '{TestIds.CaseTwin(TestIds.Destination("d"))}' differs from '{TestIds.Destination("d")}' only in case (YARP ignores case)"
         },
         { "empty destination ID", new ProxyConfigModel { Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [new(DestinationId.Empty, "http://a/")] }] }, "the destination ID is empty" },
-        { "bad allow-list address", Hosts(Respond("a", "a.test") with { Policies = [new IpAllowListPolicySpec(["10.0.0.0/8", "10.0.0.1/8"])] }), "'10.0.0.1/8' isn't an IP address or CIDR (host bits" },
+        { "bad allow-list address", Hosts(Respond("a", "a.test") with { Policies = [BadList.Policy()] }) with { AccessLists = [BadList] }, "'10.0.0.1/8' isn't an IP address or CIDR (host bits" },
         { "bad deny status", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(42)] }), "deny status 42" },
         { "respond 204 with body", Hosts(new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204, Body = "x" } }), "a 204 response can't have a body" },
         { "respond 304 with body", Hosts(new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 304, Body = "x" } }), "a 304 response can't have a body" },

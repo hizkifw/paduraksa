@@ -195,14 +195,8 @@ public static partial class SnapshotCompiler
                 return new StaticPolicy(PolicyDecision.Respond(PrecomputedResponse.Text(deny.StatusCode, deny.Body ?? string.Empty)));
             case DropPolicySpec:
                 return new StaticPolicy(PolicyDecision.Drop);
-            case IpAllowListPolicySpec allow:
-                var allowed = CompileCidrs(allow.Addresses ?? [], where, errors);
-                var denied = allow.DropDenied
-                    ? PolicyDecision.Drop
-                    : PolicyDecision.Respond(PrecomputedResponse.Text(StatusCodes.Status403Forbidden, "forbidden\n", htmlPage: ErrorPages.AccessDenied));
-                return new IpAllowListPolicy(allowed, denied);
             case AccessListPolicySpec access when accessLists.Lists.TryGetValue(access.List, out var list):
-                return new AccessListPolicy(list, access.Stage, accessLists.Runtime);
+                return new AccessListPolicy(list, access.Stage, accessLists.Runtime, access.DeferPasswordsOnPlainHttp);
             case AccessListPolicySpec access:
                 errors.Add(new(where, $"access list '{access.List}' doesn't exist"));
                 break;

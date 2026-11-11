@@ -1,12 +1,11 @@
 using System.Text;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Core.Acme;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Gate;
@@ -24,13 +23,16 @@ public sealed class AcmeChallengeGateTests : IDisposable
     private readonly AcmeChallengeStore _challenges = new();
     private readonly GateMiddleware _gate;
 
+    private static readonly AccessListSpec Lan = TestAccessLists.Allow("lan", "10.0.0.5");
+
     public AcmeChallengeGateTests()
     {
         // A host that forces HTTPS and only lets one LAN address in: an unanswered challenge would be redirected or refused.
         ProxyConfigModel config = new()
         {
             Upstreams = [Upstream("web", "http://127.0.0.1:1/")],
-            Hosts = [ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true, Policies = [new IpAllowListPolicySpec(["10.0.0.5"])] }],
+            AccessLists = [Lan],
+            Hosts = [ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true, Policies = [Lan.Policy()] }],
         };
         _store.Publish(Bound(config, options: Port8443));
         _gate = new GateMiddleware(_store, new TrustedProxyClientAddressSource(), _challenges);

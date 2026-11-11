@@ -29,6 +29,10 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         }
     }
 
+    private static readonly AccessListSpec PpClients = TestAccessLists.Allow("pp-clients", "203.0.113.0/24");
+
+    private static readonly AccessListSpec TlsPpClients = TestAccessLists.Allow("tls-pp-clients", "198.51.100.0/24");
+
     private ProxyConfigModel App(params HostSpec[] more) => new()
     {
         Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), Upstream.Address)] }],
@@ -164,7 +168,8 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         });
         await PublishAsync(host, App() with
         {
-            Hosts = [App().Hosts[0] with { Policies = [new IpAllowListPolicySpec(["203.0.113.0/24"])] }],
+            AccessLists = [PpClients],
+            Hosts = [App().Hosts[0] with { Policies = [PpClients.Policy()] }],
         });
 
         // Counted as deltas around each of this test's own connections, like the HTTPS listener's test: another test's stray
@@ -199,7 +204,8 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         });
         await PublishAsync(host, App() with
         {
-            Hosts = [App().Hosts[0] with { Policies = [new IpAllowListPolicySpec(["198.51.100.0/24"])] }],
+            AccessLists = [TlsPpClients],
+            Hosts = [App().Hosts[0] with { Policies = [TlsPpClients.Policy()] }],
         });
 
         // Counted as deltas around each of this test's own connections: under a parallel run another test can reach this
@@ -227,14 +233,16 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     public async Task CloudflareProxyModeTrustsOnlyTheEdge()
     {
         await using var host = await StartAsync();
+        var members = TestAccessLists.Allow("members", "198.51.100.0/24");
         var model = App(new HostSpec
         {
             Id = TestIds.Host("members"),
             Names = ["members.test"],
-            Policies = [new IpAllowListPolicySpec(["198.51.100.0/24"])],
+            Policies = [members.Policy()],
             Routes = [new RouteSpec { Id = TestIds.Route("members-root"), Upstream = TestIds.Upstream("echo") }],
         }) with
         {
+            AccessLists = [members],
             Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } },
         };
         static void ViaCloudflare(HttpRequestMessage request)

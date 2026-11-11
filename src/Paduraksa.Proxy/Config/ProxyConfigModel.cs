@@ -204,6 +204,22 @@ public sealed record HostRateLimitSpec
     public RateLimitPolicyId? EffectivePolicyId => Enabled && !PolicyId.IsEmpty ? PolicyId : null;
 }
 
+/// <summary>The access-list setting resolved across the layers; a route may override the switch and the list.</summary>
+public sealed record HostAccessListSpec
+{
+    /// <summary>No access list.</summary>
+    public static HostAccessListSpec Off { get; } = new();
+
+    /// <summary>False: an inherited list is named but inert.</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary>The list to apply; <see cref="AccessListId.Empty"/> when none is named.</summary>
+    public AccessListId AccessListId { get; init; }
+
+    /// <summary>The list that actually applies, or null.</summary>
+    public AccessListId? Effective => Enabled && !AccessListId.IsEmpty ? AccessListId : null;
+}
+
 /// <summary>
 /// One named rate-limit policy, resolved across the document: its bucket numbers, partition key and, for a header key,
 /// the header name (already a valid token). The compiler pairs it with a host into a bucket scope.
@@ -280,6 +296,9 @@ public sealed record HostSpec
 
     /// <summary>The host's resolved rate-limit policy; each route's own layer may override it.</summary>
     public HostRateLimitSpec RateLimit { get; init; } = HostRateLimitSpec.Off;
+
+    /// <summary>The host's resolved access list. The chains below are built from it and from each route's own layer.</summary>
+    public HostAccessListSpec AccessList { get; init; } = HostAccessListSpec.Off;
 
     /// <summary>What the host answers at <c>/robots.txt</c>.</summary>
     public HostRobotsSpec Robots { get; init; } = HostRobotsSpec.Passthrough;
@@ -415,15 +434,10 @@ public sealed record DenyPolicySpec(int StatusCode = 403, string Body = "forbidd
 /// <summary>Always aborts the request.</summary>
 public sealed record DropPolicySpec : PolicySpec;
 
-/// <summary>
-/// Only clients inside the listed addresses or CIDRs (<c>192.0.2.1</c>, <c>10.0.0.0/8</c>, <c>2001:db8::/32</c>) get
-/// through, judged on the resolved client IP. Others get 403, or are dropped when <paramref name="DropDenied"/> is set.
-/// </summary>
-public sealed record IpAllowListPolicySpec(IReadOnlyList<string> Addresses, bool DropDenied = false) : PolicySpec;
-
 /// <summary>One access list in a chain: the host chain takes <see cref="AccessListStage.AddressOnly"/>, a route's chain the
-/// whole list.</summary>
-public sealed record AccessListPolicySpec(AccessListId List, AccessListStage Stage = AccessListStage.Full) : PolicySpec;
+/// whole list. <paramref name="DeferPasswordsOnPlainHttp"/>: a host chain that carries the whole list (a host with no
+/// routes) on a host that redirects to HTTPS skips the password on a plain-HTTP request, which the redirect answers next.</summary>
+public sealed record AccessListPolicySpec(AccessListId List, AccessListStage Stage = AccessListStage.Full, bool DeferPasswordsOnPlainHttp = false) : PolicySpec;
 
 /// <summary>The host chain of a host whose routes name different lists: the address rules of all of them as one check.</summary>
 public sealed record AccessListUnionPolicySpec(IReadOnlyList<AccessListId> Lists) : PolicySpec;

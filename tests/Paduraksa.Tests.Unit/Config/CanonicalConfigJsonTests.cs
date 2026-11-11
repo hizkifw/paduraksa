@@ -49,7 +49,7 @@ public sealed class CanonicalConfigJsonTests
             + "\"notes\":\"\\u003Cb\\u003E\",\"certificate\":{\"mode\":\"auto\"},\"settings\":{\"tls\":{\"minimumVersion\":\"tls13\"}},"
             + $"\"routes\":[{{\"id\":\"{RootRoute}\",\"upstreamId\":\"{AppUpstream}\",\"order\":0,\"match\":\"prefix\",\"path\":\"/\",\"settings\":{{}}}}],"
             + "\"tags\":[]}],"
-            + "\"rateLimitPolicies\":[]}",
+            + "\"rateLimitPolicies\":[],\"accessLists\":[]}",
             json);
     }
 
@@ -220,9 +220,11 @@ public sealed class CanonicalConfigJsonTests
     {
         ConfigDocument document = new(
             ConfigDocument.V1,
-            new GlobalSettings(Defaults: new HostSettings { IpAllowList = new IpAllowListSettings([input]) }));
+            AccessLists: [new AccessListConfig(Id<AccessListId>(1), "list", Ip: new AccessListIp([input], [input]))]);
 
-        Assert.Equal([expected], CanonicalConfigJson.Canonicalize(document).Settings.Defaults.IpAllowList!.Addresses);
+        var ip = CanonicalConfigJson.Canonicalize(document).AccessLists[0].Ip!;
+        Assert.Equal([expected], ip.Allow);
+        Assert.Equal([expected], ip.Deny);
     }
 
     [Theory]
@@ -441,7 +443,7 @@ public sealed class CanonicalConfigJsonTests
                 new HostConfig(
                     AppHost,
                     ["B\u00fccher.Example.", "*.EXAMPLE.com", "b\u00fccher.example", "not a name "],
-                    Settings: new HostSettings { Tls = new TlsSettings(), IpAllowList = new IpAllowListSettings(["b", "a", "a"]) },
+                    Settings: new HostSettings { Tls = new TlsSettings() },
                     Tags: ["Media", " media", "LAN"],
                     Notes: " \n") { Certificate = null!, Routes = null! },
             ]);
@@ -453,7 +455,6 @@ public sealed class CanonicalConfigJsonTests
         var host = Assert.Single(canonical.Hosts);
         Assert.Equal(["*.example.com", "not a name", "xn--bcher-kva.example"], host.Names);
         Assert.Null(host.Settings.Tls);
-        Assert.Equal(["a", "b"], host.Settings.IpAllowList!.Addresses);
         Assert.Equal(["lan", "media"], host.Tags);
         Assert.Null(host.Notes);
         Assert.Equal(new CertificateBinding(), host.Certificate);
@@ -484,10 +485,9 @@ public sealed class CanonicalConfigJsonTests
     [InlineData("""{"hosts":[{"id":"host_0000000000000000000001","names":["a"],"tags":[null]}]}""", "/hosts/0/tags/0")]
     [InlineData("""{"hosts":[{"id":"host_0000000000000000000001","names":["a"],"routes":[null]}]}""", "/hosts/0/routes/0")]
     [InlineData("""{"settings":{"trustedProxies":{"proxies":[null]}}}""", "/settings/trustedProxies/proxies/0")]
-    [InlineData("""{"settings":{"defaults":{"ipAllowList":{"addresses":[null]}}}}""", "/settings/defaults/ipAllowList/addresses/0")]
-    [InlineData(
-        """{"hosts":[{"id":"host_0000000000000000000001","names":["a"],"routes":[{"id":"rte_0000000000000000000001","upstreamId":"ups_0000000000000000000001","settings":{"ipAllowList":{"addresses":["::1",null]}}}]}]}""",
-        "/hosts/0/routes/0/settings/ipAllowList/addresses/1")]
+    [InlineData("""{"accessLists":[{"id":"acl_0000000000000000000001","name":"a","ip":{"allow":[null]}}]}""", "/accessLists/0/ip/allow/0")]
+    [InlineData("""{"accessLists":[{"id":"acl_0000000000000000000001","name":"a","ip":{"allow":["::1"],"deny":["::1",null]}}]}""", "/accessLists/0/ip/deny/1")]
+    [InlineData("""{"accessLists":[{"id":"acl_0000000000000000000001","name":"a","basicAuth":{"users":[null]}}]}""", "/accessLists/0/basicAuth/users/0")]
     [InlineData("null", "")]
     public void RejectsWhatIsNotTheModel(string json, string path)
     {

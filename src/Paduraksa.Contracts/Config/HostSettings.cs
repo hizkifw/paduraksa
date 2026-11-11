@@ -7,8 +7,7 @@ namespace Paduraksa.Contracts.Config;
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
-/// <see cref="Robots"/>, <see cref="Cloudflare"/>) merge field by field; list-valued settings
-/// (<see cref="IpAllowList"/>) replace as a whole.
+/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>) merge field by field.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
 public sealed record HostSettings
@@ -18,9 +17,6 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below.</summary>
     public TlsSettings? Tls { get; init; }
-
-    /// <summary>Replaces the inherited allow list as a whole. Built-in default: none.</summary>
-    public IpAllowListSettings? IpAllowList { get; init; }
 
     /// <summary>Merged field by field with the layers below.</summary>
     public HstsSettings? Hsts { get; init; }
@@ -52,6 +48,9 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: no lockdown, no Authenticated Origin Pulls.</summary>
     public CloudflareSettings? Cloudflare { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: none.</summary>
+    public AccessListSettings? AccessList { get; init; }
 }
 
 /// <summary>
@@ -71,9 +70,6 @@ public interface ISettingsLayer
 /// settings. Null fields inherit from the host.</summary>
 public sealed record RouteSettings
 {
-    /// <summary>Replaces the host's allow list for this route as a whole.</summary>
-    public IpAllowListSettings? IpAllowList { get; init; }
-
     /// <summary>
     /// The route-level subset of <see cref="ProofOfWorkSettings"/>: only <see cref="ProofOfWorkSettings.Enabled"/> is
     /// accepted here. It overrides the host's resolved switch either way, so one path can be exempt or protected.
@@ -86,6 +82,10 @@ public sealed record RouteSettings
     /// route can inherit its host's policy, name another one, or turn the limit off for its own paths.
     /// </summary>
     public RateLimitSettings? RateLimit { get; init; }
+
+    /// <summary>Field by field over the host's resolved list: a route inherits the host's, names another, or turns the list
+    /// off for its own paths.</summary>
+    public AccessListSettings? AccessList { get; init; }
 }
 
 /// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>
@@ -103,16 +103,6 @@ public sealed record TlsSettings : ISettingsLayer
     [JsonIgnore]
     public bool SetsNothing => MinimumVersion is null && TcpAlpn is null && Http3 is null;
 }
-
-/// <summary>
-/// Only clients inside <paramref name="Addresses"/> get through, judged on the resolved client IP; others get 403, or
-/// are dropped with <paramref name="DropDenied"/>. An empty list means no restriction: that's how a layer lifts an
-/// inherited one.
-/// </summary>
-/// <param name="Addresses">Addresses or CIDRs (<c>192.0.2.1</c>, <c>10.0.0.0/8</c>, <c>2001:db8::/32</c>); a set
-/// (canonical order: sorted, no duplicates).</param>
-/// <param name="DropDenied">Abort denied requests instead of answering 403. Needs addresses.</param>
-public sealed record IpAllowListSettings(IReadOnlyList<string> Addresses, bool DropDenied = false);
 
 /// <summary>
 /// HTTP Strict Transport Security: the host's HTTPS responses tell a browser to keep the host on HTTPS for

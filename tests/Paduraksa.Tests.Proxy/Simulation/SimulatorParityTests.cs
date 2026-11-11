@@ -264,17 +264,22 @@ public sealed class SimulatorParityTests : IDisposable
         Assert.Equal("/api", Assert.Single(step.Facts, fact => fact.Name == "routePath").Value);
     }
 
+    private static readonly AccessListSpec AppLan = TestAccessLists.Allow("app-lan", "127.0.0.1", "10.0.0.5");
+
+    private static readonly AccessListSpec LanList = TestAccessLists.Allow("lan", "10.0.0.5");
+
     private static ProxyConfigModel Model(DefaultsSpec defaults) => new()
     {
         Upstreams = [Upstream("web", "http://127.0.0.1:1/"), Upstream("api", "http://127.0.0.1:2/", "http://127.0.0.1:3/")],
         Defaults = defaults,
+        AccessLists = [AppLan, LanList],
         Hosts =
         [
             new HostSpec
             {
                 Id = TestIds.Host("app"),
                 Names = ["app.test", "*.app.test"],
-                Policies = [new IpAllowListPolicySpec(["127.0.0.1", "10.0.0.5"])],
+                Policies = [AppLan.Policy()],
                 Routes =
                 [
                     Route("app-api", "api", "/api"),
@@ -309,7 +314,7 @@ public sealed class SimulatorParityTests : IDisposable
             ProxyHost("h1", "h1.test", Route("h1-root", "web")) with { Tls = new HostTlsSpec { TcpAlpn = TcpAlpn.Http11Only } },
             ProxyHost("noh3", "noh3.test", Route("noh3-root", "web")) with { Tls = new HostTlsSpec { Http3 = false } },
             ProxyHost("plain", "plain.test", Route("plain-root", "web")) with { Https = false },
-            ProxyHost("locked", "locked.test", Route("locked-api", "api", "/api")) with { ForceHttps = true, Policies = [new IpAllowListPolicySpec(["10.0.0.5"])] },
+            ProxyHost("locked", "locked.test", Route("locked-api", "api", "/api")) with { ForceHttps = true, Policies = [LanList.Policy()] },
             ProxyHost("ipv6", "[::1]", Route("ipv6-root", "web")),
             ProxyHost("lax", "lax.test", Route("lax-root", "web")),
             ProxyHost("robots", "robots.test", Route("robots-root", "web")) with { Robots = new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers } },

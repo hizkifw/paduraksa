@@ -58,6 +58,24 @@ public sealed class AccessListPolicyTests
         Assert.Equal(expected, Describe(decision));
     }
 
+    [Theory]
+    [InlineData("192.0.2.1", true)]
+    [InlineData("::ffff:192.0.2.1", true)] // the IPv4-mapped spelling (TCP on [::]) is the same client
+    [InlineData("10.200.0.1", true)]
+    [InlineData("2001:db8::1", true)]
+    [InlineData("192.0.2.2", false)]
+    [InlineData("2001:db9::1", false)]
+    public void AnAddressListUsesTheResolvedClientAddress(string client, bool allowed)
+    {
+        var list = List("lan", ["192.0.2.1", "10.0.0.0/8", "2001:db8::/32"], users: false);
+        var snapshot = TestSnapshots.Bound(Model(list), options: new SnapshotCompilerOptions { AccessLists = new AccessListRuntime() });
+        var policy = snapshot.HostsByIndex[0].Routes[0].Policies[0];
+        GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse(client), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
+        var request = new RequestView(Context("192.0.2.1"), state);
+
+        Assert.Equal(allowed ? PolicyAction.Continue : PolicyAction.Respond, policy.Evaluate(in request).Action);
+    }
+
     [Fact]
     public void WithoutUsersOnlyTheAddressApplies()
     {

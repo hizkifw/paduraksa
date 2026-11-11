@@ -66,7 +66,7 @@ public sealed class CompiledBehaviourTests : IDisposable
     {
         var document = SplitHost(drop: false);
         var host = document.Hosts[0];
-        document = document with { Hosts = [host with { Routes = [host.Routes[0], host.Routes[1] with { Settings = new RouteSettings { IpAllowList = new IpAllowListSettings([]) } }] }] };
+        document = document with { Hosts = [host with { Routes = [host.Routes[0], host.Routes[1] with { Settings = new RouteSettings { AccessList = new AccessListSettings { Enabled = false } } }] }] };
         using var gate = Harness(document);
 
         Assert.Equal(GateHarness.Forwarded, await gate.SendAsync("app.example.com", "https", "/b", Outsider));
@@ -124,6 +124,11 @@ public sealed class CompiledBehaviourTests : IDisposable
     private static ConfigDocument SplitHost(bool drop) => new(
         Settings: new GlobalSettings(Defaults: new HostSettings { ForceHttps = true }),
         Upstreams: [new UpstreamConfig(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "http://app")])],
+        AccessLists:
+        [
+            new AccessListConfig(Id<AccessListId>(1), "ten", Ip: new AccessListIp(Allow: ["10.0.0.0/8"], DropDenied: drop)),
+            new AccessListConfig(Id<AccessListId>(2), "lan", Ip: new AccessListIp(Allow: ["192.168.1.0/24"], DropDenied: drop)),
+        ],
         Hosts:
         [
             new HostConfig(
@@ -131,8 +136,8 @@ public sealed class CompiledBehaviourTests : IDisposable
                 ["app.example.com"],
                 Routes:
                 [
-                    new RouteConfig(RootRoute, AppUpstream, Path: "/a", Settings: new RouteSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"], drop) }),
-                    new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: new RouteSettings { IpAllowList = new IpAllowListSettings(["192.168.1.0/24"], drop) }),
+                    new RouteConfig(RootRoute, AppUpstream, Path: "/a", Settings: new RouteSettings { AccessList = new AccessListSettings { AccessListId = Id<AccessListId>(1) } }),
+                    new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: new RouteSettings { AccessList = new AccessListSettings { AccessListId = Id<AccessListId>(2) } }),
                 ]),
         ]);
 
@@ -154,7 +159,7 @@ public sealed class CompiledBehaviourTests : IDisposable
                 return 421; // no HTTPS, or a TLS 1.3 minimum this (unknown-version) connection doesn't show
             }
 
-            var hostList = Restricting(host.Settings.IpAllowList ?? profile?.IpAllowList ?? defaults.IpAllowList);
+            var hostList = ResolvedList(document, defaults, profile, host.Settings);
             RouteConfig[] routes =
             [
                 .. host.Routes
@@ -165,17 +170,33 @@ public sealed class CompiledBehaviourTests : IDisposable
                     .ThenBy(r => r.Listed)
                     .Select(r => r.Route),
             ];
-            IpAllowListSettings?[] routeLists = [.. routes.Select(r => r.Settings.IpAllowList is { } own ? Restricting(own) : hostList)];
+            AccessListConfig?[] routeLists = [.. routes.Select(r => RouteList(document, defaults, profile, host.Settings, r.Settings))];
+            var forcesHttps = host.Settings.ForceHttps ?? profile?.ForceHttps ?? defaults.ForceHttps ?? false;
 
-            (bool Restricts, IEnumerable<string> Addresses, bool Drop) guard = routes.Length == 0
-                ? (hostList is not null, hostList?.Addresses ?? [], hostList?.DropDenied ?? false)
-                : (routeLists.All(l => l is not null), routeLists.SelectMany(l => l?.Addresses ?? []), routeLists.All(l => l?.DropDenied ?? false));
-            if (guard.Restricts && !Admits(guard.Addresses, client))
+            // The host chain, before the redirect: with routes, a request is turned away only when every route's list
+            // refuses its address; without routes (a Redirect or Respond host) the whole list is there, a password
+            // included, which waits for the HTTPS request when the host redirects.
+            if (routes.Length > 0)
             {
-                return guard.Drop ? GateHarness.Aborted : 403;
+                if (routeLists.All(l => l is not null && Refuses(l, client)))
+                {
+                    return routeLists.All(l => l!.Ip?.DropDenied ?? false) ? GateHarness.Aborted : 403;
+                }
+            }
+            else if (hostList is not null)
+            {
+                if (Refuses(hostList, client))
+                {
+                    return hostList.Ip?.DropDenied ?? false ? GateHarness.Aborted : 403;
+                }
+
+                if (NeedsPassword(hostList, client) && (https || !forcesHttps))
+                {
+                    return 401;
+                }
             }
 
-            if (!https && (host.Settings.ForceHttps ?? profile?.ForceHttps ?? defaults.ForceHttps ?? false))
+            if (!https && forcesHttps)
             {
                 return 301;
             }
@@ -194,20 +215,68 @@ public sealed class CompiledBehaviourTests : IDisposable
                 return 404;
             }
 
-            if (routeLists[match] is { } list && !Admits(list.Addresses, client))
+            if (routeLists[match] is { } list)
             {
-                return list.DropDenied ? GateHarness.Aborted : 403;
+                if (Refuses(list, client))
+                {
+                    return list.Ip?.DropDenied ?? false ? GateHarness.Aborted : 403;
+                }
+
+                // The harness sends no credentials.
+                if (NeedsPassword(list, client))
+                {
+                    return 401;
+                }
             }
 
             return GateHarness.Forwarded;
         }
 
-        private static IpAllowListSettings? Restricting(IpAllowListSettings? list) => list is { Addresses.Count: > 0 } ? list : null;
+        private static AccessListConfig? ResolvedList(ConfigDocument document, HostSettings defaults, HostSettings? profile, HostSettings host)
+        {
+            HostSettings?[] layers = [defaults, profile, host];
+            var enabled = layers.Select(l => l?.AccessList?.Enabled).LastOrDefault(e => e is not null) ?? true;
+            var id = layers.Select(l => l?.AccessList?.AccessListId).LastOrDefault(i => i is not null);
+            return enabled && id is { } named ? document.AccessLists.First(l => l.Id == named) : null;
+        }
+
+        private static AccessListConfig? RouteList(ConfigDocument document, HostSettings defaults, HostSettings? profile, HostSettings host, RouteSettings route)
+        {
+            var enabled = route.AccessList?.Enabled ?? HostEnabled(defaults, profile, host);
+            var id = route.AccessList?.AccessListId ?? HostId(defaults, profile, host);
+            return enabled && id is { } named ? document.AccessLists.First(l => l.Id == named) : null;
+        }
+
+        private static bool HostEnabled(HostSettings defaults, HostSettings? profile, HostSettings host) =>
+            host.AccessList?.Enabled ?? profile?.AccessList?.Enabled ?? defaults.AccessList?.Enabled ?? true;
+
+        private static AccessListId? HostId(HostSettings defaults, HostSettings? profile, HostSettings host) =>
+            host.AccessList?.AccessListId ?? profile?.AccessList?.AccessListId ?? defaults.AccessList?.AccessListId;
 
         private static bool Admits(IEnumerable<string> addresses, IPAddress client) =>
             addresses.Select(a => a.Trim()).Any(a => a.Contains('/', StringComparison.Ordinal)
                 ? SystemIpNetwork.Parse(a).Contains(client)
                 : IPAddress.Parse(a).Equals(client));
+
+        private static bool HasUsers(AccessListConfig list) => list.BasicAuth is { Users.Count: > 0 };
+
+        /// <summary>The address rules alone turn the client away: a denied address always; one outside a non-empty allow list
+        /// unless a password can still admit it (satisfy any, with users).</summary>
+        private static bool Refuses(AccessListConfig list, IPAddress client)
+        {
+            var allow = list.Ip?.Allow ?? [];
+            if (Admits(list.Ip?.Deny ?? [], client))
+            {
+                return true;
+            }
+
+            return allow.Count > 0 && !(HasUsers(list) && list.Satisfy == AccessListSatisfy.Any) && !Admits(allow, client);
+        }
+
+        /// <summary>The address got through and the list still asks for a password: not when it has no users, and not when
+        /// the address is in the allow list of a satisfy-any list.</summary>
+        private static bool NeedsPassword(AccessListConfig list, IPAddress client) =>
+            HasUsers(list) && !(list.Satisfy == AccessListSatisfy.Any && (list.Ip?.Allow.Count ?? 0) > 0 && Admits(list.Ip!.Allow, client));
 
         // Segment-aware, ignoring case.
         private static bool Matches(RouteConfig route, string path) => route.Match == RouteMatchKind.Exact

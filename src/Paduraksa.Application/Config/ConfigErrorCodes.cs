@@ -23,7 +23,15 @@ public static class ConfigErrorCodes
     public const string AddressInvalid = "address.invalid";
 
     // Settings layers.
-    public const string IpAllowListDropDeniedWithoutAddresses = "ipAllowList.dropDenied.withoutAddresses";
+    public const string AccessListDropDeniedWithoutAddresses = "accessList.ip.dropDenied.withoutAddresses";
+    public const string AccessListRealmInvalid = "accessList.realm.invalid";
+    public const string AccessListUsersTooMany = "accessList.users.tooMany";
+    public const string AccessListUsernameInvalid = "accessList.user.username.invalid";
+    public const string AccessListUsernameDuplicate = "accessList.user.username.duplicate";
+    public const string AccessListPasswordHashInvalid = "accessList.user.passwordHash.invalid";
+    public const string AccessListPasswordEmpty = "accessList.user.password.empty";
+    public const string AccessListPasswordTooLong = "accessList.user.password.tooLong";
+    public const string AccessListPasswordUnhashed = "accessList.user.password.unhashed";
     public const string HstsMaxAgeInvalid = "hsts.maxAge.invalid";
     public const string HstsPreloadNeedsIncludeSubDomains = "hsts.preload.needsIncludeSubDomains";
     public const string HstsPreloadMaxAgeTooShort = "hsts.preload.maxAgeTooShort";
@@ -69,6 +77,7 @@ public static class ConfigErrorCodes
     public const string HostNameDuplicate = "host.name.duplicate";
     public const string HostProfileUnknown = "host.profile.unknown";
     public const string HostRateLimitUnknown = "host.rateLimit.unknown";
+    public const string HostAccessListUnknown = "host.accessList.unknown";
     public const string HostCertificateIdRequired = "host.certificate.idRequired";
     public const string HostCertificateIdUnexpected = "host.certificate.idUnexpected";
     public const string HostCertificateNoneWithForceHttps = "host.certificate.noneWithForceHttps";
@@ -101,4 +110,5 @@ public static class ConfigErrorCodes
     public const string RouteUpstreamRequired = "route.upstream.required";
     public const string RouteUpstreamUnknown = "route.upstream.unknown";
     public const string RouteRateLimitUnknown = "route.rateLimit.unknown";
+    public const string RouteAccessListUnknown = "route.accessList.unknown";
 }

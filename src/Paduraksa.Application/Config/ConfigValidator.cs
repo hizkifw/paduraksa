@@ -1,15 +1,15 @@
 using System.Buffers;
-
+using System.Text;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Security;
 using Paduraksa.Core.Text;
 using Paduraksa.Proxy.RateLimiting;
-
 using static Paduraksa.Application.Config.ConfigErrorCodes;
-
+using HostAccessListSpec = Paduraksa.Proxy.Config.HostAccessListSpec;
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
 using HostRateLimitSpec = Paduraksa.Proxy.Config.HostRateLimitSpec;
 using HostRobotsSpec = Paduraksa.Proxy.Config.HostRobotsSpec;
@@ -27,7 +27,7 @@ namespace Paduraksa.Application.Config;
 /// validator; it catches what the document can say on its own, where the compiler can only name keys.</summary>
 /// <remarks>
 /// <para>Validate the document <i>as the client sent it</i>, before <see cref="CanonicalConfigJson.Canonicalize"/>:
-/// the paths then index what the client wrote, like those of <see cref="CanonicalConfigJson.TryDeserialize"/>. Values
+/// the paths then index what the client wrote, like those of <see cref="CanonicalConfigJson.TryDeserialize(ReadOnlySpan{byte}, out ConfigDocument?, out ConfigError?)"/>. Values
 /// are judged in their normal form (host names, trimmed names and addresses), so a document that validates still
 /// validates once canonical.</para>
 /// <para>Cross-object rules: IDs are unique across the whole document, also ignoring case (YARP compares its IDs
@@ -128,13 +128,24 @@ public static class ConfigValidator
                 }
             }
 
+            var accessLists = document.AccessLists ?? [];
+            Dictionary<string, string> accessListNames = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<AccessListId> accessListIds = [];
+            for (var i = 0; i < accessLists.Count; i++)
+            {
+                if (NotNull(accessLists[i], $"/accessLists/{i}"))
+                {
+                    CheckAccessList(accessLists[i], $"/accessLists/{i}", accessListNames, accessListIds);
+                }
+            }
+
             HashSet<UpstreamId> upstreamIds = [.. upstreams.Where(u => u is not null).Select(u => u.Id)];
             var defaults = document.Settings?.Defaults;
             for (var i = 0; i < hosts.Count; i++)
             {
                 if (NotNull(hosts[i], $"/hosts/{i}"))
                 {
-                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds);
+                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds, accessListIds);
                 }
             }
         }
@@ -317,7 +328,8 @@ public static class ConfigValidator
             HostSettings? defaults,
             Dictionary<ProfileId, HostSettings?> profiles,
             HashSet<UpstreamId> upstreams,
-            HashSet<RateLimitPolicyId> policies)
+            HashSet<RateLimitPolicyId> policies,
+            HashSet<AccessListId> accessLists)
         {
             CheckId(host.Id, path);
             CheckVersion(host.Version, path);
@@ -366,6 +378,7 @@ public static class ConfigValidator
             CheckServerHeader(resolved.ServerHeader, defaults, profile, host.Settings, $"{path}/settings/serverHeader");
             CheckRobots(resolved.Robots, defaults, profile, host.Settings, $"{path}/settings/robots");
             CheckRateLimit(resolved.RateLimit, policies, $"{path}/settings/rateLimit", HostRateLimitUnknown, defaults, profile, host.Settings);
+            CheckAccessListReference(resolved.AccessList, accessLists, $"{path}/settings/accessList", HostAccessListUnknown, defaults, profile, host.Settings);
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -378,7 +391,7 @@ public static class ConfigValidator
             {
                 if (NotNull(routes[i], $"{path}/routes/{i}"))
                 {
-                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies);
+                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies, accessLists);
                 }
             }
 
@@ -557,7 +570,7 @@ public static class ConfigValidator
             }
         }
 
-        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches, HashSet<RateLimitPolicyId> policies)
+        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches, HashSet<RateLimitPolicyId> policies, HashSet<AccessListId> accessLists)
         {
             CheckId(route.Id, path);
             CheckEnum(route.Match, $"{path}/match");
@@ -590,7 +603,12 @@ public static class ConfigValidator
                 Add($"{path}/upstreamId", RouteUpstreamUnknown, $"upstream '{route.UpstreamId}' doesn't exist");
             }
 
-            CheckIpAllowList(route.Settings?.IpAllowList, $"{path}/settings/ipAllowList");
+            // Only the route's own named list is checked here: one inherited from the host is reported at the host.
+            if (route.Settings?.AccessList?.AccessListId is { IsEmpty: false } routeList)
+            {
+                CheckAccessListReference(new HostAccessListSpec { Enabled = true, AccessListId = routeList }, accessLists, $"{path}/settings/accessList", RouteAccessListUnknown, defaults: null, profile: null, host: null);
+            }
+
             if (route.Settings?.ProofOfWork is { } proofOfWork)
             {
                 CheckProofOfWork(proofOfWork, $"{path}/settings/proofOfWork", route: true);
@@ -634,8 +652,6 @@ public static class ConfigValidator
             {
                 CheckEnum(propagation, $"{path}/requestIdPropagation");
             }
-
-            CheckIpAllowList(settings.IpAllowList, $"{path}/ipAllowList");
 
             if (settings.Hsts is { MaxAge: { } maxAge } && maxAge is < 0 or > HstsHeader.MaxMaxAgeSeconds)
             {
@@ -932,19 +948,109 @@ public static class ConfigValidator
         private static string InvalidServerHeaderValue =>
             $"the Server header value must be 1-{ServerHeader.MaxValueLength} visible ASCII characters or spaces, with no leading or trailing space";
 
-        private void CheckIpAllowList(IpAllowListSettings? allowList, string path)
+        /// <summary>An access list's own rules: its addresses, its realm and its users. The users' hashes are checked
+        /// for shape only; a password that reaches here unhashed is a bug in the write path and is refused, so no document
+        /// can hold one.</summary>
+        private void CheckAccessList(AccessListConfig list, string path, Dictionary<string, string> names, HashSet<AccessListId> ids)
         {
-            if (allowList is null)
+            CheckId(list.Id, path);
+            CheckVersion(list.Version, path);
+            CheckLabel(list.Name, $"{path}/name", "access list", names);
+            ids.Add(list.Id);
+            CheckEnum(list.Satisfy, $"{path}/satisfy");
+            CheckNotes(list.Notes, path);
+
+            if (list.Ip is { } ip)
+            {
+                CheckAddresses(ip.Allow ?? [], $"{path}/ip/allow");
+                CheckAddresses(ip.Deny ?? [], $"{path}/ip/deny");
+                if (ip.DropDenied && (ip.Allow ?? []).Count == 0 && (ip.Deny ?? []).Count == 0)
+                {
+                    Add($"{path}/ip/dropDenied", AccessListDropDeniedWithoutAddresses, "an access list without addresses refuses none, so there is nothing to drop");
+                }
+            }
+
+            if (list.BasicAuth is not { } auth)
             {
                 return;
             }
 
-            var addresses = allowList.Addresses ?? [];
-            CheckAddresses(addresses, $"{path}/addresses");
-            if (allowList.DropDenied && addresses.Count == 0)
+            if (auth.Realm is { } realm
+                && (realm.Trim().Length is 0 or > AccessListLimits.MaxRealmLength || realm.Trim().AsSpan().ContainsAnyExcept(AsciiChars.Printable)))
             {
-                Add($"{path}/dropDenied", IpAllowListDropDeniedWithoutAddresses, "an empty allow list restricts nothing, so there is nothing to drop");
+                Add($"{path}/basicAuth/realm", AccessListRealmInvalid, $"the realm must be 1-{AccessListLimits.MaxRealmLength} printable ASCII characters, or left out to use the list's name");
             }
+
+            var users = auth.Users ?? [];
+            if (users.Count > AccessListLimits.MaxUsers)
+            {
+                Add($"{path}/basicAuth/users", AccessListUsersTooMany, $"an access list can have at most {AccessListLimits.MaxUsers} users");
+            }
+
+            HashSet<string> usernames = new(StringComparer.Ordinal);
+            for (var i = 0; i < users.Count; i++)
+            {
+                if (NotNull(users[i], $"{path}/basicAuth/users/{i}"))
+                {
+                    CheckUser(users[i], $"{path}/basicAuth/users/{i}", usernames);
+                }
+            }
+        }
+
+        private void CheckUser(AccessListUserConfig user, string path, HashSet<string> usernames)
+        {
+            var name = user.Username ?? string.Empty;
+            if (name.Length is 0 or > AccessListLimits.MaxUsernameLength || name.AsSpan().ContainsAnyExcept(AsciiChars.UsernameChars))
+            {
+                Add($"{path}/username", AccessListUsernameInvalid, $"a username must be 1-{AccessListLimits.MaxUsernameLength} visible ASCII characters, without a colon");
+            }
+            else if (!usernames.Add(name))
+            {
+                Add($"{path}/username", AccessListUsernameDuplicate, $"the username '{name}' is listed twice (usernames are case-sensitive)");
+            }
+
+            // The server hashes a password before it validates anything, so a password still here is empty, too long, or a
+            // write path that skipped the hashing: never stored either way.
+            if (user.Password is { } password)
+            {
+                if (password.Length == 0)
+                {
+                    Add($"{path}/password", AccessListPasswordEmpty, "a password can't be empty");
+                }
+                else if (Encoding.UTF8.GetByteCount(password) > PasswordHash.MaxPasswordBytes)
+                {
+                    Add($"{path}/password", AccessListPasswordTooLong, $"a password can be at most {PasswordHash.MaxPasswordBytes} bytes");
+                }
+                else
+                {
+                    Add($"{path}/password", AccessListPasswordUnhashed, "a password must be hashed before it is validated");
+                }
+            }
+            else if (!PasswordHash.IsValid(user.PasswordHash))
+            {
+                Add($"{path}/passwordHash", AccessListPasswordHashInvalid, "the user needs a password, or a password hash this build reads ($pbkdf2-sha256$...)");
+            }
+        }
+
+        /// <summary>A host's or route's resolved access list: the list must exist. A named list is checked even while the
+        /// switch is off, because the reference is kept for turning it back on.</summary>
+        private void CheckAccessListReference(
+            HostAccessListSpec resolved,
+            HashSet<AccessListId> lists,
+            string path,
+            string unknownCode,
+            HostSettings? defaults,
+            HostSettings? profile,
+            HostSettings? host)
+        {
+            if (resolved.AccessListId.IsEmpty || lists.Contains(resolved.AccessListId))
+            {
+                return;
+            }
+
+            var inherited = HostSettingsLayers.InheritedSuffix(
+                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.AccessList?.AccessListId));
+            Add($"{path}/accessListId", unknownCode, $"access list '{resolved.AccessListId}' doesn't exist{inherited}");
         }
 
         private void CheckAddresses(IReadOnlyList<string> addresses, string path)

@@ -4,7 +4,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
-/// The whole proxy config: global settings, profiles, upstreams, rate-limit policies and hosts with their routes. It is the
+/// The whole proxy config: global settings, profiles, upstreams, rate-limit policies, access lists and hosts with their routes. It is the
 /// source of truth: each revision stores it as canonical JSON (<see cref="ConfigJsonContext"/>), and startup, rollback,
 /// diff and YAML export all read it. It holds references only, never secrets.
 /// </summary>
@@ -26,13 +26,15 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="Upstreams">Canonical order: by ID.</param>
 /// <param name="Hosts">Canonical order: by ID.</param>
 /// <param name="RateLimitPolicies">Canonical order: by ID.</param>
+/// <param name="AccessLists">Canonical order: by ID.</param>
 public sealed record ConfigDocument(
     [property: JsonRequired] string ApiVersion = ConfigDocument.V1,
     GlobalSettings? Settings = null,
     IReadOnlyList<ProfileConfig>? Profiles = null,
     IReadOnlyList<UpstreamConfig>? Upstreams = null,
     IReadOnlyList<HostConfig>? Hosts = null,
-    IReadOnlyList<RateLimitPolicyConfig>? RateLimitPolicies = null)
+    IReadOnlyList<RateLimitPolicyConfig>? RateLimitPolicies = null,
+    IReadOnlyList<AccessListConfig>? AccessLists = null)
 {
     /// <summary>The only <see cref="ApiVersion"/> this build reads and writes.</summary>
     public const string V1 = "paduraksa.dev/v1";
@@ -46,6 +48,8 @@ public sealed record ConfigDocument(
     public IReadOnlyList<HostConfig> Hosts { get; init; } = Hosts ?? [];
 
     public IReadOnlyList<RateLimitPolicyConfig> RateLimitPolicies { get; init; } = RateLimitPolicies ?? [];
+
+    public IReadOnlyList<AccessListConfig> AccessLists { get; init; } = AccessLists ?? [];
 }
 
 /// <summary>The global settings: one per document.</summary>

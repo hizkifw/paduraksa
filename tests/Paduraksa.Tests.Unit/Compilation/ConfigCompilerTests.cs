@@ -137,11 +137,11 @@ public sealed class ConfigCompilerTests : IDisposable
     [Fact]
     public void AnInheritedValueIsReportedWhereItIsUsed()
     {
-        // The bad address comes from the global defaults: each host whose chain carries it reports it.
+        // The missing list is named by the global defaults: each host whose chain carries it reports it.
         var document = Valid();
         var changed = document with
         {
-            Settings = document.Settings with { Defaults = new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.1/8"]) } },
+            Settings = document.Settings with { Defaults = new HostSettings { AccessList = new AccessListSettings { AccessListId = Id<AccessListId>(9) } } },
             Profiles = [],
             Hosts = [.. document.Hosts.Where(h => h.Id != RespondHost).Select(h => h with { ProfileId = null })],
         };
@@ -149,7 +149,18 @@ public sealed class ConfigCompilerTests : IDisposable
         var errors = _certificates.Compile(changed, Revision).Errors;
 
         Assert.Equal(["/hosts/0", "/hosts/1"], errors.Select(e => e.Path));
-        Assert.All(errors, e => Assert.Contains("'10.0.0.1/8' isn't an IP address or CIDR", e.Message, StringComparison.Ordinal));
+        Assert.All(errors, e => Assert.Contains("doesn't exist", e.Message, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ABadAddressIsReportedAtItsAccessList()
+    {
+        var document = Valid() with { AccessLists = [new AccessListConfig(LanList, "lan", Ip: new AccessListIp(Allow: ["10.0.0.0/8", "10.0.0.1/8"]))] };
+
+        var error = Assert.Single(_certificates.Compile(document, Revision).Errors);
+
+        Assert.Equal("/accessLists/0", error.Path);
+        Assert.Contains("'10.0.0.1/8' isn't an IP address or CIDR", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -270,7 +281,8 @@ public sealed class ConfigCompilerTests : IDisposable
     {
         var parked = Id<UpstreamId>(2);
         return new ConfigDocument(
-            Settings: new GlobalSettings(Defaults: new HostSettings { IpAllowList = new IpAllowListSettings([" ::FFFF:10.0.0.0/104 ", "2001:DB8::/32"], DropDenied: true) }),
+            Settings: new GlobalSettings(Defaults: new HostSettings { AccessList = new AccessListSettings { AccessListId = LanList } }),
+            AccessLists: [new AccessListConfig(LanList, "lan", Ip: new AccessListIp([" ::FFFF:10.0.0.0/104 ", "2001:DB8::/32"], DropDenied: true))],
             Upstreams:
             [
                 new UpstreamConfig(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "https://app:8443/base/")], ActiveHealth: new ActiveHealthConfig("/")),
@@ -284,7 +296,7 @@ public sealed class ConfigCompilerTests : IDisposable
                     Routes:
                     [
                         new RouteConfig(RootRoute, AppUpstream, Order: -5, Match: RouteMatchKind.Exact, Path: "/API"),
-                        new RouteConfig(ApiRoute, AppUpstream, Order: -5, Path: "/api", Settings: new RouteSettings { IpAllowList = new IpAllowListSettings([]) }),
+                        new RouteConfig(ApiRoute, AppUpstream, Order: -5, Path: "/api", Settings: new RouteSettings { AccessList = new AccessListSettings { Enabled = false } }),
                         new RouteConfig(Id<RouteId>(3), AppUpstream, Order: int.MaxValue, Path: "/a b/é"),
                     ]),
                 new HostConfig(Id<HostId>(2), ["parked.example.com"], Enabled: false, Routes: [new RouteConfig(Id<RouteId>(4), parked)]),

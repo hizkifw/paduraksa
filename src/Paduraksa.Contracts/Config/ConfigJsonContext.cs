@@ -50,6 +50,7 @@ namespace Paduraksa.Contracts.Config;
     ])]
 [JsonSerializable(typeof(ConfigDocument))]
 [JsonSerializable(typeof(RateLimitPolicyConfig))]
+[JsonSerializable(typeof(AccessListConfig))]
 [JsonSerializable(typeof(ConfigError))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigError>))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigChange>))]

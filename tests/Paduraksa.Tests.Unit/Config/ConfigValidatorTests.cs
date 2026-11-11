@@ -536,40 +536,6 @@ public sealed class ConfigValidatorTests
         }
     }
 
-    [Fact]
-    public void ChecksAllowListsInEveryLayer()
-    {
-        var document = Valid();
-        IpAllowListSettings bad = new(["10.0.0.0/8", "10.0.0.0/33", "nope"]);
-        HostSettings settings = new() { IpAllowList = bad };
-        var changed = document with
-        {
-            Settings = document.Settings with { Defaults = settings },
-            Profiles = [document.Profiles[0] with { Settings = new HostSettings { IpAllowList = new IpAllowListSettings([], DropDenied: true) } }],
-            Hosts = MapHost(document, AppHost, h => h with
-            {
-                Settings = settings,
-                Routes = [h.Routes[0] with { Settings = new RouteSettings { IpAllowList = bad } }],
-            }),
-        };
-
-        AssertErrors(
-            changed,
-            ("/settings/defaults/ipAllowList/addresses/1", AddressInvalid),
-            ("/settings/defaults/ipAllowList/addresses/2", AddressInvalid),
-            ("/profiles/0/settings/ipAllowList/dropDenied", IpAllowListDropDeniedWithoutAddresses),
-            ($"{Proxy}/settings/ipAllowList/addresses/1", AddressInvalid),
-            ($"{Proxy}/settings/ipAllowList/addresses/2", AddressInvalid),
-            ($"{Proxy}/routes/0/settings/ipAllowList/addresses/1", AddressInvalid),
-            ($"{Proxy}/routes/0/settings/ipAllowList/addresses/2", AddressInvalid));
-
-        // An empty list lifts an inherited one.
-        Assert.Empty(ConfigValidator.Validate(document with
-        {
-            Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { IpAllowList = new IpAllowListSettings([]) } }),
-        }));
-    }
-
     [Theory]
     [InlineData(TrustedProxyMode.Off, new[] { "10.0.0.1" }, null, false, false, false, "/proxies", TrustedProxiesProxiesUnexpected)]
     [InlineData(TrustedProxyMode.CloudflareProxy, new[] { "10.0.0.1" }, null, false, false, false, "/proxies", TrustedProxiesProxiesUnexpected)]

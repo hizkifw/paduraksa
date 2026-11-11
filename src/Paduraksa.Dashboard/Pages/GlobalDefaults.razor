@@ -61,7 +61,7 @@ else
                     <MudText Typo="Typo.caption" Class="pdk-muted">Every host inherits these unless its profile or the host itself sets its own.</MudText>
                 </div>
             </div>
-            <HostSettingsFields Settings="_model.Defaults" SettingsChanged="SetDefaults" Inherited="HostSettingsLayers.BuiltIn" InheritedFrom="the built-in defaults" InheritWord="Built-in default"
+            <HostSettingsFields Settings="_model.Defaults" SettingsChanged="SetDefaults" Inherited="HostSettingsLayers.BuiltIn" InheritWord="Built-in default"
                                 PathPrefix="/defaults" Errors="_errors" ShowAll="_attempted" Touched="_touched" ReadOnly="!_mayWrite" OnChanged="Touch"
                                 Policies="_document.RateLimitPolicies" ProxyMode="_model.ProxyMode" />
         </MudPaper>

@@ -36,7 +36,7 @@ public static class InlineValidation
         return Relative(ConfigValidator.Validate(current with { Settings = settings }), "/settings");
     }
 
-    /// <summary>The errors of <paramref name="profile"/> in <paramref name="current"/>, relative to the profile (<c>/name</c>, <c>/settings/ipAllowList</c>).</summary>
+    /// <summary>The errors of <paramref name="profile"/> in <paramref name="current"/>, relative to the profile (<c>/name</c>, <c>/settings/accessList/accessListId</c>).</summary>
     public static IReadOnlyDictionary<string, string> ForProfile(ConfigDocument current, ProfileConfig profile)
     {
         ArgumentNullException.ThrowIfNull(current);
