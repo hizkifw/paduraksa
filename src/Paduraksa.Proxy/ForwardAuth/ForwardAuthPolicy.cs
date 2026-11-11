@@ -144,6 +144,14 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
         var counters = provider.Counters;
         if (!providerState.TryEnter())
         {
+            if (providerState.IsDisposed)
+            {
+                // A snapshot that outlived its provider's replacement: its client is gone, and the request is refused rather than sent without the check.
+                counters.CountError();
+                providerState.Runtime.ReportFailure(providerState, provider.Name, "the provider's configuration was replaced while this request was waiting");
+                return Unavailable;
+            }
+
             counters.CountBusy();
             return Busy;
         }

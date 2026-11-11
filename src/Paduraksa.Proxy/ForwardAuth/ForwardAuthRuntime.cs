@@ -20,6 +20,10 @@ public sealed partial class ForwardAuthRuntime
 {
     private readonly ConcurrentDictionary<AuthProviderId, ForwardAuthProviderState> _providers = new();
     private readonly ConcurrentDictionary<AuthProviderId, ForwardAuthCounters> _counters = new();
+
+    // The retired states that haven't been disposed yet. A state is reachable only from the snapshots that hold it, and its disposal timer only from the state:
+    // holding it here keeps the timer from being collected before it fires.
+    private readonly ConcurrentDictionary<ForwardAuthProviderState, byte> _retiring = new();
     private readonly Func<AuthProviderSpec, HttpMessageHandler>? _handlerFactory;
     private readonly ILogger? _logger;
     private readonly object _publishLock = new();
@@ -53,19 +57,27 @@ public sealed partial class ForwardAuthRuntime
     /// <summary>The counters of <paramref name="id"/>: cold path, once per provider per compile.</summary>
     public ForwardAuthCounters CountersFor(AuthProviderId id) => _counters.GetOrAdd(id, static _ => new ForwardAuthCounters());
 
+    /// <summary>How many retired states wait to be disposed, for tests.</summary>
+    internal int RetiredStates => _retiring.Count;
+
+    internal void Hold(ForwardAuthProviderState state) => _retiring[state] = 0;
+
+    internal void Release(ForwardAuthProviderState state) => _retiring.TryRemove(state, out _);
+
     /// <summary>The live state of a provider, or null when the process has none (never published, or retired).</summary>
     public ForwardAuthProviderState? StateOf(AuthProviderId id) => _providers.GetValueOrDefault(id);
 
     /// <summary>
-    /// The state <paramref name="spec"/> runs on: the one the process already has when its configuration hash is the same, else a new one that
-    /// nothing records. Compiling changes nothing in the process, whether or not the result goes live (a failed publish, a dry run, a draft and a
-    /// simulation all leave it as they found it); <see cref="Publish"/> makes a snapshot's states the live ones. The HTTP client is made on the
+    /// The state <paramref name="spec"/> runs on: the one the process already has when its configuration hash is the same and it is live (never one that is
+    /// retired or disposed), else a new one that nothing records. Compiling changes no state, whether or not the result goes live (a failed publish, a
+    /// dry run, a draft and a simulation all leave the live ones as they found them); the only trace is the counters entry of a provider ID the process hasn't
+    /// seen (<see cref="CountersFor"/>), which no snapshot can lose. <see cref="Publish"/> makes a snapshot's states the live ones. The HTTP client is made on the
     /// first call, so compiling opens nothing either.
     /// </summary>
     internal ForwardAuthProviderState Bind(AuthProviderSpec spec)
     {
         var hash = ForwardAuthProviderState.HashOf(spec);
-        return _providers.TryGetValue(spec.Id, out var existing) && string.Equals(existing.ConfigHash, hash, StringComparison.Ordinal)
+        return _providers.TryGetValue(spec.Id, out var existing) && existing.IsLive && string.Equals(existing.ConfigHash, hash, StringComparison.Ordinal)
             ? existing
             : new ForwardAuthProviderState(this, spec, hash, CountersFor(spec.Id), _handlerFactory);
     }
@@ -73,12 +85,19 @@ public sealed partial class ForwardAuthRuntime
     /// <summary>
     /// Makes <paramref name="states"/>, the ones a snapshot that is about to go live runs on, the process's live providers: the ones it no longer
     /// has or has replaced are retired. A retired state stays reachable from the snapshots that still hold it, so its client is disposed only
-    /// after a grace period and once no call is running (<see cref="ForwardAuthProviderState.Retire"/>). The publisher calls it with its lock held.
+    /// after a grace period and once no call is running (<see cref="ForwardAuthProviderState.Retire"/>). A state in <paramref name="states"/> that an earlier
+    /// publish retired meanwhile (this snapshot was compiled while the one that replaced it was publishing, and reverted the change) is made live again
+    /// (<see cref="ForwardAuthProviderState.Revive"/>) before anything else, so no live provider is ever one that is about to be disposed. The publisher calls it with its lock held.
     /// </summary>
     internal void Publish(IReadOnlyList<ForwardAuthProviderState> states)
     {
         lock (_publishLock)
         {
+            foreach (var state in states)
+            {
+                state.Revive();
+            }
+
             List<ForwardAuthProviderState> retired = [];
             foreach (var old in _providers.Values)
             {

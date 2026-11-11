@@ -98,9 +98,11 @@ public sealed class ForwardAuthRuntimeTests
         Assert.True(handler.Disposed);
         Assert.True(old.IsDisposed);
 
-        // A call that begins after that fails closed instead of using a disposed client.
+        // A call that begins after that fails closed instead of using a disposed client, and makes no new one.
         Assert.Equal("502", await RunAsync(gate, Context(cookie: "session=other")));
         Assert.Equal(1, runtime.CountersFor(Provider).Errors);
+        Assert.Equal(1, handler.Calls);
+        Assert.False(old.TryEnter());
         Assert.Same(replacement, runtime.StateOf(Provider));
     }
 
@@ -117,6 +119,179 @@ public sealed class ForwardAuthRuntimeTests
         time.Advance(TimeSpan.FromMinutes(1));
 
         Assert.True(first.IsDisposed);
+    }
+
+    [Fact]
+    public void AStateTheCommitThatRevertedAChangeBoundIsLiveAgainWhenTheOtherCommitHasRetiredItAndIsNeverDisposedWhileLive()
+    {
+        ManualTime time = new();
+        ForwardAuthRuntime runtime = new(time, null, _ => new TrackingHandler());
+        var original = Spec("http://127.0.0.1:1/auth");
+        var live = runtime.Bind(original);
+        runtime.Publish([live]);
+
+        // Two commits overlap: C1 changes the provider and is still publishing when C2, which reverts the change, compiles on the process's state.
+        var changed = runtime.Bind(Spec("http://127.0.0.1:2/auth"));
+        var reverted = runtime.Bind(original);
+        Assert.Same(live, reverted);
+
+        runtime.Publish([changed]);
+        Assert.False(live.IsLive);
+        Assert.Equal(1, runtime.RetiredStates);
+        runtime.Publish([reverted]);
+
+        Assert.Same(live, runtime.StateOf(Provider));
+        Assert.True(live.IsLive);
+        time.Advance(TimeSpan.FromSeconds(5 + 11));
+
+        // The timer that was set when it was retired did nothing: it still takes calls, and only the one the revert replaced is gone.
+        Assert.False(live.IsDisposed);
+        Assert.True(live.TryEnter());
+        Assert.NotNull(live.Client);
+        live.Exit();
+        Assert.True(changed.IsDisposed);
+        Assert.Equal(0, runtime.RetiredStates);
+    }
+
+    [Fact]
+    public void AStateThatWasDisposedBeforeTheCommitThatBoundItPublishesGetsAClientAgainAndKeepsItsCache()
+    {
+        ManualTime time = new();
+        List<TrackingHandler> handlers = [];
+        ForwardAuthRuntime runtime = new(time, null, _ =>
+        {
+            TrackingHandler handler = new();
+            handlers.Add(handler);
+            return handler;
+        });
+        var original = Spec("http://127.0.0.1:1/auth");
+        var live = runtime.Bind(original);
+        runtime.Publish([live]);
+        Assert.True(live.TryEnter());
+        _ = live.Client;
+        live.Exit();
+        var allowance = new ForwardAuthAllowance(7, time.GetTimestamp() + 1_000_000_000_000, []);
+        live.Cache.Add(allowance, time.GetTimestamp());
+
+        var changed = runtime.Bind(Spec("http://127.0.0.1:2/auth"));
+        var reverted = runtime.Bind(original);
+        runtime.Publish([changed]);
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.True(live.IsDisposed);
+        Assert.True(handlers[0].Disposed);
+
+        // The publish of the reverting commit was slow: its snapshot still holds the state, so the state is what comes back.
+        runtime.Publish([reverted]);
+
+        Assert.Same(live, runtime.StateOf(Provider));
+        Assert.False(live.IsDisposed);
+        Assert.True(live.TryEnter());
+        _ = live.Client;
+        live.Exit();
+        Assert.Equal(2, handlers.Count);
+        Assert.False(handlers[1].Disposed);
+        Assert.True(live.Cache.TryGet(7, time.GetTimestamp(), out _));
+
+        // Only the state the revert replaced is waiting to be disposed.
+        Assert.Equal(1, runtime.RetiredStates);
+        Assert.False(changed.IsLive);
+    }
+
+    [Fact]
+    public void BindNeverHandsOutARetiredOrADisposedState()
+    {
+        ManualTime time = new();
+        ForwardAuthRuntime runtime = new(time, null, _ => new TrackingHandler());
+        var spec = Spec("http://127.0.0.1:1/auth");
+        var live = runtime.Bind(spec);
+        runtime.Publish([live]);
+        Assert.Same(live, runtime.Bind(spec));
+
+        // Between a publish's removal of the state from the live set and its retirement, or after a retirement made on its own, it is still what the process holds.
+        Assert.True(live.Retire());
+        Assert.NotSame(live, runtime.Bind(spec));
+
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.True(live.IsDisposed);
+        Assert.NotSame(live, runtime.Bind(spec));
+    }
+
+    [Fact]
+    public void ARetiredStateIsHeldUntilItsClientIsDisposedAndThenRefusesEveryCall()
+    {
+        ManualTime time = new();
+        ForwardAuthRuntime runtime = new(time, null, _ => throw new InvalidOperationException("a disposed state must not make a client"));
+        var state = runtime.Bind(Spec("http://127.0.0.1:1/auth"));
+        runtime.Publish([state]);
+        runtime.Publish([]);
+
+        // The runtime, not only the state's own timer, roots it while it waits.
+        Assert.Equal(1, runtime.RetiredStates);
+        Assert.True(state.TryEnter());
+        time.Advance(TimeSpan.FromSeconds(16));
+        Assert.False(state.IsDisposed);
+        state.Exit();
+        time.Advance(TimeSpan.FromSeconds(11));
+
+        Assert.True(state.IsDisposed);
+        Assert.Equal(0, runtime.RetiredStates);
+        Assert.False(state.TryEnter());
+        Assert.Throws<ObjectDisposedException>(() => state.Client);
+    }
+
+    [Fact]
+    public async Task NoCallThatHoldsAPlaceEverFindsItsClientDisposedWhileTheStateIsRetiredAndRevivedUnderLoad()
+    {
+        ManualTime time = new();
+        ForwardAuthRuntime runtime = new(time, null, _ => new TrackingHandler());
+        var state = runtime.Bind(Spec("http://127.0.0.1:1/auth"));
+        runtime.Publish([state]);
+        var stop = false;
+        var failures = 0;
+        var entered = 0;
+
+        async Task WorkerAsync()
+        {
+            while (!Volatile.Read(ref stop))
+            {
+                if (!state.TryEnter())
+                {
+                    await Task.Yield();
+                    continue;
+                }
+
+                try
+                {
+                    Interlocked.Increment(ref entered);
+                    using var response = await state.Client.GetAsync("http://127.0.0.1:1/", Cancel);
+                    await Task.Yield();
+                    using var again = await state.Client.GetAsync("http://127.0.0.1:1/", Cancel);
+                }
+                catch (ObjectDisposedException)
+                {
+                    Interlocked.Increment(ref failures);
+                }
+                finally
+                {
+                    state.Exit();
+                }
+            }
+        }
+
+        var workers = Enumerable.Range(0, 8).Select(_ => Task.Run(WorkerAsync, Cancel)).ToArray();
+        for (var i = 0; i < 400; i++)
+        {
+            state.Retire();
+            time.Advance(TimeSpan.FromSeconds(16));
+            state.Revive();
+            await Task.Yield();
+        }
+
+        Volatile.Write(ref stop, true);
+        await Task.WhenAll(workers);
+
+        Assert.True(entered > 0);
+        Assert.Equal(0, failures);
     }
 
     private sealed class TrackingHandler : HttpMessageHandler
