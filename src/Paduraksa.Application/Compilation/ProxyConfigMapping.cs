@@ -248,6 +248,7 @@ public static class ProxyConfigMapping
                 ProofOfWorkRouteOverride = HostSettingsLayers.RouteOverridesProofOfWork(route.Settings),
                 RateLimit = rateLimit.EffectivePolicyId,
                 RateLimitRouteOverride = HostSettingsLayers.RouteOverridesRateLimit(route.Settings),
+                AccessList = HostSettingsLayers.ResolveRouteAccessList(effective, route.Settings).Effective,
             };
         }
 

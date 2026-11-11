@@ -349,6 +349,10 @@ public sealed record RouteSpec
     /// <summary>True when the route's own layer set the rate limit (the trace says so).</summary>
     public bool RateLimitRouteOverride { get; init; }
 
+    /// <summary>This route's effective access list: the host's, a different one, or none. Where the list's policies sit in the
+    /// chains is <see cref="Policies"/>' business; this is what a route is guarded by, for the overview.</summary>
+    public AccessListId? AccessList { get; init; }
+
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }
 

@@ -65,7 +65,7 @@ public static partial class SnapshotCompiler
 
             var routes = spec.Kind switch
             {
-                HostKind.Admin => CompileAdminRoute(spec, Options.AdminUpstream, RouteIdBySlot, YarpRoutes, where, Errors, hostRateLimit),
+                HostKind.Admin => CompileAdminRoute(spec, Options.AdminUpstream, RouteIdBySlot, YarpRoutes, where, Errors, hostRateLimit, AccessListOf(spec.AccessList.Effective)),
                 HostKind.Proxy => CompileRoutes(
                     spec, Clusters, RouteIds, YarpRouteIds, YarpRoutes, RouteIdBySlot, where, Errors, Options.ProofOfWork,
                     this, rateLimitCache, hostRateLimit, spec.RateLimit.EffectivePolicyId),
@@ -153,6 +153,7 @@ public static partial class SnapshotCompiler
                 RateLimit = hostRateLimit,
                 OriginLockdown = CompileOriginLockdown(spec.Cloudflare, TrustedProxies.Mode, where, Errors),
                 AuthenticatedOriginPulls = originPulls,
+                AccessList = AccessListOf(spec.AccessList.Effective),
                 HttpsRedirect = spec.ForceHttps ? HttpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
@@ -230,7 +231,8 @@ public static partial class SnapshotCompiler
     /// </summary>
     private static CompiledRoute[] CompileAdminRoute(
         HostSpec host, bool available, List<RouteId> routeIdBySlot, List<RouteConfig> yarpRoutes, CompileErrorSource where, List<CompileError> errors,
-        RateLimitPolicy? rateLimit)
+        RateLimitPolicy? rateLimit,
+        AccessLists.CompiledAccessList? accessList)
     {
         if (host.Routes is { Count: > 0 })
         {
@@ -260,6 +262,7 @@ public static partial class SnapshotCompiler
                     Path = "/",
                     Slot = -1,
                     Policies = rateLimit is null ? [] : [rateLimit],
+                    AccessList = accessList,
                     Admin = true,
                 },
             ];
@@ -417,6 +420,7 @@ public static partial class SnapshotCompiler
                 Path = path,
                 Slot = slot,
                 Policies = own,
+                AccessList = context.AccessListOf(spec.AccessList),
                 ProofOfWork = routeProofOfWork,
                 ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
             };

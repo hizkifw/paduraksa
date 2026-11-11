@@ -22,6 +22,8 @@ public sealed class SecurityOverviewServiceTests
     private static readonly RateLimitPolicyId Standard = Id<RateLimitPolicyId>(1);
     private static readonly RateLimitPolicyId Strict = Id<RateLimitPolicyId>(2);
     private static readonly UpstreamId App = Id<UpstreamId>(1);
+    private static readonly AccessListId Office = Id<AccessListId>(1);
+    private static readonly AccessListId Lan = Id<AccessListId>(2);
 
     [Fact]
     public void TheCountersAreReadAsTheyStand()
@@ -165,24 +167,64 @@ public sealed class SecurityOverviewServiceTests
     }
 
     [Fact]
-    public void RobotsModeAndTheAllowListsSizeAreReported()
+    public void RobotsModeIsReported()
     {
         var (service, _, _, store) = Start();
         Publish(store, Model(
             Host(1, "a.test") with { Robots = new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers } },
-            Host(2, "b.test") with
-            {
-                Policies = [new IpAllowListPolicySpec(["10.0.0.0/8", "192.168.0.0/16", "192.168.1.0/24"])],
-            }));
+            Host(2, "b.test")));
 
         var overview = service.Read();
 
-        var a = Assert.Single(overview.Hosts, host => host.Name == "a.test");
-        Assert.Equal(RobotsMode.BlockAiCrawlers, a.Robots);
-        Assert.Equal(0, a.AllowListRanges);
-        var b = Assert.Single(overview.Hosts, host => host.Name == "b.test");
-        Assert.Equal(RobotsMode.Passthrough, b.Robots);
-        Assert.Equal(2, b.AllowListRanges);
+        Assert.Equal(RobotsMode.BlockAiCrawlers, Assert.Single(overview.Hosts, host => host.Name == "a.test").Robots);
+        Assert.Equal(RobotsMode.Passthrough, Assert.Single(overview.Hosts, host => host.Name == "b.test").Robots);
+    }
+
+    [Fact]
+    public void TheHostsAccessListIsNamedWithItsUsersAndItsRangesMerged()
+    {
+        var (service, _, _, store) = Start();
+        Publish(store, Model(
+            Host(1, "a.test"),
+            Host(2, "b.test") with { AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Office } },
+            Host(3, "c.test") with { AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Lan } },
+            Host(4, "d.test") with { AccessList = new HostAccessListSpec { Enabled = false, AccessListId = Lan } }));
+
+        var overview = service.Read();
+
+        var none = Assert.Single(overview.Hosts, host => host.Name == "a.test").AccessList;
+        Assert.Null(none.List);
+        Assert.Empty(none.Overrides);
+        var office = Assert.Single(overview.Hosts, host => host.Name == "b.test").AccessList;
+        Assert.Equal(new AccessListRef(Office, "office", 2, 2), office.List);
+        var lan = Assert.Single(overview.Hosts, host => host.Name == "c.test").AccessList;
+        Assert.Equal(new AccessListRef(Lan, "lan", 0, 1), lan.List);
+        Assert.Null(Assert.Single(overview.Hosts, host => host.Name == "d.test").AccessList.List);
+    }
+
+    [Fact]
+    public void RoutesThatUseAnotherListOrNoneAreGroupedByWhatGuardsThemInstead()
+    {
+        var (service, _, _, store) = Start();
+        var host = Host(1, "a.test") with
+        {
+            AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Office },
+            Routes =
+            [
+                Route(1, "/") with { AccessList = Office },
+                Route(2, "/admin") with { AccessList = Lan },
+                Route(3, "/reports") with { AccessList = Lan },
+                Route(4, "/public") with { AccessList = null },
+            ],
+        };
+        Publish(store, Model(host));
+
+        var protection = Assert.Single(service.Read().Hosts).AccessList;
+
+        Assert.Equal("office", protection.List?.Name);
+        Assert.Equal(2, protection.Overrides.Count);
+        Assert.Equal(new AccessListOverride(1, null), protection.Overrides[0]);
+        Assert.Equal(new AccessListOverride(2, new AccessListRef(Lan, "lan", 0, 1)), protection.Overrides[1]);
     }
 
     [Fact]
@@ -266,6 +308,18 @@ public sealed class SecurityOverviewServiceTests
         [
             new RateLimitPolicySpec { Id = Standard, Name = "standard", Parameters = new RateLimitParameters(10, 20) },
             new RateLimitPolicySpec { Id = Strict, Name = "strict", Parameters = new RateLimitParameters(1, 2) },
+        ],
+        AccessLists =
+        [
+            new AccessListSpec
+            {
+                Id = Office,
+                Name = "office",
+                Allow = ["10.0.0.0/8", "10.1.0.0/16", "192.168.0.0/16"],
+                Realm = "office",
+                Users = [new AccessListUserSpec("alice", SampleHash), new AccessListUserSpec("bob", SampleHash)],
+            },
+            new AccessListSpec { Id = Lan, Name = "lan", Allow = ["192.168.0.0/16"], Realm = "lan" },
         ],
         Hosts = hosts,
     };

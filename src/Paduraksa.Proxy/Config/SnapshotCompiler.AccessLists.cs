@@ -106,4 +106,11 @@ public static partial class SnapshotCompiler
 
         return [.. networks];
     }
+
+    internal sealed partial class CompileContext
+    {
+        /// <summary>The compiled list <paramref name="id"/> names, or null for none (a missing one is the policies' compile error).</summary>
+        public CompiledAccessList? AccessListOf(AccessListId? id) =>
+            id is { } named && AccessLists.Lists.TryGetValue(named, out var list) ? list : null;
+    }
 }

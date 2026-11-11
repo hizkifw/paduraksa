@@ -97,6 +97,10 @@ public sealed class CompiledHost
     /// </summary>
     public bool AuthenticatedOriginPulls { get; init; }
 
+    /// <summary>The access list the host names (the one its routes inherit), or null when it names none. A route's own
+    /// <see cref="CompiledRoute.AccessList"/> differs where it names another or turns the list off.</summary>
+    public AccessLists.CompiledAccessList? AccessList { get; init; }
+
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

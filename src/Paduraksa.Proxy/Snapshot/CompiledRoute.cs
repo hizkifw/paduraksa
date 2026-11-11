@@ -30,6 +30,9 @@ public sealed class CompiledRoute
     /// <summary>The route's own policies. The host's chain has already run when these do (see <c>GateMiddleware</c>).</summary>
     public required IRequestPolicy[] Policies { get; init; }
 
+    /// <summary>The access list that guards this route (the host's, another, or none), wherever its policies sit in the chains.</summary>
+    public AccessLists.CompiledAccessList? AccessList { get; init; }
+
     /// <summary>This route's effective proof of work: the host's values with the route's own switch applied.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

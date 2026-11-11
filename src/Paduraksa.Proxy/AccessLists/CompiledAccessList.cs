@@ -79,6 +79,8 @@ public sealed class CompiledAccessList
 
     public bool HasUsers => Users.Length > 0;
 
+    public int UserCount => Users.Length;
+
     internal PolicyDecision Forbidden { get; }
 
     internal PolicyDecision OnAddressRefused { get; }

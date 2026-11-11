@@ -833,6 +833,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 }
 
 .pdk-dt-note {
+    max-width: 100%;
     overflow: hidden;
     color: var(--mud-palette-text-secondary);
     font-size: 0.75rem;
@@ -848,6 +849,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-dt-stack {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     justify-items: start;
     gap: 4px;
 }
@@ -879,7 +881,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-tokens-table.pdk-tokens-everyone { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.6fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
 .pdk-certs-table { --pdk-dt-cols: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr); }
 .pdk-logs-table { --pdk-dt-cols: minmax(0, 2.2fr) minmax(110px, 0.9fr) minmax(70px, 0.5fr) 80px; }
-.pdk-security-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr); }
+.pdk-security-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.05fr) minmax(0, 1.35fr) minmax(0, 1.3fr); }
 
 /* The security page: each counter tile reads top to bottom (label, the number with its live rate beside it, then what it is a
    share of), the same at every width; the detail line keeps its height when empty so a row of tiles lines up. */

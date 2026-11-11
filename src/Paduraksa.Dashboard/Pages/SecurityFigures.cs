@@ -35,7 +35,7 @@ internal static class SecurityFigures
     public static bool HasProtection(HostProtections host) =>
         host.ProofOfWork.Enabled || host.ProofOfWork.RouteOverrides > 0
         || host.RateLimit.Policy is not null || host.RateLimit.Overrides.Count > 0
-        || host.Robots != RobotsMode.Passthrough || host.AllowListRanges > 0
+        || host.Robots != RobotsMode.Passthrough || host.AccessList.List is not null || host.AccessList.Overrides.Count > 0
         || host.OriginLockdown != OriginLockdownMode.Off || host.AuthenticatedOriginPulls;
 
     /// <summary>The hosts with something on first, then those with nothing, each by name.</summary>
@@ -46,12 +46,14 @@ internal static class SecurityFigures
 
     public static string Routes(int count) => count == 1 ? "1 route" : $"{count} routes";
 
-    public static string Ranges(int count) => count == 1 ? "1 range" : $"{count} ranges";
+    /// <summary>What a list asks of a visitor, in a few words: its users, or that it only looks at addresses.</summary>
+    public static string ListText(AccessListRef list) =>
+        list.Users > 0 ? (list.Users == 1 ? "1 user" : $"{list.Users} users") : list.AddressRanges > 0 ? "addresses only" : "no rules";
 
     public static string LockdownText(OriginLockdownMode mode) => mode switch
     {
-        OriginLockdownMode.Forbid => "Locked, 403",
-        OriginLockdownMode.Drop => "Locked, drop",
+        OriginLockdownMode.Forbid => "Cloudflare only (403)",
+        OriginLockdownMode.Drop => "Cloudflare only (drop)",
         _ => string.Empty,
     };
 

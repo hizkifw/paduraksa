@@ -75,7 +75,8 @@ public sealed class SecurityApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.Equal(RobotsMode.DisallowAll, line.Robots);
         Assert.False(line.ProofOfWork.Enabled);
         Assert.Null(line.RateLimit.Policy);
-        Assert.Equal(0, line.AllowListRanges);
+        Assert.Null(line.AccessList.List);
+        Assert.Empty(line.AccessList.Overrides);
     }
 
     private sealed class WithoutConfigRead(IPermissionEvaluator inner) : IPermissionEvaluator

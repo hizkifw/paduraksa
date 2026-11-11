@@ -1,5 +1,6 @@
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
@@ -68,17 +69,26 @@ public sealed class SecurityOverviewService
             .OrderBy(use => use.Policy?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var ranges = host.Policies.OfType<IpAllowListPolicy>().Sum(policy => policy.Allowed.RangeCount);
+        var hostList = host.AccessList;
+        var listOverrides = host.Routes
+            .Where(route => route.AccessList?.Id != hostList?.Id)
+            .GroupBy(route => route.AccessList?.Id)
+            .Select(group => new AccessListOverride(group.Count(), group.First().AccessList is { } list ? ListRefOf(list) : null))
+            .OrderBy(use => use.List?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         return new HostProtections(
             host.Id,
             host.Names.Count > 0 ? host.Names[0] : string.Empty,
             new ProofOfWorkProtection(powOn, host.ProofOfWork.Difficulty, powOverrides),
             new RateLimitProtection(overrides, hostPolicy is null ? null : RefOf(hostPolicy)),
             host.RobotsMode,
-            ranges,
+            new AccessListProtection(listOverrides, hostList is null ? null : ListRefOf(hostList)),
             host.OriginLockdown,
             host.AuthenticatedOriginPulls);
     }
+
+    private static AccessListRef ListRefOf(CompiledAccessList list) =>
+        new(list.Id, list.Name, list.UserCount, list.Allow.RangeCount + list.Deny.RangeCount);
 
     private static RateLimitPolicyRef RefOf(RateLimitPolicy policy) => new(policy.PolicyId, policy.PolicyName);
 }

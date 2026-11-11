@@ -60,7 +60,7 @@ else if (_current is { } current)
                         <span role="columnheader">Proof of work</span>
                         <span role="columnheader">Rate limit</span>
                         <span role="columnheader">robots.txt</span>
-                        <span role="columnheader">IP allow list</span>
+                        <span role="columnheader">Access list</span>
                         <span role="columnheader">Cloudflare</span>
                     </div>
                     @foreach (var host in SecurityFigures.Ordered(current.Hosts))
@@ -132,14 +132,35 @@ else if (_current is { } current)
                                     @SecurityFigures.RobotsText(host.Robots)
                                 }
                             </div>
-                            <div role="cell" class="pdk-dt-cell" data-label="IP allow list" data-cell="allow-list">
-                                @if (host.AllowListRanges == 0)
+                            <div role="cell" class="pdk-dt-cell" data-label="Access list" data-cell="access-list">
+                                @if (host.AccessList.List is null && host.AccessList.Overrides.Count == 0)
                                 {
                                     <span class="pdk-muted">None</span>
                                 }
                                 else
                                 {
-                                    @SecurityFigures.Ranges(host.AllowListRanges)
+                                    <div class="pdk-dt-stack">
+                                        @if (host.AccessList.List is { } list)
+                                        {
+                                            <a class="pdk-row-link" href="@DashboardRoutes.AccessList(list.Id)">@list.Name</a>
+                                            <span class="pdk-dt-note">@SecurityFigures.ListText(list)</span>
+                                        }
+
+                                        @foreach (var use in host.AccessList.Overrides)
+                                        {
+                                            <span class="pdk-dt-note">
+                                                @if (use.List is { } other)
+                                                {
+                                                    <a class="pdk-row-link" href="@DashboardRoutes.AccessList(other.Id)">@other.Name</a>
+                                                    <text> on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Off on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                            </span>
+                                        }
+                                    </div>
                                 }
                             </div>
                             <div role="cell" class="pdk-dt-cell" data-label="Cloudflare" data-cell="cloudflare">

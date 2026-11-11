@@ -24,6 +24,9 @@ public sealed class SecurityPageTests
     private static readonly RateLimitPolicyId Standard = RateLimitPolicyId.New();
     private static readonly RateLimitPolicyId Strict = RateLimitPolicyId.New();
     private static readonly UpstreamId Upstream = UpstreamId.New();
+    private static readonly string Hash = Paduraksa.Core.Security.PasswordHash.Create("sample");
+    private static readonly AccessListId Office = AccessListId.New();
+    private static readonly AccessListId Lan = AccessListId.New();
 
     [Fact]
     public async Task TheTilesShowTheCountersAndTheirRatesFromTwoSamples()
@@ -121,8 +124,8 @@ public sealed class SecurityPageTests
         // The three with something on come first, by name; the one with nothing last.
         Assert.Equal(["a-drop.test", "b-both.test", "c-pulls.test", "z-none.test"], page.FindAll("[data-host]").Select(row => row.GetAttribute("data-host")));
         string Cell(string host) => string.Join(" | ", page.Find($"[data-host='{host}'] [data-cell=cloudflare]").QuerySelectorAll("span").Select(span => span.TextContent.Trim()));
-        Assert.Equal("Locked, drop", Cell("a-drop.test"));
-        Assert.Equal("Locked, 403 | Origin pulls", Cell("b-both.test"));
+        Assert.Equal("Cloudflare only (drop)", Cell("a-drop.test"));
+        Assert.Equal("Cloudflare only (403) | Origin pulls", Cell("b-both.test"));
         Assert.Equal("Origin pulls", Cell("c-pulls.test"));
         Assert.Equal("None", Cell("z-none.test"));
         Assert.Single(page.FindAll("[data-host='b-both.test'] [data-cell=cloudflare] .pdk-dt-note"));
@@ -147,7 +150,11 @@ public sealed class SecurityPageTests
         Assert.Contains("on 1 route", app.QuerySelector("[data-cell=rate-limit]")!.TextContent, StringComparison.Ordinal);
         Assert.Equal(DashboardRoutes.RateLimit(Strict), app.QuerySelectorAll("[data-cell=rate-limit] a")[1].GetAttribute("href"));
         Assert.Equal("Blocks AI crawlers", app.QuerySelector("[data-cell=robots]")!.TextContent.Trim());
-        Assert.Equal("2 ranges", app.QuerySelector("[data-cell=allow-list]")!.TextContent.Trim());
+        Assert.Equal("office", app.QuerySelector("[data-cell=access-list] > .pdk-dt-stack > a")!.TextContent);
+        Assert.Equal(DashboardRoutes.AccessList(Office), app.QuerySelector("[data-cell=access-list] > .pdk-dt-stack > a")!.GetAttribute("href"));
+        Assert.Contains("2 users", app.QuerySelector("[data-cell=access-list]")!.TextContent, StringComparison.Ordinal);
+        Assert.Contains("on 1 route", app.QuerySelector("[data-cell=access-list]")!.TextContent, StringComparison.Ordinal);
+        Assert.Equal(DashboardRoutes.AccessList(Lan), app.QuerySelectorAll("[data-cell=access-list] a")[1].GetAttribute("href"));
         Assert.Equal(DashboardRoutes.Host(App), app.QuerySelector(".pdk-dt-main a")!.GetAttribute("href"));
     }
 
@@ -297,6 +304,18 @@ public sealed class SecurityPageTests
                 new RateLimitPolicySpec { Id = Standard, Name = "standard", Parameters = new RateLimitParameters(10, 20) },
                 new RateLimitPolicySpec { Id = Strict, Name = "strict", Parameters = new RateLimitParameters(1, 2) },
             ],
+            AccessLists =
+            [
+                new AccessListSpec
+                {
+                    Id = Office,
+                    Name = "office",
+                    Allow = ["10.0.0.0/8"],
+                    Realm = "office",
+                    Users = [new AccessListUserSpec("alice", Hash), new AccessListUserSpec("bob", Hash)],
+                },
+                new AccessListSpec { Id = Lan, Name = "lan", Allow = ["192.168.0.0/16"], Realm = "lan" },
+            ],
             Hosts =
             [
                 Plain(Files, "files.test"),
@@ -320,12 +339,13 @@ public sealed class SecurityPageTests
                     ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 18 },
                     RateLimit = new HostRateLimitSpec { Enabled = true, PolicyId = Standard },
                     Robots = new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers },
-                    Policies = [new IpAllowListPolicySpec(["10.0.0.0/8", "192.168.0.0/16"])],
+                    AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Office },
                     Routes =
                     [
-                        Route("/") with { RateLimit = Standard, ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 18 } },
+                        Route("/") with { AccessList = Office, RateLimit = Standard, ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 18 } },
                         Route("/api") with
                         {
+                            AccessList = Lan,
                             RateLimit = Strict,
                             RateLimitRouteOverride = true,
                             ProofOfWork = new HostProofOfWorkSpec { Enabled = false, Difficulty = 18 },

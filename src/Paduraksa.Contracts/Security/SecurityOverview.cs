@@ -44,7 +44,7 @@ public sealed record RateLimitCounters(long Allowed, long Limited);
 /// <param name="ProofOfWork">Whether visitors must solve a challenge.</param>
 /// <param name="RateLimit">The rate-limit policy, if any.</param>
 /// <param name="Robots">How the host answers robots.txt.</param>
-/// <param name="AllowListRanges">The address ranges the IP allow list admits, after merging overlaps; 0 when the host has no list.</param>
+/// <param name="AccessList">The access list that guards the host, and the routes that differ from it.</param>
 /// <param name="OriginLockdown">What the host does with a peer that isn't Cloudflare's; off unless the client-address mode is a Cloudflare one.</param>
 /// <param name="AuthenticatedOriginPulls">Whether the host's handshake requires Cloudflare's client certificate (the same condition).</param>
 public sealed record HostProtections(
@@ -53,7 +53,7 @@ public sealed record HostProtections(
     ProofOfWorkProtection ProofOfWork,
     RateLimitProtection RateLimit,
     RobotsMode Robots,
-    int AllowListRanges,
+    AccessListProtection AccessList,
     OriginLockdownMode OriginLockdown = OriginLockdownMode.Off,
     bool AuthenticatedOriginPulls = false);
 
@@ -77,3 +77,20 @@ public sealed record RateLimitOverride(int Routes, RateLimitPolicyRef? Policy = 
 /// <param name="Id">The policy.</param>
 /// <param name="Name">Its name.</param>
 public sealed record RateLimitPolicyRef(RateLimitPolicyId Id, string Name);
+
+/// <summary>A host's access-list setting.</summary>
+/// <param name="Overrides">The routes that differ from the host's list, grouped by what guards them instead.</param>
+/// <param name="List">The list the host names; absent when it names none.</param>
+public sealed record AccessListProtection(IReadOnlyList<AccessListOverride> Overrides, AccessListRef? List = null);
+
+/// <summary>Routes guarded by another access list, or none.</summary>
+/// <param name="Routes">How many routes.</param>
+/// <param name="List">The list those routes apply; absent when they are not guarded.</param>
+public sealed record AccessListOverride(int Routes, AccessListRef? List = null);
+
+/// <summary>A named access list, with what it asks of a visitor.</summary>
+/// <param name="Id">The list.</param>
+/// <param name="Name">Its name.</param>
+/// <param name="Users">How many users it asks a password of; 0 means addresses only.</param>
+/// <param name="AddressRanges">The address ranges its allow and deny entries cover, after merging overlaps.</param>
+public sealed record AccessListRef(AccessListId Id, string Name, int Users, int AddressRanges);
