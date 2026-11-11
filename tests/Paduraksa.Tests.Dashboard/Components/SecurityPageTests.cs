@@ -13,6 +13,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Shared;
 
@@ -29,6 +30,7 @@ public sealed class SecurityPageTests
     private static readonly Paduraksa.Core.Vault.IPasswordCredential Credential = TestPasswords.Credential("sample");
     private static readonly AccessListId Office = AccessListId.New();
     private static readonly AccessListId Lan = AccessListId.New();
+    private static readonly RuleSetId Scanners = RuleSetId.New();
 
     [Fact]
     public async Task TheTilesShowTheCountersAndTheirRatesFromTwoSamples()
@@ -187,6 +189,36 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
+    public async Task TheRulesColumnNamesTheSetWhatItRefusedAndTheRoutesThatApplyNoneOrAPreset()
+    {
+        await using DashboardTestContext context = new();
+        var shell = Start(context, Role.Operator);
+        shell.Publish(Hosts());
+        var counters = shell.RuleSets.CountersFor(Scanners);
+        counters.Count(RuleAction.Deny);
+        counters.Count(RuleAction.Deny);
+        counters.Count(RuleAction.Drop);
+        counters.Count(RuleAction.Allow);
+        counters.CountTimeout();
+
+        var page = context.Render<SecurityPage>();
+
+        var app = page.Find("[data-host='app.test']");
+        Assert.Equal("scanners", app.QuerySelector("[data-cell=rules] > .pdk-dt-stack > a")!.TextContent);
+        Assert.Equal(DashboardRoutes.RuleSet(Scanners), app.QuerySelector("[data-cell=rules] > .pdk-dt-stack > a")!.GetAttribute("href"));
+        Assert.Contains("3 refused", app.QuerySelector("[data-cell=rules]")!.TextContent, StringComparison.Ordinal);
+        Assert.Equal("1 regex timeout", app.QuerySelector("[data-cell=rules] [data-part=rule-timeouts]")!.TextContent);
+        Assert.Empty(page.Find("[data-host='blog.test']").QuerySelectorAll("[data-part=rule-timeouts]"));
+        Assert.Contains("Off on 1 route", app.QuerySelector("[data-cell=rules]")!.TextContent, StringComparison.Ordinal);
+
+        // A preset has no page of its own: it links to the list that shows the presets, and says its rules until it has refused anything.
+        var blog = page.Find("[data-host='blog.test']");
+        Assert.Equal("Block empty user agent", blog.QuerySelector("[data-cell=rules] a")!.TextContent);
+        Assert.Equal(DashboardRoutes.RuleSets, blog.QuerySelector("[data-cell=rules] a")!.GetAttribute("href"));
+        Assert.Contains("1 rule", blog.QuerySelector("[data-cell=rules]")!.TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AHostWithNothingOnShowsMutedNoneInEveryCell()
     {
         await using DashboardTestContext context = new();
@@ -196,7 +228,7 @@ public sealed class SecurityPageTests
         var page = context.Render<SecurityPage>();
 
         var cells = page.Find("[data-host='files.test']").QuerySelectorAll(".pdk-dt-cell");
-        Assert.Equal(5, cells.Length);
+        Assert.Equal(6, cells.Length);
         Assert.All(cells, cell =>
         {
             Assert.Equal("None", cell.TextContent.Trim());
@@ -332,6 +364,11 @@ public sealed class SecurityPageTests
                 new RateLimitPolicySpec { Id = Standard, Name = "standard", Parameters = new RateLimitParameters(10, 20) },
                 new RateLimitPolicySpec { Id = Strict, Name = "strict", Parameters = new RateLimitParameters(1, 2) },
             ],
+            RuleSets =
+            [
+                new RuleSetSpec { Id = Scanners, Name = "scanners", Rules = [new RuleSpec { Action = RuleAction.Deny, UserAgentContains = ["sqlmap"] }] },
+                new RuleSetSpec { Id = Contracts.Config.RuleSetPresets.EmptyUserAgent.Id, Name = "Block empty user agent", Rules = [new RuleSpec { Action = RuleAction.Deny, UserAgentEmpty = true }] },
+            ],
             AccessLists =
             [
                 new AccessListSpec
@@ -361,6 +398,7 @@ public sealed class SecurityPageTests
                         },
                     ],
                     ProofOfWork = new HostProofOfWorkSpec { Enabled = false, Difficulty = 12 },
+                    RuleSet = new HostRuleSetSpec { Enabled = true, RuleSetId = Contracts.Config.RuleSetPresets.EmptyUserAgent.Id },
                 },
                 Plain(App, "app.test") with
                 {
@@ -368,9 +406,10 @@ public sealed class SecurityPageTests
                     RateLimit = new HostRateLimitSpec { Enabled = true, PolicyId = Standard },
                     Robots = new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers },
                     AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Office },
+                    RuleSet = new HostRuleSetSpec { Enabled = true, RuleSetId = Scanners },
                     Routes =
                     [
-                        Route("/") with { AccessList = Office, RateLimit = Standard, ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 18 } },
+                        Route("/") with { AccessList = Office, RuleSet = Scanners, RateLimit = Standard, ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 18 } },
                         Route("/api") with
                         {
                             AccessList = Lan,
@@ -397,9 +436,11 @@ public sealed class SecurityPageTests
 
         public AccessListRuntime AccessLists { get; } = new(TimeProvider.System, new TestPasswords().Verifier);
 
+        public RuleSetRuntime RuleSets { get; } = new();
+
         public void Publish(ProxyConfigModel model)
         {
-            var result = SnapshotCompiler.Compile(model, new SnapshotCompilerOptions { RateLimits = RateLimits, ProofOfWork = ProofOfWork });
+            var result = SnapshotCompiler.Compile(model, new SnapshotCompilerOptions { RateLimits = RateLimits, ProofOfWork = ProofOfWork, RuleSets = RuleSets });
             Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
             var snapshot = result.Snapshot!;
             Store.Publish(snapshot.Bind(1, [.. snapshot.RouteIdBySlot.Select(_ => new Endpoint(null, null, "route"))]));

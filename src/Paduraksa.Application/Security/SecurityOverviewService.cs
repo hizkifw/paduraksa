@@ -4,6 +4,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Application.Security;
@@ -82,6 +83,13 @@ public sealed class SecurityOverviewService
             .Select(group => new AccessListOverride(group.Count(), group.First().AccessList is { } list ? ListRefOf(list) : null))
             .OrderBy(use => use.List?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var hostSet = host.RuleSet;
+        var setOverrides = host.Routes
+            .Where(route => route.RuleSet?.Id != hostSet?.Id)
+            .GroupBy(route => route.RuleSet?.Id)
+            .Select(group => new RuleSetOverride(group.Count(), group.First().RuleSet is { } set ? SetRefOf(set) : null))
+            .OrderBy(use => use.Set?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         return new HostProtections(
             host.Id,
             host.Names.Count > 0 ? host.Names[0] : string.Empty,
@@ -90,11 +98,15 @@ public sealed class SecurityOverviewService
             host.RobotsMode,
             new AccessListProtection(listOverrides, hostList is null ? null : ListRefOf(hostList)),
             host.OriginLockdown,
-            host.AuthenticatedOriginPulls);
+            host.AuthenticatedOriginPulls,
+            new RuleSetProtection(setOverrides, hostSet is null ? null : SetRefOf(hostSet)));
     }
 
     private static AccessListRef ListRefOf(CompiledAccessList list) =>
         new(list.Id, list.Name, list.UserCount, list.Allow.RangeCount + list.Deny.RangeCount, list.AllowCountries.Count + list.DenyCountries.Count);
+
+    private static RuleSetRef SetRefOf(CompiledRuleSet set) =>
+        new(set.Id, set.Name, set.RuleCount, Contracts.Config.RuleSetPresets.IsPreset(set.Id), set.Counters.Denied, set.Counters.Dropped, set.Counters.Allowed, set.Counters.Timeouts);
 
     private static RateLimitPolicyRef RefOf(RateLimitPolicy policy) => new(policy.PolicyId, policy.PolicyName);
 }

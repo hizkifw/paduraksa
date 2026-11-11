@@ -59,6 +59,7 @@ public sealed record AccessListCounters(long AddressRefused, long Unauthorized, 
 /// <param name="AccessList">The access list that guards the host, and the routes that differ from it.</param>
 /// <param name="OriginLockdown">What the host does with a peer that isn't Cloudflare's; off unless the client-address mode is a Cloudflare one.</param>
 /// <param name="AuthenticatedOriginPulls">Whether the host's handshake requires Cloudflare's client certificate (the same condition).</param>
+/// <param name="RuleSet">The rule set that applies to the host, and the routes that differ from it; absent when the response comes from an older server.</param>
 public sealed record HostProtections(
     HostId Id,
     string Name,
@@ -67,7 +68,8 @@ public sealed record HostProtections(
     RobotsMode Robots,
     AccessListProtection AccessList,
     OriginLockdownMode OriginLockdown = OriginLockdownMode.Off,
-    bool AuthenticatedOriginPulls = false);
+    bool AuthenticatedOriginPulls = false,
+    RuleSetProtection? RuleSet = null);
 
 /// <summary>A host's proof-of-work setting.</summary>
 /// <param name="Enabled">The host's own switch.</param>
@@ -107,3 +109,24 @@ public sealed record AccessListOverride(int Routes, AccessListRef? List = null);
 /// <param name="AddressRanges">The address ranges its allow and deny entries cover, after merging overlaps.</param>
 /// <param name="Countries">The countries (and Tor or unknown) its allow and deny lists name.</param>
 public sealed record AccessListRef(AccessListId Id, string Name, int Users, int AddressRanges, int Countries = 0);
+
+/// <summary>A host's rule-set setting.</summary>
+/// <param name="Overrides">The routes that differ from the host's set, grouped by what applies to them instead.</param>
+/// <param name="Set">The set the host names; absent when it names none.</param>
+public sealed record RuleSetProtection(IReadOnlyList<RuleSetOverride> Overrides, RuleSetRef? Set = null);
+
+/// <summary>Routes that apply another rule set, or none.</summary>
+/// <param name="Routes">How many routes.</param>
+/// <param name="Set">The set those routes apply; absent when they apply none.</param>
+public sealed record RuleSetOverride(int Routes, RuleSetRef? Set = null);
+
+/// <summary>A named rule set with what it has done since the process started, across every host and route that applies it.</summary>
+/// <param name="Id">The set.</param>
+/// <param name="Name">Its name.</param>
+/// <param name="Rules">How many rules it has.</param>
+/// <param name="BuiltIn">It is one of the built-in presets, which have no page of their own to open.</param>
+/// <param name="Denied">Requests a rule refused with 403.</param>
+/// <param name="Dropped">Requests a rule dropped without an answer.</param>
+/// <param name="Allowed">Requests an allow rule took out of the set's later rules.</param>
+/// <param name="Timeouts">Regex matches that ran past their timeout and were decided by the rule's action (a deny or drop counts as a match, an allow as none); 0 in a healthy proxy.</param>
+public sealed record RuleSetRef(RuleSetId Id, string Name, int Rules, bool BuiltIn, long Denied, long Dropped, long Allowed, long Timeouts = 0);

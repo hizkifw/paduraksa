@@ -36,6 +36,7 @@ internal static class SecurityFigures
         host.ProofOfWork.Enabled || host.ProofOfWork.RouteOverrides > 0
         || host.RateLimit.Policy is not null || host.RateLimit.Overrides.Count > 0
         || host.Robots != RobotsMode.Passthrough || host.AccessList.List is not null || host.AccessList.Overrides.Count > 0
+        || host.RuleSet is { Set: not null } || host.RuleSet is { Overrides.Count: > 0 }
         || host.OriginLockdown != OriginLockdownMode.Off || host.AuthenticatedOriginPulls;
 
     /// <summary>The hosts with something on first, then those with nothing, each by name.</summary>
@@ -53,6 +54,14 @@ internal static class SecurityFigures
         : list.Countries > 0 ? "countries only"
         : list.AddressRanges > 0 ? "addresses only"
         : "no rules";
+
+    /// <summary>What a set has refused, in a few words: "1,204 refused", or nothing yet. A drop is a refusal too.</summary>
+    public static string? RefusedText(RuleSetRef set) =>
+        set.Denied + set.Dropped is var refused and > 0 ? $"{Count(refused)} refused" : null;
+
+    /// <summary>A set's regex matches that timed out, said only once there are some: it should never happen, so it is worth a line.</summary>
+    public static string? TimeoutText(RuleSetRef set) =>
+        set.Timeouts > 0 ? $"{Count(set.Timeouts)} regex {(set.Timeouts == 1 ? "timeout" : "timeouts")}" : null;
 
     public static string LockdownText(OriginLockdownMode mode) => mode switch
     {

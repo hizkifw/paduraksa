@@ -62,6 +62,7 @@ else if (_current is { } current)
                         <span role="columnheader">Rate limit</span>
                         <span role="columnheader">robots.txt</span>
                         <span role="columnheader">Access list</span>
+                        <span role="columnheader">Rules</span>
                         <span role="columnheader">Cloudflare</span>
                     </div>
                     @foreach (var host in SecurityFigures.Ordered(current.Hosts))
@@ -164,6 +165,41 @@ else if (_current is { } current)
                                     </div>
                                 }
                             </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="Rules" data-cell="rules">
+                                @if (host.RuleSet is not { Set: not null } && host.RuleSet is not { Overrides.Count: > 0 })
+                                {
+                                    <span class="pdk-muted">None</span>
+                                }
+                                else
+                                {
+                                    <div class="pdk-dt-stack">
+                                        @if (host.RuleSet?.Set is { } set)
+                                        {
+                                            <a class="pdk-row-link" href="@RuleSetHref(set)">@set.Name</a>
+                                            <span class="pdk-dt-note" title="Requests this set refused or dropped, across every host that applies it">@(SecurityFigures.RefusedText(set) ?? $"{set.Rules} {(set.Rules == 1 ? "rule" : "rules")}")</span>
+                                            @if (SecurityFigures.TimeoutText(set) is { } timedOut)
+                                            {
+                                                <span class="pdk-dt-note" data-part="rule-timeouts" title="Matches of a regex rule that ran past its time limit and were decided by the rule's action">@timedOut</span>
+                                            }
+                                        }
+
+                                        @foreach (var use in host.RuleSet!.Overrides)
+                                        {
+                                            <span class="pdk-dt-note">
+                                                @if (use.Set is { } other)
+                                                {
+                                                    <a class="pdk-row-link" href="@RuleSetHref(other)">@other.Name</a>
+                                                    <text> on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Off on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
                             <div role="cell" class="pdk-dt-cell" data-label="Cloudflare" data-cell="cloudflare">
                                 @if (host.OriginLockdown == OriginLockdownMode.Off && !host.AuthenticatedOriginPulls)
                                 {
@@ -229,6 +265,9 @@ else if (_current is { } current)
     private bool _started;
     private DotNetObjectReference<SecurityPage>? _self;
     private CancellationTokenSource? _stop;
+
+    /// <summary>A set's page; a built-in preset has none of its own, so it goes to the list that shows the presets.</summary>
+    private static string RuleSetHref(RuleSetRef set) => set.BuiltIn ? DashboardRoutes.RuleSets : DashboardRoutes.RuleSet(set.Id);
 
     /// <summary>How often the counters are sampled while the page is visible. A test shortens it; the person never changes it.</summary>
     [Parameter]

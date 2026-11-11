@@ -7,6 +7,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
 
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
@@ -190,6 +191,75 @@ public sealed class SecurityOverviewServiceTests
     }
 
     [Fact]
+    public void TheHostsRuleSetIsReportedWithItsCountersAndTheRoutesThatDifferAreGroupedByWhatTheyApplyInstead()
+    {
+        var (service, _, _, store) = Start();
+        RuleSetRuntime runtime = new();
+        var scanners = Id<RuleSetId>(1);
+        var admin = Id<RuleSetId>(2);
+        var preset = Contracts.Config.RuleSetPresets.EmptyUserAgent.Id;
+        RuleSetSpec[] sets =
+        [
+            new() { Id = scanners, Name = "scanners", Rules = [new RuleSpec { Action = RuleAction.Deny, UserAgentContains = ["sqlmap"] }, new RuleSpec { Action = RuleAction.Allow, Methods = ["GET"] }] },
+            new() { Id = admin, Name = "admin", Rules = [new RuleSpec { Action = RuleAction.Drop, PathKind = RulePathKind.Prefix, Pattern = "/admin" }] },
+            new() { Id = preset, Name = "Block empty user agent", Rules = [new RuleSpec { Action = RuleAction.Deny, UserAgentEmpty = true }] },
+        ];
+        var model = Model(Host(1, "app.test") with
+        {
+            RuleSet = new HostRuleSetSpec { Enabled = true, RuleSetId = scanners },
+            Routes =
+            [
+                Route(1, "/") with { RuleSet = scanners },
+                Route(2, "/admin") with { RuleSet = admin },
+                Route(3, "/api") with { RuleSet = preset },
+                Route(4, "/health") with { RuleSet = null },
+                Route(5, "/other") with { RuleSet = preset },
+            ],
+        }) with
+        { RuleSets = sets };
+        runtime.CountersFor(scanners).Count(RuleAction.Deny);
+        runtime.CountersFor(scanners).Count(RuleAction.Deny);
+        runtime.CountersFor(scanners).Count(RuleAction.Allow);
+        runtime.CountersFor(admin).Count(RuleAction.Drop);
+        runtime.CountersFor(admin).CountTimeout();
+        Publish(store, model, runtime);
+
+        var host = Assert.Single(service.Read().Hosts);
+
+        Assert.Equal(new RuleSetRef(scanners, "scanners", 2, BuiltIn: false, Denied: 2, Dropped: 0, Allowed: 1), host.RuleSet!.Set);
+        Assert.Equal(3, host.RuleSet.Overrides.Count);
+
+        // By name, the routes with none first.
+        Assert.Equal(new RuleSetOverride(1, null), host.RuleSet.Overrides[0]);
+        Assert.Equal(new RuleSetOverride(1, new RuleSetRef(admin, "admin", 1, BuiltIn: false, Denied: 0, Dropped: 1, Allowed: 0, Timeouts: 1)), host.RuleSet.Overrides[1]);
+        Assert.Equal(new RuleSetOverride(2, new RuleSetRef(preset, "Block empty user agent", 1, BuiltIn: true, Denied: 0, Dropped: 0, Allowed: 0)), host.RuleSet.Overrides[2]);
+    }
+
+    [Fact]
+    public void AHostWithNoRuleSetHasNoneAndARouteThatInheritsItsSetIsNotAnOverride()
+    {
+        var (service, _, _, store) = Start();
+        RuleSetRuntime runtime = new();
+        var scanners = Id<RuleSetId>(1);
+        var set = new RuleSetSpec { Id = scanners, Name = "scanners", Rules = [new RuleSpec { Action = RuleAction.Deny, Methods = ["TRACE"] }] };
+        Publish(store, Model(Host(1, "plain.test"), Host(2, "guarded.test") with
+        {
+            RuleSet = new HostRuleSetSpec { Enabled = true, RuleSetId = scanners },
+            Routes = [Route(7, "/") with { RuleSet = scanners }],
+        }) with
+        { RuleSets = [set] }, runtime);
+
+        var hosts = service.Read().Hosts;
+
+        var plain = hosts.Single(host => host.Name == "plain.test");
+        Assert.Null(plain.RuleSet!.Set);
+        Assert.Empty(plain.RuleSet.Overrides);
+        var guarded = hosts.Single(host => host.Name == "guarded.test");
+        Assert.Equal("scanners", guarded.RuleSet!.Set!.Name);
+        Assert.Empty(guarded.RuleSet.Overrides);
+    }
+
+    [Fact]
     public void RobotsModeIsReported()
     {
         var (service, _, _, store) = Start();
@@ -361,11 +431,11 @@ public sealed class SecurityOverviewServiceTests
         Hosts = hosts,
     };
 
-    private static void Publish(SnapshotStore store, ProxyConfigModel model)
+    private static void Publish(SnapshotStore store, ProxyConfigModel model, RuleSetRuntime? ruleSets = null)
     {
         var result = SnapshotCompiler.Compile(
             model,
-            new SnapshotCompilerOptions { RateLimits = new RateLimitRuntime(new RateLimitTable(64)), ProofOfWork = new ProofOfWorkRuntime() });
+            new SnapshotCompilerOptions { RateLimits = new RateLimitRuntime(new RateLimitTable(64)), ProofOfWork = new ProofOfWorkRuntime(), RuleSets = ruleSets });
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
         var snapshot = result.Snapshot!;
         store.Publish(snapshot.Bind(1, [.. snapshot.RouteIdBySlot.Select(_ => new Endpoint(null, null, "route"))]));
