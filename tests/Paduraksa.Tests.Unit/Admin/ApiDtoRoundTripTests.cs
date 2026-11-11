@@ -144,6 +144,11 @@ public sealed class ApiDtoRoundTripTests
                 return 7L;
             }
 
+            if (type == typeof(double))
+            {
+                return 0.5;
+            }
+
             if (type == typeof(DateTimeOffset))
             {
                 return new DateTimeOffset(2026, 11, 8, 12, 0, 0, TimeSpan.Zero);

@@ -20,9 +20,19 @@ internal sealed partial class ApiPipelineMiddleware(RequestDelegate next, ILogge
 {
     private const string ApiPrefix = "/api";
 
+    /// <summary>The path scrapers know: the same endpoint as <see cref="MetricsEndpoints.ScrapePath"/>, answered through the API's own pipeline.</summary>
+    private const string ScrapeAlias = "/metrics";
+
     public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+        if (context.Request.Path.Equals(ScrapeAlias, StringComparison.OrdinalIgnoreCase))
+        {
+            // Prometheus scrapes /metrics. Rewritten before anything else looks at the path, the scrape gets the API's
+            // bearer-token authentication, its permission check and its problem bodies instead of a copy of them.
+            context.Request.Path = MetricsEndpoints.ScrapePath;
+        }
+
         var api = IsApiPath(context.Request.Path);
         if (OpenApi.DocsContentSecurityPolicy.Applies(context.Request.Path))
         {
