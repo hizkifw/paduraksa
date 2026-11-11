@@ -31,6 +31,8 @@ public abstract record CompileErrorSource
 
     public static CompileErrorSource AccessList(AccessListId list) => new AccessListErrorSource(list);
 
+    public static CompileErrorSource RuleSet(RuleSetId set) => new RuleSetErrorSource(set);
+
     public static CompileErrorSource Destination(UpstreamId upstream, DestinationId destination) =>
         new DestinationErrorSource(upstream, destination);
 }
@@ -81,4 +83,10 @@ public sealed record RateLimitPolicyErrorSource(RateLimitPolicyId PolicyId) : Co
 public sealed record AccessListErrorSource(AccessListId ListId) : CompileErrorSource
 {
     public override string ToString() => $"access list '{ListId}'";
+}
+
+/// <summary>A named rule set.</summary>
+public sealed record RuleSetErrorSource(RuleSetId SetId) : CompileErrorSource
+{
+    public override string ToString() => $"rule set '{SetId}'";
 }

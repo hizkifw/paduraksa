@@ -4,6 +4,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Tests.Proxy.AccessLists;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
@@ -140,6 +141,54 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         await SendAsync(server, client, host, "/", expected, Warmup, credentials);
         server.GateStats!.Reset();
         await SendAsync(server, client, host, "/", expected, Measured, credentials);
+
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
+    }
+
+    /// <summary>
+    /// The rule sets' verdicts on Kestrel: a path deny, a user-agent deny, a path that needs canonicalising, an allow that carves an
+    /// exception, and a request no rule matches. The regex is left out on purpose: its allocation is its own test
+    /// (<c>ARegexRuleMatchesWithoutAllocatingOncePathShapesAreKnown</c>).
+    /// </summary>
+    [Theory]
+    [InlineData("/index.html", null, HttpStatusCode.OK)]
+    [InlineData("/admin/users", null, HttpStatusCode.Forbidden)]
+    [InlineData("/admin/public/logo.png", null, HttpStatusCode.OK)]
+    [InlineData("/a/..%5Cadmin", null, HttpStatusCode.Forbidden)]
+    [InlineData("/x/.env", null, HttpStatusCode.Forbidden)]
+    [InlineData("/index.html", "sqlmap/1.7", HttpStatusCode.Forbidden)]
+    public async Task RuleSetsAllocateNothingOnKestrel(string path, string? userAgent, HttpStatusCode expected)
+    {
+        var rules = TestIds.RuleSet("kestrel");
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            RuleSets =
+            [
+                new RuleSetSpec
+                {
+                    Id = rules,
+                    Name = "kestrel",
+                    Rules =
+                    [
+                        new RuleSpec { Action = RuleAction.Allow, PathKind = RulePathKind.Prefix, Pattern = "/admin/public" },
+                        new RuleSpec { Action = RuleAction.Deny, PathKind = RulePathKind.Prefix, Pattern = "/admin" },
+                        new RuleSpec { Action = RuleAction.Deny, PathKind = RulePathKind.Glob, Pattern = "/**/.env" },
+                        new RuleSpec { Action = RuleAction.Deny, UserAgentContains = ["sqlmap", "nikto"] },
+                    ],
+                },
+            ],
+            Hosts = [ProxyHost("rules", "rules.test", Route("rules-root", "web") with { Policies = [new RuleSetPolicySpec(rules)] })],
+        };
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true });
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        void Agent(HttpRequestMessage request) => request.Headers.TryAddWithoutValidation("User-Agent", userAgent ?? "Mozilla/5.0 Firefox/130.0");
+
+        await SendAsync(server, client, "rules.test", path, expected, Warmup, Agent);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, "rules.test", path, expected, Measured, Agent);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
         Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");

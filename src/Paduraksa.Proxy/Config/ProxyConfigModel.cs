@@ -31,6 +31,9 @@ public sealed record ProxyConfigModel
 
     /// <summary>The named access lists the policies in host and route chains refer to.</summary>
     public IReadOnlyList<AccessListSpec> AccessLists { get; init; } = [];
+
+    /// <summary>The rule sets (document sets and the built-in presets any host names) the chains refer to.</summary>
+    public IReadOnlyList<RuleSetSpec> RuleSets { get; init; } = [];
 }
 
 /// <summary>Global settings the compiler needs.</summary>
@@ -326,6 +329,9 @@ public sealed record HostSpec
     /// <summary>The body, header and request-target limits; each route's own body limit may override the first.</summary>
     public HostRequestLimitsSpec RequestLimits { get; init; } = HostRequestLimitsSpec.Default;
 
+    /// <summary>The host's resolved rule set, for the overview; its policy sits in the chains like the access list's.</summary>
+    public HostRuleSetSpec RuleSet { get; init; } = HostRuleSetSpec.Off;
+
     /// <summary>What the host answers at <c>/robots.txt</c>.</summary>
     public HostRobotsSpec Robots { get; init; } = HostRobotsSpec.Passthrough;
 
@@ -384,6 +390,9 @@ public sealed record RouteSpec
 
     /// <summary>True when the route's own layer set <see cref="MaxBodySize"/> (the trace says so).</summary>
     public bool MaxBodySizeRouteOverride { get; init; }
+
+    /// <summary>This route's effective rule set: the host's, another, or none, for the overview.</summary>
+    public RuleSetId? RuleSet { get; init; }
 
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }
@@ -510,3 +519,55 @@ public sealed record AccessListSpec
 /// <summary>A user: the name and the vault's handle on their password, never a password or a hash. A handle with no password in the
 /// vault is a user who can't sign in.</summary>
 public sealed record AccessListUserSpec(string Username, IPasswordCredential Credential);
+
+/// <summary>The rule-set setting resolved across the layers; a route may override the switch and the set.</summary>
+public sealed record HostRuleSetSpec
+{
+    /// <summary>No rule set.</summary>
+    public static HostRuleSetSpec Off { get; } = new();
+
+    /// <summary>False: an inherited set is named but inert.</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary>The set to apply; <see cref="RuleSetId.Empty"/> when none is named.</summary>
+    public RuleSetId RuleSetId { get; init; }
+
+    /// <summary>The set that actually applies, or null.</summary>
+    public RuleSetId? Effective => Enabled && !RuleSetId.IsEmpty ? RuleSetId : null;
+}
+
+/// <summary>One rule set in a chain; the compiler binds it to the compiled set the ID names.</summary>
+public sealed record RuleSetPolicySpec(RuleSetId RuleSet, bool RouteOverride = false) : PolicySpec;
+
+/// <summary>A named rule set, ordered; the validator has judged it, and the compiler checks every pattern again.</summary>
+public sealed record RuleSetSpec
+{
+    public required RuleSetId Id { get; init; }
+
+    /// <summary>The human label, for traces and errors.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>In the order they are tried.</summary>
+    public IReadOnlyList<RuleSpec> Rules { get; init; } = [];
+}
+
+/// <summary>One rule: every condition it states has to match.</summary>
+public sealed record RuleSpec
+{
+    public required RuleAction Action { get; init; }
+
+    /// <summary>Null: any path.</summary>
+    public RulePathKind? PathKind { get; init; }
+
+    /// <summary>With <see cref="PathKind"/>: the pattern, as the document holds it.</summary>
+    public string? Pattern { get; init; }
+
+    /// <summary>Upper-case methods; empty: any.</summary>
+    public IReadOnlyList<string> Methods { get; init; } = [];
+
+    /// <summary>Substrings of the user agent, compared ignoring ASCII case; empty: none.</summary>
+    public IReadOnlyList<string> UserAgentContains { get; init; } = [];
+
+    /// <summary>The user-agent condition also holds for a request with no user agent or an empty one.</summary>
+    public bool UserAgentEmpty { get; init; }
+}

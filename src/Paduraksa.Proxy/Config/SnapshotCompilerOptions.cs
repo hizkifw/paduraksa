@@ -74,6 +74,9 @@ public sealed record SnapshotCompilerOptions
     /// <summary>The process's access-list verification cache and counters; null: <see cref="AccessListRuntime.Default"/>.</summary>
     public AccessListRuntime? AccessLists { get; init; }
 
+    /// <summary>The process's rule-set counters; null: <see cref="RuleSets.RuleSetRuntime.Default"/>.</summary>
+    public RuleSets.RuleSetRuntime? RuleSets { get; init; }
+
     /// <summary>
     /// True for a candidate that a publisher will make live; false for a dry run, a draft or a simulation, which must
     /// leave the process's slot registry exactly as it found it. A non-published compile only looks a pair's slot up:

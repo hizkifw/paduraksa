@@ -27,6 +27,8 @@ namespace Paduraksa.Contracts.Commands;
 [JsonDerivedType(typeof(DeleteRateLimitPolicyCommand), "deleteRateLimitPolicy")]
 [JsonDerivedType(typeof(UpsertAccessListCommand), "upsertAccessList")]
 [JsonDerivedType(typeof(DeleteAccessListCommand), "deleteAccessList")]
+[JsonDerivedType(typeof(UpsertRuleSetCommand), "upsertRuleSet")]
+[JsonDerivedType(typeof(DeleteRuleSetCommand), "deleteRuleSet")]
 [JsonDerivedType(typeof(UpsertProfileCommand), "upsertProfile")]
 [JsonDerivedType(typeof(DeleteProfileCommand), "deleteProfile")]
 [JsonDerivedType(typeof(UpdateSettingsCommand), "updateSettings")]
@@ -85,6 +87,15 @@ public sealed record UpsertAccessListCommand(AccessListConfig AccessList) : Conf
 /// <param name="AccessListId">The list.</param>
 /// <param name="Version">The version the caller saw.</param>
 public sealed record DeleteAccessListCommand(AccessListId AccessListId, long Version) : ConfigCommand;
+
+/// <summary>Creates a rule set (<see cref="RuleSetConfig.Version"/> 0) or replaces one. A built-in preset can't be written.</summary>
+/// <param name="RuleSet">The set as it should be. Its <see cref="RuleSetConfig.Version"/> is the version edited.</param>
+public sealed record UpsertRuleSetCommand(RuleSetConfig RuleSet) : ConfigCommand;
+
+/// <summary>Deletes a rule set; no host, profile, global default or route may still name it.</summary>
+/// <param name="RuleSetId">The set.</param>
+/// <param name="Version">The version the caller saw.</param>
+public sealed record DeleteRuleSetCommand(RuleSetId RuleSetId, long Version) : ConfigCommand;
 
 /// <summary>Creates a profile (<see cref="ProfileConfig.Version"/> 0) or replaces one.</summary>
 /// <param name="Profile">The profile as it should be. Its <see cref="ProfileConfig.Version"/> is the version edited.</param>

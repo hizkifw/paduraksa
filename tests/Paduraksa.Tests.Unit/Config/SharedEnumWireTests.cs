@@ -41,6 +41,8 @@ public sealed class SharedEnumWireTests
                 typeof(RequestIdPropagation),
                 typeof(RobotsMode),
                 typeof(RouteMatchKind),
+                typeof(RuleAction),
+                typeof(RulePathKind),
                 typeof(ServerHeaderMode),
                 typeof(TcpAlpn),
                 typeof(TlsMinimumVersion),

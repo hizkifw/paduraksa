@@ -108,6 +108,10 @@ public sealed class CompiledHost
     /// </summary>
     public HostRequestLimitsSpec RequestLimits { get; init; } = HostRequestLimitsSpec.Default;
 
+    /// <summary>The rule set the host names (the one its routes inherit), or null when it names none. A route's own
+    /// <see cref="CompiledRoute.RuleSet"/> differs where it names another or turns the rules off.</summary>
+    public RuleSets.CompiledRuleSet? RuleSet { get; init; }
+
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

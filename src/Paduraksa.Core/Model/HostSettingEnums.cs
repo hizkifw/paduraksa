@@ -111,6 +111,63 @@ public enum AccessListSatisfy
     Any,
 }
 
+/// <summary>What a rule set does with a request its rule matches.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<RuleAction>))]
+public enum RuleAction
+{
+    /// <summary>Answer 403 and stop.</summary>
+    Deny,
+
+    /// <summary>Abort the connection or stream without an answer.</summary>
+    Drop,
+
+    /// <summary>Stop looking at this set's later rules and let the request go on: the exception a later deny can't reach.</summary>
+    Allow,
+}
+
+/// <summary>How a rule's path condition reads its pattern. All four compare the canonical matching path ignoring ASCII case.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<RulePathKind>))]
+public enum RulePathKind
+{
+    /// <summary>The whole path equals the pattern.</summary>
+    Exact,
+
+    /// <summary>The path is the pattern or lies below it, segment by segment, as a route's prefix does.</summary>
+    Prefix,
+
+    /// <summary><c>*</c> stands for any run of characters inside a segment, <c>**</c> for any run across segments, and a
+    /// <c>/**/</c> segment for none or more.</summary>
+    Glob,
+
+    /// <summary>A regular expression that must match somewhere in the path, run without backtracking.</summary>
+    Regex,
+}
+
+/// <summary>The bounds of a rule set, shared by the validator, the compiler and the proxy.</summary>
+public static class RuleSetLimits
+{
+    /// <summary>Rules in one set: they are tried in order, and a set this long is a mistake.</summary>
+    public const int MaxRules = 200;
+
+    /// <summary>Longest path pattern, in characters.</summary>
+    public const int MaxPatternLength = 512;
+
+    /// <summary>Most glob tokens (literal characters and wildcards): the matcher keeps one bit of state per token.</summary>
+    public const int MaxGlobTokens = 126;
+
+    /// <summary>User-agent substrings in one rule.</summary>
+    public const int MaxUserAgentTokens = 100;
+
+    /// <summary>Longest user-agent substring.</summary>
+    public const int MaxUserAgentTokenLength = 128;
+
+    /// <summary>Methods in one rule.</summary>
+    public const int MaxMethods = 16;
+
+    /// <summary>How long one regular-expression match may run before it counts as no match.</summary>
+    public static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromMilliseconds(50);
+}
+
 /// <summary>The bounds of an access list's users and realm, shared by the validator, the compiler and the proxy.</summary>
 public static class AccessListLimits
 {

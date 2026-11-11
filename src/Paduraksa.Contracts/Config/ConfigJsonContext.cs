@@ -47,10 +47,13 @@ namespace Paduraksa.Contracts.Config;
         typeof(ConfigEnumConverter<AccessListSatisfy>),
         typeof(ConfigEnumConverter<RobotsMode>),
         typeof(ConfigEnumConverter<OriginLockdownMode>),
+        typeof(ConfigEnumConverter<RuleAction>),
+        typeof(ConfigEnumConverter<RulePathKind>),
     ])]
 [JsonSerializable(typeof(ConfigDocument))]
 [JsonSerializable(typeof(RateLimitPolicyConfig))]
 [JsonSerializable(typeof(AccessListConfig))]
+[JsonSerializable(typeof(RuleSetConfig))]
 [JsonSerializable(typeof(ConfigError))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigError>))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigChange>))]

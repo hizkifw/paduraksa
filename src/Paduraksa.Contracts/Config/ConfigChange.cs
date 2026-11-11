@@ -30,6 +30,7 @@ namespace Paduraksa.Contracts.Config;
 [JsonDerivedType(typeof(DestinationChange), "destination")]
 [JsonDerivedType(typeof(RateLimitPolicyChange), "rateLimitPolicy")]
 [JsonDerivedType(typeof(AccessListChange), "accessList")]
+[JsonDerivedType(typeof(RuleSetChange), "ruleSet")]
 [JsonDerivedType(typeof(HostChange), "host")]
 [JsonDerivedType(typeof(RouteChange), "route")]
 public abstract record ConfigChange(ConfigChangeKind Kind, string Path, IReadOnlyList<string> Fields);
@@ -70,6 +71,9 @@ public sealed record RateLimitPolicyChange(ConfigChangeKind Kind, RateLimitPolic
     : ConfigChange(Kind, Path, Fields);
 
 public sealed record AccessListChange(ConfigChangeKind Kind, AccessListId AccessListId, string Path, IReadOnlyList<string> Fields)
+    : ConfigChange(Kind, Path, Fields);
+
+public sealed record RuleSetChange(ConfigChangeKind Kind, RuleSetId RuleSetId, string Path, IReadOnlyList<string> Fields)
     : ConfigChange(Kind, Path, Fields);
 
 public sealed record HostChange(ConfigChangeKind Kind, HostId HostId, string Path, IReadOnlyList<string> Fields)

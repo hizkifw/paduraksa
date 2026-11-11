@@ -29,6 +29,11 @@ public readonly partial record struct RateLimitPolicyId;
 [TypedId("acl")]
 public readonly partial record struct AccessListId;
 
+/// <summary>A rule set: an ordered list of path, method and user-agent rules, which hosts and routes name. The built-in presets
+/// have reserved IDs.</summary>
+[TypedId("rs")]
+public readonly partial record struct RuleSetId;
+
 /// <summary>A basic-auth user's password in the vault: the config document names it, the vault holds what verifies it.</summary>
 [TypedId("pwc")]
 public readonly partial record struct PasswordCredentialId;

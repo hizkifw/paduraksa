@@ -4,6 +4,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -111,6 +112,7 @@ public static partial class SnapshotCompiler
             AltSvc = new AltSvcHeader(options.PublicHttpsPort, options.AdvertiseHttp3);
             RateLimitPolicies = CompileRateLimitPolicies(model.RateLimitPolicies ?? []);
             AccessLists = CompileAccessLists(model.AccessLists ?? [], options.AccessLists ?? AccessListRuntime.Default, Errors);
+            RuleSets = CompileRuleSets(model.RuleSets ?? [], options.RuleSets ?? RuleSetRuntime.Default, Errors);
         }
 
         public ProxyConfigModel Model { get; }
@@ -160,6 +162,9 @@ public static partial class SnapshotCompiler
 
         /// <summary>The named access lists, compiled once so every policy that names one shares it.</summary>
         public AccessListBinding AccessLists { get; }
+
+        /// <summary>The named rule sets, compiled once so every policy that names one shares it.</summary>
+        public RuleSetBinding RuleSets { get; }
 
         public bool AdminHost { get; set; }
 

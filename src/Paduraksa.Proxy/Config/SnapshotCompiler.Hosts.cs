@@ -51,7 +51,7 @@ public static partial class SnapshotCompiler
                 }
             }
 
-            var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors, AccessLists);
+            var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors, AccessLists, RuleSets);
 
             // One policy object per (policy, host) pair, shared by every route that resolves to it: that pair owns the
             // buckets. A disabled host serves nothing and a Redirect/Respond host has no routes, so neither registers a
@@ -155,6 +155,7 @@ public static partial class SnapshotCompiler
                 OriginLockdown = CompileOriginLockdown(spec.Cloudflare, TrustedProxies.Mode, where, Errors),
                 AuthenticatedOriginPulls = originPulls,
                 AccessList = AccessListOf(spec.AccessList.Effective),
+                RuleSet = RuleSetOf(spec.RuleSet.Effective),
                 HttpsRedirect = spec.ForceHttps ? HttpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
@@ -381,7 +382,7 @@ public static partial class SnapshotCompiler
             }
 
             // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
-            var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors, context.AccessLists);
+            var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors, context.AccessLists, context.RuleSets);
 
             // After the access policies and before proof of work: a client already over its budget gets the 429, not a
             // challenge page. A route that resolves to the host's policy shares its pair's buckets; another policy gets
@@ -423,6 +424,7 @@ public static partial class SnapshotCompiler
                 Slot = slot,
                 Policies = own,
                 AccessList = context.AccessListOf(spec.AccessList),
+                RuleSet = context.RuleSetOf(spec.RuleSet),
                 ProofOfWork = routeProofOfWork,
                 ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
                 MaxBodySize = spec.MaxBodySizeRouteOverride ? spec.MaxBodySize : null,

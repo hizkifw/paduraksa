@@ -28,6 +28,8 @@ internal static class TestIds
 
     public static AccessListId AccessList(string label) => Of<AccessListId>(label);
 
+    public static RuleSetId RuleSet(string label) => Of<RuleSetId>(label);
+
     public static CertificateId Certificate(string label) => Of<CertificateId>(label);
 
     public static ConfigRevisionId Revision(string label) => Of<ConfigRevisionId>(label);

@@ -7,6 +7,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
@@ -170,18 +171,18 @@ public static partial class SnapshotCompiler
         return true;
     }
 
-    private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists)
+    private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists, RuleSetBinding ruleSets)
     {
         var policies = new IRequestPolicy[specs.Count];
         for (var i = 0; i < specs.Count; i++)
         {
-            policies[i] = CompilePolicy(specs[i], where, errors, accessLists);
+            policies[i] = CompilePolicy(specs[i], where, errors, accessLists, ruleSets);
         }
 
         return policies;
     }
 
-    private static IRequestPolicy CompilePolicy(PolicySpec spec, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists)
+    private static IRequestPolicy CompilePolicy(PolicySpec spec, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists, RuleSetBinding ruleSets)
     {
         switch (spec)
         {
@@ -207,6 +208,11 @@ public static partial class SnapshotCompiler
                 }
 
                 errors.Add(new(where, "a union of access lists names one that doesn't exist, or none"));
+                break;
+            case RuleSetPolicySpec ruleSet when ruleSets.Sets.TryGetValue(ruleSet.RuleSet, out var compiled):
+                return new RuleSetPolicy(compiled, ruleSet.RouteOverride);
+            case RuleSetPolicySpec ruleSet:
+                errors.Add(new(where, $"rule set '{ruleSet.RuleSet}' doesn't exist or didn't compile"));
                 break;
             default:
                 errors.Add(new(where, $"unsupported policy {spec?.GetType().Name ?? "null"}"));
