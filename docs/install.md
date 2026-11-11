@@ -177,6 +177,59 @@ The logs are inside the data volume, so a backup of it carries them, and they ar
 them loses history, nothing else. If you would rather keep them elsewhere (a bigger disk), mount that directory too and
 point `Paduraksa__Logs__Directory` at it; it must be writable by uid 10001.
 
+### Metrics
+
+Every request is counted (by host, route, upstream and destination) and timed, whether or not its host writes an access
+log. The counters cost no allocation and no lock on the request path. The home page of the dashboard draws them live: the
+last hour from memory, a day, a week or a month from one-minute rollups kept in `paduraksa.db`.
+
+**Prometheus.** The admin port serves the text format at `/metrics` (the same endpoint is `/api/v1/metrics`). It needs a
+bearer API token with the `metrics:read` scope, which every role holds, so create a token for a viewer and give it only that
+scope:
+
+```yaml
+scrape_configs:
+  - job_name: paduraksa
+    scheme: https
+    metrics_path: /metrics
+    authorization:
+      credentials_file: /etc/prometheus/paduraksa-token   # pdk_...
+    tls_config:
+      ca_file: /etc/prometheus/paduraksa-root.pem          # GET /api/v1/ca/root.pem
+    static_configs:
+      - targets: ["proxy.lan:9443"]
+```
+
+A series is labelled `host` (the host's first name) and `host_id`; upstreams, destinations and routes carry their typed IDs
+(`upstream_id`, `destination_id`, `route_id`), so a rename doesn't break a series. Requests the proxy answered for a name
+no host has are the `(unmatched)` host. The families:
+
+| Family | Labels | What |
+|---|---|---|
+| `paduraksa_requests_total` | host, status_class | Requests answered by the class of status (`1xx` to `5xx`, `none` for a dropped connection) |
+| `paduraksa_gate_outcomes_total` | host, outcome | What the gate did: `forwarded`, `answered`, `refused_access_list`, `refused_rule_set`, `refused_rate_limit`, `refused_proof_of_work`, `refused_forward_auth`, `refused_request_limits`, `refused_connection`, `no_route`, `unavailable`, `dropped`, `unknown_host`, `refused_other` |
+| `paduraksa_response_size_bytes_total` | host | Bytes of responses with a known `Content-Length` |
+| `paduraksa_request_duration_seconds` | host | Histogram of the whole request |
+| `paduraksa_host_upstream_duration_seconds` | host | Histogram of the upstream's share; the difference is the proxy's own time |
+| `paduraksa_route_*` | host, route_id, path | The same counters per route |
+| `paduraksa_upstream_requests_total`, `_errors_total` (kind), `paduraksa_upstream_duration_seconds` | upstream_id | Forwards, YARP's failures by kind, and upstream time |
+| `paduraksa_destination_requests_total`, `_errors_total` | upstream_id, destination_id | Per destination |
+| `paduraksa_rate_limit_decisions_total`, `paduraksa_proof_of_work_events_total`, `paduraksa_access_list_events_total` | result / event | The process totals the Security overview shows |
+| `paduraksa_config_generation`, `paduraksa_hosts` | | The live snapshot |
+
+Histogram buckets end at 2^e - 1 microseconds for e from 4 to 26 (`le="0.000015"` to `le="67.108863"`): an observation of exactly 16 microseconds is in `le="0.000031"`, not below.
+
+**OpenTelemetry.** The same counters are `System.Diagnostics.Metrics` instruments on the meter `Paduraksa`
+(`paduraksa.requests`, `paduraksa.gate.outcomes`, `paduraksa.upstream.errors`, ...), read only when a listener asks. A latency is
+a sum (`paduraksa.request.duration.sum`, seconds); the buckets are the Prometheus endpoint's.
+
+| Setting | Default | What |
+|---|---|---|
+| `Paduraksa__Metrics__Retention` | `14.00:00:00` | How long a one-minute rollup is kept (1 hour to 5 years); older rows are deleted hourly |
+| `Paduraksa__Metrics__WriteInterval` | `00:00:15` | How often finished minutes are written to the database (1 second to 10 minutes) |
+
+A restart loses the minute in progress. Counters start from zero at every start, as Prometheus expects.
+
 ### Upgrading
 
 With the published image (the default compose file):
