@@ -89,9 +89,10 @@ runtimes that do not.
    it to the System keychain and mark it trusted; on Windows, import it into *Trusted Root Certification Authorities*.
    Then open **`https://<host>:9443/`** and enter the setup token.
 
-   The admin port is HTTPS only. If you set `Paduraksa__Listen__AdminAllowedSources` (addresses/CIDRs), loopback is
-   **not** implied - add `127.0.0.1/32` if you also want the container healthcheck (`paduraksa doctor --liveness`) and
-   an SSH tunnel to work.
+   The admin port is HTTPS only. A plain `http://<host>:9443/` GET is answered with a redirect to the same URL over
+   `https://` (no page is ever served over plain HTTP), so a mistyped or old bookmark still lands on the panel. If you set
+   `Paduraksa__Listen__AdminAllowedSources` (addresses/CIDRs), loopback is **not** implied - add `127.0.0.1/32` if you
+   also want the container healthcheck (`paduraksa doctor --liveness`) and an SSH tunnel to work.
 
    Every list setting takes **either** one comma-separated value or indexed keys, so both shell conventions work:
 

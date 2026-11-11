@@ -17,7 +17,8 @@ namespace Paduraksa.Server.Hosting;
 
 /// <summary>
 /// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443) with a certificate the process
-/// issues from the local CA and keeps current (<see cref="AdminCertificateService"/>), and the internal listener the public
+/// issues from the local CA and keeps current (<see cref="AdminCertificateService"/>), a plain-HTTP request on that port
+/// answered with a redirect to <c>https</c> (<see cref="AdminPlainHttpRedirect"/>), and the internal listener the public
 /// proxy forwards an admin host's requests through. It serves the health endpoints, the local CA root's downloads, the
 /// security pipeline and identity API (<c>Paduraksa.Admin</c>), the resource REST API (<c>/api/v1</c> with its OpenAPI
 /// document and reference UI), and the dashboard at <c>/</c> with the sign-in forms behind its pages. TODO: /mcp and /metrics.
@@ -82,6 +83,9 @@ internal static partial class AdminApp
             {
                 admin.Protocols = HttpProtocols.Http1AndHttp2;
                 RestrictSources(admin, sources);
+                // A browser handed http://host:9443/ gets a redirect to https://host:9443/ rather than an empty response; a
+                // TLS handshake is left untouched for the middleware below (AdminPlainHttpRedirect).
+                admin.UsePlainHttpRedirect(logger);
                 admin.UseHttps(adminCertificate.CreateTlsOptions());
             });
 
