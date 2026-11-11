@@ -155,6 +155,38 @@ public sealed class HostFormTests
     }
 
     [Fact]
+    public async Task ARouteThatNamesItsOwnRuleSetShowsItsSettingsAndKeepsThemWhenAnotherIsChanged()
+    {
+        var set = RuleSetId.New();
+        var route = RouteId.New();
+        RouteSettings settings = new() { RuleSet = new RuleSetSettings { RuleSetId = set } };
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(route, App.Id, Settings: settings)]));
+        await using DashboardTestContext context = new();
+        context.Render<MudPopoverProvider>();
+        var form = Render(context, model);
+
+        Assert.Single(form.FindAll("[data-section='route-settings-0']"));
+        Assert.Single(form.FindAll("[data-field='route-rule-set-0']"));
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<bool?>>()
+            .Single(select => select.Instance.Label == "Browser check on this route")
+            .Instance.ValueChanged.InvokeAsync(true));
+
+        var kept = Assert.Single(model.ToConfig().Routes);
+        Assert.Same(settings.RuleSet, kept.Settings.RuleSet);
+        Assert.True(kept.Settings.ProofOfWork?.Enabled);
+
+        // Turning the route's rules off is a record of its own, and inheriting again leaves none.
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Rules on this route")
+            .Instance.ValueChanged.InvokeAsync("off"));
+        Assert.False(Assert.Single(model.ToConfig().Routes).Settings.RuleSet?.Enabled);
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Rules on this route")
+            .Instance.ValueChanged.InvokeAsync("inherit"));
+        Assert.Null(Assert.Single(model.ToConfig().Routes).Settings.RuleSet);
+    }
+
+    [Fact]
     public async Task TheRouteMenuEditsTheUpstreamAndRemovesTheRoute()
     {
         var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"],

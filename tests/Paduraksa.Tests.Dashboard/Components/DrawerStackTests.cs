@@ -422,6 +422,56 @@ public sealed class DrawerStackTests
         Assert.Equal(Assert.Single(applied.Document.Hosts).Settings.AccessList?.AccessListId, chosen.AccessListId);
     }
 
+    [Fact]
+    public async Task ARuleSetMadeFromTheHostDrawer_IsStagedAndSelected_AndAppliedWithTheHost()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        UpstreamConfig app = new(UpstreamId.New(), "app", Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);
+        config.Document = new ConfigDocument(Upstreams: [app]);
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "app.home.test");
+
+        // "New rule set..." on the host's Access row stacks the rule editor on the host's.
+        var picker = drawers.FindComponents<RuleSetField>().Single(field => field.Instance.Field == "rule-set");
+        var choosing = drawers.InvokeAsync(() => picker.Instance.OnNew.InvokeAsync());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=rule-set] input[data-field=name]").Count == 1);
+        Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
+        Assert.Equal("Back to New host", drawers.Find("[data-drawer=rule-set] [data-drawer-action=back]").GetAttribute("aria-label"));
+        await TypeAsync(drawers, "[data-drawer=rule-set] input[data-field=name]", "Block admin");
+        await drawers.Find("[data-action=add-rule]").ClickAsync(new());
+        await drawers.InvokeAsync(() => drawers.FindComponents<MudSelect<RulePathKind?>>().Single().Instance.ValueChanged.InvokeAsync(RulePathKind.Prefix));
+        await TypeAsync(drawers, "[data-drawer=rule-set] input[data-field=pattern-0]", "/admin");
+        await drawers.Find("form[data-drawer=rule-set]").SubmitAsync();
+        await choosing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+
+        // Staged with the host, and the host's picker now names it; nothing is sent yet.
+        var hosted = drawers.FindComponent<HostForm>().Instance.Model;
+        var chosen = hosted.Settings.RuleSet;
+        Assert.True(chosen?.Enabled);
+        Assert.NotNull(chosen?.RuleSetId);
+        Assert.Single(drawers.FindAll("[data-staged='Block admin']"));
+        Assert.Contains("Block admin", drawers.Find("[data-field=rule-set]").OuterHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(chosen!.RuleSetId.ToString()!, drawers.Markup, StringComparison.Ordinal);
+        Assert.Empty(config.Executed);
+
+        // The host and the rule set go in one revision.
+        _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.Find("[data-review=apply]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
+
+        var applied = Assert.IsType<ReplaceConfigCommand>(config.Executed[^1]);
+        Assert.False(applied.DryRun);
+        var set = Assert.Single(applied.Document.RuleSets);
+        Assert.Equal("Block admin", set.Name);
+        Assert.Equal(new RulePathConfig(RulePathKind.Prefix, "/admin"), Assert.Single(set.Rules).Match.Path);
+        Assert.Equal(Assert.Single(applied.Document.Hosts).Settings.RuleSet?.RuleSetId, chosen.RuleSetId);
+    }
+
     /// <summary>What a level handed back; fails rather than waits forever when it is still open.</summary>
     private static Task<DrawerResult> Done(DrawerLevel level) => level.Result.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
 
