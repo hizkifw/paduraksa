@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
+using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Net;
@@ -66,6 +67,10 @@ public readonly record struct ClientIpResolution(
     /// <summary>The request scheme as the trusted proxies report it (<see cref="ForwardedScheme"/>); default: the
     /// connection's.</summary>
     public RequestScheme Scheme { get; init; }
+
+    /// <summary>The country <c>CF-IPCountry</c> names, read only when <see cref="CloudflareHeadersTrusted"/> (from anyone else
+    /// the header is the client's to forge); <see cref="CountryCode.Unknown"/> otherwise, and when it is absent or malformed.</summary>
+    public CountryCode Country { get; init; }
 }
 
 /// <summary>
@@ -91,6 +96,7 @@ public readonly record struct ClientIpResolution(
 /// </list>
 /// <para>Any missing or unparsable header from a trusted peer falls back to the peer address, flagged in
 /// <see cref="ClientIpResolution.Outcome"/>.</para>
+/// <para><b>Country.</b> <c>CF-IPCountry</c> is read exactly where <c>CF-Connecting-IP</c> is: a trusted peer in a Cloudflare mode.</para>
 /// </remarks>
 public static class ClientIpResolver
 {
@@ -127,8 +133,12 @@ public static class ClientIpResolver
         }
 
         // Cloudflare mode with a trusted peer: the only case where CF-* headers are genuine.
-        return ResolveCloudflare(peer, peerSource, headers, policy) with { CloudflareHeadersTrusted = true };
+        return ResolveCloudflare(peer, peerSource, headers, policy) with { CloudflareHeadersTrusted = true, Country = CountryOf(headers) };
     }
+
+    // One value or none: a repeated header is not what Cloudflare sends.
+    private static CountryCode CountryOf(IHeaderDictionary headers) =>
+        headers[CloudflareHeaders.IpCountry] is { Count: 1 } values && values[0] is { } text ? CountryCode.Parse(text) : CountryCode.Unknown;
 
     private static ClientIpResolution ResolveCloudflare(IpKey peer, ClientIpSource peerSource, IHeaderDictionary headers, TrustedProxyPolicy policy)
     {

@@ -35,15 +35,13 @@ public sealed class ClientInfo : IClientInfoFeature
         ushort port,
         ConnectionAddressSource source,
         IpKey transportAddress,
-        ushort transportPort,
-        ushort countryIndex = 0)
+        ushort transportPort)
     {
         Address = address;
         Port = port;
         Source = source;
         TransportAddress = transportAddress;
         TransportPort = transportPort;
-        CountryIndex = countryIndex;
     }
 
     /// <summary>The client address at connection level: the PROXY protocol source address if one was received,
@@ -61,9 +59,6 @@ public sealed class ClientInfo : IClientInfoFeature
 
     public ushort TransportPort { get; }
 
-    /// <summary>Index into the snapshot's country table; 0 = unknown. Placeholder until the geo lookup exists.</summary>
-    public ushort CountryIndex { get; }
-
     /// <summary>True when <see cref="Address"/> came from a PROXY protocol header.</summary>
     public bool IsFromProxyProtocol => Source == ConnectionAddressSource.ProxyProtocol;
 
@@ -71,15 +66,11 @@ public sealed class ClientInfo : IClientInfoFeature
 
     /// <summary>From the socket peer only (no PROXY protocol), e.g. the QUIC TLS callback's
     /// <c>Connection.RemoteEndPoint</c>. IPv4-mapped peers normalise to IPv4 keys.</summary>
-    public static ClientInfo FromEndPoint(EndPoint? remoteEndPoint, ushort countryIndex = 0)
+    public static ClientInfo FromEndPoint(EndPoint? remoteEndPoint)
     {
         _ = IpKey.TryFromEndPoint(remoteEndPoint, out var address, out var port);
-        return new ClientInfo(address, port, ConnectionAddressSource.Socket, address, port, countryIndex);
+        return new ClientInfo(address, port, ConnectionAddressSource.Socket, address, port);
     }
-
-    /// <summary>A copy with the country index set (for a later geo stage).</summary>
-    public ClientInfo WithCountryIndex(ushort countryIndex) =>
-        new(Address, Port, Source, TransportAddress, TransportPort, countryIndex);
 
     public override string ToString() =>
         Source == ConnectionAddressSource.ProxyProtocol

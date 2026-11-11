@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Core.Geo;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -50,6 +51,10 @@ public sealed class GateRequestState : IGateFeature
     /// <summary>The resolved client address (IPv4 as IPv4-mapped, so TCP on <c>[::]</c> and QUIC agree);
     /// <see cref="IpKey.Unspecified"/> when unknown.</summary>
     public IpKey ClientAddress => ClientIp.Address;
+
+    /// <summary>Where the request came from, per Cloudflare (<see cref="ClientIpResolution.Country"/>); unknown unless the peer is a
+    /// trusted Cloudflare one.</summary>
+    public CountryCode ClientCountry => ClientIp.Country;
 
     /// <summary>The request's ID, generated or adopted from a trusted proxy, as text. <b>The one allocation a request
     /// accepts</b>: an <c>X-Request-Id</c> header value can only be a <see cref="string"/>, so the generated ID is
