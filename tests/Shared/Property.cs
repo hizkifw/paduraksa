@@ -21,6 +21,8 @@ internal static class Property
 
     public const string SeedVariable = "PADURAKSA_PROPERTY_SEED";
 
+    private const int ShrinkIterations = 5_000;
+
     private const ulong DefaultSeed = 0x9E3779B97F4A7C15;
 
     private static readonly double Scale = ReadScale();
@@ -43,7 +45,18 @@ internal static class Property
         for (long i = 0; i < cases; i++)
         {
             var pcg = new PCG(stream, Mix(BaseSeed + (ulong)i));
-            gen.Sample(assert, seed: pcg.ToString(pcg.State), iter: 1, threads: 1);
+            var seed = pcg.ToString(pcg.State);
+            try
+            {
+                gen.Sample(assert, seed: seed, iter: 1, threads: 1);
+            }
+            catch (CsCheckException)
+            {
+                // CsCheck shrinks by running on from a failing case and keeping the smallest failure it meets, so the failing case is
+                // run on with more iterations: that search is random, but it only happens once the property has already failed.
+                gen.Sample(assert, seed: seed, iter: ShrinkIterations, threads: 1);
+                throw;
+            }
         }
     }
 
