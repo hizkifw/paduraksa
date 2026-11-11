@@ -1,0 +1,25 @@
+<MudPaper Class="pdk-card pdk-sec-tile" Elevation="0" Outlined="true" data-tile="@Name">
+    <span class="pdk-sec-label">@Label</span>
+    <span class="pdk-sec-value" data-part="value">@Value</span>
+    <span class="pdk-sec-detail" data-part="detail">@Detail</span>
+    <span class="pdk-sec-rate" data-part="rate">@Rate</span>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    /// <summary>What the number is a share of, when it is one.</summary>
+    [Parameter]
+    public string? Detail { get; set; }
+
+    /// <summary>The live per-second rate; blank until a second sample exists.</summary>
+    [Parameter]
+    public string? Rate { get; set; }
+}

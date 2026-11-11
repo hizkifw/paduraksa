@@ -266,6 +266,35 @@
         },
     });
 
+    // The security page samples every couple of seconds only while its tab is shown: it is told when the tab is hidden or shown again.
+    let visibilityListener = null;
+    const pageVisibility = Object.freeze({
+        watch(dotNet) {
+            pageVisibility.detach();
+            const report = () => {
+                try {
+                    dotNet.invokeMethodAsync("PageVisibilityChangedAsync", document.visibilityState === "visible").catch(() => {});
+                } catch {
+                    // The circuit is already gone.
+                }
+            };
+
+            if (document.visibilityState !== "visible") {
+                report();
+            }
+
+            document.addEventListener("visibilitychange", report);
+            visibilityListener = () => document.removeEventListener("visibilitychange", report);
+        },
+
+        detach() {
+            if (visibilityListener) {
+                visibilityListener();
+                visibilityListener = null;
+            }
+        },
+    });
+
     // A multi-line text that starts like a URL scheme ("User-agent: *" reads as the scheme "user-agent:") is put on the iOS
     // clipboard as a URL too, and Safari pastes that form: lowercased and percent-encoded, every newline a %0A. A field that
     // opts in (data-paste="decode-url") gets the text back. Only a paste with an encoded line break and no real one is
@@ -299,6 +328,7 @@
     window.paduraksa = Object.freeze({
         drawers,
         logPane,
+        pageVisibility,
 
         /** Stores the person's choice ("dark" or "light") and applies it to the plain-HTML pages' colours. */
         setTheme(value) {

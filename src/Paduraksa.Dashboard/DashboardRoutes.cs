@@ -22,6 +22,8 @@ public static class DashboardRoutes
 
     public const string Profiles = "/profiles";
 
+    public const string Security = "/security";
+
     public const string RateLimits = "/rate-limits";
 
     public const string Certificates = "/certificates";

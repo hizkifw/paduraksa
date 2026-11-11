@@ -878,6 +878,90 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-tokens-table.pdk-tokens-everyone { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.6fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
 .pdk-certs-table { --pdk-dt-cols: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr); }
 .pdk-logs-table { --pdk-dt-cols: minmax(0, 2.2fr) minmax(110px, 0.9fr) minmax(70px, 0.5fr) 80px; }
+.pdk-security-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr); }
+
+/* The security page: counters as compact tiles (label, right-aligned number, then what it is a share of and its live rate), and the
+   proof-of-work rejections as label and count pairs. */
+.pdk-sec-since {
+    margin: 0 0 12px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-sec-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.pdk-sec-tile.mud-paper {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 2px 12px;
+    padding: 14px 16px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-sec-label {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.pdk-sec-value {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 1.625rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    text-align: right;
+}
+
+.pdk-sec-detail, .pdk-sec-rate {
+    min-height: 1.25em;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-sec-rate {
+    text-align: right;
+}
+
+.pdk-sec-body {
+    display: grid;
+    gap: 16px;
+}
+
+.pdk-sec-reasons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 8px 32px;
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-sec-reasons > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    font-size: 0.875rem;
+}
+
+.pdk-sec-reasons dt {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-sec-reasons dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: right;
+}
 
 /* The logs page: a card per log, and a drawer showing one file's last lines in monospace. */
 .pdk-log-groups {
@@ -1244,6 +1328,33 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     .pdk-hosts-table .pdk-dt-cell[data-label="Destination"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label],
     .pdk-rate-limits-table .pdk-dt-cell[data-label] {
         grid-column: 1 / -1;
+    }
+
+    .pdk-sec-tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .pdk-security-table .pdk-dt-row {
+        align-items: start;
+    }
+
+    /* A narrow tile gives the label its own line, so the number never squeezes it. */
+    .pdk-sec-label, .pdk-sec-value {
+        grid-column: 1 / -1;
+    }
+
+    .pdk-sec-value {
+        grid-row: 2;
+    }
+
+    .pdk-sec-detail {
+        grid-row: 3;
+    }
+
+    .pdk-sec-rate {
+        grid-row: 3;
+        grid-column: 2;
     }
 
     .pdk-dt-row {

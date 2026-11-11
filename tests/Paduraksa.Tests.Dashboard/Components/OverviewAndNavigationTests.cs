@@ -53,6 +53,7 @@ public sealed class OverviewAndNavigationTests
 
     [Theory]
     [InlineData("/profiles/prof_0J9zb3xQk1Lr8m2V7aYc4D", "Profiles")]
+    [InlineData("/security", "Security overview")]
     [InlineData("/rate-limits", "Rate limits")]
     [InlineData("/rate-limits/new", "Rate limits")]
     [InlineData("/hosts/new", "Hosts")]

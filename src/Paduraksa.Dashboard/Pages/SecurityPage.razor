@@ -1,0 +1,307 @@
+@attribute [Route(DashboardRoutes.Security)]
+@implements IAsyncDisposable
+@using Paduraksa.Application.Security
+@using Paduraksa.Contracts.Security
+@inject SecurityOverviewService Service
+@inject DashboardCaller Caller
+@inject TimeProvider Time
+@inject IJSRuntime JS
+@* What protects the hosts and whether it is working: the gate's counters with their live rates, and each enabled host's
+   protections from the live snapshot. A rate is the difference between two samples over the time between them. *@
+
+<PageTitle>Security overview · Paduraksa</PageTitle>
+
+<PageHeader Title="Security overview" />
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
+    </MudPaper>
+}
+else if (_current is { } current)
+{
+    var pow = current.ProofOfWork;
+    var rejected = SecurityFigures.Rejected(pow);
+    var requests = current.RateLimit.Allowed + current.RateLimit.Limited;
+
+    <p class="pdk-sec-since" data-part="since">Counted since Paduraksa started @RevisionText.Ago(current.Since, current.SampledAt).</p>
+
+    <div class="pdk-sec-tiles">
+        <SecurityTile Name="served" Label="Challenges served" Value="@SecurityFigures.Count(pow.ChallengesServed)" Rate="@SecurityFigures.RateText(_rates?.Served)" />
+        <SecurityTile Name="solved" Label="Solved" Value="@SecurityFigures.Count(pow.Solved)" Rate="@SecurityFigures.RateText(_rates?.Solved)"
+                      Detail="@(SecurityFigures.Share(pow.Solved, pow.ChallengesServed) is { } solveRate ? $"{solveRate} of served" : null)" />
+        <SecurityTile Name="rejected" Label="Rejected" Value="@SecurityFigures.Count(rejected)" Rate="@SecurityFigures.RateText(_rates?.Rejected)" />
+        <SecurityTile Name="limited" Label="Rate-limited" Value="@SecurityFigures.Count(current.RateLimit.Limited)" Rate="@SecurityFigures.RateText(_rates?.Limited)"
+                      Detail="@(SecurityFigures.Share(current.RateLimit.Limited, requests) is { } limitedShare ? $"{limitedShare} of checked requests" : null)" />
+    </div>
+
+    <div class="pdk-sec-body">
+        <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="hosts">
+            <div class="pdk-card-head pdk-card-head-padded">
+                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Hosts</MudText>
+            </div>
+            @if (current.Hosts.Count == 0)
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Language" Title="No hosts yet">
+                    <Action>
+                        @if (_mayWrite)
+                        {
+                            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-host">Add host</MudButton>
+                        }
+                    </Action>
+                </EmptyState>
+            }
+            else
+            {
+                <div class="pdk-dt pdk-security-table" role="table" aria-label="Protections by host">
+                    <div class="pdk-dt-row pdk-dt-head" role="row">
+                        <span role="columnheader">Host</span>
+                        <span role="columnheader">Proof of work</span>
+                        <span role="columnheader">Rate limit</span>
+                        <span role="columnheader">robots.txt</span>
+                        <span role="columnheader">IP allow list</span>
+                    </div>
+                    @foreach (var host in SecurityFigures.Ordered(current.Hosts))
+                    {
+                        <div class="pdk-dt-row" role="row" data-host="@host.Name" @key="host.Id">
+                            <div role="cell" class="pdk-dt-main">
+                                <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@host.Name</a>
+                            </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="Proof of work" data-cell="pow">
+                                @if (host.ProofOfWork.Enabled)
+                                {
+                                    <div class="pdk-dt-stack">
+                                        <span>On, @host.ProofOfWork.Difficulty bits</span>
+                                        @if (host.ProofOfWork.RouteOverrides > 0)
+                                        {
+                                            <span class="pdk-dt-note">Off on @SecurityFigures.Routes(host.ProofOfWork.RouteOverrides)</span>
+                                        }
+                                    </div>
+                                }
+                                else if (host.ProofOfWork.RouteOverrides > 0)
+                                {
+                                    <div class="pdk-dt-stack">
+                                        <span>On for @SecurityFigures.Routes(host.ProofOfWork.RouteOverrides)</span>
+                                        <span class="pdk-dt-note">@host.ProofOfWork.Difficulty bits</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="pdk-muted">None</span>
+                                }
+                            </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="Rate limit" data-cell="rate-limit">
+                                @if (host.RateLimit.Policy is null && host.RateLimit.Overrides.Count == 0)
+                                {
+                                    <span class="pdk-muted">None</span>
+                                }
+                                else
+                                {
+                                    <div class="pdk-dt-stack">
+                                        @if (host.RateLimit.Policy is { } policy)
+                                        {
+                                            <a class="pdk-row-link" href="@DashboardRoutes.RateLimit(policy.Id)">@policy.Name</a>
+                                        }
+
+                                        @foreach (var use in host.RateLimit.Overrides)
+                                        {
+                                            <span class="pdk-dt-note">
+                                                @if (use.Policy is { } other)
+                                                {
+                                                    <a class="pdk-row-link" href="@DashboardRoutes.RateLimit(other.Id)">@other.Name</a>
+                                                    <text> on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Off on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="robots.txt" data-cell="robots">
+                                @if (host.Robots == RobotsMode.Passthrough)
+                                {
+                                    <span class="pdk-muted" title="The upstream's own robots.txt is served">None</span>
+                                }
+                                else
+                                {
+                                    @SecurityFigures.RobotsText(host.Robots)
+                                }
+                            </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="IP allow list" data-cell="allow-list">
+                                @if (host.AllowListRanges == 0)
+                                {
+                                    <span class="pdk-muted">None</span>
+                                }
+                                else
+                                {
+                                    @SecurityFigures.Ranges(host.AllowListRanges)
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="rejections">
+            <div class="pdk-card-head">
+                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Proof-of-work rejections</MudText>
+            </div>
+            <dl class="pdk-sec-reasons">
+                <div title="A wrong challenge or solution sent to the verify endpoint"><dt>Bad solution</dt><dd data-reason="verify">@SecurityFigures.Count(pow.VerifyRejected)</dd></div>
+                <div title="No token, and not a browser: a script, or a method that can't show a page"><dt>Not a browser</dt><dd data-reason="non-browser">@SecurityFigures.Count(pow.BlockedNonBrowser)</dd></div>
+                <div title="A cookie that is not a token this build issues"><dt>Malformed cookie</dt><dd data-reason="malformed">@SecurityFigures.Count(pow.TokensRejected.Malformed)</dd></div>
+                <div title="Altered, or issued for another host or client address"><dt>Bad signature</dt><dd data-reason="bad-tag">@SecurityFigures.Count(pow.TokensRejected.BadTag)</dd></div>
+                <div title="Valid, but past its lifetime"><dt>Expired</dt><dd data-reason="expired">@SecurityFigures.Count(pow.TokensRejected.Expired)</dd></div>
+                <div title="Valid, but easier than the host's current difficulty"><dt>Too easy</dt><dd data-reason="too-easy">@SecurityFigures.Count(pow.TokensRejected.TooEasy)</dd></div>
+            </dl>
+        </MudPaper>
+    </div>
+}
+
+@code {
+    private SecurityOverview? _current;
+    private SecurityOverview? _previous;
+    private Rates? _rates;
+    private bool _denied;
+    private bool _mayWrite;
+    private bool _visible = true;
+    private bool _started;
+    private DotNetObjectReference<SecurityPage>? _self;
+    private CancellationTokenSource? _stop;
+
+    /// <summary>How often the counters are sampled while the page is visible. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        Sample();
+        _started = true;
+        _stop = new CancellationTokenSource();
+        _ = PollAsync(_stop);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _started)
+        {
+            _self = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", _self);
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone; nothing watches, and the page polls until it is disposed.
+            }
+        }
+    }
+
+    /// <summary>The tab was hidden or shown. Hidden, the polling pauses; shown, it starts over from a fresh sample, so a rate never spans the time away.</summary>
+    [JSInvokable]
+    public async Task PageVisibilityChangedAsync(bool visible)
+    {
+        await InvokeAsync(() =>
+        {
+            _visible = visible;
+            if (visible)
+            {
+                _current = null;
+                Sample();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task PollAsync(CancellationTokenSource stop)
+    {
+        var token = stop.Token;
+        try
+        {
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(2), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(() =>
+                {
+                    if (_visible)
+                    {
+                        Sample();
+                        StateHasChanged();
+                    }
+                });
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The page is gone.
+        }
+    }
+
+    private void Sample()
+    {
+        _previous = _current;
+        _current = Service.Read();
+        _rates = _previous is null ? null : Rates.Between(_previous, _current);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_stop is { } stop)
+        {
+            await stop.CancelAsync();
+            stop.Dispose();
+        }
+
+        if (_self is not null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach");
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone.
+            }
+
+            _self.Dispose();
+        }
+    }
+
+    /// <summary>The per-second rates between two samples.</summary>
+    private sealed record Rates(double? Served, double? Solved, double? Rejected, double? Limited)
+    {
+        public static Rates Between(SecurityOverview before, SecurityOverview after)
+        {
+            var elapsed = after.SampledAt - before.SampledAt;
+            return new Rates(
+                SecurityFigures.Rate(before.ProofOfWork.ChallengesServed, after.ProofOfWork.ChallengesServed, elapsed),
+                SecurityFigures.Rate(before.ProofOfWork.Solved, after.ProofOfWork.Solved, elapsed),
+                SecurityFigures.Rate(SecurityFigures.Rejected(before.ProofOfWork), SecurityFigures.Rejected(after.ProofOfWork), elapsed),
+                SecurityFigures.Rate(before.RateLimit.Limited, after.RateLimit.Limited, elapsed));
+        }
+    }
+}

@@ -95,10 +95,10 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
 /// <summary>Sets a bUnit context up for the config pages: a signed-in user in a role, the fake config, a live (interactive) renderer.</summary>
 internal static class ConfigPages
 {
-    public static FakeDashboardConfig SignIn(DashboardTestContext context, Role role) => SignIn(context, role, out _);
+    public static FakeDashboardConfig SignIn(DashboardTestContext context, Role role, TimeProvider? time = null) => SignIn(context, role, out _, time);
 
-    /// <summary>As <see cref="SignIn(DashboardTestContext, Role)"/>, and hands back the signed-in session.</summary>
-    public static FakeDashboardConfig SignIn(DashboardTestContext context, Role role, out SessionIdentity session)
+    /// <summary>As <see cref="SignIn(DashboardTestContext, Role, TimeProvider?)"/>, and hands back the signed-in session. <paramref name="time"/> is the page's clock (the system's when null); it must be given here, since the setup ends by building the services.</summary>
+    public static FakeDashboardConfig SignIn(DashboardTestContext context, Role role, out SessionIdentity session, TimeProvider? time = null)
     {
         FakeDashboardConfig config = new();
         session = TestUsers.Session(role);
@@ -107,7 +107,7 @@ internal static class ConfigPages
             sessions, new DashboardOptions(), TimeProvider.System, NullLogger<DashboardAuthenticationStateProvider>.Instance);
         auth.SetAuthenticationState(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(session))));
         context.Services.AddLogging();
-        context.Services.AddSingleton(TimeProvider.System);
+        context.Services.AddSingleton(time ?? TimeProvider.System);
         context.Services.AddSingleton(sessions);
         // Factories, so the context disposes the provider (and its background re-check) with it.
         context.Services.AddSingleton(_ => auth);
