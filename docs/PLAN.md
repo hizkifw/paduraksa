@@ -1463,6 +1463,34 @@ For declarative deployments (Kubernetes manifests, Helm, Compose with a mounted 
 
 The page polls every 2 s with a `PeriodicTimer` (a `PollInterval` parameter for tests) and shows per-second rates computed from the difference between two samples over their `SampledAt` times (blank until the second sample). A small JS helper (`paduraksa.pageVisibility`) pauses polling while the tab is hidden and, on return, starts over from a fresh sample so a rate never spans the time away. Four compact tiles (challenges served; solved, with solve rate; rejected, the sum of bad solutions, non-browsers and the four cookie reasons; rate-limited, with its share of the requests a limit checked), the hosts table (protected hosts by name, then those with nothing on, each cell a muted "None" when empty; a stacked card per host on a phone), and the rejection reasons. No persistence and no background service: rollups are M9. **Gaps:** the permission is checked when the page opens, not on each tick (the session re-check still ends a revoked session's circuit); the rate-limit share counts only requests on routes with a policy; there is no per-host or per-route counter (the stats are process-wide).
 
+**Planned: drafts (change sets across pages).** Today every edit is its own review and its own revision; a host drawer can
+stage a new upstream or profile, but only inside that one drawer. A **draft** collects edits made anywhere (hosts,
+upstreams, profiles, rate limits, access lists, global defaults, a route's settings) and applies them as **one revision**
+when the admin is ready, so a change that spans several pages goes live at once or not at all.
+- **Where edits go.** While a draft is open, a form's primary button is "Add to draft" (Review and Apply now stay
+  available as the secondary path). The edit is checked as it is added (the same dry run and inline errors as today) but
+  nothing is committed. A bar across the dashboard shows the open draft: how many changes, "Review", "Discard".
+- **What a draft is.** The *commands* (`UpsertHostCommand`, `DeleteUpstreamCommand`, ...) in the order they were added,
+  plus the revision it was started on; not a frozen document. Each page reads "the head with the draft applied", so a
+  host form shows an upstream the draft adds, and pickers offer it marked "Draft". Editing the same object twice keeps
+  one entry (the later edit replaces the earlier), and an entry can be removed from the review on its own.
+- **Stored server-side** in the config database, per user, one open draft each: it survives a reload, a second tab and a
+  restart, and nothing in it is live or audited until it is applied. A draft untouched for 30 days is dropped (with a
+  notice the next time its owner signs in). Secrets typed into a draft (an access-list password, a DNS token) are not
+  stored in the draft row: they go to the vault as pending values bound to the draft and are dropped with it.
+- **Review and apply.** "Review" replays the commands on the current head and shows the existing review panel over the
+  whole set: one diff grouped by object, the compiler's warnings, the lock-out guard, and "Simulate" against the draft
+  (the simulator already takes a draft document). Apply commits one revision (message defaults to a summary of the
+  entries, editable), audited once with every entry listed; Undo on it undoes the whole draft.
+- **Someone changed the config meanwhile.** Replaying commands on the new head is the merge: an entry whose object
+  changed elsewhere since it was added (version check, as an object command does today) is marked "Changed elsewhere"
+  with Reload-this-entry, and the rest still apply; the draft never silently overwrites another admin's change.
+- **Not drafted:** what isn't config. Certificates, ACME accounts, DNS providers, users and tokens act at once as today
+  (a draft can reference a certificate created meanwhile).
+- **API:** `/api/v1/drafts` (create, list own, add/replace/remove an entry, review as a dry run, apply, discard), behind
+  `config:write`; `If-Match` on apply carries the draft's version. MCP gets the same (M10), which suits agents that want
+  to propose several changes for a human to apply.
+
 ### 12.1 First-run setup
 Security: until setup completes, the admin app serves **only** the wizard. That requires a one-time **setup token** printed to the logs and the console (`paduraksa setup-token` reprints it), which stops anyone else on the LAN from claiming the instance.
 
@@ -1513,7 +1541,7 @@ Each milestone ends with a working, testable increment.
 | **M7 Access lists, auth & WAF** | **Access lists** (IP allow/deny + HTTP basic auth, §10.2), **forward-auth** (authentik, Authelia, oauth2-proxy presets), **PoW gate** (HMAC-signed, IP-bound, expiring tokens; difficulty per host; JS worker solver; vault `IMacKey`; moved forward from Later), IP/geo/rate-limit/size/path/UA policies, Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown + Authenticated Origin Pulls (§7.6), presets, the dashboard's security page, a simulator trace step for every new policy (§7.7) | Policy unit tests + simulator parity tests; S6 rate-limit continuity (429 behaviour continuous across publishes); a PoW challenge solved in a real browser |
 | **M8 Custom error pages** | Custom error pages per status (global, profile, host) with variables (status, request ID, `CF-Ray`, host), preview in the dashboard; maintenance mode; replacing an upstream's own error bodies. The built-in set shipped in M7 (§7.3) and stays the fallback. | Every gate and upstream error (§7.2 E) answers with the configured page; previews match what is served |
 | **M9 Observability** | Counters, histograms, `/metrics`, health checks, notifications, live tail (over the M6 access-log ring), rollups, the dashboard's live overview | Dashboard overview fully live; S6 metric continuity (counters monotonic across publishes) |
-| **M10 Interop** | YAML import/export, CLI, MCP server, backup/restore, NPM importer (nice to have) | Round-trip export → import yields an identical revision hash |
+| **M10 Interop** | YAML import/export, CLI, MCP server, backup/restore, **drafts** (change sets across pages applied as one revision, §12), NPM importer (nice to have) | Round-trip export → import yields an identical revision hash |
 | **M11 Release v0.1** | Multi-arch image publishing, docs site, threat model doc, fuzzing (parsers, YAML, ACME responses), load tests | Tagged release |
 | **Later** | Forward-auth → native OIDC (admin + per-host) · bot heuristics · header rules · per-tag RBAC · L4 streams · declarative mode (§11.6: watched YAML/ConfigMap files, managed objects read-only, secrets by file reference) · **fleet mode** (§16.1: control plane + data plane, local bundle sync, vault-to-vault key transfer, staged rollouts, pushed fleet statistics) · plugin model for policies · out-of-process vault |
 
