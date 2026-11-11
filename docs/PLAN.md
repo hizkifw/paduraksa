@@ -873,7 +873,7 @@ users means the address rules alone, no address rules means the password alone. 
 decided. `Authorization: Basic` is read from the header string into a `stackalloc` buffer (at most 64 + 1 + 256 decoded bytes, split on
 the first colon, UTF-8), the name is compared in constant time with every user's (no early exit), and the password is checked with
 PBKDF2 against the stored hash; a name nobody has still pays one PBKDF2 against a dummy hash, so it can't be told from a wrong password
-by timing, and at most as many checks as the machine has processors run at once (the rest get 429 with `Retry-After: 1`), so a flood of
+by timing, and at most as many checks as the machine has processors, but never fewer than 8, run at once (on a 2-core box a cap of 2 refused a page's third credentialed request on a cold cache; over-subscribing only makes each check slower), and the rest get 429 with `Retry-After: 1`, so a flood of
 wrong passwords can't take every thread. Each client also has its own share, two concurrent checks, but only under pressure: while fewer than half
 of the global cap is running anyone is admitted (an app reopening after the cache expired sends several credentialed requests at once,
 and they must not be refused), and from half up a client holding two or more is refused. A fixed table of 1024 in-flight counters

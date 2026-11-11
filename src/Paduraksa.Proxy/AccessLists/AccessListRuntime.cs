@@ -30,6 +30,8 @@ public sealed class AccessListRuntime
     {
     }
 
+    internal const int MinConcurrentVerifications = 8;
+
     public AccessListRuntime(TimeProvider time, int cacheCapacity = AccessListVerificationCache.DefaultCapacity, int? maxConcurrentVerifications = null, int maxVerificationsPerClient = DefaultMaxPerClient)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxVerificationsPerClient, 1);
@@ -43,7 +45,9 @@ public sealed class AccessListRuntime
         // global limit is the outer bound. Idle, any client may use it all (an app reopening after the cache expired sends
         // several credentialed requests at once); once half is taken, each client's own share (a masked address, as the cache
         // keys it) keeps one sprayer from taking the rest, so it only eats its own 429s.
-        _maxVerifications = maxConcurrentVerifications ?? Math.Max(2, Environment.ProcessorCount);
+        // The floor is for small machines: with a cap of 2 a page's third credentialed request on a cold cache got a 429.
+        // Over-subscribing a 2-core box with PBKDF2 only makes each check slower, which is the cheaper failure.
+        _maxVerifications = maxConcurrentVerifications ?? Math.Max(MinConcurrentVerifications, Environment.ProcessorCount);
         _pressureAt = Math.Max(1, _maxVerifications / 2);
         Key = RandomNumberGenerator.GetBytes(32);
     }
