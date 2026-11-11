@@ -7,6 +7,9 @@
     <PackageReference Include="Yarp.ReverseProxy" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Tls/cloudflare-origin-pull-ca.pem" LogicalName="Paduraksa.Proxy.Tls.cloudflare-origin-pull-ca.pem" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Proxy" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Issuance" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />

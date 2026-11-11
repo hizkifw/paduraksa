@@ -1,4 +1,5 @@
 using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Tls;
@@ -34,7 +35,8 @@ public sealed record TlsPolicy
     /// </summary>
     public bool Http3Enabled { get; init; } = true;
 
-    /// <summary>Client-certificate requirement, or null to not request one (e.g. Cloudflare Authenticated Origin Pulls).</summary>
+    /// <summary>Client-certificate requirement, or null to not request one. Authenticated Origin Pulls is the one this
+    /// product sets: <see cref="ClientCertificatePolicy.TrustedRoots"/> is Cloudflare's origin-pull CA.</summary>
     public ClientCertificatePolicy? ClientCertificate { get; init; }
 }
 
@@ -53,4 +55,11 @@ public sealed record ClientCertificatePolicy
     public bool Required { get; init; } = true;
 
     public RemoteCertificateValidationCallback? Validator { get; init; }
+
+    /// <summary>
+    /// The only roots the client certificate's chain may end at (custom root trust: the system store is ignored), built
+    /// offline and checked for validity dates. Null: the platform's trust. Records compare it by reference, so hosts
+    /// sharing one collection share their prebuilt options.
+    /// </summary>
+    public X509Certificate2Collection? TrustedRoots { get; init; }
 }

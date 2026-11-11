@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
@@ -51,6 +52,10 @@ public sealed record SnapshotCompilerOptions
     /// <summary>The live list the refresh job keeps, read at every compile; null: the baked-in
     /// <see cref="CloudflareIpRanges.Default"/>.</summary>
     public CloudflareEdgeRangeSource? CloudflareRanges { get; init; }
+
+    /// <summary>The roots a host's Authenticated Origin Pulls client certificate must chain to; null: Cloudflare's origin-pull
+    /// CA as shipped (<see cref="Tls.OriginPullCa.Default"/>). Hosts that share one collection share their TLS options.</summary>
+    public X509Certificate2Collection? OriginPullCa { get; init; }
 
     /// <summary>
     /// The process's proof-of-work key, clock and counters; null: a policy that needs them finds no key and fails closed.

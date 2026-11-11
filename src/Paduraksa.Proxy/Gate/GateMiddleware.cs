@@ -3,6 +3,7 @@ using System.Diagnostics;
 
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Http;
@@ -169,6 +170,24 @@ public sealed class GateMiddleware
             }
         }
 
+        // The second line of Authenticated Origin Pulls. Kestrel sets the client certificate on a connection only when the
+        // handshake asked for one and accepted it, so its presence is the verdict. Without one: on a TLS connection whose SNI
+        // doesn't select this host's TLS entry (a coalesced connection, or no SNI) the handshake never asked, and Cloudflare
+        // would present its certificate on a connection of its own, so the answer is 421 like any other coalescing mismatch
+        // (the client retries on a fresh connection). Plain HTTP can't carry a certificate, and a connection whose SNI does
+        // name the host and still has none has nothing to retry: 403. Before the TLS check, so the request stops at the
+        // certificate whichever version or protocol the connection negotiated.
+        if (host.AuthenticatedOriginPulls)
+        {
+            var verified = context.Features.Get<ITlsConnectionFeature>()?.ClientCertificate is not null;
+            var misdirected = !verified && request.IsHttps && !SniSelectsEntryOf(context, snapshot, hostHeader);
+            tracer.ClientCertificate(context, host, verified, misdirected);
+            if (!verified)
+            {
+                return GateDecision.Respond(misdirected ? snapshot.Misdirected : OriginLockdownResponses.ClientCertificateRequired);
+            }
+        }
+
         var connectionIsHttps = request.IsHttps;
         var mismatch = connectionIsHttps
             ? host.Https ? ConnectionTlsCheck.Check(context, host.Tls) : TlsMismatch.HostNotServedOverHttps
@@ -252,6 +271,17 @@ public sealed class GateMiddleware
 
         context.SetEndpoint(endpoints[route.Slot]);
         return GateDecision.Forward;
+    }
+
+    /// <summary>
+    /// Whether the name in the connection's handshake (empty when the client sent none) leads to the TLS entry the host's own
+    /// name does. Only asked of a request that has no verified certificate, so the lookups cost nothing on the allowed path.
+    /// </summary>
+    private static bool SniSelectsEntryOf(HttpContext context, RuntimeSnapshot snapshot, StringValues hostHeader)
+    {
+        var sni = context.Features.Get<ITlsHandshakeFeature>()?.HostName ?? string.Empty;
+        var own = snapshot.Certificates.Find(HostTable.HostName(hostHeader[0]));
+        return own is not null && ReferenceEquals(own, snapshot.Certificates.Find(sni));
     }
 
     /// <summary>Applies one stage of a host's response-header list and reports it.</summary>

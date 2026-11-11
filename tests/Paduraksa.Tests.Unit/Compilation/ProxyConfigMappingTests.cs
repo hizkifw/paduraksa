@@ -496,13 +496,19 @@ public sealed class ProxyConfigMappingTests
             ProxyConfigMapping.Map(document with { Settings = Mode(TrustedProxyMode.Off) }, Revision, CertificateInventory.Empty).Warnings,
             w => w.Code.StartsWith("cloudflare.", StringComparison.Ordinal));
 
-        // Authenticated Origin Pulls on a host with no HTTPS can only ever refuse.
+        // Authenticated Origin Pulls on a host with no HTTPS can only ever refuse, and so can it under a tunnel, where
+        // cloudflared presents no client certificate.
         var plain = document with
         {
-            Settings = Mode(TrustedProxyMode.CloudflareTunnel, locked),
+            Settings = Mode(TrustedProxyMode.CloudflareProxy, locked),
             Hosts = [document.Hosts[0] with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } }],
         };
-        Assert.Contains(ProxyConfigMapping.Map(plain, Revision, CertificateInventory.Empty).Warnings, w => w.Code == ConfigWarningCodes.CloudflareAopNeedsHttps);
+        var plainWarnings = ProxyConfigMapping.Map(plain, Revision, CertificateInventory.Empty).Warnings;
+        Assert.Contains(plainWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopNeedsHttps);
+        Assert.DoesNotContain(plainWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopTunnel);
+        var tunnelWarnings = ProxyConfigMapping.Map(document with { Settings = Mode(TrustedProxyMode.CloudflareTunnel, locked) }, Revision, CertificateInventory.Empty).Warnings;
+        Assert.Contains(tunnelWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopTunnel);
+        Assert.DoesNotContain(tunnelWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopNeedsHttps);
     }
 
     // One proxy host with two equally specific routes ("/a" and "/b") under a profile-less, default-less document,

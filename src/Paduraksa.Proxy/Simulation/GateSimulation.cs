@@ -57,6 +57,9 @@ public enum GateReason : byte
     /// <summary>The host only takes Cloudflare's connections and the peer isn't one (a 403, or no answer at all).</summary>
     OriginLockdown,
 
+    /// <summary>The host requires Cloudflare's client certificate (Authenticated Origin Pulls) and the connection has no verified one.</summary>
+    ClientCertificate,
+
     /// <summary>The route has no YARP endpoint (not possible for a bound snapshot).</summary>
     Unavailable,
 
@@ -94,6 +97,9 @@ public enum GateStepKind : byte
 
     /// <summary>The host's origin lockdown: is the peer Cloudflare's?</summary>
     OriginLockdown,
+
+    /// <summary>The host's Authenticated Origin Pulls: did the handshake verify Cloudflare's client certificate?</summary>
+    ClientCertificate,
 
     TlsPolicy,
     HostPolicy,

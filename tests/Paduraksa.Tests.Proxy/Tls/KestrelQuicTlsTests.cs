@@ -6,7 +6,13 @@ using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
+using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 
@@ -151,6 +157,98 @@ public sealed class KestrelQuicTlsTests : IDisposable
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "locked.test", HttpVersion.Version30, configureSsl: Present(other)));
         Assert.Equal(thumbprint, (await TlsProbe.GetAsync(_pki, server.Port, "locked.test", HttpVersion.Version30, configureSsl: Present(trusted))).Body);
         Assert.Equal(0, aia.Hits);
+    }
+
+    /// <summary>
+    /// Cloudflare doesn't connect to origins over QUIC, so a host with Authenticated Origin Pulls is out of HTTP/3 and its QUIC
+    /// handshake is refused (not served by the wildcard or the default certificate); TCP asks it for the client certificate.
+    /// </summary>
+    [Fact]
+    public async Task AnAuthenticatedOriginPullsHostIsRefusedOverQuicWhileAnotherHostIsServed()
+    {
+        QuicTestSupport.Require();
+        using var cloudflare = TestOriginPullCa.Create();
+        var shared = _pki.Leaf("shared.test", "*.test");
+        var id = TestIds.Certificate("shared");
+        using var store = new SnapshotStore();
+        store.Publish(TestSnapshots.Bound(
+            new ProxyConfigModel
+            {
+                Upstreams = [TestSnapshots.Upstream("web", "http://127.0.0.1:1/")],
+                Defaults = new DefaultsSpec
+                {
+                    Certificate = id,
+                    TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy },
+                },
+                Hosts =
+                [
+                    TestSnapshots.ProxyHost("aop", "aop.test", TestSnapshots.Route("aop-root", "web")) with { Cloudflare = new HostCloudflareSpec { AuthenticatedOriginPulls = true } },
+                    TestSnapshots.ProxyHost("plain", "plain.test", TestSnapshots.Route("plain-root", "web")),
+                ],
+            },
+            options: new SnapshotCompilerOptions { Certificates = new SingleCertificate(id, shared), OriginPullCa = cloudflare.Roots, AdvertiseHttp3 = true }));
+        var selector = new TlsHandshakeSelector(store);
+        await using var server = await StartAsync(selector);
+
+        Assert.Equal("HTTP/3", (await TlsProbe.GetAsync(_pki, server.Port, "plain.test", HttpVersion.Version30)).Body);
+        await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "aop.test", HttpVersion.Version30));
+        Assert.Equal(1, selector.Counters.Http3Disabled);
+
+        // Over TCP the same name asks for the certificate, and accepts the CA's.
+        await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "aop.test", HttpVersion.Version11));
+        var valid = cloudflare.IssueClient("cloudflare edge");
+        var tcp = await TlsProbe.GetAsync(_pki, server.Port, "aop.test", HttpVersion.Version11, configureSsl: options =>
+            options.ClientCertificateContext = SslStreamCertificateContext.Create(valid, null, offline: true));
+        Assert.Equal("HTTP/1.1", tcp.Body);
+    }
+
+    /// <summary>When every host is locked down to Cloudflare, an untrusted QUIC peer is refused in the handshake callback.</summary>
+    [Fact]
+    public async Task OriginLockdownRefusesAnUntrustedPeerBeforeTheQuicHandshakeCompletes()
+    {
+        QuicTestSupport.Require();
+        var shared = _pki.Leaf("shared.test", "*.test");
+        var id = TestIds.Certificate("shared");
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [TestSnapshots.Upstream("web", "http://127.0.0.1:1/")],
+            Defaults = new DefaultsSpec
+            {
+                Certificate = id,
+                TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy },
+            },
+            Hosts = [TestSnapshots.ProxyHost("locked", "locked.test", TestSnapshots.Route("locked-root", "web")) with { Cloudflare = new HostCloudflareSpec { OriginLockdown = OriginLockdownMode.Forbid } }],
+        };
+
+        // Loopback isn't a Cloudflare address: refused, and counted.
+        using var store = new SnapshotStore();
+        store.Publish(TestSnapshots.Bound(model, options: new SnapshotCompilerOptions { Certificates = new SingleCertificate(id, shared) }));
+        OriginLockdownCounters counters = new();
+        var gate = OriginLockdown.CreateQuicGate(store, counters);
+        await using (var server = await StartAsync(new TlsHandshakeSelector(store, gate)))
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "locked.test", HttpVersion.Version30));
+            Assert.Equal(1, counters.Quic);
+        }
+
+        // Loopback standing in for Cloudflare's edge: the handshake completes.
+        using var trusting = new SnapshotStore();
+        trusting.Publish(TestSnapshots.Bound(model, options: new SnapshotCompilerOptions
+        {
+            Certificates = new SingleCertificate(id, shared),
+            CloudflareEdgeRanges = CidrSet.Parse(["127.0.0.0/8", "::1"]),
+        }));
+        await using var allowed = await StartAsync(new TlsHandshakeSelector(trusting, OriginLockdown.CreateQuicGate(trusting)));
+        Assert.Equal("HTTP/3", (await TlsProbe.GetAsync(_pki, allowed.Port, "locked.test", HttpVersion.Version30)).Body);
+    }
+
+    private sealed class SingleCertificate(CertificateId id, ServerCertificate certificate) : IServerCertificateResolver
+    {
+        public bool TryResolve(CertificateId candidate, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out ServerCertificate? resolved)
+        {
+            resolved = candidate == id ? certificate : null;
+            return resolved is not null;
+        }
     }
 
     /// <summary>

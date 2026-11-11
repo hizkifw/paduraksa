@@ -90,6 +90,13 @@ public sealed class CompiledHost
     /// </summary>
     public OriginLockdownMode OriginLockdown { get; init; } = OriginLockdownMode.Off;
 
+    /// <summary>
+    /// Authenticated Origin Pulls: the host's TLS handshake demands Cloudflare's client certificate, and the gate refuses a
+    /// request that arrives without a verified one (a connection negotiated for another name, a non-SNI connection, plain
+    /// HTTP). Off unless the trusted-proxy mode is a Cloudflare one.
+    /// </summary>
+    public bool AuthenticatedOriginPulls { get; init; }
+
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

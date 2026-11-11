@@ -40,6 +40,10 @@ public static class ConfigWarningCodes
     /// certificate and every request is refused.</summary>
     public const string CloudflareAopNeedsHttps = "cloudflare.aop.needsHttps";
 
+    /// <summary>A host requires Authenticated Origin Pulls under <c>CloudflareTunnel</c>, where <c>cloudflared</c> presents no
+    /// client certificate, so every request is refused.</summary>
+    public const string CloudflareAopTunnel = "cloudflare.aop.tunnel";
+
     /// <summary>The trusted-proxy mode is <c>CloudflareProxy</c> and the list of Cloudflare's edge ranges is older than 30
     /// days, or several refreshes in a row failed.</summary>
     public const string CloudflareRangesStale = "cloudflare.ranges.stale";

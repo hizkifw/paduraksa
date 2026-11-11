@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 using Microsoft.AspNetCore.Connections.Features;
@@ -79,7 +80,8 @@ public static class GateSimulator
 
         var tlsVersion = SslProtocols.None;
         var negotiated = probe.HttpVersion;
-        if (probe.Https && Handshake(bound, probe, steps, out tlsVersion, out negotiated) is { } rejected)
+        var certificateAsked = false;
+        if (probe.Https && Handshake(bound, probe, steps, out tlsVersion, out negotiated, out certificateAsked) is { } rejected)
         {
             return new GateSimulation(rejected, steps, null);
         }
@@ -94,7 +96,7 @@ public static class GateSimulator
             return new GateSimulation(bad, steps, null);
         }
 
-        var context = BuildContext(bound, probe, peer, negotiated, tlsVersion, path, hostHeader);
+        var context = BuildContext(bound, probe, peer, negotiated, tlsVersion, certificateAsked, path, hostHeader);
         var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, proofOfWork ?? ProofOfWorkRuntime.Unavailable, new RecordingGateTracer(steps));
         var outcome = OutcomeOf(decision, context, steps);
         var upstream = outcome.Action == GateOutcomeAction.Forward && context.Features.Get<IGateFeature>()?.State.Route is { } route
@@ -256,8 +258,9 @@ public static class GateSimulator
     /// <summary>What Kestrel does before the gate runs: select the certificate entry for the SNI and settle the TLS
     /// version and ALPN.</summary>
     private static GateOutcome? Handshake(
-        RuntimeSnapshot snapshot, GateProbe probe, List<GateStep> steps, out SslProtocols tlsVersion, out ProbeHttpVersion negotiated)
+        RuntimeSnapshot snapshot, GateProbe probe, List<GateStep> steps, out SslProtocols tlsVersion, out ProbeHttpVersion negotiated, out bool certificateAsked)
     {
+        certificateAsked = false;
         var quic = probe.HttpVersion == ProbeHttpVersion.Http3;
         var serverName = probe.ServerName ?? DefaultServerName(probe.Host);
         var selection = TlsHandshakeSelector.Select(snapshot.Certificates, serverName, quic);
@@ -293,6 +296,18 @@ public static class GateSimulator
             return new GateOutcome(GateOutcomeAction.Abort, GateReason.HandshakeRejected);
         }
 
+        if (!quic && options.ClientCertificateRequired && !PresentsClientCertificate(probe))
+        {
+            facts.Add(new("clientCertificate", "required, none presented"));
+            steps.Add(new GateStep(
+                GateStepKind.TlsHandshake,
+                GateStepVerdict.Stopped,
+                $"the entry for '{serverName}' requires Cloudflare's client certificate (Authenticated Origin Pulls) and the client presents none that its CA signed: the handshake fails",
+                facts));
+            return new GateOutcome(GateOutcomeAction.Abort, GateReason.HandshakeRejected);
+        }
+
+        certificateAsked = !quic && options.ClientCertificateRequired;
         var certificate = selection.Entry!.Certificate.Id;
         var summary = $"{(selection.Match == CertificateMatchKind.Default ? "the default certificate" : "a certificate")}"
                       + $"{(certificate.IsEmpty ? string.Empty : $" {certificate}")} answers '{serverName}' ({TraceNames.Of(selection.Match)})";
@@ -316,6 +331,9 @@ public static class GateSimulator
         steps.Add(new GateStep(GateStepKind.TlsHandshake, GateStepVerdict.Passed, summary, facts));
         return null;
     }
+
+    private static bool PresentsClientCertificate(GateProbe probe) =>
+        probe.ClientCertificate ?? probe.Arrival == ProbeArrival.CloudflareProxy;
 
     private static bool Offers(SslServerAuthenticationOptions options, SslApplicationProtocol protocol)
     {
@@ -409,7 +427,7 @@ public static class GateSimulator
     }
 
     private static DefaultHttpContext BuildContext(
-        RuntimeSnapshot snapshot, GateProbe probe, IPAddress peer, ProbeHttpVersion version, SslProtocols tlsVersion, string path, string hostHeader)
+        RuntimeSnapshot snapshot, GateProbe probe, IPAddress peer, ProbeHttpVersion version, SslProtocols tlsVersion, bool certificateAsked, string path, string hostHeader)
     {
         DefaultHttpContext context = new();
         var request = context.Request;
@@ -448,7 +466,16 @@ public static class GateSimulator
         context.Connection.RemoteIpAddress = probe.ProxyProtocol ? (probe.TransportAddress ?? IPAddress.Loopback) : peer;
         if (probe.Https)
         {
-            context.Features.Set<ITlsHandshakeFeature>(new SimulatedTlsHandshake(tlsVersion));
+            context.Features.Set<ITlsHandshakeFeature>(new SimulatedTlsHandshake(tlsVersion, probe.ServerName ?? DefaultServerName(probe.Host)));
+
+            // What Kestrel sets once a handshake that asked for a certificate verified it. The simulated handshake that got here
+            // has already failed where one was required and absent, so a presented one is a verified one: the CA's own
+            // certificate stands in for what Cloudflare sent. A connection whose entry never asked has none, whatever the
+            // client could have sent (a coalesced one, or no SNI).
+            if (certificateAsked && PresentsClientCertificate(probe))
+            {
+                context.Features.Set<ITlsConnectionFeature>(new SimulatedTlsConnection(OriginPullCa.Default[0]));
+            }
         }
 
         return context;
@@ -538,6 +565,19 @@ public static class GateSimulator
         return response.Body.Length > BodyPreviewLimit ? text + "..." : text;
     }
 
+    private static bool AnswerIs421(GateStep step)
+    {
+        foreach (var fact in step.Facts)
+        {
+            if (fact is { Name: "answer", Value: "421" })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>The step that stopped the request names the reason.</summary>
     private static GateReason ReasonOf(List<GateStep> steps)
     {
@@ -553,6 +593,7 @@ public static class GateSimulator
                     GateStepKind.AcmeChallenge => GateReason.AcmeChallenge,
                     GateStepKind.HostMatch => GateReason.DefaultHost,
                     GateStepKind.OriginLockdown => GateReason.OriginLockdown,
+                    GateStepKind.ClientCertificate => AnswerIs421(step) ? GateReason.MisdirectedConnection : GateReason.ClientCertificate,
                     GateStepKind.TlsPolicy => GateReason.MisdirectedConnection,
                     GateStepKind.HostPolicy => GateReason.HostPolicy,
                     GateStepKind.HttpsRedirect => GateReason.HttpsRedirect,
@@ -680,15 +721,22 @@ public static class GateSimulator
         return true;
     }
 
+    private sealed class SimulatedTlsConnection(X509Certificate2 clientCertificate) : ITlsConnectionFeature
+    {
+        public X509Certificate2? ClientCertificate { get; set; } = clientCertificate;
+
+        public Task<X509Certificate2?> GetClientCertificateAsync(CancellationToken cancellationToken) => Task.FromResult(ClientCertificate);
+    }
+
     // The interface still carries the members SslStream obsoleted; nothing here reads them.
 #pragma warning disable SYSLIB0058
-    private sealed class SimulatedTlsHandshake(SslProtocols protocol) : ITlsHandshakeFeature
+    private sealed class SimulatedTlsHandshake(SslProtocols protocol, string serverName) : ITlsHandshakeFeature
     {
         public SslProtocols Protocol { get; } = protocol;
 
         public TlsCipherSuite? NegotiatedCipherSuite => null;
 
-        public string HostName => string.Empty;
+        public string HostName => serverName;
 
         public CipherAlgorithmType CipherAlgorithm => CipherAlgorithmType.None;
 

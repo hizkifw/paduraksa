@@ -90,6 +90,7 @@ public sealed class SimulationForm
             SimulationStepKind.TlsPolicy => "TLS policy",
             SimulationStepKind.ResponseHeaders => "Response headers",
             SimulationStepKind.OriginLockdown => "Origin lockdown",
+            SimulationStepKind.ClientCertificate => "Client certificate",
             SimulationStepKind.HostPolicy => $"Host policy{policy}",
             SimulationStepKind.HttpsRedirect => "HTTPS redirect",
             SimulationStepKind.RobotsTxt => "robots.txt",

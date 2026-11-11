@@ -120,6 +120,10 @@ public enum SimulationStepKind
     /// <summary>The host's origin lockdown: whether the connection's peer is Cloudflare's edge (or <c>cloudflared</c>).</summary>
     OriginLockdown,
 
+    /// <summary>The host's Authenticated Origin Pulls: whether the connection carries Cloudflare's client certificate, verified
+    /// by the handshake.</summary>
+    ClientCertificate,
+
     /// <summary>The connection against the host's TLS settings (the 421 reasons).</summary>
     TlsPolicy,
 

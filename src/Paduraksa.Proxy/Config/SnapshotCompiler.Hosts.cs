@@ -93,7 +93,8 @@ public static partial class SnapshotCompiler
                 : spec.Certificate is null ? DefaultCertificate
                 : ResolveCertificate(spec.Certificate, where, Options.Certificates, Errors);
             var nameCertificates = ResolveNameCertificates(spec, where, Options.Certificates, Errors);
-            var tls = CompileTlsPolicy(spec.Tls, where, Errors);
+            var originPulls = spec.Cloudflare.AuthenticatedOriginPulls && IsCloudflareMode(TrustedProxies.Mode);
+            var tls = CompileTlsPolicy(spec.Tls, where, Errors, originPulls ? OriginPullPolicy : null);
             var servesProofOfWork = spec.Kind == HostKind.Proxy
                 && (spec.ProofOfWork.Enabled || AnyProofOfWorkRoute(spec));
             if (servesProofOfWork)
@@ -130,7 +131,9 @@ public static partial class SnapshotCompiler
                 altSvc: serverNames.Count > 0 ? AltSvc.ForHost(tls) : default,
                 altSvcReason: serverNames.Count == 0
                     ? "its names are IP literals, which never arrive as a server name"
-                    : "the host doesn't serve HTTP/3",
+                    : originPulls
+                        ? "Authenticated Origin Pulls: Cloudflare doesn't connect to origins over HTTP/3"
+                        : "the host doesn't serve HTTP/3",
                 hstsReason: "the host has HSTS off",
                 propagation: spec.RequestIdPropagation,
                 where,
@@ -149,6 +152,7 @@ public static partial class SnapshotCompiler
                 RobotsMode = spec.Robots.Mode,
                 RateLimit = hostRateLimit,
                 OriginLockdown = CompileOriginLockdown(spec.Cloudflare, TrustedProxies.Mode, where, Errors),
+                AuthenticatedOriginPulls = originPulls,
                 HttpsRedirect = spec.ForceHttps ? HttpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
@@ -215,10 +219,10 @@ public static partial class SnapshotCompiler
             return OriginLockdownMode.Off;
         }
 
-        return mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel
-            ? spec.OriginLockdown
-            : OriginLockdownMode.Off;
+        return IsCloudflareMode(mode) ? spec.OriginLockdown : OriginLockdownMode.Off;
     }
+
+    private static bool IsCloudflareMode(TrustedProxyMode mode) => mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
 
     /// <summary>
     /// The implicit route of an admin host: one prefix route matching every path, forwarding to the

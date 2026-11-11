@@ -212,6 +212,24 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             host.Id));
     }
 
+    public void ClientCertificate(HttpContext context, CompiledHost host, bool verified, bool misdirected)
+    {
+        var answer = verified ? "allowed" : misdirected ? "421" : "403";
+        var summary = verified
+            ? "the connection carries Cloudflare's client certificate, verified by the handshake: allowed"
+            : misdirected
+                ? "the host requires Cloudflare's client certificate (Authenticated Origin Pulls), and this connection was negotiated for another name, so the handshake never asked for one: 421, so the client retries on a connection of its own"
+                : context.Request.IsHttps
+                    ? "the host requires Cloudflare's client certificate (Authenticated Origin Pulls) and this connection has none: refused (403)"
+                    : "the host requires Cloudflare's client certificate (Authenticated Origin Pulls), which plain HTTP can't carry: refused (403)";
+        steps.Add(new GateStep(
+            GateStepKind.ClientCertificate,
+            verified ? GateStepVerdict.Passed : GateStepVerdict.Stopped,
+            summary,
+            [new("authenticatedOriginPulls", "required"), new("clientCertificate", Flag(verified)), new("answer", answer)],
+            host.Id));
+    }
+
     public void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch)
     {
         if (!https)

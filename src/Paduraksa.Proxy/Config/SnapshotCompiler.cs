@@ -162,6 +162,14 @@ public static partial class SnapshotCompiler
 
         public AltSvcHeader AltSvc { get; }
 
+        /// <summary>The client-certificate requirement of every Authenticated Origin Pulls host: one instance per compile, so
+        /// those hosts share their TLS options.</summary>
+        public ClientCertificatePolicy OriginPullPolicy => field ??= new ClientCertificatePolicy
+        {
+            Required = true,
+            TrustedRoots = Options.OriginPullCa ?? OriginPullCa.Default,
+        };
+
         /// <summary>The defaults and upstreams every host then compiles against, in the order the errors have always come in.</summary>
         public void CompileDefaultsAndUpstreams()
         {

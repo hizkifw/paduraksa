@@ -168,6 +168,10 @@ public sealed class CertificateTableBuilder
             ? SslProtocols.Tls13
             : SslProtocols.Tls12 | SslProtocols.Tls13,
         AllowRenegotiation = false,
+
+        // A resumed TLS 1.3 session may carry no client certificate, and the gate refuses a request without one. A host that
+        // requires one (its own entry) therefore does a full handshake every time; every other host keeps resumption.
+        AllowTlsResume = policy.ClientCertificate is null,
         ClientCertificateRequired = policy.ClientCertificate is not null,
         RemoteCertificateValidationCallback = ClientCertificateValidation.Create(policy.ClientCertificate),
         CertificateChainPolicy = ClientCertificateValidation.ChainPolicy(policy.ClientCertificate),
@@ -192,11 +196,24 @@ public sealed class CertificateTableBuilder
         /// <summary>Chain building for client certificates is offline: by default it follows the AIA URL of a missing
         /// issuer, which would let any unauthenticated client make the proxy fetch a URL of its choosing
         /// mid-handshake (SSRF).</summary>
-        // TODO: Authenticated Origin Pulls: X509ChainTrustMode.CustomRootTrust with Cloudflare's origin-pull CA.
-        public static X509ChainPolicy? ChainPolicy(ClientCertificatePolicy? policy) =>
-            policy is null
-                ? null
-                : new X509ChainPolicy { DisableCertificateDownloads = true, RevocationMode = X509RevocationMode.NoCheck };
+        public static X509ChainPolicy? ChainPolicy(ClientCertificatePolicy? policy)
+        {
+            if (policy is null)
+            {
+                return null;
+            }
+
+            X509ChainPolicy chain = new() { DisableCertificateDownloads = true, RevocationMode = X509RevocationMode.NoCheck };
+            if (policy.TrustedRoots is { } roots)
+            {
+                // Only these roots: a certificate from any other CA, a public one included, doesn't chain. The build checks
+                // each certificate's validity dates against now.
+                chain.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                chain.CustomTrustStore.AddRange(roots);
+            }
+
+            return chain;
+        }
 
         private bool Validate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors)
         {

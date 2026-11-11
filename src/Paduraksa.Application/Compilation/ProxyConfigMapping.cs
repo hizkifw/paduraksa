@@ -320,6 +320,15 @@ public static class ProxyConfigMapping
             return;
         }
 
+        if (cloudflare.AuthenticatedOriginPulls && proxyMode == TrustedProxyMode.CloudflareTunnel)
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/cloudflare/authenticatedOriginPulls",
+                ConfigWarningCodes.CloudflareAopTunnel,
+                "Authenticated Origin Pulls doesn't apply through a Cloudflare Tunnel: cloudflared sends no client certificate, so the host refuses every request"));
+        }
+
         if (cloudflare.AuthenticatedOriginPulls && host.Certificate.Mode == CertificateBindingMode.None)
         {
             warnings.Add(new MappedWarning(

@@ -86,4 +86,11 @@ public sealed record GateProbe
     /// <summary>The highest TLS version the client offers (HTTPS over TCP): <see cref="SslProtocols.Tls12"/> or
     /// <see cref="SslProtocols.Tls13"/>. QUIC is always 1.3.</summary>
     public SslProtocols TlsVersion { get; init; } = SslProtocols.Tls13;
+
+    /// <summary>
+    /// The client presents a certificate Cloudflare's origin-pull CA signed (HTTPS over TCP). Null: it does exactly when the
+    /// request arrives <see cref="ProbeArrival.CloudflareProxy"/> (the edge sends it when the zone has Authenticated Origin
+    /// Pulls on; a tunnel and a direct client never do).
+    /// </summary>
+    public bool? ClientCertificate { get; init; }
 }

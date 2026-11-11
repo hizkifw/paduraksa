@@ -110,7 +110,7 @@ public static partial class SnapshotCompiler
     }
 
     /// <summary>Equal specs give equal policies (records), so hosts with the same settings share one entry per certificate.</summary>
-    private static TlsPolicy CompileTlsPolicy(HostTlsSpec? spec, CompileErrorSource where, List<CompileError> errors)
+    private static TlsPolicy CompileTlsPolicy(HostTlsSpec? spec, CompileErrorSource where, List<CompileError> errors, ClientCertificatePolicy? clientCertificate = null)
     {
         spec ??= HostTlsSpec.Default;
         if (!Enum.IsDefined(spec.MinimumVersion) || !Enum.IsDefined(spec.TcpAlpn))
@@ -124,7 +124,11 @@ public static partial class SnapshotCompiler
         {
             MinimumVersion = spec.MinimumVersion,
             TcpAlpn = spec.TcpAlpn,
-            Http3Enabled = spec.Http3,
+
+            // Cloudflare doesn't connect to origins over QUIC and a QUIC handshake here would carry no origin-pull
+            // certificate, so a host that requires one is left out of HTTP/3 whatever its own setting says.
+            Http3Enabled = spec.Http3 && clientCertificate is null,
+            ClientCertificate = clientCertificate,
         };
     }
 

@@ -81,8 +81,9 @@ public static class ConnectionTlsCheck
             return TlsMismatch.TlsVersionTooLow;
         }
 
-        // TODO: a required client certificate (policy.ClientCertificate) must have been validated on this
-        // connection too (ITlsConnectionFeature.ClientCertificate plus the validator's verdict), else 421.
+        // A required client certificate isn't checked here: Authenticated Origin Pulls has its own step in the gate (before this
+        // one). It answers 421 for a connection negotiated for another name, like the checks above, since the client then
+        // retries on a connection whose handshake asks for the certificate.
         return TlsMismatch.None;
     }
 }

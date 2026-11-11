@@ -51,6 +51,11 @@ internal interface IGateTracer
     /// peer and the request stops here (a 403 or an abort, as the host says).</summary>
     void OriginLockdown(HttpContext context, CompiledHost host, bool refused);
 
+    /// <summary>A host with Authenticated Origin Pulls looked for the client certificate the handshake verified:
+    /// <paramref name="verified"/> false stops the request: with a 421 when <paramref name="misdirected"/> (a TLS connection
+    /// whose SNI doesn't select the host's entry), else a 403.</summary>
+    void ClientCertificate(HttpContext context, CompiledHost host, bool verified, bool misdirected);
+
     /// <summary>The connection was checked against the host's TLS settings. <paramref name="https"/> false: plain HTTP,
     /// nothing was checked.</summary>
     void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch);
@@ -110,6 +115,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void OriginLockdown(HttpContext context, CompiledHost host, bool refused)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ClientCertificate(HttpContext context, CompiledHost host, bool verified, bool misdirected)
     {
     }
 
