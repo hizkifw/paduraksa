@@ -76,4 +76,11 @@ public static class ConfigWarningCodes
     /// <summary>A provider's sign-in page is a path on the protected host that the host has no route for with sign-in off (the first route to take it
     /// is behind a provider too, or none does): a browser sent there is refused again and sent there again.</summary>
     public const string AuthProviderSignInUnreachable = "authProvider.signInUnreachable";
+
+    /// <summary>A layer turns maintenance mode on for an admin host, which never serves it: a layer that covers every host must not lock the
+    /// dashboard out.</summary>
+    public const string MaintenanceAdminIgnored = "maintenance.adminIgnored";
+
+    /// <summary>Maintenance mode names a bypass access list with no allowed address or country, so nobody can bypass it.</summary>
+    public const string MaintenanceBypassNoAllowRules = "maintenance.bypass.noAllowRules";
 }

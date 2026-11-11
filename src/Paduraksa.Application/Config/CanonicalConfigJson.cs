@@ -492,6 +492,8 @@ public static class CanonicalConfigJson
             RequestLimits = DropIfNothingSet(settings.RequestLimits),
             RuleSet = DropIfNothingSet(settings.RuleSet),
             AuthProvider = DropIfNothingSet(settings.AuthProvider),
+            ErrorPages = DropIfNothingSet(settings.ErrorPages),
+            Maintenance = DropIfNothingSet(settings.Maintenance),
         };
     }
 

@@ -284,7 +284,70 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: Id<AuthProviderId>(1).ToString()!,
             Second: Id<AuthProviderId>(2).ToString()!),
+        .. ErrorPageRows(),
+        new(
+            "errorPages.replaceUpstream",
+            static s => s.ErrorPages?.ReplaceUpstream?.ToString(),
+            static v => new HostSettings { ErrorPages = new ErrorPagesSettings { ReplaceUpstream = Enum.Parse<UpstreamErrorReplacement>(v) } },
+            static h => h.ErrorPages.ReplaceUpstream.ToString(),
+            BuiltIn: "Off",
+            First: "Html",
+            Second: "Any"),
+        new(
+            "maintenance.enabled",
+            static s => s.Maintenance?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { Maintenance = new MaintenanceSettings { Enabled = bool.Parse(v) } },
+            static h => h.Maintenance.Enabled ? "true" : "false",
+            BuiltIn: "false",
+            First: "true",
+            Second: "false"),
+        new(
+            "maintenance.status",
+            static s => s.Maintenance?.Status?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { Maintenance = new MaintenanceSettings { Status = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.Maintenance.Status.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "503",
+            First: "200",
+            Second: "502"),
+        new(
+            "maintenance.retryAfterSeconds",
+            static s => s.Maintenance?.RetryAfterSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { Maintenance = new MaintenanceSettings { RetryAfterSeconds = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.Maintenance.RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "0",
+            First: "600",
+            Second: "30"),
+        new(
+            "maintenance.bypassAccessListId",
+            static s => s.Maintenance?.BypassAccessListId?.ToString(),
+            static v => new HostSettings { Maintenance = new MaintenanceSettings { BypassAccessListId = AccessListId.Parse(v) } },
+            static h => h.Maintenance.BypassAccessListId.IsEmpty ? null : h.Maintenance.BypassAccessListId.ToString(),
+            BuiltIn: null,
+            First: Id<AccessListId>(1).ToString()!,
+            Second: Id<AccessListId>(2).ToString()!),
     ];
+
+    /// <summary>One row per page: a message whose heading is the sample, so each status's layer shows in what the host carries.</summary>
+    private static IEnumerable<Field> ErrorPageRows()
+    {
+        foreach (var (key, name) in new (int, string)[]
+        {
+            (403, "forbidden"), (404, "notFound"), (413, "contentTooLarge"), (414, "uriTooLong"), (421, "misdirectedRequest"),
+            (429, "tooManyRequests"), (431, "headerFieldsTooLarge"), (502, "badGateway"), (503, "serviceUnavailable"),
+            (504, "gatewayTimeout"), (ErrorPageStatuses.MaintenanceKey, "maintenance"),
+        })
+        {
+            var page = key;
+            yield return new Field(
+                $"errorPages.{name}",
+                s => s.ErrorPages?.Entry(page)?.Heading,
+                v => new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(page, new ErrorPageContent { Heading = v }) },
+                h => h.ErrorPages.Pages.TryGetValue(page, out var spec) ? spec.Heading : null,
+                BuiltIn: null,
+                First: "Not here",
+                Second: "Gone fishing");
+        }
+    }
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
 
@@ -535,6 +598,12 @@ public sealed class SettingsInheritanceTests
         new("requestLimits", Defaults: ["requestLimits.maxBodySize", "requestLimits.maxHeaderCount"], Profile: ["requestLimits.maxHeaderBytes"], Host: ["requestLimits.maxUrlLength"]),
         new("ruleSet", Defaults: ["ruleSet.enabled"], Profile: [], Host: ["ruleSet.ruleSetId"]),
         new("authProvider", Defaults: ["authProvider.enabled"], Profile: [], Host: ["authProvider.authProviderId"]),
+        new(
+            "errorPages",
+            Defaults: ["errorPages.forbidden", "errorPages.notFound", "errorPages.contentTooLarge", "errorPages.uriTooLong"],
+            Profile: ["errorPages.misdirectedRequest", "errorPages.tooManyRequests", "errorPages.headerFieldsTooLarge", "errorPages.replaceUpstream"],
+            Host: ["errorPages.badGateway", "errorPages.serviceUnavailable", "errorPages.gatewayTimeout", "errorPages.maintenance"]),
+        new("maintenance", Defaults: ["maintenance.enabled"], Profile: ["maintenance.status", "maintenance.retryAfterSeconds"], Host: ["maintenance.bypassAccessListId"]),
     ];
 
     /// <summary>

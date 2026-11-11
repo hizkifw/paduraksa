@@ -34,6 +34,8 @@ public sealed class SharedEnumWireTests
         Assert.Equal(
             [
                 typeof(AccessListSatisfy),
+                typeof(ErrorPageMode),
+                typeof(ErrorPageSource),
                 typeof(ForwardAuthCacheScope),
                 typeof(ForwardAuthPreset),
                 typeof(HostKind),
@@ -50,6 +52,7 @@ public sealed class SharedEnumWireTests
                 typeof(TlsMinimumVersion),
                 typeof(TrustedProxyMode),
                 typeof(UnknownHostBehaviour),
+                typeof(UpstreamErrorReplacement),
                 typeof(UpstreamTlsTrust),
             ],
             shared);
@@ -103,6 +106,8 @@ public sealed class SharedEnumWireTests
             "\"robots\":{\"mode\":\"blockAiCrawlers\"",
             "\"cloudflare\":{\"originLockdown\":\"forbid\"",
             "\"requestIdPropagation\":\"responseOnly\"",
+            "\"replaceUpstream\":\"any\"",
+            "\"403\":{\"mode\":\"html\"",
             "\"trust\":\"any\"",
             "\"per\":\"hour\"",
             "\"key\":\"header\"",
@@ -124,6 +129,11 @@ public sealed class SharedEnumWireTests
                 ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Upstream },
                 Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
                 Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid },
+                ErrorPages = new ErrorPagesSettings
+                {
+                    Forbidden = new ErrorPageContent { Mode = ErrorPageMode.Html, Html = "<p>no</p>" },
+                    ReplaceUpstream = UpstreamErrorReplacement.Any,
+                },
             },
             UnknownHost: UnknownHostBehaviour.Close,
             TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareTunnel, ["10.0.0.0/8"])),

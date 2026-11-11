@@ -34,7 +34,16 @@ public sealed class SettingsMergeReflectionTests
         foreach (var leaf in Leaves())
         {
             var value = leaf.Read(HostSettingsLayers.BuiltIn);
+            if (leaf.Name.StartsWith($"{nameof(HostSettings.ErrorPages)}.", StringComparison.Ordinal)
+                && leaf.Name != $"{nameof(HostSettings.ErrorPages)}.{nameof(ErrorPagesSettings.ReplaceUpstream)}")
+            {
+                // A page's absence is the default: the built-in page is served.
+                Assert.Null(value);
+                continue;
+            }
+
             if (leaf.Name is $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}"
+                or $"{nameof(HostSettings.Maintenance)}.{nameof(MaintenanceSettings.BypassAccessListId)}"
                 or $"{nameof(HostSettings.RateLimit)}.{nameof(RateLimitSettings.PolicyId)}"
                 or $"{nameof(HostSettings.AccessList)}.{nameof(AccessListSettings.AccessListId)}"
                 or $"{nameof(HostSettings.RuleSet)}.{nameof(RuleSetSettings.RuleSetId)}"
@@ -110,6 +119,11 @@ public sealed class SettingsMergeReflectionTests
         if (value == typeof(string))
         {
             return "x";
+        }
+
+        if (value == typeof(ErrorPageContent))
+        {
+            return new ErrorPageContent { Heading = "x" };
         }
 
         if (value == typeof(RateLimitPolicyId))

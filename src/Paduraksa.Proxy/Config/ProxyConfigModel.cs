@@ -64,6 +64,9 @@ public sealed record DefaultsSpec
 
     /// <summary>The global defaults' <c>Server</c> header, which an unknown host follows too.</summary>
     public HostServerHeaderSpec ServerHeader { get; init; } = HostServerHeaderSpec.Default;
+
+    /// <summary>The global defaults' error pages, which a request for an unknown host is answered with.</summary>
+    public HostErrorPagesSpec ErrorPages { get; init; } = HostErrorPagesSpec.Default;
 }
 
 /// <summary>Trusted proxies in front of Paduraksa, compiled into a <see cref="TrustedProxyPolicy"/>.</summary>
@@ -179,6 +182,51 @@ public sealed record HostRobotsSpec
 
     /// <summary>The text <see cref="RobotsMode.Custom"/> serves, as stored; the compiler normalises its line endings.</summary>
     public string? CustomText { get; init; }
+}
+
+/// <summary>One error page as the layers resolved it. Which fields are set follows <see cref="Mode"/> (the validator checks it; the compiler's backstop does too).</summary>
+public sealed record ErrorPageSpec
+{
+    public ErrorPageMode Mode { get; init; }
+
+    public string? Heading { get; init; }
+
+    public string? Text { get; init; }
+
+    public string? Html { get; init; }
+
+    /// <summary>The layer that set the page, for the simulator and the dashboard.</summary>
+    public ErrorPageSource Source { get; init; } = ErrorPageSource.BuiltIn;
+}
+
+/// <summary>The pages a host's layers set, by <see cref="ErrorPageStatuses"/> key, and whether an upstream's error bodies give way to them.</summary>
+public sealed record HostErrorPagesSpec
+{
+    /// <summary>The built-in pages, and an upstream's error bodies untouched.</summary>
+    public static HostErrorPagesSpec Default { get; } = new();
+
+    public UpstreamErrorReplacement ReplaceUpstream { get; init; } = UpstreamErrorReplacement.Off;
+
+    /// <summary>The pages a layer set; a status that isn't here is served from its built-in page.</summary>
+    public IReadOnlyDictionary<int, ErrorPageSpec> Pages { get; init; } = new Dictionary<int, ErrorPageSpec>();
+}
+
+/// <summary>Maintenance mode, resolved across the layers; the compiler checks the values and an admin host ignores it.</summary>
+public sealed record HostMaintenanceSpec
+{
+    /// <summary>Not in maintenance.</summary>
+    public static HostMaintenanceSpec Off { get; } = new();
+
+    public bool Enabled { get; init; }
+
+    /// <summary>The status of the answer.</summary>
+    public int Status { get; init; } = ErrorPageStatuses.DefaultMaintenanceStatus;
+
+    /// <summary>Seconds for <c>Retry-After</c>; 0 sends none.</summary>
+    public int RetryAfterSeconds { get; init; }
+
+    /// <summary>The access list whose allowed addresses skip the page; <see cref="AccessListId.Empty"/> for none.</summary>
+    public AccessListId BypassAccessListId { get; init; }
 }
 
 /// <summary>
@@ -338,6 +386,12 @@ public sealed record HostSpec
     /// <summary>The host's resolved auth provider; each route's own layer may override it. Proxy hosts only: the others have no route to
     /// ask it on.</summary>
     public HostAuthProviderSpec AuthProvider { get; init; } = HostAuthProviderSpec.Off;
+
+    /// <summary>The host's own pages for the statuses the gate and the upstream answer, and whether an upstream's error bodies are replaced.</summary>
+    public HostErrorPagesSpec ErrorPages { get; init; } = HostErrorPagesSpec.Default;
+
+    /// <summary>Maintenance mode; an admin host ignores it.</summary>
+    public HostMaintenanceSpec Maintenance { get; init; } = HostMaintenanceSpec.Off;
 
     /// <summary>What the host answers at <c>/robots.txt</c>.</summary>
     public HostRobotsSpec Robots { get; init; } = HostRobotsSpec.Passthrough;

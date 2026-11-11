@@ -559,6 +559,49 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void ErrorPagesAndMaintenanceAddNoKeyUntilSetAndKeepStatusKeysOnTheWire()
+    {
+        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
+        var bytes = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without));
+        Assert.DoesNotContain("errorPages", bytes, StringComparison.Ordinal);
+        Assert.DoesNotContain("maintenance", bytes, StringComparison.OrdinalIgnoreCase);
+
+        var emptyLayers = without with
+        {
+            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, ErrorPages = new ErrorPagesSettings(), Maintenance = new MaintenanceSettings() } }],
+        };
+        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayers));
+
+        var set = without with
+        {
+            Hosts =
+            [
+                without.Hosts[0] with
+                {
+                    Settings = new HostSettings
+                    {
+                        ForceHttps = true,
+                        ErrorPages = new ErrorPagesSettings
+                        {
+                            NotFound = new ErrorPageContent { Heading = "Gone", Text = "Not here." },
+                            Maintenance = new ErrorPageContent { Mode = ErrorPageMode.Html, Html = "<p>soon</p>" },
+                            ReplaceUpstream = UpstreamErrorReplacement.Any,
+                        },
+                        Maintenance = new MaintenanceSettings { Enabled = true, Status = 503, RetryAfterSeconds = 600 },
+                    },
+                },
+            ],
+        };
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(set));
+        Assert.Contains(
+            "\"errorPages\":{\"404\":{\"mode\":\"message\",\"heading\":\"Gone\",\"text\":\"Not here.\"},\"maintenance\":{\"mode\":\"html\",\"html\":\"\\u003Cp\\u003Esoon\\u003C/p\\u003E\"},\"replaceUpstream\":\"any\"}",
+            json,
+            StringComparison.Ordinal);
+        Assert.Contains("\"maintenance\":{\"enabled\":true,\"status\":503,\"retryAfterSeconds\":600}", json, StringComparison.Ordinal);
+        Assert.Equal(CanonicalConfigJson.Serialize(set), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(set))));
+    }
+
+    [Fact]
     public void ANullCloudflareLayerAddsNoKeyAndItsValuesChangeTheHash()
     {
         ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);

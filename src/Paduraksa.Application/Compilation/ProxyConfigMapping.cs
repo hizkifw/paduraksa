@@ -88,7 +88,8 @@ public static class ProxyConfigMapping
         {
             var host = canonical.Hosts[i];
             var profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
-            var effective = HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings);
+            var resolved = HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings);
+            var effective = resolved with { ErrorPages = HostSettingsLayers.WithErrorPageSources(resolved.ErrorPages, settings.Defaults, profile, host.Settings) };
             hosts[i] = MapHost(host, effective, settings.TrustedProxies.Mode, inventory, accessLists, signIns, errors, warnings);
             AddAuthProviderSwitchWarnings(
                 host, effective, HostSettingsLayers.ProviderNamingLayerAboveOffSwitch(settings.Defaults, profile, host.Settings), profilesWarned, warnings);
@@ -119,6 +120,7 @@ public static class ProxyConfigMapping
                 AccessLog = globalDefaults.AccessLog,
                 RequestIdPropagation = globalDefaults.RequestIdPropagation,
                 ServerHeader = globalDefaults.ServerHeader,
+                ErrorPages = HostSettingsLayers.WithErrorPageSources(globalDefaults.ErrorPages, settings.Defaults, null, null),
             },
         };
         return new MappedConfig(model, errors, warnings);
@@ -244,6 +246,7 @@ public static class ProxyConfigMapping
         }
 
         AddCloudflareWarnings(host, effective.Cloudflare, proxyMode, where, warnings);
+        var maintenance = MaintenanceOf(host, effective.Maintenance, accessLists, where, warnings);
 
         var (hostChain, routeChains) = AccessListChains(host, effective, accessLists);
         AddRuleSets(host, effective, accessLists, ref hostChain, routeChains);
@@ -354,6 +357,8 @@ public static class ProxyConfigMapping
             AuthProvider = host.Kind == HostKind.Proxy ? effective.AuthProvider : HostAuthProviderSpec.Off,
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
+            ErrorPages = effective.ErrorPages,
+            Maintenance = maintenance,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect
@@ -361,6 +366,39 @@ public static class ProxyConfigMapping
                 : null,
             Respond = respond,
         };
+    }
+
+    /// <summary>The maintenance mode a host serves: an admin host never does, however a layer above it asked.</summary>
+    private static HostMaintenanceSpec MaintenanceOf(
+        HostConfig host, HostMaintenanceSpec resolved, Dictionary<AccessListId, AccessListConfig> accessLists, CompileErrorSource where, List<MappedWarning> warnings)
+    {
+        if (!host.Enabled || !resolved.Enabled)
+        {
+            return resolved;
+        }
+
+        if (host.Kind == HostKind.Admin)
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/maintenance/enabled",
+                ConfigWarningCodes.MaintenanceAdminIgnored,
+                "an admin host is never put in maintenance, so a layer that turns it on for every host can't lock the dashboard out; the setting is ignored here"));
+            return HostMaintenanceSpec.Off;
+        }
+
+        if (!resolved.BypassAccessListId.IsEmpty
+            && accessLists.TryGetValue(resolved.BypassAccessListId, out var list)
+            && list.Ip is not { Allow.Count: > 0 } and not { Countries.Allow.Count: > 0 })
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/maintenance/bypassAccessListId",
+                ConfigWarningCodes.MaintenanceBypassNoAllowRules,
+                $"the bypass access list '{list.Name}' has no allowed address or country, so no request bypasses maintenance"));
+        }
+
+        return resolved;
     }
 
     /// <summary>The two Cloudflare settings that look set but enforce nothing, or can only refuse: said at the host that

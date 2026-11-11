@@ -18,7 +18,7 @@ namespace Paduraksa.Application.Compilation;
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
-/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>, <see cref="HostSettings.RuleSet"/>, <see cref="HostSettings.AuthProvider"/>) merge field by field and stay absent when
+/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>, <see cref="HostSettings.RuleSet"/>, <see cref="HostSettings.AuthProvider"/>, <see cref="HostSettings.ErrorPages"/>, <see cref="HostSettings.Maintenance"/>) merge field by field and stay absent when
 /// neither layer sets a field of theirs. Everything else is a plain override.</para>
 /// </remarks>
 public static class HostSettingsLayers
@@ -50,6 +50,10 @@ public static class HostSettingsLayers
     private const int BuiltInMaxUrlLength = RequestLimitBounds.DefaultMaxUrlLength;
     private const bool BuiltInRuleSetEnabled = true;
     private const bool BuiltInAuthProviderEnabled = true;
+    private const UpstreamErrorReplacement BuiltInReplaceUpstream = UpstreamErrorReplacement.Off;
+    private const bool BuiltInMaintenanceEnabled = false;
+    private const int BuiltInMaintenanceStatus = ErrorPageStatuses.DefaultMaintenanceStatus;
+    private const int BuiltInMaintenanceRetryAfterSeconds = 0;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -79,6 +83,13 @@ public static class HostSettingsLayers
         },
         RuleSet = new RuleSetSettings { Enabled = BuiltInRuleSetEnabled },
         AuthProvider = new AuthProviderSettings { Enabled = BuiltInAuthProviderEnabled },
+        ErrorPages = new ErrorPagesSettings { ReplaceUpstream = BuiltInReplaceUpstream },
+        Maintenance = new MaintenanceSettings
+        {
+            Enabled = BuiltInMaintenanceEnabled,
+            Status = BuiltInMaintenanceStatus,
+            RetryAfterSeconds = BuiltInMaintenanceRetryAfterSeconds,
+        },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -110,6 +121,8 @@ public static class HostSettingsLayers
             RequestLimits = Merge(lower.RequestLimits, upper.RequestLimits),
             RuleSet = Merge(lower.RuleSet, upper.RuleSet),
             AuthProvider = Merge(lower.AuthProvider, upper.AuthProvider),
+            ErrorPages = Merge(lower.ErrorPages, upper.ErrorPages),
+            Maintenance = Merge(lower.Maintenance, upper.Maintenance),
         };
     }
 
@@ -328,6 +341,49 @@ public static class HostSettingsLayers
     }
 
     /// <summary>
+    /// <paramref name="lower"/> with the entries <paramref name="upper"/> sets, each replacing the lower layer's whole; absent when
+    /// neither sets one.
+    /// </summary>
+    public static ErrorPagesSettings? Merge(ErrorPagesSettings? lower, ErrorPagesSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        var merged = new ErrorPagesSettings { ReplaceUpstream = upper.ReplaceUpstream ?? lower?.ReplaceUpstream };
+        foreach (var (key, content) in upper.Entries())
+        {
+            if ((content ?? lower?.Entry(key)) is { } entry)
+            {
+                merged = merged.WithEntry(key, entry);
+            }
+        }
+
+        return merged.SetsNothing ? null : merged;
+    }
+
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static MaintenanceSettings? Merge(MaintenanceSettings? lower, MaintenanceSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        MaintenanceSettings merged = new()
+        {
+            Enabled = upper.Enabled ?? lower?.Enabled,
+            Status = upper.Status ?? lower?.Status,
+            RetryAfterSeconds = upper.RetryAfterSeconds ?? lower?.RetryAfterSeconds,
+            BypassAccessListId = upper.BypassAccessListId ?? lower?.BypassAccessListId,
+        };
+
+        return merged.SetsNothing ? null : merged;
+    }
+
+    /// <summary>
     /// When, in <paramref name="layers"/> (listed bottom to top), the switch of the auth provider ends up off and the layer that names the provider is
     /// above the one that last set the switch, the index of the layer that names it, else -1. The merge leaves the switch where the lower layer put it,
     /// so the provider is named and never asked.
@@ -475,6 +531,8 @@ public static class HostSettingsLayers
         var requestLimits = settings.RequestLimits ?? new RequestLimitsSettings();
         var ruleSet = settings.RuleSet ?? new RuleSetSettings();
         var authProvider = settings.AuthProvider ?? new AuthProviderSettings();
+        var errorPages = settings.ErrorPages ?? new ErrorPagesSettings();
+        var maintenance = settings.Maintenance ?? new MaintenanceSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -547,7 +605,51 @@ public static class HostSettingsLayers
                 // Naming a provider is enough: only a layer that says otherwise turns it off.
                 Enabled = authProvider.Enabled ?? BuiltInAuthProviderEnabled,
                 AuthProviderId = authProvider.AuthProviderId ?? AuthProviderId.Empty,
+            },
+            ErrorPageSpecs(errorPages),
+            new HostMaintenanceSpec
+            {
+                Enabled = maintenance.Enabled ?? BuiltInMaintenanceEnabled,
+                Status = maintenance.Status ?? BuiltInMaintenanceStatus,
+                RetryAfterSeconds = maintenance.RetryAfterSeconds ?? BuiltInMaintenanceRetryAfterSeconds,
+                BypassAccessListId = maintenance.BypassAccessListId ?? AccessListId.Empty,
             });
+    }
+
+    // The pages a layer sets, as the compiler takes them. Where each came from is the caller's to say (ErrorPageSources),
+    // since a merged layer no longer knows.
+    private static HostErrorPagesSpec ErrorPageSpecs(ErrorPagesSettings settings)
+    {
+        Dictionary<int, ErrorPageSpec> pages = [];
+        foreach (var (key, content) in settings.Entries())
+        {
+            if (content is not null)
+            {
+                pages[key] = new ErrorPageSpec { Mode = content.Mode, Heading = content.Heading, Text = content.Text, Html = content.Html };
+            }
+        }
+
+        return new HostErrorPagesSpec { ReplaceUpstream = settings.ReplaceUpstream ?? BuiltInReplaceUpstream, Pages = pages };
+    }
+
+    /// <summary>The pages of <paramref name="resolved"/> with the layer each one was set by, judged on the host's own chain.</summary>
+    internal static HostErrorPagesSpec WithErrorPageSources(HostErrorPagesSpec resolved, HostSettings? defaults, HostSettings? profile, HostSettings? host)
+    {
+        Dictionary<int, ErrorPageSpec> pages = [];
+        foreach (var (key, page) in resolved.Pages)
+        {
+            var layer = LayerOf(defaults, profile, host, settings => settings.ErrorPages?.Entry(key));
+            var source = layer switch
+            {
+                SettingsLayer.Host => ErrorPageSource.Host,
+                SettingsLayer.Profile => ErrorPageSource.Profile,
+                SettingsLayer.GlobalDefaults => ErrorPageSource.GlobalDefaults,
+                _ => ErrorPageSource.BuiltIn,
+            };
+            pages[key] = page with { Source = source };
+        }
+
+        return resolved with { Pages = pages };
     }
 }
 
@@ -579,6 +681,8 @@ public enum SettingsLayer
 /// <param name="RequestLimits">The body, header and request-target limits.</param>
 /// <param name="RuleSet">The rule set in force, with the switch as it resolved.</param>
 /// <param name="AuthProvider">The auth provider in force, with the switch as it resolved.</param>
+/// <param name="ErrorPages">The pages the layers set, and whether an upstream's error bodies are replaced.</param>
+/// <param name="Maintenance">Maintenance mode as it resolved.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -593,4 +697,6 @@ internal sealed record EffectiveHostSettings(
     HostAccessListSpec AccessList,
     HostRequestLimitsSpec RequestLimits,
     HostRuleSetSpec RuleSet,
-    HostAuthProviderSpec AuthProvider);
+    HostAuthProviderSpec AuthProvider,
+    HostErrorPagesSpec ErrorPages,
+    HostMaintenanceSpec Maintenance);

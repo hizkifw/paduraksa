@@ -13,6 +13,7 @@ using static Paduraksa.Application.Config.ConfigErrorCodes;
 using HostAccessListSpec = Paduraksa.Proxy.Config.HostAccessListSpec;
 using HostAuthProviderSpec = Paduraksa.Proxy.Config.HostAuthProviderSpec;
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
+using HostMaintenanceSpec = Paduraksa.Proxy.Config.HostMaintenanceSpec;
 using HostRateLimitSpec = Paduraksa.Proxy.Config.HostRateLimitSpec;
 using HostRobotsSpec = Paduraksa.Proxy.Config.HostRobotsSpec;
 using HostRuleSetSpec = Paduraksa.Proxy.Config.HostRuleSetSpec;
@@ -405,6 +406,7 @@ public static class ConfigValidator
             CheckHstsPreload(resolved.Hsts, defaults, profile, host.Settings, $"{path}/settings/hsts");
             CheckServerHeader(resolved.ServerHeader, defaults, profile, host.Settings, $"{path}/settings/serverHeader");
             CheckRobots(resolved.Robots, defaults, profile, host.Settings, $"{path}/settings/robots");
+            CheckMaintenanceReference(resolved.Maintenance, accessLists, $"{path}/settings/maintenance", defaults, profile, host.Settings);
             CheckRateLimit(resolved.RateLimit, policies, $"{path}/settings/rateLimit", HostRateLimitUnknown, defaults, profile, host.Settings);
             CheckAccessListReference(resolved.AccessList, accessLists, $"{path}/settings/accessList", HostAccessListUnknown, defaults, profile, host.Settings);
             CheckRuleSetReference(resolved.RuleSet, ruleSets, $"{path}/settings/ruleSet", HostRuleSetUnknown, defaults, profile, host.Settings);
@@ -731,6 +733,155 @@ public static class ConfigValidator
             {
                 CheckRequestLimits(requestLimits, $"{path}/requestLimits", route: false);
             }
+
+            if (settings.ErrorPages is { } errorPages)
+            {
+                CheckErrorPages(errorPages, $"{path}/errorPages");
+            }
+
+            if (settings.Maintenance is { } maintenance)
+            {
+                CheckMaintenance(maintenance, $"{path}/maintenance");
+            }
+        }
+
+        /// <summary>
+        /// The error pages at the layer that sets them. A page is judged by its mode: a message needs a heading and takes a
+        /// sentence, a document is bounded in bytes, and the field that doesn't belong to the mode is refused rather than ignored,
+        /// so a stored page never carries text that isn't served. Every variable it names must be one of
+        /// <see cref="ErrorPageText.VariableNames"/>.
+        /// </summary>
+        private void CheckErrorPages(ErrorPagesSettings settings, string path)
+        {
+            if (settings.ReplaceUpstream is { } replace)
+            {
+                CheckEnum(replace, $"{path}/replaceUpstream");
+            }
+
+            foreach (var (key, content) in settings.Entries())
+            {
+                if (content is not null)
+                {
+                    CheckErrorPage(content, $"{path}/{ErrorPageStatuses.NameOf(key)}");
+                }
+            }
+        }
+
+        private void CheckErrorPage(ErrorPageContent page, string path)
+        {
+            if (!CheckEnum(page.Mode, $"{path}/mode"))
+            {
+                return;
+            }
+
+            if (page.Mode == ErrorPageMode.Message)
+            {
+                if (page.Html is not null)
+                {
+                    Add($"{path}/html", ErrorPagesHtmlUnexpected, "a document only belongs to the HTML mode; a message page is a heading and a sentence");
+                }
+
+                if (string.IsNullOrWhiteSpace(page.Heading))
+                {
+                    Add($"{path}/heading", ErrorPagesHeadingRequired, "a message page needs a heading");
+                }
+                else
+                {
+                    CheckPageLine(page.Heading, ErrorPageText.MaxHeadingLength, "heading", $"{path}/heading", ErrorPagesHeadingTooLong, ErrorPagesHeadingInvalid);
+                }
+
+                if (page.Text is not null)
+                {
+                    CheckPageLine(page.Text, ErrorPageText.MaxTextLength, "sentence", $"{path}/text", ErrorPagesTextTooLong, ErrorPagesTextInvalid);
+                }
+
+                return;
+            }
+
+            if (page.Heading is not null)
+            {
+                Add($"{path}/heading", ErrorPagesHeadingUnexpected, "a heading only belongs to the message mode; an HTML page carries its own");
+            }
+
+            if (page.Text is not null)
+            {
+                Add($"{path}/text", ErrorPagesTextUnexpected, "a sentence only belongs to the message mode; an HTML page carries its own");
+            }
+
+            if (string.IsNullOrWhiteSpace(page.Html))
+            {
+                Add($"{path}/html", ErrorPagesHtmlRequired, "an HTML page needs a document");
+            }
+            else if (!ErrorPageText.IsWithinSizeLimit(page.Html))
+            {
+                Add($"{path}/html", ErrorPagesHtmlTooLong, $"the document can't be longer than {ErrorPageText.MaxHtmlBytes} bytes of UTF-8");
+            }
+            else if (!ErrorPageText.IsPlainDocument(page.Html))
+            {
+                Add($"{path}/html", ErrorPagesHtmlInvalid, "the document can't contain control characters other than tab and line breaks");
+            }
+            else
+            {
+                CheckPageVariables(page.Html, "document", $"{path}/html");
+            }
+        }
+
+        private void CheckPageLine(string text, int limit, string what, string path, string tooLongCode, string invalidCode)
+        {
+            if (text.Length > limit)
+            {
+                Add(path, tooLongCode, $"the {what} can't be longer than {limit} characters");
+            }
+            else if (!ErrorPageText.IsPlainLine(text))
+            {
+                Add(path, invalidCode, $"the {what} must be one line without control characters");
+            }
+            else
+            {
+                CheckPageVariables(text, what, path);
+            }
+        }
+
+        private void CheckPageVariables(string text, string what, string path)
+        {
+            ErrorPageText.Parse(text, out var unknown);
+            foreach (var name in unknown)
+            {
+                Add(path, ErrorPagesVariableUnknown, $"the {what} uses {{{name}}}, which isn't a variable; the variables are {ErrorPageText.VariableList} (write {{{{ for a literal brace)");
+            }
+        }
+
+        /// <summary>Maintenance mode's values where a layer sets them; the bypass list is judged on the host's resolved settings.</summary>
+        private void CheckMaintenance(MaintenanceSettings settings, string path)
+        {
+            if (settings.Status is { } status && !ErrorPageStatuses.MaintenanceStatuses.Contains(status))
+            {
+                Add($"{path}/status", MaintenanceStatusInvalid, $"a maintenance answer's status is one of {string.Join(", ", ErrorPageStatuses.MaintenanceStatuses)}, got {status}");
+            }
+
+            if (settings.RetryAfterSeconds is { } seconds && seconds is < 0 or > ErrorPageStatuses.MaxRetryAfterSeconds)
+            {
+                Add($"{path}/retryAfterSeconds", MaintenanceRetryAfterInvalid, $"the retry delay is 0 (send none) to {ErrorPageStatuses.MaxRetryAfterSeconds} seconds (a week), got {seconds}");
+            }
+
+            if (settings.BypassAccessListId is { IsEmpty: true })
+            {
+                Add($"{path}/bypassAccessListId", IdEmpty, "the bypass access list ID can't be empty (leave it unset for none)");
+            }
+        }
+
+        /// <summary>A host's resolved bypass list must exist; named even while maintenance is off, like any reference a switch keeps.</summary>
+        private void CheckMaintenanceReference(
+            HostMaintenanceSpec resolved, HashSet<AccessListId> lists, string path, HostSettings? defaults, HostSettings? profile, HostSettings? host)
+        {
+            if (resolved.BypassAccessListId.IsEmpty || lists.Contains(resolved.BypassAccessListId))
+            {
+                return;
+            }
+
+            var inherited = HostSettingsLayers.InheritedSuffix(
+                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Maintenance?.BypassAccessListId));
+            Add($"{path}/bypassAccessListId", HostMaintenanceBypassUnknown, $"access list '{resolved.BypassAccessListId}' doesn't exist{inherited}");
         }
 
         /// <summary>
