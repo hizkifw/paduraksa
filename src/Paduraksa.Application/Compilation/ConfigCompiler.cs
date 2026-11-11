@@ -50,6 +50,12 @@ public sealed class ConfigCompiler : IConfigCompiler
             }
         }
 
+        if (document.Settings.TrustedProxies.Mode == TrustedProxyMode.CloudflareProxy
+            && _options.CloudflareRanges?.Status().Warning is { } rangesWarning)
+        {
+            warnings.Add(new MappedWarning(CompileErrorSource.TrustedProxies, string.Empty, ConfigWarningCodes.CloudflareRangesStale, rangesWarning));
+        }
+
         // The inventory's resolver (usable certificates only) replaces whatever the options carry.
         var result = SnapshotCompiler.Compile(
             mapped.Model,

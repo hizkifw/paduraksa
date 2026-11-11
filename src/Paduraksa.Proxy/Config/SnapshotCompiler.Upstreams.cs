@@ -208,8 +208,10 @@ public static partial class SnapshotCompiler
         return new StaticPolicy(PolicyDecision.Continue);
     }
 
-    private static TrustedProxyPolicy CompileTrustedProxies(TrustedProxySpec? spec, SnapshotCompilerOptions options, List<CompileError> errors)
+    private static TrustedProxyPolicy CompileTrustedProxies(
+        TrustedProxySpec? spec, SnapshotCompilerOptions options, List<CompileError> errors, out EdgeRangeList? edgeRanges)
     {
+        edgeRanges = null;
         spec ??= TrustedProxySpec.Off;
         var where = CompileErrorSource.TrustedProxies;
         var proxies = spec.Proxies ?? [];
@@ -272,7 +274,10 @@ public static partial class SnapshotCompiler
                     errors.Add(new(where, "CloudflareProxy mode trusts Cloudflare's published edge ranges; list no proxies"));
                 }
 
-                return TrustedProxyPolicy.CloudflareProxy(options.CloudflareEdgeRanges, spec.UseTrueClientIp, spec.ForwardedForFallback);
+                edgeRanges = options.CloudflareEdgeRanges is { } fixedSet
+                    ? EdgeRangeList.FromSet(fixedSet)
+                    : options.CloudflareRanges?.Current ?? EdgeRangeList.BuiltIn;
+                return TrustedProxyPolicy.CloudflareProxy(edgeRanges.Ranges, spec.UseTrueClientIp, spec.ForwardedForFallback);
 
             default:
                 errors.Add(new(where, $"unknown mode {spec.Mode}"));

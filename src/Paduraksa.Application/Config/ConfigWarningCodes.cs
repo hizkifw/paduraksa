@@ -39,4 +39,8 @@ public static class ConfigWarningCodes
     /// <summary>A host requires Authenticated Origin Pulls but isn't served over HTTPS, so it can never present the
     /// certificate and every request is refused.</summary>
     public const string CloudflareAopNeedsHttps = "cloudflare.aop.needsHttps";
+
+    /// <summary>The trusted-proxy mode is <c>CloudflareProxy</c> and the list of Cloudflare's edge ranges is older than 30
+    /// days, or several refreshes in a row failed.</summary>
+    public const string CloudflareRangesStale = "cloudflare.ranges.stale";
 }

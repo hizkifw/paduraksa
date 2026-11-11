@@ -44,9 +44,13 @@ public sealed record SnapshotCompilerOptions
     /// </summary>
     public bool AdminUpstream { get; init; }
 
-    /// <summary>Cloudflare's edge ranges for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>;
-    /// null for the baked-in <see cref="CloudflareIpRanges.Default"/>.</summary>
+    /// <summary>Cloudflare's edge ranges for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>, fixed:
+    /// a test's way to trust loopback. Null: <see cref="CloudflareRanges"/>.</summary>
     public CidrSet? CloudflareEdgeRanges { get; init; }
+
+    /// <summary>The live list the refresh job keeps, read at every compile; null: the baked-in
+    /// <see cref="CloudflareIpRanges.Default"/>.</summary>
+    public CloudflareEdgeRangeSource? CloudflareRanges { get; init; }
 
     /// <summary>
     /// The process's proof-of-work key, clock and counters; null: a policy that needs them finds no key and fails closed.

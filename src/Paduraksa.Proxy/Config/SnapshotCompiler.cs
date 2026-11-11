@@ -125,6 +125,8 @@ public static partial class SnapshotCompiler
 
         public TrustedProxyPolicy TrustedProxies { get; private set; } = TrustedProxyPolicy.Off;
 
+        public EdgeRangeList? EdgeRanges { get; private set; }
+
         public ResponseHeaderOperation[] DefaultHeaders { get; private set; } = [];
 
         public Dictionary<UpstreamId, ClusterConfig> Clusters { get; private set; } = [];
@@ -176,7 +178,8 @@ public static partial class SnapshotCompiler
                     CompileTlsPolicy(Defaults.Tls, CompileErrorSource.Defaults, Errors));
             }
 
-            TrustedProxies = CompileTrustedProxies(Defaults.TrustedProxies, Options, Errors);
+            TrustedProxies = CompileTrustedProxies(Defaults.TrustedProxies, Options, Errors, out var edgeRanges);
+            EdgeRanges = edgeRanges;
             DefaultHeaders = CompileResponseHeaders(
                 serverHeader: Defaults.ServerHeader,
                 hsts: null,
@@ -208,6 +211,7 @@ public static partial class SnapshotCompiler
             },
             Certificates = Certificates.Build(),
             TrustedProxies = TrustedProxies,
+            EdgeRanges = EdgeRanges,
             AccessLog = Defaults.AccessLog,
             RequestIdPropagation = Defaults.RequestIdPropagation,
             DefaultResponseHeaders = DefaultHeaders,

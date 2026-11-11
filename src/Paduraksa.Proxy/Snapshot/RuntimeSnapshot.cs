@@ -83,6 +83,10 @@ public sealed class RuntimeSnapshot
     /// <summary>Who may tell us the client IP: off, generic proxies, Cloudflare's edge or cloudflared.</summary>
     public TrustedProxyPolicy TrustedProxies { get; init; } = TrustedProxyPolicy.Off;
 
+    /// <summary>The Cloudflare edge ranges the policy was compiled with, for the simulator and the dashboard; null unless
+    /// the mode is <c>CloudflareProxy</c>, the only one that trusts them.</summary>
+    public EdgeRangeList? EdgeRanges { get; init; }
+
     /// <summary>Whether a request whose host the snapshot doesn't know gets an access-log line: the global default,
     /// since an unknown host has no settings of its own.</summary>
     public bool AccessLog { get; init; } = true;
@@ -155,6 +159,7 @@ public sealed class RuntimeSnapshot
             Misdirected = Misdirected,
             Certificates = Certificates,
             TrustedProxies = TrustedProxies,
+            EdgeRanges = EdgeRanges,
             AccessLog = AccessLog,
             RequestIdPropagation = RequestIdPropagation,
         };

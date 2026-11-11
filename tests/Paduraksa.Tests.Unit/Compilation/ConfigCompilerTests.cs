@@ -3,6 +3,7 @@ using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Net;
 
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
@@ -42,6 +43,44 @@ public sealed class ConfigCompilerTests : IDisposable
         var warning = Assert.Single(compilation.Warnings, w => w.Code == ConfigWarningCodes.AdminInternalDisabled);
         Assert.Equal("/hosts/0", warning.Path);
         Assert.Equal(-1, Assert.Single(compilation.Snapshot!.HostsByIndex[0].Routes).Slot);
+    }
+
+    [Fact]
+    public void AStaleEdgeRangeListWarnsOnlyWhereTheEdgeRangesAreTrusted()
+    {
+        var late = EdgeRangeList.BuiltIn.FetchedAt.AddDays(45);
+        CloudflareEdgeRangeSource source = new(new Clock(late));
+        ConfigCompiler compiler = new(new SnapshotCompilerOptions { CloudflareRanges = source });
+        static ConfigDocument Mode(TrustedProxyMode mode) => new(
+            Settings: new GlobalSettings(TrustedProxies: new TrustedProxySettings(mode, mode == TrustedProxyMode.CloudflareTunnel ? ["127.0.0.1"] : [])),
+            Hosts: [new HostConfig(AppHost, ["app.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200))]);
+
+        var proxy = Mode(TrustedProxyMode.CloudflareProxy);
+        var stale = compiler.Compile(proxy, Revision, _certificates.InventoryFor(proxy));
+        var warning = Assert.Single(stale.Warnings, w => w.Code == ConfigWarningCodes.CloudflareRangesStale);
+        Assert.Equal("/settings/trustedProxies", warning.Path);
+        Assert.Contains("45 days old", warning.Message, StringComparison.Ordinal);
+
+        foreach (var mode in new[] { TrustedProxyMode.Off, TrustedProxyMode.Generic, TrustedProxyMode.CloudflareTunnel })
+        {
+            var other = Mode(mode);
+            Assert.DoesNotContain(
+                compiler.Compile(other, Revision, _certificates.InventoryFor(other)).Warnings,
+                w => w.Code == ConfigWarningCodes.CloudflareRangesStale);
+        }
+
+        // A fresh list says nothing.
+        Assert.True(EdgeRangeList.TryCreate(
+            ["173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32"], late, out var fresh, out _));
+        source.Replace(fresh);
+        Assert.DoesNotContain(
+            compiler.Compile(proxy, Revision, _certificates.InventoryFor(proxy)).Warnings,
+            w => w.Code == ConfigWarningCodes.CloudflareRangesStale);
+    }
+
+    private sealed class Clock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     [Fact]
