@@ -100,7 +100,10 @@ internal static class ForwardAuthAnswerTarget
                 }
             }
 
-            Checks.That(!isRedirect || context.Response.Headers.Location.ToString() == string.Join(", ", relayedLines.Where(h => h.Name.Equals("Location", StringComparison.OrdinalIgnoreCase)).Select(h => h.Value)), "the Location was changed");
+            // Each Location line the provider sent, as its own line.
+            string[] sentLocations = [.. relayedLines.Where(h => h.Name.Equals("Location", StringComparison.OrdinalIgnoreCase)).Select(h => h.Value)];
+            string?[] relayedLocations = context.Response.Headers.Location.ToArray();
+            Checks.That(!isRedirect || sentLocations.SequenceEqual(relayedLocations), $"the Location lines were changed from [{string.Join(" | ", sentLocations)}] to [{string.Join(" | ", relayedLocations)}]");
             return;
         }
 
@@ -161,6 +164,8 @@ internal static class ForwardAuthAnswerTarget
         return true;
     }
 
+    private static bool IsTokenChar(char c) => char.IsAsciiLetterOrDigit(c) || "!#$%&'*+-.^_`|~".Contains(c, StringComparison.Ordinal);
+
     // Header lines "Name: value" up to a blank line, then the body. A name that isn't a token is dropped here, as the transport would never deliver it.
     private static (List<(string Name, string Value)> Headers, byte[] Body) Parse(ReadOnlySpan<byte> bytes)
     {
@@ -176,9 +181,9 @@ internal static class ForwardAuthAnswerTarget
             }
 
             var colon = line.IndexOf((byte)':');
-            if (colon > 0)
+            if (colon > 0 && Encoding.Latin1.GetString(line[..colon]).Trim() is { Length: > 0 } name && name.All(IsTokenChar))
             {
-                headers.Add((Encoding.Latin1.GetString(line[..colon]).Trim(), Encoding.UTF8.GetString(line[(colon + 1)..]).TrimStart(' ')));
+                headers.Add((name, Encoding.UTF8.GetString(line[(colon + 1)..]).TrimStart(' ')));
             }
         }
 
