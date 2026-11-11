@@ -593,8 +593,7 @@ public sealed class AccessListPolicyTests
         Assert.Equal(PolicyAction.Continue, policy.Evaluate(in simulated).Action);
 
         Assert.Equal(0, runtime.Cache.LiveCount(runtime.NowMs));
-        Assert.Equal(2, runtime.Stats.Verifications);
-        Assert.Equal(0, runtime.Stats.CacheHits);
+        Assert.Equal((0, 0, 0, 0, 0, 0), (runtime.Stats.Allowed, runtime.Stats.AddressRefused, runtime.Stats.Unauthorized, runtime.Stats.CacheHits, runtime.Stats.Verifications, runtime.Stats.Busy));
     }
 
     [Fact]

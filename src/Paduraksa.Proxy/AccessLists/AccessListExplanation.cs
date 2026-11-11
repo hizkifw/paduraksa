@@ -44,6 +44,28 @@ internal static class AccessListExplanation
         return $"access list '{list.Name}': {address}; {credentials}{combined}: {answer}";
     }
 
+    /// <summary>The stable wire name of an address verdict, for the trace's facts.</summary>
+    public static string Word(AddressVerdict verdict) => verdict switch
+    {
+        AddressVerdict.Denied => "denied",
+        AddressVerdict.Allowed => "allowed",
+        AddressVerdict.NotInAllow => "notInAllowList",
+        _ => "unrestricted",
+    };
+
+    /// <summary>The stable wire name of a credential verdict, for the trace's facts. Never carries the name or the password.</summary>
+    public static string Word(CredentialVerdict verdict) => verdict switch
+    {
+        CredentialVerdict.Missing => "missing",
+        CredentialVerdict.Unreadable => "unreadable",
+        CredentialVerdict.UnknownUser => "unknownUser",
+        CredentialVerdict.WrongPassword => "wrongPassword",
+        CredentialVerdict.Verified or CredentialVerdict.VerifiedFromCache => "ok",
+        CredentialVerdict.Busy => "busy",
+        CredentialVerdict.Deferred => "deferred",
+        _ => "notAsked",
+    };
+
     private static string NotAsked(CompiledAccessList list, AccessListStage stage, AccessListOutcome outcome) =>
         !list.HasUsers ? "the list has no users"
         : outcome.Address is AddressVerdict.Denied or AddressVerdict.NotInAllow ? "no password is asked of a refused address"

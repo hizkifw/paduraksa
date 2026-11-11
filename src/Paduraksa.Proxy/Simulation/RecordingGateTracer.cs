@@ -287,6 +287,11 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             facts.Add(new("retryAfter", retryAfter));
         }
 
+        if (policy is IPolicyTraceFacts traced)
+        {
+            traced.AddFacts(in request, verdict, facts);
+        }
+
         steps.Add(new GateStep(
             scope == PolicyScope.Host ? GateStepKind.HostPolicy : GateStepKind.RoutePolicy,
             stopped ? GateStepVerdict.Stopped : GateStepVerdict.Passed,

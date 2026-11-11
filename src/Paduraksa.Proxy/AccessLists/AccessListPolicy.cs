@@ -10,6 +10,7 @@ using Paduraksa.Core.Security;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
+using Paduraksa.Proxy.Simulation;
 
 namespace Paduraksa.Proxy.AccessLists;
 
@@ -44,7 +45,7 @@ public enum AccessListStage : byte
 /// both measured 0 B); <c>AccessListPolicyTests</c> only bounds a miss at 512 B, in case a runtime's provider allocates its
 /// handles.</para>
 /// </remarks>
-public sealed class AccessListPolicy : IRequestPolicy
+public sealed class AccessListPolicy : IRequestPolicy, IPolicyTraceFacts
 {
     private static readonly PolicyDecision Busy = PolicyDecision.Respond(
         PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Please slow down.\n", htmlPage: ErrorPages.TooManyRequests), "1");
@@ -87,6 +88,15 @@ public sealed class AccessListPolicy : IRequestPolicy
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict) =>
         AccessListExplanation.Describe(_list, _stage, request.State.ClientAddress, request.State.AccessListOutcome, verdict);
 
+    void IPolicyTraceFacts.AddFacts(in RequestView request, PolicyDecision verdict, List<GateFact> facts)
+    {
+        var outcome = request.State.AccessListOutcome;
+        facts.Add(new("accessList", _list.Name));
+        facts.Add(new("address", AccessListExplanation.Word(outcome.Address)));
+        facts.Add(new("credentials", AccessListExplanation.Word(outcome.Credentials)));
+        facts.Add(new("satisfy", _list.Satisfy == AccessListSatisfy.Any ? "any" : "all"));
+    }
+
     /// <summary>Whether the address rules alone refuse <paramref name="client"/>: a denied address always, and one outside
     /// a non-empty allow list unless a password can still let it in (<c>satisfy: any</c> with users).</summary>
     internal static bool AddressRefuses(CompiledAccessList list, IpKey client)
@@ -109,6 +119,9 @@ public sealed class AccessListPolicy : IRequestPolicy
         var list = _list;
         var state = request.State;
         var client = state.ClientAddress;
+
+        // A simulation moves no counter, as it takes no token and touches no cache.
+        var stats = request.IsSimulation ? null : _runtime.Stats;
         var denied = !list.Deny.IsEmpty && list.Deny.Contains(client);
         var restrictsAddress = !list.Allow.IsEmpty;
         var inAllow = restrictsAddress && list.Allow.Contains(client);
@@ -116,7 +129,7 @@ public sealed class AccessListPolicy : IRequestPolicy
 
         if (AddressRefuses(list, client))
         {
-            _runtime.Stats.CountAddressRefused();
+            stats?.CountAddressRefused();
             return new AccessListOutcome(list.OnAddressRefused, ip, CredentialVerdict.NotAsked);
         }
 
@@ -130,21 +143,21 @@ public sealed class AccessListPolicy : IRequestPolicy
 
         if (!list.HasUsers || (inAllow && list.Satisfy == AccessListSatisfy.Any))
         {
-            _runtime.Stats.CountAllowed();
+            stats?.CountAllowed();
             return new AccessListOutcome(PolicyDecision.Continue, ip, CredentialVerdict.NotAsked);
         }
 
         if (_deferPasswords && !state.IsHttps)
         {
-            _runtime.Stats.CountAllowed();
+            stats?.CountAllowed();
             return new AccessListOutcome(PolicyDecision.Continue, ip, CredentialVerdict.Deferred);
         }
 
-        var credentials = Authenticate(request.Http.Request, client, request.IsSimulation);
+        var credentials = Authenticate(request.Http.Request, client, stats);
         switch (credentials)
         {
             case CredentialVerdict.Verified or CredentialVerdict.VerifiedFromCache:
-                _runtime.Stats.CountAllowed();
+                stats?.CountAllowed();
                 if (!list.PassCredentialsUpstream)
                 {
                     state.StripAuthorization = true;
@@ -152,16 +165,18 @@ public sealed class AccessListPolicy : IRequestPolicy
 
                 return new AccessListOutcome(PolicyDecision.Continue, ip, credentials);
             case CredentialVerdict.Busy:
-                _runtime.Stats.CountBusy();
+                stats?.CountBusy();
                 return new AccessListOutcome(Busy, ip, credentials);
             default:
-                _runtime.Stats.CountUnauthorized();
+                stats?.CountUnauthorized();
                 return new AccessListOutcome(list.Unauthorized, ip, credentials);
         }
     }
 
-    private CredentialVerdict Authenticate(HttpRequest request, IpKey client, bool simulate)
+    // stats null: a simulation, which neither reads nor writes the cache, takes no verification slot and counts nothing.
+    private CredentialVerdict Authenticate(HttpRequest request, IpKey client, AccessListStats? stats)
     {
+        var simulate = stats is null;
         var header = request.Headers.Authorization;
         if (header.Count == 0)
         {
@@ -195,15 +210,13 @@ public sealed class AccessListPolicy : IRequestPolicy
             }
         }
 
-        // A simulation neither reads nor writes the cache: it says what a verification would, and it leaves the gate's
-        // state exactly as it found it.
         ulong fingerprint = 0;
         if (user is not null && !simulate)
         {
             fingerprint = Fingerprint(user, client, credentials);
             if (_runtime.Cache.Contains(fingerprint, _runtime.NowMs))
             {
-                _runtime.Stats.CountCacheHit();
+                stats!.CountCacheHit();
                 return CredentialVerdict.VerifiedFromCache;
             }
         }
@@ -216,7 +229,7 @@ public sealed class AccessListPolicy : IRequestPolicy
         bool matches;
         try
         {
-            _runtime.Stats.CountVerification();
+            stats?.CountVerification();
             matches = PasswordHash.Verify(password, user?.Hash ?? DummyHash);
         }
         finally
@@ -298,7 +311,7 @@ internal readonly record struct AccessListOutcome(PolicyDecision Decision, Addre
 
 /// <summary>Several lists' address rules as one host-chain check, for a host whose routes name different lists: a request
 /// is refused before route matching only when no route's list could let its address in.</summary>
-public sealed class AccessListUnionPolicy : IRequestPolicy
+public sealed class AccessListUnionPolicy : IRequestPolicy, IPolicyTraceFacts
 {
     private readonly CompiledAccessList[] _lists;
     private readonly PolicyDecision _refusal;
@@ -340,6 +353,15 @@ public sealed class AccessListUnionPolicy : IRequestPolicy
     }
 
     string IRequestPolicy.Name => "accessList";
+
+    void IPolicyTraceFacts.AddFacts(in RequestView request, PolicyDecision verdict, List<GateFact> facts)
+    {
+        facts.Add(new("accessList", string.Join(", ", Array.ConvertAll(_lists, static list => list.Name))));
+
+        // Whether some route's list lets the address through to the route; passwords are the route's to ask.
+        facts.Add(new("address", verdict.Action == PolicyAction.Continue ? "allowed" : "refused"));
+        facts.Add(new("credentials", "notAsked"));
+    }
 
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict)
     {
