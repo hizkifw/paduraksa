@@ -630,9 +630,9 @@ public static class GateSimulator
         return GateReason.Forwarded;
     }
 
-    /// <summary>The path the way Kestrel hands it to the gate: percent-escapes decoded as UTF-8, except <c>%2F</c>
-    /// and <c>%5C</c>, which stay encoded (the route matching view reads them as separators; <see
-    /// cref="RoutePath"/>). Escapes that aren't valid UTF-8 stay as written: Kestrel doesn't reject them (checked
+    /// <summary>The path the way Kestrel hands it to the gate: percent-escapes decoded as UTF-8, except <c>%2F</c>,
+    /// which stays encoded (the route matching view reads it, and the <c>\</c> a <c>%5C</c> decodes to, as a separator;
+    /// <see cref="RoutePath"/>). Escapes that aren't valid UTF-8 stay as written: Kestrel doesn't reject them (checked
     /// against the real server).</summary>
     internal static string DecodePath(string raw)
     {
@@ -645,7 +645,7 @@ public static class GateSimulator
         List<byte> pending = [];
         for (var i = 0; i < raw.Length; i++)
         {
-            if (raw[i] == '%' && i + 2 < raw.Length && TryHex(raw[i + 1], raw[i + 2], out var value) && value is not (0x2F or 0x5C))
+            if (raw[i] == '%' && i + 2 < raw.Length && TryHex(raw[i + 1], raw[i + 2], out var value) && value != 0x2F)
             {
                 pending.Add(value);
                 i += 2;

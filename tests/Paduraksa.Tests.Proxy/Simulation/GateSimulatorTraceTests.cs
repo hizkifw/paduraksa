@@ -744,7 +744,8 @@ public sealed class GateSimulatorTraceTests : IDisposable
     {
         Assert.Equal("/a b/c", GateSimulator.DecodePath("/a%20b/c"));
         Assert.Equal("/é", GateSimulator.DecodePath("/%C3%A9"));
-        Assert.Equal("/a%2Fb/%5Cc", GateSimulator.DecodePath("/a%2Fb/%5Cc"));
+        Assert.Equal("/a%2Fb/\\c", GateSimulator.DecodePath("/a%2Fb/%5Cc"));
+        Assert.Equal("/a%2fb\\c", GateSimulator.DecodePath("/a%2fb%5cc"));
         Assert.Equal("/100%", GateSimulator.DecodePath("/100%"));
         Assert.Equal("/%zz", GateSimulator.DecodePath("/%zz"));
     }
