@@ -37,6 +37,7 @@ public sealed class SettingsMergeReflectionTests
             if (leaf.Name is $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}"
                 or $"{nameof(HostSettings.RateLimit)}.{nameof(RateLimitSettings.PolicyId)}"
                 or $"{nameof(HostSettings.AccessList)}.{nameof(AccessListSettings.AccessListId)}"
+                or $"{nameof(HostSettings.RuleSet)}.{nameof(RuleSetSettings.RuleSetId)}"
                 or $"{nameof(HostSettings.Robots)}.{nameof(RobotsSettings.CustomText)}")
             {
                 // The absence is the default: no named policy or list, no custom Server value and no custom robots.txt text.
@@ -118,6 +119,11 @@ public sealed class SettingsMergeReflectionTests
         if (value == typeof(AccessListId))
         {
             return AccessListId.New();
+        }
+
+        if (value == typeof(RuleSetId))
+        {
+            return RuleSetId.New();
         }
 
         if (value.IsEnum)

@@ -106,6 +106,7 @@ internal static class AdminLockoutGuard
         ClientAddress = request.ClientIp ?? IPAddress.None,
         HttpVersion = ProbeHttpVersion.Http11,
         TlsVersion = request.Https ? SslProtocols.Tls13 : SslProtocols.Tls12,
+        Headers = request.UserAgent is null ? [] : [new ProbeHeader("User-Agent", request.UserAgent)],
     };
 
     private static ConfigError Lockout(string path, string why) => new(

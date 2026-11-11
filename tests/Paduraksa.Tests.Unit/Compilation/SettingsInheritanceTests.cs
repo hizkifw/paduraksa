@@ -252,6 +252,22 @@ public sealed class SettingsInheritanceTests
             BuiltIn: "8192",
             First: "2048",
             Second: "16384"),
+        new(
+            "ruleSet.enabled",
+            static s => s.RuleSet?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { RuleSet = new RuleSetSettings { Enabled = bool.Parse(v) } },
+            static h => h.RuleSet.Enabled ? "true" : "false",
+            BuiltIn: "true",
+            First: "false",
+            Second: "true"),
+        new(
+            "ruleSet.ruleSetId",
+            static s => s.RuleSet?.RuleSetId?.ToString(),
+            static v => new HostSettings { RuleSet = new RuleSetSettings { RuleSetId = RuleSetId.Parse(v) } },
+            static h => h.RuleSet.RuleSetId.IsEmpty ? null : h.RuleSet.RuleSetId.ToString(),
+            BuiltIn: null,
+            First: Id<RuleSetId>(1).ToString()!,
+            Second: Id<RuleSetId>(2).ToString()!),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -462,6 +478,11 @@ public sealed class SettingsInheritanceTests
             new AccessListConfig(Id<AccessListId>(1), "one"),
             new AccessListConfig(Id<AccessListId>(2), "two"),
         ],
+        RuleSets:
+        [
+            new RuleSetConfig(Id<RuleSetId>(1), "one"),
+            new RuleSetConfig(Id<RuleSetId>(2), "two"),
+        ],
         Hosts: [new HostConfig(AppHost, ["app.example.com"], ProfileId: profile is null ? null : LanProfile, Settings: host, Routes: [new RouteConfig(RootRoute, AppUpstream)])]);
 
     /// <summary>One nested settings record and which of its fields each layer sets.</summary>
@@ -491,6 +512,7 @@ public sealed class SettingsInheritanceTests
         new("cloudflare", Defaults: ["cloudflare.originLockdown"], Profile: [], Host: ["cloudflare.authenticatedOriginPulls"]),
         new("accessList", Defaults: ["accessList.enabled"], Profile: [], Host: ["accessList.accessListId"]),
         new("requestLimits", Defaults: ["requestLimits.maxBodySize", "requestLimits.maxHeaderCount"], Profile: ["requestLimits.maxHeaderBytes"], Host: ["requestLimits.maxUrlLength"]),
+        new("ruleSet", Defaults: ["ruleSet.enabled"], Profile: [], Host: ["ruleSet.ruleSetId"]),
     ];
 
     /// <summary>

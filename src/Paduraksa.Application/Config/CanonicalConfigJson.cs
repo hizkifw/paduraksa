@@ -164,6 +164,7 @@ public static class CanonicalConfigJson
             Upstreams = [.. NonNull(document.Upstreams).OrderBy(u => u.Id).Select(Canonical)],
             RateLimitPolicies = [.. NonNull(document.RateLimitPolicies).OrderBy(p => p.Id).Select(Canonical)],
             AccessLists = [.. NonNull(document.AccessLists).OrderBy(l => l.Id).Select(Canonical)],
+            RuleSets = [.. NonNull(document.RuleSets).OrderBy(r => r.Id).Select(Canonical)],
             Hosts = [.. NonNull(document.Hosts).OrderBy(h => h.Id).Select(Canonical)],
         };
     }
@@ -180,9 +181,9 @@ public static class CanonicalConfigJson
         }
 
         if (document.Settings?.TrustedProxies is null || document.Profiles is null || document.Upstreams is null || document.Hosts is null
-            || document.RateLimitPolicies is null || document.AccessLists is null)
+            || document.RateLimitPolicies is null || document.AccessLists is null || document.RuleSets is null)
         {
-            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams, rate-limit policies, access lists and hosts (empty lists, not null).");
+            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams, rate-limit policies, access lists, rule sets and hosts (empty lists, not null).");
         }
 
         try
@@ -238,6 +239,19 @@ public static class CanonicalConfigJson
             Check(list.Ip?.Allow, $"$.accessLists[{i}].ip.allow");
             Check(list.Ip?.Deny, $"$.accessLists[{i}].ip.deny");
             Check(list.BasicAuth?.Users, $"$.accessLists[{i}].basicAuth.users");
+        }
+
+        Check(document.RuleSets, "$.ruleSets");
+        for (var i = 0; i < document.RuleSets.Count; i++)
+        {
+            var set = document.RuleSets[i];
+            Check(set.Rules, $"$.ruleSets[{i}].rules");
+            for (var j = 0; j < (set.Rules?.Count ?? 0); j++)
+            {
+                var match = set.Rules![j]?.Match;
+                Check(match?.Methods, $"$.ruleSets[{i}].rules[{j}].match.methods");
+                Check(match?.UserAgent?.Contains, $"$.ruleSets[{i}].rules[{j}].match.userAgent.contains");
+            }
         }
 
         Check(document.Hosts, "$.hosts");
@@ -360,6 +374,30 @@ public static class CanonicalConfigJson
             : null,
     };
 
+    // A condition that states nothing is no condition (the validator has already refused a rule that has none at all), and the
+    // sets are sets: methods upper case, substrings trimmed and unique ignoring case, both sorted.
+    private static RuleSetConfig Canonical(RuleSetConfig set) => set with
+    {
+        Name = ConfigNormalization.NormalizeName(set.Name),
+        Notes = ConfigNormalization.NormalizeNotes(set.Notes),
+        Rules = [.. NonNull(set.Rules).Select(Canonical)],
+    };
+
+    private static RuleConfig Canonical(RuleConfig rule)
+    {
+        var match = rule.Match ?? new RuleMatchConfig();
+        var methods = SortedSet(match.Methods, static method => (method ?? string.Empty).Trim().ToUpperInvariant());
+        var agents = NonNull(match.UserAgent?.Contains).Select(Trim).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToArray();
+        return rule with
+        {
+            Match = match with
+            {
+                Methods = methods.Length > 0 ? methods : null,
+                UserAgent = agents.Length > 0 || match.UserAgent is { Empty: true } ? new RuleUserAgentConfig(agents, match.UserAgent!.Empty) : null,
+            },
+        };
+    }
+
     private static HostConfig Canonical(HostConfig host) => host with
     {
         Names = SortedSet(host.Names, ConfigNormalization.CanonicalHostName),
@@ -399,6 +437,7 @@ public static class CanonicalConfigJson
             RateLimit = DropIfNothingSet(route.Settings?.RateLimit),
             AccessList = DropIfNothingSet(route.Settings?.AccessList),
             RequestLimits = DropIfNothingSet(route.Settings?.RequestLimits),
+            RuleSet = DropIfNothingSet(route.Settings?.RuleSet),
         },
     };
 
@@ -416,6 +455,7 @@ public static class CanonicalConfigJson
             Cloudflare = DropIfNothingSet(settings.Cloudflare),
             AccessList = DropIfNothingSet(settings.AccessList),
             RequestLimits = DropIfNothingSet(settings.RequestLimits),
+            RuleSet = DropIfNothingSet(settings.RuleSet),
         };
     }
 

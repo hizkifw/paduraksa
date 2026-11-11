@@ -99,6 +99,16 @@ public static class ConfigDiff
             changes);
 
         Objects(
+            old.RuleSets,
+            @new.RuleSets,
+            r => r.Id,
+            "/ruleSets",
+            json.RuleSetConfig,
+            (kind, id, path, fields) => new RuleSetChange(kind, id, path, fields),
+            children: null,
+            changes);
+
+        Objects(
             old.Hosts,
             @new.Hosts,
             h => h.Id,

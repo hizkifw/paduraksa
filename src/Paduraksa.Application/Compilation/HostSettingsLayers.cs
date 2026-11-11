@@ -18,7 +18,7 @@ namespace Paduraksa.Application.Compilation;
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
-/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>) merge field by field and stay absent when
+/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>, <see cref="HostSettings.RuleSet"/>) merge field by field and stay absent when
 /// neither layer sets a field of theirs. Everything else is a plain override.</para>
 /// </remarks>
 public static class HostSettingsLayers
@@ -48,6 +48,7 @@ public static class HostSettingsLayers
     private const int BuiltInMaxHeaderCount = RequestLimitBounds.DefaultMaxHeaderCount;
     private const int BuiltInMaxHeaderBytes = RequestLimitBounds.DefaultMaxHeaderBytes;
     private const int BuiltInMaxUrlLength = RequestLimitBounds.DefaultMaxUrlLength;
+    private const bool BuiltInRuleSetEnabled = true;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -75,6 +76,7 @@ public static class HostSettingsLayers
             MaxHeaderBytes = BuiltInMaxHeaderBytes,
             MaxUrlLength = BuiltInMaxUrlLength,
         },
+        RuleSet = new RuleSetSettings { Enabled = BuiltInRuleSetEnabled },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -104,6 +106,7 @@ public static class HostSettingsLayers
             Cloudflare = Merge(lower.Cloudflare, upper.Cloudflare),
             AccessList = Merge(lower.AccessList, upper.AccessList),
             RequestLimits = Merge(lower.RequestLimits, upper.RequestLimits),
+            RuleSet = Merge(lower.RuleSet, upper.RuleSet),
         };
     }
 
@@ -285,6 +288,24 @@ public static class HostSettingsLayers
         return merged.SetsNothing ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static RuleSetSettings? Merge(RuleSetSettings? lower, RuleSetSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        RuleSetSettings merged = new()
+        {
+            Enabled = upper.Enabled ?? lower?.Enabled,
+            RuleSetId = upper.RuleSetId ?? lower?.RuleSetId,
+        };
+
+        return merged is { Enabled: null, RuleSetId: null } ? null : merged;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));
@@ -297,6 +318,16 @@ public static class HostSettingsLayers
         return own is null
             ? host.AccessList
             : new HostAccessListSpec { Enabled = own.Enabled ?? host.AccessList.Enabled, AccessListId = own.AccessListId ?? host.AccessList.AccessListId };
+    }
+
+    /// <summary>The effective rule set of a route: the route's own switch and set, field by field, over the host's
+    /// resolved ones. So a route inherits, names another set, or turns the rules off.</summary>
+    internal static HostRuleSetSpec ResolveRouteRuleSet(EffectiveHostSettings host, RouteSettings? route)
+    {
+        var own = route?.RuleSet;
+        return own is null
+            ? host.RuleSet
+            : new HostRuleSetSpec { Enabled = own.Enabled ?? host.RuleSet.Enabled, RuleSetId = own.RuleSetId ?? host.RuleSet.RuleSetId };
     }
 
     /// <summary>The effective proof of work of a route: its own switch over the host's resolved values.</summary>
@@ -379,6 +410,7 @@ public static class HostSettingsLayers
         var cloudflare = settings.Cloudflare ?? new CloudflareSettings();
         var accessList = settings.AccessList ?? new AccessListSettings();
         var requestLimits = settings.RequestLimits ?? new RequestLimitsSettings();
+        var ruleSet = settings.RuleSet ?? new RuleSetSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -439,6 +471,12 @@ public static class HostSettingsLayers
                 MaxHeaderCount = requestLimits.MaxHeaderCount ?? BuiltInMaxHeaderCount,
                 MaxHeaderBytes = requestLimits.MaxHeaderBytes ?? BuiltInMaxHeaderBytes,
                 MaxUrlLength = requestLimits.MaxUrlLength ?? BuiltInMaxUrlLength,
+            },
+            new HostRuleSetSpec
+            {
+                // Naming a set is enough: only a layer that says otherwise turns it off.
+                Enabled = ruleSet.Enabled ?? BuiltInRuleSetEnabled,
+                RuleSetId = ruleSet.RuleSetId ?? RuleSetId.Empty,
             });
     }
 }
@@ -469,6 +507,7 @@ public enum SettingsLayer
 /// <param name="Cloudflare">Origin lockdown and Authenticated Origin Pulls.</param>
 /// <param name="AccessList">The access list in force, with the switch as it resolved.</param>
 /// <param name="RequestLimits">The body, header and request-target limits.</param>
+/// <param name="RuleSet">The rule set in force, with the switch as it resolved.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -481,4 +520,5 @@ internal sealed record EffectiveHostSettings(
     HostRobotsSpec Robots,
     HostCloudflareSpec Cloudflare,
     HostAccessListSpec AccessList,
-    HostRequestLimitsSpec RequestLimits);
+    HostRequestLimitsSpec RequestLimits,
+    HostRuleSetSpec RuleSet);

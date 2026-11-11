@@ -62,7 +62,8 @@ public static class AdminInternalRequestExtensions
         return new AdminRequestFacts(
             host,
             context.Request.IsHttps,
-            context.Connection.RemoteIpAddress is { IsIPv4MappedToIPv6: true } mapped ? mapped.MapToIPv4() : context.Connection.RemoteIpAddress);
+            context.Connection.RemoteIpAddress is { IsIPv4MappedToIPv6: true } mapped ? mapped.MapToIPv4() : context.Connection.RemoteIpAddress,
+            context.Request.Headers.UserAgent.Count == 0 ? null : context.Request.Headers.UserAgent.ToString());
     }
 }
 

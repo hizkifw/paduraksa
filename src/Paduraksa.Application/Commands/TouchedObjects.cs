@@ -19,6 +19,8 @@ internal sealed class TouchedObjects
 
     public HashSet<AccessListId> AccessLists { get; } = [];
 
+    public HashSet<RuleSetId> RuleSets { get; } = [];
+
     public HashSet<HostId> Hosts { get; } = [];
 
     public static TouchedObjects From(IReadOnlyList<ConfigChange> changes)
@@ -43,6 +45,9 @@ internal sealed class TouchedObjects
                     break;
                 case AccessListChange l:
                     touched.AccessLists.Add(l.AccessListId);
+                    break;
+                case RuleSetChange r:
+                    touched.RuleSets.Add(r.RuleSetId);
                     break;
                 case HostChange h:
                     touched.Hosts.Add(h.HostId);

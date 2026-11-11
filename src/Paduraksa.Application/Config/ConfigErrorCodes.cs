@@ -36,6 +36,16 @@ public static class ConfigErrorCodes
     public const string AccessListPasswordEmpty = "accessList.user.password.empty";
     public const string AccessListPasswordTooLong = "accessList.user.password.tooLong";
     public const string AccessListPasswordUnhashed = "accessList.user.password.unhashed";
+    public const string RuleSetIdReserved = "ruleSet.id.reserved";
+    public const string RuleSetRulesTooMany = "ruleSet.rules.tooMany";
+    public const string RuleEmpty = "ruleSet.rule.empty";
+    public const string RulePathInvalid = "ruleSet.rule.path.invalid";
+    public const string RulePathEncoded = "ruleSet.rule.path.encoded";
+    public const string RulePathNotCanonical = "ruleSet.rule.path.notCanonical";
+    public const string RulePathGlobInvalid = "ruleSet.rule.path.glob.invalid";
+    public const string RulePathRegexInvalid = "ruleSet.rule.path.regex.invalid";
+    public const string RuleMethodsInvalid = "ruleSet.rule.methods.invalid";
+    public const string RuleUserAgentInvalid = "ruleSet.rule.userAgent.invalid";
     public const string HstsMaxAgeInvalid = "hsts.maxAge.invalid";
     public const string HstsPreloadNeedsIncludeSubDomains = "hsts.preload.needsIncludeSubDomains";
     public const string HstsPreloadMaxAgeTooShort = "hsts.preload.maxAgeTooShort";
@@ -89,6 +99,7 @@ public static class ConfigErrorCodes
     public const string HostProfileUnknown = "host.profile.unknown";
     public const string HostRateLimitUnknown = "host.rateLimit.unknown";
     public const string HostAccessListUnknown = "host.accessList.unknown";
+    public const string HostRuleSetUnknown = "host.ruleSet.unknown";
     public const string HostCertificateIdRequired = "host.certificate.idRequired";
     public const string HostCertificateIdUnexpected = "host.certificate.idUnexpected";
     public const string HostCertificateNoneWithForceHttps = "host.certificate.noneWithForceHttps";
@@ -122,4 +133,5 @@ public static class ConfigErrorCodes
     public const string RouteUpstreamUnknown = "route.upstream.unknown";
     public const string RouteRateLimitUnknown = "route.rateLimit.unknown";
     public const string RouteAccessListUnknown = "route.accessList.unknown";
+    public const string RouteRuleSetUnknown = "route.ruleSet.unknown";
 }

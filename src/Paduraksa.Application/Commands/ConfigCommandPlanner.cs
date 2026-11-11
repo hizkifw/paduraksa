@@ -202,6 +202,8 @@ internal static class ConfigCommandPlanner
             DeleteRateLimitPolicyCommand c => new("config.rate_limit_policy.delete", c.RateLimitPolicyId.ToString()),
             UpsertAccessListCommand c => new($"config.access_list.{Verb(Required(c.AccessList).Version)}", c.AccessList.Id.ToString()),
             DeleteAccessListCommand c => new("config.access_list.delete", c.AccessListId.ToString()),
+            UpsertRuleSetCommand c => new($"config.rule_set.{Verb(Required(c.RuleSet).Version)}", c.RuleSet.Id.ToString()),
+            DeleteRuleSetCommand c => new("config.rule_set.delete", c.RuleSetId.ToString()),
             UpsertProfileCommand c => new($"config.profile.{Verb(Required(c.Profile).Version)}",
                 c.Profile.Id.ToString()),
             DeleteProfileCommand c => new("config.profile.delete", c.ProfileId.ToString()),

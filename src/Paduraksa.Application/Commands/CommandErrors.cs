@@ -11,7 +11,7 @@ namespace Paduraksa.Application.Commands;
 internal static class CommandErrors
 {
     /// <summary>The top-level lists whose elements are objects with IDs.</summary>
-    private static readonly string[] ObjectLists = ["profiles", "upstreams", "rateLimitPolicies", "accessLists", "hosts"];
+    private static readonly string[] ObjectLists = ["profiles", "upstreams", "rateLimitPolicies", "accessLists", "ruleSets", "hosts"];
 
     /// <summary>
     /// Splits <paramref name="errors"/>: those at or below <paramref name="ownPath"/> (the sent object's pointer in the
@@ -66,6 +66,7 @@ internal static class CommandErrors
         "upstreams" => [.. (document.Upstreams ?? []).Select(u => u?.Id.ToString() ?? string.Empty)],
         "rateLimitPolicies" => [.. (document.RateLimitPolicies ?? []).Select(p => p?.Id.ToString() ?? string.Empty)],
         "accessLists" => [.. (document.AccessLists ?? []).Select(l => l?.Id.ToString() ?? string.Empty)],
+        "ruleSets" => [.. (document.RuleSets ?? []).Select(r => r?.Id.ToString() ?? string.Empty)],
         "hosts" => [.. (document.Hosts ?? []).Select(h => h?.Id.ToString() ?? string.Empty)],
         _ => throw new ArgumentOutOfRangeException(nameof(list), list, "Not an object list."),
     };

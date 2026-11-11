@@ -92,7 +92,7 @@ public sealed record DeleteAccessListCommand(AccessListId AccessListId, long Ver
 /// <param name="RuleSet">The set as it should be. Its <see cref="RuleSetConfig.Version"/> is the version edited.</param>
 public sealed record UpsertRuleSetCommand(RuleSetConfig RuleSet) : ConfigCommand;
 
-/// <summary>Deletes a rule set; no host, profile, global default or route may still name it.</summary>
+/// <summary>Deletes a rule set; no host may still resolve to it, directly, through its profile or the global defaults, and no route may name it.</summary>
 /// <param name="RuleSetId">The set.</param>
 /// <param name="Version">The version the caller saw.</param>
 public sealed record DeleteRuleSetCommand(RuleSetId RuleSetId, long Version) : ConfigCommand;

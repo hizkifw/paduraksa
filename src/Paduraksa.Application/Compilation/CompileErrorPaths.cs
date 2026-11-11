@@ -20,6 +20,7 @@ internal sealed class CompileErrorPaths
     private readonly Dictionary<(UpstreamId, DestinationId), (int Upstream, int Destination)> _destinations = [];
     private readonly Dictionary<RateLimitPolicyId, int> _rateLimitPolicies = [];
     private readonly Dictionary<AccessListId, int> _accessLists = [];
+    private readonly Dictionary<RuleSetId, int> _ruleSets = [];
 
     public CompileErrorPaths(ConfigDocument document)
     {
@@ -79,6 +80,15 @@ internal sealed class CompileErrorPaths
                 _accessLists[list.Id] = i;
             }
         }
+
+        var sets = document.RuleSets ?? [];
+        for (var i = 0; i < sets.Count; i++)
+        {
+            if (sets[i] is { } set)
+            {
+                _ruleSets[set.Id] = i;
+            }
+        }
     }
 
     public string Of(CompileErrorSource source) => source switch
@@ -95,6 +105,9 @@ internal sealed class CompileErrorPaths
             : string.Empty,
         AccessListErrorSource list => _accessLists.TryGetValue(list.ListId, out var at)
             ? $"/accessLists/{at}"
+            : string.Empty,
+        RuleSetErrorSource set => _ruleSets.TryGetValue(set.SetId, out var at)
+            ? $"/ruleSets/{at}"
             : string.Empty,
         DestinationErrorSource destination => _destinations.TryGetValue((destination.UpstreamId, destination.DestinationId), out var at)
             ? $"/upstreams/{at.Upstream}/destinations/{at.Destination}"

@@ -101,6 +101,7 @@ public static class ProxyConfigMapping
                     .Select(static p => p!),
             ],
             AccessLists = [.. canonical.AccessLists.Select(l => MapAccessList(l, credentials, pending, errors, warnings))],
+            RuleSets = MapRuleSets(canonical),
             Defaults = new DefaultsSpec
             {
                 UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
@@ -237,6 +238,7 @@ public static class ProxyConfigMapping
         AddCloudflareWarnings(host, effective.Cloudflare, proxyMode, where, warnings);
 
         var (hostChain, routeChains) = AccessListChains(host, effective, accessLists);
+        AddRuleSets(host, effective, accessLists, ref hostChain, routeChains);
 
         var routes = new RouteSpec[host.Routes.Count];
         for (var j = 0; j < routes.Length; j++)
@@ -258,6 +260,7 @@ public static class ProxyConfigMapping
                 AccessList = HostSettingsLayers.ResolveRouteAccessList(effective, route.Settings).Effective,
                 MaxBodySize = HostSettingsLayers.ResolveRouteMaxBodySize(effective, route.Settings),
                 MaxBodySizeRouteOverride = HostSettingsLayers.RouteOverridesMaxBodySize(route.Settings),
+                RuleSet = HostSettingsLayers.ResolveRouteRuleSet(effective, route.Settings).Effective,
             };
         }
 
@@ -335,6 +338,7 @@ public static class ProxyConfigMapping
             RateLimit = effective.RateLimit,
             AccessList = effective.AccessList,
             RequestLimits = effective.RequestLimits,
+            RuleSet = effective.RuleSet,
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
             Routes = routes,
@@ -431,6 +435,120 @@ public static class ProxyConfigMapping
         }
 
         return (hostChain, routeChains);
+    }
+
+    /// <summary>
+    /// The rule-set policies, added to the chains the access list built. A set goes immediately before the first full access-list
+    /// policy that has users, so a request a rule refuses never costs a PBKDF2; that list's own address checks, being part of the
+    /// same policy, come after the set. It goes after the address-only policies and the union (the host chain's refusal by
+    /// address), which are as cheap and can refuse for a better reason, and after a full list that has no users, which is only
+    /// address rules. Where the set goes follows the access list's rule: when every route
+    /// ends up with the same set (none overrides the host's, or all override it alike), or the host has no routes, it
+    /// guards everything the host answers from the host chain; otherwise each route carries its own, since a route's set
+    /// replaces the host's and a deny can't be lifted by a union.
+    /// </summary>
+    private static void AddRuleSets(
+        HostConfig host,
+        EffectiveHostSettings effective,
+        Dictionary<AccessListId, AccessListConfig> lists,
+        ref PolicySpec[] hostChain,
+        PolicySpec[][] routeChains)
+    {
+        if (host.Routes.Count == 0)
+        {
+            if (effective.RuleSet.Effective is { } only)
+            {
+                hostChain = InsertRuleSet(hostChain, new RuleSetPolicySpec(only), lists);
+            }
+
+            return;
+        }
+
+        RuleSetId?[] named = [.. host.Routes.Select(r => HostSettingsLayers.ResolveRouteRuleSet(effective, r.Settings).Effective)];
+        if (named.All(id => id == named[0]))
+        {
+            if (named[0] is { } shared)
+            {
+                hostChain = InsertRuleSet(hostChain, new RuleSetPolicySpec(shared), lists);
+            }
+
+            return;
+        }
+
+        for (var j = 0; j < routeChains.Length; j++)
+        {
+            if (named[j] is { } id)
+            {
+                var own = host.Routes[j].Settings.RuleSet is { Enabled: not null } or { RuleSetId: not null };
+                routeChains[j] = InsertRuleSet(routeChains[j], new RuleSetPolicySpec(id, own), lists);
+            }
+        }
+    }
+
+    private static PolicySpec[] InsertRuleSet(PolicySpec[] chain, RuleSetPolicySpec policy, Dictionary<AccessListId, AccessListConfig> lists)
+    {
+        var at = Array.FindIndex(chain, spec => spec is AccessListPolicySpec { Stage: AccessListStage.Full } access
+            && lists.TryGetValue(access.List, out var list) && list.BasicAuth is { Users.Count: > 0 });
+        return at < 0 ? [.. chain, policy] : [.. chain[..at], policy, .. chain[at..]];
+    }
+
+    /// <summary>The document's rule sets, and the built-in presets something names (a preset no layer names isn't compiled).</summary>
+    private static RuleSetSpec[] MapRuleSets(ConfigDocument document)
+    {
+        HashSet<RuleSetId> named = [];
+        void Collect(HostSettings? settings)
+        {
+            if (settings?.RuleSet?.RuleSetId is { } id)
+            {
+                named.Add(id);
+            }
+        }
+
+        Collect(document.Settings.Defaults);
+        foreach (var profile in document.Profiles)
+        {
+            Collect(profile.Settings);
+        }
+
+        foreach (var host in document.Hosts)
+        {
+            Collect(host.Settings);
+            foreach (var route in host.Routes)
+            {
+                if (route.Settings?.RuleSet?.RuleSetId is { } id)
+                {
+                    named.Add(id);
+                }
+            }
+        }
+
+        HashSet<RuleSetId> inDocument = [.. document.RuleSets.Select(static set => set.Id)];
+        return
+        [
+            .. document.RuleSets.Select(MapRuleSet),
+            .. RuleSetPresets.All.Where(preset => named.Contains(preset.Id) && !inDocument.Contains(preset.Id)).Select(MapRuleSet),
+        ];
+    }
+
+    private static RuleSetSpec MapRuleSet(RuleSetConfig set) => new()
+    {
+        Id = set.Id,
+        Name = set.Name,
+        Rules = [.. set.Rules.Select(MapRule)],
+    };
+
+    private static RuleSpec MapRule(RuleConfig rule)
+    {
+        var match = rule.Match ?? new RuleMatchConfig();
+        return new RuleSpec
+        {
+            Action = rule.Action,
+            PathKind = match.Path?.Kind,
+            Pattern = match.Path?.Pattern,
+            Methods = match.Methods ?? [],
+            UserAgentContains = match.UserAgent?.Contains ?? [],
+            UserAgentEmpty = match.UserAgent?.Empty ?? false,
+        };
     }
 
     /// <summary>Whether the address rules alone can turn a request away before a route is known: a denied address or country

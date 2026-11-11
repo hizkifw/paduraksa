@@ -36,6 +36,7 @@ public sealed class CanonicalConfigGoldenTests
                     ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 16, TokenLifetimeHours = 168 },
                     RateLimit = new RateLimitSettings { Enabled = true, PolicyId = ApiPolicy },
                     AccessList = new AccessListSettings { Enabled = true, AccessListId = LanList },
+                    RuleSet = new RuleSetSettings { Enabled = true, RuleSetId = Scanners },
                 },
                 UnknownHost: UnknownHostBehaviour.MisdirectedRequest,
                 TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareProxy, [], UseTrueClientIp: true)),
@@ -83,6 +84,7 @@ public sealed class CanonicalConfigGoldenTests
                         ProofOfWork = new ProofOfWorkSettings { Difficulty = 18, TokenLifetimeHours = 720 },
                         RateLimit = new RateLimitSettings { PolicyId = ApiPolicy },
                         AccessList = new AccessListSettings { Enabled = false },
+                        RuleSet = new RuleSetSettings { Enabled = false },
                     },
                     Routes:
                     [
@@ -92,6 +94,7 @@ public sealed class CanonicalConfigGoldenTests
                             ProofOfWork = new ProofOfWorkSettings { Enabled = true },
                             RateLimit = new RateLimitSettings { Enabled = false, PolicyId = ApiPolicy },
                             AccessList = new AccessListSettings { Enabled = true, AccessListId = LanList },
+                            RuleSet = new RuleSetSettings { RuleSetId = RuleSetId.FromValue(new Guid("0190a000-0000-7000-8000-72756c650002")) },
                         }),
                     ],
                     Tags: ["media"]),
@@ -111,9 +114,24 @@ public sealed class CanonicalConfigGoldenTests
                     BasicAuth: new AccessListBasicAuth("Staff", [new AccessListUserConfig("bob", Id<PasswordCredentialId>(2)), new AccessListUserConfig("alice", Id<PasswordCredentialId>(1))]),
                     Satisfy: AccessListSatisfy.Any,
                     PassCredentialsUpstream: true),
+            ],
+            RuleSets:
+            [
+                new RuleSetConfig(
+                    Scanners,
+                    "Scanners",
+                    Version: 3,
+                    Notes: "known noise",
+                    Rules:
+                    [
+                        new RuleConfig(RuleAction.Allow, new RuleMatchConfig(Path: new RulePathConfig(RulePathKind.Prefix, "/health"))),
+                        new RuleConfig(RuleAction.Deny, new RuleMatchConfig(Path: new RulePathConfig(RulePathKind.Glob, "/**/.env"), Methods: ["POST", "GET"])),
+                        new RuleConfig(RuleAction.Drop, new RuleMatchConfig(UserAgent: new RuleUserAgentConfig(["sqlmap", "Nikto"], Empty: true))),
+                        new RuleConfig(RuleAction.Deny, new RuleMatchConfig(Path: new RulePathConfig(RulePathKind.Regex, @"\.(php|asp)$"))),
+                    ]),
             ]);
 
-        AssertPinned(document, "C4524F327DF9046F83CBFE80AFDE6BEA9E367209BC4FB3C033A5CFC48E0FD1E4");
+        AssertPinned(document, "9E4FBFA9651CBF370A3A7AE7035DE0EA7F8E253A50CAA6B193772E58A7B28844");
     }
 
     [Fact]
@@ -144,13 +162,14 @@ public sealed class CanonicalConfigGoldenTests
                         ProofOfWork = new ProofOfWorkSettings(),
                         RateLimit = new RateLimitSettings(),
                         AccessList = new AccessListSettings(),
+                        RuleSet = new RuleSetSettings(),
                     },
                 },
             ],
         };
 
         Assert.Equal(CanonicalConfigJson.Serialize(bare), CanonicalConfigJson.Serialize(emptyLayers));
-        AssertPinned(bare, "A2CF517FF9E8B1D6E7DF241080EFEFD0240B076B1ABF98905B34674F09E71417");
+        AssertPinned(bare, "2628BDA06AAC87EEE67EBE1B330C09AADBA6A564532A169B5DBC5AE2A336F38A");
     }
 
     private static void AssertPinned(ConfigDocument document, string expectedSha256)

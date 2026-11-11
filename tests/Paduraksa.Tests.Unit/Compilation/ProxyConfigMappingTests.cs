@@ -124,6 +124,7 @@ public sealed class ProxyConfigMappingTests
                     Policies = [],
                     RateLimit = new HostRateLimitSpec { Enabled = true },
                     AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Lan.Id },
+                    RuleSet = new HostRuleSetSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -134,6 +135,7 @@ public sealed class ProxyConfigMappingTests
                     Routes = [new RouteSpec { Id = Id<RouteId>(4), Upstream = AppUpstream }],
                     RateLimit = new HostRateLimitSpec { Enabled = true },
                     AccessList = new HostAccessListSpec { Enabled = true },
+                    RuleSet = new HostRuleSetSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -147,6 +149,7 @@ public sealed class ProxyConfigMappingTests
                     Redirect = new RedirectSpec { Target = "https://app.example.com", StatusCode = 308 },
                     RateLimit = new HostRateLimitSpec { Enabled = true },
                     AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Lan.Id },
+                    RuleSet = new HostRuleSetSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -159,6 +162,7 @@ public sealed class ProxyConfigMappingTests
                     Respond = new RespondSpec { StatusCode = 503, Body = "soon" },
                     RateLimit = new HostRateLimitSpec { Enabled = true },
                     AccessList = new HostAccessListSpec { Enabled = true },
+                    RuleSet = new HostRuleSetSpec { Enabled = true },
                 },
             ],
             AccessLists =

@@ -49,8 +49,67 @@ public sealed class CanonicalConfigJsonTests
             + "\"notes\":\"\\u003Cb\\u003E\",\"certificate\":{\"mode\":\"auto\"},\"settings\":{\"tls\":{\"minimumVersion\":\"tls13\"}},"
             + $"\"routes\":[{{\"id\":\"{RootRoute}\",\"upstreamId\":\"{AppUpstream}\",\"order\":0,\"match\":\"prefix\",\"path\":\"/\",\"settings\":{{}}}}],"
             + "\"tags\":[]}],"
-            + "\"rateLimitPolicies\":[],\"accessLists\":[]}",
+            + "\"rateLimitPolicies\":[],\"accessLists\":[],\"ruleSets\":[]}",
             json);
+    }
+
+    [Fact]
+    public void RuleSetsAreWrittenInIdOrderWithTheirConditionsAsSets()
+    {
+        RuleSetConfig later = new(Id<RuleSetId>(2), "  Later  ");
+        RuleSetConfig first = new(
+            Id<RuleSetId>(1),
+            "First",
+            Rules:
+            [
+                new RuleConfig(
+                    RuleAction.Deny,
+                    new RuleMatchConfig(
+                        new RulePathConfig(RulePathKind.Prefix, "/admin"),
+                        [" post", "GET", "get", "POST"],
+                        new RuleUserAgentConfig([" sqlmap ", "Nikto", "SQLMAP", "nikto"], Empty: false))),
+                new RuleConfig(RuleAction.Allow, new RuleMatchConfig(Methods: [], UserAgent: new RuleUserAgentConfig([], Empty: true))),
+            ]);
+
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(new ConfigDocument(RuleSets: [later, first])));
+
+        Assert.Contains(
+            "\"ruleSets\":["
+            + $"{{\"id\":\"{first.Id}\",\"name\":\"First\",\"version\":0,\"rules\":["
+            + "{\"action\":\"deny\",\"match\":{\"path\":{\"kind\":\"prefix\",\"pattern\":\"/admin\"},\"methods\":[\"GET\",\"POST\"],\"userAgent\":{\"empty\":false,\"contains\":[\"Nikto\",\"sqlmap\"]}}},"
+            + "{\"action\":\"allow\",\"match\":{\"userAgent\":{\"empty\":true,\"contains\":[]}}}]},"
+            + $"{{\"id\":\"{later.Id}\",\"name\":\"Later\",\"version\":0,\"rules\":[]}}]",
+            json,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ACanonicalDocumentWithRuleSetsRoundTripsToTheSameBytes()
+    {
+        ConfigDocument document = new(
+            RuleSets:
+            [
+                new RuleSetConfig(
+                    Id<RuleSetId>(1),
+                    "Rules",
+                    Rules: [new RuleConfig(RuleAction.Drop, new RuleMatchConfig(new RulePathConfig(RulePathKind.Regex, @"\.(php|asp)$"), ["POST"]))]),
+            ]);
+        var bytes = CanonicalConfigJson.Serialize(document);
+
+        Assert.Equal(bytes, CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(bytes)));
+    }
+
+    [Fact]
+    public void ADocumentStoredBeforeRuleSetsReadsWithNoneAndOnlyGainsTheEmptyList()
+    {
+        var before = """{"apiVersion":"paduraksa.dev/v1","settings":{"version":0,"unknownHost":"notFound","defaults":{},"trustedProxies":{"mode":"off","useTrueClientIp":false,"forwardedForFallback":false,"trustForwardedProto":false,"proxies":[]}},"profiles":[],"upstreams":[],"hosts":[],"rateLimitPolicies":[],"accessLists":[]}"""u8.ToArray();
+
+        var document = CanonicalConfigJson.Deserialize(before);
+
+        Assert.Empty(document.RuleSets);
+        Assert.Equal(
+            Encoding.UTF8.GetString(before).Replace("\"accessLists\":[]}", "\"accessLists\":[],\"ruleSets\":[]}", StringComparison.Ordinal),
+            Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)));
     }
 
     [Fact]
@@ -529,6 +588,10 @@ public sealed class CanonicalConfigJsonTests
     [InlineData("""{"accessLists":[{"id":"acl_0000000000000000000001","name":"a","ip":{"allow":[null]}}]}""", "/accessLists/0/ip/allow/0")]
     [InlineData("""{"accessLists":[{"id":"acl_0000000000000000000001","name":"a","ip":{"allow":["::1"],"deny":["::1",null]}}]}""", "/accessLists/0/ip/deny/1")]
     [InlineData("""{"accessLists":[{"id":"acl_0000000000000000000001","name":"a","basicAuth":{"users":[null]}}]}""", "/accessLists/0/basicAuth/users/0")]
+    [InlineData("""{"ruleSets":[null]}""", "/ruleSets/0")]
+    [InlineData("""{"ruleSets":[{"id":"rs_0000000000000000000001","name":"a","rules":[null]}]}""", "/ruleSets/0/rules/0")]
+    [InlineData("""{"ruleSets":[{"id":"rs_0000000000000000000001","name":"a","rules":[{"action":"deny","match":{"methods":[null]}}]}]}""", "/ruleSets/0/rules/0/match/methods/0")]
+    [InlineData("""{"ruleSets":[{"id":"rs_0000000000000000000001","name":"a","rules":[{"action":"deny","match":{"userAgent":{"contains":[null]}}}]}]}""", "/ruleSets/0/rules/0/match/userAgent/contains/0")]
     [InlineData("null", "")]
     public void RejectsWhatIsNotTheModel(string json, string path)
     {

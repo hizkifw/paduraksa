@@ -8,11 +8,13 @@ using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Text;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.RuleSets;
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 using HostAccessListSpec = Paduraksa.Proxy.Config.HostAccessListSpec;
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
 using HostRateLimitSpec = Paduraksa.Proxy.Config.HostRateLimitSpec;
 using HostRobotsSpec = Paduraksa.Proxy.Config.HostRobotsSpec;
+using HostRuleSetSpec = Paduraksa.Proxy.Config.HostRuleSetSpec;
 using HostServerHeaderSpec = Paduraksa.Proxy.Config.HostServerHeaderSpec;
 using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
@@ -140,13 +142,24 @@ public static class ConfigValidator
                 }
             }
 
+            var ruleSets = document.RuleSets ?? [];
+            Dictionary<string, string> ruleSetNames = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<RuleSetId> ruleSetIds = [];
+            for (var i = 0; i < ruleSets.Count; i++)
+            {
+                if (NotNull(ruleSets[i], $"/ruleSets/{i}"))
+                {
+                    CheckRuleSet(ruleSets[i], $"/ruleSets/{i}", ruleSetNames, ruleSetIds);
+                }
+            }
+
             HashSet<UpstreamId> upstreamIds = [.. upstreams.Where(u => u is not null).Select(u => u.Id)];
             var defaults = document.Settings?.Defaults;
             for (var i = 0; i < hosts.Count; i++)
             {
                 if (NotNull(hosts[i], $"/hosts/{i}"))
                 {
-                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds, accessListIds);
+                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds, accessListIds, ruleSetIds);
                 }
             }
         }
@@ -330,7 +343,8 @@ public static class ConfigValidator
             Dictionary<ProfileId, HostSettings?> profiles,
             HashSet<UpstreamId> upstreams,
             HashSet<RateLimitPolicyId> policies,
-            HashSet<AccessListId> accessLists)
+            HashSet<AccessListId> accessLists,
+            HashSet<RuleSetId> ruleSets)
         {
             CheckId(host.Id, path);
             CheckVersion(host.Version, path);
@@ -380,6 +394,7 @@ public static class ConfigValidator
             CheckRobots(resolved.Robots, defaults, profile, host.Settings, $"{path}/settings/robots");
             CheckRateLimit(resolved.RateLimit, policies, $"{path}/settings/rateLimit", HostRateLimitUnknown, defaults, profile, host.Settings);
             CheckAccessListReference(resolved.AccessList, accessLists, $"{path}/settings/accessList", HostAccessListUnknown, defaults, profile, host.Settings);
+            CheckRuleSetReference(resolved.RuleSet, ruleSets, $"{path}/settings/ruleSet", HostRuleSetUnknown, defaults, profile, host.Settings);
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -392,7 +407,7 @@ public static class ConfigValidator
             {
                 if (NotNull(routes[i], $"{path}/routes/{i}"))
                 {
-                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies, accessLists);
+                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies, accessLists, ruleSets);
                 }
             }
 
@@ -571,7 +586,7 @@ public static class ConfigValidator
             }
         }
 
-        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches, HashSet<RateLimitPolicyId> policies, HashSet<AccessListId> accessLists)
+        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches, HashSet<RateLimitPolicyId> policies, HashSet<AccessListId> accessLists, HashSet<RuleSetId> ruleSets)
         {
             CheckId(route.Id, path);
             CheckEnum(route.Match, $"{path}/match");
@@ -608,6 +623,11 @@ public static class ConfigValidator
             if (route.Settings?.AccessList?.AccessListId is { IsEmpty: false } routeList)
             {
                 CheckAccessListReference(new HostAccessListSpec { Enabled = true, AccessListId = routeList }, accessLists, $"{path}/settings/accessList", RouteAccessListUnknown, defaults: null, profile: null, host: null);
+            }
+
+            if (route.Settings?.RuleSet?.RuleSetId is { IsEmpty: false } routeRuleSet)
+            {
+                CheckRuleSetReference(new HostRuleSetSpec { Enabled = true, RuleSetId = routeRuleSet }, ruleSets, $"{path}/settings/ruleSet", RouteRuleSetUnknown, defaults: null, profile: null, host: null);
             }
 
             if (route.Settings?.ProofOfWork is { } proofOfWork)
@@ -1154,6 +1174,161 @@ public static class ConfigValidator
             }
 
             return seen;
+        }
+
+        /// <summary>A rule set's own rules. Every pattern is judged the way the compiler will read it, so a document that validates
+        /// compiles: a regex is built here too, and its parse error is the message.</summary>
+        private void CheckRuleSet(RuleSetConfig set, string path, Dictionary<string, string> names, HashSet<RuleSetId> ids)
+        {
+            CheckId(set.Id, path);
+            CheckVersion(set.Version, path);
+            CheckLabel(set.Name, $"{path}/name", "rule set", names);
+            ids.Add(set.Id);
+            CheckNotes(set.Notes, path);
+            if (RuleSetPresets.IsPreset(set.Id))
+            {
+                Add($"{path}/id", RuleSetIdReserved, "this ID belongs to a built-in rule set; copy the preset into a set with an ID of its own");
+            }
+
+            var rules = set.Rules ?? [];
+            if (rules.Count > RuleSetLimits.MaxRules)
+            {
+                Add($"{path}/rules", RuleSetRulesTooMany, $"a rule set can have at most {RuleSetLimits.MaxRules} rules");
+            }
+
+            for (var i = 0; i < rules.Count; i++)
+            {
+                if (NotNull(rules[i], $"{path}/rules/{i}"))
+                {
+                    CheckRule(rules[i], $"{path}/rules/{i}");
+                }
+            }
+        }
+
+        private void CheckRule(RuleConfig rule, string path)
+        {
+            CheckEnum(rule.Action, $"{path}/action");
+            var match = rule.Match ?? new RuleMatchConfig();
+            var stated = false;
+            if (match.Path is { } pathMatch)
+            {
+                stated = true;
+                CheckRulePath(pathMatch, $"{path}/match/path");
+            }
+
+            var methods = match.Methods ?? [];
+            stated |= methods.Count > 0;
+            if (methods.Count > RuleSetLimits.MaxMethods)
+            {
+                Add($"{path}/match/methods", RuleMethodsInvalid, $"a rule can name at most {RuleSetLimits.MaxMethods} methods");
+            }
+
+            for (var i = 0; i < methods.Count; i++)
+            {
+                var method = (methods[i] ?? string.Empty).Trim();
+                if (method.Length == 0 || method.Length > 32 || method.AsSpan().ContainsAnyExcept(HeaderNameChars))
+                {
+                    Add($"{path}/match/methods/{i}", RuleMethodsInvalid, $"'{methods[i]}' isn't an HTTP method (a token such as GET)");
+                }
+            }
+
+            if (match.UserAgent is { } agent)
+            {
+                var tokens = agent.Contains ?? [];
+                stated |= tokens.Count > 0 || agent.Empty;
+                if (tokens.Count == 0 && !agent.Empty)
+                {
+                    Add($"{path}/match/userAgent", RuleUserAgentInvalid, "a user-agent condition needs substrings, the empty flag, or both; leave it out to match any user agent");
+                }
+
+                if (tokens.Count > RuleSetLimits.MaxUserAgentTokens)
+                {
+                    Add($"{path}/match/userAgent/contains", RuleUserAgentInvalid, $"a rule can name at most {RuleSetLimits.MaxUserAgentTokens} user-agent substrings");
+                }
+
+                for (var i = 0; i < tokens.Count; i++)
+                {
+                    var token = (tokens[i] ?? string.Empty).Trim();
+                    if (token.Length is 0 or > RuleSetLimits.MaxUserAgentTokenLength || token.AsSpan().ContainsAnyExcept(AsciiChars.Printable))
+                    {
+                        Add($"{path}/match/userAgent/contains/{i}", RuleUserAgentInvalid, $"a user-agent substring must be 1-{RuleSetLimits.MaxUserAgentTokenLength} printable ASCII characters");
+                    }
+                }
+            }
+
+            if (!stated)
+            {
+                Add($"{path}/match", RuleEmpty, "a rule needs at least one condition (a path, methods or a user agent); one without would match every request");
+            }
+        }
+
+        private void CheckRulePath(RulePathConfig match, string path)
+        {
+            if (!CheckEnum(match.Kind, $"{path}/kind"))
+            {
+                return;
+            }
+
+            var pattern = match.Pattern ?? string.Empty;
+            if (match.Kind == RulePathKind.Regex)
+            {
+                if (RulePatterns.TryCompileRegex(pattern, out var error) is null)
+                {
+                    Add($"{path}/pattern", RulePathRegexInvalid, $"the regex can't be used: {error}");
+                }
+
+                return;
+            }
+
+            if (pattern is not ['/', ..])
+            {
+                Add($"{path}/pattern", RulePathInvalid, $"the pattern must start with '/', got '{pattern}'");
+            }
+            else if (pattern.AsSpan().ContainsAny('?', '#'))
+            {
+                Add($"{path}/pattern", RulePathInvalid, "the pattern is matched against the path alone: it can't have a query ('?') or a fragment ('#')");
+            }
+            else if (pattern.Length > RuleSetLimits.MaxPatternLength)
+            {
+                Add($"{path}/pattern", RulePathInvalid, $"a pattern can have at most {RuleSetLimits.MaxPatternLength} characters");
+            }
+            else if (pattern.Any(char.IsControl))
+            {
+                Add($"{path}/pattern", RulePathInvalid, "a pattern can't contain control characters");
+            }
+            else if (pattern.Contains('%', StringComparison.Ordinal))
+            {
+                Add($"{path}/pattern", RulePathEncoded, $"write the path decoded, without percent-encoding, got '{pattern}'; a rule is matched against the decoded path");
+            }
+            else if (!RoutePath.IsCanonical(match.Kind == RulePathKind.Glob ? pattern.Replace('*', 'x') : pattern))
+            {
+                Add($"{path}/pattern", RulePathNotCanonical, "the pattern isn't canonical ('\\', '//', ';', dot segments, trailing dots or spaces), so it could never match a request's path");
+            }
+            else if (match.Kind == RulePathKind.Glob && !GlobPattern.TryCompile(pattern, out _, out var globError))
+            {
+                Add($"{path}/pattern", RulePathGlobInvalid, globError!);
+            }
+        }
+
+        /// <summary>A host's or route's resolved rule set: the set must be one of the document's or a built-in preset. A named set
+        /// is checked even while the switch is off, because the reference is kept for turning it back on.</summary>
+        private void CheckRuleSetReference(
+            HostRuleSetSpec resolved,
+            HashSet<RuleSetId> sets,
+            string path,
+            string unknownCode,
+            HostSettings? defaults,
+            HostSettings? profile,
+            HostSettings? host)
+        {
+            if (resolved.RuleSetId.IsEmpty || sets.Contains(resolved.RuleSetId) || RuleSetPresets.IsPreset(resolved.RuleSetId))
+            {
+                return;
+            }
+
+            var inherited = HostSettingsLayers.InheritedSuffix(
+                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.RuleSet?.RuleSetId));
+            Add($"{path}/ruleSetId", unknownCode, $"rule set '{resolved.RuleSetId}' doesn't exist{inherited}");
         }
 
         private void CheckAddresses(IReadOnlyList<string> addresses, string path)

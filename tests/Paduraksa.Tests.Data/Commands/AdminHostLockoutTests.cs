@@ -26,7 +26,7 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
 {
     private const string AdminName = "admin.example.com";
     private static readonly IPAddress Client = IPAddress.Parse("192.0.2.10");
-    private static readonly AdminRequestFacts Facts = new(AdminName, Https: true, Client);
+    private static readonly AdminRequestFacts Facts = new(AdminName, Https: true, Client, UserAgent: "curl/8.5.0");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -130,6 +130,39 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
 
         var forced = await _h.RunAsync(new UpsertHostCommand(admin with { Settings = guarded }) { Force = true }, Proxied);
         Assert.Equal(ConfigCommandStatus.Committed, forced.Status);
+    }
+
+    [Fact]
+    public async Task ARuleSetThatRefusesTheCallersOwnUserAgentIsRefusedThroughTheProxy()
+    {
+        await CreateAdminHostAsync();
+        var admin = Assert.Single((await _h.CurrentAsync()).Hosts);
+        var set = await CreateRuleSetAsync(new RuleUserAgentConfig(["curl"]));
+        HostSettings guarded = new() { RuleSet = new RuleSetSettings { RuleSetId = set } };
+
+        var refused = await _h.RunAsync(new UpsertHostCommand(admin with { Settings = guarded }), Proxied);
+
+        AssertLockout(refused, "/hosts/0");
+
+        var forced = await _h.RunAsync(new UpsertHostCommand(admin with { Settings = guarded }) { Force = true }, Proxied);
+        Assert.Equal(ConfigCommandStatus.Committed, forced.Status);
+    }
+
+    [Fact]
+    public async Task ARuleSetThatRefusesOnlyOtherUserAgentsAndTheBlockEmptyPresetLeaveTheCallerIn()
+    {
+        await CreateAdminHostAsync();
+        var admin = Assert.Single((await _h.CurrentAsync()).Hosts);
+        var set = await CreateRuleSetAsync(new RuleUserAgentConfig(["sqlmap"]));
+
+        var named = await _h.RunAsync(new UpsertHostCommand(admin with { Settings = new HostSettings { RuleSet = new RuleSetSettings { RuleSetId = set } } }), Proxied);
+        Assert.Equal(ConfigCommandStatus.Committed, named.Status);
+
+        // The caller has a user agent, so refusing the requests that have none doesn't cut them off.
+        var preset = await _h.RunAsync(
+            new UpsertHostCommand(Assert.Single((await _h.CurrentAsync()).Hosts) with { Settings = new HostSettings { RuleSet = new RuleSetSettings { RuleSetId = RuleSetPresets.EmptyUserAgent.Id } } }),
+            Proxied);
+        Assert.Equal(ConfigCommandStatus.Committed, preset.Status);
     }
 
     [Fact]
@@ -297,6 +330,14 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
         Assert.Equal(path, error.Path);
         Assert.Equal(ConfigErrorCodes.HostAdminLockout, error.Code);
         Assert.Contains("force=true", error.Message, StringComparison.Ordinal);
+    }
+
+    private async Task<RuleSetId> CreateRuleSetAsync(RuleUserAgentConfig agent)
+    {
+        var id = RuleSetId.New();
+        var created = await _h.RunAsync(new UpsertRuleSetCommand(new RuleSetConfig(id, $"set {id}", Rules: [new RuleConfig(RuleAction.Deny, new RuleMatchConfig(UserAgent: agent))])));
+        Assert.Equal(ConfigCommandStatus.Committed, created.Status);
+        return id;
     }
 
     private async Task<AccessListId> CreateListAsync(params string[] allow)
