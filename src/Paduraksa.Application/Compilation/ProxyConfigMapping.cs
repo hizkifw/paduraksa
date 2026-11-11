@@ -357,7 +357,7 @@ public static class ProxyConfigMapping
             AuthProvider = host.Kind == HostKind.Proxy ? effective.AuthProvider : HostAuthProviderSpec.Off,
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
-            ErrorPages = effective.ErrorPages,
+            ErrorPages = ErrorPagesOf(host, effective.ErrorPages, where, warnings),
             Maintenance = maintenance,
             Routes = routes,
             Policies = hostChain,
@@ -366,6 +366,27 @@ public static class ProxyConfigMapping
                 : null,
             Respond = respond,
         };
+    }
+
+    /// <summary>An admin host never replaces its upstream's errors: the admin app answers API clients with JSON problems,
+    /// which a layer covering every host must not turn into HTML pages.</summary>
+    private static HostErrorPagesSpec ErrorPagesOf(HostConfig host, HostErrorPagesSpec resolved, CompileErrorSource where, List<MappedWarning> warnings)
+    {
+        if (host.Kind != HostKind.Admin || resolved.ReplaceUpstream == UpstreamErrorReplacement.Off)
+        {
+            return resolved;
+        }
+
+        if (host.Enabled)
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/errorPages/replaceUpstream",
+                ConfigWarningCodes.ErrorPagesReplaceAdminIgnored,
+                "an admin host never replaces the admin app's own errors, so its API clients keep their JSON answers; the setting is ignored here"));
+        }
+
+        return resolved with { ReplaceUpstream = UpstreamErrorReplacement.Off };
     }
 
     /// <summary>The maintenance mode a host serves: an admin host never does, however a layer above it asked.</summary>

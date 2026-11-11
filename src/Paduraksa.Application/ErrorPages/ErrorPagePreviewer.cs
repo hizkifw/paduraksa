@@ -28,6 +28,11 @@ public static class ErrorPagePreviewer
             return (null, [new ConfigError("/status", ConfigErrorCodes.EnumUndefined, $"the status must be 100-599, got {request.Status}")]);
         }
 
+        if (request.Maintenance && !ErrorPageStatuses.IsMaintenanceStatus(request.Status))
+        {
+            return (null, [new ConfigError("/status", ConfigErrorCodes.MaintenanceStatusInvalid, $"a maintenance answer's status is one of {string.Join(", ", ErrorPageStatuses.MaintenanceStatuses)}, got {request.Status}")]);
+        }
+
         // The same rules as a stored page: a document of one entry, so nothing here can disagree with what saving would say.
         var key = request.Maintenance ? ErrorPageStatuses.MaintenanceKey : request.Status;
         if (ErrorPageStatuses.IndexOf(key) < 0)

@@ -584,6 +584,20 @@ public sealed class ProxyConfigMappingTests
     }
 
     [Fact]
+    public void AnAdminHostNeverReplacesItsUpstreamsErrorsWhateverTheDefaultsSay()
+    {
+        ConfigDocument document = new(
+            Hosts: [new HostConfig(Id<HostId>(50), ["admin.example.com"], Kind: HostKind.Admin)],
+            Settings: new GlobalSettings(Defaults: new HostSettings { ErrorPages = new ErrorPagesSettings { ReplaceUpstream = UpstreamErrorReplacement.Any } }));
+
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
+
+        Assert.Equal(UpstreamErrorReplacement.Off, Assert.Single(mapped.Model.Hosts).ErrorPages.ReplaceUpstream);
+        var warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.ErrorPagesReplaceAdminIgnored);
+        Assert.Equal("/settings/errorPages/replaceUpstream", warning.Member);
+    }
+
+    [Fact]
     public void PinnedTrustCarriesNormalisedFingerprintsAndAnyTrustWarnsOnlyForHttps()
     {
         static UpstreamConfig Upstream(int id, string address, UpstreamTlsConfig tls) =>

@@ -81,6 +81,10 @@ public static class ConfigWarningCodes
     /// dashboard out.</summary>
     public const string MaintenanceAdminIgnored = "maintenance.adminIgnored";
 
+    /// <summary>A layer turns on replacing upstream errors for an admin host, which never does: the admin app's JSON problems stay
+    /// as they are for API clients.</summary>
+    public const string ErrorPagesReplaceAdminIgnored = "errorPages.replaceUpstream.adminIgnored";
+
     /// <summary>Maintenance mode names a bypass access list with no allowed address or country, so nobody can bypass it.</summary>
     public const string MaintenanceBypassNoAllowRules = "maintenance.bypass.noAllowRules";
 }

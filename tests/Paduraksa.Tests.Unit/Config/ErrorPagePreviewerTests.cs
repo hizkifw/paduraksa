@@ -41,6 +41,15 @@ public sealed class ErrorPagePreviewerTests
     }
 
     [Fact]
+    public void AMaintenancePageAtAStatusNoHostCanServeItAtIsRefused()
+    {
+        var (preview, errors) = ErrorPagePreviewer.Render(new ErrorPagePreviewRequest(new ErrorPageContent { Heading = "x" }, 429, Maintenance: true));
+
+        Assert.Null(preview);
+        Assert.Equal(("/status", "maintenance.status.invalid"), Assert.Single(errors) is var e ? (e.Path, e.Code) : default);
+    }
+
+    [Fact]
     public void APageTheValidatorRefusesIsRefusedWithItsErrorsAsPointersIntoTheRequest()
     {
         var (preview, errors) = ErrorPagePreviewer.Render(new ErrorPagePreviewRequest(new ErrorPageContent { Mode = ErrorPageMode.Html, Heading = "x" }, 404));

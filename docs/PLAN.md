@@ -737,7 +737,7 @@ the 16-byte token and challenge tags are checked; `Verify` itself only takes who
 | Forward-auth | A named object (`authp_`): an endpoint every request to a host or route that names it is checked against before it is forwarded (a `GET` carrying the client's credentials and the original request in `X-Forwarded-*`). A 2xx lets the request through with the provider's identity headers copied upstream, a 401, 403 or redirect is relayed, anything else fails closed. Allows are remembered in a per-provider, per-configuration cache; the verdict that needs a call is `PolicyAction.Defer`. See **As built (M7): forward-auth** below. |
 | Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page whose pure-JS SHA-256 workers find a counter with `Difficulty` leading zero bits; the verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. |
 | Robots.txt | Per host: passthrough / managed (preset: disallow all, block AI crawlers, custom text). Served from pre-encoded bytes. |
-| Error pages | Per status (and "upstream down" / "blocked" / "rate limited" / "maintenance"). Templates pre-split into byte segments at compile time, with variables (`{status}`, `{requestId}`, `{host}`) written straight into the response `PipeWriter`. **Replacing upstream error bodies** (opt-in per host) is decided at **response-header time** from status + content type. The upstream body is drained and discarded, never buffered. It's never applied to `101` upgrades, `text/event-stream`, gRPC (`application/grpc*`), or responses whose headers have already been flushed. |
+| Error pages | Per status (and "upstream down" / "blocked" / "rate limited" / "maintenance"). Templates pre-split into byte segments at compile time, with variables (`{status}`, `{requestId}`, `{host}`) written straight into the response `PipeWriter`. **Replacing upstream error bodies** (opt-in per host) is decided at **response-header time** from status + content type. The upstream response is disposed unread, never buffered or drained (so that upstream connection is not reused; see **As built (M8)**). An admin host never replaces its upstream's errors. It's never applied to `101` upgrades, `text/event-stream`, gRPC (`application/grpc*`), or responses whose headers have already been flushed. |
 | Maintenance mode | Per host (layered like the rest), a toggle with a status, a page and a bypass named by an access list (**As built (M8): maintenance mode**). |
 
 **As built (M7): the rate-limit engine** (`src/Paduraksa.Proxy/RateLimiting`). `RateLimitTable.TryAcquire(ushort slot, ulong partitionHash, in RateLimitParameters, long nowMs, out int
@@ -1311,7 +1311,10 @@ nothing is buffered or drained (`ReplaceUpstreamErrorTests.TheUpstreamsBodyIsDis
 It never applies to an upgrade request, `text/event-stream`, `application/grpc*` or a response that has started, however the host is set. The successful
 path pays one integer comparison and no wrapper, continuation or allocation (`ReplaceUpstreamErrorAllocationTests`). Decided: `any` also replaces an API's
 JSON errors, which is why it is a separate, explicit choice. YARP's own 502/503/504 (no upstream response at all) were already answered by the response-start
-hook and now use the host's page too.
+hook and now use the host's page too. An admin host never replaces its upstream's errors (the admin app answers API clients with
+JSON problems): the mapping turns it off there with `errorPages.replaceUpstream.adminIgnored`, as it does for maintenance. A disposed response
+closes that upstream connection, so an error storm with replacement on costs a new upstream connection per error; draining a small declared body
+to keep the connection is open.
 
 **M8: left out and open.** Per-route pages; localisation; pages for the admin app; statuses beyond the list (500, 400, 401: a basic-auth 401 carries
 `WWW-Authenticate`, and 500/400 are an upstream's more than the gate's); the security overview's per-host maintenance column (the hosts list shows a
