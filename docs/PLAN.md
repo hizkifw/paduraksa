@@ -244,7 +244,7 @@ SQLite settings: WAL, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout`. A
 | `Route` (`rte_`) | Host FK, `Match` (path exact or segment-aware prefix; the most specific wins), `Order` (tiebreaker), `UpstreamId`, per-route `Settings` overrides, transforms. Equivalent to NPM "custom locations". |
 | `Upstream` (`ups_`) | LB policy, health check config, HTTP version, **Host header** (`Original`, the default: the client's; `Destination`: the destination's address; `Custom`: a fixed name, e.g. a hosted service that answers only to its own), TLS-to-upstream (**trust**, as built: `System`, the default, verifies against the system roots and the name sent; `Pinned` accepts exactly the listed SHA-256 fingerprints whatever their name, chain or dates, for self-signed homelab gear (SNI is the client's Host, so an upstream with several names may present a certificate per name: the dashboard's fetch asks each destination with its own name and with every name of the hosts that route to it, offers to pin every distinct fingerprint, and a refused handshake is logged with the fingerprint presented and the name asked for); `Any` skips verification with a compile warning. Still planned: SNI apart from Host, custom CA, optional **client cert** `CertificateId` for mTLS), timeouts, affinity, **connection/DNS refresh**: `PooledConnectionLifetime` (default 60 s, so a restarted container with a new IP is picked up quickly), `PooledConnectionIdleTimeout`, connect timeout. A destination that fails to connect is passively marked unhealthy, which forces new connections (and so a fresh DNS lookup) on retry. |
 | `Destination` (`dst_`) | Upstream FK, address, weight, enabled |
-| `AccessList` (`acl_`) | CIDR allow/deny, basic-auth users (PBKDF2/Argon2 hashes) |
+| `AccessList` (`acl_`) | CIDR allow/deny, basic-auth users (a username and the ID of a password credential in the vault; no hash in the document) |
 | `RuleSet` (`rset_`) / `Rule` (`rule_`) | Path/UA/header/method/country deny rules, ordered |
 | `ErrorPageSet` (`eps_`) | Per-status templates (HTML), assets |
 | `AuthProvider` (`authp_`) | ForwardAuth (authentik/Authelia/oauth2-proxy presets), OIDC (later) |
@@ -449,7 +449,7 @@ Snapshots are immutable and are thrown away on every publish, so **mutable runti
 | Rate-limit buckets | One global fixed-size bucket table (§7.3) | key long = **16-bit policy slot** (stable, from an append-only `RateLimitPolicyId → slot` registry, like metric slots) + **48-bit hash** of the partition key (IP/64, IP+path, header) | Carried over untouched. If a policy's rate/burst changed, the new parameters apply on each bucket's next touch (tokens clamped to the new burst). Deleted policies' buckets are cleared by the sweeper (unknown slot means clear). |
 | Per-IP connection counts | Global connection table | client IP | Not snapshot-related at all. Only the *limit* comes from the snapshot. |
 | Forward-auth decision cache | Per-provider caches | `AuthProviderId` + provider **config hash** | Kept if the provider's effective config is unchanged, otherwise dropped (a changed auth config must never reuse old decisions). |
-| Basic-auth verify cache | Global | `AccessListId` + config hash + credential hash + IP | Same rule as forward-auth. |
+| Basic-auth verify cache | The vault (`IPasswordVerifier`) | per-process key + the credential's stamp (changes with its salt) + masked client IP + user name and password as sent | Nothing to carry over: a changed or deleted password makes every earlier entry miss, and a publish touches nothing. |
 | Metrics counters/histograms | `MetricsRegistry` | **`MetricSlot`**, allocated per typed ID (`HostId`, `RouteId`, `UpstreamId`, `DestinationId`) by an append-only slot registry | The compiler asks the registry for each ID's slot, so the same host keeps the same slot forever. Slots of deleted objects are freed after a grace period (one rollup interval). |
 | Persisted metric rollups | SQLite | **typed ID** + timestamp, never slot or index | n/a |
 | YARP health state | YARP (per destination) | ClusterId + DestinationId (typed-ID strings) | Verified in S2: state survives every reload that keeps the IDs, including changes to the cluster's own policies. **Pitfalls:** removing and re-adding a destination resets it to *Unknown*, which YARP treats as routable, and changing a destination's address under the same ID keeps the old verdict. So rollback and import must keep destination IDs. Optionally, key destinations as `{DestinationId}~{hash8(Address, Host, Health)}` so an address change gets fresh state. This only fixes a stuck passive-unhealthy verdict, since the new key starts as Unknown, and it resets affinity for that destination. |
@@ -720,7 +720,7 @@ the 16-byte token and challenge tags are checked; `Verify` itself only takes who
 | Feature | Implementation |
 |---|---|
 | IP allow/deny | `CidrSet` (M1): merged, sorted, disjoint `UInt128` ranges (IPv4-mapped), binary-searched, immutable. Chosen over a radix trie: membership needs no longest-prefix match, and the arrays are smaller and need fewer dependent loads (S3: 7.7 ns for 2,000 CIDRs). IPv6 rate keys are masked to /64 (`IpKey.MaskTo`). |
-| Access lists | A named object (`acl_`) with allow and deny `CidrSet`s, basic-auth users (PBKDF2 hashes, verified with a bounded cache) and `satisfy` all or any; see **As built (M7): access lists** below. |
+| Access lists | A named object (`acl_`) with allow and deny `CidrSet`s, basic-auth users (each a username and a password credential in the vault, verified through its verifier and cache) and `satisfy` all or any; see **As built (M7): access lists** below. |
 | Geo blocking | Country DB (DB-IP Lite: CC-BY, no key; MaxMind GeoLite2 optional with a license key) compiled into sorted range arrays and binary-searched. Country is resolved **once per connection** (or per request when behind a trusted proxy). Policy = `ulong[4]` bitset of blocked countries. DB auto-update job. |
 | Rate limiting | Fixed-size open-addressed table (power of two, default 256 Ki entries ≈ 4 MiB). Each entry is two `long`s: a 64-bit **key fingerprint** (claimed with CAS, linear probing over at most 8 slots, else the oldest of those is evicted) and a packed **state** updated with a CAS loop. State layout: **bits 63-24 = last-refill time** in ms since process start (40 bits ≈ 34.8 years, so no wraparound handling needed); **bits 23-0 = tokens in 1/16 units** (unsigned 20.4 fixed point: max ≈ 1,048,575 tokens of burst, refill precision 1/16 token). The refill rate is a policy parameter in tokens/s, applied as `elapsedMs x rate x 16 / 1000` with saturation at burst. A background sweeper reads the **policy slot** from the high 16 bits of each key (the fingerprint itself can't be inverted, so the slot is stored alongside it). It looks up that policy's current full-refill window (burst / rate) and clears entries untouched for longer than that, or immediately if the slot no longer maps to a live policy. A 48-bit hash in a 256 Ki table makes false sharing between partition keys negligible (~2⁻³⁰ per probe). Bounded memory, so a flood of unique IPs can't exhaust RAM. Collisions only make limits slightly stricter. Policies per host or route: req/s + burst, keyed by IP / IP+path / header. Returns 429 + `Retry-After`. |
 | Request size limits | `IHttpMaxRequestBodySizeFeature` per host/route. Header count/size and URL length are checked cheaply in the gate. Global Kestrel limits act as the outer bound. |
@@ -837,26 +837,36 @@ profile, host and route like the rate limit: a route inherits the host's list, n
 `enabled: false`, and the reference is kept while off (built-in `enabled` is on, so naming a list is the whole job). The old inline
 `ipAllowList` is no longer part of the contract. Validation codes: `accessList.ip.dropDenied.withoutAddresses`,
 `accessList.realm.invalid`, `accessList.users.tooMany` (1000), `accessList.user.username.invalid` and `.duplicate` (1-64 visible
-ASCII characters, no `:`, case-sensitive), `accessList.user.passwordHash.invalid`, `accessList.user.password.empty`, `.tooLong` and
-`.unhashed`, `host.accessList.unknown` and `route.accessList.unknown`, with an address that doesn't parse reported as `address.invalid`
+ASCII characters, no `:`, case-sensitive), `accessList.user.password.missing` (a user with neither a password nor a credential),
+`accessList.user.password.empty`, `.tooLong` and `.unhashed` (a plain password that reached the validator),
+`accessList.user.credentialId.duplicate` (each user has a credential of their own, across the whole document), `host.accessList.unknown` and `route.accessList.unknown`, with an address that doesn't parse reported as `address.invalid`
 at its entry (`/accessLists/0/ip/allow/2`). Canonical JSON orders lists by ID, users by name (ordinal) and CIDRs as the parser prints
 them, and a list with no rules writes none. The shape leaves room for a country allow/deny under `ip` (geo, next wave) beside
 `allow` and `deny` without touching anything else.
 
-*Passwords.* `Paduraksa.Core.Security.PasswordHash` writes and reads a PHC-style verifier,
-`$pbkdf2-sha256$i=210000$<salt>$<hash>` (unpadded base64, a 16-byte salt, a 32-byte hash): the cost is in the string, so it can be
-raised later without invalidating what is stored, and a stored cost below 100 000 or above 10 000 000, a non-canonical encoding or any
-other shape is refused. The document keeps only that. A user is *written* with a plain `password` (create and update through the API
-and the dashboard); `AccessListPasswords` (Application) hashes it before the command is planned, validated, stored or audited, so a
-plain password is in memory for a moment and nowhere else: the validator refuses one that is still there (so no write path can
-store it), canonical JSON drops the property, and the audit entry holds the action and the ID only. A user written with neither a
-password nor a hash keeps the hash the list already has for that name, which is how an edit avoids asking for every password again.
-The API returns `passwordHash` and never `password`; a hash can't be replayed as a password because the gate always hashes what it is
-given. **Exposure, chosen deliberately:** the hash is part of the document, so every caller with
-`config:read` sees it (the config document, the access list endpoints, revisions, the dashboard's config reads), and a read-only role could
-attack a verifier offline. Omitting it for callers without `config:write` would need a filter at every read path (the document, its
-revisions, the diff, exports, the dashboard) and the services don't know the caller's permissions, so it is stated instead (the OpenAPI
-descriptions say it too): give `config:read` only to roles trusted with it. A per-caller redaction is the next step if that stops being true. **Gap:** an existing bcrypt `htpasswd` line can't be imported (PBKDF2 only for now).
+*Passwords.* A user is *written* with a plain `password` (create and update through the API and the dashboard) and *read* as
+`{ username, credentialId }`: the password lives in the vault (§8.2, **As built (M7): password credentials**), the document names its
+credential and nothing else, so a caller with `config:read` can no longer attack a verifier offline (the exposure this section used to
+state is gone). `AccessListPasswords` (Application) takes the plain password out of the command before it is planned, validated,
+stored or audited and leaves the credential's ID in its place: the ID the list already has for that user name, else the one the
+write sent, else a new one. The passwords are collected, not set: the pipeline sets them in the vault once validation, the compile and
+the guards have passed and the command is not a dry run or a simulation, so a refused or previewed command changes no password,
+and a compile that runs first is told what the vault doesn't hold yet (`PendingPasswords`): for a command that will commit, that its
+credentials are about to be set (so a new user carries no warning the command is about to resolve); for a dry run or a draft, a handle per
+pending password that carries the prepared, already-hashed password for that compile alone (`PrepareAsync`), which the mapping uses in
+place of the vault's own, so nothing reaches the vault or its cache until a real commit. The validator refuses a password that is still there (so no write path can store it),
+canonical JSON drops the property, and the audit entry holds the action and the ID only. A user written with neither a password nor
+a credential keeps the one the list has for that name, which is how an edit avoids asking for every password again; a new user with
+neither is `accessList.user.password.missing`. **A password is a change:** the document's users don't differ when only a password
+does, so the pipeline reports the list as modified (field `users`) when a command carries one: it commits a revision, moves the
+list's version (an editor holding the old one conflicts) and is audited like any change to the list, and the revision records that
+the list changed and never the password. The API returns `credentialId` and never `password`; whether the vault holds the password
+shows as the compile warning `accessList.user.noPassword`, in the result of the command and in the live warnings, which points at the
+user's own entry (`/accessLists/N/basicAuth/users/M`, the position in the canonical document the pipeline compiles) and which the
+dashboard's drawer reads, by that pointer, to say "No password is set, so this user can't sign in". **A rollback or an import** brings back the users
+a revision named and gives them the passwords the vault holds then, which for a credential deleted since is none (the warning); the
+lifecycle (deleted when the live config stops naming it) is in §8.2. **Gaps:** an existing bcrypt `htpasswd` line can't be imported
+(PBKDF2 only for now); a dry run or a draft hashes each pending password (one PBKDF2, tens of milliseconds) so it can be simulated.
 
 *Upgrade.* A stored document with the inline list (the live revision, a rollback target, the last-known-good file, an imported
 document) is converted when it is read into the current model (`LegacyAccessListUpgrade`, on the JSON, before the typed read): every
@@ -870,6 +880,22 @@ touched so their versions move); if it can't be stored it runs as converted and 
 write that sends `ipAllowList` is refused: the API answers 400 with a sentence that names access lists and `POST /api/v1/accessLists`.
 `LegacyAccessListUpgradeTests` run old documents through the real gate and compare outcomes with the old semantics, drop included.
 
+*Upgrade, passwords.* A stored document whose users still carry `passwordHash` (written by the build before passwords moved into the
+vault) is converted the same way, on the JSON, before the typed read (`LegacyPasswordUpgrade`): each user gets a `credentialId` taken
+from a hash of the list's ID, the user name and the verifier (a user that already names one keeps it), so converting twice gives
+the same bytes, and the property goes. The conversion is lossy by design (the verifier does not stay in the document), so **every
+place that makes such a document live imports its verifiers first**, into the vault as they are, no re-hash (`ImportAsync`, which
+changes nothing for a credential that already has a password): startup (the latest revision, and the last-known-good file wherever
+it is used), a rollback to an old revision (the verifiers its document carries are imported before the commit, so the user comes back with the password
+they had then) and the head a command builds on (when the startup write below couldn't be stored), but only for a command that will commit: a dry run
+or a draft imports nothing (it compiles against handles for those verifiers, like its passwords) and the next real command or start does it.
+Reading a revision to show it or diff it imports nothing. At startup, when the live revision needed converting (either conversion), one revision with the converted
+document is written as above (its message says what was converted: the inline allow lists and the lists they became, the passwords
+moved into the vault, or both), and the vault's credentials nothing names are swept. A write that sends
+`passwordHash` is refused: the API answers 400 with a sentence that says to send the plain `password` or leave it out.
+`LegacyPasswordUpgradeTests` (the conversion) and `ConfigServiceAccessListTests` (import at startup, stable on a second start, a rollback
+to an inline-hash revision, the sweep) hold it.
+
 *Chains.* The mapping builds `AccessListPolicySpec`s. A route's chain carries the whole list; the host chain carries
 `AddressOnly` (what the address alone can refuse), or, for a host whose routes name different lists whose address rules can all
 refuse, one `AccessListUnionPolicySpec` of them; a host with no routes (Redirect, Respond, Admin) carries the whole list, with its
@@ -880,8 +906,9 @@ password deferred on plain HTTP when the host redirects to HTTPS (the redirect i
 list admits only its addresses (with `satisfy: all` and users the rest get 403, with `any` they are asked for a password instead); no
 users means the address rules alone, no address rules means the password alone. `dropDenied` aborts the connection where the address
 decided. `Authorization: Basic` is read from the header string into a `stackalloc` buffer (at most 64 + 1 + 256 decoded bytes, split on
-the first colon, UTF-8), the name is compared in constant time with every user's (no early exit), and the password is checked with
-PBKDF2 against the stored hash; a name nobody has still pays one PBKDF2 against a dummy hash, so it can't be told from a wrong password
+the first colon, UTF-8), the name is compared in constant time with every user's (no early exit), and the password is checked by the vault's verifier
+(`IPasswordVerifier`: a cache probe, then PBKDF2 against the credential's verifier, which the gate never sees); a name nobody has,
+and a user the vault holds no password for, still pays one PBKDF2 against a dummy verifier, so neither can be told from a wrong password
 by timing. A missing or wrong credential is `401` with
 `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` (precomputed per list, the realm quoted), `Cache-Control: no-store` and the
 built-in `401 Unauthorized` page for `Accept: text/html` (plain text `authentication required` otherwise); the 403 is the existing
@@ -889,9 +916,10 @@ access-denied page. When the list accepted the credentials, `GateRequestState.St
 `Authorization` header before the upstream sees it, unless the list sets `passCredentialsUpstream`; a list that let an allowed address
 through without asking consumed nothing, so a bearer token meant for the upstream still reaches it.
 
-*The verification cache* (`AccessListVerificationCache`) is a fixed table of two arrays (4096
-entries, 64 KiB): a 64-bit key (the first 8 bytes of SHA-256 over a per-process random key, the user's fingerprint, the client address
-masked as the rate limit masks it (IPv4 whole, IPv6 by /64) and the credentials as sent) and an expiry. A hit needs no PBKDF2 and **pushes
+*The verification cache* now lives in the vault (`PasswordVerificationCache`, held by the vault's `PasswordRegistry`; §8.2 says what a
+key is made of and why a password change invalidates it). It is a fixed table of two arrays (4096 entries, 64 KiB): a 64-bit key (the
+first 8 bytes of SHA-256 over a per-process random key, the credential's stamp, the client address masked as the rate limit masks it
+(IPv4 whole, IPv6 by /64) and the credentials as sent) and an expiry. A hit needs no PBKDF2 and **pushes
 the expiry to five minutes from the hit**, but only once less than four minutes are left, so a hot entry is written about once a minute (one
 lock-free store, 0 B) and an idle user drops out between four and five minutes after the last request, while an active one stays verified;
 only a *successful* verification is ever inserted. Writers clear the expiry, store the key and then the new expiry, and readers
@@ -899,9 +927,8 @@ read the key, the expiry and the key again and believe it only if both reads agr
 another's expiry; a probe of four slots evicts the entry that would lapse first. A refresh stores its expiry with no further check, so it can
 land after a writer has replaced the slot's key: that cannot make an unverified key live (a key only enters through `Add`, after PBKDF2), and
 leaves a verified key with an expiry off by the skew of two clock reads, so the worst case is an entry living milliseconds longer or being
-verified again early. A user's fingerprint is a hash of the list's ID, the
-username and the stored verifier, whose salt changes with every password, so **a password change invalidates its cache entries by
-itself** (a recompile changes the fingerprint), and so does removing the user.
+verified again early. Removing a user or changing their password changes the credential's stamp (or empties the credential), so the
+old entries are never found again, with no recompile and nothing to sweep.
 
 *The line for a check* (`AccessListVerificationQueue`). A cache miss no longer runs PBKDF2 inside the synchronous decision, and no longer
 answers 429 when the slots are taken. `AccessListPolicy` returns `PolicyDecision.Defer` (`PolicyAction.Defer`; the decision is
@@ -921,7 +948,7 @@ enter (line full, or its client already holds its 16) or that waits the maximum 
 away (`RequestAborted`) leaves the line at once, frees its place and is dropped without an answer. Two rules decide who runs next, so a place
 is never wasted and nobody is starved: **one client runs at most 2 checks at once** (its other requests wait in the line, and a free slot goes to
 the first waiter in arrival order whose client is under that cap, so others overtake them), and **identical credentials never run twice at
-once**: each deferred request carries its credentials' fingerprint (the cache's key; 0 for a name nobody has, which has no identity to share),
+once**: each deferred request carries its attempt's key (the vault's opaque name for these credentials from this client, `PasswordCacheProbe.AttemptKey`; 0 for a name nobody has, or a user with no password, which have no identity to share),
 and a waiter whose fingerprint is running waits for it, then finds the result in the cache and pays no PBKDF2 (a dozen identical cold requests
 cost one check; identical *wrong* passwords are checked one after the other, each its own). The per-client share replaces the old "under
 pressure" rule (a client holding two or more was refused only while half the slots ran). The first version of the share was 4 places, which
@@ -944,10 +971,10 @@ ends; nothing throttles failed attempts per address over time. A credential alre
 slot.
 
 *Simulator.* The policy's trace step names the list, the address verdict (denied, allowed with the matching entry, not in the allow
-list, unrestricted), the credentials verdict (not asked, missing, unreadable, unknown user, wrong password, ok, deferred, busy; a busy answer in the trace means the line was full or the wait ran out) and how
+list, unrestricted), the credentials verdict (not asked, missing, unreadable, unknown user, wrong password, no password (the user's credential holds none in the vault), ok, deferred, busy; a busy answer in the trace means the line was full or the wait ran out) and how
 `satisfy` combined them, as a sentence and as facts (`accessList`, `address`, `credentials`, `satisfy`); the probe's `Authorization`
 header is read like a real one, and neither it nor a typed name is ever echoed. A simulation neither reads nor refreshes the cache, moves
-no counter and takes no verification slot or place in the line (it runs its PBKDF2 inline, as it always did), so it can't warm the gate for a later request or exhaust the verifier;
+no counter and takes no verification slot or place in the line (it runs its PBKDF2 inline through `Verify(..., remember: false)`, as it always did), so it can't warm the gate for a later request or exhaust the verifier;
 `AccessListSimulationTests` compare the simulator's outcome with the real gate's for every satisfy mode, address and credential.
 
 *API and dashboard.* `/api/v1/accessLists` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other
@@ -956,9 +983,10 @@ objects; deleting a list a host, profile, default or route names is refused by v
 dashboard has Security > Access lists (a list of rules and users of each, one in use offers no delete) and an editor drawer: the allowed and
 denied addresses one per line with an entry count, the drop switch, the realm, and users with a password box that stays empty to keep the
 stored password and a Generate button that fills 20 random letters and digits and shows them once with a warning; the 'address and
-password' / 'address or password' choice appears once there is a user. Inline validation runs the real validator with a placeholder
-verifier in place of a typed password, so nothing is hashed in the circuit. The review and the history show a list's users by name, with
-'(new password)' where one is being set, never a password or a hash. The settings of a host, profile, the defaults and a route pick a list
+password' / 'address or password' choice appears once there is a user. Inline validation runs the real validator with a credential ID in place of a typed password, so nothing reaches the vault from the
+circuit. The review and the history show a list's passwords as the realm and the users by name
+("alice (new password)", "alice (password changed)", "bob (removed)"; a revision whose users are the same says "a password was changed"), and the
+'Combine' choice as "Address and password" / "Address or password", never a password, a credential ID or a wire value. The settings of a host, profile, the defaults and a route pick a list
 by name (inherit, none, or a list), with a staged "New access list..." entry exactly like the rate-limit picker.
 
 **As built (M7): managed robots.txt.** `HostSettings.Robots` (`Mode`, `CustomText`; built-in passthrough) inherits
@@ -1094,7 +1122,7 @@ Decisions and gaps. (1) **No key is loaded for a draft or a revision.** Whether 
 ## 8. Vault (key-material trust boundary)
 
 ### 8.1 What it holds
-TLS private keys (server certs **and** upstream mTLS client certs) · ACME account keys · EAB HMAC keys · DNS provider credentials · TOTP secrets · internal CA key · Data Protection key ring (the dashboard's antiforgery and circuit state) · PoW/forward-auth HMAC keys · basic-auth isn't a secret (hashes only).
+TLS private keys (server certs **and** upstream mTLS client certs) · ACME account keys · EAB HMAC keys · DNS provider credentials · TOTP secrets · internal CA key · Data Protection key ring (the dashboard's antiforgery and circuit state) · PoW/forward-auth HMAC keys · access-list users' password verifiers (PBKDF2, one credential per user: §8.2 **As built (M7): password credentials**).
 
 ### 8.2 Public surface (capability interfaces in `Paduraksa.Core`, all implemented `internal` in Vault)
 
@@ -1143,6 +1171,22 @@ interface ISecretHttpHandlerFactory  // DNS provider creds: the vault returns th
 interface IDataProtectionKeyStore    // the admin app's Data Protection ring: the element XML is the third sanctioned egress
 {   ValueTask<IReadOnlyList<DataProtectionKey>> ReadAllAsync(CancellationToken ct);
     ValueTask StoreAsync(string friendlyName, string keyXml, CancellationToken ct); }
+
+interface IPasswordCredential        // a handle on one user's password: it can be verified against and never read; it outlives a password change
+{   PasswordCredentialId Id { get; }   bool IsSet { get; } }
+interface IPasswordCredentials       // set, import, delete: no read of any kind
+{   IPasswordCredential Open(PasswordCredentialId id);                                                       // sync, from memory
+    ValueTask<PasswordChange> SetAsync(PasswordCredentialId id, ReadOnlyMemory<char> password, CancellationToken ct);
+    ValueTask RevertAsync(IReadOnlyList<PasswordChange> changes, CancellationToken ct);   // puts each previous sealed row back exactly (or no row), last first
+    void Keep(IReadOnlyList<PasswordChange> changes);                                      // the commit succeeded: forget what it took to undo
+    ValueTask<IPasswordCredential> PrepareAsync(PasswordCredentialId id, ReadOnlyMemory<char> password, CancellationToken ct);   // a handle for a draft: nothing stored or cached
+    IPasswordCredential PrepareImport(PasswordCredentialId id, string passwordVerifier);
+    ValueTask<bool> ImportAsync(PasswordCredentialId id, string passwordVerifier, CancellationToken ct);   // an existing PBKDF2 string, as it is
+    ValueTask<bool> DeleteAsync(PasswordCredentialId id, CancellationToken ct);
+    ValueTask<IReadOnlyList<PasswordCredentialId>> ListAsync(CancellationToken ct); }
+interface IPasswordVerifier          // the gate's check: a hit or miss without a lock or an allocation, and the slow PBKDF2 the caller schedules
+{   PasswordCacheProbe TryVerifyCached(IPasswordCredential c, ReadOnlySpan<byte> username, ReadOnlySpan<byte> password, ReadOnlySpan<byte> client);
+    PasswordVerdict Verify(IPasswordCredential? c, ReadOnlySpan<byte> username, ReadOnlySpan<byte> password, ReadOnlySpan<byte> client, bool remember); }
 ```
 
 Notes on the refinements:
@@ -1166,6 +1210,10 @@ Notes on the refinements:
 
 **As built (M5): the Data Protection key ring.** `IDataProtectionKeyStore` (`Paduraksa.Core/Vault`) backs the admin app's `Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository`: `ReadAllAsync` returns every element, `StoreAsync` seals one element under its friendly name, and that is the whole surface (the optional `IDeletableXmlRepository` is not implemented, so a retired key stays in the ring until it expires). Each element is a row in the vault's own `DataProtectionKeys` table, sealed by the envelope cipher under the purpose `data-protection-key\n<friendly name>` with its typed `DataProtectionKeyId` and version in the AAD, inside the KEK-check sealing transaction, so editing the name or moving the ciphertext fails to open it. `vault rotate-kek` re-wraps the table (counted as `DataProtectionKeys`), and a restore keeps the ring because it is inside `vault.db`. A row that fails to open is logged at Error and skipped, so one damaged element does not take the ring down. The element XML **is** key material, so `DataProtectionKey.KeyXml` is the **third sanctioned egress** (after Kestrel's and the upstream mTLS contexts): the admin's `VaultXmlRepository` is its only reader, and it hands each element straight back to Data Protection in-process; `DataProtectionKey`'s printing hides it. No `IXmlEncryptor` is registered - the vault already encrypts at rest, so a second layer would only wrap ciphertext in ciphertext and need a key ring of its own to protect this one - and no file-system repository is created (`KeyManagementOptions.XmlRepository` is set to the vault's); the framework's "No XML encryptor configured" warning is filtered from the log. The ring is **admin only**: the dashboard's antiforgery and circuit state need it to survive a restart, while the public proxy gets YARP's session-affinity key from an in-memory `EphemeralDataProtectionProvider` (the affinity cookie is a destination ID, not a secret) and never reads or writes the vault; its Data Protection key-ring warm-up hosted service is removed so no key is ever created. The admin session cookie itself is Paduraksa's own random value, not Data Protection. The core host resolves no protector. The adapter and the `AddPaduraksaDataProtection` extension live in `Paduraksa.Admin.DataProtection`.
 
+**As built (M7): password credentials.** An access-list user's password is a **credential** in the vault, named by a `pwc_` ID that the config document carries (`{ username, credentialId }`): no hash, no password and nothing that verifies one is in the document, a revision, an audit entry, an API response, the simulator's trace, a log or an exception. `PasswordHash` (the PHC string `$pbkdf2-sha256$i=210000$salt$hash`, a 16-byte salt, a 32-byte hash; a cost outside 100 000 to 10 000 000, a non-canonical encoding or another shape is refused) left Core: it is `internal` to the vault, with its parsed form, the cache, the registry and the store, and an architecture test holds each of them out of every other assembly (the proxy's own `BannedSymbols.txt` also bans `Rfc2898DeriveBytes`, so the gate can't hash a password either). *Storage.* `PasswordCredentials` (vault migration `PasswordCredentials`): one row per credential, the verifier sealed by the envelope cipher (AAD purpose `password-credential`, the version in the AAD and a concurrency token, inside the KEK-check sealing transaction like every seal), re-wrapped by `vault rotate-kek` (counted as `PasswordCredentials`) and carried by a backup of `vault.db`. A row that doesn't open is logged at Error with its ID and skipped; its user can't sign in until a password is set again. *Memory.* The verifiers are loaded once, on first use (`Open` is synchronous because the snapshot compiler is, so it never starts the vault itself: called before `IVaultLifecycle.InitializeAsync` it throws an `InvalidOperationException` that names the fix, instead of blocking a thread on an asynchronous start; the host initializes the vault long before a compile), parsed into a slot per credential ID that is never removed, so a handle held by a compiled snapshot sees a later `SetAsync` or `DeleteAsync` without a recompile. `SetAsync` hashes outside the vault's gate (a fresh salt, 210 000 iterations), then seals and swaps the slot's state inside it; `ImportAsync` keeps an existing verifier as it is (no re-hash) and does nothing if the credential already has a password. *The verifier.* `TryVerifyCached` is the old cache, moved with its per-process key and its refresh on hit (a hit pushes the expiry to five minutes out once less than four are left): a keyed SHA-256 over the key, the credential's **stamp** (a hash of its salt and verifier, so a password change, a delete or a re-import makes every entry of the old verifier miss with nothing to sweep), the masked client address (16 bytes, as the caller masks it) and the user name and password as sent (the name is in it because a credential can be renamed without changing its password); it builds the key on the stack, so a hit and a miss are 0 B (`PasswordCredentialStoreTests` measures both with `AllocAssert`). It returns the probe's two facts: hit, and an **attempt key**, a 64-bit value from that hash, 0 for a credential with no password. The proxy's line uses it to run identical attempts one after the other (the coalescing as built), and it says nothing about what was sent. `Verify` is the PBKDF2 path: a null credential (a name nobody has) and a credential with no password pay the same PBKDF2 against a dummy verifier, so neither can be told from a wrong password by timing (the verdicts differ, `Rejected` and `NoPassword`, for the simulator's trace); with `remember` a success is cached, a failure never is, and a simulation passes false. *Taking a change back.* Every `SetAsync` keeps, in memory until it is kept or reverted, what it replaced: the previous sealed row as it was (bytes, version, times) or the fact that there was none, and the slot's previous verifier, and returns a `PasswordChange` that names it. `RevertAsync` writes exactly that back inside the vault's gate and the KEK-check transaction (a master key that changed since is a failure, not a silent re-seal) and puts the slot back; `Keep` forgets it. The config pipeline sets the passwords after validation and compile and before the commit, and on any failure of the commit reverts them: a command whose commit failed leaves every password as it was. If the revert itself fails, the pipeline logs at Error and writes an audit event of its own (`config.access_list.password.restore_failed`, outcome Failed) that names the lists and users whose password may be in an unknown state, never a password, because the commit's own audit event was never written. `PrepareAsync` and `PrepareImport` return a handle that exists for the caller alone (not stored, not reachable by `Open`, never seen by the cache): what a dry run or a draft compiles against, below.
+
+*Lifecycle (decided).* A credential lives **as long as the live config names it**: after a command commits, the credentials its revision stopped naming (a removed user, a deleted list, a rollback to a document without them) are deleted, and at startup, when the live config is the database's latest revision, so are the vault's credentials nothing names (what a command that failed after setting a password left behind). Revisions are not consulted. Keeping a credential for as long as any revision names it would keep a removed user's password for as long as the history lasts, and a rollback would bring that user back with it; the user a rollback restores gets **no password** (or the one the vault holds then, if a credential with that ID still exists): the config compiles with a warning, `accessList.user.noPassword`, and that user can't sign in until one is set. A start on the last-known-good file, or with no revision, sweeps nothing: it doesn't know what is stray, and the config database may come back. *Backup and export.* The hashes are in `vault.db` now, not in the config document, so a config export carries none and a full backup (the vault's database, KEK passphrase-wrapped, §8.3) is what carries the passwords; restoring only the config gives users with no password (the warning says so). **Gaps:** the stamp and the key are per process, so a restart starts with an empty cache (one PBKDF2 per active user, as before); a slot is a few words per credential ID ever opened and is never reclaimed; the vault database is not part of the config commit, so the pipeline takes a failed commit's passwords back (above) rather than rolling them back with it, and a process killed between the set and the revert leaves them changed (the next start's sweep deletes the credentials of a user that never made it into a revision).
+
 **Why the handler factory returns the whole transport.** A caller-supplied inner handler would see every request header, including the credential; a returned `DelegatingHandler` would let the caller swap its `InnerHandler` until the first send; and a response's `RequestMessage` would carry the injected header back. So the factory returns a sealed `internal` vault handler over a `SocketsHttpHandler` the vault builds itself (no automatic redirects, https only, timeouts, DNS refresh and proxy from `SecretHttpTransportOptions`), adds the credential to a **clone** of the request and sets `response.RequestMessage` back to the caller's original. It refuses non-https requests, hosts outside the allowlist and secrets that are not `DnsApiToken`, on every request. It never follows a redirect: providers handle 3xx themselves, and a redirect to another host fails the host check, so it never carries the credential. Tests substitute the transport through an internal seam in Vault, never through Core.
 
 The `ISecretHttpHandlerFactory` pattern is the key trick. A DNS-provider client in `Paduraksa.Acme` builds an `HttpClient` over a vault-owned handler. The Cloudflare API token is added to the outgoing request *inside* the vault assembly and never exists as a value in Acme code. RFC2136 TSIG gets the same treatment through `IMacKey`.
@@ -1175,7 +1223,7 @@ The `ISecretHttpHandlerFactory` pattern is the key trick. A DNS-provider client 
 - **KEK source** in priority order: `PADURAKSA_MASTER_KEY_FILE` (Docker secrets / systemd `LoadCredential`), `PADURAKSA_MASTER_KEY` env, then auto-generated `data/master.key` (0600). The dashboard warns when the KEK sits in the same directory as `vault.db`.
 - `paduraksa vault rotate-kek --new-key-file <path|->` re-wraps the DEKs (as built: the new key is read from a file or stdin, never argv; with the generated `master.key` the command stores the new key itself (old file kept as `master.key.old`, new one written through `master.key.new`, all 0600 and flushed with the directory, the old file put back if the rotation fails; standard input that is a terminal is refused and a group-readable key file is warned about); with a key file or the environment as the source the new key must come from a file the operator keeps).
 - Plaintext buffers are pinned and zeroed (`CryptographicOperations.ZeroMemory`) after use, best effort.
-- **Export.** Config export excludes secrets. An explicit "full backup" produces an archive with `vault.db` encrypted under a user passphrase (Argon2id-derived), and it is audited.
+- **Export.** Config export excludes secrets (and so password hashes: they are in the vault). An explicit "full backup" produces an archive with `vault.db` encrypted under a user passphrase (Argon2id-derived), and it is audited.
 - **As built (M5): the Data Protection key ring** is one more sealed table (`DataProtectionKeys`), so it follows every rule above: its DEKs are re-wrapped by `vault rotate-kek`, its rows are protected by `secure_delete` and the WAL checkpoint, and it is covered by a backup of `vault.db` without any extra step.
 - **As built (M3 vault core).** Format 1 of a sealed value is one BLOB: format byte, KEK ID (8 bytes), wrap nonce, DEK wrapped with AES-256-GCM (AES-KW does not exist in .NET, and GCM lets the wrap carry the AAD), data nonce, ciphertext, tag. The AAD of both operations is `domain || format || (KEK ID) || len(id) || id || len(purpose) || purpose || version`, with ID the typed-ID string (`sec_...`, `acct_...`) and the purpose carrying what decides how the value may be used: a secret's kind, MAC algorithm and allowed hosts, an account key's JWS algorithm. Editing that metadata in `vault.db` therefore makes the value fail to open (a change of hosts is a replace, which seals again). The KEK is base64 of 32 bytes from all three sources, and never becomes a string inside the vault when written; a source that is set but unusable is an error, never a fall-through. `master.key` is created exclusively (written whole to a private 0600 temp file, then given its name with an atomic hard link that cannot replace an existing file) and never overwritten, a concurrent reader replays its open and waits for the whole key, and a new one is not generated if `vault.db` already holds data. An existing generated `master.key` readable by other users is refused (group access warns), judged on the open handle; an explicit key file is only warned about, since Docker secrets are mounted 0444. `vault.db` stores an HMAC check value of the KEK, compared at startup (`IVaultLifecycle.InitializeAsync`, which also reports whether the KEK sits beside the database), and runs with `secure_delete`. The previous value of a MAC secret verifies for 10 minutes after a replacement, then is deleted; `Sign` and `Verify` use cached key material and never wait for a rotation. **KEK rotation** (`IVaultKekRotation`) re-wraps every DEK in one transaction and checkpoints the write-ahead log, so the old wraps are overwritten; it re-wraps only, it does not re-key the data, so a copy of the old database plus the old KEK still opens that copy (to cut that off, replace the secrets). The order is the caller's: store the new KEK durably at its source, rotate, then retire the old one; the vault never stores the new KEK itself, and a crash with the new KEK stored nowhere after the commit would lose the vault. The authenticating handler allows only port 443 unless an allowed-host entry names the port (`host:8443`, in both the secret's and the caller's list), and it refuses a request whose `Host` header differs from its URL (domain fronting) and never copies it. Vault tests live in `Paduraksa.Tests.Vault`, a key-material boundary project.
 - **Future hardening:** the capability interfaces are the seam for moving the vault into a separate process (gRPC over a Unix socket with peer credentials) without changing any callers.
@@ -1276,7 +1324,7 @@ There are two separate domains:
 - **Not built:** passkeys; a login-throttle store that survives a restart (the windows are in memory; the lockout is in the database). The §3.1 internal listener and forwarded-header trust are built (see §3.1, **As built (M4)**).
 
 ### 10.2 Proxied-host auth (`AuthProvider` per host/route)
-- **Access lists:** IP allow/deny + HTTP basic auth (PBKDF2 hashes compiled into the snapshot; the verification cost is cached per credential and client address until five minutes after its last use; a check that finds no free slot waits in a bounded line). As built in M7: §7.3, **As built (M7): access lists**.
+- **Access lists:** IP allow/deny + HTTP basic auth (each user's password is a vault credential (§8.2), the snapshot holds a handle on it, and the vault caches a verified check per credential and client address until five minutes after its last use; a check that finds no free slot waits in a bounded line). As built in M7: §7.3, **As built (M7): access lists**.
 - **Forward-auth** (authentik, Authelia, oauth2-proxy presets): a sub-request to the auth endpoint with the original method/URI/headers. 2xx → copy the configured response headers upstream. 401/302 → relay to the client. A short-TTL decision cache keyed by the session-cookie hash keeps it cheap. This path allocates (an outbound HTTP call), which is accepted and documented.
 - **Native OIDC per host** (later): Paduraksa as the relying party with a session cookie on the host's domain.
 
