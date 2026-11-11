@@ -28,7 +28,7 @@ namespace Paduraksa.Tests.Proxy.Simulation;
 /// <see cref="GateMiddleware.InvokeAsync"/> over a published store, as the server does; the simulator side gets the
 /// same facts as a <see cref="GateProbe"/>.
 /// </summary>
-public sealed class SimulatorParityTests : IDisposable
+public sealed partial class SimulatorParityTests : IDisposable
 {
     private static readonly IPAddress Lan = IPAddress.Parse("10.0.0.5");
     private static readonly IPAddress Outsider = IPAddress.Parse("198.51.100.1");

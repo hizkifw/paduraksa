@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
@@ -126,6 +127,11 @@ public sealed class RoutePathPropertyTests(TestUpstream upstream) : IClassFixtur
             }
 
             answered++;
+
+            // The simulator's own model of Kestrel's decoding and dot-segment removal is what traces are built on.
+            Assert.True(
+                handedOver == GateSimulator.RemoveDotSegments(GateSimulator.DecodePath(target)),
+                $"{target}: Kestrel hands over '{handedOver}', the simulator's model '{GateSimulator.RemoveDotSegments(GateSimulator.DecodePath(target))}'");
             var canonical = RoutePath.Canonicalize(handedOver);
             Assert.Equal(Model.Canonicalize(handedOver), canonical);
             Assert.False(canonical.AsSpan().ContainsAny("\\;"), $"{target} -> {handedOver} -> {canonical}");
