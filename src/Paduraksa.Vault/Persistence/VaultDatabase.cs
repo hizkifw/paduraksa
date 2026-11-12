@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Paduraksa.Storage.Sqlite;
 using Paduraksa.Vault.Crypto;
 
 namespace Paduraksa.Vault.Persistence;
@@ -26,7 +27,7 @@ internal static class VaultDatabase
         ArgumentNullException.ThrowIfNull(kek);
         ArgumentNullException.ThrowIfNull(time);
 
-        EnsureFile(databasePath);
+        PrivateSqliteFile.EnsureCreated(databasePath);
 
         IReadOnlyList<string> pending;
         var context = await factory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -72,31 +73,6 @@ internal static class VaultDatabase
         }
 
         return new VaultDatabaseInitialized(pending);
-    }
-
-    private static void EnsureFile(string databasePath)
-    {
-        if (File.Exists(databasePath))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(databasePath))!);
-        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.ReadWrite };
-        if (!OperatingSystem.IsWindows())
-        {
-            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-        }
-
-        try
-        {
-            // An empty file is a valid new SQLite database, and this way it is never world-readable, not even briefly.
-            new FileStream(databasePath, options).Dispose();
-        }
-        catch (IOException) when (File.Exists(databasePath))
-        {
-            // Created by another process in the meantime.
-        }
     }
 }
 

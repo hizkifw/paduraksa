@@ -363,6 +363,16 @@ internal sealed partial class ConfigRecovery
             {
                 LogMigrated(initialized.AppliedMigrations.Count, initialized.AppliedMigrations);
             }
+
+            if (initialized.RestrictedFiles.Count > 0)
+            {
+                LogFilesRestricted(initialized.RestrictedFiles);
+            }
+
+            foreach (var failure in initialized.UnrestrictedFiles)
+            {
+                LogFileNotRestricted(failure.Path, System.Convert.ToString((int)failure.Mode, 8), failure.Reason);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -699,6 +709,10 @@ internal sealed partial class ConfigRecovery
     private partial void LogRestoreFailed(Exception exception);
     [LoggerMessage(Level = LogLevel.Information, Message = "Migrated the config database ({Count} migration(s): {Migrations}).")]
     private partial void LogMigrated(int count, IReadOnlyList<string> migrations);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The config database files {Files} could be read by other users; their mode is now 0600 (they hold password hashes and the audit log).")]
+    private partial void LogFilesRestricted(IReadOnlyList<string> files);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not tighten {File} from mode {Mode}: {Reason}. Others can read the config database (password hashes, the audit log) until its owner changes the file or the data directory's mode keeps them out.")]
+    private partial void LogFileNotRestricted(string file, string mode, string reason);
     [LoggerMessage(Level = LogLevel.Error, Message = "The config database can't be used.")]
     private partial void LogDatabaseFailed(Exception exception);
     [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good file holds revision #{LastGoodSeq} ({LastGood}), newer than the database's latest (#{LatestSeq}): was the database replaced or restored? Serving the database's config, which is the source of truth; the file is replaced at the next publish.")]
