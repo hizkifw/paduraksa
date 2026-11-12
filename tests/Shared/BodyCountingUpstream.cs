@@ -56,6 +56,14 @@ internal sealed class BodyCountingUpstream : IAsyncDisposable
                 })
                 .Configure(app => app.Run(async context =>
                 {
+                    // The proxy always sends X-Forwarded-Proto; a request without it is a stranger (a dev tool probing new localhost ports was
+                    // seen doing GET /) and must not count as one the proxy let through.
+                    if (!context.Request.Headers.ContainsKey("X-Forwarded-Proto"))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status404NotFound;
+                        return;
+                    }
+
                     Interlocked.Increment(ref self!._requests);
                     self._targets.Enqueue(context.Request.Method + " " + context.Request.Path);
                     var buffer = new byte[16 * 1024];
