@@ -165,6 +165,9 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
 
         dispatcher.Publish(Event(NotificationEventKind.SignInNewAddress, "ops signed in from a new address"));
         dispatcher.Publish(Event(NotificationEventKind.SignInNewAddress, "dev signed in from a new address"));
+
+        // Every event in its channel's queue before the clock moves, or a slow route lands one after the digest's window.
+        await SettledAsync(() => dispatcher.Routed >= 14);
         await AdvanceUntilAsync(() => _sender.Sent.Count >= 3, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
 
         var digest = Assert.Single(_sender.Sent, s => s.Message.Kind == NotificationEventKind.UpstreamDown);
@@ -247,10 +250,8 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event());
-        await AdvanceAsync(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1));
-
-        // Waited for in real time only: the clock stays within the failing channel's first retry, so a healthy channel queued behind it never sends.
-        await SettledAsync(() => _sender.Sent.Any(s => s.Channel == healthy));
+        // The clock is capped below the failing channel's first retry (15 s), so a healthy channel queued behind it could never send in time.
+        await AdvanceUntilAsync(() => _sender.Sent.Any(s => s.Channel == healthy), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(12));
         await RowSentAsync(healthy);
         await dispatcher.StopAsync(Ct);
     }
@@ -264,8 +265,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event(title: "first"));
-        await AdvanceAsync(TimeSpan.FromSeconds(3));
-        await UntilAsync(() => _sender.Sent.Count == 1 ? _sender : null);
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 1, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
         for (var i = 0; i < 10; i++)
         {
             dispatcher.Publish(Event(NotificationEventKind.UpstreamDown, $"later {i}"));

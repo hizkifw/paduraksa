@@ -279,6 +279,13 @@ public sealed class ForwardAuthRuntimeTests
         }
 
         var workers = Enumerable.Range(0, 8).Select(_ => Task.Run(WorkerAsync, Cancel)).ToArray();
+
+        // On a busy machine the workers may not have run yet; cycling before any holds a place would test nothing.
+        for (var spins = 0; Volatile.Read(ref entered) == 0 && spins < 500; spins++)
+        {
+            await Task.Delay(10, Cancel);
+        }
+
         for (var i = 0; i < 400; i++)
         {
             state.Retire();

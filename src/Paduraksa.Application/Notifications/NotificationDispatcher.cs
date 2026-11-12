@@ -98,6 +98,11 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         }
     }
 
+    /// <summary>Events handed to their channels' queues so far, for a test that must not move the clock before routing (a database read per event) is done.</summary>
+    internal long Routed => Interlocked.Read(ref _routed);
+
+    private long _routed;
+
     /// <summary>Waits until nothing is queued or in flight, for a test that moves the clock.</summary>
     internal async Task QuiesceAsync(CancellationToken cancellationToken)
     {
@@ -152,6 +157,8 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             var queue = _queues.GetOrAdd(channel.Id, id => new ChannelQueue(this, id));
             queue.Enqueue(notification, cancellationToken);
         }
+
+        Interlocked.Increment(ref _routed);
     }
 
     /// <summary>Drops a deleted channel's queue so the table holds only channels that exist; a message already waiting in it is dropped with it.</summary>
