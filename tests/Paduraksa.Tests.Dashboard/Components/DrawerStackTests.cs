@@ -159,7 +159,7 @@ public sealed class DrawerStackTests
 
         // Review changes stacks on the host and holds the host's submit until it closes.
         var reviewing = drawers.Find("form[data-drawer=host]").SubmitAsync();
-        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1, ReviewTimeout);
         Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
         await drawers.Find("[data-review=apply]").ClickAsync(new());
         await reviewing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
@@ -364,7 +364,7 @@ public sealed class DrawerStackTests
 
         // The host and the policy go in one revision.
         _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
-        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1, ReviewTimeout);
         await drawers.Find("[data-review=apply]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
 
@@ -410,7 +410,7 @@ public sealed class DrawerStackTests
 
         // The host and the list go in one revision.
         _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
-        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1, ReviewTimeout);
         await drawers.Find("[data-review=apply]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
 
@@ -460,7 +460,7 @@ public sealed class DrawerStackTests
 
         // The host and the provider go in one revision.
         _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
-        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1, ReviewTimeout);
         await drawers.Find("[data-review=apply]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
 
@@ -498,7 +498,7 @@ public sealed class DrawerStackTests
         Assert.Equal("false", drawers.Find("[data-staged='Spare']").GetAttribute("data-used"));
         Assert.Contains("Won't be created", drawers.Find("[data-staged='Spare']").TextContent, StringComparison.Ordinal);
         _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
-        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1, ReviewTimeout);
         Assert.IsType<UpsertHostCommand>(config.Executed[0]);
     }
 
@@ -540,7 +540,7 @@ public sealed class DrawerStackTests
 
         // The host and the rule set go in one revision.
         _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
-        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1, ReviewTimeout);
         await drawers.Find("[data-review=apply]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
 
@@ -556,6 +556,10 @@ public sealed class DrawerStackTests
     private static Task<DrawerResult> Done(DrawerLevel level) => level.Result.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
 
     /// <summary>Types into a MudBlazor field and leaves it (which sends what was typed at once, instead of after the field's debounce).</summary>
+    // A submit runs the server's dry run (validation and a whole compile) before the review sheet opens; a cold, loaded CI
+    // runner can take longer than bUnit's default for that, so this wait gets the room the work needs.
+    private static readonly TimeSpan ReviewTimeout = TimeSpan.FromSeconds(30);
+
     private static async Task TypeAsync(IRenderedComponent<DrawerHost> drawers, string selector, string value)
     {
         await drawers.Find(selector).InputAsync(new() { Value = value });
