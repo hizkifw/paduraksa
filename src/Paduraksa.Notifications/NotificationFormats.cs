@@ -96,6 +96,11 @@ public static class NotificationFormats
         return Json(w =>
         {
             w.WriteString("event", message.Kind.ToName());
+            if (message.EventId is not null)
+            {
+                w.WriteString("eventId", message.EventId);
+            }
+
             w.WriteString("severity", SeverityName(message.Severity));
             w.WriteString("title", OneLine(message.Title));
             w.WriteString("message", Clean(message.Body));

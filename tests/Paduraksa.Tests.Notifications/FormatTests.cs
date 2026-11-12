@@ -42,6 +42,17 @@ public sealed class FormatTests
             System.Text.Encoding.UTF8.GetString(NotificationFormats.Webhook(Down())));
 
     [Fact]
+    public void TheWebhookBodyCarriesTheEventIdWhenThereIsOneAndOtherFormatsDoNot()
+    {
+        var message = Down() with { EventId = "nev_example" };
+
+        Assert.StartsWith("""{"event":"upstream.down","eventId":"nev_example","severity":""", System.Text.Encoding.UTF8.GetString(NotificationFormats.Webhook(message)), StringComparison.Ordinal);
+        Assert.DoesNotContain("nev_example", System.Text.Encoding.UTF8.GetString(NotificationFormats.Discord(message)), StringComparison.Ordinal);
+        Assert.DoesNotContain("nev_example", System.Text.Encoding.UTF8.GetString(NotificationFormats.Ntfy("t", message)), StringComparison.Ordinal);
+        Assert.DoesNotContain("nev_example", NotificationFormats.MailBody(message), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WithoutAKnownAdminUrlThereIsNoLinkAnywhere()
     {
         var message = Down(link: null);

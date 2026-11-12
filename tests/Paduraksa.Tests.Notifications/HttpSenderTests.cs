@@ -105,12 +105,29 @@ public sealed class HttpSenderTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AWebhookFromTheOutboxCarriesItsEventIdInTheHeaderAndTheSignedBody()
+    {
+        var url = _secrets.Add(_server.Address + "hook");
+        var key = _macKeys.Add("shared-signing-key");
+        var message = Message with { EventId = "nev_abc" };
+
+        await _senders.Find(NotificationChannelKind.Webhook)!.SendAsync(Channel(NotificationChannelKind.Webhook, secret: url, signing: key), message, Ct);
+
+        var request = Assert.Single(_server.Requests);
+        Assert.Equal("nev_abc", request.Headers["X-Paduraksa-Event-Id"]);
+        Assert.Contains("\"eventId\":\"nev_abc\"", request.Text, StringComparison.Ordinal);
+        var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes("shared-signing-key"), Encoding.UTF8.GetBytes(request.Headers["X-Paduraksa-Timestamp"] + ".").Concat(request.Body).ToArray());
+        Assert.Equal("sha256=" + Convert.ToHexStringLower(expected), request.Headers["X-Paduraksa-Signature"]);
+    }
+
+    [Fact]
     public async Task AWebhookWithoutAKeyCarriesNoSignature()
     {
         await Send(Channel(NotificationChannelKind.Webhook, secret: _secrets.Add(_server.Address + "hook")));
 
         var request = Assert.Single(_server.Requests);
         Assert.False(request.Headers.ContainsKey("X-Paduraksa-Signature"));
+        Assert.False(request.Headers.ContainsKey("X-Paduraksa-Event-Id"));
         Assert.Equal("upstream.up", request.Headers["X-Paduraksa-Event"]);
     }
 

@@ -170,6 +170,7 @@ internal sealed class DiscordSender(INotificationSecretSource secrets, HttpClien
 /// <summary>
 /// The generic JSON webhook. With a signing key each body carries <c>X-Paduraksa-Timestamp</c> and
 /// <c>X-Paduraksa-Signature: sha256=&lt;hex&gt;</c>, the HMAC-SHA-256 of <c>"&lt;timestamp&gt;.&lt;body&gt;"</c>, so a receiver can check who sent it and refuse a replay.
+/// A message from the outbox also carries <c>X-Paduraksa-Event-Id</c> (and <c>eventId</c> in the body), the same on every resend: delivery is at-least-once.
 /// </summary>
 internal sealed class WebhookSender(INotificationSecretSource secrets, IMacKeySource macKeys, HttpClient http, TimeProvider time) : HttpSender(secrets, http)
 {
@@ -196,6 +197,11 @@ internal sealed class WebhookSender(INotificationSecretSource secrets, IMacKeySo
         {
             using HttpRequestMessage request = new(HttpMethod.Post, HttpUrl(text.Trim(), "webhook URL")) { Content = Json(body) };
             request.Headers.TryAddWithoutValidation("X-Paduraksa-Event", message.Kind.ToName());
+            if (message.EventId is not null)
+            {
+                request.Headers.TryAddWithoutValidation("X-Paduraksa-Event-Id", message.EventId);
+            }
+
             request.Headers.TryAddWithoutValidation("X-Paduraksa-Timestamp", stamp);
             if (signature is not null)
             {

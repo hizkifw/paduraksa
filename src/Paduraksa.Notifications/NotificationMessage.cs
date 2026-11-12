@@ -26,6 +26,10 @@ public enum NotificationSeverity
 /// <param name="At">When it happened (UTC).</param>
 /// <param name="Link">The dashboard page to look at, absolute; null when the instance's public admin URL is not known.</param>
 /// <param name="Data">Machine-readable facts for a webhook's <c>data</c> object (the object's ID, a threshold), in order.</param>
+/// <param name="EventId">
+/// What a webhook receiver de-duplicates on: delivery is at-least-once, so a message may arrive twice, and both carry the same ID. The event's ID, or
+/// the digest's when several events are one message; null for a message that is not in the outbox (the test button).
+/// </param>
 public sealed record NotificationMessage(
     NotificationEventKind Kind,
     string Title,
@@ -33,7 +37,8 @@ public sealed record NotificationMessage(
     NotificationSeverity Severity,
     DateTimeOffset At,
     string? Link = null,
-    IReadOnlyList<KeyValuePair<string, string>>? Data = null);
+    IReadOnlyList<KeyValuePair<string, string>>? Data = null,
+    string? EventId = null);
 
 /// <summary>An SMTP mailbox's connection and addresses.</summary>
 /// <param name="Host">The server.</param>
