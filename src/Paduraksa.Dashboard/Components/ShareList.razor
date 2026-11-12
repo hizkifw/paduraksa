@@ -1,0 +1,50 @@
+@using System.Globalization
+@using Paduraksa.Contracts.Analytics
+@using Paduraksa.Dashboard.Pages
+@* A compact bar list: each row is a label, a bar as wide as its share of the whole, the count and the share in percent. A row with
+   nothing in it is left out, so a list is only what happened. *@
+<ul class="pdk-share" data-share="@Name">
+    @foreach (var item in Rows)
+    {
+        <li class="pdk-share-row" data-label="@item.Label">
+            <span class="pdk-share-label" title="@item.Label">@(Display(item.Label))</span>
+            <span class="pdk-share-bar" aria-hidden="true"><span class="pdk-share-fill @ToneOf(item.Label)" style="width: @Width(item.Count)"></span></span>
+            <span class="pdk-share-count">@Format(item.Count)</span>
+            <span class="pdk-share-pct">@AnalyticsFigures.Share(item.Count, Whole)</span>
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<AnalyticsCount> Items { get; set; } = [];
+
+    /// <summary>What the shares are of; the sum of the rows when 0.</summary>
+    [Parameter]
+    public long Total { get; set; }
+
+    /// <summary>Writes a row's count; whole numbers by default.</summary>
+    [Parameter]
+    public Func<long, string> Format { get; set; } = AnalyticsFigures.Count;
+
+    /// <summary>The label as shown, when it should read differently from the data's (<c>mobile</c> as "Mobile").</summary>
+    [Parameter]
+    public Func<string, string>? Label { get; set; }
+
+    /// <summary>A <c>pdk-share-*</c> tone class for a row by its label, or null for the default.</summary>
+    [Parameter]
+    public Func<string, string?>? Tone { get; set; }
+
+    private IEnumerable<AnalyticsCount> Rows => Items.Where(static item => item.Count > 0);
+
+    private long Whole => Total > 0 ? Total : Items.Sum(static item => item.Count);
+
+    private string Display(string label) => Label?.Invoke(label) ?? label;
+
+    private string? ToneOf(string label) => Tone?.Invoke(label);
+
+    private string Width(long count) => string.Create(CultureInfo.InvariantCulture, $"{(Whole <= 0 ? 0 : Math.Clamp(count * 100.0 / Whole, 0.5, 100)):0.#}%");
+}

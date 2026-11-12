@@ -46,6 +46,7 @@ public static class DashboardNavigation
         new("Local CA", DashboardRoutes.LocalCa, Icons.Material.Outlined.AccountTree, TlsGroup, Permission.CertificatesRead, true),
         new("ACME accounts", DashboardRoutes.AcmeAccounts, Icons.Material.Outlined.Badge, TlsGroup, Permission.ProvidersRead, true),
         new("DNS providers", DashboardRoutes.DnsProviders, Icons.Material.Outlined.Dns, TlsGroup, Permission.ProvidersRead, true),
+        new("Analytics", DashboardRoutes.Analytics, Icons.Material.Outlined.Insights, InsightGroup, Permission.MetricsRead, true),
         new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, InsightGroup, Permission.Simulate, true),
         new("History", DashboardRoutes.History, Icons.Material.Outlined.History, InsightGroup, Permission.ConfigRead, true),
         new("Audit", DashboardRoutes.Audit, Icons.Material.Outlined.FactCheck, InsightGroup, Permission.AuditRead, true),

@@ -160,6 +160,14 @@ else
     private string? _path;
     private bool _maySimulate;
 
+    /// <summary>A path to start filtered to (<c>?path=</c>), which the analytics page links to.</summary>
+    [SupplyParameterFromQuery(Name = "path")]
+    public string? PathQuery { get; set; }
+
+    /// <summary>A host name to start filtered to (<c>?host=</c>), or "(no host matched)"; one the picker doesn't offer is ignored.</summary>
+    [SupplyParameterFromQuery(Name = "host")]
+    public string? HostQuery { get; set; }
+
     /// <summary>How often the channel is read and the table rendered. A test shortens it; the person never changes it.</summary>
     [Parameter]
     public TimeSpan BatchInterval { get; set; } = TimeSpan.FromMilliseconds(300);
@@ -204,6 +212,7 @@ else
             await LoadHostsAsync();
         }
 
+        StartFiltered();
         Open();
         _started = true;
         _stop = new CancellationTokenSource();
@@ -248,6 +257,21 @@ else
         {
             // Without the config the picker offers "any host" and "no host matched".
             Logger.LogDebug(ex, "The live tail couldn't read the hosts for its picker.");
+        }
+    }
+
+    // A link in (the analytics page's) starts the filters: a path as it is, capped at what a filter may hold, and a host only if it is one the
+    // picker offers, so the picker never shows a value it has no item for.
+    private void StartFiltered()
+    {
+        if (!string.IsNullOrWhiteSpace(PathQuery))
+        {
+            _path = PathQuery.Length > LogTailFilter.MaxTextLength ? PathQuery[..LogTailFilter.MaxTextLength] : PathQuery;
+        }
+
+        if (HostQuery is { Length: > 0 } host)
+        {
+            _host = host == NoHost ? NoHost : _hostNames.FirstOrDefault(name => string.Equals(name, host, StringComparison.OrdinalIgnoreCase));
         }
     }
 

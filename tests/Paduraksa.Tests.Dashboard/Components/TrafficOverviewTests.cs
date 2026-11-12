@@ -48,6 +48,19 @@ public sealed class TrafficOverviewTests
     }
 
     [Fact]
+    public async Task TheOverviewLinksToTheAnalytics()
+    {
+        await using Rig rig = new();
+        var context = rig.SignIn();
+        rig.Publish();
+        rig.TickAt(2);
+
+        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+
+        Assert.Equal("/analytics", page.Find("[data-link=analytics]").GetAttribute("href"));
+    }
+
+    [Fact]
     public async Task ThereAreNoChartsUntilTheRangeHasTwoPoints_ThenBothAreDrawn()
     {
         await using Rig rig = new();

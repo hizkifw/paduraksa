@@ -45,6 +45,8 @@ public static class DashboardRoutes
 
     public const string History = "/history";
 
+    public const string Analytics = "/analytics";
+
     public const string Audit = "/audit";
 
     public const string Logs = "/logs";

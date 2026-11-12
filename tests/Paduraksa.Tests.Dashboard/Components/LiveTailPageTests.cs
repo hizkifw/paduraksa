@@ -425,6 +425,55 @@ public sealed class LiveTailPageTests
         }
     }
 
+    [Fact]
+    public async Task ALinkFromTheAnalyticsStartsTheTailFilteredToAPath()
+    {
+        var (hub, context, _) = SignIn(Role.Owner);
+        await using (context)
+        {
+            hub.Offer(Entry("/cart/1"));
+            hub.Offer(Entry("/about"));
+            hub.Offer(Entry("/cart/2"));
+            context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/logs/live?path=%2Fcart");
+
+            var page = Render(context);
+            await page.WaitForStateAsync(() => Paths(page).Length == 2);
+
+            Assert.Equal(["/cart/2", "/cart/1"], Paths(page));
+            Assert.Equal("/cart", page.Find("input[data-field=path]").GetAttribute("value"));
+            Assert.Single(page.FindAll("[data-action=clear-filters]"));
+        }
+    }
+
+    [Fact]
+    public async Task ALinkNamesAHostThePickerOffersAndOneItDoesNotIsIgnoredAndAnOverlongPathIsCut()
+    {
+        var (_, context, config) = SignIn(Role.Owner);
+        await using (context)
+        {
+            config.Document = new ConfigDocument(Hosts: [new HostConfig(HostId.New(), ["shop.test"])]);
+            context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/logs/live?host=SHOP.test&path=" + new string('a', 400));
+
+            var page = Render(context);
+            await page.WaitForStateAsync(() => page.FindAll("input[data-field=path]").Count == 1);
+
+            Assert.Equal("shop.test", page.Find("input[data-field=host]").GetAttribute("value"));
+            Assert.Equal(LogTailFilter.MaxTextLength, page.Find("input[data-field=path]").GetAttribute("value")!.Length);
+        }
+
+        var (_, other, otherConfig) = SignIn(Role.Owner);
+        await using (other)
+        {
+            otherConfig.Document = new ConfigDocument(Hosts: [new HostConfig(HostId.New(), ["shop.test"])]);
+            other.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/logs/live?host=nobody.test");
+
+            var page = Render(other);
+            await page.WaitForStateAsync(() => page.FindAll("input[data-field=path]").Count == 1);
+
+            Assert.Equal("Any host", page.Find("input[data-field=host]").GetAttribute("value"));
+        }
+    }
+
     /// <summary>The page, counting its own renders after the renderer has applied them (bUnit's count includes every child).</summary>
     private sealed class CountedLiveTail : LiveTail
     {

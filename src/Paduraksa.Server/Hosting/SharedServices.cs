@@ -79,6 +79,8 @@ internal sealed class SharedServices : IAsyncDisposable
         LogFiles = Get<ServerLogFiles>();
         LogStore = Get<ILogFileStore>();
         AccessLogTail = Get<AccessLogTail>();
+        Analytics = Get<TrafficAnalytics>();
+        AnalyticsBacklog = Get<AnalyticsBacklog>();
         Catalog = Get<ICertificateCatalog>();
         PasswordCredentials = Get<IPasswordCredentials>();
         KeyRing = keyRing;
@@ -211,6 +213,12 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The live tail's hub: the access-log drain feeds it, the dashboard's Live tail page and the API's stream read it.</summary>
     public AccessLogTail AccessLogTail { get; }
+
+    /// <summary>The traffic analytics the access-log drain fills (its open buckets); the analytics service reads them.</summary>
+    public TrafficAnalytics Analytics { get; }
+
+    /// <summary>The closed analytics buckets waiting to be written to the database, which the analytics service reads too.</summary>
+    public AnalyticsBacklog AnalyticsBacklog { get; }
 
     /// <summary>The vault describing the certificates it holds (public facts only); the CA download endpoints read the root from it.</summary>
     public ICertificateCatalog Catalog { get; }
