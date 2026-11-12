@@ -2,7 +2,9 @@
 @using System.Text
 @using Paduraksa.Dashboard.Config
 @* A line and area chart as inline SVG: no script and no dependency, so it renders on the server like everything else.
-   Every point has a transparent column over it with a native tooltip. *@
+   Points sit at their start times, so a minute wide point can stand among ten second ones. A line is broken wherever a value is
+   missing, and a stretch the server wasn't running for is a shaded band: it never draws a line through, or a zero into, what
+   nobody observed. Every point has a transparent column over it with a native tooltip. *@
 <figure class="pdk-chart" data-chart="@Name" role="img" aria-label="@Summary">
     <div class="pdk-chart-body">
         <div class="pdk-chart-axis" aria-hidden="true">
@@ -14,25 +16,32 @@
             <line class="pdk-chart-grid" x1="0" x2="@Width" y1="0" y2="0" />
             <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@(Height / 2)" y2="@(Height / 2)" />
             <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@Height" y2="@Height" />
+            @foreach (var (from, to) in GapBands())
+            {
+                <rect class="pdk-chart-gap" x="@Coord(from)" y="0" width="@Coord(to - from)" height="@Height" />
+            }
             @foreach (var line in Lines)
             {
-                @if (line.Area)
+                @foreach (var run in Runs(line))
                 {
-                    <path class="pdk-chart-area @line.Css" d="@AreaPath(line)" />
-                }
+                    @if (line.Area)
+                    {
+                        <path class="pdk-chart-area @line.Css" d="@AreaPath(run)" />
+                    }
 
-                <polyline class="pdk-chart-line @line.Css" points="@Points(line)" vector-effect="non-scaling-stroke" />
+                    <polyline class="pdk-chart-line @line.Css" points="@PointsOf(run)" vector-effect="non-scaling-stroke" />
+                }
             }
-            @for (var i = 0; i < Times.Count; i++)
+            @for (var i = 0; i < Points.Count; i++)
             {
                 var index = i;
-                <rect class="pdk-chart-hit" x="@X(index - 0.5)" y="0" width="@ColumnWidth" height="@Height"><title>@Tooltip(index)</title></rect>
+                <rect class="pdk-chart-hit" x="@Coord(ColumnStart(index))" y="0" width="@Coord(ColumnEnd(index) - ColumnStart(index))" height="@Height"><title>@Tooltip(index)</title></rect>
             }
         </svg>
     </div>
     <div class="pdk-chart-x" aria-hidden="true">
-        <span>@(Times.Count > 0 ? Times[0].ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
-        <span>@(Times.Count > 0 ? Times[^1].ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
+        <span>@(Points.Count > 0 ? Points[0].Start.ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
+        <span>@(Points.Count > 0 ? Points[^1].Start.ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
     </div>
     <figcaption class="pdk-chart-legend">
         @foreach (var line in Lines)
@@ -48,18 +57,27 @@
 
     private double _max = 1;
 
+    /// <summary>One point in time: where it starts, how long it lasts, and whether anything was observed during it.</summary>
+    /// <param name="Start">The first instant of the point's step.</param>
+    /// <param name="Width">How long the step is: the width of its tooltip column, and of a lone point's mark.</param>
+    /// <param name="NoData">Nobody was looking (the server was down): the lines break here and the stretch is shaded.</param>
+    /// <param name="Note">A line of the tooltip for what is unusual about the point, such as a step observed in part.</param>
+    public sealed record ChartPoint(DateTimeOffset Start, TimeSpan Width, bool NoData = false, string? Note = null);
+
     /// <summary>One line of the chart.</summary>
     /// <param name="Name">What the legend and the tooltip call it.</param>
     /// <param name="Css">A <c>pdk-chart-*</c> class that sets its colour (and dash).</param>
-    /// <param name="Values">One value per time; the same length as <see cref="Times"/>.</param>
+    /// <param name="Values">One value per point, the same length as <see cref="Points"/>; null is no value (the line breaks).</param>
     /// <param name="Area">Fill under the line.</param>
-    public sealed record ChartLine(string Name, string Css, IReadOnlyList<double> Values, bool Area = false);
+    public sealed record ChartLine(string Name, string Css, IReadOnlyList<double?> Values, bool Area = false);
+
+    private sealed record Run(IReadOnlyList<(double X, double Value)> Points, double EndX);
 
     [Parameter, EditorRequired]
     public string Name { get; set; } = string.Empty;
 
     [Parameter, EditorRequired]
-    public IReadOnlyList<DateTimeOffset> Times { get; set; } = [];
+    public IReadOnlyList<ChartPoint> Points { get; set; } = [];
 
     [Parameter, EditorRequired]
     public IReadOnlyList<ChartLine> Lines { get; set; } = [];
@@ -72,19 +90,27 @@
     [Parameter]
     public string TimeFormat { get; set; } = "HH:mm";
 
-    private double ColumnWidth => Times.Count == 0 ? 0 : Width / Times.Count;
-
     private string Summary
     {
         get
         {
-            if (Times.Count == 0)
+            if (Points.Count == 0)
             {
                 return $"{Name}: no data";
             }
 
-            var peak = Lines.Count == 0 ? 0 : Lines.Max(line => line.Values.Count == 0 ? 0 : line.Values.Max());
-            return $"{Name}, {Times.Count} points from {RevisionText.Exact(Times[0])} to {RevisionText.Exact(Times[^1])}, highest {Format(peak)}";
+            var peak = 0.0;
+            foreach (var line in Lines)
+            {
+                foreach (var value in line.Values)
+                {
+                    peak = Math.Max(peak, value ?? 0);
+                }
+            }
+
+            var gaps = Points.Count(point => point.NoData);
+            return $"{Name}, {Points.Count} points from {RevisionText.Exact(Points[0].Start)} to {RevisionText.Exact(Points[^1].Start)}, highest {Format(peak)}"
+                + (gaps > 0 ? $", {gaps} with no data" : string.Empty);
         }
     }
 
@@ -95,7 +121,10 @@
         {
             foreach (var value in line.Values)
             {
-                peak = Math.Max(peak, value);
+                if (value is { } v)
+                {
+                    peak = Math.Max(peak, v);
+                }
             }
         }
 
@@ -122,49 +151,124 @@
         return 10 * magnitude;
     }
 
-    private double X(double index) => Times.Count <= 1 ? 0 : Math.Clamp(index, 0, Times.Count - 1) * Width / (Times.Count - 1);
+    private static string Coord(double x) => x.ToString("0.#", CultureInfo.InvariantCulture);
+
+    // The axis is time: from the first point's start to the last's, so steps of different widths sit where they were.
+    private double X(DateTimeOffset at)
+    {
+        var span = (Points[^1].Start - Points[0].Start).TotalSeconds;
+        return span <= 0 ? 0 : Math.Clamp((at - Points[0].Start).TotalSeconds / span * Width, 0, Width);
+    }
 
     private double Y(double value) => Height - (Math.Clamp(value, 0, _max) / _max * Height);
 
-    private string Points(ChartLine line)
+    // A tooltip column reaches halfway to its neighbours, so the columns tile the plot whatever the spacing.
+    private double ColumnStart(int index) => index == 0 ? 0 : (X(Points[index - 1].Start) + X(Points[index].Start)) / 2;
+
+    private double ColumnEnd(int index) => index == Points.Count - 1 ? Width : (X(Points[index].Start) + X(Points[index + 1].Start)) / 2;
+
+    /// <summary>The points that have a value in unbroken stretches. A stretch of one point is drawn as the width of its step, so it is a mark and not nothing.</summary>
+    private List<Run> Runs(ChartLine line)
+    {
+        List<Run> runs = [];
+        List<(double X, double Value)> current = [];
+        var count = Math.Min(line.Values.Count, Points.Count);
+        for (var i = 0; i <= count; i++)
+        {
+            if (i < count && line.Values[i] is { } value)
+            {
+                current.Add((X(Points[i].Start), value));
+                continue;
+            }
+
+            if (current.Count > 0)
+            {
+                var last = i - 1;
+                runs.Add(new Run(current, X(Points[last].Start + Points[last].Width)));
+                current = [];
+            }
+        }
+
+        return runs;
+    }
+
+    private string PointsOf(Run run)
     {
         StringBuilder points = new();
-        for (var i = 0; i < line.Values.Count && i < Times.Count; i++)
+        foreach (var (x, value) in run.Points)
         {
-            points.Append(CultureInfo.InvariantCulture, $"{X(i):0.#},{Y(line.Values[i]):0.#} ");
+            points.Append(CultureInfo.InvariantCulture, $"{x:0.#},{Y(value):0.#} ");
+        }
+
+        if (run.Points.Count == 1)
+        {
+            points.Append(CultureInfo.InvariantCulture, $"{Math.Max(run.EndX, run.Points[0].X + 2):0.#},{Y(run.Points[0].Value):0.#}");
         }
 
         return points.ToString().TrimEnd();
     }
 
-    private string AreaPath(ChartLine line)
+    private string AreaPath(Run run)
     {
-        var count = Math.Min(line.Values.Count, Times.Count);
-        if (count == 0)
-        {
-            return string.Empty;
-        }
-
         StringBuilder path = new();
-        path.Append(CultureInfo.InvariantCulture, $"M{X(0):0.#},{Height} ");
-        for (var i = 0; i < count; i++)
+        path.Append(CultureInfo.InvariantCulture, $"M{run.Points[0].X:0.#},{Height} ");
+        foreach (var (x, value) in run.Points)
         {
-            path.Append(CultureInfo.InvariantCulture, $"L{X(i):0.#},{Y(line.Values[i]):0.#} ");
+            path.Append(CultureInfo.InvariantCulture, $"L{x:0.#},{Y(value):0.#} ");
         }
 
-        path.Append(CultureInfo.InvariantCulture, $"L{X(count - 1):0.#},{Height} Z");
+        var endX = run.Points.Count == 1 ? Math.Max(run.EndX, run.Points[0].X + 2) : run.Points[^1].X;
+        if (run.Points.Count == 1)
+        {
+            path.Append(CultureInfo.InvariantCulture, $"L{endX:0.#},{Y(run.Points[0].Value):0.#} ");
+        }
+
+        path.Append(CultureInfo.InvariantCulture, $"L{endX:0.#},{Height} Z");
         return path.ToString();
+    }
+
+    /// <summary>The stretches nobody observed, each from where its first step begins to where the next observed one does.</summary>
+    private IEnumerable<(double From, double To)> GapBands()
+    {
+        for (var i = 0; i < Points.Count; i++)
+        {
+            if (!Points[i].NoData)
+            {
+                continue;
+            }
+
+            var end = i;
+            while (end + 1 < Points.Count && Points[end + 1].NoData)
+            {
+                end++;
+            }
+
+            yield return (X(Points[i].Start), end + 1 < Points.Count ? X(Points[end + 1].Start) : Width);
+            i = end;
+        }
     }
 
     private string Tooltip(int index)
     {
-        StringBuilder text = new(RevisionText.Exact(Times[index]));
+        var point = Points[index];
+        StringBuilder text = new(RevisionText.Exact(point.Start));
+        if (point.NoData)
+        {
+            text.Append("\nNo data: Paduraksa was not running");
+            return text.ToString();
+        }
+
         foreach (var line in Lines)
         {
             if (index < line.Values.Count)
             {
-                text.Append(CultureInfo.InvariantCulture, $"\n{line.Name}: {Format(line.Values[index])}");
+                text.Append(CultureInfo.InvariantCulture, $"\n{line.Name}: {(line.Values[index] is { } value ? Format(value) : "-")}");
             }
+        }
+
+        if (point.Note is not null)
+        {
+            text.Append('\n').Append(point.Note);
         }
 
         return text.ToString();

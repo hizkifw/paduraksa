@@ -31,6 +31,18 @@ internal static class TrafficFigures
     /// <summary>"-" for nothing timed, else the live tail's wording of a duration.</summary>
     public static string Millis(double ms) => ms <= 0 ? "-" : LiveTailText.Duration(ms);
 
+    /// <summary>A tooltip line for a step the server observed only in part (it started or stopped inside it); null when it saw all of it or none.</summary>
+    public static string? Coverage(MetricsSeriesPoint point) => point.CoveredSeconds > 0 && point.CoveredSeconds < point.WidthSeconds
+        ? string.Create(CultureInfo.InvariantCulture, $"Observed {Span(point.CoveredSeconds)} of {Span(point.WidthSeconds)}")
+        : null;
+
+    private static string Span(int seconds) => seconds switch
+    {
+        < 90 => string.Create(CultureInfo.InvariantCulture, $"{seconds} s"),
+        < 5_400 => string.Create(CultureInfo.InvariantCulture, $"{seconds / 60.0:0.#} min"),
+        _ => string.Create(CultureInfo.InvariantCulture, $"{seconds / 3600.0:0.#} h"),
+    };
+
     public static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
 
     public static string Label(MetricsRange range) => range switch

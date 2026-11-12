@@ -67,8 +67,47 @@ public sealed class TrafficOverviewTests
         // The next poll reads the ring again.
         await page.WaitForStateAsync(() => page.FindAll("[data-chart]").Count == 2);
         Assert.NotEmpty(page.Find("[data-chart=requests] polyline.pdk-chart-line").GetAttribute("points")!);
-        Assert.Equal(4, page.FindAll("[data-chart=latency] polyline").Count);
+        // p50, p95 and p99; nothing was forwarded upstream, so the upstream line has nothing to draw.
+        Assert.Equal(3, page.FindAll("[data-chart=latency] polyline").Count);
         Assert.NotEmpty(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"));
+    }
+
+    [Fact]
+    public async Task ATimeTheServerWasNotRunningIsAGapInBothChartsAndAQuietOneIsNot()
+    {
+        await using Rig rig = new();
+        var context = rig.SignIn();
+        rig.Publish();
+        rig.Record(App, 30, status: 200, micros: 2_000);
+        rig.TickEverySecondTo(25);
+        // The sampler is silent for a hundred seconds (the process was down), then goes on.
+        rig.TickAt(125);
+        rig.Record(App, 30, status: 200, micros: 2_000);
+        rig.TickEverySecondTo(150);
+
+        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+
+        Assert.Equal(2, page.FindAll("[data-chart=requests] polyline.pdk-chart-a").Count);
+        Assert.Equal(2, page.FindAll("[data-chart=requests] polyline.pdk-chart-err").Count);
+        Assert.Equal(2, page.FindAll("[data-chart=latency] polyline.pdk-chart-b").Count);
+        Assert.Single(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
+        Assert.Contains(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"), title => title.TextContent.Contains("No data: Paduraksa was not running", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AQuietStretchTheServerWasUpForKeepsOneLineAtZeroAndAnEmptyLatencyLine()
+    {
+        await using Rig rig = new();
+        var context = rig.SignIn();
+        rig.Publish();
+        rig.TickEverySecondTo(95);
+
+        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+
+        Assert.Single(page.FindAll("[data-chart=requests] polyline.pdk-chart-a"));
+        Assert.Empty(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
+        // Nothing was timed, so there is no latency to draw: the lines are empty, not zeros.
+        Assert.Empty(page.FindAll("[data-chart=latency] polyline"));
     }
 
     [Fact]

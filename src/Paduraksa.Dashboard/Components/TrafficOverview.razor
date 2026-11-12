@@ -63,7 +63,7 @@
                 }
                 else
                 {
-                    <TimeSeriesChart Name="requests" Times="@_times" Lines="@_requestLines" Format="@TrafficFigures.PerSecond" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
+                    <TimeSeriesChart Name="requests" Points="@_points" Lines="@_requestLines" Format="@TrafficFigures.PerSecond" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
                 }
             </MudPaper>
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="latency-chart">
@@ -74,7 +74,7 @@
                 }
                 else
                 {
-                    <TimeSeriesChart Name="latency" Times="@_times" Lines="@_latencyLines" Format="@TrafficFigures.Millis" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
+                    <TimeSeriesChart Name="latency" Points="@_points" Lines="@_latencyLines" Format="@TrafficFigures.Millis" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
                 }
             </MudPaper>
         </div>
@@ -161,7 +161,7 @@
     private bool _failed;
     private bool _visible = true;
     private bool _started;
-    private DateTimeOffset[] _times = [];
+    private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
     private IReadOnlyList<TimeSeriesChart.ChartLine> _requestLines = [];
     private IReadOnlyList<TimeSeriesChart.ChartLine> _latencyLines = [];
     private Dictionary<UpstreamId, string> _upstreamNames = [];
@@ -279,20 +279,25 @@
 
     private void Shape(MetricsOverview overview)
     {
-        _times = [.. overview.Series.Select(point => point.Start)];
+        var series = overview.Series;
+        _points = [.. series.Select(point => new TimeSeriesChart.ChartPoint(point.Start, TimeSpan.FromSeconds(point.WidthSeconds), point.CoveredSeconds == 0, TrafficFigures.Coverage(point)))];
+        // A step nobody observed has no value; a step observed that timed nothing has a rate but no latency: both break a line.
         _requestLines =
         [
-            new("Requests", "pdk-chart-a", [.. overview.Series.Select(point => point.RequestsPerSecond)], Area: true),
-            new("5xx", "pdk-chart-err", [.. overview.Series.Select(point => point.ErrorsPerSecond)]),
+            new("Requests", "pdk-chart-a", Values(series, point => point.RequestsPerSecond), Area: true),
+            new("5xx", "pdk-chart-err", Values(series, point => point.ErrorsPerSecond)),
         ];
         _latencyLines =
         [
-            new("p50", "pdk-chart-b", [.. overview.Series.Select(point => point.Total.P50Ms)]),
-            new("p95", "pdk-chart-c", [.. overview.Series.Select(point => point.Total.P95Ms)]),
-            new("p99", "pdk-chart-err", [.. overview.Series.Select(point => point.Total.P99Ms)]),
-            new("Upstream p95", "pdk-chart-up", [.. overview.Series.Select(point => point.Upstream.P95Ms)]),
+            new("p50", "pdk-chart-b", Values(series, point => point.Total.P50Ms, timed: true)),
+            new("p95", "pdk-chart-c", Values(series, point => point.Total.P95Ms, timed: true)),
+            new("p99", "pdk-chart-err", Values(series, point => point.Total.P99Ms, timed: true)),
+            new("Upstream p95", "pdk-chart-up", Values(series, point => point.Upstream.P95Ms, timed: true)),
         ];
     }
+
+    private static double?[] Values(IReadOnlyList<MetricsSeriesPoint> series, Func<MetricsSeriesPoint, double> value, bool timed = false) =>
+        [.. series.Select(point => point.CoveredSeconds == 0 || (timed && value(point) <= 0) ? (double?)null : value(point))];
 
     public async ValueTask DisposeAsync()
     {

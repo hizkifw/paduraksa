@@ -3636,6 +3636,10 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     opacity: 0.16;
 }
 
+.pdk-chart-gap {
+    fill: color-mix(in srgb, var(--pdk-text) 6%, transparent);
+}
+
 .pdk-chart-hit {
     fill: transparent;
 }
