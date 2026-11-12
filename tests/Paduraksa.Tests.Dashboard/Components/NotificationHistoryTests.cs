@@ -202,12 +202,13 @@ public sealed class NotificationHistoryTests
                 fake.Events.Add(Event($"event {i}", i + 1, Delivery(NotificationDeliveryState.Pending, attempts: 1)));
             }
 
-            var page = await OpenAsync(context, p => p.Add(x => x.PollInterval, TimeSpan.FromMilliseconds(40)));
+            // Fast enough to keep the test short, slow enough that a loaded runner's dispatcher still gets to the waits between polls.
+            var page = await OpenAsync(context, p => p.Add(x => x.PollInterval, TimeSpan.FromMilliseconds(150)));
             Assert.Equal(NotificationHistory.PageSize, page.FindAll("[data-event]").Count);
 
             // A retrying delivery succeeds meanwhile: the first page is read again on its own.
             var before = fake.Queries.Count;
-            fake.Events[0] = fake.Events[0] with { Deliveries = [Delivery(NotificationDeliveryState.Sent)] };
+            fake.Replace(0, e => e with { Deliveries = [Delivery(NotificationDeliveryState.Sent)] });
             await page.WaitForStateAsync(() => page.FindAll("[data-chip=delivery-sent]").Count == 1);
             Assert.True(fake.Queries.Count > before);
 
@@ -216,7 +217,7 @@ public sealed class NotificationHistoryTests
             Assert.Empty(page.FindAll("[data-action=older]"));
 
             // With older pages open, a change is announced, not applied under the reader's eyes.
-            fake.Events[1] = fake.Events[1] with { Deliveries = [Delivery(NotificationDeliveryState.Failed, error: "x")] };
+            fake.Replace(1, e => e with { Deliveries = [Delivery(NotificationDeliveryState.Failed, error: "x")] });
             await page.WaitForStateAsync(() => page.FindAll("[data-action=refresh]").Count == 1);
             Assert.Equal(NotificationHistory.PageSize + 5, page.FindAll("[data-event]").Count);
         }
@@ -301,7 +302,19 @@ public sealed class NotificationHistoryTests
 
 internal sealed class FakeNotificationHistory : IDashboardNotificationHistory
 {
+    // The page polls from its own timer while a test changes events: both go through this lock, or a change lands under a read.
+    private readonly Lock _gate = new();
+
     public List<NotificationHistoryEvent> Events { get; } = [];
+
+    /// <summary>Changes an event while the page may be polling.</summary>
+    public void Replace(int index, Func<NotificationHistoryEvent, NotificationHistoryEvent> change)
+    {
+        lock (_gate)
+        {
+            Events[index] = change(Events[index]);
+        }
+    }
 
     public List<NotificationChannelSummary> Channels { get; } = [];
 
@@ -317,6 +330,14 @@ internal sealed class FakeNotificationHistory : IDashboardNotificationHistory
     public NotificationRetryResult? Refusal { get; set; }
 
     public Task<NotificationHistoryPage> QueryAsync(NotificationHistoryFilter filter, int limit, NotificationEventId? after, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return Query(filter, limit, after);
+        }
+    }
+
+    private Task<NotificationHistoryPage> Query(NotificationHistoryFilter filter, int limit, NotificationEventId? after)
     {
         Queries.Add(filter);
         if (Failing)
