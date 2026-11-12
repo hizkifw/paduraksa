@@ -17,8 +17,15 @@ internal static class ProcessHardening
     private const int SigKill = 9;
     private const long SysLandlockCreateRuleset = 444;
     private const long SysLandlockRestrictSelf = 446;
-    private const uint LandlockAccessFsAll = (1u << 13) - 1;
+    private const uint LandlockAccessFsAbi1 = (1u << 13) - 1;
+    private const uint LandlockAccessFsRefer = 1u << 13;
+    private const uint LandlockAccessFsTruncate = 1u << 14;
+    private const uint LandlockAccessFsIoctlDev = 1u << 15;
     private const uint LandlockRestrictSelfTsync = 1u << 3;
+    private const uint LandlockCreateRulesetVersion = 1u << 0;
+    private const int LandlockNetworkAbi = 4;
+    private const ulong LandlockAccessNetBindTcp = 1ul << 0;
+    private const ulong LandlockAccessNetConnectTcp = 1ul << 1;
 
     /// <summary>The limits and flags that cost nothing to apply early. Landlock waits for <see cref="RestrictFileSystem"/>, because the runtime still has assemblies to load.</summary>
     public static List<string> Apply(int cpuSeconds)
@@ -41,6 +48,17 @@ internal static class ProcessHardening
     /// <summary>Sets <c>PR_SET_NO_NEW_PRIVS</c> on this thread, which Landlock requires of whoever restricts itself.</summary>
     public static bool SetNoNewPrivs() => OperatingSystem.IsLinux() && prctl(PrSetNoNewPrivs, 1, 0, 0, 0) == 0;
 
+    /// <summary>
+    /// Every file system access the kernel at <paramref name="abi"/> can handle. A ruleset must name what it handles and an access it does not name is allowed, so a mask stuck at
+    /// ABI 1 would leave <c>truncate(2)</c> (ABI 3) free to empty the databases and the key file. A bit the kernel does not know is EINVAL, which is why the mask follows the ABI.
+    /// Later ABIs add no file system access bit.
+    /// </summary>
+    internal static uint FileSystemAccessMask(int abi) =>
+        LandlockAccessFsAbi1
+        | (abi >= 2 ? LandlockAccessFsRefer : 0)
+        | (abi >= 3 ? LandlockAccessFsTruncate : 0)
+        | (abi >= 5 ? LandlockAccessFsIoctlDev : 0);
+
     /// <summary>Denies every file system access from here on (<paramref name="allThreads"/> false: this thread only, which a test needs so as not to close the file system of the whole test process), for this process and its threads (Landlock, ABI 1: the kernel's own refusal, no rule allows anything).</summary>
     public static string RestrictFileSystem(bool allThreads = true)
     {
@@ -51,7 +69,13 @@ internal static class ProcessHardening
 
         try
         {
-            var attributes = new LandlockRulesetAttr { HandledAccessFs = LandlockAccessFsAll };
+            var abi = landlockVersion(SysLandlockCreateRuleset, 0, 0, LandlockCreateRulesetVersion);
+            if (abi < 1)
+            {
+                return "Landlock: not available (errno " + Marshal.GetLastPInvokeError() + ")";
+            }
+
+            var attributes = new LandlockRulesetAttr { HandledAccessFs = FileSystemAccessMask((int)abi) };
             var fd = syscall(SysLandlockCreateRuleset, ref attributes, (nuint)Marshal.SizeOf<LandlockRulesetAttr>(), 0);
             if (fd < 0)
             {
@@ -62,11 +86,48 @@ internal static class ProcessHardening
             var all = allThreads && syscall(SysLandlockRestrictSelf, (nint)fd, LandlockRestrictSelfTsync, 0) == 0;
             var restricted = all || syscall(SysLandlockRestrictSelf, (nint)fd, 0, 0) == 0;
             _ = close((int)fd);
-            return restricted ? "Landlock: no file system access" + (all ? " (every thread)" : " (the script thread)") : "Landlock: not applied (errno " + Marshal.GetLastPInvokeError() + ")";
+            return restricted ? $"Landlock: no file system access, ABI {abi}" + (all ? " (every thread)" : " (the script thread)") : "Landlock: not applied (errno " + Marshal.GetLastPInvokeError() + ")";
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
         {
             return "Landlock: not available";
+        }
+    }
+
+    /// <summary>
+    /// Denies every TCP bind and connect (Landlock ABI 4, Linux 6.7: a ruleset that handles both accesses and allows no port). Landlock does not see UDP or raw sockets, which
+    /// <see cref="SyscallFilter"/> closes; this is the kernel's refusal that holds on a kernel too new for the filter's assumptions and covers io_uring's connect too.
+    /// </summary>
+    public static string RestrictNetwork(bool allThreads = true)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return "Landlock network: not Linux";
+        }
+
+        try
+        {
+            var abi = landlockVersion(SysLandlockCreateRuleset, 0, 0, LandlockCreateRulesetVersion);
+            if (abi < LandlockNetworkAbi)
+            {
+                return abi < 0 ? "Landlock network: not available (errno " + Marshal.GetLastPInvokeError() + ")" : "Landlock network: not available (ABI " + abi + ", needs " + LandlockNetworkAbi + ")";
+            }
+
+            var attributes = new LandlockNetworkRulesetAttr { HandledAccessNet = LandlockAccessNetBindTcp | LandlockAccessNetConnectTcp };
+            var fd = syscall(SysLandlockCreateRuleset, ref attributes, (nuint)Marshal.SizeOf<LandlockNetworkRulesetAttr>(), 0);
+            if (fd < 0)
+            {
+                return "Landlock network: not available (errno " + Marshal.GetLastPInvokeError() + ")";
+            }
+
+            var all = allThreads && syscall(SysLandlockRestrictSelf, (nint)fd, LandlockRestrictSelfTsync, 0) == 0;
+            var restricted = all || syscall(SysLandlockRestrictSelf, (nint)fd, 0, 0) == 0;
+            _ = close((int)fd);
+            return restricted ? "Landlock network: no TCP bind or connect" + (all ? " (every thread)" : " (the script thread)") : "Landlock network: not applied (errno " + Marshal.GetLastPInvokeError() + ")";
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
+        {
+            return "Landlock network: not available";
         }
     }
 
@@ -91,6 +152,13 @@ internal static class ProcessHardening
         public ulong HandledAccessFs;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LandlockNetworkRulesetAttr
+    {
+        public ulong HandledAccessFs;
+        public ulong HandledAccessNet;
+    }
+
     [DllImport("libc", EntryPoint = "setrlimit", SetLastError = true)]
     private static extern int setrlimit(int resource, ref RLimit limit);
 
@@ -99,6 +167,12 @@ internal static class ProcessHardening
 
     [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
     private static extern long syscall(long number, ref LandlockRulesetAttr attributes, nuint size, uint flags);
+
+    [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
+    private static extern long syscall(long number, ref LandlockNetworkRulesetAttr attributes, nuint size, uint flags);
+
+    [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
+    private static extern long landlockVersion(long number, nint attributes, nuint size, uint flags);
 
     [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
     private static extern long syscall(long number, nint fd, uint flags, uint unused);

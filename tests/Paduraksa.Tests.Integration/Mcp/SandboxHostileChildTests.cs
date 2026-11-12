@@ -234,6 +234,109 @@ public sealed class SandboxHostileChildTests
         }
     }
 
+    [Theory]
+    [InlineData(1, 0x1FFFu)]
+    [InlineData(2, 0x3FFFu)]
+    [InlineData(3, 0x7FFFu)]
+    [InlineData(4, 0x7FFFu)]
+    [InlineData(5, 0xFFFFu)]
+    [InlineData(8, 0xFFFFu)]
+    public void TheFileSystemMaskHandlesEveryAccessTheKernelsAbiKnows(int abi, uint expected)
+    {
+        // REFER is bit 13 (ABI 2), TRUNCATE bit 14 (ABI 3), IOCTL_DEV bit 15 (ABI 5); a bit the kernel does not know is EINVAL, so a newer one is never asked for on an older kernel.
+        Assert.Equal(expected, ProcessHardening.FileSystemAccessMask(abi));
+    }
+
+    [Fact]
+    public void LandlockDeniesTruncatingAFileToTheThreadThatAppliedIt()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "Landlock is Linux");
+        var file = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(file, "contents");
+            string? status = null;
+            var result = 0;
+            Thread thread = new(() =>
+            {
+                // Resolved before the restriction, which would deny the library's own loads.
+                _ = TruncateFile(file, 8);
+                File.WriteAllText(file, "contents");
+                Assert.True(ProcessHardening.SetNoNewPrivs());
+                status = ProcessHardening.RestrictFileSystem(allThreads: false);
+                if (status.Contains("no file system access", StringComparison.Ordinal))
+                {
+                    result = TruncateFile(file, 0);
+                }
+            });
+            thread.Start();
+            thread.Join();
+            Assert.SkipWhen(status is null || !status.Contains("no file system access", StringComparison.Ordinal), "this kernel has no Landlock: " + status);
+            var abi = int.Parse(System.Text.RegularExpressions.Regex.Match(status!, @"ABI (\d+)").Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            Assert.SkipWhen(abi < 3, $"truncate(2) is not covered before Landlock ABI 3 (this kernel: {abi})");
+            Assert.Equal(-1, result);
+            Assert.Equal("contents", File.ReadAllText(file));
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "truncate", SetLastError = true)]
+    private static extern int TruncateFile([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPStr)] string path, long length);
+
+    [Fact]
+    public void LandlockDeniesTcpConnectAndBindToTheThreadThatAppliedIt()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "Landlock is Linux");
+        using TcpListener listener = new(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        // Per thread (like the file system test), so the rest of the test process keeps its network.
+        string? status = null;
+        SocketError? connect = null;
+        SocketError? bind = null;
+        Thread thread = new(() =>
+        {
+            Assert.True(ProcessHardening.SetNoNewPrivs());
+            status = ProcessHardening.RestrictNetwork(allThreads: false);
+            if (!status.Contains("no TCP bind or connect", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            using Socket client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            connect = Attempt(() => client.Connect(IPAddress.Loopback, port));
+            using Socket server = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            bind = Attempt(() => server.Bind(new IPEndPoint(IPAddress.Loopback, 0)));
+        });
+        thread.Start();
+        thread.Join();
+        Assert.SkipWhen(status is null || !status.Contains("no TCP bind or connect", StringComparison.Ordinal), "this kernel has no Landlock network rules (needs Linux 6.7): " + status);
+        Assert.Equal(SocketError.AccessDenied, connect);
+        Assert.Equal(SocketError.AccessDenied, bind);
+
+        // The listener is fine and reachable from the thread that was not restricted.
+        using Socket other = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        other.Connect(IPAddress.Loopback, port);
+        Assert.True(other.Connected);
+    }
+
+    private static SocketError? Attempt(Action action)
+    {
+        try
+        {
+            action();
+            return null;
+        }
+        catch (SocketException ex)
+        {
+            return ex.SocketErrorCode;
+        }
+    }
+
     [Fact]
     public void ACgroupRefusalIsNamedByItsErrorAndTheProbeNeverThrows()
     {

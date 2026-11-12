@@ -25,6 +25,7 @@ public sealed class SandboxProcessPool : IAsyncDisposable
     /// <summary>A fresh random run id for each call; tests replace it, to play the child's side by hand.</summary>
     internal Func<string> RunIds { get; set; } = () => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12));
     private bool _probed;
+    private bool _hardeningReported;
     private bool _disposed;
 
     public SandboxProcessPool(SandboxChildCommand command, SandboxLimits limits, TimeSpan idleTimeout, string specJson, TimeProvider? time = null, Action<string>? log = null)
@@ -158,6 +159,19 @@ public sealed class SandboxProcessPool : IAsyncDisposable
         foreach (var line in started.Hardening.Where(l => l.Contains("not ", StringComparison.Ordinal)))
         {
             _log($"Sandbox child hardening: {line}.");
+        }
+
+        // Once, in full: an operator who reads the log should be able to see what a child holds without the failures having to say so.
+        bool first;
+        lock (_gate)
+        {
+            first = !_hardeningReported;
+            _hardeningReported = true;
+        }
+
+        if (first)
+        {
+            _log($"Sandbox child hardening applied: {string.Join("; ", started.Hardening)}.");
         }
 
         lock (_gate)

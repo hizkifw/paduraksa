@@ -319,9 +319,41 @@ public sealed class SandboxBoundaryTests
 
         Assert.Contains(hardening, h => h.StartsWith("Landlock:", StringComparison.Ordinal));
 
+        // What each of these says depends on the kernel and the architecture, but each reports and none is silent.
+        Assert.Contains(hardening, h => h.StartsWith("Landlock network:", StringComparison.Ordinal));
+        Assert.Contains(hardening, h => h.StartsWith("seccomp:", StringComparison.Ordinal));
+
         process.StandardInput.Close();
         Assert.True(process.WaitForExit(10_000), "the child did not leave when its stdin closed");
         Assert.Equal(0, process.ExitCode);
+    }
+
+    [Fact]
+    public async Task TheServerLogsWhatTheFirstChildAppliedOnceAndTheKernelHoldsItOnEveryThread()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "the hardening is Linux");
+        List<string> log = [];
+        await using var tools = SandboxFixture.Create(log: log.Add);
+        await tools.SearchAsync("async () => 1", Ct);
+        await tools.SearchAsync("async () => 2", Ct);
+        var line = Assert.Single(log, l => l.StartsWith("Sandbox child hardening applied: ", StringComparison.Ordinal));
+        Assert.Contains("RLIMIT_CPU: applied", line, StringComparison.Ordinal);
+        Assert.Contains("seccomp:", line, StringComparison.Ordinal);
+
+        // Where the filter says it is on every thread, the kernel agrees for the child's main thread too, not only the one that applied it.
+        Assert.SkipUnless(line.Contains("seccomp: only AF_UNIX sockets and ", StringComparison.Ordinal) && line.Contains("calls denied (every thread)", StringComparison.Ordinal), "the filter is on the script thread only here: " + line);
+        var pid = Assert.Single(tools.Pool.ChildProcessIds);
+        foreach (var task in Directory.GetDirectories($"/proc/{pid}/task"))
+        {
+            try
+            {
+                Assert.Contains("Seccomp:\t2", await File.ReadAllTextAsync(Path.Combine(task, "status"), Ct), StringComparison.Ordinal);
+            }
+            catch (IOException)
+            {
+                // A thread that ended since the listing.
+            }
+        }
     }
 
     [Fact]

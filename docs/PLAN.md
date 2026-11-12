@@ -1886,7 +1886,35 @@ is not "the script cannot" but "when it does, it costs one expendable process". 
   **Landlock** denying all file system access (every thread where the kernel has `LANDLOCK_RESTRICT_SELF_TSYNC`, else the script thread and its descendants). A warm-up
   script and a preload of every referenced assembly run first, because the runtime loads assemblies lazily and a closed file system would otherwise kill the child
   at its first use of one. `RLIMIT_NPROC` is not set: it counts every process of the user, so a low value would stop the child creating its own threads. Each outcome
-  is a line of the `ready` frame, and the parent logs the ones that did not apply, once per child. The child also leaves when its stdin closes.
+  is a line of the `ready` frame, and the parent logs the ones that did not apply, once per child, and the whole report once per server run. The child also leaves when its stdin closes.
+- **The child's network and its routes back to the parent are closed** (threat model G2; the child talks over its pipes and needs no socket and no other process).
+  *Landlock network rules* (ABI 4, Linux 6.7): a second ruleset that handles `LANDLOCK_ACCESS_NET_BIND_TCP` and `CONNECT_TCP` and allows no port, so every TCP bind and
+  connect is refused with `EACCES`. It is the kernel's refusal at the socket call, so it also covers what io_uring does. An older kernel reports
+  `Landlock network: not available (ABI n, needs 4)`. It does not see UDP or raw sockets, so *a seccomp filter* (`SyscallFilter`) answers `EPERM` to `socket` and
+  `socketpair` of any domain but `AF_UNIX`, to a foreign architecture and to the x32 ABI (which would otherwise step around the compares), and to the calls in the table below.
+  Every other system call is allowed. *Decision:* the filter is a short, explicit denylist, one reason per row, written for x86-64 and arm64 (an architecture it has not been
+  checked on gets none, and says so), not a profile of the runtime's calls: such a profile would have to follow every .NET release, and a mistake in it kills the child at random.
+  The principle is that **the child is the boundary and the list closes the routes from the child back to the parent** (same container, same uid, so the parent's memory, its
+  descriptors with the vault's files and its listeners, and its network are otherwise one `ptrace` away wherever Yama's `ptrace_scope` is 0). It returns `EPERM`, not a kill, so a
+  library that probes does not take the child down. `SyscallFilterTests` runs the program through a BPF interpreter against a reference table of the kernel's numbers, per
+  architecture, and installs it on a thread of its own to make the calls.
+
+  | Call (x86-64 / arm64 number) | Why it is refused |
+  |---|---|
+  | `ptrace` (101 / 117) | attach to, read and write another process of the user, the parent first |
+  | `process_vm_readv` (310 / 270), `process_vm_writev` (311 / 271) | read and write the parent's memory without ptrace |
+  | `pidfd_open` (434), `pidfd_getfd` (438), `kcmp` (312 / 272) | take over the parent's descriptors, and find which ones |
+  | `bpf` (321 / 280), `userfaultfd` (323 / 282), `perf_event_open` (298 / 241) | kernel attack surface and a side channel on the parent |
+  | `io_uring_setup`, `_enter`, `_register` (425, 426, 427) | socket, connect and open as queued operations the filter would not see |
+  | `socket`, `socketpair` (41, 53 / 198, 199) | unless the domain is `AF_UNIX` |
+
+  *Considered and not taken:* `PR_SET_DUMPABLE=0` (it would stop same-user processes from ptracing the child, but the parent inspects `/proc/<pid>` of its children, and the only other
+  same-user processes are other children, which the filter already denies `ptrace`); denying `kill` and `tgkill` (the runtime signals its own threads with `tgkill`, so a hostile child can
+  still signal the parent: availability, not the vault). *Without TSYNC:* if the kernel has no `SECCOMP_FILTER_FLAG_TSYNC` (the report says "the script thread"), the filter and Landlock
+  cover only the script thread and the threads it creates afterwards. That is safe today because Jint runs on the script thread alone, but a future host function that hops threads would
+  run outside both. The Landlock file system mask follows the kernel's ABI (REFER from 2, TRUNCATE from 3, IOCTL_DEV from 5), because an access a ruleset does not name stays allowed:
+  with only the first thirteen bits `truncate(2)` could empty `paduraksa.db`, `vault.db` or `master.key`; the report names the ABI used. What stays open to an escaped script is what a process always has: the pipes
+  it was given, local sockets, signals and the rest of the runtime's system call surface. Docker's default seccomp profile and Landlock: see install.md "MCP" (G14).
 - **The parent is the guard** (`ChildProcess`, `RunProtocol`). It starts the child with `DOTNET_GCHeapHardLimit` 256 MiB, workstation non-concurrent GC and tiered PGO off,
   and runs a **watchdog** per run that kills the child's process tree (`Process.Kill(entireProcessTree: true)`) on: wall time over 10 s (not counting the time the
   parent spends answering the script's requests), CPU time over 5 s (from `/proc/<pid>/stat`, in `sysconf(_SC_CLK_TCK)` ticks), resident memory over 384 MiB (from `/proc/<pid>/status`, every 50 ms),
@@ -1990,7 +2018,7 @@ Fuzz: `mcp-sandbox` (section 15).
 
 **Not built.** The current config as a YAML resource (the tools do not depend on it, and a resource can be added beside them), the OAuth authorization of the MCP
 specification (tokens only, as in section 10.1), a per-token switch for MCP, auditing of reads, a rate limit on `/mcp` beyond the 4 children and the admin
-pipeline's own, a seccomp filter in the child (Landlock and the limits cover files and resources; the syscall surface is the runtime's), and Windows or macOS
+pipeline's own, a full seccomp profile of the runtime's system calls (considered and not taken: it would have to follow every .NET release; only the socket door is closed, above), and Windows or macOS
 hardening (the child runs there with the parent's limits and kill but without the system-call hardening, and says so in its `ready` frame).
 
 ### 11.3 Health endpoints

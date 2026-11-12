@@ -44,6 +44,8 @@ public static class SandboxChild
             Execute("search", "async () => Object.keys(spec.paths).length", SandboxLimits.Default, SpecGraph.Parse("""{"paths":{"/x":{"get":{}}},"components":{"schemas":{"A":{}}}}"""u8), (_, _) => Warm);
             PreloadAssemblies();
             report.Add(ProcessHardening.RestrictFileSystem());
+            report.Add(ProcessHardening.RestrictNetwork());
+            report.Add(SyscallFilter.Restrict());
 
             Send(output, Messages.Build(w =>
             {

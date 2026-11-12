@@ -425,10 +425,20 @@ process** (the same binary, started as `paduraksa mcp-sandbox`) that holds no to
 can only ask the server to make requests, which the server checks first. The server limits the process from outside and kills it the moment it steps out of line: 10
 seconds on the clock (waiting for the API is not counted), 5 seconds of CPU, 384 MiB of memory (its heap is capped at 256 MiB), 50 requests, a 64 KiB result. A script
 that breaks a limit costs only its own process and is told `The script was stopped: ...`. Processes are started on the first call (about 0.2 seconds, 60 MiB each
-while idle), kept while the assistant is in use, up to 4 at once, and stopped after the idle time or when the server stops. The server logs what the process could not
-apply to itself (Landlock, the CPU limit) and whether a cgroup v2 was available to add memory, CPU and process-count limits (Docker's default read-only cgroup file system
-is fine without it). The assistant can do exactly what its token can do over the REST API and nothing else. Create the token under Settings, API tokens (the page
+while idle), kept while the assistant is in use, up to 4 at once, and stopped after the idle time or when the server stops. The process also closes its own file system
+and network (Landlock, and a seccomp filter that leaves it no socket but a local one), so a script that got out of the engine has no files to read and nowhere to send
+what it saw. The server logs what the process applied once, and what it could not apply each time, and whether a cgroup v2 was available to add memory, CPU and
+process-count limits (Docker's default read-only cgroup file system is fine without it). The assistant can do exactly what its token can do over the REST API and nothing else. Create the token under Settings, API tokens (the page
 shows the endpoint and the snippets below with your address in them).
+
+**Inside Docker.** The default seccomp profile of Docker 29 on Linux 7.3 lets the process apply all of it: with `Paduraksa__Mcp__Enabled=true` the first call logs
+`Sandbox child hardening applied: ...; Landlock: no file system access, ABI 11 (every thread); Landlock network: no TCP bind or connect (every thread); seccomp: only AF_UNIX sockets and 12 calls denied (every thread)`.
+That was checked on the image built from this repository with the compose hardening (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`). Landlock's network rules need Linux
+6.7 on the host; on an older kernel the line says `Landlock network: not available (ABI 3, needs 4)` and the seccomp filter, which does not depend on the kernel version, still closes
+the sockets. A runtime or an older Docker whose profile blocks `landlock_create_ruleset`, `landlock_add_rule` and `landlock_restrict_self` makes the log say
+`Landlock: not available (errno 1)` (with the filter still applied). Either accept that (the process is still limited and killed from outside, and the file system and TCP are then open to an
+escaped script), or run the container with a seccomp profile that allows those three calls: copy your runtime's default profile, add them to the allowed names and start
+the container with `--security-opt seccomp=profile.json` (Compose: `security_opt: [seccomp=./profile.json]`).
 
 **Use a token that can only read** (the `config:read`, `logs:read`, `metrics:read`, `certificates:read` family and nothing that writes): the assistant can then
 look at everything its scopes allow and change nothing. With a writing token a change is still two steps, a dry run and then a second request with `confirm: true`, and shows as
