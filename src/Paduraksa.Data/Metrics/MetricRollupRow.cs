@@ -8,6 +8,7 @@ namespace Paduraksa.Data.Metrics;
 /// <summary>
 /// One minute of one series: a host's, an upstream's or the process's figures (PLAN §6.3, §7.4). Keyed by the object's typed ID
 /// and the minute, never by the in-memory slot, so history stays attached to the object across restarts and slot reuse.
+/// The process totals have a row for every minute the process observed, idle ones included; a minute with no row was not observed.
 /// Int64Ordered ID: high-volume, append-only and admin-only.
 /// </summary>
 internal sealed class MetricRollupRow
@@ -21,6 +22,9 @@ internal sealed class MetricRollupRow
 
     /// <summary>The minute, as whole minutes since the Unix epoch (UTC): a plain integer, so ranges and buckets are arithmetic in SQL.</summary>
     public long Minute { get; set; }
+
+    /// <summary>How many of the minute's seconds the process observed; a restart or a stop inside the minute leaves it under 60.</summary>
+    public int CoveredSeconds { get; set; }
 
     public long Requests { get; set; }
 

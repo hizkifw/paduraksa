@@ -17,9 +17,16 @@ public sealed class MetricRollupStore
 {
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
 
+    private const int MinuteSeconds = 60;
+
     internal MetricRollupStore(IDbContextFactory<ConfigDbContext> contexts) => _contexts = contexts;
 
-    /// <summary>Writes the minutes. A minute already stored for the same object (a restart inside it, say) is skipped, never doubled.</summary>
+    /// <summary>
+    /// Writes the minutes. A minute already stored for the same object (a restart inside it, a stop that flushed a partial minute and
+    /// a start that went on to fill it) is merged into its row, never doubled and never dropped: counts, sums and the observed seconds
+    /// add up, and the percentiles are the mean of the two weighted by their requests. The two halves never overlap in time, so the
+    /// observed seconds only need capping at the minute's 60.
+    /// </summary>
     public async Task WriteAsync(IReadOnlyList<MetricRollup> rollups, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(rollups);
@@ -35,14 +42,20 @@ public sealed class MetricRollupStore
             var last = rollups.Max(static rollup => rollup.Point.Start) / 60;
             var existing = await context.MetricRollups
                 .Where(row => row.Minute >= first && row.Minute <= last)
-                .Select(row => new { row.Subject, row.SubjectKey, row.Minute })
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
-            HashSet<(MetricRollupSubject, string, long)> stored = [.. existing.Select(static row => (row.Subject, row.SubjectKey, row.Minute))];
+            Dictionary<(MetricRollupSubject, string, long), MetricRollupRow> stored = existing.ToDictionary(static row => (row.Subject, row.SubjectKey, row.Minute));
             foreach (var rollup in rollups.OrderBy(static rollup => rollup.Point.Start))
             {
-                if (stored.Add((rollup.Subject, rollup.SubjectId, rollup.Point.Start / 60)))
+                var key = (rollup.Subject, rollup.SubjectId, rollup.Point.Start / 60);
+                if (stored.TryGetValue(key, out var row))
                 {
-                    context.MetricRollups.Add(RowOf(rollup));
+                    Apply(row, MetricPoints.Combine([PointOf(row), rollup.Point], rollup.Point.Start / 60 * 60, MinuteSeconds));
+                }
+                else
+                {
+                    row = RowOf(rollup);
+                    stored[key] = row;
+                    context.MetricRollups.Add(row);
                 }
             }
 
@@ -117,6 +130,7 @@ public sealed class MetricRollupStore
         rows.GroupBy(key).Select(group => new RollupSums<TKey>
         {
             Key = group.Key,
+            CoveredSeconds = group.Sum(row => (long)row.CoveredSeconds),
             Requests = group.Sum(row => row.Requests),
             Status1xx = group.Sum(row => row.Status1xx),
             Status2xx = group.Sum(row => row.Status2xx),
@@ -142,6 +156,8 @@ public sealed class MetricRollupStore
     internal sealed class RollupSums<TKey>
     {
         public TKey Key { get; set; } = default!;
+
+        public long CoveredSeconds { get; set; }
 
         public long Requests { get; set; }
 
@@ -182,10 +198,11 @@ public sealed class MetricRollupStore
         public double WeightedUpstreamP99 { get; set; }
     }
 
-    private static MetricPoint PointOf<TKey>(RollupSums<TKey> sums, long start, int seconds) => new()
+    private static MetricPoint PointOf<TKey>(RollupSums<TKey> sums, long start, int width) => new()
     {
         Start = start,
-        Seconds = seconds,
+        Width = width,
+        CoveredSeconds = (int)Math.Min(sums.CoveredSeconds, int.MaxValue),
         Requests = sums.Requests,
         Status1xx = sums.Status1xx,
         Status2xx = sums.Status2xx,
@@ -209,32 +226,64 @@ public sealed class MetricRollupStore
 
     private static MetricRollupRow RowOf(MetricRollup rollup)
     {
-        var point = rollup.Point;
-        return new MetricRollupRow
+        MetricRollupRow row = new()
         {
             Id = MetricRollupId.New(),
             Subject = rollup.Subject,
             SubjectKey = rollup.SubjectId,
-            Minute = point.Start / 60,
-            Requests = point.Requests,
-            Status1xx = point.Status1xx,
-            Status2xx = point.Status2xx,
-            Status3xx = point.Status3xx,
-            Status4xx = point.Status4xx,
-            Status5xx = point.Status5xx,
-            NoResponse = point.NoResponse,
-            Refused = point.Refused,
-            Errors = point.Errors,
-            BytesOut = point.BytesOut,
-            TotalMicrosSum = point.TotalMicrosSum,
-            UpstreamMicrosSum = point.UpstreamMicrosSum,
-            UpstreamTimed = point.UpstreamTimed,
-            TotalP50 = point.TotalP50,
-            TotalP95 = point.TotalP95,
-            TotalP99 = point.TotalP99,
-            UpstreamP50 = point.UpstreamP50,
-            UpstreamP95 = point.UpstreamP95,
-            UpstreamP99 = point.UpstreamP99,
+            Minute = rollup.Point.Start / 60,
         };
+        Apply(row, rollup.Point);
+        return row;
+    }
+
+    private static MetricPoint PointOf(MetricRollupRow row) => new()
+    {
+        Start = row.Minute * 60,
+        Width = MinuteSeconds,
+        CoveredSeconds = row.CoveredSeconds,
+        Requests = row.Requests,
+        Status1xx = row.Status1xx,
+        Status2xx = row.Status2xx,
+        Status3xx = row.Status3xx,
+        Status4xx = row.Status4xx,
+        Status5xx = row.Status5xx,
+        NoResponse = row.NoResponse,
+        Refused = row.Refused,
+        Errors = row.Errors,
+        BytesOut = row.BytesOut,
+        TotalMicrosSum = row.TotalMicrosSum,
+        UpstreamMicrosSum = row.UpstreamMicrosSum,
+        UpstreamTimed = row.UpstreamTimed,
+        TotalP50 = row.TotalP50,
+        TotalP95 = row.TotalP95,
+        TotalP99 = row.TotalP99,
+        UpstreamP50 = row.UpstreamP50,
+        UpstreamP95 = row.UpstreamP95,
+        UpstreamP99 = row.UpstreamP99,
+    };
+
+    private static void Apply(MetricRollupRow row, MetricPoint point)
+    {
+        row.CoveredSeconds = Math.Min(point.CoveredSeconds, MinuteSeconds);
+        row.Requests = point.Requests;
+        row.Status1xx = point.Status1xx;
+        row.Status2xx = point.Status2xx;
+        row.Status3xx = point.Status3xx;
+        row.Status4xx = point.Status4xx;
+        row.Status5xx = point.Status5xx;
+        row.NoResponse = point.NoResponse;
+        row.Refused = point.Refused;
+        row.Errors = point.Errors;
+        row.BytesOut = point.BytesOut;
+        row.TotalMicrosSum = point.TotalMicrosSum;
+        row.UpstreamMicrosSum = point.UpstreamMicrosSum;
+        row.UpstreamTimed = point.UpstreamTimed;
+        row.TotalP50 = point.TotalP50;
+        row.TotalP95 = point.TotalP95;
+        row.TotalP99 = point.TotalP99;
+        row.UpstreamP50 = point.UpstreamP50;
+        row.UpstreamP95 = point.UpstreamP95;
+        row.UpstreamP99 = point.UpstreamP99;
     }
 }

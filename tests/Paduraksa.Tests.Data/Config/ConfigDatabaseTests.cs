@@ -105,11 +105,29 @@ public sealed class ConfigDatabaseTests
 
         var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
 
-        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex"], result.AppliedMigrations);
+        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage"], result.AppliedMigrations);
         var tables = (await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).Select(r => (string)r[0]!).ToList();
         Assert.All(["GlobalSettings", "Profiles", "Upstreams", "Destinations", "Hosts", "HostNames", "Routes"], dropped => Assert.DoesNotContain(dropped, tables));
         Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM ConfigRevisions WHERE Seq = 1"));
         await using var upgraded = db.NewContext();
         Assert.Empty(await upgraded.Database.GetPendingMigrationsAsync(Ct));
+    }
+
+    [Fact]
+    public async Task AMinuteStoredBeforeCoverageWasRecordedCountsAsAWholeObservedMinute()
+    {
+        await using var db = Empty();
+        await using (var context = db.NewContext())
+        {
+            await context.GetService<IMigrator>().MigrateAsync("20261112024452_AuditSignInIndex", Ct);
+        }
+
+        await db.ExecuteAsync(
+            "INSERT INTO MetricRollups (Id, Subject, SubjectKey, Minute, Requests, Status1xx, Status2xx, Status3xx, Status4xx, Status5xx, NoResponse, Refused, Errors, BytesOut, TotalMicrosSum, UpstreamMicrosSum, UpstreamTimed, TotalP50, TotalP95, TotalP99, UpstreamP50, UpstreamP95, UpstreamP99) "
+            + "VALUES (1, 0, '', 29000000, 5, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)");
+
+        await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
+
+        Assert.Equal(60L, await db.ScalarAsync("SELECT CoveredSeconds FROM MetricRollups"));
     }
 }

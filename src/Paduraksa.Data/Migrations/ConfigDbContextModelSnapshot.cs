@@ -585,6 +585,9 @@ namespace Paduraksa.Data.Migrations
                     b.Property<long>("BytesOut")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("CoveredSeconds")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("Errors")
                         .HasColumnType("INTEGER");
 

@@ -85,7 +85,7 @@ public sealed class MetricSamplerTests
         var view = rig.Sampler.Read(MetricRollupSubject.Host, HostA)!.Value;
         var point = Assert.Single(view.Points);
         Assert.Equal(Start.ToUnixTimeSeconds(), point.Start);
-        Assert.Equal(10, point.Seconds);
+        Assert.Equal(10, point.CoveredSeconds);
         Assert.Equal(102, point.Requests);
         Assert.Equal(100, point.Status2xx);
         Assert.Equal(1, point.Status4xx);
@@ -147,7 +147,7 @@ public sealed class MetricSamplerTests
 
         Assert.Empty(view.Points);
         Assert.Equal(2, view.Open.Requests);
-        Assert.Equal(3, view.Open.Seconds);
+        Assert.Equal(3, view.Open.CoveredSeconds);
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class MetricSamplerTests
         var hostMinute = Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Host);
         Assert.Equal(HostId.FromValue(HostA).ToString(), hostMinute.SubjectId);
         Assert.Equal(31, hostMinute.Point.Requests);
-        Assert.Equal(60, hostMinute.Point.Seconds);
+        Assert.Equal(60, hostMinute.Point.CoveredSeconds);
         Assert.Equal(Start.ToUnixTimeSeconds(), hostMinute.Point.Start);
         var totalMinute = Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Total);
         Assert.Equal(string.Empty, totalMinute.SubjectId);

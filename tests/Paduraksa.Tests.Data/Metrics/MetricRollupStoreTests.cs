@@ -19,13 +19,14 @@ public sealed class MetricRollupStoreTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static MetricRollup Minute(MetricRollupSubject subject, string id, DateTimeOffset at, long requests, int p95 = 2_000, long errors = 0) => new(
+    private static MetricRollup Minute(MetricRollupSubject subject, string id, DateTimeOffset at, long requests, int p95 = 2_000, long errors = 0, int covered = 60) => new(
         subject,
         id,
         new MetricPoint
         {
             Start = at.ToUnixTimeSeconds() / 60 * 60,
-            Seconds = 60,
+            Width = 60,
+            CoveredSeconds = covered,
             Requests = requests,
             Status2xx = requests - errors,
             Status5xx = errors,
@@ -52,7 +53,8 @@ public sealed class MetricRollupStoreTests
         Assert.Equal(120, read.Requests);
         Assert.Equal(6, read.Status5xx);
         Assert.Equal(2_000, read.TotalP95);
-        Assert.Equal(60, read.Seconds);
+        Assert.Equal(60, read.CoveredSeconds);
+        Assert.Equal(60, read.Width);
     }
 
     [Fact]
@@ -69,16 +71,66 @@ public sealed class MetricRollupStoreTests
     }
 
     [Fact]
-    public async Task AMinuteAlreadyStoredForAnObjectIsNotWrittenTwice()
+    public async Task AMinuteWrittenTwiceIsMergedIntoOneRowThatKeepsEveryCountAndEverySecondObserved()
     {
         await using var database = await TestConfigDatabase.CreateAsync();
         MetricRollupStore store = new(database.Factory);
-        var minute = Minute(MetricRollupSubject.Host, App.ToString(), Noon, 120);
 
-        await store.WriteAsync([minute], Ct);
-        await store.WriteAsync([minute, Minute(MetricRollupSubject.Upstream, Web.ToString(), Noon, 120)], Ct);
+        // A stop at second 20 flushed what the minute held; the next process went on to fill the rest of it.
+        await store.WriteAsync([Minute(MetricRollupSubject.Host, App.ToString(), Noon, 100, p95: 1_000, errors: 4, covered: 20)], Ct);
+        await store.WriteAsync([Minute(MetricRollupSubject.Host, App.ToString(), Noon, 300, p95: 3_000, errors: 8, covered: 35), Minute(MetricRollupSubject.Upstream, Web.ToString(), Noon, 120)], Ct);
 
         Assert.Equal(2L, await database.ScalarAsync("SELECT COUNT(*) FROM \"MetricRollups\""));
+        var row = Assert.Single(await store.ReadSeriesAsync(MetricRollupSubject.Host, App.ToString(), Noon.AddMinutes(-1), Noon.AddMinutes(1), 1, Ct));
+        Assert.Equal(400, row.Requests);
+        Assert.Equal(12, row.Status5xx);
+        Assert.Equal(12, row.Errors);
+        Assert.Equal(400 * 1_000, row.TotalMicrosSum);
+        Assert.Equal(55, row.CoveredSeconds);
+        Assert.Equal(2_500, row.TotalP95);
+    }
+
+    [Fact]
+    public async Task AMergedMinuteNeverClaimsMoreThanSixtySeconds()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        MetricRollupStore store = new(database.Factory);
+
+        await store.WriteAsync([Minute(MetricRollupSubject.Total, string.Empty, Noon, 1, covered: 40)], Ct);
+        await store.WriteAsync([Minute(MetricRollupSubject.Total, string.Empty, Noon, 1, covered: 40)], Ct);
+
+        Assert.Equal(60, Assert.Single(await store.ReadSeriesAsync(MetricRollupSubject.Total, string.Empty, Noon, Noon, 1, Ct)).CoveredSeconds);
+    }
+
+    [Fact]
+    public async Task TheSameMinuteTwiceInOneWriteIsMergedToo()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        MetricRollupStore store = new(database.Factory);
+
+        await store.WriteAsync(
+        [
+            Minute(MetricRollupSubject.Host, App.ToString(), Noon, 10, covered: 10),
+            Minute(MetricRollupSubject.Host, App.ToString(), Noon, 5, covered: 10),
+        ], Ct);
+
+        var row = Assert.Single(await store.ReadSeriesAsync(MetricRollupSubject.Host, App.ToString(), Noon, Noon, 1, Ct));
+        Assert.Equal(15, row.Requests);
+        Assert.Equal(20, row.CoveredSeconds);
+    }
+
+    [Fact]
+    public async Task AnIdleMinuteIsAStoredRowWithItsObservedSecondsAndNoRequests()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        MetricRollupStore store = new(database.Factory);
+
+        await store.WriteAsync([Minute(MetricRollupSubject.Total, string.Empty, Noon, 0, covered: 30)], Ct);
+
+        var row = Assert.Single(await store.ReadSeriesAsync(MetricRollupSubject.Total, string.Empty, Noon, Noon, 1, Ct));
+        Assert.Equal(0, row.Requests);
+        Assert.Equal(30, row.CoveredSeconds);
+        Assert.Equal(0, row.RequestsPerSecond);
     }
 
     [Fact]
@@ -142,7 +194,8 @@ public sealed class MetricRollupStoreTests
         Assert.Equal(400, steps[0].Requests);
         Assert.Equal(3, steps[0].Status5xx);
         Assert.Equal(2_500, steps[0].TotalP95);
-        Assert.Equal(6 * 60, steps[0].Seconds);
+        Assert.Equal(2 * 60, steps[0].CoveredSeconds);
+        Assert.Equal(6 * 60, steps[0].Width);
         Assert.Equal(50, steps[1].Requests);
         Assert.Equal(8_000, steps[1].TotalP95);
         Assert.True(steps[0].Start < steps[1].Start);

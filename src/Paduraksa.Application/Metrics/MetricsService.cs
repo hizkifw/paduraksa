@@ -160,16 +160,16 @@ public sealed class MetricsService(
     private static MetricsSeriesPoint SeriesPoint(MetricPoint point) => new(
         DateTimeOffset.FromUnixTimeSeconds(point.Start),
         point.RequestsPerSecond,
-        point.Seconds <= 0 ? 0 : (double)point.Status5xx / point.Seconds,
-        point.Seconds <= 0 ? 0 : (double)point.Refused / point.Seconds,
+        point.PerSecond(point.Status5xx),
+        point.PerSecond(point.Refused),
         new LatencyFigures(Milliseconds(point.TotalP50), Milliseconds(point.TotalP95), Milliseconds(point.TotalP99)),
         new LatencyFigures(Milliseconds(point.UpstreamP50), Milliseconds(point.UpstreamP95), Milliseconds(point.UpstreamP99)));
 
     private static MetricsFigures Figures(MetricPoint point) => new(
         point.RequestsPerSecond,
         point.ErrorRate,
-        point.Seconds <= 0 ? 0 : (double)point.Refused / point.Seconds,
-        point.Seconds <= 0 ? 0 : (double)point.BytesOut / point.Seconds,
+        point.PerSecond(point.Refused),
+        point.PerSecond(point.BytesOut),
         new LatencyFigures(Milliseconds(point.TotalP50), Milliseconds(point.TotalP95), Milliseconds(point.TotalP99)),
         new LatencyFigures(Milliseconds(point.UpstreamP50), Milliseconds(point.UpstreamP95), Milliseconds(point.UpstreamP99)));
 

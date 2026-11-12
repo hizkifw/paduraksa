@@ -61,7 +61,8 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
             return new MetricPoint
             {
                 Start = start,
-                Seconds = seconds,
+                Width = seconds,
+                CoveredSeconds = seconds,
                 Requests = _counters[UpstreamMetric.Requests],
                 Errors = errors,
                 UpstreamMicrosSum = _counters[UpstreamMetric.UpstreamMicros],
@@ -90,7 +91,8 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
         return new MetricPoint
         {
             Start = start,
-            Seconds = seconds,
+            Width = seconds,
+            CoveredSeconds = seconds,
             Requests = requests,
             Status1xx = _counters[RequestMetric.Status],
             Status2xx = _counters[RequestMetric.Status + 1],
@@ -188,7 +190,7 @@ internal sealed class MetricSeries
                     // A sampler that stalled leaves empty buckets behind, so the ring's axis stays in time.
                     for (var gap = _bucketId + 1; gap < bucketId && gap - _bucketId <= RingPoints; gap++)
                     {
-                        Push(new MetricPoint { Start = gap * BucketSeconds, Seconds = BucketSeconds });
+                        Push(new MetricPoint { Start = gap * BucketSeconds, Width = BucketSeconds, CoveredSeconds = BucketSeconds });
                     }
                 }
 
@@ -244,7 +246,7 @@ internal sealed class MetricSeries
             for (var i = 0; i < _count; i++)
             {
                 var point = _ring[(_head - _count + i + RingPoints) % RingPoints];
-                if (point.Start + point.Seconds > sinceUnixSeconds)
+                if (point.Start + point.Width > sinceUnixSeconds)
                 {
                     taken.Add(point);
                 }
@@ -299,5 +301,5 @@ internal sealed class MetricSeries
 
 /// <summary>A series as the dashboard reads it: finished ten-second buckets oldest first, and the bucket still filling.</summary>
 /// <param name="Points">The ring, up to an hour.</param>
-/// <param name="Open">The bucket being filled; its <see cref="MetricPoint.Seconds"/> is how long it has been open.</param>
+/// <param name="Open">The bucket being filled; its <see cref="MetricPoint.CoveredSeconds"/> is how long it has been open.</param>
 public readonly record struct MetricSeriesView(MetricPoint[] Points, MetricPoint Open);

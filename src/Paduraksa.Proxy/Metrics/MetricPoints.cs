@@ -4,17 +4,19 @@ namespace Paduraksa.Proxy.Metrics;
 public static class MetricPoints
 {
     /// <summary>
-    /// One point covering all of <paramref name="points"/>: counts and sums add up, and a percentile is the mean of the points'
-    /// percentiles weighted by the requests they describe (every request for the total time, the timed ones for the upstream
-    /// time). A histogram can't be merged back from percentiles, so a long range's p95 is an approximation of the real one that is
-    /// exact when the load is steady.
+    /// One point covering all of <paramref name="points"/>: counts, sums and the seconds they observed add up, and a percentile is
+    /// the mean of the points' percentiles weighted by the requests they describe (every request for the total time, the timed ones
+    /// for the upstream time). A histogram can't be merged back from percentiles, so a long range's p95 is an approximation of the
+    /// real one that is exact when the load is steady. <paramref name="width"/> is the span the result stands for.
     /// </summary>
-    public static MetricPoint Combine(ReadOnlySpan<MetricPoint> points, long start, int seconds)
+    public static MetricPoint Combine(ReadOnlySpan<MetricPoint> points, long start, int width)
     {
+        long covered = 0;
         long requests = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, none = 0, refused = 0, errors = 0, bytes = 0, total = 0, upstream = 0, timed = 0;
         double t50 = 0, t95 = 0, t99 = 0, u50 = 0, u95 = 0, u99 = 0;
         foreach (var point in points)
         {
+            covered += point.CoveredSeconds;
             requests += point.Requests;
             s1 += point.Status1xx;
             s2 += point.Status2xx;
@@ -39,7 +41,8 @@ public static class MetricPoints
         return new MetricPoint
         {
             Start = start,
-            Seconds = seconds,
+            Width = width,
+            CoveredSeconds = (int)Math.Min(covered, int.MaxValue),
             Requests = requests,
             Status1xx = s1,
             Status2xx = s2,

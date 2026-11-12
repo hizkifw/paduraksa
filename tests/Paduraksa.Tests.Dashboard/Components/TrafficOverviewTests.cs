@@ -343,7 +343,7 @@ public sealed class TrafficOverviewTests
 
         public Task StoreMinuteAsync(MetricRollupSubject subject, string id, DateTimeOffset at, long requests, long errors = 0) =>
             new MetricRollupStore(_factory).WriteAsync(
-                [new MetricRollup(subject, id, new MetricPoint { Start = at.ToUnixTimeSeconds() / 60 * 60, Seconds = 60, Requests = requests, Status2xx = requests - errors, Status5xx = errors, Errors = errors, TotalP50 = 1_000, TotalP95 = 2_000, TotalP99 = 3_000, UpstreamTimed = requests, UpstreamP95 = 1_000 })],
+                [new MetricRollup(subject, id, new MetricPoint { Start = at.ToUnixTimeSeconds() / 60 * 60, Width = 60, CoveredSeconds = 60, Requests = requests, Status2xx = requests - errors, Status5xx = errors, Errors = errors, TotalP50 = 1_000, TotalP95 = 2_000, TotalP99 = 3_000, UpstreamTimed = requests, UpstreamP95 = 1_000 })],
                 Xunit.TestContext.Current.CancellationToken);
 
         public async ValueTask DisposeAsync()
