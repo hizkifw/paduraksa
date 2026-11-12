@@ -160,6 +160,11 @@ bounded: at most 1000 lines (200 unless asked otherwise), read from the last 1 M
 one, from what 8 Mi characters of decompression yields, with each line cut at 4096 characters; downloading gives the whole
 file.
 
+Requests as they end are in **Live tail** (Insight, `logs:read`), and `GET /api/v1/logs/tail` streams them as
+Server-Sent Events (`curl -N -H "Authorization: Bearer ..." "https://.../api/v1/logs/tail?statusClass=5xx&backlog=50"`). The tail
+shows what `access.log` would, redacted and capped the same way, and a host with its access log off is in neither. It keeps the
+newest `Paduraksa__AccessLog__TailSize` requests in memory; see the API description for the filters and the events.
+
 The first-run setup token's banner is logged at Warning, so on a fresh instance it is also written to `error.log` (the one
 exception documented in PLAN §2). Until an Owner exists it can therefore be found in the logs, rotated `.gz` files
 included; it is single-use and worthless once an Owner exists, and the process deletes the token file when setup completes.
