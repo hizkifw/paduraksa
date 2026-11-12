@@ -22,6 +22,7 @@ namespace Paduraksa.Server.Hosting;
 /// <param name="KeyRing">The admin app's Data Protection key ring (the dashboard's antiforgery and circuit state).</param>
 /// <param name="PasswordCredentials">Sets and deletes access-list users' passwords (write-only: nothing reads one back).</param>
 /// <param name="PasswordVerifier">The gate's password check and its cache.</param>
+/// <param name="Backup">Full backup: the passphrase-encrypted archive of both databases (the vault writes it; no key leaves).</param>
 internal sealed record VaultCapabilities(
     IVaultLifecycle Lifecycle,
     IServerCertificateSource ServerCertificates,
@@ -36,7 +37,8 @@ internal sealed record VaultCapabilities(
     ITotpAuthenticator Totp,
     IDataProtectionKeyStore KeyRing,
     IPasswordCredentials PasswordCredentials,
-    IPasswordVerifier PasswordVerifier);
+    IPasswordVerifier PasswordVerifier,
+    IVaultBackup Backup);
 
 /// <summary>
 /// Composes the vault into the shared services: the one <c>AddPaduraksaVault</c> registration, over the data
@@ -70,7 +72,8 @@ internal static class VaultStore
             container.GetRequiredService<ITotpAuthenticator>(),
             container.GetRequiredService<IDataProtectionKeyStore>(),
             container.GetRequiredService<IPasswordCredentials>(),
-            container.GetRequiredService<IPasswordVerifier>());
+            container.GetRequiredService<IPasswordVerifier>(),
+            container.GetRequiredService<IVaultBackup>());
     }
 }
 

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Audit;
+using Paduraksa.Application.Backup;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
@@ -82,7 +83,9 @@ internal static class ConfigStore
             .AddSingleton(vault.Secrets)
             .AddSingleton(vault.MacKeys)
             .AddSingleton(vault.NotificationSecrets)
+            .AddSingleton(vault.Backup)
             .AddPaduraksaIdentity(dataDirectory, admin.ToIdentityOptions())
+            .AddPaduraksaBackup(dataDirectory)
             .AddSingleton<IUpstreamHealth>(health)
             .AddSingleton(new ListenerFacts(listeners.HttpProxyProtocol, listeners.HttpsProxyProtocol, listeners.Http3))
             .AddSingleton(challenges)
@@ -111,6 +114,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<TwoFactorService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<LoginService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<ApiTokenService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<BackupService>());
         var setup = builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
         var permissions = builder.AddOwnedElsewhere(container.GetRequiredService<IPermissionEvaluator>());
         if (placeholderEnabled)
