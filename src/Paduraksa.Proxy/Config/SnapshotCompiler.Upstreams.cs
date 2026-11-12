@@ -21,6 +21,7 @@ public static partial class SnapshotCompiler
     private static Dictionary<UpstreamId, ClusterConfig> CompileUpstreams(
         IReadOnlyList<UpstreamSpec> upstreams,
         HashSet<UpstreamId> withoutDestinations,
+        Dictionary<UpstreamId, UpstreamHost> hosts,
         List<CompileError> errors)
     {
         // Insertion-ordered by construction.
@@ -94,6 +95,24 @@ public static partial class SnapshotCompiler
                 errors.Add(new(where, "pinned TLS trust needs at least one normalised SHA-256 fingerprint"));
             }
 
+            var host = spec.HostHeader switch
+            {
+                UpstreamHostHeaderMode.Original => UpstreamHost.Original,
+                UpstreamHostHeaderMode.Destination => UpstreamHost.Destination,
+                UpstreamHostHeaderMode.Custom when UpstreamHost.IsSendable(spec.HostHeaderValue) => new UpstreamHost(UpstreamHostHeaderMode.Custom, spec.HostHeaderValue),
+                _ => null,
+            };
+            if (host is null)
+            {
+                errors.Add(new(where, spec.HostHeader == UpstreamHostHeaderMode.Custom
+                    ? "a custom Host header needs a name that is printable ASCII with no space, slash, '?', '#', '@' or '%'"
+                    : $"unknown Host header mode {spec.HostHeader}"));
+            }
+            else
+            {
+                hosts[spec.Id] = host;
+            }
+
             if (spec.ActiveHealth is { } active
                 && (active.Path is not ['/', ..] || active.Path.Contains('?', StringComparison.Ordinal) || active.Interval <= TimeSpan.Zero || active.Timeout <= TimeSpan.Zero))
             {
@@ -144,13 +163,34 @@ public static partial class SnapshotCompiler
                         DangerousAcceptAnyServerCertificate = spec.TlsTrust == UpstreamTlsTrust.Any ? true : null,
                     }
                     : null,
-                Metadata = spec.TlsTrust == UpstreamTlsTrust.Pinned
-                    ? new Dictionary<string, string> { [UpstreamCertificatePins.MetadataKey] = string.Join(',', spec.PinnedSha256) }
-                    : null,
+                Metadata = ClusterMetadata(spec, host),
             };
         }
 
         return clusters;
+    }
+
+    private static Dictionary<string, string>? ClusterMetadata(UpstreamSpec spec, UpstreamHost? host)
+    {
+        var pinned = spec.TlsTrust == UpstreamTlsTrust.Pinned;
+        var custom = host is { Mode: UpstreamHostHeaderMode.Custom };
+        if (!pinned && !custom)
+        {
+            return null;
+        }
+
+        Dictionary<string, string> metadata = [];
+        if (pinned)
+        {
+            metadata[UpstreamCertificatePins.MetadataKey] = string.Join(',', spec.PinnedSha256);
+        }
+
+        if (custom)
+        {
+            metadata[UpstreamHost.MetadataKey] = host!.Name!;
+        }
+
+        return metadata;
     }
 
     private static bool AreNormalisedPins(IReadOnlyList<string> pins)

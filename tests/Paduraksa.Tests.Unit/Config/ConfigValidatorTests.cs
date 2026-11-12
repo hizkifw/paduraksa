@@ -241,6 +241,50 @@ public sealed class ConfigValidatorTests
     }
 
     [Fact]
+    public void AnUpstreamHostHeaderNeedsAValidNameExactlyWhenItIsCustom()
+    {
+        var document = Valid();
+        var upstream = document.Upstreams[0];
+        UpstreamConfig Another(int n, UpstreamHostHeaderConfig hostHeader) =>
+            upstream with { Id = Id<UpstreamId>(n), Name = $"n{n}", Destinations = [new DestinationConfig(Id<DestinationId>(90 + n), $"http://n{n}")], HostHeader = hostHeader };
+
+        AssertErrors(
+            document with
+            {
+                Upstreams =
+                [
+                    Another(1, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom)),
+                    Another(2, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Destination, "app.internal")),
+                    Another(3, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "bad host")),
+                    Another(4, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "app.internal:0")),
+                    Another(5, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "*.internal")),
+                    Another(6, new UpstreamHostHeaderConfig((UpstreamHostHeaderMode)42)),
+                    Another(7, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Original, "app.internal")),
+                    Another(8, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "::1")),
+                ],
+            },
+            ("/upstreams/0/hostHeader/value", UpstreamHostHeaderValueRequired),
+            ("/upstreams/1/hostHeader/value", UpstreamHostHeaderValueUnused),
+            ("/upstreams/2/hostHeader/value", UpstreamHostHeaderValueInvalid),
+            ("/upstreams/3/hostHeader/value", UpstreamHostHeaderValueInvalid),
+            ("/upstreams/4/hostHeader/value", UpstreamHostHeaderValueInvalid),
+            ("/upstreams/5/hostHeader/mode", EnumUndefined),
+            ("/upstreams/6/hostHeader/value", UpstreamHostHeaderValueUnused),
+            ("/upstreams/7/hostHeader/value", UpstreamHostHeaderValueInvalid));
+
+        Assert.Empty(ConfigValidator.Validate(CanonicalConfigJson.Canonicalize(document with
+        {
+            Upstreams =
+            [
+                Another(1, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "App.Internal:8080")),
+                Another(2, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "[::1]:8443")),
+                Another(3, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "192.0.2.7")),
+                Another(4, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Destination)),
+            ],
+        })));
+    }
+
+    [Fact]
     public void AnUpstreamAnEnabledHostRoutesToNeedsAnEnabledDestination()
     {
         var document = Valid();

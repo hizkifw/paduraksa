@@ -389,7 +389,7 @@ public sealed class GateMiddleware
 
         var endpoints = snapshot.YarpEndpoints;
         var endpointPresent = (uint)route.Slot < (uint)endpoints.Length;
-        tracer.Forward(snapshot, route, endpointPresent);
+        tracer.Forward(context, snapshot, route, endpointPresent);
         if (!endpointPresent)
         {
             return GateDecision.Respond(snapshot.Unavailable);

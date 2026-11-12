@@ -53,6 +53,12 @@ public sealed class UpstreamEditModel
     /// <summary>One fingerprint per line, as pasted.</summary>
     public string PinnedSha256 { get; set; } = string.Empty;
 
+    public UpstreamHostHeaderMode HostHeaderMode { get; set; }
+
+    /// <summary>The fixed name, as typed; kept while another mode is picked so switching back before saving restores it, and sent only
+    /// under <see cref="UpstreamHostHeaderMode.Custom"/>.</summary>
+    public string HostHeaderValue { get; set; } = string.Empty;
+
     public string? Notes { get; set; }
 
     /// <summary>A form for a new upstream with one empty destination.</summary>
@@ -91,6 +97,8 @@ public sealed class UpstreamEditModel
         model.MaxConnectionsPerServer = upstream.MaxConnectionsPerServer;
         model.TlsTrust = upstream.Tls?.Trust ?? UpstreamTlsTrust.System;
         model.PinnedSha256 = string.Join('\n', upstream.Tls?.PinnedSha256 ?? []);
+        model.HostHeaderMode = upstream.HostHeader?.Mode ?? UpstreamHostHeaderMode.Original;
+        model.HostHeaderValue = upstream.HostHeader?.Value ?? string.Empty;
         model.Notes = upstream.Notes;
         model.Destinations.AddRange(upstream.Destinations.Select(d => new DestinationEntry(d.Id) { Address = d.Address, Enabled = d.Enabled }));
         return model;
@@ -115,7 +123,38 @@ public sealed class UpstreamEditModel
             : null,
         MaxConnectionsPerServer,
         string.IsNullOrWhiteSpace(Notes) ? null : Notes,
-        TlsConfig());
+        TlsConfig(),
+        HostHeaderConfig());
+
+    // The client's own Host is the default, so it stays out of the document.
+    private UpstreamHostHeaderConfig? HostHeaderConfig() => HostHeaderMode switch
+    {
+        UpstreamHostHeaderMode.Original => null,
+        UpstreamHostHeaderMode.Custom => new UpstreamHostHeaderConfig(HostHeaderMode, HostHeaderValue.Trim()),
+        _ => new UpstreamHostHeaderConfig(HostHeaderMode),
+    };
+
+    /// <summary>
+    /// The server names an HTTPS destination is asked for to read its certificate: what the proxy will send as SNI. A null entry
+    /// is no name, so the address's own is used (or none, for an IP literal). <paramref name="clientNames"/> are the names of the
+    /// hosts that route here, which only <see cref="UpstreamHostHeaderMode.Original"/> sends on.
+    /// </summary>
+    public IReadOnlyList<string?> SniNames(IReadOnlyList<string> clientNames) => HostHeaderMode switch
+    {
+        UpstreamHostHeaderMode.Destination => [null],
+        UpstreamHostHeaderMode.Custom => [CustomServerName()],
+        _ => [null, .. clientNames],
+    };
+
+    // The name without its port, when it is a DNS name a handshake can ask for: an IP literal (bracketed IPv6 included) sends none.
+    private string? CustomServerName()
+    {
+        var text = HostHeaderValue.Trim();
+        var host = text.StartsWith('[')
+            ? text[..(text.IndexOf(']', StringComparison.Ordinal) + 1)]
+            : text.IndexOf(':', StringComparison.Ordinal) is var colon and > 0 && text.IndexOf(':', colon + 1) < 0 ? text[..colon] : text;
+        return Uri.CheckHostName(host) == UriHostNameType.Dns ? host : null;
+    }
 
     // System trust with nothing pinned is the default, so it stays out of the document.
     private UpstreamTlsConfig? TlsConfig()

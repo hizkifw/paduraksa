@@ -80,10 +80,11 @@ public static class ProxyHostingExtensions
             .AddTransforms(transforms =>
             {
                 transforms.UseDefaultForwarders = false;
-                // YARP's default sends the destination's address as Host. Upstreams see the client's, as behind nginx or
-                // Caddy; on an HTTPS upstream that also makes it the SNI and the name the upstream's certificate is checked
-                // against.
-                transforms.AddOriginalHost(true);
+                // YARP's default sends the destination's address as Host. Upstreams see the client's unless their route says
+                // otherwise (UpstreamHostTransform); on an HTTPS upstream the Host is also the SNI and the name the upstream's
+                // certificate is checked against.
+                transforms.AddOriginalHost(false);
+                transforms.AddRequestTransform(UpstreamHostTransform.ApplyAsync);
                 transforms.AddRequestTransform(AccessLogTransform.OnRequestAsync);
                 transforms.AddRequestTransform(RawPathTransform.ApplyAsync);
                 transforms.AddRequestTransform(ForwardedHeadersTransform.ApplyAsync);
@@ -103,6 +104,7 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();
         services.RecordActiveProbes();
+        UpstreamHostProbes.SendCustomHostWithProbes(services);
         services.TryAddSingleton<IUpstreamHealth>(static provider => new YarpUpstreamHealth(provider.GetRequiredService<IProxyStateLookup>(), provider.GetRequiredService<ProbeLog>()));
         services.AddPaduraksaRateLimiting(rateLimits);
         return services;

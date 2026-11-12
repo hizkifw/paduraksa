@@ -142,6 +142,9 @@ public static partial class SnapshotCompiler
 
         public HashSet<UpstreamId> WithoutDestinations { get; } = [];
 
+        /// <summary>The <c>Host</c> each upstream sends, for the routes that point at it.</summary>
+        public Dictionary<UpstreamId, UpstreamHost> UpstreamHosts { get; } = [];
+
         public HashSet<UpstreamId> Reported { get; } = [];
 
         public HostTable.Builder Table { get; } = new();
@@ -217,7 +220,7 @@ public static partial class SnapshotCompiler
                 propagation: Defaults.RequestIdPropagation,
                 CompileErrorSource.Defaults,
                 Errors);
-            Clusters = CompileUpstreams(Model.Upstreams ?? [], WithoutDestinations, Errors);
+            Clusters = CompileUpstreams(Model.Upstreams ?? [], WithoutDestinations, UpstreamHosts, Errors);
         }
 
         /// <summary>The candidate, once every step has run without an error.</summary>

@@ -204,6 +204,42 @@ public sealed class SnapshotCompilerTests
     }
 
     [Fact]
+    public void AnUpstreamsHostHeaderCompilesOntoItsRoutesAndACustomOneIntoTheCluster()
+    {
+        var snapshot = Compile(new ProxyConfigModel
+        {
+            Upstreams =
+            [
+                Upstream("plain", "http://10.0.0.1:80/"),
+                Upstream("dest", "http://10.0.0.2:80/") with { HostHeader = UpstreamHostHeaderMode.Destination },
+                Upstream("named", "http://10.0.0.3:80/") with { HostHeader = UpstreamHostHeaderMode.Custom, HostHeaderValue = "api.internal:8443", TlsTrust = UpstreamTlsTrust.Pinned, PinnedSha256 = [new string('a', 64)] },
+            ],
+            Hosts = [ProxyHost("app", "app.test", Route("r-plain", "plain", "/p"), Route("r-dest", "dest", "/d"), Route("r-named", "named", "/n"))],
+        });
+
+        var routes = snapshot.HostsByIndex.Single().Routes;
+        Assert.Equal(UpstreamHost.Original, routes.Single(r => r.Id == TestIds.Route("r-plain")).UpstreamHost);
+        Assert.Equal(UpstreamHost.Destination, routes.Single(r => r.Id == TestIds.Route("r-dest")).UpstreamHost);
+        Assert.Equal(new UpstreamHost(UpstreamHostHeaderMode.Custom, "api.internal:8443"), routes.Single(r => r.Id == TestIds.Route("r-named")).UpstreamHost);
+        Assert.Null(snapshot.Yarp.Clusters.Single(c => c.ClusterId == TestIds.Upstream("plain").ToString()).Metadata);
+        Assert.Null(snapshot.Yarp.Clusters.Single(c => c.ClusterId == TestIds.Upstream("dest").ToString()).Metadata);
+        var metadata = snapshot.Yarp.Clusters.Single(c => c.ClusterId == TestIds.Upstream("named").ToString()).Metadata!;
+        Assert.Equal("api.internal:8443", metadata[UpstreamHost.MetadataKey]);
+        Assert.Contains(UpstreamCertificatePins.MetadataKey, metadata.Keys); // beside the pins, not instead of them
+    }
+
+    [Theory]
+    [InlineData("http://app:80/", "app")]
+    [InlineData("http://app:8080/base", "app:8080")]
+    [InlineData("https://app:443/", "app")]
+    [InlineData("https://nas.lan:8443/", "nas.lan:8443")]
+    [InlineData("http://[2001:db8::1]:8080/", "[2001:db8::1]:8080")]
+    [InlineData("http://192.0.2.7/", "192.0.2.7")]
+    [InlineData("http://b\u00fccher.example/", "xn--bcher-kva.example")]
+    public void TheDestinationsOwnHostIsWhatAnHttpClientSends(string address, string expected) =>
+        Assert.Equal(expected, UpstreamHost.OfDestination(new Uri(address)));
+
+    [Fact]
     public void ActiveHealthChecksCompileIntoTheCluster()
     {
         var snapshot = Compile(new ProxyConfigModel
@@ -392,6 +428,10 @@ public sealed class SnapshotCompilerTests
         { "bad deny status", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(42)] }), "deny status 42" },
         { "respond 204 with body", Hosts(new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204, Body = "x" } }), "a 204 response can't have a body" },
         { "respond 304 with body", Hosts(new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 304, Body = "x" } }), "a 304 response can't have a body" },
+        { "custom Host header without a name", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { HostHeader = UpstreamHostHeaderMode.Custom }] }, "a custom Host header needs a name" },
+        { "custom Host header with a path", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { HostHeader = UpstreamHostHeaderMode.Custom, HostHeaderValue = "a/b" }] }, "a custom Host header needs a name" },
+        { "custom Host header with a line break", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { HostHeader = UpstreamHostHeaderMode.Custom, HostHeaderValue = "a\r\nX: y" }] }, "a custom Host header needs a name" },
+        { "unknown Host header mode", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { HostHeader = (UpstreamHostHeaderMode)9 }] }, "unknown Host header mode 9" },
         { "active health path", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Path = "health" } }] }, "active health check needs a path" },
         { "active health interval", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Interval = TimeSpan.Zero } }] }, "active health check needs" },
         { "deny 205 with body", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(205)] }), "a 205 deny response can't have a body" },

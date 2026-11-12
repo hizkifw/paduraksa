@@ -350,6 +350,11 @@ public static class ConfigValidator
                 }
             }
 
+            if (upstream.HostHeader is { } hostHeader && CheckEnum(hostHeader.Mode, $"{path}/hostHeader/mode"))
+            {
+                CheckHostHeader(hostHeader, $"{path}/hostHeader");
+            }
+
             if (upstream.PassiveHealth?.ReactivationPeriod is { } reactivation && reactivation <= TimeSpan.Zero)
             {
                 Add($"{path}/passiveHealth/reactivationPeriod", UpstreamReactivationPeriodInvalid, "the reactivation period must be positive");
@@ -574,6 +579,28 @@ public static class ConfigValidator
             if (certificate.Mode == CertificateBindingMode.None)
             {
                 Add($"{path}/certificate/mode", HostAdminHttpsRequired, "an admin host is served over HTTPS: it can't use certificate mode none");
+            }
+        }
+
+        private void CheckHostHeader(UpstreamHostHeaderConfig hostHeader, string path)
+        {
+            if (hostHeader.Mode != UpstreamHostHeaderMode.Custom)
+            {
+                if (hostHeader.Value is not null)
+                {
+                    Add($"{path}/value", UpstreamHostHeaderValueUnused, "a value is only used with mode: custom");
+                }
+
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(hostHeader.Value))
+            {
+                Add($"{path}/value", UpstreamHostHeaderValueRequired, "a custom Host header needs a name, such as app.internal or app.internal:8080");
+            }
+            else if (!ConfigNormalization.TryNormalizeUpstreamHost(hostHeader.Value, out _, out var error))
+            {
+                Add($"{path}/value", UpstreamHostHeaderValueInvalid, error);
             }
         }
 

@@ -651,6 +651,26 @@ public sealed class ProxyConfigMappingTests
     }
 
     [Fact]
+    public void AnUpstreamsHostHeaderReachesTheModelAsTheExactStringSent()
+    {
+        static UpstreamConfig Upstream(int id, UpstreamHostHeaderConfig? hostHeader) =>
+            new(Id<UpstreamId>(id), $"u{id}", Destinations: [new DestinationConfig(Id<DestinationId>(id), $"http://u{id}")], HostHeader: hostHeader);
+        ConfigDocument document = new(Upstreams:
+        [
+            Upstream(1, null),
+            Upstream(2, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Destination)),
+            Upstream(3, new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, " Api.Internal:8443 ")),
+        ]);
+
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
+
+        var upstreams = mapped.Model.Upstreams.ToDictionary(u => u.Id);
+        Assert.Equal((UpstreamHostHeaderMode.Original, null), (upstreams[Id<UpstreamId>(1)].HostHeader, upstreams[Id<UpstreamId>(1)].HostHeaderValue));
+        Assert.Equal((UpstreamHostHeaderMode.Destination, null), (upstreams[Id<UpstreamId>(2)].HostHeader, upstreams[Id<UpstreamId>(2)].HostHeaderValue));
+        Assert.Equal((UpstreamHostHeaderMode.Custom, "api.internal:8443"), (upstreams[Id<UpstreamId>(3)].HostHeader, upstreams[Id<UpstreamId>(3)].HostHeaderValue));
+    }
+
+    [Fact]
     public void ProofOfWorkResolvesPerHostAndARouteOverridesOnlyTheSwitch()
     {
         HostSettings on = new() { ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 } };

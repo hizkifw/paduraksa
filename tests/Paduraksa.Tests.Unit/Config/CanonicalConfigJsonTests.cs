@@ -54,6 +54,24 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void TheDefaultHostHeaderIsNoSettingAndACustomNameIsNormalised()
+    {
+        UpstreamConfig Upstream(UpstreamHostHeaderConfig? hostHeader) =>
+            new(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "http://app:8080")], HostHeader: hostHeader);
+        string Json(UpstreamConfig upstream) => Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(new ConfigDocument(Upstreams: [upstream])));
+
+        var plain = Json(Upstream(null));
+
+        Assert.Equal(plain, Json(Upstream(new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Original))));
+        Assert.DoesNotContain("hostHeader", plain, StringComparison.Ordinal);
+        Assert.Contains("\"hostHeader\":{\"mode\":\"destination\"}", Json(Upstream(new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Destination))), StringComparison.Ordinal);
+        Assert.Contains(
+            "\"hostHeader\":{\"mode\":\"custom\",\"value\":\"app.internal:8080\"}",
+            Json(Upstream(new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "  App.Internal:8080 "))),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RuleSetsAreWrittenInIdOrderWithTheirConditionsAsSets()
     {
         RuleSetConfig later = new(Id<RuleSetId>(2), "  Later  ");

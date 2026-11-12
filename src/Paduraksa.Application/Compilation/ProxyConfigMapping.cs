@@ -985,6 +985,10 @@ public static class ProxyConfigMapping
                 : null,
             MaxConnectionsPerServer = upstream.MaxConnectionsPerServer,
             TlsTrust = trust,
+            HostHeader = upstream.HostHeader?.Mode ?? UpstreamHostHeaderMode.Original,
+            HostHeaderValue = upstream.HostHeader is { Mode: UpstreamHostHeaderMode.Custom } hostHeader
+                ? ConfigNormalization.TryNormalizeUpstreamHost(hostHeader.Value, out var hostName, out _) ? hostName : hostHeader.Value?.Trim()
+                : null,
             PinnedSha256 = trust == UpstreamTlsTrust.Pinned
                 ? [.. (upstream.Tls?.PinnedSha256 ?? []).Select(pin => Paduraksa.Proxy.Yarp.UpstreamCertificatePins.TryNormalize(pin, out var normal) ? normal : pin).Distinct(StringComparer.Ordinal)]
                 : [],

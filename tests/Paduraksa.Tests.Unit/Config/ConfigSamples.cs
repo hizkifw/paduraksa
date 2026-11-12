@@ -162,7 +162,10 @@ internal static class ConfigSamples
                 MaxConnectionsPerServer: Coin() ? random.Next(1, 1000) : null,
                 Tls: Maybe(() => Coin()
                     ? new UpstreamTlsConfig(UpstreamTlsTrust.Pinned, [Convert.ToHexStringLower(BitConverter.GetBytes(random.NextInt64())).PadLeft(64, '0')])
-                    : new UpstreamTlsConfig(Coin() ? UpstreamTlsTrust.Any : UpstreamTlsTrust.System)))),
+                    : new UpstreamTlsConfig(Coin() ? UpstreamTlsTrust.Any : UpstreamTlsTrust.System)),
+                HostHeader: Maybe(() => Coin()
+                    ? new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Destination)
+                    : new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, Coin() ? $"app{i}.internal" : $"app{i}.internal:{random.Next(1, 65536)}")))),
         ];
         RateLimitPolicyConfig[] policies =
         [

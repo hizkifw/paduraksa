@@ -236,6 +236,20 @@
                                 {
                                     <MudAlert Severity="Severity.Warning" Dense="true" Class="pdk-span-2">Anyone between Paduraksa and this upstream can read and change the traffic. Pin the certificate instead if you can.</MudAlert>
                                 }
+                                <MudSelect T="UpstreamHostHeaderMode" Value="Model.HostHeaderMode" ValueChanged="@(value => Set(() => Model.HostHeaderMode = value, "/hostHeader/mode"))" Label="Host header sent to the upstream"
+                                           HelperText="On https:// destinations the TLS server name follows it, and a system-trusted certificate is checked against it" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite" Class="pdk-span-2" data-field="host-header"
+                                           Error="@(E("/hostHeader/mode") is not null)" ErrorText="@E("/hostHeader/mode")">
+                                    <MudSelectItem T="UpstreamHostHeaderMode" Value="UpstreamHostHeaderMode.Original">The client's, as received</MudSelectItem>
+                                    <MudSelectItem T="UpstreamHostHeaderMode" Value="UpstreamHostHeaderMode.Destination">The destination's address</MudSelectItem>
+                                    <MudSelectItem T="UpstreamHostHeaderMode" Value="UpstreamHostHeaderMode.Custom">A fixed name</MudSelectItem>
+                                </MudSelect>
+                                @if (Model.HostHeaderMode == UpstreamHostHeaderMode.Custom)
+                                {
+                                    <MudTextField T="string" Value="Model.HostHeaderValue" ValueChanged="@(value => Set(() => Model.HostHeaderValue = value, "/hostHeader/value"))"
+                                                  Label="Host" Placeholder="app.internal or app.internal:8080" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                                  Class="pdk-span-2 pdk-mono-input" data-field="host-header-value"
+                                                  Error="@(E("/hostHeader/value") is not null)" ErrorText="@E("/hostHeader/value")" />
+                                }
                                 <MudNumericField T="int?" Value="Model.MaxConnectionsPerServer" ValueChanged="@(value => Set(() => Model.MaxConnectionsPerServer = value, "/maxConnectionsPerServer"))"
                                                  Label="Connections per destination" Placeholder="No limit" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                                  Error="@(E("/maxConnectionsPerServer") is not null)" ErrorText="@E("/maxConnectionsPerServer")" />
@@ -346,13 +360,13 @@
         _fetching = true;
         _certificates.Clear();
         var names = ServerNames;
-        _fetchedWithoutNames = names.Count == 0;
+        _fetchedWithoutNames = Model?.HostHeaderMode == UpstreamHostHeaderMode.Original && names.Count == 0;
         try
         {
             foreach (var address in HttpsDestinations.ToArray())
             {
                 // The address's own name (or none, for an IP) first: what a client that sends no host name would get.
-                foreach (var name in names.Cast<string?>().Prepend(null))
+                foreach (var name in Model!.SniNames(names))
                 {
                     await Logger.TryAsync(Snackbar, "The certificate couldn't be fetched.", async () => _certificates.Add((address, name, await probe.FetchCertificateAsync(address, name, origin))));
                 }

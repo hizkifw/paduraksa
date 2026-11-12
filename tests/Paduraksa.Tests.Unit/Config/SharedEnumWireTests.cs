@@ -53,6 +53,7 @@ public sealed class SharedEnumWireTests
                 typeof(TrustedProxyMode),
                 typeof(UnknownHostBehaviour),
                 typeof(UpstreamErrorReplacement),
+                typeof(UpstreamHostHeaderMode),
                 typeof(UpstreamTlsTrust),
             ],
             shared);
@@ -109,6 +110,7 @@ public sealed class SharedEnumWireTests
             "\"replaceUpstream\":\"any\"",
             "\"403\":{\"mode\":\"html\"",
             "\"trust\":\"any\"",
+            "\"hostHeader\":{\"mode\":\"custom\"",
             "\"per\":\"hour\"",
             "\"key\":\"header\"",
         })
@@ -143,7 +145,8 @@ public sealed class SharedEnumWireTests
                 ConfigSamples.Id<UpstreamId>(1),
                 "app",
                 Destinations: [new DestinationConfig(ConfigSamples.Id<DestinationId>(1), "https://app:8443")],
-                Tls: new UpstreamTlsConfig(UpstreamTlsTrust.Any)),
+                Tls: new UpstreamTlsConfig(UpstreamTlsTrust.Any),
+                HostHeader: new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "app.internal")),
         ],
         RateLimitPolicies:
         [

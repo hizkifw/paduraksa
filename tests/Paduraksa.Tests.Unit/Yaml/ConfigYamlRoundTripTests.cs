@@ -25,6 +25,29 @@ public sealed class ConfigYamlRoundTripTests
     }
 
     [Fact]
+    public void AnUpstreamsHostHeaderIsAKeyOfTheYamlAndReadsBack()
+    {
+        var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());
+        var document = sample with
+        {
+            Upstreams =
+            [
+                sample.Upstreams[0] with { HostHeader = new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "app.internal:8443") },
+                .. sample.Upstreams.Skip(1),
+            ],
+        };
+
+        var yaml = ConfigYamlExporter.Export(document);
+        var read = YamlTestSupport.Mapped(yaml);
+
+        Assert.Contains("hostHeader:", yaml, StringComparison.Ordinal);
+        Assert.Contains("app.internal:8443", yaml, StringComparison.Ordinal);
+        Assert.Equal(UpstreamHostHeaderMode.Custom, read.Upstreams[0].HostHeader!.Mode);
+        Assert.Equal("app.internal:8443", read.Upstreams[0].HostHeader!.Value);
+        Assert.Equal(Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)), Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(read)));
+    }
+
+    [Fact]
     public void EveryGeneratedValidDocumentExportsAndReadsBackToTheSameDocument()
     {
         var checkedDocuments = 0;

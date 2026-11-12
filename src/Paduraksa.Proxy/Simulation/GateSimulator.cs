@@ -14,6 +14,7 @@ using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
 
@@ -126,6 +127,41 @@ public static class GateSimulator
         }
 
         return null;
+    }
+
+    /// <summary>The <c>Host</c> the route's upstream receives for a request whose own is <paramref name="clientHost"/>: the same
+    /// answer the request transform gives. In <c>Destination</c> mode each destination has its own, so the distinct ones are
+    /// listed.</summary>
+    internal static string HostSentOf(RuntimeSnapshot snapshot, CompiledRoute route, string? clusterId, string clientHost)
+    {
+        switch (route.UpstreamHost.Mode)
+        {
+            case UpstreamHostHeaderMode.Custom:
+                return route.UpstreamHost.Name!;
+            case UpstreamHostHeaderMode.Destination:
+                List<string> names = [];
+                HashSet<string> seen = new(StringComparer.Ordinal);
+                foreach (var cluster in snapshot.Yarp.Clusters)
+                {
+                    if (!string.Equals(cluster.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    foreach (var destination in cluster.Destinations?.Values ?? [])
+                    {
+                        if (Uri.TryCreate(destination.Address, UriKind.Absolute, out var address)
+                            && UpstreamHost.OfDestination(address) is var name && seen.Add(name))
+                        {
+                            names.Add(name);
+                        }
+                    }
+                }
+
+                return names.Count == 0 ? "the destination's own address" : string.Join(", ", names);
+            default:
+                return clientHost;
+        }
     }
 
     private static GateUpstream? UpstreamOf(RuntimeSnapshot snapshot, CompiledRoute route)

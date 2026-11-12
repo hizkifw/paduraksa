@@ -522,7 +522,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             route.Id));
     }
 
-    public void Forward(RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent)
+    public void Forward(HttpContext context, RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent)
     {
         List<GateFact> facts = [new("slot", route.Slot.ToString(System.Globalization.CultureInfo.InvariantCulture)), new("endpoint", Flag(endpointPresent))];
         if (route.Admin)
@@ -547,11 +547,14 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             facts.Add(new("cluster", cluster));
         }
 
+        var hostSent = GateSimulator.HostSentOf(snapshot, route, cluster, context.Request.Host.Value ?? string.Empty);
+        facts.Add(new("hostHeaderMode", route.UpstreamHost.Mode.ToString()));
+        facts.Add(new("hostSent", hostSent));
         steps.Add(new GateStep(
             GateStepKind.Upstream,
             endpointPresent ? GateStepVerdict.Passed : GateStepVerdict.Stopped,
             endpointPresent
-                ? $"forwarded to upstream {cluster ?? "(none)"}; load balancing picks the destination per request"
+                ? $"forwarded to upstream {cluster ?? "(none)"} with Host: {hostSent}; load balancing picks the destination per request"
                 : "the route has no YARP endpoint in this snapshot: 503",
             facts,
             null,

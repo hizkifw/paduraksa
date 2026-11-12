@@ -19,3 +19,18 @@ public enum UpstreamTlsTrust
     /// can read and change it.</summary>
     Any,
 }
+
+/// <summary>What <c>Host</c> an upstream receives. On an HTTPS destination the name sent in SNI, and the name the destination's
+/// certificate is checked against, follow it.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<UpstreamHostHeaderMode>))]
+public enum UpstreamHostHeaderMode
+{
+    /// <summary>The client's own <c>Host</c> (or <c>:authority</c>), as behind nginx or Caddy.</summary>
+    Original,
+
+    /// <summary>The destination's own address: its host, and its port when it isn't the scheme's default.</summary>
+    Destination,
+
+    /// <summary>A fixed name, for an upstream that answers only to its own, such as a hosted service.</summary>
+    Custom,
+}

@@ -53,4 +53,43 @@ public sealed class UpstreamEditModelTests
         model.TlsTrust = UpstreamTlsTrust.Pinned;
         Assert.Equal([pin], model.ToConfig().Tls!.PinnedSha256);
     }
+
+    [Fact]
+    public void TheClientsHostIsTheDefaultAndStaysOutOfTheDocument()
+    {
+        Assert.Null(UpstreamEditModel.From(Nas).ToConfig().HostHeader);
+        Assert.Null(UpstreamEditModel.From(Nas with { HostHeader = new UpstreamHostHeaderConfig() }).ToConfig().HostHeader);
+    }
+
+    [Fact]
+    public void ACustomNameRoundTripsTrimmedAndTheFieldKeepsItWhileAnotherModeIsPicked()
+    {
+        var model = UpstreamEditModel.From(Nas with { HostHeader = new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "nas.internal:8443") });
+        Assert.Equal(UpstreamHostHeaderMode.Custom, model.HostHeaderMode);
+
+        model.HostHeaderValue = "  nas.internal  ";
+        Assert.Equal(new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, "nas.internal"), model.ToConfig().HostHeader);
+
+        model.HostHeaderMode = UpstreamHostHeaderMode.Destination;
+        Assert.Equal(new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Destination), model.ToConfig().HostHeader);
+
+        model.HostHeaderMode = UpstreamHostHeaderMode.Custom;
+        Assert.Equal("nas.internal", model.ToConfig().HostHeader!.Value);
+    }
+
+    [Theory]
+    [InlineData(UpstreamHostHeaderMode.Original, null, new[] { null, "app.example.com" })]
+    [InlineData(UpstreamHostHeaderMode.Destination, null, new string?[] { null })]
+    [InlineData(UpstreamHostHeaderMode.Custom, "nas.internal:8443", new[] { "nas.internal" })]
+    [InlineData(UpstreamHostHeaderMode.Custom, "nas.internal", new[] { "nas.internal" })]
+    [InlineData(UpstreamHostHeaderMode.Custom, "192.0.2.7:8443", new string?[] { null })]
+    [InlineData(UpstreamHostHeaderMode.Custom, "[::1]:8443", new string?[] { null })]
+    public void ThePinFetchAsksForTheNameTheProxyWillSendAsSni(UpstreamHostHeaderMode mode, string? value, string?[] expected)
+    {
+        var model = UpstreamEditModel.From(Nas);
+        model.HostHeaderMode = mode;
+        model.HostHeaderValue = value ?? string.Empty;
+
+        Assert.Equal(expected, model.SniNames(["app.example.com"]));
+    }
 }

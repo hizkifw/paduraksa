@@ -111,6 +111,9 @@ public static class ConfigErrorCodes
     public const string UpstreamTlsPinsMissing = "upstream.tls.pinnedSha256.missing";
     public const string UpstreamTlsPinsUnused = "upstream.tls.pinnedSha256.unused";
     public const string UpstreamTlsPinInvalid = "upstream.tls.pinnedSha256.invalid";
+    public const string UpstreamHostHeaderValueRequired = "upstream.hostHeader.value.required";
+    public const string UpstreamHostHeaderValueUnused = "upstream.hostHeader.value.unused";
+    public const string UpstreamHostHeaderValueInvalid = "upstream.hostHeader.value.invalid";
     public const string UpstreamActiveHealthPathInvalid = "upstream.activeHealth.path.invalid";
     public const string UpstreamActiveHealthIntervalInvalid = "upstream.activeHealth.interval.invalid";
     public const string UpstreamActiveHealthTimeoutInvalid = "upstream.activeHealth.timeout.invalid";

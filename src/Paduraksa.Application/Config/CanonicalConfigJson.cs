@@ -349,7 +349,19 @@ public static class CanonicalConfigJson
                 Timeout = active.Timeout ?? ActiveHealthConfig.DefaultTimeout,
             }
             : null,
+        HostHeader = CanonicalHostHeader(upstream.HostHeader),
         Notes = ConfigNormalization.NormalizeNotes(upstream.Notes),
+    };
+
+    // The default (the client's own Host) is no setting at all, so a stored revision keeps its bytes.
+    private static UpstreamHostHeaderConfig? CanonicalHostHeader(UpstreamHostHeaderConfig? hostHeader) => hostHeader switch
+    {
+        null or { Mode: UpstreamHostHeaderMode.Original, Value: null } => null,
+        { Mode: UpstreamHostHeaderMode.Custom } => hostHeader with
+        {
+            Value = ConfigNormalization.TryNormalizeUpstreamHost(hostHeader.Value, out var value, out _) ? value : hostHeader.Value?.Trim(),
+        },
+        _ => hostHeader,
     };
 
     private static RateLimitPolicyConfig Canonical(RateLimitPolicyConfig policy) => policy with

@@ -46,6 +46,46 @@ internal static class ConfigNormalization
     public static string CanonicalHostName(string? name) =>
         TryNormalizeHostName(name, out var normalized, out _) ? normalized : (name ?? string.Empty).Trim();
 
+    /// <summary>
+    /// A custom upstream <c>Host</c>: a host name or IP literal as <see cref="TryNormalizeHostName"/> spells it (no wildcard),
+    /// then <c>:port</c> (1-65535) when one is given, so it is exactly the string the proxy sends.
+    /// </summary>
+    public static bool TryNormalizeUpstreamHost(string? value, [NotNullWhen(true)] out string? normalized, [NotNullWhen(false)] out string? error)
+    {
+        normalized = null;
+        var text = (value ?? string.Empty).Trim();
+        var portStart = text.StartsWith('[') ? text.IndexOf("]:", StringComparison.Ordinal) + 1 : text.IndexOf(':', StringComparison.Ordinal);
+        var host = portStart > 0 ? text[..portStart] : text;
+        string? port = portStart > 0 ? text[(portStart + 1)..] : null;
+        if (!text.StartsWith('[') && text.Count(c => c == ':') > 1)
+        {
+            error = $"'{text}': write an IPv6 address in brackets, like [::1]:8080";
+            return false;
+        }
+
+        if (port is not null && (!int.TryParse(port, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) || number is < 1 or > 65535))
+        {
+            error = $"'{text}': the port must be a number from 1 to 65535";
+            return false;
+        }
+
+        if (!HostNames.TryNormalize(host, out var name, out var kind, out var hostError))
+        {
+            error = hostError ?? $"'{text}' isn't a valid host name";
+            return false;
+        }
+
+        if (kind == HostNameKind.Wildcard)
+        {
+            error = $"'{text}': a wildcard can't be a Host header";
+            return false;
+        }
+
+        normalized = port is null ? name : $"{name}:{int.Parse(port, System.Globalization.CultureInfo.InvariantCulture)}";
+        error = null;
+        return true;
+    }
+
     /// <summary>A country code upper-case and trimmed (<c>de</c> becomes <c>DE</c>); validation reports one that isn't a known code.</summary>
     public static string CanonicalCountry(string? value) => (value ?? string.Empty).Trim().ToUpperInvariant();
 

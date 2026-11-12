@@ -539,6 +539,12 @@ public sealed record UpstreamSpec
     /// <summary>With <see cref="UpstreamTlsTrust.Pinned"/>: normalised fingerprints (<see
     /// cref="Yarp.UpstreamCertificatePins.TryNormalize"/>).</summary>
     public IReadOnlyList<string> PinnedSha256 { get; init; } = [];
+
+    /// <summary>Which <c>Host</c> the upstream receives (and so the SNI of an HTTPS destination).</summary>
+    public UpstreamHostHeaderMode HostHeader { get; init; }
+
+    /// <summary>With <see cref="UpstreamHostHeaderMode.Custom"/>: the exact name sent.</summary>
+    public string? HostHeaderValue { get; init; }
 }
 
 /// <summary>

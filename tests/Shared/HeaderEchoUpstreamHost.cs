@@ -2,11 +2,13 @@
 // test assembly as an internal type of its own.
 using System.Net;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,7 +18,8 @@ namespace Paduraksa.Tests.Shared;
 
 /// <summary>
 /// A loopback upstream that answers with the forwarding-related request headers it received, one <c>name: value</c>
-/// per line (repeated lines joined with <c>|</c>), plus <c>target</c>: the raw request target.
+/// per line (repeated lines joined with <c>|</c>), plus <c>target</c>: the raw request target, and on HTTPS <c>sni</c>: the
+/// server name the client's handshake asked for (absent when it sent none).
 /// </summary>
 internal static class HeaderEchoUpstreamHost
 {
@@ -33,9 +36,11 @@ internal static class HeaderEchoUpstreamHost
     /// <param name="onResponse">Runs before the body is written, e.g. to set response headers.</param>
     /// <param name="cancellationToken">Cancels the start.</param>
     /// <param name="certificate">Serves HTTPS with it; null serves plain HTTP.</param>
+    /// <param name="onHandshake">Called for every TLS handshake with the server name it asked for (null when it sent none).</param>
     /// <returns>The started host and its base address, with a trailing <c>/</c>.</returns>
     public static async Task<(IHost Host, string Address)> StartAsync(
-        Action<HttpResponse>? onResponse, CancellationToken cancellationToken, System.Security.Cryptography.X509Certificates.X509Certificate2? certificate = null)
+        Action<HttpResponse>? onResponse, CancellationToken cancellationToken, System.Security.Cryptography.X509Certificates.X509Certificate2? certificate = null,
+        Action<string?>? onHandshake = null)
     {
         var host = new HostBuilder()
             .ConfigureLogging(static logging => logging.ClearProviders())
@@ -46,7 +51,19 @@ internal static class HeaderEchoUpstreamHost
                     {
                         if (certificate is not null)
                         {
-                            listen.UseHttps(certificate);
+                            listen.UseHttps(new HttpsConnectionAdapterOptions
+                            {
+                                ServerCertificateSelector = (connection, name) =>
+                                {
+                                    onHandshake?.Invoke(name);
+                                    if (!string.IsNullOrEmpty(name) && connection is not null)
+                                    {
+                                        connection.Items[ServerNameItem] = name;
+                                    }
+
+                                    return certificate;
+                                },
+                            });
                         }
                     });
                     kestrel.AddServerHeader = false;
@@ -54,7 +71,8 @@ internal static class HeaderEchoUpstreamHost
                 .Configure(app => app.Run(context =>
                 {
                     onResponse?.Invoke(context.Response);
-                    return context.Response.WriteAsync(Render(context.Request, context.Features.Get<IHttpRequestFeature>()!.RawTarget));
+                    var serverName = context.Features.Get<IConnectionItemsFeature>()?.Items.TryGetValue(ServerNameItem, out var name) == true ? name as string : null;
+                    return context.Response.WriteAsync(Render(context.Request, context.Features.Get<IHttpRequestFeature>()!.RawTarget, serverName));
                 })))
             .Build();
         await host.StartAsync(cancellationToken);
@@ -87,9 +105,16 @@ internal static class HeaderEchoUpstreamHost
         return headers;
     }
 
-    private static string Render(HttpRequest request, string rawTarget)
+    private const string ServerNameItem = "paduraksa.test.sni";
+
+    private static string Render(HttpRequest request, string rawTarget, string? serverName)
     {
         List<string> lines = [$"target: {rawTarget}"];
+        if (serverName is not null)
+        {
+            lines.Add($"sni: {serverName}");
+        }
+
         foreach (var name in Echoed)
         {
             if (request.Headers.TryGetValue(name, out var values))

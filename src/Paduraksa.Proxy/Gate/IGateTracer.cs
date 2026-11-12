@@ -102,7 +102,7 @@ internal interface IGateTracer
 
     /// <summary>The request was handed to YARP; <paramref name="endpointPresent"/> false: the snapshot has no endpoint
     /// for the route's slot (unbound), so it answered 503 instead.</summary>
-    void Forward(RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent);
+    void Forward(HttpContext context, RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent);
 }
 
 /// <summary>The production tracer: reports nothing, costs nothing.</summary>
@@ -191,7 +191,7 @@ internal readonly struct NoGateTracer : IGateTracer
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Forward(RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent)
+    public void Forward(HttpContext context, RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent)
     {
     }
 }

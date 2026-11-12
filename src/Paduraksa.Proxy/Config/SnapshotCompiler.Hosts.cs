@@ -457,6 +457,7 @@ public static partial class SnapshotCompiler
                 MaxBodySize = spec.MaxBodySizeRouteOverride ? spec.MaxBodySize : null,
                 MetricSlot = context.MetricSlotOf(MetricSubject.Route, spec.Id.Value, host.Enabled),
                 Upstream = context.UpstreamMetricsOf(spec.Upstream, host.Enabled),
+                UpstreamHost = context.UpstreamHosts.GetValueOrDefault(spec.Upstream) ?? UpstreamHost.Original,
             };
         }
 

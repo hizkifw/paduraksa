@@ -19,6 +19,7 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="MaxConnectionsPerServer">Null: no limit beyond the HTTP client's default.</param>
 /// <param name="Notes">Free text.</param>
 /// <param name="Tls">How HTTPS destinations are authenticated; null = the system trust store.</param>
+/// <param name="HostHeader">The <c>Host</c> the upstream receives; null = the client's own (<see cref="UpstreamHostHeaderMode.Original"/>).</param>
 public sealed record UpstreamConfig(
     UpstreamId Id,
     string Name,
@@ -30,7 +31,8 @@ public sealed record UpstreamConfig(
     ActiveHealthConfig? ActiveHealth = null,
     int? MaxConnectionsPerServer = null,
     string? Notes = null,
-    UpstreamTlsConfig? Tls = null)
+    UpstreamTlsConfig? Tls = null,
+    UpstreamHostHeaderConfig? HostHeader = null)
 {
     public IReadOnlyList<DestinationConfig> Destinations { get; init; } = Destinations ?? [];
 }
@@ -76,3 +78,10 @@ public sealed record ActiveHealthConfig(string Path = "/", TimeSpan? Interval = 
 /// <param name="PinnedSha256">With <see cref="UpstreamTlsTrust.Pinned"/>: the SHA-256 fingerprints of the certificates to
 /// accept, 64 hex digits each (colons allowed, as <c>openssl x509 -noout -fingerprint -sha256</c> prints them).</param>
 public sealed record UpstreamTlsConfig(UpstreamTlsTrust Trust = UpstreamTlsTrust.System, IReadOnlyList<string>? PinnedSha256 = null);
+
+/// <summary>The <c>Host</c> header an upstream receives. SNI follows it on an HTTPS destination, so the certificate is asked for
+/// and checked against the name sent (a pinned fingerprint is not tied to any name).</summary>
+/// <param name="Mode">Which name is sent.</param>
+/// <param name="Value">With <see cref="UpstreamHostHeaderMode.Custom"/>: a host name or IP address, with a port when the
+/// upstream's virtual host needs one (<c>app.internal</c>, <c>app.internal:8080</c>, <c>[::1]:8080</c>). Absent otherwise.</param>
+public sealed record UpstreamHostHeaderConfig(UpstreamHostHeaderMode Mode = UpstreamHostHeaderMode.Original, string? Value = null);

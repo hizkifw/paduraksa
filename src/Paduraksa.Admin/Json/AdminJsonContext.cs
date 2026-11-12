@@ -64,6 +64,7 @@ namespace Paduraksa.Admin.Json;
         typeof(ConfigEnumConverter<TcpAlpn>),
         typeof(ConfigEnumConverter<ServerHeaderMode>),
         typeof(ConfigEnumConverter<UpstreamTlsTrust>),
+        typeof(ConfigEnumConverter<UpstreamHostHeaderMode>),
         typeof(ConfigEnumConverter<RequestIdPropagation>),
         typeof(ConfigEnumConverter<RateLimitPeriod>),
         typeof(ConfigEnumConverter<RateLimitKey>),
