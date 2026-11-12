@@ -90,7 +90,7 @@ public sealed class SettingsEndToEndTests
         await page.ClickAsync("[data-preset=read]");
         await PlaywrightBrowser.ScreenshotAsync(page, "token-create", fullPage: false);
         await page.ClickAsync("[data-action=issue]");
-        var secret = page.Locator("[data-secret=token] code");
+        var secret = page.Locator("[data-secret=token] .pdk-copy-text");
         await Expect(secret).ToBeVisibleAsync(new() { Timeout = 15_000 });
         var token = (await secret.TextContentAsync())!.Trim();
         Assert.StartsWith("pdk_", token, StringComparison.Ordinal);
@@ -161,7 +161,7 @@ public sealed class SettingsEndToEndTests
         await page.ClickAsync(".pdk-totp-begin");
         await Expect(page.Locator("svg.pdk-qr")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await page.Locator(".pdk-totp-manual summary").ClickAsync();
-        var key = (await page.Locator(".pdk-totp-secret").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
+        var key = (await page.Locator("[data-secret=totp-key] .pdk-copy-text").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
         await PlaywrightBrowser.ScreenshotAsync(page, "account-totp-qr", fullPage: false);
         await page.FillAsync(".pdk-totp-code input", TotpOracle.CodeFor($"otpauth://totp/x?secret={key}"));
         await page.ClickAsync(".pdk-totp-confirm");

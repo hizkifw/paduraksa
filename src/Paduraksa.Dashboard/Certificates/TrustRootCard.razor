@@ -25,7 +25,7 @@
             <dt>Valid until</dt>
             <dd>@CertificateDisplay.Date(Root.NotAfter)</dd>
             <dt>SHA-256</dt>
-            <dd class="pdk-mono pdk-wrap pdk-fingerprint">@CertificateDisplay.Fingerprint(Root.Sha256Fingerprint)</dd>
+            <dd><CopyableCode Value="@CertificateDisplay.Fingerprint(Root.Sha256Fingerprint)" Block="true" CopyAction="copy-fingerprint" /></dd>
         </dl>
         <div class="pdk-trust-actions">
             <MudButton Href="/api/v1/ca/root.crt" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Download"

@@ -30,7 +30,7 @@
                 <details class="pdk-totp-manual">
                     <summary>Can't scan it?</summary>
                     <span class="pdk-muted">Enter this key by hand (time-based, 6 digits, 30 seconds):</span>
-                    <code class="pdk-totp-secret">@Secret</code>
+                    <CopyableCode Value="@Secret" CopyAction="copy-key" data-secret="totp-key" />
                 </details>
                 <MudTextField T="string" @bind-Value="_code" Label="Code" Variant="Variant.Outlined" Margin="Margin.Dense" autocomplete="one-time-code"
                               InputMode="InputMode.numeric" MaxLength="8" Error="_error is not null" ErrorText="@_error" Disabled="_busy" Class="pdk-totp-code" />

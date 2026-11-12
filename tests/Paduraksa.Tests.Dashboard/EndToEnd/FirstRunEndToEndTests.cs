@@ -70,7 +70,7 @@ public sealed class FirstRunEndToEndTests
         await page.ClickAsync(".pdk-totp-begin");
         await Expect(page.Locator("svg.pdk-qr")).ToBeVisibleAsync();
         await page.Locator(".pdk-totp-manual summary").ClickAsync();
-        var secret = (await page.Locator(".pdk-totp-secret").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
+        var secret = (await page.Locator("[data-secret=totp-key] .pdk-copy-text").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
         await PlaywrightBrowser.ScreenshotAsync(page, "two-step-qr", fullPage: false);
         await page.FillAsync(".pdk-totp-code input", TotpOracle.CodeFor($"otpauth://totp/x?secret={secret}"));
         await page.ClickAsync(".pdk-totp-confirm");
@@ -79,7 +79,7 @@ public sealed class FirstRunEndToEndTests
         await page.Locator(".pdk-totp-saved input").CheckAsync();
         await page.ClickAsync(".pdk-totp-finish");
         await Expect(page.Locator("[data-card=two-factor]")).ToHaveAttributeAsync("data-state", "on", new() { Timeout = 15_000 });
-        await Expect(page.Locator(".pdk-totp-secret")).ToHaveCountAsync(0);
+        await Expect(page.Locator("[data-secret=totp-key] .pdk-copy-text")).ToHaveCountAsync(0);
 
         // A certificate from the local CA, from the certificates page's Add.
         await page.GotoAsync("/certificates");

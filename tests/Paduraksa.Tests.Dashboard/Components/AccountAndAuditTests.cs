@@ -38,7 +38,7 @@ public sealed class AccountAndAuditTests
         await step.Find(".pdk-totp-begin").ClickAsync(new());
         Assert.Equal("scan", Phase(step));
         Assert.Single(step.FindAll("svg.pdk-qr path"));
-        Assert.Contains("JBSW Y3DP", step.Find(".pdk-totp-secret").TextContent, StringComparison.Ordinal);
+        Assert.Contains("JBSW Y3DP", step.Find("[data-secret=totp-key] .pdk-copy-text").TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain(FakeDashboardIdentity.Password, step.Markup, StringComparison.Ordinal);
 
         await step.Find(".pdk-totp-code input").ChangeAsync(new() { Value = "000000" });

@@ -1,0 +1,61 @@
+@inject DashboardBrowser Browser
+@inject ISnackbar Snackbar
+@* Text a person copies (a token, a command, a fingerprint): the text in one box, the copy control inside its top-right corner, so every
+   such value in the dashboard has the same edges. Keeps only whether it was copied, never the text. *@
+<div class="pdk-copy @(Secret ? "pdk-copy-secret" : null) @(Multiline ? "pdk-copy-multiline" : null)" @attributes="AdditionalAttributes">
+    @if (Label is not null)
+    {
+        <span class="pdk-copy-label">@Label</span>
+    }
+    <div class="pdk-copy-box">
+        @if (Block)
+        {
+            <pre class="pdk-copy-text" tabindex="0" aria-label="@(Label ?? "Value")">@Value</pre>
+        }
+        else
+        {
+            <code class="pdk-copy-text" tabindex="0" aria-label="@(Label ?? "Value")">@Value</code>
+        }
+        <MudIconButton Icon="@(_copied ? Icons.Material.Rounded.Check : Icons.Material.Outlined.ContentCopy)" Size="Size.Small" Class="pdk-copy-button"
+                       aria-label="@(_copied ? "Copied" : (Label is null ? "Copy" : $"Copy {Label}"))" title="@(_copied ? "Copied" : "Copy")"
+                       OnClick="CopyAsync" data-action="@CopyAction" />
+    </div>
+</div>
+
+@code {
+    private bool _copied;
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>The text keeps its line breaks (a command, a config snippet).</summary>
+    [Parameter]
+    public bool Block { get; set; }
+
+    /// <summary>A value shown once: the box is marked so it isn't mistaken for a plain snippet.</summary>
+    [Parameter]
+    public bool Secret { get; set; }
+
+    /// <summary>Several short lines, laid out in two columns.</summary>
+    [Parameter]
+    public bool Multiline { get; set; }
+
+    /// <summary>The copy button's <c>data-action</c>, for tests and for telling several apart.</summary>
+    [Parameter]
+    public string CopyAction { get; set; } = "copy";
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private async Task CopyAsync()
+    {
+        _copied = await Browser.CopyAsync(Value);
+        if (!_copied)
+        {
+            Snackbar.Add("The browser didn't allow copying. Select the text and copy it yourself.", Severity.Warning);
+        }
+    }
+}

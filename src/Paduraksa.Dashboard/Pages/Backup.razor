@@ -67,7 +67,7 @@
         <MudText Typo="Typo.body2" Class="mb-3">
             A restore replaces the databases, so it can't run while the server does. Stop the service, then run:
         </MudText>
-        <code class="pdk-secret-value" data-command="restore">paduraksa restore &lt;file&gt;</code>
+        <CopyableCode Value="paduraksa restore <file>" data-command="restore" />
         <MudText Typo="Typo.body2" Class="mt-3">
             In the container: <code>docker compose run --rm paduraksa restore /data/backups/&lt;file&gt;</code>. The databases it replaces are kept in
             <code>pre-restore-&lt;time&gt;</code> beside them.

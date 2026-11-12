@@ -1,11 +1,11 @@
 @inject NavigationManager Navigation
-@inject DashboardBrowser Browser
-@inject ISnackbar Snackbar
 @inject DashboardOptions Options
-@* How to point an AI assistant at the MCP endpoint (PLAN §11.2). The snippets carry <token>, never a secret: the page does not hold one. *@
+@* How to point an AI assistant at the MCP endpoint (PLAN §11.2). The snippets carry <token>, never a secret, unless the caller hands over the
+   token it has just issued (the token drawer's one-time view): then they are filled in, open, and the token lives only in that parameter and
+   the markup built from it; nothing here keeps or logs it. *@
 @if (!Options.McpEnabled)
 {
-    <MudPaper Class="pdk-card pdk-mcp" Elevation="0" Outlined="true" data-section="mcp-off">
+    <MudPaper Class="@Chrome" Elevation="0" Outlined="true" data-section="mcp-off">
         <div class="pdk-mcp-summary">
             <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
             <span class="pdk-list-title">MCP is off</span>
@@ -15,29 +15,29 @@
     return;
 }
 
-<MudPaper Class="pdk-card pdk-mcp" Elevation="0" Outlined="true" data-section="mcp">
-    <details class="pdk-mcp-details">
+<MudPaper Class="@Chrome" Elevation="0" Outlined="true" data-section="mcp">
+    <details class="pdk-mcp-details" open="@(Token is not null)">
         <summary class="pdk-mcp-summary">
+            <MudIcon Icon="@Icons.Material.Rounded.ExpandMore" Size="Size.Small" Class="pdk-mcp-chevron" />
             <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
             <span class="pdk-list-title">Connect an AI assistant</span>
             <span class="pdk-mono pdk-muted pdk-mcp-url" data-field="mcp-url">@Endpoint</span>
-            <MudIcon Icon="@Icons.Material.Rounded.ExpandMore" Size="Size.Small" Class="pdk-mcp-chevron" />
         </summary>
         <div class="pdk-mcp-body">
             @foreach (var (key, label, text) in Snippets)
             {
-                <div class="pdk-secret" data-snippet="@key">
-                    <span class="pdk-secret-label">@label</span>
-                    <div class="pdk-secret-row">
-                        <pre class="pdk-code" tabindex="0" aria-label="@label">@text</pre>
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="pdk-secret-copy" data-action="@($"copy-{key}")"
-                                   StartIcon="@(_copied == key ? Icons.Material.Rounded.Check : Icons.Material.Outlined.ContentCopy)" OnClick="() => CopyAsync(key, text)">@(_copied == key ? "Copied" : "Copy")</MudButton>
-                    </div>
-                </div>
+                <CopyableCode Value="@text" Label="@label" Block="true" CopyAction="@($"copy-{key}")" data-snippet="@key" />
             }
             <MudText Typo="Typo.body2" Class="pdk-muted" data-field="mcp-note">
-                Give it a token that can only read: with one it can look at everything its scopes allow and change nothing. A change it does make is a dry run first, then a second request that confirms it, and shows as MCP in
-                <MudLink Href="@DashboardRoutes.History">History</MudLink> and <MudLink Href="@DashboardRoutes.Audit">Audit</MudLink>.
+                @if (Token is null)
+                {
+                    <text>Give it a token that can only read: with one it can look at everything its scopes allow and change nothing. A change it does make is a dry run first, then a second request that confirms it, and shows as MCP in
+                    <MudLink Href="@DashboardRoutes.History">History</MudLink> and <MudLink Href="@DashboardRoutes.Audit">Audit</MudLink>.</text>
+                }
+                else if (ReadOnlyToken)
+                {
+                    <text>This token only reads. A change needs a write scope too, and a second request with <code>confirm: true</code>.</text>
+                }
                 The admin certificate is signed by Paduraksa's own CA: trust its <MudLink Href="@DashboardRoutes.LocalCa">root</MudLink> where the client runs (Node clients read <code>NODE_EXTRA_CA_CERTS</code>).
             </MudText>
         </div>
@@ -45,37 +45,34 @@
 </MudPaper>
 
 @code {
-    private string? _copied;
+    /// <summary>The token just issued, to fill into the snippets; null shows <c>&lt;token&gt;</c>.</summary>
+    [Parameter]
+    public string? Token { get; set; }
+
+    /// <summary>The <see cref="Token"/> has only read scopes.</summary>
+    [Parameter]
+    public bool ReadOnlyToken { get; set; }
+
+    /// <summary>A card on the tokens page; in the token drawer (the token is given) a section under a rule, on the drawer's own edges.</summary>
+    private string Chrome => Token is null ? "pdk-card pdk-mcp" : "pdk-card pdk-mcp pdk-mcp-inline";
 
     private string Endpoint => Navigation.ToAbsoluteUri(DashboardRoutes.Mcp).ToString();
 
     private IEnumerable<(string Key, string Label, string Text)> Snippets =>
     [
-        ("claude-code", "Claude Code", $"claude mcp add --transport http paduraksa {Endpoint} --header \"Authorization: Bearer <token>\""),
-        ("claude-desktop", "Claude Desktop", ClaudeDesktop(Endpoint)),
+        ("claude-code", "Claude Code", $"claude mcp add --transport http paduraksa {Endpoint} --header \"Authorization: Bearer {Token ?? "<token>"}\""),
+        ("claude-desktop", "Claude Desktop", ClaudeDesktop(Endpoint, Token ?? "<token>")),
     ];
 
-    private static string ClaudeDesktop(string endpoint) => $$"""
+    private static string ClaudeDesktop(string endpoint, string token) => $$"""
         {
           "mcpServers": {
             "paduraksa": {
               "command": "npx",
               "args": ["-y", "mcp-remote", "{{endpoint}}", "--header", "Authorization:${PADURAKSA_TOKEN}"],
-              "env": { "PADURAKSA_TOKEN": "Bearer <token>" }
+              "env": { "PADURAKSA_TOKEN": "Bearer {{token}}" }
             }
           }
         }
         """;
-
-    private async Task CopyAsync(string key, string text)
-    {
-        if (await Browser.CopyAsync(text))
-        {
-            _copied = key;
-        }
-        else
-        {
-            Snackbar.Add("The browser didn't allow copying. Select the text and copy it yourself.", Severity.Warning);
-        }
-    }
 }

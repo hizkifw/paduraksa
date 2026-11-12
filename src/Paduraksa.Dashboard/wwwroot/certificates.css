@@ -48,11 +48,6 @@
     overflow-wrap: anywhere;
 }
 
-.pdk-fingerprint {
-    font-size: 0.75rem;
-    letter-spacing: 0.02em;
-}
-
 .pdk-card-head-main {
     display: flex;
     align-items: flex-start;

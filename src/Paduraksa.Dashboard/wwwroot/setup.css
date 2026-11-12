@@ -63,17 +63,6 @@
     cursor: pointer;
 }
 
-.pdk-totp-secret {
-    display: block;
-    padding: 8px 10px;
-    border: 1px solid var(--mud-palette-lines-default);
-    border-radius: 8px;
-    background: var(--mud-palette-background-gray);
-    font-family: var(--pdk-mono);
-    letter-spacing: 0.08em;
-    overflow-wrap: anywhere;
-}
-
 .pdk-recovery-codes {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -100,5 +89,4 @@
     .pdk-totp-scan {
         grid-template-columns: 1fr;
     }
-
 }

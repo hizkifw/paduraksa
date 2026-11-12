@@ -318,7 +318,7 @@ public sealed class LiveTailPageTests
             await page.Find("[data-seq]").ClickAsync(new());
             await drawers.WaitForStateAsync(() => drawers.FindAll("[data-detail]").Count == 1);
 
-            Assert.Equal("rid-/shop/cart", drawers.Find("[data-secret=request-id] .pdk-secret-value").TextContent);
+            Assert.Equal("rid-/shop/cart", drawers.Find("[data-secret=request-id] .pdk-copy-text").TextContent);
             Assert.Single(drawers.FindAll("[data-secret=request-id] [data-action=copy]"));
             var shown = drawers.Find("[data-detail]").TextContent;
             Assert.Contains("POST /shop/cart?item=7&token=REDACTED HTTP/2", shown, StringComparison.Ordinal);

@@ -30,6 +30,7 @@
                 Send it as <span class="pdk-mono">Authorization: Bearer</span> followed by the token.
                 It acts as you with @(issued.Summary.Scopes.Count == 1 ? "its one scope" : $"its {issued.Summary.Scopes.Count} scopes"), and never with more than your roles allow.
             </MudText>
+            <McpConnect Token="@issued.Token" ReadOnlyToken="@issued.Summary.Scopes.All(IdentityText.IsRead)" />
         }
         else
         {

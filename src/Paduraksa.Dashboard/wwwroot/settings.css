@@ -16,15 +16,15 @@
     font-size: 0.8125rem;
 }
 
-/* ---------- Secrets shown once ---------- */
+/* ---------- Text a person copies (CopyableCode) ---------- */
 
-.pdk-secret {
+.pdk-copy {
     display: grid;
     gap: 6px;
     min-width: 0;
 }
 
-.pdk-secret-label {
+.pdk-copy-label {
     color: var(--mud-palette-text-secondary);
     font-size: 0.75rem;
     font-weight: 600;
@@ -32,35 +32,48 @@
     text-transform: uppercase;
 }
 
-.pdk-secret-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 8px;
+.pdk-copy-box {
+    position: relative;
+    min-width: 0;
 }
 
-.pdk-secret-value {
-    flex: 1 1 260px;
+.pdk-copy-text {
+    display: block;
+    box-sizing: border-box;
     min-width: 0;
-    padding: 10px 12px;
-    border: 1px dashed color-mix(in srgb, var(--mud-palette-primary) 55%, var(--mud-palette-lines-default));
+    margin: 0;
+    padding: 10px 44px 10px 12px;
+    border: 1px solid var(--mud-palette-lines-default);
     border-radius: var(--pdk-radius);
-    background: color-mix(in srgb, var(--mud-palette-primary) 7%, var(--mud-palette-background-gray));
+    background: var(--mud-palette-background-gray);
     color: var(--mud-palette-text-primary);
     font-family: var(--pdk-mono);
     font-size: 0.8125rem;
     line-height: 1.5;
     overflow-wrap: anywhere;
-    user-select: all;
     white-space: pre-wrap;
 }
 
-.pdk-secret-value:focus-visible {
+/* A value that is shown once. */
+.pdk-copy-secret .pdk-copy-text {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 55%, var(--mud-palette-lines-default));
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, var(--mud-palette-background-gray));
+    user-select: all;
+}
+
+.pdk-copy-text:focus-visible {
     outline: 2px solid var(--mud-palette-primary);
     outline-offset: 2px;
 }
 
-.pdk-secret-multiline .pdk-secret-value {
+.pdk-copy-box .pdk-copy-button {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+}
+
+.pdk-copy-multiline .pdk-copy-text {
     columns: 2;
     column-gap: 24px;
     font-size: 0.875rem;
@@ -74,6 +87,23 @@
     padding: 0;
 }
 
+.pdk-card.pdk-mcp.pdk-mcp-inline.mud-paper {
+    margin-bottom: 0;
+    border-width: 1px 0 0;
+    border-radius: 0;
+    background: none;
+}
+
+.pdk-mcp-inline .pdk-mcp-summary {
+    padding-right: 0;
+    padding-left: 0;
+}
+
+.pdk-mcp-inline .pdk-mcp-body {
+    padding-right: 0;
+    padding-left: 0;
+}
+
 .pdk-mcp-summary {
     display: flex;
     align-items: center;
@@ -84,12 +114,15 @@
     list-style: none;
 }
 
+/* The disclosure arrow leads, so the address ends level with the snippets' right edge. */
 .pdk-mcp-chevron {
+    margin-right: -4px;
+    transform: rotate(-90deg);
     transition: transform 0.15s ease;
 }
 
 .pdk-mcp-details[open] .pdk-mcp-chevron {
-    transform: rotate(180deg);
+    transform: none;
 }
 
 .pdk-mcp-summary::-webkit-details-marker {
@@ -113,28 +146,6 @@
     display: grid;
     gap: 14px;
     padding: 0 20px 20px;
-}
-
-.pdk-code {
-    flex: 1 1 260px;
-    min-width: 0;
-    margin: 0;
-    padding: 10px 12px;
-    border: 1px solid var(--mud-palette-lines-default);
-    border-radius: var(--pdk-radius);
-    background: var(--mud-palette-background-gray);
-    color: var(--mud-palette-text-primary);
-    font-family: var(--pdk-mono);
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    overflow-x: auto;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-
-.pdk-code:focus-visible {
-    outline: 2px solid var(--mud-palette-primary);
-    outline-offset: 2px;
 }
 
 .pdk-once {

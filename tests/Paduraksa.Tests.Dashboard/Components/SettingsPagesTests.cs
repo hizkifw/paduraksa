@@ -115,6 +115,75 @@ public sealed class SettingsPagesTests
         await page.WaitForStateAsync(() => page.FindAll("[data-token='backup script']").Count == 1);
     }
 
+    private static async Task<IRenderedComponent<DrawerHost>> IssueATokenAsync(DashboardTestContext context, bool everything = false)
+    {
+        IdentityPages.SignIn(context, Role.Operator);
+        context.Render<MudPopoverProvider>();
+        var dialogs = context.Render<DrawerHost>();
+        var page = context.Render<ApiTokens>();
+        await page.WaitForStateAsync(() => page.Markup.Contains("No API tokens yet", StringComparison.Ordinal));
+        _ = page.Find("[data-action=add-token]").ClickAsync(new());
+        await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-scope]").Count > 0);
+        if (everything)
+        {
+            await dialogs.Find("[data-preset=all]").ClickAsync(new());
+        }
+
+        await dialogs.Find("input[data-field=token-name]").InputAsync(new() { Value = "assistant" });
+        await dialogs.Find("form[data-drawer=token]").SubmitAsync();
+        await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-secret=token]").Count == 1);
+        return dialogs;
+    }
+
+    [Fact]
+    public async Task ANewTokensDrawerRepeatsTheMcpSetupWithTheTokenFilledIn_AndForgetsItWithTheDrawer()
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddSingleton(new DashboardOptions { MinPasswordLength = 12, McpEnabled = true });
+
+        var dialogs = await IssueATokenAsync(context);
+
+        var endpoint = new Uri(context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().BaseUri + "mcp").ToString();
+        Assert.Equal(
+            $"claude mcp add --transport http paduraksa {endpoint} --header \"Authorization: Bearer {FakeDashboardIdentity.TokenSecret}\"",
+            dialogs.Find("[data-snippet=claude-code] pre").TextContent);
+        Assert.Contains($"\"PADURAKSA_TOKEN\": \"Bearer {FakeDashboardIdentity.TokenSecret}\"", dialogs.Find("[data-snippet=claude-desktop] pre").TextContent, StringComparison.Ordinal);
+        Assert.Equal(2, dialogs.FindAll("[data-snippet] [data-action^=copy-]").Count);
+        Assert.True(dialogs.Find("[data-section=mcp] details").HasAttribute("open"));
+        // The default scopes only read: the note says what a write would take.
+        Assert.Contains("confirm: true", dialogs.Find("[data-field=mcp-note]").TextContent, StringComparison.Ordinal);
+
+        await dialogs.Find("[data-action=done]").ClickAsync(new());
+
+        Assert.DoesNotContain(FakeDashboardIdentity.TokenSecret, dialogs.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ANewTokenWithWriteScopesGetsNoReadOnlyNote()
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddSingleton(new DashboardOptions { MinPasswordLength = 12, McpEnabled = true });
+
+        var dialogs = await IssueATokenAsync(context, everything: true);
+
+        Assert.DoesNotContain("only reads", dialogs.Find("[data-field=mcp-note]").TextContent, StringComparison.Ordinal);
+        Assert.Contains(FakeDashboardIdentity.TokenSecret, dialogs.Find("[data-snippet=claude-code] pre").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WhileMcpIsOffANewTokensDrawerSaysHowToTurnItOnAndPutsTheTokenInNoCommand()
+    {
+        await using DashboardTestContext context = new();
+
+        var dialogs = await IssueATokenAsync(context);
+
+        Assert.Contains("Paduraksa__Mcp__Enabled=true", dialogs.Find("[data-section=mcp-off]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(dialogs.FindAll("[data-snippet]"));
+        Assert.DoesNotContain("claude mcp add", dialogs.Markup, StringComparison.Ordinal);
+        // The one place the token is shown is its own copy box.
+        Assert.Equal(1, dialogs.Markup.Split(FakeDashboardIdentity.TokenSecret).Length - 1);
+    }
+
     [Fact]
     public async Task EveryonesTokens_AreReadInOneCall_WithTheirOwnersNames()
     {

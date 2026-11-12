@@ -93,7 +93,7 @@
             <dt>Serial</dt>
             <dd class="pdk-mono pdk-wrap">@S.SerialNumber</dd>
             <dt>SHA-256</dt>
-            <dd class="pdk-mono pdk-wrap pdk-fingerprint">@CertificateDisplay.Fingerprint(S.Sha256Fingerprint)</dd>
+            <dd><CopyableCode Value="@CertificateDisplay.Fingerprint(S.Sha256Fingerprint)" Block="true" CopyAction="copy-fingerprint" /></dd>
             @if (_detail is { ChainIssuers.Count: > 0 } detail)
             {
                 <dt>Chain</dt>
