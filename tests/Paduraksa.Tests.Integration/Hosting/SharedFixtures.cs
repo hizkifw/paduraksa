@@ -183,7 +183,26 @@ public sealed class SharedAdminApi : IAsyncLifetime
 {
     private AdminApiHarness? _api;
 
+    private Task<byte[]>? _openApi;
+
     internal AdminApiHarness Api => _api ?? throw new InvalidOperationException("The shared admin API has not started.");
+
+    /// <summary>
+    /// The API description, fetched once for every test of the class. The server builds it on the first request (a few hundred operations, cold
+    /// code) and serves it from a cache after that, so the first fetch is the slow one (2 s on a quiet 4-core machine) and a loaded runner can take longer than the harness client's
+    /// 30 s over it: the fetch gets a client of its own with time to spare, and no test pays for it twice.
+    /// </summary>
+    internal Task<byte[]> OpenApiAsync()
+    {
+        return _openApi ??= FetchAsync();
+
+        async Task<byte[]> FetchAsync()
+        {
+            using var client = TestHost.CreateAdminClient(Api.Host, static handler => handler.UseCookies = false);
+            client.Timeout = TimeSpan.FromMinutes(3);
+            return await client.GetByteArrayAsync(new Uri(Api.BaseAddress, "/api/v1/openapi.json"), TestContext.Current.CancellationToken);
+        }
+    }
 
     public async ValueTask InitializeAsync() => _api = await AdminApiHarness.StartAsync(TestContext.Current.CancellationToken);
 

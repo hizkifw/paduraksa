@@ -18,11 +18,7 @@ public sealed class McpRequestPolicyApiTests(SharedAdminApi shared) : IClassFixt
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private async Task<byte[]> SpecAsync()
-    {
-        using var response = await shared.Api.GetAsync("/api/v1/openapi.json", null);
-        return await response.Content.ReadAsByteArrayAsync(Ct);
-    }
+    private Task<byte[]> SpecAsync() => shared.OpenApiAsync();
 
     private static List<(string Method, string Path)> OperationsOf(byte[] openApi)
     {
