@@ -171,27 +171,31 @@ public sealed class AccessLogPipelineTests(TestUpstream upstream) : IClassFixtur
 
     /// <summary>
     /// Completion runs after Kestrel has written the response, so the client can see it first. Wait for the callback
-    /// rather than racing it, then fail if more than <paramref name="count"/> lines turn up.
+    /// rather than racing it, then fail if more than <paramref name="count"/> lines turn up. Only lines for the test's own names
+    /// (<c>*.test</c>) count: a dev tool probing new localhost ports sends <c>GET /</c> to the listener, with a Host of its own.
     /// </summary>
     private static async Task<AccessLogEntry[]> ReadEntriesAsync(AccessLogRing ring, int count)
     {
         var ct = TestContext.Current.CancellationToken;
-        var entries = new List<AccessLogEntry>(count);
-        for (var attempt = 0; attempt < 500; attempt++)
+        List<AccessLogEntry> entries = new(count);
+        void Drain()
         {
             while (ring.TryRead(out var entry))
             {
-                entries.Add(entry);
+                if (entry.Host is { } host && host.EndsWith(".test", StringComparison.Ordinal))
+                {
+                    entries.Add(entry);
+                }
             }
+        }
 
+        for (var attempt = 0; attempt < 3_000; attempt++)
+        {
+            Drain();
             if (entries.Count >= count)
             {
                 await Task.Delay(20, ct);
-                while (ring.TryRead(out var extra))
-                {
-                    entries.Add(extra);
-                }
-
+                Drain();
                 return [.. entries];
             }
 
