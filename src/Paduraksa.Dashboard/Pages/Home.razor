@@ -13,7 +13,7 @@
 
 <PageTitle>Overview · Paduraksa</PageTitle>
 
-<PageHeader Title="Overview">
+<PageHeader Title="Overview" ListEmpty="@(Snapshot?.Lines is { Count: 0 })">
     <Actions>
         <IfPermitted Permission="Permission.ConfigWrite">
             <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-host">Add host</MudButton>
@@ -129,7 +129,7 @@
                             Description="A host puts a service on your network behind a hostname; you can add its upstream from the host's form.">
                     <Action>
                         <IfPermitted Permission="Permission.ConfigWrite">
-                            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add">Add host</MudButton>
+                            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" data-action="add-host">Add host</MudButton>
                         </IfPermitted>
                     </Action>
                 </EmptyState>

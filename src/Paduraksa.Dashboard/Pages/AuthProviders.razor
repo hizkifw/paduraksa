@@ -13,7 +13,7 @@
 
 <PageTitle>Sign-in · Paduraksa</PageTitle>
 
-<PageHeader Title="Sign-in">
+<PageHeader Title="Sign-in" ListEmpty="@(_document is { AuthProviders.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -57,7 +57,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@DashboardRoutes.NewAuthProvider" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add auth provider</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewAuthProvider" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-auth-provider">Add auth provider</MudButton>
                     }
                 </Action>
             </EmptyState>

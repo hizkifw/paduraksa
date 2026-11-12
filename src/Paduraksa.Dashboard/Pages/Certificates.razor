@@ -22,7 +22,7 @@
 
 <PageTitle>Certificates · Paduraksa</PageTitle>
 
-<PageHeader Title="Certificates">
+<PageHeader Title="Certificates" ListEmpty="@(_view is { Rows.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -64,7 +64,7 @@
             <Action>
                 @if (_mayWrite)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="() => Add(null)">Add certificate</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="() => Add(null)" Class="pdk-add-certificate" data-action="add-certificate">Add certificate</MudButton>
                 }
             </Action>
         </EmptyState>

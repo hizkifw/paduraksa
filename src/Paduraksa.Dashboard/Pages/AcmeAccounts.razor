@@ -19,7 +19,7 @@
 
 <PageTitle>ACME accounts · Paduraksa</PageTitle>
 
-<PageHeader Title="ACME accounts" Lead="The account key is made and kept in the vault.">
+<PageHeader Title="ACME accounts" ListEmpty="@(_accounts is { Count: 0 })" Lead="The account key is made and kept in the vault.">
     <Actions>
         @if (_mayWrite)
         {
@@ -53,7 +53,7 @@ else if (_accounts.Count == 0)
             <Action>
                 @if (_mayWrite)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync">Add account</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-account">Add account</MudButton>
                 }
             </Action>
         </EmptyState>

@@ -20,7 +20,7 @@
 
 <PageTitle>DNS providers · Paduraksa</PageTitle>
 
-<PageHeader Title="DNS providers">
+<PageHeader Title="DNS providers" ListEmpty="@(_providers is { Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -54,7 +54,7 @@ else if (_providers.Count == 0)
             <Action>
                 @if (_mayWrite)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync">Add provider</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-dns">Add provider</MudButton>
                 }
             </Action>
         </EmptyState>

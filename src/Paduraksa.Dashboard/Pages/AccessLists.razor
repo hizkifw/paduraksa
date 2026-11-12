@@ -13,7 +13,7 @@
 
 <PageTitle>Access lists · Paduraksa</PageTitle>
 
-<PageHeader Title="Access lists">
+<PageHeader Title="Access lists" ListEmpty="@(_document is { AccessLists.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -57,7 +57,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@DashboardRoutes.NewAccessList" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add access list</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewAccessList" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-access-list">Add access list</MudButton>
                     }
                 </Action>
             </EmptyState>

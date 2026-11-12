@@ -16,7 +16,7 @@
 
 <PageTitle>API tokens · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="API tokens">
+<PageHeader Title="API tokens" ListEmpty="@(_rows is not null && Shown.Count == 0)">
     <Actions>
         @if (_mayIssue)
         {
@@ -69,7 +69,7 @@
             <Action>
                 @if (_mayIssue)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="CreateAsync">Create token</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="CreateAsync" data-action="add-token">Create token</MudButton>
                 }
             </Action>
         </EmptyState>

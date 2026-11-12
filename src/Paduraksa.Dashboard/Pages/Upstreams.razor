@@ -13,7 +13,7 @@
 
 <PageTitle>Upstreams · Paduraksa</PageTitle>
 
-<PageHeader Title="Upstreams">
+<PageHeader Title="Upstreams" ListEmpty="@(_document is { Upstreams.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -65,7 +65,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add upstream</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-upstream">Add upstream</MudButton>
                     }
                 </Action>
             </EmptyState>

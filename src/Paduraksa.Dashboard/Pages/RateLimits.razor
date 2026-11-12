@@ -13,7 +13,7 @@
 
 <PageTitle>Rate limits · Paduraksa</PageTitle>
 
-<PageHeader Title="Rate limits">
+<PageHeader Title="Rate limits" ListEmpty="@(_document is { RateLimitPolicies.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -57,7 +57,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@DashboardRoutes.NewRateLimit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add rate limit</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewRateLimit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-rate-limit">Add rate limit</MudButton>
                     }
                 </Action>
             </EmptyState>

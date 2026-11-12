@@ -19,7 +19,7 @@
 
 <PageTitle>Notifications · Paduraksa</PageTitle>
 
-<PageHeader Title="Notifications">
+<PageHeader Title="Notifications" ListEmpty="@(_channels is { Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -53,7 +53,7 @@ else if (_channels.Count == 0)
             <Action>
                 @if (_mayWrite)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync">Add channel</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-channel" data-action="add-channel">Add channel</MudButton>
                 }
             </Action>
         </EmptyState>

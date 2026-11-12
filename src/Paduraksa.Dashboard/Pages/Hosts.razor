@@ -14,7 +14,7 @@
 
 <PageTitle>Hosts · Paduraksa</PageTitle>
 
-<PageHeader Title="Hosts">
+<PageHeader Title="Hosts" ListEmpty="@(_rows is { Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -67,7 +67,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add host</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-host">Add host</MudButton>
                     }
                 </Action>
             </EmptyState>

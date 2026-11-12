@@ -13,7 +13,7 @@
 
 <PageTitle>Profiles · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="Profiles">
+<PageHeader Title="Profiles" ListEmpty="@(_document is { Profiles.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -56,7 +56,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@DashboardRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add profile</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-profile">Add profile</MudButton>
                     }
                 </Action>
             </EmptyState>

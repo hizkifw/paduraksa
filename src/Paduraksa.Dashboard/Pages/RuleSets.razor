@@ -14,7 +14,7 @@
 
 <PageTitle>Rules · Paduraksa</PageTitle>
 
-<PageHeader Title="Rules">
+<PageHeader Title="Rules" ListEmpty="@(_document is { RuleSets.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {
@@ -58,7 +58,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@DashboardRoutes.NewRuleSet" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add rule set</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewRuleSet" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-rule-set">Add rule set</MudButton>
                     }
                 </Action>
             </EmptyState>
