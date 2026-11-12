@@ -31,9 +31,12 @@ users from a web dashboard or a REST API, with every change versioned and revers
 - **Security overview:** what protects each host and how much work each protection has done.
 - **Request simulator:** ask why a request was routed, redirected or refused, against the live config or a draft.
 - **Logs:** access and error logs, rotated and compressed, browsable from the dashboard.
+- **AI assistants (MCP):** an MCP endpoint with two tools, `search` and `execute`, that let an assistant read the API description and call the
+  API by writing code, as the API token it connects with. A read-only token can change nothing; a change is a dry run and then a confirmed request,
+  recorded as MCP in the audit log. See [docs/install.md](docs/install.md#mcp-ai-assistants).
 - **Secrets stay encrypted:** certificate keys, DNS credentials and TOTP secrets live in an encrypted vault.
 
-**Planned:** custom error pages, metrics, a CLI, an MCP server, YAML import/export and backups. See the [roadmap](docs/PLAN.md#14-milestones).
+**Planned:** custom error pages, metrics, a CLI, YAML import/export and backups. See the [roadmap](docs/PLAN.md#14-milestones).
 
 ## Quick start
 

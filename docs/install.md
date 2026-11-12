@@ -398,6 +398,49 @@ settings belong to the process, since only you know them:
 | `Paduraksa__Notifications__HealthHold` | `00:00:10` | How long a destination's new health state must hold before it is reported (1 second to 10 minutes), so one failed probe sends nothing |
 | `Paduraksa__Notifications__CoalesceWindow` | `00:00:03` | How long a channel waits after a message for more of the same kind, so ten upstreams going down at once is one digest (0 to 1 minute) |
 
+### MCP (AI assistants)
+
+**MCP is off until you turn it on**: set `Paduraksa__Mcp__Enabled=true` (default `false`) and restart. The tools run an assistant's JavaScript in a sandbox
+inside the proxy's own process, so that is the operator's choice; while it is off `/mcp` answers 404 and the dashboard says how to enable it. Running the
+sandbox in a separate child process is planned after v0.1.
+
+When it is on, the admin port serves an MCP endpoint, `https://<admin host>:9443/mcp` (streamable HTTP), with two tools: `search` reads the API description with code
+and `execute` calls the API with code, as the access token the assistant connects with. The assistant writes the code; the server runs it in a sandbox with
+hard limits (5 seconds of script time, 50 requests, 64 MiB, a 64 KiB result), so it can do exactly what that token can do over the REST API and nothing
+else. Create the token under Settings, API tokens (the page shows the endpoint and the snippets below with your address in them).
+
+**Use a token that can only read** (the `config:read`, `logs:read`, `metrics:read`, `certificates:read` family and nothing that writes): the assistant can then
+look at everything its scopes allow and change nothing. With a writing token a change is still two steps, a dry run and then a second request with `confirm: true`, and shows as
+`mcp` in History and Audit with the token as the actor. Backups, API tokens, users, sessions, anything that carries a secret (DNS provider credentials, ACME
+keys, notification secrets, certificate uploads) and the live tail stream are refused whatever the token holds; `GET /api/v1/logs/recent` reads recent
+requests instead of the stream. Text the assistant reads from your traffic (user agents, paths) is data to it, and its descriptions say so.
+
+Claude Code:
+
+```sh
+claude mcp add --transport http paduraksa https://proxy.lan:9443/mcp --header "Authorization: Bearer pdk_..."
+```
+
+Claude Desktop (`claude_desktop_config.json`, through `mcp-remote`):
+
+```json
+{
+  "mcpServers": {
+    "paduraksa": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://proxy.lan:9443/mcp", "--header", "Authorization:${PADURAKSA_TOKEN}"],
+      "env": { "PADURAKSA_TOKEN": "Bearer pdk_..." }
+    }
+  }
+}
+```
+
+The admin certificate is signed by Paduraksa's own CA, so the machine that runs the client has to trust its root (`GET /api/v1/ca/root.pem`, or Local CA in the
+dashboard). Node-based clients (Claude Code, `mcp-remote`) read it from `NODE_EXTRA_CA_CERTS=/path/to/paduraksa-root.pem`. Only a bearer token is accepted at
+`/mcp`: a browser session cookie never is. The endpoint is on the admin port, so `Paduraksa:Listen:AdminAllowedSources` and everything else that protects the
+admin port protects it. The sandbox runs inside the proxy's process and a call can hold one of 4 slots for up to 30 seconds, so one token can keep all four busy: give the
+token to assistants you trust. Setting `DOTNET_GCHeapHardLimit` for the container bounds what a runaway script could cost the process in memory.
+
 ### Upgrading
 
 With the published image (the default compose file):
