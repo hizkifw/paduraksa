@@ -38,7 +38,7 @@ public sealed record MetricsFigures(double RequestsPerSecond, double ErrorRate, 
 /// <param name="RefusedPerSecond">Requests the gate refused by a policy or a limit, a second over the observed seconds.</param>
 /// <param name="Total">Latency percentiles of the requests answered in the step.</param>
 /// <param name="Upstream">Upstream time percentiles of the requests forwarded in the step.</param>
-/// <param name="WidthSeconds">How long the step is. Usually <see cref="MetricsOverview.BucketWidth"/>; the hour's steps from before the server started are a minute wide, and the last step of a longer range may be shorter than the others.</param>
+/// <param name="WidthSeconds">How long the step is. Usually <see cref="MetricsOverview.BucketWidth"/>; the hour's steps from before the server started are a minute wide (the one it started in is cut short where the ten-second steps begin).</param>
 /// <param name="CoveredSeconds">How many of those seconds the server was running to count them; less than the width for a step the server started or stopped in, and 0 for no data.</param>
 public sealed record MetricsSeriesPoint(
     DateTimeOffset Start,

@@ -186,7 +186,16 @@ point `Paduraksa__Logs__Directory` at it; it must be writable by uid 10001.
 
 Every request is counted (by host, route, upstream and destination) and timed, whether or not its host writes an access
 log. The counters cost no allocation and no lock on the request path. The home page of the dashboard draws them live: the
-last hour from memory, a day, a week or a month from one-minute rollups kept in `paduraksa.db`.
+last hour from memory and from the rollups the server started from, a day, a week or a month from one-minute rollups kept in
+`paduraksa.db`.
+
+**Restarts and downtime.** The one-hour view survives a restart: at startup the server reads the last hour of rollups, so the
+chart doesn't begin at the boot. Every rollup minute records how many of its seconds the server was running, and a minute
+with no record is a minute it wasn't, so a restart, a crash or a day offline is a shaded gap in the charts (a line is never
+drawn through it, and it isn't drawn as zero requests); a quiet hour with the server up is a line at zero. Rates are over the
+seconds the server was running, so the minute of a restart isn't diluted. A graceful stop (a `docker stop`, a SIGTERM) writes
+the minute in progress; a crash loses it and up to one write interval of finished minutes. Minutes stored by an earlier
+version had no records for idle time, so quiet stretches from before the upgrade also show as gaps.
 
 **Prometheus.** The admin port serves the text format at `/metrics` (the same endpoint is `/api/v1/metrics`). It needs a
 bearer API token with the `metrics:read` scope, which every role holds, so create a token for a viewer and give it only that
@@ -234,7 +243,14 @@ a sum in seconds (`paduraksa.request.duration.sum`, and `paduraksa.request.upstr
 | `Paduraksa__Metrics__Retention` | `14.00:00:00` | How long a one-minute rollup is kept (1 hour to 5 years); older rows are deleted hourly |
 | `Paduraksa__Metrics__WriteInterval` | `00:00:15` | How often finished minutes are written to the database (1 second to 10 minutes) |
 
-A restart loses the minute in progress. Counters start from zero at every start, as Prometheus expects.
+Counters start from zero at every start, as Prometheus expects.
+
+**The overview API.** `GET /api/v1/metrics/overview?range=hour|day|week|month` (`metrics:read`) returns the chart as `series`:
+every step from the first one the server was running for to the last, oldest first. Each step has `start`, `widthSeconds`
+(the hour's steps from before the last start are a minute wide, the rest ten seconds; a longer range's steps are all
+`bucketWidth`), `coveredSeconds` and the rates over those seconds. A step with `coveredSeconds` 0 is a
+time the server wasn't running (all its figures are 0): draw a gap, not a zero. A step with coverage and `requestsPerSecond`
+0 was quiet.
 
 ### Notifications
 
