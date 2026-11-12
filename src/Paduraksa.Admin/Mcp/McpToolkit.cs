@@ -129,6 +129,21 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
     [LoggerMessage(Level = LogLevel.Information, Message = "MCP sandbox: {Event}")]
     private static partial void LogSandbox(ILogger logger, string @event);
 
+    /// <summary>The children this server's pool has running; none before the first call. Other servers in the same process have their own.</summary>
+    internal IReadOnlyList<int> ChildProcessIds
+    {
+        get
+        {
+            Task<CodeModeTools>? tools;
+            lock (_gate)
+            {
+                tools = _tools;
+            }
+
+            return tools is { IsCompletedSuccessfully: true } ? tools.Result.Pool.ChildProcessIds : [];
+        }
+    }
+
     /// <summary>Stopping the app kills every child: none outlives the server.</summary>
     public async ValueTask DisposeAsync()
     {
