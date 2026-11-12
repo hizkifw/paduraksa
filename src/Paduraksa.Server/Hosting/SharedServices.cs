@@ -295,6 +295,22 @@ internal sealed class SharedServices : IAsyncDisposable
             loggerFactory.AddProvider(logFiles.ErrorProvider);
             builder.Add<ILogFileStore>(new LogFileStore(logFiles.Directory));
 
+            // The claim on the data directory, released with the last shared service: a second server, or a restore, finds it held.
+            try
+            {
+                var claim = builder.Add(DataDirectoryLock.Acquire(options.DataDirectory));
+                if (!claim.Enforced)
+                {
+                    DataDirectoryLogs.NotEnforced(loggerFactory.CreateLogger("Paduraksa.Server.Hosting"), options.DataDirectory);
+                }
+            }
+            catch (DataDirectoryInUseException ex)
+            {
+                var lockLog = loggerFactory.CreateLogger("Paduraksa.Server.Hosting");
+                DataDirectoryLogs.InUse(lockLog, ex);
+                throw;
+            }
+
             var health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
             var snapshots = builder.Add(new SnapshotStore());
