@@ -24,6 +24,12 @@ public enum SecretKind
 
     /// <summary>A general HMAC key for tokens the proxy signs and verifies (forward-auth, PoW), used through <see cref="IMacKeySource"/>.</summary>
     HmacSigningKey = 4,
+
+    /// <summary>
+    /// What a notification channel needs to reach its service: a webhook URL that embeds a secret, an API token, an SMTP password.
+    /// The one kind that is read back out of the vault, and only through <see cref="INotificationSecretSource"/>.
+    /// </summary>
+    NotificationSecret = 5,
 }
 
 /// <summary>

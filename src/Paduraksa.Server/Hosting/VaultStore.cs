@@ -17,6 +17,7 @@ namespace Paduraksa.Server.Hosting;
 /// <param name="MacKeys">Opens external-account-binding MAC keys for the ACME client.</param>
 /// <param name="Secrets">Secret metadata and storage (DNS provider credentials).</param>
 /// <param name="SecretHandlers">The authenticating HTTP handlers DNS providers build their clients over.</param>
+/// <param name="NotificationSecrets">Lends a notification channel's secret to its sender (the one kind that is read back out).</param>
 /// <param name="Totp">Two-factor codes for admin users (the secret never leaves the vault).</param>
 /// <param name="KeyRing">The admin app's Data Protection key ring (the dashboard's antiforgery and circuit state).</param>
 /// <param name="PasswordCredentials">Sets and deletes access-list users' passwords (write-only: nothing reads one back).</param>
@@ -31,6 +32,7 @@ internal sealed record VaultCapabilities(
     IMacKeySource MacKeys,
     ISecretStore Secrets,
     ISecretHttpHandlerFactory SecretHandlers,
+    INotificationSecretSource NotificationSecrets,
     ITotpAuthenticator Totp,
     IDataProtectionKeyStore KeyRing,
     IPasswordCredentials PasswordCredentials,
@@ -64,6 +66,7 @@ internal static class VaultStore
             container.GetRequiredService<IMacKeySource>(),
             container.GetRequiredService<ISecretStore>(),
             container.GetRequiredService<ISecretHttpHandlerFactory>(),
+            container.GetRequiredService<INotificationSecretSource>(),
             container.GetRequiredService<ITotpAuthenticator>(),
             container.GetRequiredService<IDataProtectionKeyStore>(),
             container.GetRequiredService<IPasswordCredentials>(),

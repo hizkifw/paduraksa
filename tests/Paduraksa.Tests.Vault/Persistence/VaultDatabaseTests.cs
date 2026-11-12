@@ -39,6 +39,30 @@ public sealed class VaultDatabaseTests : IDisposable
     private static void SqliteConnectionCleanup() => Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
     [Fact]
+    public async Task RollingTheNotificationSecretMigrationBackDropsOnlyThoseSecrets()
+    {
+        var factory = Factory();
+        var ct = TestContext.Current.CancellationToken;
+        await using var context = await factory.CreateDbContextAsync(ct);
+        var migrator = Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(context);
+        await migrator.MigrateAsync(null, ct);
+        const string Stamp = "'2026-11-08T12:00:00.0000000Z'";
+        await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO Secrets (Id, Kind, Label, MacAlgorithm, AllowedHosts, Version, CreatedAt, UpdatedAt, Sealed) VALUES "
+            + $"(x'0102', 'totp-secret', 'alice', NULL, '[]', 1, {Stamp}, {Stamp}, x'AA'), "
+            + $"(x'0304', 'dns-api-token', 'cf', NULL, '[\"api.cloudflare.com\"]', 1, {Stamp}, {Stamp}, x'BB'), "
+            + $"(x'0506', 'notification-secret', 'hook', NULL, '[]', 1, {Stamp}, {Stamp}, x'CC'); "
+            + "INSERT INTO TotpStates (SecretId, Confirmed, LastStep) VALUES (x'0102', 1, 42)",
+            ct);
+
+        await migrator.MigrateAsync("20261111082322_PasswordCredentials", ct);
+
+        Assert.Equal(2, await context.Database.SqlQueryRaw<int>("SELECT count(*) AS Value FROM Secrets").SingleAsync(ct));
+        Assert.Equal(0, await context.Database.SqlQueryRaw<int>("SELECT count(*) AS Value FROM Secrets WHERE Kind = 'notification-secret'").SingleAsync(ct));
+        Assert.Equal(1, await context.Database.SqlQueryRaw<int>("SELECT count(*) AS Value FROM TotpStates WHERE SecretId = x'0102' AND LastStep = 42").SingleAsync(ct));
+    }
+
+    [Fact]
     public async Task TheModelHasNoChangesMissingAMigration()
     {
         // Fails when an entity or mapping changed without `dotnet ef migrations add` (docs/development.md, "Database migrations").
@@ -55,12 +79,13 @@ public sealed class VaultDatabaseTests : IDisposable
         var first = await Initialize();
         var second = await Initialize();
 
-        Assert.Equal(5, first.AppliedMigrations.Count);
+        Assert.Equal(6, first.AppliedMigrations.Count);
         Assert.EndsWith("_Initial", first.AppliedMigrations[0], StringComparison.Ordinal);
         Assert.EndsWith("_Certificates", first.AppliedMigrations[1], StringComparison.Ordinal);
         Assert.EndsWith("_Totp", first.AppliedMigrations[2], StringComparison.Ordinal);
         Assert.EndsWith("_DataProtectionKeys", first.AppliedMigrations[3], StringComparison.Ordinal);
         Assert.EndsWith("_PasswordCredentials", first.AppliedMigrations[4], StringComparison.Ordinal);
+        Assert.EndsWith("_NotificationSecrets", first.AppliedMigrations[5], StringComparison.Ordinal);
         Assert.Empty(second.AppliedMigrations);
         await using var context = await Factory().CreateDbContextAsync(TestContext.Current.CancellationToken);
         var meta = await context.Meta.SingleAsync(TestContext.Current.CancellationToken);

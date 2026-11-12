@@ -10,7 +10,7 @@ public sealed class VaultContractsTests
         Assert.Equal(["ecdsa-p256", "ecdsa-p384", "rsa-2048", "rsa-3072", "rsa-4096"], Enum.GetValues<KeySpec>().Select(k => k.ToName()));
         Assert.Equal(["hmac-sha256", "hmac-sha384", "hmac-sha512"], Enum.GetValues<MacAlgorithm>().Select(a => a.ToName()));
         Assert.Equal(
-            ["dns-api-token", "eab-hmac-key", "totp-secret", "tsig-key", "hmac-signing-key"],
+            ["dns-api-token", "eab-hmac-key", "totp-secret", "tsig-key", "hmac-signing-key", "notification-secret"],
             Enum.GetValues<SecretKind>().Select(k => k.ToName()));
         Assert.Equal(["ES256", "ES384", "RS256"], Enum.GetValues<JwsAlgorithm>().Select(a => a.ToName()));
 

@@ -16,6 +16,9 @@ internal sealed class SecretBuffer : IDisposable
 
     public ReadOnlySpan<byte> Span => _bytes;
 
+    /// <summary>A read-only view as memory, for the one capability that lends the value to an async callback.</summary>
+    public ReadOnlyMemory<byte> Memory => _bytes;
+
     /// <summary>The writable view, for the code that fills the buffer.</summary>
     public Span<byte> Fill => _bytes;
 

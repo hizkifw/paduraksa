@@ -34,6 +34,7 @@ public static class VaultNames
         SecretKind.TotpSecret => "totp-secret",
         SecretKind.TsigKey => "tsig-key",
         SecretKind.HmacSigningKey => "hmac-signing-key",
+        SecretKind.NotificationSecret => "notification-secret",
         _ => throw Undefined(kind),
     };
 
@@ -65,6 +66,7 @@ public static class VaultNames
         "totp-secret" => SecretKind.TotpSecret,
         "tsig-key" => SecretKind.TsigKey,
         "hmac-signing-key" => SecretKind.HmacSigningKey,
+        "notification-secret" => SecretKind.NotificationSecret,
         _ => throw NotAName<SecretKind>(name),
     };
 

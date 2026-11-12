@@ -236,7 +236,7 @@ namespace Paduraksa.Vault.Migrations
 
                     b.ToTable("Secrets", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Secrets_Kind", "\"Kind\" IN ('dns-api-token', 'eab-hmac-key', 'totp-secret', 'tsig-key', 'hmac-signing-key')");
+                            t.HasCheckConstraint("CK_Secrets_Kind", "\"Kind\" IN ('dns-api-token', 'eab-hmac-key', 'totp-secret', 'tsig-key', 'hmac-signing-key', 'notification-secret')");
 
                             t.HasCheckConstraint("CK_Secrets_MacAlgorithm", "\"MacAlgorithm\" IS NULL OR \"MacAlgorithm\" IN ('hmac-sha256', 'hmac-sha384', 'hmac-sha512')");
 

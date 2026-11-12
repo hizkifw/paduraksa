@@ -59,6 +59,7 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ISecretStore, SecretStore>();
         services.AddSingleton<IMacKeySource, MacKeySource>();
         services.AddSingleton<ISecretHttpHandlerFactory, SecretHttpHandlerFactory>();
+        services.AddSingleton<INotificationSecretSource, NotificationSecretSource>();
         services.AddSingleton<IJwsSigner, JwsSigner>();
 
         services.AddSingleton(nameRules ?? StrictNameRules.Instance);
