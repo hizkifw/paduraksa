@@ -109,6 +109,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         ValidateCloudflare(options, failures);
         ValidateLogs(options.Logs, failures);
         ValidateMetrics(options.Metrics, failures);
+        ValidateAnalytics(options.Analytics, failures);
         ValidateNotifications(options.Notifications, failures);
         ValidateMcp(options.Mcp, failures);
         ValidateAccessLog(options, failures);
@@ -358,6 +359,19 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         {
             failures.Add($"{Key}:IdleTimeout must be between 10 seconds and 24 hours.");
         }
+    }
+
+    private static void ValidateAnalytics(PaduraksaAnalyticsOptions? analytics, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":Analytics";
+        if (analytics is null)
+        {
+            failures.Add($"{Key} must not be null.");
+            return;
+        }
+
+        Bound(analytics.Retention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:Retention", failures);
+        Bound(analytics.WriteInterval, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:WriteInterval", failures);
     }
 
     private static void ValidateNotifications(PaduraksaNotificationOptions? notifications, List<string> failures)

@@ -16,6 +16,58 @@ namespace Paduraksa.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
+            modelBuilder.Entity("Paduraksa.Data.Analytics.AnalyticsRollupRow", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("BytesOut")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CoveredSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Data")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("HostKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Requests")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServerErrors")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Start")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Subject")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Visitors")
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Tier", "Start");
+
+                    b.HasIndex("Tier", "Subject", "HostKey", "Start")
+                        .IsUnique();
+
+                    b.ToTable("AnalyticsRollups", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AnalyticsRollups_Subject", "\"Subject\" IN (0, 1, 2)");
+
+                            t.HasCheckConstraint("CK_AnalyticsRollups_Tier", "\"Tier\" IN (0, 1, 2)");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Audit.AuditEvent", b =>
                 {
                     b.Property<long>("Id")

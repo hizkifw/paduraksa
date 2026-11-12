@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Paduraksa.Application.Analytics;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Backup;
 using Paduraksa.Application.Certificates;
@@ -13,6 +14,7 @@ using Paduraksa.Application.Simulation;
 using Paduraksa.Application.Yaml;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
+using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Yarp;
@@ -57,6 +59,7 @@ internal static class ConfigStore
         TimeProvider timeProvider,
         ProofOfWorkRuntime proofOfWork,
         NotificationOptions notificationOptions,
+        AnalyticsBacklog analyticsBacklog,
         ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -95,6 +98,8 @@ internal static class ConfigStore
             .AddPaduraksaCertificateOperations()
             .AddPaduraksaCertificateRecovery()
             .AddPaduraksaMetricRollups()
+            .AddSingleton(analyticsBacklog)
+            .AddPaduraksaAnalyticsRollups()
             .AddPaduraksaNotifications(notificationOptions);
         if (placeholderEnabled)
         {
@@ -126,6 +131,7 @@ internal static class ConfigStore
         }
 
         var rollups = builder.AddOwnedElsewhere(container.GetRequiredService<MetricRollupStore>());
+        var analyticsRollups = builder.AddOwnedElsewhere(container.GetRequiredService<AnalyticsRollupStore>());
 
         // The notification system: the dispatcher is also the one INotificationEvents that every producer (sign-in, ACME, the watchers) publishes to.
         // The hosted services (the dispatcher, the health watcher, the expiry monitor) are started by the core host.
@@ -135,7 +141,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateExpiryMonitor>());
         builder.AddOwnedElsewhere(container.GetRequiredService<UpstreamHealthBoard>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationService>());
-        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups, events);
+        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups, analyticsRollups, events);
     }
 }
 
@@ -147,6 +153,7 @@ internal static class ConfigStore
 /// <param name="Setup">First-run setup: whether an Owner exists, and the one-time setup token.</param>
 /// <param name="Permissions">The one answer to "may this origin do that".</param>
 /// <param name="MetricRollups">The one-minute metric rollups' store.</param>
+/// <param name="AnalyticsRollups">The traffic analytics' rollup store.</param>
 /// <param name="Events">Where producers publish notification events.</param>
 internal sealed record ConfigStoreServices(
     IDbContextFactory<ConfigDbContext> Contexts,
@@ -156,4 +163,5 @@ internal sealed record ConfigStoreServices(
     SetupService Setup,
     IPermissionEvaluator Permissions,
     MetricRollupStore MetricRollups,
+    AnalyticsRollupStore AnalyticsRollups,
     INotificationEvents Events);

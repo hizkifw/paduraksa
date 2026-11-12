@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Paduraksa.Admin.Certificates;
+using Paduraksa.Application.Analytics;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Commands;
@@ -19,6 +20,7 @@ using Paduraksa.Core.Acme;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
+using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
@@ -373,6 +375,10 @@ internal sealed class SharedServices : IAsyncDisposable
             // The dashboard's live tail is fed by that same drain, after the file; it keeps copies redacted with the file's options.
             var accessLogTail = builder.Add(new AccessLogTail(options.AccessLog.TailSize, accessLogFormat, snapshots));
             builder.Add(new LogTailService(accessLogTail));
+            // The traffic analytics are the drain's third consumer: it fills five-minute buckets and closes them into the backlog, which the
+            // analytics job (core host) persists. Nothing on the request path.
+            var analyticsBacklog = builder.Add(new AnalyticsBacklog());
+            var analytics = builder.Add(new TrafficAnalytics(snapshots, timeProvider, analyticsBacklog));
 
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate and the
             // request simulator read the class.
@@ -383,7 +389,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.AddOwnedElsewhere(vault.Catalog);
             builder.AddOwnedElsewhere(vault.PasswordCredentials);
             var configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, options.Notifications.ToOptions(), coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, options.Notifications.ToOptions(), analyticsBacklog, coreLoggers);
 
             // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
             // persists the minutes (hosted services of the core host, below), and the meter, the service and the /metrics scrape read them.
@@ -392,6 +398,7 @@ internal sealed class SharedServices : IAsyncDisposable
             var rollupStore = configStore.MetricRollups;
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
             builder.Add(new MetricRollupJob(sampler, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
+            builder.Add(new AnalyticsRollupJob(configStore.AnalyticsRollups, options.Analytics.ToOptions(), timeProvider, coreLoggers.CreateLogger<AnalyticsRollupJob>()));
             var peerGone = builder.Add(new PeerGoneLogFilter());
             var processCounters = builder.Add(new ProcessCounters(
             [

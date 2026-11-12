@@ -1,3 +1,4 @@
+using Paduraksa.Application.Analytics;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
@@ -52,6 +53,9 @@ internal static class CoreHost
         // local CA's certificate from its first request, and a daily loop renews it. It registers without republishing the
         // live config, so it never waits for the public app's YARP.
         builder.Services.AddHostedService(static services => services.GetRequiredService<AdminCertificateService>());
+        // The analytics job persists the buckets the drain closes. Hosted services stop in reverse order, so it is registered before the drain
+        // and stops after it: the bucket the drain closes on its way out is in the backlog when the job's last write runs.
+        builder.Services.AddHostedService(static services => services.GetRequiredService<AnalyticsRollupJob>());
         // The access log's one reader: it formats the ring's entries into the sink, and flushes on shutdown.
         builder.Services.AddHostedService<AccessLogDrainService>();
         // The metrics: the job writes the finished minutes to the config database (started after ConfigStartup has migrated it)

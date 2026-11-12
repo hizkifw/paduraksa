@@ -21,6 +21,9 @@ public enum AnalyticsTier
 
     /// <summary>An hour of them merged, kept for the longer ranges.</summary>
     Hour = 1,
+
+    /// <summary>A day of hours merged, which is what a month is read from.</summary>
+    Day = 2,
 }
 
 /// <summary>

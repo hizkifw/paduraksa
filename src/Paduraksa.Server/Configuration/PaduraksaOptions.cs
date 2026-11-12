@@ -49,6 +49,9 @@ internal sealed class PaduraksaOptions
     /// <summary>Metrics: how long the one-minute rollups behind the dashboard's longer ranges are kept, and how often they are written.</summary>
     public PaduraksaMetricsOptions Metrics { get; set; } = new();
 
+    /// <summary>Traffic analytics: how long the five-minute and hourly rollups behind the Analytics page are kept, and how often they are written.</summary>
+    public PaduraksaAnalyticsOptions Analytics { get; set; } = new();
+
     /// <summary>Notifications: the address the dashboard is reached at, for the links in a message.</summary>
     public PaduraksaNotificationOptions Notifications { get; set; } = new();
 
@@ -492,6 +495,24 @@ internal sealed class PaduraksaMcpOptions
     /// <summary>How long a sandbox child waits without a run before it is despawned (default 10 min; 10 s to 24 h). The next call starts a new one.</summary>
     public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromMinutes(10);
 }
+
+
+/// <summary>
+/// Traffic analytics (<c>Paduraksa:Analytics</c>): computed in the access-log drain, so a host with its access log off is in neither. These set
+/// what is kept of it: the drain closes a five-minute bucket per host, the job writes it to the config database, and an hour that has passed is
+/// rolled up into one row for the longer ranges.
+/// </summary>
+internal sealed class PaduraksaAnalyticsOptions
+{
+    /// <summary>How long a stretch is kept (default 30 days; 1 hour to 5 years). Older rows are deleted hourly. The five-minute rows are kept two days once rolled up.</summary>
+    public TimeSpan Retention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>How often closed buckets are written to the database (default 15 s; 1 s to 10 min). A crash loses the bucket in progress and whatever was waiting; a graceful stop writes them.</summary>
+    public TimeSpan WriteInterval { get; set; } = TimeSpan.FromSeconds(15);
+
+    public Application.Analytics.AnalyticsOptions ToOptions() => new() { Retention = Retention, WriteInterval = WriteInterval };
+}
+
 
 /// <summary>
 /// Notifications (<c>Paduraksa:Notifications</c>). The channels themselves are managed in the dashboard (Settings, Notifications) and live in the

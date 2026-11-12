@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
+using Paduraksa.Data.Analytics;
 using Paduraksa.Data.Audit;
 using Paduraksa.Data.Certificates;
 using Paduraksa.Data.Conversion;
@@ -50,6 +51,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<MetricRollupRow> MetricRollups => Set<MetricRollupRow>();
 
+    internal DbSet<AnalyticsRollupRow> AnalyticsRollups => Set<AnalyticsRollupRow>();
+
     internal DbSet<NotificationChannelRow> NotificationChannels => Set<NotificationChannelRow>();
 
     internal DbSet<ExpiryNoticeRow> ExpiryNotices => Set<ExpiryNoticeRow>();
@@ -84,6 +87,7 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration(new DnsProviderRowConfiguration());
         modelBuilder.ApplyConfiguration(new AcmeOrderRowConfiguration());
         modelBuilder.ApplyConfiguration(new MetricRollupRowConfiguration());
+        modelBuilder.ApplyConfiguration(new AnalyticsRollupRowConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationChannelRowConfiguration());
         modelBuilder.ApplyConfiguration(new ExpiryNoticeRowConfiguration());
         IdentityConfiguration identity = new();

@@ -553,6 +553,30 @@ Paduraksa__AccessLog__LogQueryString=false
 Paduraksa__AccessLog__SensitiveQueryKeys=token,api_key,pin
 ```
 
+### Traffic analytics
+
+The dashboard's **Analytics** page (Insight) and `GET /api/v1/analytics` show visitors, content and clients: unique visitors,
+the top paths, referers and user agents, the slowest paths and the largest responses, browsers, systems and devices, bots by kind,
+and the bots that ignore a host's `robots.txt`. They are computed by the same background writer that writes `access.log`, never on
+the request path, so **a host with its access log off is in neither**: turn it off for a host and its traffic is not recorded anywhere.
+
+Nothing in them is a client address: an address is hashed with a random salt that lives in memory only, goes into a fixed-size
+counting sketch (HyperLogLog) and is gone, so what is stored can't be turned back into an address, even by someone who holds the
+database. The price of a salt that dies with the process is that a visitor active across a restart is counted once on each side of it.
+Query strings are never counted (paths are counted without them), a referer is reduced to its scheme and host, and the user
+agents are the raw strings the clients sent. Visitors and the tables are approximate by design (the page says so): about 1.6 % for
+visitors, and every top-table figure has a documented bound (PLAN section 7.4).
+
+Closed five-minute buckets are written to the config database every 15 seconds; an hour that has passed is rolled up into one row
+per host for the day and week ranges, and a day that has passed into one row per host for the month. The five-minute rows are kept two days once rolled up, the hourly rows for the retention.
+
+| Setting | Default | What |
+|---|---|---|
+| `Paduraksa__Analytics__Retention` | `30.00:00:00` | How long an hour of analytics is kept (1 hour to 5 years); older rows are deleted hourly |
+| `Paduraksa__Analytics__WriteInterval` | `00:00:15` | How often closed buckets are written to the database (1 second to 10 minutes) |
+
+A graceful stop writes the bucket in progress; a crash loses it and whatever was not yet written, and the time after it shows as a gap on the charts, not as zeros.
+
 ## Bare metal
 
 1. Publish a self-contained build (no .NET runtime needed on the host):
