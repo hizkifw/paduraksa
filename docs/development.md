@@ -47,6 +47,44 @@ It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemb
 `libfuzzer-dotnet` (downloaded once into `~/.cache/paduraksa`). A crash is a file in `artifacts/fuzz/crashes/<target>/`. To keep it: copy it to
 `fuzz/regressions/<target>/`, fix the bug and add a unit test next to the code. `Paduraksa.Fuzz seed` writes a target's well-formed starting inputs (`fuzz/corpus/<target>/seed-*`).
 
+## Writing tests that don't flake
+
+CI runs on GitHub's 4-core runners with the test classes in parallel, and a test that passes alone can fail there: a blocked image publish blocks every deploy.
+`scripts/test-ci-like.sh` (official SDK, Release, 4 cores) is the local check; to reproduce a load failure, pin a class to the cores and load them,
+for example `taskset -c 0-3 dotnet test --no-build -c Release --project tests/<project> --filter-class "*Name"` in a loop, beside a few busy loops
+(`taskset -c 0-3 bash -c 'while :; do :; done' &`; `stress-ng --cpu 8` does the same). Fix a flake at its cause: a retry or a longer timeout hides the race, and a deleted check
+leaves the thing unprotected. What has caused them so far:
+
+- **A clock moved before the code armed its wait.** A fake clock advanced before the code under test has started its timer never fires it. Advance until the effect is seen,
+  bounded (`AdvanceUntilAsync` in `NotificationDispatcherTests`), or wait for an internal signal that the wait is armed (the dispatcher's `Routed` counter).
+- **A signal counted from the wrong moment.** A test that takes a baseline count and then waits for it to grow is satisfied by the next unrelated tick. Count from the
+  state the test cares about (`LogFilesPageTests`: scrolls are counted from the render that shows the new line). A fixed-interval poll in the code under test makes the same mistake in
+  `VerifyInvoke(id)`, which means exactly once.
+- **Parallel classes sharing process state.** Environment variables set process-wide, every child process of the test process, a static. Scope to the test's own instance
+  (`McpShutdownTests` asks its own server) or use a harmless sentinel.
+- **A wall-clock assertion, or a rate the test keeps.** "Under 150 us a call", "20 000 entries a second": a starved runner fails them without anything being wrong. Assert the cause
+  (the number of rule comparisons, that every entry arrived, that nothing allocated) and keep the timing in the benchmark project (`bench/`). A writer that must not overflow a
+  ring waits for room instead of keeping a rate.
+- **Asserting an exact batching or timing outcome.** Assert the invariant instead (`LiveTailPageTests` burst: every line is there, in order, whatever the batch sizes).
+- **bUnit's 1 s default wait** and a thread pool of 4: `TestAssemblySetup` raises the wait to 10 s and the pool's minimum. A wait ends as soon as its condition holds, so a passing test is no slower.
+- **Zero-allocation checks.** The per-thread counter jumps once, by 2-8 KB, at a random iteration, under load. `AllocAssert.Zero` re-measures and forgives one allocating call; a check
+  that sums bytes by hand (`CompletionProbe`) allows one request that allocated, like `GateAllocationTests`. A real allocation happens on every call and still fails.
+- **A server that answers and closes while the client is still writing.** The client sees a reset before the 413. Send `Expect: 100-continue` (`RequestLimitsEndToEndTests`;
+  `AdminApiHarness.SendAsync(..., expectContinue: true)`, whose client waits 30 s for the answer), so the body goes only after it.
+- **Waiting a stretch of wall time for something to happen.** A child that must burn CPU, a timer that must fire: a loaded runner gives it a fraction of the time. Wait for the
+  measured thing itself (`SandboxHostileChildTests` polls the child's CPU time), bounded.
+- **Playwright.** Each browser test starts its own Chromium and server; run in parallel on 4 cores they starve one another (page loads over 30 s). Every one is in the
+  `[Collection(PlaywrightBrowser.CollectionName)]`, which runs alone, one class after another, and `Expect` waits 15 s. Never read a response body after the page has navigated away: use a plain
+  API request.
+- **A cold first call.** The first request for the OpenAPI document builds it (2 s on a quiet machine, several times that on a loaded one) and the harness client's 30 s was once not enough in a
+  class of five fetches: fetch it once per class with `SharedAdminApi.OpenApiAsync`. A probe or client with a contract timeout of its own (the 3 s of `doctor --liveness`) takes a longer
+  one in tests (`LivenessAsync`'s `timeout`), as the timeout is not what the test checks.
+- **A local port prober.** On the dev machine a Node tool sends `GET /` to every new localhost port within seconds. A fake or a log that counts requests must count only what
+  the proxy sent (`X-Forwarded-Proto`: `FakeAuthServer`, `BodyCountingUpstream`) or only the names the test sent (`*.test` in `AccessLogPipelineTests`). CI doesn't have it, so such a failure shows locally only.
+- **Ports.** Bind port 0 and read the real one back (`TestHost.Endpoint`). If a number must be known before the bind, `TestPorts.StartOnFreePortAsync` retries the whole start with a new port; never probe, release and rebind by hand.
+- **Waiting for something that arrives by an event.** Wait on the event (a `TaskCompletionSource` completed by the code, `WaitForState` in bUnit), with a bound for the failure
+  case that a loaded runner can't reach: not a poll of a fixed number of 50 ms steps.
+
 ## The data directory
 
 The server keeps its state in `Paduraksa:DataDirectory` (default `./data` next to the shipped `appsettings.json`, so
