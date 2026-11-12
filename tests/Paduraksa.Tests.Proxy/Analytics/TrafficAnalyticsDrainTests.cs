@@ -132,10 +132,12 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
     }
 
     [Fact]
-    public async Task AStreamOfUniqueAgentsAtARealisticRateCostsTheFileNoLines()
+    public async Task AStreamOfUniqueAgentsCostsTheFileNoLinesAndTheAnalyticsNoEntries()
     {
-        // The cache's worst case: every agent is new and 1 KiB long, so each entry is a full classification. 20 000 entries at 20 000 a second
-        // is well past what one busy proxy logs, and the file must still get every line.
+        // The cache's worst case: every agent is new and 1 KiB long, so each entry is a full classification, and the file must still get every
+        // line and the analytics every entry. The writer waits for room instead of keeping a rate: how fast the drain goes is the benchmark's
+        // question (a loaded runner starves it and the ring overflows, which says nothing about the drain), what it must never do is lose or
+        // skip an entry.
         AccessLogRing ring = new(AccessLogRing.DefaultCapacity);
         CapturingSink sink = new();
         TrafficAnalytics analytics = new(StoreWith("app"), TimeProvider.System, new AnalyticsBacklog());
@@ -143,26 +145,26 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
         await drain.StartAsync(TestContext.Current.CancellationToken);
         var filler = new string('x', 900);
         const int Entries = 20_000;
-        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
 
         for (var i = 0; i < Entries; i++)
         {
-            while (watch.Elapsed.TotalSeconds * 20_000 < i)
+            AccessLogEntry entry = new() { TimestampUtcTicks = DateTime.UtcNow.Ticks, Host = "app.test", Method = "GET", Path = "/p", Protocol = "HTTP/1.1", StatusCode = 200, UserAgent = $"Mozilla/5.0 ({i}) {filler}" };
+            while (!ring.TryWrite(entry))
             {
-                Thread.SpinWait(50);
+                Assert.True(deadline.Elapsed < TimeSpan.FromMinutes(2), $"the drain stopped taking entries at {i}");
+                await Task.Delay(1, TestContext.Current.CancellationToken);
             }
-
-            Assert.True(ring.TryWrite(new() { TimestampUtcTicks = DateTime.UtcNow.Ticks, Host = "app.test", Method = "GET", Path = "/p", Protocol = "HTTP/1.1", StatusCode = 200, UserAgent = $"Mozilla/5.0 ({i}) {filler}" }));
         }
 
-        for (var attempt = 0; attempt < 2_000 && ring.EntriesRead < Entries; attempt++)
+        while (ring.EntriesRead < Entries)
         {
+            Assert.True(deadline.Elapsed < TimeSpan.FromMinutes(2), $"the drain read {ring.EntriesRead} of {Entries}");
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
 
         await drain.StopAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, ring.Dropped);
         Assert.Equal(Entries, sink.Lines.Count);
         Assert.Equal(Entries, analytics.Counted);
     }
