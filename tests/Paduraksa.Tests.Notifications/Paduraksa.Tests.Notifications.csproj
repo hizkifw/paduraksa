@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The fake MAC key and the fake mail server's certificate need real HMAC and key generation, which the key-material ban list keeps out of every other project.
+         The code under test (Paduraksa.Notifications) is held to the ban like any other project. -->
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -49,6 +49,7 @@ public sealed class VaultContractTests
         typeof(IMacKeySource),
         typeof(ISecretStore),
         typeof(ISecretHttpHandlerFactory),
+        typeof(INotificationSecretSource),
         typeof(IVaultLifecycle),
         typeof(IVaultKekRotation),
         typeof(ITotpAuthenticator),
@@ -70,6 +71,11 @@ public sealed class VaultContractTests
 
         // The vault-owned transport: the one return that is not plain data (it holds the credential inside the vault).
         $"{nameof(ISecretHttpHandlerFactory)}.{nameof(ISecretHttpHandlerFactory.CreateAuthenticatingHandler)}",
+
+        // The fourth egress, the narrowest: a notification channel's webhook URL, token or SMTP password has to be used by its sender. Only
+        // secrets of kind NotificationSecret open (any other kind answers as if absent), the value is a view of the vault's pinned buffer that is
+        // zeroed when the callback returns, and nothing returns it.
+        $"{nameof(INotificationSecretSource)}.{nameof(INotificationSecretSource.UseAsync)}(use)",
 
         // The upload goes in as a stream (read-only use, size-capped), the one way a PEM or PFX enters.
         $"{nameof(ICertificateImport)}.{nameof(ICertificateImport.ImportAsync)}(pemOrPfx)",

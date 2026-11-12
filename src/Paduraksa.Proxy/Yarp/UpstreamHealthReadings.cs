@@ -51,7 +51,21 @@ public sealed record UpstreamReading(UpstreamId Id, bool ActiveChecks, bool Pass
     /// The upstream has destinations and none is routable. YARP itself would still try them all in that case, which is why this
     /// reads each destination's verdict and not YARP's list of available destinations.
     /// </summary>
-    public bool NoneAvailable => Destinations.Count > 0 && Destinations.All(d => d.Current == DestinationVerdict.Unhealthy);
+    public bool NoneAvailable
+    {
+        get
+        {
+            foreach (var destination in Destinations)
+            {
+                if (destination.Current != DestinationVerdict.Unhealthy)
+                {
+                    return false;
+                }
+            }
+
+            return Destinations.Count > 0;
+        }
+    }
 }
 
 /// <summary>

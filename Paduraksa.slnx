@@ -17,6 +17,7 @@
     <Project Path="src/Paduraksa.Dashboard/Paduraksa.Dashboard.csproj" />
     <Project Path="src/Paduraksa.Data/Paduraksa.Data.csproj" />
     <Project Path="src/Paduraksa.Ids.Generator/Paduraksa.Ids.Generator.csproj" />
+    <Project Path="src/Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
     <Project Path="src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <Project Path="src/Paduraksa.Server/Paduraksa.Server.csproj" />
     <Project Path="src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
@@ -30,6 +31,7 @@
     <Project Path="tests/Paduraksa.Tests.Data/Paduraksa.Tests.Data.csproj" />
     <Project Path="tests/Paduraksa.Tests.Integration/Paduraksa.Tests.Integration.csproj" />
     <Project Path="tests/Paduraksa.Tests.Issuance/Paduraksa.Tests.Issuance.csproj" />
+    <Project Path="tests/Paduraksa.Tests.Notifications/Paduraksa.Tests.Notifications.csproj" />
     <Project Path="tests/Paduraksa.Tests.Proxy/Paduraksa.Tests.Proxy.csproj" />
     <Project Path="tests/Paduraksa.Tests.Unit/Paduraksa.Tests.Unit.csproj" />
     <Project Path="tests/Paduraksa.Tests.Vault/Paduraksa.Tests.Vault.csproj" />

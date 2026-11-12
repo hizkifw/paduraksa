@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Notifications" />
+  </ItemGroup>
+</Project>

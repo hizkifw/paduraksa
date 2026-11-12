@@ -5,6 +5,7 @@
     <ProjectReference Include="../Paduraksa.Data/Paduraksa.Data.csproj" />
     <ProjectReference Include="../Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <ProjectReference Include="../Paduraksa.Acme/Paduraksa.Acme.csproj" />
+    <ProjectReference Include="../Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />

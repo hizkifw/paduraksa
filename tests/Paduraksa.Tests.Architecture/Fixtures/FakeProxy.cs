@@ -10,6 +10,7 @@ using Paduraksa.Contracts.ArchFixtures;
 using Paduraksa.Core.ArchFixtures;
 using Paduraksa.Dashboard.ArchFixtures;
 using Paduraksa.Data.ArchFixtures;
+using Paduraksa.Notifications.ArchFixtures;
 using Paduraksa.Server.ArchFixtures;
 using Paduraksa.Storage.ArchFixtures;
 using Paduraksa.Tests.Architecture.Fixtures;
@@ -20,6 +21,8 @@ namespace Paduraksa.Proxy.ArchFixtures;
 public sealed class FakeProxy
 {
     public FakeCore? Core { get; set; }
+
+    public FakeNotifications? Notifications { get; set; }
 
     public FakeContracts? Contracts { get; set; }
 
