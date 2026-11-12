@@ -10,6 +10,7 @@ using Paduraksa.Contracts.ArchFixtures;
 using Paduraksa.Core.ArchFixtures;
 using Paduraksa.Dashboard.ArchFixtures;
 using Paduraksa.Data.ArchFixtures;
+using Paduraksa.Mcp.ArchFixtures;
 using Paduraksa.Notifications.ArchFixtures;
 using Paduraksa.Server.ArchFixtures;
 using Paduraksa.Storage.ArchFixtures;
@@ -47,6 +48,8 @@ public sealed class FakeProxy
     public ILookup<int, int>? Lookup { get; set; }
 
     public static int CountPositive(int[] values) => values.Count(v => v > 0);
+
+    public FakeMcp? Mcp { get; set; }
 
     public NonLayerType? NotALayer { get; set; }
 }

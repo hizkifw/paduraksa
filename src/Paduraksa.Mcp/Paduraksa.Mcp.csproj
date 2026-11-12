@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MCP in code mode (PLAN 11.2): the Jint sandbox and the request policy. No ASP.NET Core and no other project: the admin app owns the transport and the dispatcher. -->
+  <ItemGroup>
+    <PackageReference Include="Jint" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
+  </ItemGroup>
+</Project>
