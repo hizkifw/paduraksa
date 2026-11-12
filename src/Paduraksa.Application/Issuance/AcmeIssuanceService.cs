@@ -8,6 +8,7 @@ using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
@@ -78,6 +79,8 @@ public sealed partial class AcmeIssuanceService
     private readonly ILogger _logger;
     private readonly IPermissionEvaluator _permissions;
 
+    private readonly INotificationEvents? _notifications;
+
     internal AcmeIssuanceService(
         IDbContextFactory<ConfigDbContext> contexts,
         ConfigService config,
@@ -92,7 +95,8 @@ public sealed partial class AcmeIssuanceService
         IPermissionEvaluator permissions,
         ICertificateCatalog catalog,
         IDnsPropagationCheck? propagation,
-        Func<double> random)
+        Func<double> random,
+        INotificationEvents? notifications)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -118,6 +122,7 @@ public sealed partial class AcmeIssuanceService
         _options = options;
         _time = time;
         _random = random;
+        _notifications = notifications;
         _permissions = permissions;
         _logger = logger;
     }
@@ -641,8 +646,25 @@ public sealed partial class AcmeIssuanceService
             certificate = await _certificates.GetAsync(row.CertificateId, token).ConfigureAwait(false);
         }
 
+        // The first failure of a streak is news; the retries that follow are the scheduler's, and an expiring certificate is told about by the expiry notices.
+        if (attempts == 1)
+        {
+            _notifications?.Publish(NotificationText.AcmeFailed(
+                certificate?.Summary is { } failed ? CertificateLabel(failed) : row.Names.FirstOrDefault() ?? row.CertificateId.ToString(),
+                row.CertificateId,
+                attempts,
+                message,
+                retryAt,
+                certificate?.Summary is { Status: CertificateStatus.Active } active ? active.NotAfter : null,
+                now));
+        }
+
         return new IssuanceResult(IssuanceOutcome.Failed, row.CertificateId, certificate?.Summary, message);
     }
+
+    /// <summary>What a certificate is called in a message: its label, else its first name.</summary>
+    internal static string CertificateLabel(CertificateSummary summary) =>
+        !string.IsNullOrWhiteSpace(summary.Label) ? summary.Label : summary.Names.Count > 0 ? summary.Names[0] : summary.Subject;
 
     /// <summary>What kind of failure this is, how long the CA asked to wait, and what to tell the operator.</summary>
     private static (AcmeFailureKind Kind, TimeSpan? RetryAfter, string Message) Classify(Exception ex) => ex switch

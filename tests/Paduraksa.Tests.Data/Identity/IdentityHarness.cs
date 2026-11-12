@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
@@ -35,6 +36,9 @@ internal sealed class IdentityHarness : IAsyncDisposable
             .AddSingleton(db.Factory)
             .AddSingleton<TimeProvider>(Time)
             .AddSingleton<ITotpAuthenticator>(Totp)
+            .AddSingleton<INotificationEvents>(Events)
+            .AddSingleton(new NotificationOptions())
+            .AddSingleton(sp => new SignInWatch(sp.GetRequiredService<INotificationEvents>(), sp.GetRequiredService<NotificationOptions>(), sp.GetRequiredService<TimeProvider>()))
             .AddPaduraksaIdentity(DataDirectory, options)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
     }
@@ -50,6 +54,9 @@ internal sealed class IdentityHarness : IAsyncDisposable
     public ManualTimeProvider Time { get; } = new(new DateTimeOffset(2026, 11, 8, 12, 0, 0, TimeSpan.Zero));
 
     public FakeTotp Totp { get; } = new();
+
+    /// <summary>The sign-in anomalies the services published.</summary>
+    public RecordingEvents Events { get; } = new();
 
     public ClientContext Client { get; } = new(Channel.Dashboard, IPAddress.Parse("203.0.113.9"), "test-agent/1.0");
 
@@ -116,6 +123,33 @@ internal sealed class IdentityHarness : IAsyncDisposable
 
         Directory.Delete(DataDirectory, recursive: true);
     }
+}
+
+/// <summary>The notification dispatcher's front door, recording what was published.</summary>
+internal sealed class RecordingEvents : INotificationEvents
+{
+    private readonly List<NotificationEvent> _published = [];
+
+    public IReadOnlyList<NotificationEvent> Published
+    {
+        get
+        {
+            lock (_published)
+            {
+                return [.. _published];
+            }
+        }
+    }
+
+    public void Publish(NotificationEvent notification)
+    {
+        lock (_published)
+        {
+            _published.Add(notification);
+        }
+    }
+
+    public Task<bool> HasSubscribersAsync(NotificationEventKind kind, CancellationToken cancellationToken) => Task.FromResult(true);
 }
 
 /// <summary>A vault stand-in: one valid code per secret, usable once. <see cref="Rotate"/> moves to the next.</summary>

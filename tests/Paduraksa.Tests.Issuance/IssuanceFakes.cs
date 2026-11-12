@@ -214,3 +214,33 @@ internal sealed class HookHandler(HttpMessageHandler inner) : DelegatingHandler(
         return response;
     }
 }
+
+/// <summary>The notification dispatcher's front door, recording what was published.</summary>
+internal sealed class RecordingEvents : Paduraksa.Application.Notifications.INotificationEvents
+{
+    private readonly List<Paduraksa.Application.Notifications.NotificationEvent> _published = [];
+
+    public IReadOnlyList<Paduraksa.Application.Notifications.NotificationEvent> Published
+    {
+        get
+        {
+            lock (_published)
+            {
+                return [.. _published];
+            }
+        }
+    }
+
+    public void Publish(Paduraksa.Application.Notifications.NotificationEvent notification)
+    {
+        lock (_published)
+        {
+            _published.Add(notification);
+        }
+    }
+
+    /// <summary>Whether any channel is subscribed, as far as the producers can tell.</summary>
+    public bool Subscribed { get; set; } = true;
+
+    public Task<bool> HasSubscribersAsync(NotificationEventKind kind, CancellationToken cancellationToken) => Task.FromResult(Subscribed);
+}

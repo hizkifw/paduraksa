@@ -52,7 +52,11 @@ internal sealed partial class IssuanceHarness
         Permissions,
         Vault,
         Propagation,
-        () => Random);
+        () => Random,
+        Events);
+
+    /// <summary>What the orchestrators published to the notification dispatcher.</summary>
+    public RecordingEvents Events { get; } = new();
 
     /// <summary>The permission check the services made here are given; the default allows everything.</summary>
     public Paduraksa.Application.Identity.IPermissionEvaluator Permissions { get; set; } = TestPermissions.AllowAll;

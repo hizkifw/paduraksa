@@ -10,6 +10,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Identity;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Core.Acme;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
@@ -68,7 +69,8 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<IPermissionEvaluator>(),
             sp.GetRequiredService<ICertificateCatalog>(),
             sp.GetService<IDnsPropagationCheck>(),
-            Random.Shared.NextDouble));
+            Random.Shared.NextDouble,
+            sp.GetService<INotificationEvents>()));
         services.AddSingleton(sp => new AcmeRenewalScheduler(
             sp.GetRequiredService<AcmeIssuanceService>(),
             sp.GetRequiredService<AcmeIssuanceOptions>(),

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
@@ -52,6 +53,7 @@ public sealed class LoginService
     private readonly IdentityAudit _audit;
     private readonly SessionService _sessions;
     private readonly ITotpAuthenticator _totp;
+    private readonly SignInWatch? _watch;
 
     internal LoginService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -60,7 +62,8 @@ public sealed class LoginService
         PasswordHasher hasher,
         IdentityAudit audit,
         SessionService sessions,
-        ITotpAuthenticator totp)
+        ITotpAuthenticator totp,
+        SignInWatch? watch)
     {
         _contexts = contexts;
         _time = time;
@@ -69,6 +72,7 @@ public sealed class LoginService
         _audit = audit;
         _sessions = sessions;
         _totp = totp;
+        _watch = watch;
     }
 
     /// <summary>Step one: the username and password.</summary>
@@ -112,6 +116,9 @@ public sealed class LoginService
             }
 
             var rehash = check.NeedsRehash ? _hasher.Hash(password) : null;
+
+            // Read before the write transaction opens: it must not hold the writer lock for the audit lookup. A user without a second factor completes here.
+            var newAddress = !user.TotpEnabled && _watch is not null && await _watch.IsNewAddressAsync(context, user.Id, client.ClientIp, cancellationToken).ConfigureAwait(false);
             context.ChangeTracker.Clear();
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -162,6 +169,11 @@ public sealed class LoginService
                     cancellationToken).ConfigureAwait(false);
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                if (newAddress && !partial)
+                {
+                    _watch!.PublishNewAddress(user.Username, user.Id, client.ClientIp!);
+                }
+
                 return new LoginResult(partial ? LoginStatus.SecondFactorRequired : LoginStatus.Succeeded, grant);
             }
         }
@@ -221,6 +233,7 @@ public sealed class LoginService
             }
 
             var (cookie, newHash) = SessionService.NewCookie();
+            var newAddress = _watch is not null && await _watch.IsNewAddressAsync(context, user.Id, client.ClientIp, cancellationToken).ConfigureAwait(false);
             context.ChangeTracker.Clear();
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -247,6 +260,11 @@ public sealed class LoginService
                     cancellationToken).ConfigureAwait(false);
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                if (newAddress)
+                {
+                    _watch!.PublishNewAddress(user.Username, user.Id, client.ClientIp!);
+                }
+
                 return new LoginResult(LoginStatus.Succeeded, new SessionGrant(row.Id, cookie, expires));
             }
         }
@@ -327,6 +345,15 @@ public sealed class LoginService
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (attempt.Engaged is { } locked && _watch is not null)
+        {
+            var name = await context.Users.AsNoTracking().Where(u => u.Id == id).Select(u => u.Username).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+            if (name is not null)
+            {
+                _watch.PublishLockout(name, id, locked);
+            }
         }
     }
 }

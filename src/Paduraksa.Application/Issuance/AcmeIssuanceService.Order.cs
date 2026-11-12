@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Acme;
 using Paduraksa.Acme.Dns;
 using Paduraksa.Application.Audit;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
@@ -540,6 +541,7 @@ public sealed partial class AcmeIssuanceService
         }
 
         var now = _time.GetUtcNow();
+        var wasFailing = row.Attempts > 0;
         var renewAt = RenewalSchedule.NextRenewalAt(info.NotBefore, info.NotAfter, renewalInfo, _random(), _options);
         DateTimeOffset? ariCheckAt = renewalInfo is not null ? RenewalSchedule.NextAriCheck(now, renewalInfo.RetryAfter, _options)
             : renewalInfoFailed ? now + _options.AriMinRecheck
@@ -586,6 +588,12 @@ public sealed partial class AcmeIssuanceService
         row.RetryAt = null;
         row.NextRenewalAt = renewAt;
         LogRenewalInfo(row.CertificateId, renewAt);
+        if (wasFailing)
+        {
+            _notifications?.Publish(NotificationText.AcmeRecovered(
+                row.Names.FirstOrDefault() ?? row.CertificateId.ToString(), row.CertificateId, info.NotAfter, now));
+        }
+
         return info;
     }
 

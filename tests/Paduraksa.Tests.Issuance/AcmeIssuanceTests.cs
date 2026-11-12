@@ -885,7 +885,8 @@ public sealed partial class AcmeIssuanceTests
             h.Permissions,
             h.Vault,
             h.Propagation,
-            () => 0.5);
+            () => 0.5,
+            null);
         h.Time.Now += TimeSpan.FromDays(80);
         var requests = h.Server.Requests.Count;
 

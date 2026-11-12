@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 
@@ -63,7 +64,8 @@ public static class IdentityServiceCollectionExtensions
             sp.GetRequiredService<PasswordHasher>(),
             sp.GetRequiredService<IdentityAudit>(),
             sp.GetRequiredService<SessionService>(),
-            sp.GetRequiredService<ITotpAuthenticator>()));
+            sp.GetRequiredService<ITotpAuthenticator>(),
+            sp.GetService<SignInWatch>()));
         services.AddSingleton(sp => new ApiTokenService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<TimeProvider>(),

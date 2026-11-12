@@ -78,6 +78,8 @@ namespace Paduraksa.Data.Migrations
 
                     b.HasIndex("Timestamp");
 
+                    b.HasIndex("ActorUserId", "Action", "Timestamp");
+
                     b.ToTable("AuditEvents", null, t =>
                         {
                             t.HasCheckConstraint("CK_AuditEvents_Actor", "\"ActorKind\" IN ('system', 'cli', 'user', 'token') AND (\"ActorUserId\" IS NOT NULL) = (\"ActorKind\" = 'user') AND (\"ActorTokenId\" IS NOT NULL) = (\"ActorKind\" = 'token')");

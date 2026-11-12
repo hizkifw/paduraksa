@@ -119,7 +119,8 @@ public sealed class AcmePebbleTests(PebbleFixture pebble) : IClassFixture<Pebble
                 TestPermissions.AllowAll,
                 new TestConfigServices.NoCertificates(),
                 null,
-                Random.Shared.NextDouble);
+                Random.Shared.NextDouble,
+                null);
         }
 
         public TrackingSigner Signer { get; }

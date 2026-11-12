@@ -71,5 +71,8 @@ public sealed class NotificationOptions
     public TimeSpan ExpiryCheckInterval { get; init; } = TimeSpan.FromHours(1);
 
     /// <summary>How long an address stays "known" for a user after they last signed in from it.</summary>
+    /// <summary>How far back a user's earlier sign-in counts as "has signed in before" (so the very first sign-in is not an anomaly); bounded so the check seeks an index, not the audit table.</summary>
+    public TimeSpan SignedInBeforeWindow { get; init; } = TimeSpan.FromDays(365);
+
     public TimeSpan KnownAddressWindow { get; init; } = TimeSpan.FromDays(30);
 }

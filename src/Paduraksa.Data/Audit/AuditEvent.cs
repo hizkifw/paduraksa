@@ -68,6 +68,9 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
         builder.HasIndex(e => e.Timestamp);
         builder.HasIndex(e => e.Target);
 
+        // What "has this user signed in from here lately" seeks (SignInWatch): one user's rows of one action in a time range.
+        builder.HasIndex(e => new { e.ActorUserId, e.Action, e.Timestamp });
+
         builder.HasOne<ConfigRevision>().WithMany().HasForeignKey(e => e.RevisionId).OnDelete(DeleteBehavior.Restrict);
     }
 }
