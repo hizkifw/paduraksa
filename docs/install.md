@@ -400,14 +400,25 @@ settings belong to the process, since only you know them:
 
 ### MCP (AI assistants)
 
-**MCP is off until you turn it on**: set `Paduraksa__Mcp__Enabled=true` (default `false`) and restart. The tools run an assistant's JavaScript in a sandbox
-inside the proxy's own process, so that is the operator's choice; while it is off `/mcp` answers 404 and the dashboard says how to enable it. Running the
-sandbox in a separate child process is planned after v0.1.
+**MCP is off until you turn it on**: set `Paduraksa__Mcp__Enabled=true` (default `false`) and restart. The tools run an assistant's JavaScript, so that is the
+operator's choice for now; while it is off `/mcp` is not served (404) and the dashboard says how to enable it. The default may change once the sandbox below
+has run in homelabs for a while.
+
+| Setting | Default | What |
+|---|---|---|
+| `Paduraksa__Mcp__Enabled` | `false` | Serve `/mcp` on the admin port |
+| `Paduraksa__Mcp__IdleTimeout` | `00:10:00` | How long an unused sandbox process is kept (10 seconds to 24 hours); the next call starts a new one |
 
 When it is on, the admin port serves an MCP endpoint, `https://<admin host>:9443/mcp` (streamable HTTP), with two tools: `search` reads the API description with code
-and `execute` calls the API with code, as the access token the assistant connects with. The assistant writes the code; the server runs it in a sandbox with
-hard limits (5 seconds of script time, 50 requests, 64 MiB, a 64 KiB result), so it can do exactly what that token can do over the REST API and nothing
-else. Create the token under Settings, API tokens (the page shows the endpoint and the snippets below with your address in them).
+and `execute` calls the API with code, as the access token the assistant connects with. The assistant writes the code; the server runs it in a **separate sandbox
+process** (the same binary, started as `paduraksa mcp-sandbox`) that holds no token, no configuration and no files, has almost none of the server's environment, and
+can only ask the server to make requests, which the server checks first. The server limits the process from outside and kills it the moment it steps out of line: 10
+seconds on the clock (waiting for the API is not counted), 5 seconds of CPU, 384 MiB of memory (its heap is capped at 256 MiB), 50 requests, a 64 KiB result. A script
+that breaks a limit costs only its own process and is told `The script was stopped: ...`. Processes are started on the first call (about 0.2 seconds, 60 MiB each
+while idle), kept while the assistant is in use, up to 4 at once, and stopped after the idle time or when the server stops. The server logs what the process could not
+apply to itself (Landlock, the CPU limit) and whether a cgroup v2 was available to add memory, CPU and process-count limits (Docker's default read-only cgroup file system
+is fine without it). The assistant can do exactly what its token can do over the REST API and nothing else. Create the token under Settings, API tokens (the page
+shows the endpoint and the snippets below with your address in them).
 
 **Use a token that can only read** (the `config:read`, `logs:read`, `metrics:read`, `certificates:read` family and nothing that writes): the assistant can then
 look at everything its scopes allow and change nothing. With a writing token a change is still two steps, a dry run and then a second request with `confirm: true`, and shows as
@@ -438,8 +449,9 @@ Claude Desktop (`claude_desktop_config.json`, through `mcp-remote`):
 The admin certificate is signed by Paduraksa's own CA, so the machine that runs the client has to trust its root (`GET /api/v1/ca/root.pem`, or Local CA in the
 dashboard). Node-based clients (Claude Code, `mcp-remote`) read it from `NODE_EXTRA_CA_CERTS=/path/to/paduraksa-root.pem`. Only a bearer token is accepted at
 `/mcp`: a browser session cookie never is. The endpoint is on the admin port, so `Paduraksa:Listen:AdminAllowedSources` and everything else that protects the
-admin port protects it. The sandbox runs inside the proxy's process and a call can hold one of 4 slots for up to 30 seconds, so one token can keep all four busy: give the
-token to assistants you trust. Setting `DOTNET_GCHeapHardLimit` for the container bounds what a runaway script could cost the process in memory.
+admin port protects it. A call can hold one of the 4 sandbox processes for up to 30 seconds, so one token can keep all four busy: give the token to assistants you
+trust. The processes are children of the server: a container's memory limit has to leave room for four of them (about 60 MiB each when idle, up to 384 MiB while a
+script runs).
 
 ### Upgrading
 

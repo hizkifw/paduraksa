@@ -38,7 +38,7 @@ Paduraksa.slnx
 │  ├─ Paduraksa.Vault           TRUST BOUNDARY: keys, certs' private keys, secrets. Everything `internal`.
 │  ├─ Paduraksa.Acme            RFC 8555 client + DNS providers. Signs via vault capabilities.
 │  ├─ Paduraksa.Notifications   Notification senders (ntfy, Gotify, Discord, webhook, email over MailKit) and their payload formats. Secrets come through Core capabilities.
-│  ├─ Paduraksa.Mcp             MCP in code mode (§11.2): the Jint sandbox, the spec graph, the request policy and the tool descriptions. No ASP.NET Core, no other project.
+│  ├─ Paduraksa.Mcp             MCP in code mode (§11.2): the sandbox's child process (Jint) and the parent's pool, watchdog and frame protocol, the spec graph, the request policy and the tool descriptions. No ASP.NET Core, no other project.
 │  ├─ Paduraksa.Proxy           HOT PATH: runtime snapshot model, gate middleware, policies, TLS selector, YARP glue, metrics
 │  ├─ Paduraksa.Application     Use cases: config commands, validation, revisions, audit, snapshot compiler, YAML, auth
 │  ├─ Paduraksa.Admin           Admin web surface: auth, REST /api/v1, /mcp, /metrics, OpenAPI
@@ -67,7 +67,7 @@ Data ──► Core, Storage
 Vault ──► Core, Storage              (has its OWN store and DbContext; never references Data)
 Acme ──► Core                        (signing/creds via Core capability interfaces)
 Notifications ──► Core               (secrets via Core's notification-secret capability, HMAC via IMacKeySource)
-Mcp ──► (nothing)                    (Jint only; the admin app owns the transport and the in-process dispatcher)
+Mcp ──► (nothing)                    (Jint only; the admin app owns the transport and the in-process dispatcher, the server starts the child)
 Proxy ──► Core                       (no Data, no Storage, no Application, no EF: the hot path can't reach the DB)
 Application ──► Core, Contracts, Data, Proxy, Acme, Notifications
 Admin, Dashboard ──► Application, Contracts   (never Data: UI/API can only see DTOs); Admin also ──► Mcp
@@ -1796,17 +1796,17 @@ All four call the **same Application services** with the same DTOs, authorizatio
 ### 11.2 As built (M10): MCP in code mode (`/mcp`, streamable HTTP, official `ModelContextProtocol.AspNetCore` SDK)
 
 **Off by default.** `Paduraksa:Mcp:Enabled` (`false` unless set; a bad value fails the start like any option) maps `/mcp` and registers the MCP server;
-while it is off `/mcp` is not mapped (a GET is 404, a POST reaches the dashboard's page routes and is 405; the authentication middleware leaves it alone, so no token is asked for) and the dashboard's card says in one line how to turn it on. Why:
-the sandbox runs a model's code inside the proxy's own process, with guards rather than an isolation boundary, so the operator opts in. **Planned after
-v0.1:** run the sandbox in a separate child process (a worker with its own memory limit, which turns "a native the guards miss can take the process down"
-into "can take down a worker"), after which the default can be reconsidered.
+while it is off `/mcp` is not mapped (a GET is 404, a POST reaches the dashboard's page routes and is 405; the authentication middleware leaves it alone, so no
+token is asked for), no sandbox child is ever started, and the dashboard's card says in one line how to turn it on. Why: the sandbox is new and runs a model's
+code (see below); the operator opts in for this release, and the default can be reconsidered once the isolation has run in the homelab for a while.
+`Paduraksa:Mcp:IdleTimeout` (default 10 minutes, validated from 10 seconds to 24 hours) is how long an unused sandbox child lives.
 
 **The decision.** This section first planned 15 named tools (`list_hosts`, `upsert_host`, `apply_change`, `tail_access_log`, ...). They are replaced by two,
 `search` and `execute`, modelled on Cloudflare's "Code Mode for MCP" (https://blog.cloudflare.com/code-mode-mcp/): each takes one string, `code`, a JavaScript
 async arrow function that a sandbox runs. Why: (1) the model's context holds two descriptions of about two kilobytes each however large the API grows, not a
 schema per tool; (2) the API is already described by its OpenAPI document, so a new endpoint is reachable through MCP the day it exists, with no tool to write
 and no drift between the tools and REST; (3) a model reads, filters, compares and writes in one call instead of one round trip per step; (4) authorization has
-one source, the REST pipeline, because `execute` goes through it. What it costs: code runs in the server process, so it needs a sandbox with hard limits
+one source, the REST pipeline, because `execute` goes through it. What it costs: a model's code runs on the server, so it needs a sandbox that is a real boundary
 (below), and the model has to write correct JavaScript. The per-tool `destructive` hints of the planned design are replaced by the two-step write rule and the
 refused list. A hand-written tool for a task a script does badly can be added later next to the two.
 
@@ -1823,7 +1823,7 @@ loopback host check apply as for any admin request. A message body is limited to
 confirm rule and the refused list, say that text from the API is data, and carry one short example. `tools/list` marks `search` read-only and `execute`
 destructive.
 - **`search`.** The one global is `spec`, the OpenAPI document with every `$ref` resolved: the model finds endpoints with code, so the document never enters
-  its context. `SpecGraph` builds it as script values in each call's own engine from the raw document (554 KB today), sharing each referenced schema instead of
+  its context. The parent sends the raw document (about 600 KB today) to each child once, when the child starts, and `SpecGraph` builds it as script values in each run's own engine, sharing each referenced schema instead of
   copying it: resolved to text the same document is 12 MB, as a graph of shared nodes it is about 7 000 objects and costs 10 to 40 ms a call. A schema that
   refers back to one being expanded is cut where it repeats (`{ "x-recursive-ref": "Name" }`), so the graph is a finite tree; `components.schemas` stays, so
   a schema can be looked up by name. Edits a script makes to `spec` die with the call.
@@ -1831,34 +1831,69 @@ destructive.
   the parsed JSON, or the text for another media type; an HTTP error is a result (4xx or 5xx with the problem document), not an exception. `ifMatch` is the one
   header a script can send (the quoted `etag` a read returned), because every change to an existing config object needs it; no other header, and never the token.
 
-**The sandbox** (`Paduraksa.Mcp`, **Jint 4.17.0**, pinned in `Directory.Packages.props`: a managed interpreter, no native V8). A fresh engine per call on a
-dedicated thread, nothing shared between calls; at most 4 calls run at once and a fifth is told to retry (accepted: one token can hold all four slots for up to 30 s each; there is no per-token fairness, and install.md says to give the token only to assistants you trust). No CLR interop (no object of this process is ever
-handed to a script), no `require` or `import`, no `fetch`, no timers, no environment, no process; `eval` and the `Function` constructor are off
-(`DisableStringCompilation`), so text from the API can be read but never run.
-- **Limits per call** (`SandboxLimits`, all enforced by `SandboxBudget`, one constraint armed once and never reset, as a CLR exception that a script's `try`
-  cannot swallow): 5 s of the interpreter's own time (a wait for a request does not count) and 30 s in all with requests, 300 000 statements, 64 MiB allocated
-  (checked every statement: a doubling string passes the limit in a few statements), 200 nested calls, arrays of at most 100 000 elements, 50 requests, 32 K
-  characters of code, a JSON result of at most 64 KiB (cut, with a note in a second content block), a 1 MiB answer from the API (a larger one is a note, not a
-  body), a 256 KiB request body, a 1 s regular expression. A limit is a tool result with `isError` and a message that says what to do about it.
-- **What stops a limit-free native.** The engine's limits act between statements; a native that allocates a gigabyte, recurses over the script's data or
-  runs for minutes in one step is not stopped by them, and a stack overflow or an out-of-memory ends the whole process (the proxy). Measured, not assumed: a
-  chain of 90 000 nested arrays made `JSON.stringify`, `String()`, `join` and every implicit conversion either overflow the stack or take 9 s. So
-  `SandboxGuards` removes what has no use here (`ArrayBuffer` and the typed arrays, `Proxy`, `Intl`, `Temporal`, `Atomics`, `WeakRef`, `BigInt`) and replaces
-  `JSON.stringify`, `Array.prototype.join` and `toString` (which every implicit conversion goes through) and `String.prototype.repeat`, `padStart`, `padEnd`,
-  `replace` and `replaceAll` by versions that refuse what they cannot bound (a nesting over 32 deep, a string over 4 Mi characters). The string natives coerce the receiver and the arguments themselves (`ToString`, `ToIntegerOrInfinity`) and hand the coerced values to the engine's function, so `'x'.repeat('1e7')` and `String.prototype.repeat.call(new String('x'), 5e6)` are judged like their primitive forms; a replacement may not use `$'` or `` $` ``, which expand to the text around each match and so build a string as long as the input squared in one call (`$&`, `$1` and `$<name>` only partition the input; a replacement function is script, bounded by the statement and allocation limits). Jint's `StackOverflowGuard` is on (off by default in 4.17), so native recursion that reaches the end of the stack, such as a chain of bound functions, is a catchable `RangeError`, and the clocks are read every 8th check. What a script returns
-  and what it sends are written by `CappedJson`, a walk with a byte budget and a depth limit, because the engine's own serializer expands shared structure
-  exponentially. The interpreter's thread has a 256 MiB stack (virtual, touched only if used), sized for the statement and array limits, since native
-  recursion over data a script built is as deep as the script could build it. **BigInt is refused**: its shift and power run for minutes in one native call, so
-  its literals are refused before anything runs (an AST walk) and the global is removed.
-- **Errors.** A syntax error is `SyntaxError: ... (line L, column C)`; a thrown error is its name and message with the position in the model's code; a value
-  thrown that is not an error is its JSON; an unexpected exception inside the sandbox is logged (error level) and the caller is told only that it failed. No
-  type, path or stack of this process is ever in a result; a JavaScript stack shows the model's own code. Nothing reaches the MCP host as an exception: the tool
-  handler returns a result with `isError`.
-- **Async.** `await` works in an async arrow function and `paduraksa.request` returns a real promise (Jint's `RegisterPromise`). The requests of a call run
-  **one at a time in the order they were made**, so a write never races the read before it; a request the function leaves unawaited is completed after it
-  returns, and the result says so in its note (the model meant it to happen).
-- **Backstop.** A thread stuck in one native call that no limit reaches is abandoned after the total time and a grace of 5 s (the caller is answered, the
-  thread keeps its place until it returns, so abandoned threads cannot multiply past the limit of 4). The fuzz target treats an abandoned call as a failure.
+**The sandbox: a killable child process** (`Paduraksa.Mcp`, **Jint 4.17.0**, pinned in `Directory.Packages.props`: a managed interpreter, no native V8).
+*Decision, and what it replaced.* The first version ran Jint inside the proxy with guards: removed globals, replacements for `JSON.stringify`, `join`, `toString`,
+`repeat`, `padStart`, `replace`, `concat` and `[Symbol.replace]`, a per-statement allocation count, a BigInt pre-check. It was measured against and it held,
+but every review round found another native that one step could turn into a stack overflow or gigabytes (`replace(/a/g, "$'")` built a string as long as
+the input squared and took 8 GB, a numeric string or a `String` object walked past the string-length guard), and a stack overflow or an out-of-memory in the
+proxy's process is the proxy down. Patching holes as they are found is the wrong layer: there is no end to the ways a script can misbehave, so what must hold
+is not "the script cannot" but "when it does, it costs one expendable process". The guards were deleted; **Jint runs stock** (the whole standard library,
+`eval` included) in a child process that the parent limits from outside and kills on any breach. The surface is small enough to read: the child's entry point
+(`SandboxChild`), the frame codec and messages (`SandboxProtocol`), the parent's run protocol, watchdog and pool (`RunProtocol`, `ChildProcess`,
+`SandboxProcessPool`), and the request policy, unchanged.
+- **The child** is this binary started as `paduraksa mcp-sandbox` (hidden from `--help`), by `dotnet <assembly> mcp-sandbox` when the server was started
+  that way. It holds **no token, no configuration, no data directory and no network use**, and almost none of the server's environment (cleared: only
+  `DOTNET_ROOT`, `DOTNET_ROOT_X64`, `DOTNET_ROOT_ARM64`, `PATH` and `LD_LIBRARY_PATH` as the server has them, and its own `DOTNET_*` and CPU-limit settings, so the master key and the setup token are not in it). It reads and writes length-prefixed JSON
+  frames on stdin and stdout (4-byte big-endian length, UTF-8 JSON; at most 4 MiB to the child, which carries the API description and the API's answers, and 1 MiB
+  from it; a larger or zero length is a violation before a byte of the body is read; a frame that is not valid UTF-8, not JSON, not an object with a string `t`,
+  or deeper than 16 is a violation). Messages: `ready` (with what hardening applied) and `spec` once, then per run `run {tool, code, limits}`, the child's
+  `request {rid, id, options}` answered by `response {id, ...}`, and `result {rid, ok, value|error, truncated, note, recycle}`.
+  **Every frame is bound to its run**: the `run` frame carries a fresh random run id (`rid`), the child echoes it in every `request` and `result`, and a frame without it, or with
+  another, is a breach (a result prepared before the code arrived, a request queued earlier, a replay of an earlier run's: all killed, none served). While a child waits
+  in the pool the parent keeps a read pending on its stdout, so anything it says, or its end, kills it at once and it is never handed out. (A child that is compromised
+  knows the id of its own run and can lie about that run's result, as any code can lie about its own answer; what the binding stops is a frame for code that was not run.) Its stderr is drained into a 2 KiB tail that
+  goes to the log when a child dies and to no caller, and counted: more than 1 MiB over a child's life (a flood costs the parent a core to read) kills it. A fresh `Engine` per run; the engine thread has a 256 MiB stack.
+- **Jint's own constraints** (`MaxStatements` 300 000, `LimitMemory` 64 MiB, `LimitRecursion` 200, `StackOverflowGuard`) are on in the child, so that the ordinary
+  runaway ends with a clean message in the script's own words. They are **not** the boundary and nothing relies on them (the tests run the same scripts with them off).
+- **The child hardens itself** at startup, before the file system is closed, on the thread that runs scripts (several of these are per thread):
+  `RLIMIT_CPU` (300 s of CPU for its whole life), `RLIMIT_NOFILE` 256, `RLIMIT_CORE` 0, `PR_SET_NO_NEW_PRIVS`, `PR_SET_PDEATHSIG` (SIGKILL when its parent dies), and
+  **Landlock** denying all file system access (every thread where the kernel has `LANDLOCK_RESTRICT_SELF_TSYNC`, else the script thread and its descendants). A warm-up
+  script and a preload of every referenced assembly run first, because the runtime loads assemblies lazily and a closed file system would otherwise kill the child
+  at its first use of one. `RLIMIT_NPROC` is not set: it counts every process of the user, so a low value would stop the child creating its own threads. Each outcome
+  is a line of the `ready` frame, and the parent logs the ones that did not apply, once per child. The child also leaves when its stdin closes.
+- **The parent is the guard** (`ChildProcess`, `RunProtocol`). It starts the child with `DOTNET_GCHeapHardLimit` 256 MiB, workstation non-concurrent GC and tiered PGO off,
+  and runs a **watchdog** per run that kills the child's process tree (`Process.Kill(entireProcessTree: true)`) on: wall time over 10 s (not counting the time the
+  parent spends answering the script's requests), CPU time over 5 s (from `/proc/<pid>/stat`, in `sysconf(_SC_CLK_TCK)` ticks), resident memory over 384 MiB (from `/proc/<pid>/status`, every 50 ms),
+  the whole call over 30 s, more than 50 `request` frames, a frame that is malformed, oversized or not what the protocol allows there, the child exiting or closing
+  its pipe, or the caller going away. The caller always gets a short fixed message, `The script was stopped: <reason>.`; the parent never relays the child's stderr
+  or a stack, and relays a script's own error message only after bounding it (600 characters, control characters replaced). A child that reports out-of-memory or an
+  unexpected exception is replaced rather than reused. The output cap (64 KiB of UTF-8, cut with a note) is applied by the parent to the result frame.
+- **cgroup v2** where this process may create a sub-cgroup: each child is put in its own with `memory.max`, `cpu.max` and `pids.max`. cgroup v2 enables controllers for
+  the children of a cgroup only while that cgroup has no processes, and the server is a process of the cgroup it was started in, so the standard delegated layout is made:
+  the server moves into a leaf of its own cgroup (`paduraksa-server`), the controllers are enabled on the cgroup it left, and the children go in leaves of a sibling
+  (`paduraksa-mcp/child-N`). If a step is refused, the server is put back and the log line names the refusal: `EACCES` (not delegated), `EROFS` (Docker's default
+  read-only cgroup file system, which works without it) or `EBUSY` (the cgroup has other processes, as a shared user scope does). Never relied on, and the only case
+  seen on the development box is the `EBUSY` of a scope shared with other processes, so the success path is written to the delegated-service pattern and not yet
+  exercised.
+- **The pool** (`SandboxProcessPool`): lazy (no child until the first call, which pays the cold start once), warm while MCP is in use (a child that finished a
+  run waits for the next, one run at a time in each), up to 4 children spawned on demand (a fifth call waits 5 s for one, then is told to retry; one token can hold
+  all four, accepted, and install.md says to give the token only to assistants you trust), a child despawned after `Paduraksa:Mcp:IdleTimeout` without a run
+  (checked by a timer on the pool's `TimeProvider`), replaced after any kill or after 200 runs or half of its CPU lifetime. The same timer, at most every 5 s, looks at each idle child's CPU time and kills one
+  that used more than 0.4 s since the last look (a loop that outlived its run, a spinning child). Disposing the pool, which the admin app
+  does when it stops, kills every child. Children are started from one thread that lives as long as the pool, because `PR_SET_PDEATHSIG` fires when the parent
+  *thread* that started the child exits, and a thread-pool thread would be retired.
+- **Measured** (Release, this box): cold start of a child to its first answer 175-195 ms; resident memory of an idle child 59 MiB (the budget: 384 MiB); a warm
+  `search` run 0.3-0.8 ms and a warm `execute` with one request about 3 ms over the pipe; from a breached wall limit to the answer 75-130 ms with a 50 ms poll, and the
+  next call on a new child about 180 ms.
+- **What the boundary does not do.** It does not stop a script from burning its 5 s of CPU four at a time, or from filling a child's 256 MiB, which is what the
+  limits are for; it does not make a script's own output trustworthy (the parent bounds and cleans what it relays); and a bug in the kernel's or the runtime's
+  isolation is out of scope. An escape from the engine lands in a process with no secret, no network use, no files and a few seconds to live.
+
+**The request path across the boundary.** The request policy never moves into the child. `paduraksa.request` in the child sends its options as JSON (`JSON.stringify`)
+in a `request` frame; the parent's `RequestBridge` validates every field by name (a script's mistakes are TypeErrors it raises in the script: an unknown option, a body on a
+GET, a `dryRun` of its own, a malformed `ifMatch`), applies the policy (below), dispatches, and answers with a `response` frame the child turns back into
+`{ status, body, etag?, dryRun?, note? }` or into a rejection. Nothing the child sends is used before it is checked, so a compromised child can ask for exactly what a
+script could, and no more; the fuzz target feeds the parent's run protocol arbitrary bytes as the child's output to hold that.
 
 **The request client** (`Paduraksa.Admin/Mcp/InProcessApiDispatcher`). Decision: **in process, through the real pipeline**, as the token's caller. The admin
 app's pipeline is captured as a request delegate when it is built (`McpPipeline`, the first component of the app, ahead of the API's exception middleware),
@@ -1894,8 +1929,8 @@ the ones authentication set; the code never sees the token because it is not in 
   and leaves no revision.
 
 **Prompt injection.** The proxy's data holds attacker-controlled text (user agents and paths in the tail, request hostnames). In this design it can only be
-data: a script cannot `eval` it, the model's only way to act is `paduraksa.request`, and that is read-only unless the token can write, refused for anything
-secret-bearing or destructive, and two-step for the rest. The tool descriptions tell the model so. Tests: hostile text in the tail (a "run this script"
+data: a script can `eval` it (the child is a stock engine), but what runs there has no token, no secret, no files and no network, and its only way to act is
+`paduraksa.request`, which is read-only unless the token can write, refused for anything secret-bearing or destructive, and two-step for the rest, in the parent. The tool descriptions tell the model so. Tests: hostile text in the tail (a "run this script"
 instruction, quotes, `</script>`, `__proto__`) comes back as a string and nothing it says is executed or sent; a response with `__proto__` keys pollutes no
 prototype. The safe default is a token with read scopes only (the dashboard's token drawer offers read scopes first).
 
@@ -1907,21 +1942,30 @@ and a Claude Desktop config (through `mcp-remote`, with the token in an environm
 read-only token is the safe default and where a change shows (History and Audit), and that the admin certificate comes from the local CA, so its root has to be
 trusted where the client runs (Node clients read `NODE_EXTRA_CA_CERTS`). Client setup is in `docs/install.md`.
 
-**Tests.** Unit (`Paduraksa.Tests.Unit/Mcp`, 174): values and JSON output, every error shape with its position, the unreachable globals and string-built code,
-BigInt, each limit, nested data against stack overflow, the output cap, the time and total-time split, the concurrency gate, cancellation, the spec graph
-(shared nodes, recursive cut, components), the policy (read, write, dry run, refused, path tricks, unknown, methods) and `paduraksa.request` (dry run, confirm,
-428, option validation, the request limit, ordering, unawaited requests, answers, a failing dispatcher, nothing of the dispatcher visible). Integration
-(`Paduraksa.Tests.Integration/Admin/Mcp*`): the official client over streamable HTTP lists the two tools, searches, executes as the viewer, operator and owner
-(the actor is the token); no token, a bad one, a Basic one, a cookie alone and a cookie with a token are 401; a revoked token stops at the next call; an
-oversized message is 413; limits end as tool errors; dry run versus confirm on a real host (nothing left behind by the dry run), the etag flow (428, 412,
-dry run, applied), 428 for an operation with no dry run, a viewer's write refused with nothing left, the revision and audit events recorded on the `mcp`
-channel with the token as actor, the OpenAPI walk (above), and hostile tail text. Dashboard: a bUnit test of the card. Fuzz: `mcp-sandbox` (section 15).
+**Tests.** The proof is that a misbehaving script costs only its child. Unit (`Paduraksa.Tests.Unit/Mcp`): the frame codec (round trips, every length outside the
+limit, a stream that ends inside a frame, not-UTF-8 and not-a-message frames), the request bridge (dry run, confirm, 428, the read-only POST, refusals including
+`/mcp` itself, every option error, the query, the body and answer limits), the policy and the tool descriptions. Integration (`Paduraksa.Tests.Integration/Mcp`,
+real children): values, errors with their positions, the spec, and the request round trip (ordering, unawaited requests, answers, a failing dispatcher);
+twenty scripts that used to be dangerous (`$'` and `` $` `` replacements, `repeat('1e9')`, `concat` bombs, deep `flat`, `String` and `JSON.stringify`,
+bind chains, BigInt shifts and powers, a catastrophic regex, loops, allocation, recursion, promise floods) run with the engine's constraints on and with them
+off, each ending as a result, a clean error or `The script was stopped: ...`, with the parent unharmed and the next call served; the runaway ones stopped by
+the parent with no constraints; a real stack overflow, a memory breach, a wall-time breach, a CPU breach, the request cap, a total-time breach and a caller who
+goes away; ten broken fake children (garbage, an oversized, zero or cut frame, not JSON, no type, an unknown type, request ids out of order, an exit, a closed
+pipe) and three that never say they are ready; the pool (4 at once, the fifth told to retry, replacement after N runs, idle despawn and lazy respawn on a manual
+`TimeProvider`, a warm child kept warm, shutdown killing every child with no orphan, no child before the first call or while MCP is off); the child's environment
+(no master key), what it applied, and that it leaves when its stdin closes; frames bound to their run (a fabricated result, a result with no or a wrong run id, a request queued
+before the code, a frame of an earlier run, a frame sent while idle), a stderr flood, a caller who gives up while the child starts, an idle child that spins, the descriptors
+a real child inherits (pipes only, none of the server's listeners or files) and Landlock denying a read to the thread that applied it. Admin (`Admin/Mcp*`): the official client over streamable HTTP lists the two tools,
+searches, executes as the viewer, operator and owner (the actor is the token); no token, a bad one, a Basic one, a cookie alone and a cookie with a token are 401;
+a revoked token stops at the next call; an oversized message is 413; limits end as tool errors; dry run versus confirm on a real host, the etag flow, 428, a
+viewer's write refused with nothing left, the revision and audit events on the `mcp` channel with the token as actor, the OpenAPI walk (above), the reviewed
+reads on a host that holds secrets, hostile tail text, off by default, and stopping the server killing its children. Dashboard: bUnit tests of the card.
+Fuzz: `mcp-sandbox` (section 15).
 
-**Not built.** The current config as a YAML resource (needs `m10-yaml`; the tools do not depend on it, and a resource can be added beside them), the OAuth
-authorization of the MCP specification (tokens only, as in section 10.1), a per-token switch for MCP, auditing of reads, a rate limit on `/mcp` beyond the
-4 concurrent calls and the admin pipeline's own, and running the sandbox in a separate process, which would turn "a native the guards miss can take the
-process down" into "can take down a worker": the guards and the fuzz target are how that risk is held in-process today, and `DOTNET_GCHeapHardLimit` bounds
-the damage of an out-of-memory.
+**Not built.** The current config as a YAML resource (the tools do not depend on it, and a resource can be added beside them), the OAuth authorization of the MCP
+specification (tokens only, as in section 10.1), a per-token switch for MCP, auditing of reads, a rate limit on `/mcp` beyond the 4 children and the admin
+pipeline's own, a seccomp filter in the child (Landlock and the limits cover files and resources; the syscall surface is the runtime's), and Windows or macOS
+hardening (the child runs there with the parent's limits and kill but without the system-call hardening, and says so in its `ready` frame).
 
 ### 11.3 Health endpoints
 `GET /healthz` (process alive, snapshot loaded) and `GET /readyz` (listeners bound, a snapshot live, not draining; vault unlocked from M3) on the admin port, plus the loopback plain-HTTP fallback listener when enabled. Unauthenticated, no details beyond status. Readiness means "serving traffic", not "the config database is reachable": a degraded start (§6.4) serves the last-known-good config and is still ready, so `/readyz` answers 200 with the body `degraded` instead of `ready`. These are for **external** monitors and orchestrators (Uptime Kuma, Kubernetes probes, Gatus), which can probe them over HTTP without spawning anything. The image's own Docker `HEALTHCHECK` is the exception (§16).
@@ -2199,7 +2243,21 @@ Each milestone ends with a working, testable increment.
   - **Corpora and crashes.** `fuzz/corpus/<target>/` is committed (the `seed-*` files are well-formed starting points written by `Paduraksa.Fuzz seed`; the rest is what runs found, minimised by `scripts/fuzz.sh --merge`) and `fuzz/regressions/<target>/` holds inputs that once crashed a target; `.gitattributes` marks both binary (a PROXY header ends in CR LF). `tests/Paduraksa.Tests.Fuzz` replays every committed input through its target on every commit, with no libFuzzer and no instrumented assembly, so a corpus regression fails CI. A crash is copied into `regressions/`, fixed, and gets a unit test beside the code. `scripts/fuzz.sh [--time S] [--target T] [--merge] [--replay] [--list]` publishes the harness, instruments, runs libFuzzer per target for the time box and fails on a crash or an error; `.github/workflows/fuzz.yml` (`workflow_dispatch` and a nightly schedule, never push or pull request) runs it (15 minutes a target by default) and the property tests 50 times deeper, and uploads crash inputs, logs and the grown corpus. `docs/development.md` has the commands.
   - **What they found.** Property tests: (1) the simulator decoded `%5C` in a path to `%5c` but Kestrel hands over a backslash (found by the differential against real Kestrel with `/%20adm%61in;x%zz%252F%5c.%C3%A9`; the trace's decoded path was wrong, matching was not); (2) the forward-auth decision cache key left out the scheme and the standard hint headers the provider is sent (`User-Agent`, `Accept`, `Accept-Language`, `X-Requested-With`), so an allow was served to a request that differs in them (found by the cache model); (3) the access-log formatter left NEL, the other C1 controls and U+2028 and U+2029 unescaped, which a reader that splits on a Unicode line end takes for a line end; (4) a custom `Server` header that the global defaults leave without a value validated but could not compile (a document with no host, found by validate-implies-compile). One property was wrong, not the code: `RoutePath.IsCanonical` answers false for any path with a `%`, canonical or not, because it is only a fast path. The fuzzers found no product bug: in the sessions below two harness bugs came up in the first forward-auth runs (a header name that is not a token, which a transport never delivers, within 243 runs; repeated `Location` lines compared as one joined string), both fixed in the harness. Each property and harness was shown to fail by breaking the code it checks (the `/**/**/x` fix undone, a prefix candidate dropped, a satisfy rule changed, a redirect status, the owned-name folding, the cache grain, a canonical ordering, an expiry check, a return-target rule, an empty user name accepted, an untrusted peer believed, an identity-value check dropped, an allocation added, a verdict made random); libFuzzer itself found the empty-name break from one valid seed in under a minute.
   - **Sessions run (v0.25).** On a four-core box, one target per process: `proxy-protocol` 5 min (5.3 M runs), `pow-cookie` 5 min (3.8 M), `pow-form` 5 min (4.7 M), `basic-auth` 5 min (4.0 M), `client-address` 10 min (5.2 M), `forward-auth-answer` 10 min (3.2 M); none of the final runs crashed. A run of every target for the release checklist (M11) is `scripts/fuzz.sh --time 3600 --merge`.
-  - **As built (M10, `m10-mcp`): the `mcp-sandbox` target.** A model's JavaScript through the MCP sandbox (section 11.2): the input is a tool byte (even `search` over a small spec, odd `execute` against a recording stub) and the script as UTF-8; 80 seed scripts cover ordinary searches and requests, refused and malformed requests, and the shapes the sandbox exists for (runaway loops and recursion, allocation, string and array amplifiers, nested data, promise floods, regular expressions, BigInt, escapes: `typeof require`, `this.constructor.constructor`, `Function`, `globalThis` probing). Properties on every input: the tool returns and never throws; it returns within the time the limits allow (a script stuck in one native call is an abandoned call, and an abandoned call or a "others are running" answer fails the input); the process allocated under 768 MiB for the call; a success is at most the output cap and an error a message of at most 600 characters; no result or note names a type, namespace, path or exception of this process or the environment sentinel the target sets (nothing outside the globals is reachable); the sandbox reported no unexpected exception; and what the stub received is what the policy allows (a path under the API, a known method, at most the request limit, nothing refused, a bounded query and body, and a write only when the script says `confirm` or as a dry run). The production limits apply except the times, cut to 250 ms of script and 2 s in all so that a run is a fraction of a second. *Sessions run:* a 60 s smoke run found two things in the seeds' first replay, both fixed before the real run: the allocation limit was read only every 64 statements, so a doubling string reached 1.5 GB (it is read every statement now), and the harness took a JavaScript stack's `   at` lines for a leaked one; then 25 min on a shared box, 611 thousand executions at about 400 a second, no crash, no abandoned call, no unexpected exception, and the corpus minimised on edges (`-use_counters=0`) to 1 047 inputs that replay in 15 s (the counter-bucket merge kept 2 646 and replayed in 74 s). Review round: the guards were hardened (`$'` and `` $` `` refused, string natives coerce before judging, `concat` and `[Symbol.replace]` guarded, replacement functions summed, `StackOverflowGuard` on, clocks every 8th check) and 19 seeds added for them; a second 25 min run on that code did 285 thousand executions (about 190 a second on a busy box), no crash, and the corpus was merged again on edges to 1 334 inputs. `scripts/fuzz.sh` instruments `Paduraksa.Mcp.dll`, `Jint.dll` and `Acornima.dll` for it: the bugs that matter are in the interpreter and the parser, not in the glue.
+  - **As built (M10, `m10-mcp`): the `mcp-sandbox` target.** The parent of the MCP sandbox (section 11.2) against a child that is not to be trusted. *Decision:* the
+    harness no longer fuzzes the scripts in process (a stock engine in the same process as the fuzzer crashes and hangs on the very scripts the boundary exists to
+    absorb, which is noise, not a finding), and a child per input is too slow (a start is about 180 ms), so the target has two modes picked by the first byte. **Frames**
+    (three inputs in four, in process, instrumented, fast): the rest of the input is what a hostile child writes to its stdout, fed to the parent's run protocol
+    (`RunProtocol.ExchangeAsync`) over a stub dispatcher and the real request policy, with a known run id that the seeds carry (so the fuzzer can mutate it into a wrong, a missing or an old one: no frame that is not an answer to the run in progress may be served). It may return an outcome or end as a breach or a protocol violation, and nothing else may
+    happen: no other exception; a result within the output cap, an error of at most 700 characters without control characters, a bounded note; at most the request limit
+    dispatched; every dispatched request one the policy allows (a plain path under `/api/v1`, a bounded query, body and entity tag, a write only with the bytes saying
+    `confirm` or as a dry run); and everything the parent wrote back a `response` frame. **Scripts** (one in four, when the harness can start a child: `scripts/fuzz.sh`
+    publishes an uninstrumented copy and sets `PADURAKSA_FUZZ_CHILD`, and a replay from the driver finds the driver's own assembly): the rest is a script, run on a real child
+    with 1 s of wall and CPU time. The properties are the parent's: it never throws, the call ends within its wall limit plus a margin, the answer is bounded, and the pool
+    holds at most one child. The script seeds (23) are the scripts that were once dangerous in process plus ordinary ones; the frame seeds (21) cover every shape of violation. Without
+    a child a script input is read as frames, so the corpus replays in CI (`Paduraksa.Tests.Fuzz`) without one. *Found:* the first minute found a real bug in the parent, a
+    frame with invalid UTF-8 inside a string reached `JsonElement.GetString`, which throws `InvalidOperationException` (the production loop would have treated it as a
+    broken child, but by accident); frames are checked for UTF-8 first, text with a lone surrogate is a violation, and the input is in `fuzz/regressions/mcp-sandbox/`. *Session:* 25 minutes (`--out /tmp/fz-mcp-r3`), 70 562 executions (47 a second: a quarter of the inputs run a script on a real child, and the breaching ones wait out a limit), no crash, no abandoned or orphaned child, and the corpus merged on edges (`-use_counters=0`) to 397 inputs. After the review that bound every frame to its run, a fresh corpus from the new seeds and 18 minutes (`--out /tmp/fz-mcp-r4`): 163 833 executions (151 a second), no crash, no orphaned child, merged on edges to 475 inputs.
+
   - **Gaps.** The ACME response parsing gets a harness when it lands (M10's YAML import has one, below). The fuzzers are not shown a real network: HTTP framing is Kestrel's and the response body's streaming is not driven. The simulator parity property leaves out hosts Kestrel would answer 400 itself (the socket parity tests pin that rule) and feeds the real gate already-decoded paths (the Kestrel differential covers the decoding). The rate-limit table, the proof-of-work page and the gate's allocation have no property test. Coverage is the proxy's and Core's assemblies only; YARP and the framework are not instrumented. The harnesses build and run on Linux x64. The generators reach M8's settings since the fuzz round for M8 and M9 (M9 added nothing to the config document: notification channels are an operational table, not config).
   - **As built (fuzz round for M8 and M9).** *Targets.* `error-page` compiles a host whose pages use every variable, as a message and as a document (the global defaults' page for an unknown host, a wildcard host's own for a path no route takes), and sends the real gate a `Host`, an `X-Request-Id` from a trusted or an untrusted peer, a `CF-Ray` with Cloudflare's headers trusted or not and an `Accept`, decoded as UTF-8, Latin-1 or UTF-16 (which can hold a lone surrogate). The page must be the page's template with each variable replaced by a plain HTML encoder's reading of the value as the rules cut it (the host without its port at 253 characters, the ray at 64 and empty unless trusted, the request ID the client's only from a trusted peer and only if it is 1 to 128 visible ASCII characters); no variable adds a raw `<`, `>`, `"` or `'`, an `&` that starts no entity, or a non-ASCII byte; `HEAD` has no body; HTML is chosen exactly when an independent reading of `Accept` says so; the same input gives the same bytes; the writer and the `Accept` decision allocate nothing. `upstream-error-replacement` asks `ReplaceUpstreamErrorTransform.Replaces(mode, status, mediaType, upgrade, started)`, the pure decision the transform and the target now both call (the transform's success path is unchanged, one integer comparison, its allocation tests green), for each mode against a plain model of the PLAN's rules (never for an upgrade, an event stream, `application/grpc*` or a started response; `html` only for `text/html` in any case and with parameters; only for a status that has a page), with the media type read from the `Content-Type` lines by `HttpResponseMessage` as the transport would, and also fed the raw text of each line. `access-log-tail` sends one request's hostile host, method, path, query, protocol, upstream, request ID, `CF-Ray`, referer and user agent through `AccessLogFormatter` and through the tail entry built as the drain builds it: a plain reader of the line's grammar finds thirteen fields and no line end; every tail field equals the file line's field (numbers by value, quoted text exactly unless a cap cut it, and then a prefix of the full escape closed by the marker); the line's request target is what a plain model builds from the method, path, redacted query and protocol; a sentinel in a sensitive parameter at the front of the query appears in neither output, and with the query string off neither does a sentinel in a plain parameter; the line costs 0 B.
   - *Generators and the simulator.* `ConfigGen` sets the M8 settings at every layer (above), `Respelled` adds empty error-page and maintenance layers that canonical JSON must drop, and a property holds the simulator's page selection (`ErrorPageSelection`, which the writer and the simulator both call) to what the gate serves for refusals and maintenance, by comparing the gate's bytes with the preview compiler's rendering of the entry a plain walk over the document finds.
