@@ -125,9 +125,18 @@ public sealed class SandboxHostileChildTests
         Assert.Equal("1", (await tools.SearchAsync("async () => 1", Ct)).Text);
         var pid = Assert.Single(tools.Pool.ChildProcessIds);
 
-        // The sweep looks at CPU used since the last look: real time has to pass for a spinner to have used some.
+        // The sweep looks at CPU used since the last look, and the spinner has to have used some: wait for it to have burned well over the
+        // allowance, not for a stretch of wall time (a loaded runner gives a spinner a fraction of it).
         time.Advance(TimeSpan.FromSeconds(5));
-        await Task.Delay(1500, Ct);
+        if (ProcStats.CpuTime(pid) is { } atFirstLook)
+        {
+            // A null reading is a child the first look already killed: nothing left to wait for.
+            for (var waited = Stopwatch.StartNew(); ProcStats.CpuTime(pid) is { } now && now - atFirstLook < TimeSpan.FromMilliseconds(900); await Task.Delay(50, Ct))
+            {
+                Assert.True(waited.Elapsed < TimeSpan.FromSeconds(60), "the spinning child never used CPU");
+            }
+        }
+
         time.Advance(TimeSpan.FromSeconds(5));
 
         Assert.Equal(0, tools.Pool.ChildCount);
