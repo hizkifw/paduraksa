@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.27**: M0-M9 done, and the property tests and coverage-guided fuzzing built (§15); next fuzz targets for the M8/M9 surfaces, then M10 interop (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.28**: M0-M9 done, the property tests and coverage-guided fuzzing built with targets for the M8/M9 surfaces (§15); M10 interop in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -2251,3 +2251,8 @@ These are cheap now and expensive later. Fold them into the milestones that touc
 - **v0.27:** M9 done: the live tail.
   - **Tail (§7.4):** the access-log drain, still the ring's one reader, offers each entry to a bounded in-memory hub after the file line; viewers get bounded drop-oldest channels with filters, and conversion and redaction happen outside the hub's lock. The tail shows only what the file would: one shared escaper, the file's query cap and redaction, and a host with logging off is in neither. The request path is unchanged at 0 B.
   - **Surfaces (§12, §11.1):** a Live tail page under Insight (filters, pause, batched rendering, an entry drawer that opens the simulator), and `GET /api/v1/logs/tail` as Server-Sent Events behind `logs:read`.
+- **v0.28:** after M9: fuzz targets for M8/M9, quieter logs, an honest metrics timeline.
+  - **Fuzzing (§15):** `error-page`, `upstream-error-replacement` and `access-log-tail` targets, config generators that reach the M8 settings, and two long rounds of all nine targets (no crash; one allocation in the access-log formatter found and fixed).
+  - **Logs (§7.4):** a client that vanished mid-write is one Debug line and a counter (`paduraksa_connection_errors_total{kind="peer_gone"}`), not two Error stacks per connection.
+  - **Metrics (§7.4):** every observed minute is stored with its observed seconds, so downtime is a gap and never stitched; observed time is monotonic and a stall that served requests counts as observed; graceful stop writes the partial minute and a minute written twice merges; the 1 h view is seeded from the rollups at boot; the charts break their lines at gaps.
+  - **Dashboard (§12):** the hosts list keeps the maintenance and enable controls inside the row.
