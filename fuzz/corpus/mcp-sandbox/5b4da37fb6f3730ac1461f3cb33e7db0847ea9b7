@@ -1,0 +1,1 @@
+ async () => { var f = function () { return 0; }; for (var; i++) f = f.bind(null); return f(); }
