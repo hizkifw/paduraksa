@@ -238,7 +238,7 @@ public sealed class ErrorUpstream : IAsyncLifetime
 {
     private IHost? _host;
     private long _hugeBytes;
-    private int _hugeCutOff;
+    private TaskCompletionSource _hugeCutOff = NewCutOff();
 
     public string Address { get; private set; } = string.Empty;
 
@@ -247,18 +247,20 @@ public sealed class ErrorUpstream : IAsyncLifetime
     public void ResetHuge()
     {
         Interlocked.Exchange(ref _hugeBytes, 0);
-        Interlocked.Exchange(ref _hugeCutOff, 0);
+        Volatile.Write(ref _hugeCutOff, NewCutOff());
     }
 
+    /// <summary>
+    /// Whether the proxy cut the upstream off. The cut arrives when the proxy's connection to the upstream is torn down, however long a loaded
+    /// machine takes to get there, so this waits for that event and not for a fixed number of polls.
+    /// </summary>
     public async Task<bool> HugeWasCutOffAsync(CancellationToken cancellationToken)
     {
-        for (var i = 0; i < 100 && Volatile.Read(ref _hugeCutOff) == 0; i++)
-        {
-            await Task.Delay(50, cancellationToken);
-        }
-
-        return Volatile.Read(ref _hugeCutOff) == 1;
+        var cutOff = Volatile.Read(ref _hugeCutOff).Task;
+        return await Task.WhenAny(cutOff, Task.Delay(TimeSpan.FromSeconds(60), cancellationToken)) == cutOff;
     }
+
+    private static TaskCompletionSource NewCutOff() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public async ValueTask InitializeAsync()
     {
@@ -302,11 +304,11 @@ public sealed class ErrorUpstream : IAsyncLifetime
             }
             catch (OperationCanceledException)
             {
-                Volatile.Write(ref _hugeCutOff, 1);
+                Volatile.Read(ref _hugeCutOff).TrySetResult();
             }
             catch (IOException)
             {
-                Volatile.Write(ref _hugeCutOff, 1);
+                Volatile.Read(ref _hugeCutOff).TrySetResult();
             }
 
             return;
