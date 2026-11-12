@@ -152,18 +152,21 @@ else
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-status" data-label="Status" @onclick:stopPropagation="true">
                             <StatusChip Tone="@StatusTone(row)" Dot="true" Text="@StatusText(row)" Detail="@HealthText(row)" Name="status" />
-                            @if (_mayWrite && host.Kind != HostKind.Admin && host.Enabled)
-                            {
-                                <MudTooltip Text="@(row.InMaintenance ? "End maintenance" : "Put in maintenance")" Placement="Placement.Bottom">
-                                    <MudIconButton Icon="@(row.InMaintenance ? Icons.Material.Filled.Construction : Icons.Material.Outlined.Construction)" Size="Size.Medium"
-                                                   Color="@(row.InMaintenance ? Color.Warning : Color.Default)" OnClick="() => ToggleMaintenanceAsync(row)"
-                                                   aria-label="@($"{(row.InMaintenance ? "End maintenance of" : "Put in maintenance")} {Primary(host)}")" data-action="maintenance" />
-                                </MudTooltip>
-                            }
                             @if (_mayWrite && host.Kind != HostKind.Admin)
                             {
-                                <MudSwitch @key="_toggles" T="bool" Value="host.Enabled" ValueChanged="_ => ToggleAsync(host)" Color="Color.Success"
-                                           aria-label="@($"{(host.Enabled ? "Switch off" : "Switch on")} {Primary(host)}")" data-action="toggle" />
+                                @* One group, so a wide chip wraps above the controls instead of pushing the switch out of the row. *@
+                                <span class="pdk-dt-controls">
+                                    @if (host.Enabled)
+                                    {
+                                        <MudTooltip Text="@(row.InMaintenance ? "End maintenance" : "Put in maintenance")" Placement="Placement.Bottom">
+                                            <MudIconButton Icon="@(row.InMaintenance ? Icons.Material.Filled.Construction : Icons.Material.Outlined.Construction)" Size="Size.Medium"
+                                                           Color="@(row.InMaintenance ? Color.Warning : Color.Default)" OnClick="() => ToggleMaintenanceAsync(row)"
+                                                           aria-label="@($"{(row.InMaintenance ? "End maintenance of" : "Put in maintenance")} {Primary(host)}")" data-action="maintenance" />
+                                        </MudTooltip>
+                                    }
+                                    <MudSwitch @key="_toggles" T="bool" Value="host.Enabled" ValueChanged="_ => ToggleAsync(host)" Color="Color.Success"
+                                               aria-label="@($"{(host.Enabled ? "Switch off" : "Switch on")} {Primary(host)}")" data-action="toggle" />
+                                </span>
                             }
                         </div>
                     </div>

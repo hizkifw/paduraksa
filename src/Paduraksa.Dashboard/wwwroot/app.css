@@ -868,9 +868,17 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-dt-status {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+}
+
+.pdk-dt-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
 }
 
 .pdk-dt-status .mud-switch {
@@ -882,7 +890,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     justify-content: flex-end;
 }
 
-.pdk-hosts-table { --pdk-dt-cols: minmax(0, 1.5fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(150px, 0.8fr); }
+.pdk-hosts-table { --pdk-dt-cols: minmax(0, 1.5fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(250px, 0.8fr); }
 .pdk-upstreams-table { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.4fr); }
 .pdk-profiles-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.2fr) 40px; }
 .pdk-rate-limits-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
