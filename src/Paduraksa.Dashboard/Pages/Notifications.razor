@@ -1,0 +1,288 @@
+@attribute [Authorize]
+@attribute [Route(SettingsRoutes.Notifications)]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Notifications
+@using Paduraksa.Contracts.Issuance
+@using Paduraksa.Dashboard.Certificates
+@using Paduraksa.Dashboard.NotificationsArea
+@inject NotificationService Channels
+@inject NotificationActions Actions
+@inject ConfigService Config
+@inject DashboardCaller Caller
+@inject IDialogService Dialogs
+@inject DrawerStack Drawers
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+@inject ILogger<Notifications> Logger
+
+<PageTitle>Notifications · Paduraksa</PageTitle>
+
+<PageHeader Title="Notifications">
+    <Actions>
+        @if (_mayWrite)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-channel" data-action="add-channel">Add channel</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">The notification channels couldn't be read. The details are in the server log.</MudAlert>
+}
+
+@if (_channels is null)
+{
+    <div class="pdk-provider-list">
+        @for (var i = 0; i < 2; i++)
+        {
+            <MudPaper Class="pdk-card pdk-provider" Elevation="0" Outlined="true">
+                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="34px" Height="34px" />
+                <div><MudSkeleton Width="40%" /><MudSkeleton Width="60%" /></div>
+            </MudPaper>
+        }
+    </div>
+}
+else if (_channels.Count == 0)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.NotificationsOff" Title="No channels yet"
+                    Description="Without one, an upstream going down or a certificate about to expire shows only on this dashboard. Add ntfy, Gotify, Discord, a webhook or an email address.">
+            <Action>
+                @if (_mayWrite)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync">Add channel</MudButton>
+                }
+            </Action>
+        </EmptyState>
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-provider-list" data-section="channels">
+        @foreach (var channel in _channels)
+        {
+            <MudPaper Class="pdk-card pdk-provider pdk-channel-row" Elevation="0" Outlined="true" data-channel="@channel.Id" data-kind="@channel.Kind.ToName()">
+                <span class="pdk-stat-icon pdk-tone-@(channel.Enabled ? "primary" : "default")"><MudIcon Icon="@NotificationDisplay.KindIcon(channel.Kind)" Size="Size.Small" /></span>
+                <div class="pdk-provider-main">
+                    <span class="pdk-provider-title">@channel.Label</span>
+                    <span class="pdk-provider-sub">@NotificationDisplay.KindLabel(channel.Kind) · @NotificationDisplay.Target(channel) · @NotificationDisplay.EventCount(channel.Events.Count)</span>
+                    <span class="pdk-provider-sub pdk-channel-state" data-section="state">
+                        @if (!channel.Enabled)
+                        {
+                            <StatusChip Text="Paused" Name="paused" />
+                        }
+                        @if (channel.LastError is { Length: > 0 } error)
+                        {
+                            <StatusChip Tone="Tone.Error" Dot="true" Text="Last delivery failed" Name="last-error" />
+                            <span class="pdk-health-reason" title="@(channel.LastErrorAt is { } failedAt ? CertificateDisplay.DateTime(failedAt) : null)">@error</span>
+                        }
+                        @if (channel.LastSentAt is { } sent)
+                        {
+                            <span class="pdk-muted" title="@CertificateDisplay.DateTime(sent)">Last sent @HealthDisplay.Ago(sent, Time.GetUtcNow())</span>
+                        }
+                        else if (channel.LastError is null)
+                        {
+                            <span class="pdk-muted">Nothing sent yet</span>
+                        }
+                    </span>
+                </div>
+                <div class="pdk-provider-actions">
+                    @if (_mayWrite)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Send"
+                                   OnClick="() => TestAsync(channel)" Disabled="_testing.Contains(channel.Id)" Class="pdk-channel-test" data-action="test">Send test</MudButton>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditAsync(channel)" Class="pdk-channel-edit" data-action="edit">Edit</MudButton>
+                        <MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="() => DeleteAsync(channel)"
+                                       aria-label="@($"Delete {channel.Label}")" Class="pdk-channel-delete" />
+                    }
+                </div>
+                @if (_testing.Contains(channel.Id))
+                {
+                    <div class="pdk-test-result pdk-tone-info pdk-test-running" role="status">
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                        <span><strong>Sending...</strong>One message through @channel.Label, without retries.</span>
+                    </div>
+                }
+                else if (_results.TryGetValue(channel.Id, out var result))
+                {
+                    @if (result.Denied)
+                    {
+                        <div class="pdk-test-result pdk-tone-warning" role="status"><MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" /><span><strong>Not allowed</strong>Your role can't send test messages.</span></div>
+                    }
+                    else if (!result.Found)
+                    {
+                        <div class="pdk-test-result pdk-tone-warning" role="status"><MudIcon Icon="@Icons.Material.Outlined.HelpOutline" Size="Size.Small" /><span><strong>Gone</strong>The channel no longer exists.</span></div>
+                    }
+                    else if (result.Delivered)
+                    {
+                        <div class="pdk-test-result pdk-tone-success pdk-test-ok" role="status"><MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Size="Size.Small" /><span><strong>Delivered</strong>@channel.Label accepted the test message.</span></div>
+                    }
+                    else
+                    {
+                        <div class="pdk-test-result pdk-tone-error pdk-test-failed" role="alert">
+                            <MudIcon Icon="@Icons.Material.Rounded.ErrorOutline" Size="Size.Small" />
+                            <span><strong>Not delivered</strong>@(result.Error is { Length: > 0 } why ? why : "The service refused it.") Check the settings and the secret.</span>
+                        </div>
+                    }
+                }
+            </MudPaper>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<NotificationChannelSummary>? _channels;
+    private readonly HashSet<NotificationChannelId> _testing = [];
+    private readonly Dictionary<NotificationChannelId, NotificationTestResult> _results = [];
+    private bool _mayWrite;
+    private bool _failed;
+    private LiveUpdates? _live;
+    private CancellationTokenSource? _stop;
+
+    /// <summary>How often the list is read again, for the delivery state the dispatcher changes (an edit refreshes it at once).</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ProvidersWrite);
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive && _live is null)
+        {
+            _live = LiveUpdates.Start(Config, InvokeAsync, RefreshAsync, false, "notification.channel.");
+            _stop = new CancellationTokenSource();
+            _ = PollAsync(_stop.Token);
+        }
+    }
+
+    public void Dispose()
+    {
+        _live?.Dispose();
+        _stop?.Cancel();
+        _stop?.Dispose();
+    }
+
+    private async Task PollAsync(CancellationToken token)
+    {
+        try
+        {
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(10), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(RefreshAsync);
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The page is gone.
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _failed = false;
+            _channels = await Channels.ListAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the notification channels.");
+            _failed = true;
+            _channels ??= [];
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        var before = _channels;
+        await LoadAsync();
+        if (!ReferenceEquals(before, _channels) && (before is null || _channels is null || !before.SequenceEqual(_channels)))
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        var result = await Drawers.OpenAsync<NotificationDrawer>(NotificationDrawer.For(null), DrawerWidth.Narrow);
+        await LoadAsync();
+        if (result.As<NotificationChannelSummary>() is { } added)
+        {
+            await TestAsync(added);
+        }
+    }
+
+    private async Task EditAsync(NotificationChannelSummary channel)
+    {
+        await Drawers.OpenAsync<NotificationDrawer>(NotificationDrawer.For(channel), DrawerWidth.Narrow);
+        _results.Remove(channel.Id);
+        await LoadAsync();
+    }
+
+    private async Task TestAsync(NotificationChannelSummary channel)
+    {
+        _testing.Add(channel.Id);
+        _results.Remove(channel.Id);
+        StateHasChanged();
+        try
+        {
+            await Logger.TryAsync(Snackbar, $"The test of {channel.Label} couldn't run.", async () =>
+            {
+                if (await Actions.TestAsync(channel.Id) is { } result)
+                {
+                    _results[channel.Id] = result;
+                }
+            });
+        }
+        finally
+        {
+            _testing.Remove(channel.Id);
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(NotificationChannelSummary channel)
+    {
+        var confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            $"Delete {channel.Label}?",
+            "The channel and its stored secrets are removed. Nothing is sent to it again.",
+            "Delete");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        NotificationChannelResult? result = null;
+        if (!await Logger.TryAsync(Snackbar, $"Couldn't delete {channel.Label}.", async () => result = await Actions.DeleteAsync(channel.Id)) || result is null)
+        {
+            return;
+        }
+
+        if (result.Status == IssuanceChangeStatus.Committed)
+        {
+            Snackbar.Add($"{channel.Label} was deleted.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result.Status, result.Errors, null, "notification channels")), Severity.Error);
+        }
+
+        await LoadAsync();
+    }
+}

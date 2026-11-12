@@ -1,0 +1,30 @@
+@* Add a notification channel, or change one's settings, in a drawer. It is stored at once (a vault secret and an operational row, not config)
+   and hands back the channel. *@
+@inject NotificationActions Actions
+@inject ISnackbar Snackbar
+
+<DrawerShell Title="@(Channel is null ? "Add a notification channel" : $"Edit {Channel.Label}")" Icon="@Icons.Material.Outlined.NotificationsActive" Name="notification-channel">
+    <NotificationForm Submit="SubmitAsync" Channel="Channel" Saved="Saved" OnCancel="() => Level?.RequestClose()" />
+</DrawerShell>
+
+@code {
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>The channel to change; null to add one.</summary>
+    [Parameter]
+    public NotificationChannelSummary? Channel { get; set; }
+
+    private Task<NotificationChannelResult?> SubmitAsync(NotificationChannelBody body) =>
+        Channel is { } channel ? Actions.UpdateAsync(channel.Id, body) : Actions.CreateAsync(body);
+
+    private void Saved(NotificationChannelSummary channel)
+    {
+        Snackbar.Add(Channel is null ? $"{channel.Label} was added." : $"{channel.Label} was saved.", Severity.Success);
+        Level?.Close(channel);
+    }
+
+    /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
+    public static IReadOnlyDictionary<string, object?> For(NotificationChannelSummary? channel) =>
+        new Dictionary<string, object?> { [nameof(Channel)] = channel };
+}

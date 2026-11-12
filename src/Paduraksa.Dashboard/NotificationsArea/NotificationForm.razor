@@ -1,0 +1,276 @@
+@* A notification channel's settings: the service, what it needs, and which events it is sent. Its secrets (a webhook URL, a token, an
+   SMTP password) are write-only: password fields, emptied as the form is sent, never shown again. *@
+@using Microsoft.Extensions.Logging
+@inject ILogger<NotificationForm> Logger
+
+<div class="pdk-form-stack" data-form="notification-channel">
+    @if (Channel is null)
+    {
+        <div class="pdk-choice-grid" role="radiogroup" aria-label="Service">
+            @foreach (var kind in NotificationDisplay.Kinds)
+            {
+                <button type="button" class="pdk-choice pdk-notify-kind-@kind.ToName() @(_kind == kind ? "pdk-choice-on" : null)" role="radio"
+                        aria-checked="@(_kind == kind ? "true" : "false")" disabled="@_busy" @onclick="() => _kind = kind">
+                    <MudIcon Icon="@NotificationDisplay.KindIcon(kind)" Size="Size.Small" />
+                    <span class="pdk-choice-title">@NotificationDisplay.KindLabel(kind)</span>
+                </button>
+            }
+        </div>
+    }
+
+    <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="NotificationService.MaxLabelLength"
+                  Placeholder="@($"{NotificationDisplay.KindLabel(_kind)} - ops")" Error="@Has("/label")" ErrorText="@ErrorOf("/label")" Disabled="_busy" data-field="label" />
+
+    @switch (_kind)
+    {
+        case NotificationChannelKind.Ntfy:
+            <MudTextField T="string" @bind-Value="_serverUrl" Label="Server" Placeholder="https://ntfy.sh" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Error="@Has("/serverUrl")" ErrorText="@ErrorOf("/serverUrl")" Disabled="_busy" Class="pdk-mono-input" data-field="server-url" spellcheck="false" />
+            <MudTextField T="string" @bind-Value="_topic" Label="Topic" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Error="@Has("/topic")" ErrorText="@ErrorOf("/topic")" Disabled="_busy" Class="pdk-mono-input" data-field="topic" spellcheck="false" />
+            break;
+        case NotificationChannelKind.Gotify:
+            <MudTextField T="string" @bind-Value="_serverUrl" Label="Server" Placeholder="https://gotify.example.com" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Error="@Has("/serverUrl")" ErrorText="@ErrorOf("/serverUrl")" Disabled="_busy" Class="pdk-mono-input" data-field="server-url" spellcheck="false" />
+            break;
+        case NotificationChannelKind.Email:
+            <div class="pdk-field-row">
+                <MudTextField T="string" @bind-Value="_smtpHost" Label="SMTP server" Placeholder="smtp.example.com" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Error="@Has("/smtpHost")" ErrorText="@ErrorOf("/smtpHost")" Disabled="_busy" Class="pdk-mono-input" data-field="smtp-host" spellcheck="false" />
+                <MudNumericField T="int?" @bind-Value="_smtpPort" Label="Port" Variant="Variant.Outlined" Margin="Margin.Dense" HideSpinButtons="true"
+                                 Error="@Has("/smtpPort")" ErrorText="@ErrorOf("/smtpPort")" Disabled="_busy" data-field="smtp-port" />
+            </div>
+            <MudSelect T="SmtpSecurity" @bind-Value="_smtpSecurity" Label="Security" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_busy"
+                       HelperText="@SecurityHint" data-field="smtp-security">
+                <MudSelectItem Value="SmtpSecurity.StartTls">STARTTLS (port 587)</MudSelectItem>
+                <MudSelectItem Value="SmtpSecurity.ImplicitTls">TLS from the start (port 465)</MudSelectItem>
+                <MudSelectItem Value="SmtpSecurity.None">None</MudSelectItem>
+            </MudSelect>
+            <MudTextField T="string" @bind-Value="_smtpUsername" Label="Login (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" autocomplete="off"
+                          Error="@Has("/smtpUsername")" ErrorText="@ErrorOf("/smtpUsername")" Disabled="_busy" data-field="smtp-username" spellcheck="false" />
+            <MudTextField T="string" @bind-Value="_mailFrom" Label="From" Placeholder="paduraksa@example.com" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Error="@Has("/mailFrom")" ErrorText="@ErrorOf("/mailFrom")" Disabled="_busy" data-field="mail-from" spellcheck="false" />
+            <MudTextField T="string" @bind-Value="_mailTo" Label="To" Placeholder="ops@example.com, me@example.com" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="One or more addresses, separated by commas." Error="@Has("/mailTo")" ErrorText="@ErrorOf("/mailTo")" Disabled="_busy" data-field="mail-to" spellcheck="false" />
+            break;
+    }
+
+    <MudTextField T="string" @bind-Value="_secret" Label="@SecretLabel" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Password" autocomplete="off"
+                  HelperText="@SecretHelp" Error="@Has("/secret")" ErrorText="@ErrorOf("/secret")" Disabled="_busy" Class="pdk-notify-secret" data-field="secret" />
+    @if (Channel is { HasSecret: true } && !SecretRequired)
+    {
+        <MudCheckBox T="bool" @bind-Value="_removeSecret" Label="Remove the stored secret" Disabled="_busy || !string.IsNullOrEmpty(_secret)" Dense="true" data-field="remove-secret" />
+    }
+
+    @if (_kind == NotificationChannelKind.Webhook)
+    {
+        <MudTextField T="string" @bind-Value="_signing" Label="Signing key (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Password" autocomplete="off"
+                      HelperText="Each body is signed with HMAC-SHA-256 over the timestamp and the body; the signature is in X-Paduraksa-Signature."
+                      Error="@Has("/signingSecret")" ErrorText="@ErrorOf("/signingSecret")" Disabled="_busy" data-field="signing-secret" />
+        @if (Channel is { HasSigningSecret: true })
+        {
+            <MudCheckBox T="bool" @bind-Value="_removeSigning" Label="Remove the stored signing key" Disabled="_busy || !string.IsNullOrEmpty(_signing)" Dense="true" data-field="remove-signing" />
+        }
+    }
+
+    <div class="pdk-secret-note">
+        <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" />
+        <span>Secrets are stored in the vault and never shown again@(Channel is not null ? "; leave a field empty to keep what is stored" : string.Empty).</span>
+    </div>
+
+    <fieldset class="pdk-event-groups" data-section="events" aria-label="Events">
+        @foreach (var group in NotificationDisplay.Groups)
+        {
+            <div class="pdk-event-group">
+                <span class="pdk-event-group-title">@group.Title</span>
+                @foreach (var kind in group.Events)
+                {
+                    var event_ = kind;
+                    <MudCheckBox T="bool" Value="_events.Contains(event_)" ValueChanged="on => ToggleEvent(event_, on)" Label="@NotificationDisplay.EventLabel(event_)"
+                                 Dense="true" Disabled="_busy" data-event="@event_.ToName()" />
+                }
+            </div>
+        }
+        @if (Has("/events"))
+        {
+            <div class="pdk-field-error">@ErrorOf("/events")</div>
+        }
+    </fieldset>
+
+    @if (Channel is not null)
+    {
+        <MudSwitch T="bool" @bind-Value="_enabled" Label="Send notifications" Color="Color.Success" Disabled="_busy" data-field="enabled" />
+    }
+
+    @if (_errors.Count > 0)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
+            @foreach (var error in _errors)
+            {
+                <div>@error</div>
+            }
+        </MudAlert>
+    }
+
+    <div class="pdk-form-actions">
+        @if (OnCancel.HasDelegate)
+        {
+            <MudButton Variant="Variant.Text" OnClick="OnCancel" Disabled="_busy">Cancel</MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="_busy" Class="pdk-notify-submit">
+            @if (_busy)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+            }
+            @(Channel is null ? "Add channel" : "Save")
+        </MudButton>
+    </div>
+</div>
+
+@code {
+    private NotificationChannelKind _kind = NotificationChannelKind.Ntfy;
+    private string? _label;
+    private bool _enabled = true;
+    private string? _serverUrl = "https://ntfy.sh";
+    private string? _topic;
+    private string? _smtpHost;
+    private int? _smtpPort = 587;
+    private SmtpSecurity _smtpSecurity = SmtpSecurity.StartTls;
+    private string? _smtpUsername;
+    private string? _mailFrom;
+    private string? _mailTo;
+    private string? _secret;
+    private string? _signing;
+    private bool _removeSecret;
+    private bool _removeSigning;
+    private readonly HashSet<NotificationEventKind> _events = [.. NotificationDisplay.DefaultEvents];
+    private bool _busy;
+    private bool _seeded;
+    private List<ConfigError> _fieldErrors = [];
+    private List<string> _errors = [];
+
+    /// <summary>Adds the channel, or replaces <see cref="Channel"/>'s settings (the drawer wires it to the service).</summary>
+    [Parameter, EditorRequired]
+    public Func<NotificationChannelBody, Task<NotificationChannelResult?>> Submit { get; set; } = default!;
+
+    /// <summary>The channel being edited; null to add one.</summary>
+    [Parameter]
+    public NotificationChannelSummary? Channel { get; set; }
+
+    [Parameter]
+    public EventCallback<NotificationChannelSummary> Saved { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private bool SecretRequired => _kind is NotificationChannelKind.Gotify or NotificationChannelKind.Discord or NotificationChannelKind.Webhook
+        || (_kind == NotificationChannelKind.Email && !string.IsNullOrWhiteSpace(_smtpUsername));
+
+    private string SecretLabel => Channel is { HasSecret: true } ? NotificationDisplay.SecretLabel(_kind) + " - leave empty to keep" : NotificationDisplay.SecretLabel(_kind);
+
+    private string? SecretHelp => _kind == NotificationChannelKind.Email ? "Needed when the server asks for a login." : NotificationDisplay.SecretHint(_kind);
+
+    private string? SecurityHint => _smtpSecurity == SmtpSecurity.None ? "The password and the message cross the network unencrypted." : null;
+
+    protected override void OnParametersSet()
+    {
+        if (_seeded || Channel is not { } channel)
+        {
+            return;
+        }
+
+        _seeded = true;
+        _kind = channel.Kind;
+        _label = channel.Label;
+        _enabled = channel.Enabled;
+        _serverUrl = channel.ServerUrl;
+        _topic = channel.Topic;
+        _smtpHost = channel.SmtpHost;
+        _smtpPort = channel.SmtpPort;
+        _smtpSecurity = channel.SmtpSecurity ?? SmtpSecurity.StartTls;
+        _smtpUsername = channel.SmtpUsername;
+        _mailFrom = channel.MailFrom;
+        _mailTo = string.Join(", ", channel.MailTo);
+        _events.Clear();
+        _events.UnionWith(channel.Events);
+    }
+
+    private bool Has(string path) => _fieldErrors.Any(e => e.Path == path);
+
+    private string? ErrorOf(string path) => _fieldErrors.FirstOrDefault(e => e.Path == path) is { } error ? CertificateMessages.Sentence(error.Message) : null;
+
+    private void ToggleEvent(NotificationEventKind kind, bool on)
+    {
+        if (on)
+        {
+            _events.Add(kind);
+        }
+        else
+        {
+            _events.Remove(kind);
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _errors = [];
+        _fieldErrors = [];
+        var kind = Channel?.Kind ?? _kind;
+        var email = kind == NotificationChannelKind.Email;
+        NotificationChannelBody body = new(
+            kind,
+            _label is { Length: > 0 } ? _label.Trim() : $"{NotificationDisplay.KindLabel(kind)}",
+            [.. _events.OrderBy(e => (int)e)],
+            _enabled,
+            kind is NotificationChannelKind.Ntfy or NotificationChannelKind.Gotify ? _serverUrl?.Trim() : null,
+            kind == NotificationChannelKind.Ntfy ? _topic?.Trim() : null,
+            email ? _smtpHost?.Trim() : null,
+            email ? _smtpPort : null,
+            email ? _smtpSecurity : null,
+            email && !string.IsNullOrWhiteSpace(_smtpUsername) ? _smtpUsername.Trim() : null,
+            email ? _mailFrom?.Trim() : null,
+            email ? [.. (_mailTo ?? string.Empty).Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)] : null,
+            // A secret typed now replaces the stored one; "remove" sends the empty string; untouched sends nothing, which keeps it.
+            !string.IsNullOrWhiteSpace(_secret) ? _secret.Trim() : _removeSecret ? string.Empty : null,
+            kind != NotificationChannelKind.Webhook ? null : !string.IsNullOrWhiteSpace(_signing) ? _signing : _removeSigning ? string.Empty : null);
+
+        // The secrets leave the component's state before anything is awaited.
+        _secret = null;
+        _signing = null;
+        _busy = true;
+        NotificationChannelResult? result;
+        try
+        {
+            result = await Submit(body);
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't save a notification channel.");
+            _errors = [StoreFailures.Message("The channel couldn't be saved."), "Enter its secret again to retry."];
+            return;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (result is { Status: IssuanceChangeStatus.Committed, Channel: { } saved })
+        {
+            await Saved.InvokeAsync(saved);
+        }
+        else if (result is not null)
+        {
+            _fieldErrors = [.. result.Errors];
+            _errors = [.. CertificateMessages.Errors(result.Status, result.Errors, null, "notification channels")];
+            if (result.Errors.Count > 0 && result.Errors.All(e => e.Path.Length > 0))
+            {
+                _errors = ["Fix the fields marked above." + (_fieldErrors.Any(e => e.Path == "/secret") ? " Enter the secret again." : string.Empty)];
+            }
+        }
+    }
+}

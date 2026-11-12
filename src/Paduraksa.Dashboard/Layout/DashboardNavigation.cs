@@ -52,6 +52,7 @@ public static class DashboardNavigation
         new("Logs", DashboardRoutes.Logs, Icons.Material.Outlined.Article, InsightGroup, Permission.LogsRead, true),
         new("Global defaults", SettingsRoutes.Defaults, Icons.Material.Outlined.Tune, SettingsGroup, Permission.ConfigRead, true),
         new("Users and roles", SettingsRoutes.Users, Icons.Material.Outlined.Group, SettingsGroup, Permission.UsersRead, true),
+        new("Notifications", SettingsRoutes.Notifications, Icons.Material.Outlined.NotificationsActive, SettingsGroup, Permission.ProvidersRead, true),
         new("API tokens", SettingsRoutes.Tokens, Icons.Material.Outlined.Key, SettingsGroup, Permission.TokensOwn, true),
     ];
 

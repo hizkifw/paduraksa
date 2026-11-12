@@ -25,6 +25,9 @@ namespace Paduraksa.Application.Notifications;
 /// </summary>
 public sealed partial class NotificationService
 {
+    /// <summary>The longest label.</summary>
+    public const int MaxLabelLength = NotificationValidator.MaxLabelLength;
+
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly ConfigService _config;
     private readonly ISecretStore _secrets;

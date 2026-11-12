@@ -9,6 +9,9 @@ public static class SettingsRoutes
     /// <summary>The users and their roles.</summary>
     public const string Users = "/settings/users";
 
+    /// <summary>The notification channels: where an upstream going down, a certificate about to expire and the like are sent.</summary>
+    public const string Notifications = "/settings/notifications";
+
     /// <summary>The API tokens: one's own, and everyone's with <c>tokens:all</c>.</summary>
     public const string Tokens = "/settings/tokens";
 }

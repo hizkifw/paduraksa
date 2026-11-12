@@ -64,6 +64,7 @@ public static class DashboardExtensions
         services.AddScoped<ReviewedDraft>();
         services.AddScoped<Drawers.DrawerStack>();
         services.AddScoped<Providers.ProviderActions>();
+        services.AddScoped<NotificationsArea.NotificationActions>();
         services.TryAddSingleton<Application.Probes.UpstreamProbe>();
         services.TryAddSingleton<IPasswordCheckSlots, UnboundedPasswordChecks>();
         services.TryAddSingleton<IdentityChangeFeed>();
