@@ -235,6 +235,17 @@ a sum in seconds (`paduraksa.request.duration.sum`, and `paduraksa.request.upstr
 
 A restart loses the minute in progress. Counters start from zero at every start, as Prometheus expects.
 
+### Notifications
+
+The channels (ntfy, Gotify, Discord, a webhook, email) are added in the dashboard under Settings, Notifications; their secrets are in the vault. Three
+settings belong to the process, since only you know them:
+
+| Setting | Default | What |
+|---|---|---|
+| `Paduraksa__Notifications__AdminUrl` | none | The address the dashboard is reached at (`https://admin.example.com`: http or https, no login, query or fragment). Messages link to the page that shows what happened; empty sends no link, because the process cannot know which name or port you reach it by |
+| `Paduraksa__Notifications__HealthHold` | `00:00:10` | How long a destination's new health state must hold before it is reported (1 second to 10 minutes), so one failed probe sends nothing |
+| `Paduraksa__Notifications__CoalesceWindow` | `00:00:03` | How long a channel waits after a message for more of the same kind, so ten upstreams going down at once is one digest (0 to 1 minute) |
+
 ### Upgrading
 
 With the published image (the default compose file):
