@@ -87,7 +87,7 @@ public static class GateSimulator
             return new GateSimulation(rejected, steps, null);
         }
 
-        if (listeners is not null && probe.Https && probe.HttpVersion == ProbeHttpVersion.Http3 && QuicLockdown(bound, peer, steps) is { } dropped)
+        if (listeners is not null && probe.Https && probe.HttpVersion == ProbeHttpVersion.Http3 && QuicConnectionStage(bound, peer, probe, steps) is { } dropped)
         {
             return new GateSimulation(dropped, steps, null);
         }
@@ -204,10 +204,16 @@ public static class GateSimulator
 
         // After PROXY protocol, so the address is the one the gate will see, and over TLS only: the plain-HTTP listener leaves
         // the decision to the gate, because an ACME validation may come from anywhere. QUIC is checked after its handshake's
-        // name selection instead, as the handshake callback does (see QuicLockdown).
+        // name selection instead, as the handshake callback does (see QuicConnectionStage).
         if (refusal is null && probe.Https && !quic)
         {
             refusal = LockdownRefusal(snapshot, peer, facts);
+        }
+
+        // TCP on both listeners; QUIC's is after its handshake's name selection (QuicConnectionStage).
+        if (refusal is null && !quic)
+        {
+            refusal = ConnectionStageRefusal(snapshot, peer, probe, facts);
         }
 
         if (refusal is not null)
@@ -241,13 +247,49 @@ public static class GateSimulator
         return $"every host is locked down to Cloudflare and {peer} is not {what}: the connection is dropped before TLS";
     }
 
+    /// <summary>
+    /// Why the connection stage refuses <paramref name="peer"/> before TLS for the connection deny list, or null; adds what it looked
+    /// at to <paramref name="facts"/>. The per-IP limit depends on what is open at the time, so it is only stated. The list judges the
+    /// connecting address and nothing else: a client behind a trusted proxy is judged at the gate, and the facts say so when
+    /// the simulated client is on the list.
+    /// </summary>
+    private static string? ConnectionStageRefusal(RuntimeSnapshot snapshot, IPAddress peer, GateProbe probe, List<GateFact> facts)
+    {
+        var policy = snapshot.Connections;
+        var address = IpKey.FromIPAddress(peer);
+        if (!policy.Deny.IsEmpty && policy.Deny.Contains(address))
+        {
+            facts.Add(new("connectionDenyList", policy.DenyListName ?? string.Empty));
+            return $"{peer} is in the connection deny list '{policy.DenyListName}': the connection is closed before TLS";
+        }
+
+        facts.Add(new("connectionDenyList", policy.DenyListName ?? "none"));
+        if (policy.MaxPerIp == 0)
+        {
+            facts.Add(new("connectionLimit", "off"));
+        }
+        else
+        {
+            facts.Add(new("connectionLimit", snapshot.TrustedProxies.IsTrustedPeer(address)
+                ? $"{policy.MaxPerIp} per address, and {peer} is a trusted proxy: not counted"
+                : $"{policy.MaxPerIp} per address (not simulated: it depends on what is open)"));
+        }
+
+        if (!policy.Deny.IsEmpty && probe.ClientAddress is { } client && !client.Equals(peer) && policy.Deny.Contains(IpKey.FromIPAddress(client)))
+        {
+            facts.Add(new("clientInConnectionDenyList", $"{client} is on the list, which judges only the connecting address ({peer}): behind a trusted proxy the client is judged at the gate"));
+        }
+
+        return null;
+    }
+
     /// <summary>The QUIC handshake callback selects the options for the name first (an unknown name or a host without HTTP/3
-    /// is rejected there) and only then runs the connection gate, so the lockdown of an untrusted peer comes after the
-    /// handshake step, not before it.</summary>
-    private static GateOutcome? QuicLockdown(RuntimeSnapshot snapshot, IPAddress peer, List<GateStep> steps)
+    /// is rejected there) and only then runs the connection gate, so the lockdown of an untrusted peer and the connection stage
+    /// come after the handshake step, not before it.</summary>
+    private static GateOutcome? QuicConnectionStage(RuntimeSnapshot snapshot, IPAddress peer, GateProbe probe, List<GateStep> steps)
     {
         List<GateFact> facts = [new("transport", "quic")];
-        if (LockdownRefusal(snapshot, peer, facts) is not { } refusal)
+        if ((LockdownRefusal(snapshot, peer, facts) ?? ConnectionStageRefusal(snapshot, peer, probe, facts)) is not { } refusal)
         {
             return null;
         }
