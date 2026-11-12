@@ -441,7 +441,7 @@ public sealed class AnalyticsPageTests
         await page.WaitForStateAsync(() => page.FindAll("[data-part=approx]").Count == 1);
 
         Assert.Single(page.FindAll("[data-part=approx]"));
-        Assert.Contains("approximate", page.Find("[data-part=approx]").TextContent, StringComparison.Ordinal);
+        Assert.Equal("How accurate these figures are", page.Find("[data-part=approx]").GetAttribute("aria-label"));
     }
 
     [Fact]

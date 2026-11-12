@@ -359,6 +359,7 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
 .pdk-page-header-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
 }
 
@@ -3557,7 +3558,10 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
 
 .pdk-range {
     display: inline-flex;
-    padding: 2px;
+    align-items: center;
+    box-sizing: border-box;
+    height: 40px;
+    padding: 3px;
     border: 1px solid var(--pdk-line);
     border-radius: 8px;
     background: var(--pdk-surface-2);
@@ -3767,22 +3771,11 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     max-width: 260px;
 }
 
-.pdk-analytics-approx {
-    display: inline-flex;
-    align-items: center;
-    height: 32px;
-    padding: 0 10px;
-    border: 1px solid var(--pdk-line);
-    border-radius: 8px;
-    color: var(--pdk-muted);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    cursor: help;
-}
-
-.pdk-analytics-approx:focus-visible {
-    outline: 2px solid var(--mud-palette-primary, var(--pdk-accent));
-    outline-offset: 1px;
+/* MudBlazor's dense margin pushes the field's box below the controls beside it; in a header row it sits level with them. */
+.pdk-page-header-actions .mud-input-control.pdk-analytics-host,
+.pdk-page-header-actions .mud-input-control.pdk-analytics-host > .mud-input-control-input-container {
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 .pdk-analytics-approx-text {
