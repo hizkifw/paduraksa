@@ -2190,6 +2190,43 @@ when the admin is ready, so a change that spans several pages goes live at once 
   `config:write`; `If-Match` on apply carries the draft's version. MCP gets the same (M10), which suits agents that want
   to propose several changes for a human to apply.
 
+**As built: dashboard conventions (UI consistency pass).** Shared pieces first; a page that needs its own look for one of these is
+a sign the shared piece is missing something.
+
+- **`SegmentedControl<T>`** is the one single-choice-among-a-few control (time ranges, Mine/Everyone's, a host's kind, a token's
+  expiry, the certificate filter). Options are `SegmentOption<T>` (value, label, optional icon, tooltip, `data-value` key, count,
+  tone dot). It is a `radiogroup` of `radio` buttons: the chosen segment is the one tab stop, the arrow keys, Home and End move
+  the choice (it follows focus, as native radios do, and wraps), and `paduraksa.js` keeps the page from scrolling on those keys.
+  It is always one 40 px row beside a dense outlined field, the chosen segment raised; when the segments don't fit (a phone) it
+  fills the width and wraps onto further rows rather than hiding options behind a scroll. Tests find it by
+  `[data-field=...] [data-value=...]` and read `aria-checked`. Radio lists whose choices need a sentence each (Global defaults'
+  unknown-host answer, import's merge or replace) and card pickers (a provider, a notification service) stay as they are: they
+  are choices with explanations, not segments. A segment with a zero count is muted, or left out when it is a filter.
+- **Page header:** the title (h1) and the actions share one centre line in a row at least 40 px tall, so a title sits at the same
+  height on every page; a lead, only where it says something the page doesn't, sits under the row.
+- **Headings:** a card's title is h6 (`Typo.h6`); a card under a section heading, on a page that has several (Analytics), is
+  `subtitle1`; the section heading itself is h6 with `.pdk-section-heading`. A small label inside a form is `subtitle2`.
+- **Filter cards** (Audit, Live tail) are `.pdk-filters`: an optional bar (a segmented control, "Clear filters" at the end), then
+  the fields in one wrapping grid; every field is dense outlined and floats its label (give it a placeholder).
+- **Heights and sizes:** dense outlined fields and the segmented control are 40 px; icon buttons are 36 px (`Size.Small`, never
+  `Medium`) and carry a tooltip or `aria-label`; a drawer's header is at least 80 px whether or not it has a subtitle.
+- **Buttons:** one filled primary action per view (the page header's; an empty state offers the same action again where the eye is),
+  outlined for a secondary action that stands alone, text for the rest, destructive actions in the error colour.
+- **Text a person copies** is `CopyableCode`: the text in one box with the copy control inside its top-right corner, so all such
+  values share one left and right edge. `SecretValue` (shown once) wraps it with a dashed, tinted box; the MCP snippets, the
+  local CA fingerprint, the TOTP key and the restore command use it too. Recovery codes keep their Copy and Download pair.
+- **Pills:** `.pdk-chip` and `.pdk-pill` are status (one look, tone by meaning: success, warning, error, info, default);
+  `.pdk-badge` is the smaller label or count; `.pdk-tag` is a neutral tag. A row that summarises and filters is a segmented
+  control with counts, never a row of pills; a row that only summarises is stat tiles.
+- **Share-bar lists** (`ShareList`: status codes, methods, browsers, bots by kind and the rest) are one grid with a subgrid per row:
+  the label, bar, count and percentage columns are as wide as the widest row needs, so every bar starts and ends at the same x; a tiny
+  share is at least 3 px of fill from the track's start; counts and percentages are tabular and right-aligned.
+- **Units:** a compact control writes units short ("1 h", "24 h", "7 d", "30 d", "1 y"), with the long form as its tooltip;
+  prose writes them out ("7 days").
+- **The connection snippets** of an AI assistant (`McpConnect`) take the token just issued and fill it into the commands: the
+  token drawer shows them open, with the token only in that component's parameter and the markup built from it (it goes with the
+  drawer, as the token's own box does), and says how to turn MCP on when it is off.
+
 ### 12.1 First-run setup
 Security: until setup completes, the admin app serves **only** the wizard. That requires a one-time **setup token** printed to the logs and the console (`paduraksa setup-token` reprints it), which stops anyone else on the LAN from claiming the instance.
 
