@@ -8,6 +8,10 @@
     <ProjectReference Include="../Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The YAML import and export (PLAN §11.5): the parser and emitter only; no reflection-based (de)serialisation of input. -->
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Issuance" />
