@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.25**: M0-M8 done, M9 part 1 (metrics) done, and the property tests and coverage-guided fuzzing built (§15); M9 part 2 (health checks, notifications, live tail) is next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.26**: M0-M8 done; M9 metrics, health state and notifications done, and the property tests and coverage-guided fuzzing built (§15); the M9 live tail is next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -2216,3 +2216,6 @@ These are cheap now and expensive later. Fold them into the milestones that touc
   - **Property tests (§15):** CsCheck 5.0.0 with a fixed base seed, per-test case counts and `PADURAKSA_PROPERTY_SCALE` / `PADURAKSA_PROPERTY_SEED` for deeper runs. Differential checks of the canonical path (also against real Kestrel), the glob automaton, rule-set and access-list verdicts, the simulator against the real gate, the forward-auth cache key and owned headers, the access-log formatter, and the config pipeline (a document that validates compiles; canonical JSON is idempotent and round-trips).
   - **Fuzzing (§15):** `fuzz/` with SharpFuzz and libFuzzer harnesses for PROXY protocol, the proof-of-work cookie and form, `Authorization: Basic`, the client-address headers and a forward-auth provider's answer; a committed corpus for each, replayed on every commit by `Paduraksa.Tests.Fuzz`; `scripts/fuzz.sh` and a manual and nightly workflow that uploads crashes.
   - **Fixes the new tests found:** the simulator's decoding of `%5C` (a backslash, as Kestrel decodes it); the forward-auth cache key now includes the scheme and the standard hint headers (`User-Agent`, `Accept`, `Accept-Language`, `X-Requested-With`); the access log escapes NEL, the other C1 controls and U+2028 / U+2029; the validator refuses a custom `Server` header that the global defaults leave without a value, as the compiler does.
+- **v0.26:** M9 part 2a: upstream health state and notifications.
+  - **Health (§7.4):** a watcher reads YARP's verdict per destination once a second, off the request path; a change must hold 10 s, a flapping destination is reported once, and a publish reports nothing. Each change is audited and shown as status dots on Upstreams, the hosts list and the overview.
+  - **Notifications (§5.1):** ntfy, Gotify, Discord, a signed webhook and email (MailKit) channels, their secrets in the vault behind a lend-only capability; events for upstream down/up, certificate expiry at 30/14/7/1 days, ACME failure and recovery, and sign-in lockouts and new addresses; a bounded dispatcher with retries and storm digests; Settings > Notifications.
