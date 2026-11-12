@@ -1,6 +1,8 @@
 using System.Net;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Proxy;
 using Paduraksa.Proxy.Config;
@@ -56,6 +58,37 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         Assert.True(server.AccessLog.TryRead(out var entry));
         Assert.Equal(path, entry.Path);
         Assert.False(string.IsNullOrEmpty(entry.RequestId));
+    }
+
+    /// <summary>
+    /// The live tail is the drain's: a running drain with a slow subscriber attached (its channel overflows, so every request
+    /// also costs the drain a drop) leaves the request path where it was, at 0 B a request.
+    /// </summary>
+    [Fact]
+    public async Task TheGateAllocatesNothingWhileTheTailHasASubscriber()
+    {
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            Hosts = [ProxyHost("app", "app.test", Route("app-root", "web"))],
+        };
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, Metrics = new MetricsRegistry() });
+        var tail = server.Services.GetRequiredService<AccessLogTail>();
+        using var subscription = tail.Subscribe(AccessLogTailFilter.All, 0, channelCapacity: 16)!;
+        using AccessLogDrainService drain = new(server.AccessLog, NullAccessLogSink.Instance, AccessLogFormatOptions.Default, NullLogger<AccessLogDrainService>.Instance, tail);
+        await drain.StartAsync(TestContext.Current.CancellationToken);
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+
+        await SendAsync(server, client, "app.test", "/api/items", HttpStatusCode.OK, Warmup);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, "app.test", "/api/items", HttpStatusCode.OK, Measured);
+        await WaitForEntriesAsync(server.AccessLog, Warmup + Measured);
+        await drain.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel with a tail subscriber attached: {server.GateStats}");
+        Assert.True(tail.Offered >= Warmup + Measured, $"the tail was offered only {tail.Offered} entries");
+        Assert.True(subscription.Skipped > 0, "the slow subscriber should have been skipping");
     }
 
     /// <summary>
