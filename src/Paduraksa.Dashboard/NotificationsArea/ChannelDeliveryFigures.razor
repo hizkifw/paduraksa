@@ -1,0 +1,41 @@
+@* A channel's delivery figures on its list row: what waits, what failed in the last seven days (a link to those in the history) and the success rate. *@
+@if (Channel.Delivery is { } figures)
+{
+    <span class="pdk-provider-sub pdk-nh-figures" data-part="figures">
+        @if (figures.Queued > 0)
+        {
+            <StatusChip Tone="Tone.Info" Dot="true" Text="@($"{figures.Queued} queued")" Detail="Waiting to be sent or between retries" Name="queued" />
+        }
+        @if (figures.Failed > 0)
+        {
+            <a class="pdk-nh-failed-link" href="@FailedLink" data-action="view-failed" title="Failed or expired in the last 7 days; open them in the history">
+                <StatusChip Tone="Tone.Error" Text="@($"{figures.Failed} failed")" Name="failed-count" />
+            </a>
+        }
+        @if (figures.Sent + figures.Failed > 0)
+        {
+            <span class="pdk-muted" title="Sent out of sent and failed, over the last 7 days" data-part="success-rate">@Rate(figures)% delivered, 7 d</span>
+        }
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public NotificationChannelSummary Channel { get; set; } = null!;
+
+    private string FailedLink => $"{SettingsRoutes.NotificationHistory}?channel={Channel.Id}&outcome=failed";
+
+    /// <summary>The share sent, to one decimal and never 100 while something failed.</summary>
+    internal static string Rate(NotificationChannelFigures figures)
+    {
+        ArgumentNullException.ThrowIfNull(figures);
+        var total = figures.Sent + figures.Failed;
+        if (total == 0 || figures.Failed == 0)
+        {
+            return "100";
+        }
+
+        var rate = Math.Min(99.9, Math.Floor(figures.Sent * 1000.0 / total) / 10);
+        return rate.ToString(rate % 1 == 0 ? "0" : "0.0", System.Globalization.CultureInfo.InvariantCulture);
+    }
+}

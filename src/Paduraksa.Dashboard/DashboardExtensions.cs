@@ -70,6 +70,7 @@ public static class DashboardExtensions
         services.TryAddSingleton<IdentityChangeFeed>();
         services.TryAddScoped<IDashboardIdentity, DashboardIdentity>();
         services.TryAddScoped<IDashboardAudit, DashboardAudit>();
+        services.TryAddScoped<NotificationsArea.IDashboardNotificationHistory, NotificationsArea.DashboardNotificationHistory>();
         services.TryAddScoped<Backup.IDashboardBackup, Backup.DashboardBackup>();
         return services;
     }

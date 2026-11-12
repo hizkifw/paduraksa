@@ -103,6 +103,8 @@
         </MudAlert>
     }
 
+    @Below
+
     <div class="pdk-form-actions">
         @if (OnCancel.HasDelegate)
         {
@@ -172,6 +174,10 @@
 
     [Parameter]
     public EventCallback OnCancel { get; set; }
+
+    /// <summary>Content under the fields and above the buttons, which stay last (a channel's recent deliveries).</summary>
+    [Parameter]
+    public RenderFragment? Below { get; set; }
 
     private bool SecretRequired => _kind is NotificationChannelKind.Gotify or NotificationChannelKind.Discord or NotificationChannelKind.Webhook
         || (_kind == NotificationChannelKind.Email && !string.IsNullOrWhiteSpace(_smtpUsername));

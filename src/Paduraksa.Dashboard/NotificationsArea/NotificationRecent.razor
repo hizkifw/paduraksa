@@ -1,0 +1,67 @@
+@* A channel's latest deliveries, in its drawer: when, what, and how it went. *@
+@using Microsoft.Extensions.Logging
+@inject IDashboardNotificationHistory History
+@inject TimeProvider Time
+@inject ILogger<NotificationRecent> Logger
+
+<section class="pdk-nh-recent" data-section="recent-deliveries" aria-label="Recent deliveries">
+    <div class="pdk-nh-recent-head">
+        <MudText Typo="Typo.subtitle2" HtmlTag="h3">Recent deliveries</MudText>
+        <MudLink Href="@($"{SettingsRoutes.NotificationHistory}?channel={Channel}")" Typo="Typo.body2" data-action="all-deliveries">All in the history</MudLink>
+    </div>
+    @if (_failed)
+    {
+        <p class="pdk-muted">The deliveries couldn't be read. The details are in the server log.</p>
+    }
+    else if (_recent is null)
+    {
+        <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" />
+    }
+    else if (_recent.Count == 0)
+    {
+        <p class="pdk-muted" data-part="none">Nothing has been sent to this channel yet.</p>
+    }
+    else
+    {
+        <ul class="pdk-nh-recent-list">
+            @foreach (var e in _recent)
+            {
+                <li data-event="@e.Id">
+                    <span class="pdk-nh-time" title="@RevisionText.Exact(e.CreatedAt)">@RevisionText.Ago(e.CreatedAt, _now)</span>
+                    <span class="pdk-nh-recent-title">@e.Title</span>
+                    @foreach (var delivery in e.Deliveries)
+                    {
+                        <DeliveryChip Delivery="delivery" WithChannel="false" />
+                    }
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<NotificationHistoryEvent>? _recent;
+    private DateTimeOffset _now;
+    private bool _failed;
+
+    [Parameter, EditorRequired]
+    public NotificationChannelId Channel { get; set; }
+
+    /// <summary>How many deliveries are shown.</summary>
+    [Parameter]
+    public int Count { get; set; } = 8;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _recent = await History.RecentAsync(Channel, Count);
+            _now = Time.GetUtcNow();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load a channel's recent deliveries.");
+            _failed = true;
+        }
+    }
+}

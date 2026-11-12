@@ -828,6 +828,145 @@
     text-transform: uppercase;
 }
 
+/* ---------- Notification history (the page, a channel's list row and its drawer) ---------- */
+
+.pdk-nh-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-nh-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: start;
+    gap: 6px 16px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-nh-row:first-child {
+    border-top: 0;
+}
+
+.pdk-nh-time {
+    padding-top: 3px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+.pdk-nh-what {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.pdk-nh-title {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.pdk-nh-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    min-width: 0;
+    font-size: 0.8125rem;
+}
+
+.pdk-nh-deliveries {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    min-width: 0;
+}
+
+.pdk-nh-delivery {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+    min-width: 0;
+}
+
+/* A chip that names a channel and what happened can be long: it wraps rather than overflow the row. */
+.pdk-chip.pdk-nh-chip {
+    align-items: flex-start;
+    white-space: normal;
+}
+
+.pdk-nh-chip .pdk-chip-icon.mud-icon-root,
+.pdk-nh-chip .pdk-chip-dot {
+    margin-top: 3px;
+}
+
+.pdk-nh-figures {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.pdk-nh-failed-link {
+    text-decoration: none;
+}
+
+.pdk-nh-recent {
+    display: grid;
+    gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-nh-recent-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+    font-size: 0.8125rem;
+}
+
+.pdk-nh-recent-list {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-nh-recent-list li {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 4px 10px;
+    align-items: start;
+}
+
+.pdk-nh-recent-title {
+    overflow-wrap: anywhere;
+}
+
+.pdk-nh-recent-list .pdk-chip {
+    grid-column: 2;
+    justify-self: start;
+}
+
+@media (max-width: 800px) {
+    .pdk-nh-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        padding: 12px 16px;
+    }
+
+    .pdk-nh-time {
+        padding-top: 0;
+        font-size: 0.75rem;
+    }
+}
+
 /* ---------- Export and import ---------- */
 
 .pdk-no-wrap {

@@ -1,0 +1,451 @@
+@attribute [Authorize]
+@attribute [Route(SettingsRoutes.NotificationHistory)]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Contracts.Issuance
+@using Paduraksa.Dashboard.Certificates
+@using Paduraksa.Dashboard.NotificationsArea
+@inject IDashboardNotificationHistory History
+@inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+@inject NavigationManager Navigation
+@inject ILogger<NotificationHistory> Logger
+@* Under Settings, Notifications rather than Insight: it is read with the same permission as the channels, offers their retry (as "Send test" is offered
+   there), and the channel list links to it. The list is re-read every few seconds, since a retrying delivery changes state by itself. *@
+
+<PageTitle>Notification history · Paduraksa</PageTitle>
+
+<PageHeader Title="Notification history" />
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the notification channels" Description="An Owner can give you a role that can." />
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pdk-card pdk-filters" Elevation="0" Outlined="true" data-section="filters">
+        <div class="pdk-filter-bar">
+            <SegmentedControl T="HistoryRange" Options="RangeOptions" Value="_range" ValueChanged="SetRangeAsync" AriaLabel="Time range" DataField="range" />
+            <SegmentedControl T="NotificationDeliveryState?" Options="DeliveryDisplay.OutcomeOptions" Value="_outcome" ValueChanged="SetOutcomeAsync" AriaLabel="Outcome" DataField="outcome" />
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAsync" Disabled="!Filtered" Class="@(Filtered ? "pdk-filter-clear" : "pdk-filter-clear pdk-hidden")"
+                       aria-hidden="@(Filtered ? null : "true")" data-action="clear-filters">Clear filters</MudButton>
+        </div>
+        <div class="pdk-filter-fields">
+            <MudSelect T="NotificationChannelId?" Value="_channel" ValueChanged="SetChannelAsync" Label="Channel" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                       ToStringFunc="ChannelName" data-field="channel">
+                <MudSelectItem T="NotificationChannelId?" Value="@((NotificationChannelId?)null)">Any channel</MudSelectItem>
+                @foreach (var channel in _channels)
+                {
+                    <MudSelectItem T="NotificationChannelId?" Value="@((NotificationChannelId?)channel.Id)">@channel.Label</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="NotificationEventKind?" Value="_kind" ValueChanged="SetKindAsync" Label="Event" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                       ToStringFunc="KindName" data-field="kind">
+                <MudSelectItem T="NotificationEventKind?" Value="@((NotificationEventKind?)null)">Any event</MudSelectItem>
+                @foreach (var kind in NotificationDisplay.Groups.SelectMany(g => g.Events))
+                {
+                    <MudSelectItem T="NotificationEventKind?" Value="@((NotificationEventKind?)kind)">@DeliveryDisplay.KindLabel(kind)</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="pdk-card pdk-table-card mt-4" Elevation="0" Outlined="true" data-section="events">
+        @if (_failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-3" data-alert="load-failed">
+                The history couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        @if (_changed)
+        {
+            <div class="pdk-audit-new">
+                <span>The history has changed since this list was loaded.</span>
+                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="ReloadAsync" data-action="refresh">Show the latest</MudButton>
+            </div>
+        }
+        @if (_events is null)
+        {
+            @if (!_failed)
+            {
+                @for (var i = 0; i < 5; i++)
+                {
+                    <div class="pdk-row-skeleton">
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
+                    </div>
+                }
+            }
+        }
+        else if (_events.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.MarkEmailRead" Title="@(Filtered ? "No notification matches" : "Nothing sent yet")"
+                        Description="@(Filtered ? "Widen the time range or clear a filter." : "An upstream going down, a certificate about to expire and the other events appear here with what each channel did with them.")" />
+        }
+        else
+        {
+            <ul class="pdk-nh-list" aria-label="Notifications">
+                @foreach (var e in _events)
+                {
+                    var retryable = _mayRetry ? e.Deliveries.Where(DeliveryDisplay.CanRetry).ToList() : [];
+                    <li @key="e.Id" class="pdk-nh-row" data-event="@e.Id" data-kind="@e.Kind.ToName()">
+                        <span class="pdk-nh-time" title="@RevisionText.Exact(e.CreatedAt)">@RevisionText.Ago(e.CreatedAt, _now)</span>
+                        <span class="pdk-nh-what">
+                            <span class="pdk-nh-title">@e.Title</span>
+                            <span class="pdk-nh-meta">
+                                <span class="pdk-badge pdk-tone-@DeliveryDisplay.KindTone(e.Kind).Css()">@DeliveryDisplay.KindLabel(e.Kind)</span>
+                                @if (e.Subject is { Length: > 0 } subject)
+                                {
+                                    <span class="pdk-mono pdk-muted" data-part="subject">@subject</span>
+                                }
+                            </span>
+                        </span>
+                        <span class="pdk-nh-deliveries" data-part="deliveries">
+                            @if (e.Deliveries.Count == 0)
+                            {
+                                <span class="pdk-muted" data-part="no-channel">No channel was subscribed</span>
+                            }
+                            @foreach (var delivery in e.Deliveries)
+                            {
+                                <span class="pdk-nh-delivery" data-delivery="@delivery.Id" data-state="@delivery.State.ToName()">
+                                    <DeliveryChip Delivery="delivery" />
+                                    @if (_mayRetry && DeliveryDisplay.CanRetry(delivery))
+                                    {
+                                        <MudTooltip Text="@($"Send to {DeliveryDisplay.Channel(delivery)} again")" Arrow="true">
+                                            <MudIconButton Icon="@Icons.Material.Rounded.Refresh" Size="Size.Small" OnClick="() => RetryAsync(delivery)" Disabled="_retrying.Contains(delivery.Id)"
+                                                           aria-label="@($"Send to {DeliveryDisplay.Channel(delivery)} again")" data-action="retry" />
+                                        </MudTooltip>
+                                    }
+                                </span>
+                            }
+                            @if (retryable.Count > 1)
+                            {
+                                <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="() => RetryEventAsync(e)"
+                                           Disabled="_retrying.Contains(default)" data-action="retry-all">Send all again</MudButton>
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+            @if (_after is not null)
+            {
+                <div class="pdk-load-more">
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="LoadOlderAsync" Disabled="_loadingOlder" data-action="older">Load older</MudButton>
+                </div>
+            }
+        }
+    </MudPaper>
+}
+
+@code {
+    /// <summary>Events per page.</summary>
+    internal const int PageSize = 50;
+
+    private static readonly IReadOnlyList<SegmentOption<HistoryRange>> RangeOptions =
+    [
+        new(HistoryRange.Hour, "1 h", Tooltip: "Last hour"),
+        new(HistoryRange.Day, "24 h", Tooltip: "Last 24 hours"),
+        new(HistoryRange.Week, "7 d", Tooltip: "Last 7 days"),
+        new(HistoryRange.All, "All", Tooltip: "Everything that is kept"),
+    ];
+
+    private bool _denied;
+    private bool _mayRetry;
+    private IReadOnlyList<NotificationChannelSummary> _channels = [];
+    private List<NotificationHistoryEvent>? _events;
+    private NotificationEventId? _after;
+    private DateTimeOffset _now;
+    private bool _failed;
+    private bool _changed;
+    private bool _loadingOlder;
+    private readonly HashSet<NotificationDeliveryId> _retrying = [];
+    private HistoryRange _range = HistoryRange.Week;
+    private NotificationChannelId? _channel;
+    private NotificationEventKind? _kind;
+    private NotificationDeliveryState? _outcome;
+    private string _signature = string.Empty;
+    private int _pages;
+    private CancellationTokenSource? _stop;
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "channel")]
+    public string? ChannelQuery { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "outcome")]
+    public string? OutcomeQuery { get; set; }
+
+    /// <summary>How often the first page is read again, for what changes by itself (a retry that succeeds).</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(8);
+
+    internal enum HistoryRange
+    {
+        Hour,
+        Day,
+        Week,
+        All,
+    }
+
+    private bool Filtered => _range != HistoryRange.Week || _channel is not null || _kind is not null || _outcome is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ProvidersRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayRetry = user.Has(Permission.ProvidersWrite);
+        if (NotificationChannelId.TryParse(ChannelQuery, out var channel))
+        {
+            _channel = channel;
+        }
+
+        if (!string.IsNullOrEmpty(OutcomeQuery) && Enum.GetValues<NotificationDeliveryState>().Cast<NotificationDeliveryState?>().FirstOrDefault(s => s!.Value.ToName() == OutcomeQuery) is { } outcome)
+        {
+            _outcome = outcome;
+        }
+
+        try
+        {
+            _channels = [.. (await History.ChannelsAsync()).OrderBy(c => c.Label, StringComparer.OrdinalIgnoreCase)];
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the notification channels for the history filter.");
+        }
+
+        await ReloadAsync();
+        _stop = new CancellationTokenSource();
+        _ = PollAsync(_stop.Token);
+    }
+
+    public void Dispose()
+    {
+        _stop?.Cancel();
+        _stop?.Dispose();
+    }
+
+    private string ChannelName(NotificationChannelId? id) => id is { } known ? _channels.FirstOrDefault(c => c.Id == known)?.Label ?? "A deleted channel" : "Any channel";
+
+    private static string KindName(NotificationEventKind? kind) => kind is { } known ? DeliveryDisplay.KindLabel(known) : "Any event";
+
+    private NotificationHistoryFilter Filter() => new(
+        _channel,
+        _kind,
+        _outcome,
+        _range switch
+        {
+            HistoryRange.Hour => Time.GetUtcNow().AddHours(-1),
+            HistoryRange.Day => Time.GetUtcNow().AddDays(-1),
+            HistoryRange.Week => Time.GetUtcNow().AddDays(-7),
+            _ => null,
+        });
+
+    private async Task PollAsync(CancellationToken token)
+    {
+        try
+        {
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(8), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(CheckAsync);
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The page is gone.
+        }
+    }
+
+    /// <summary>Reads the first page again: it replaces the list when nothing older was loaded, and otherwise says there is more to see.</summary>
+    private async Task CheckAsync()
+    {
+        if (_events is null || _failed || _loadingOlder)
+        {
+            return;
+        }
+
+        try
+        {
+            var page = await History.QueryAsync(Filter(), PageSize, null);
+            if (Signature(page.Items) == _signature)
+            {
+                return;
+            }
+
+            if (_pages <= 1)
+            {
+                Apply(page, replace: true);
+            }
+            else
+            {
+                _changed = true;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't refresh the notification history.");
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _failed = false;
+        _changed = false;
+        try
+        {
+            Apply(await History.QueryAsync(Filter(), PageSize, null), replace: true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the notification history.");
+            _failed = true;
+        }
+    }
+
+    private async Task LoadOlderAsync()
+    {
+        if (_after is not { } after)
+        {
+            return;
+        }
+
+        _loadingOlder = true;
+        try
+        {
+            Apply(await History.QueryAsync(Filter(), PageSize, after), replace: false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load older notifications.");
+            Snackbar.Add("Older notifications couldn't be loaded. The details are in the server log.", Severity.Error);
+        }
+        finally
+        {
+            _loadingOlder = false;
+        }
+    }
+
+    private void Apply(NotificationHistoryPage page, bool replace)
+    {
+        _now = Time.GetUtcNow();
+        if (replace)
+        {
+            _events = [.. page.Items];
+            _pages = 1;
+            _signature = Signature(page.Items);
+        }
+        else
+        {
+            _events = [.. _events ?? [], .. page.Items];
+            _pages++;
+        }
+
+        _after = page.Next;
+    }
+
+    private static string Signature(IEnumerable<NotificationHistoryEvent> events) =>
+        string.Join('|', events.Select(e => e.Id + ":" + string.Join(',', e.Deliveries.Select(d => $"{d.Id}{d.State}{d.Attempts}"))));
+
+    private Task SetRangeAsync(HistoryRange range) => ChangeAsync(() => _range = range);
+
+    private Task SetOutcomeAsync(NotificationDeliveryState? outcome) => ChangeAsync(() => _outcome = outcome);
+
+    private Task SetChannelAsync(NotificationChannelId? channel) => ChangeAsync(() => _channel = channel);
+
+    private Task SetKindAsync(NotificationEventKind? kind) => ChangeAsync(() => _kind = kind);
+
+    private Task ClearAsync() => ChangeAsync(() =>
+    {
+        _range = HistoryRange.Week;
+        _channel = null;
+        _kind = null;
+        _outcome = null;
+    });
+
+    private async Task ChangeAsync(Action change)
+    {
+        change();
+        _events = null;
+        await ReloadAsync();
+    }
+
+    private async Task RetryAsync(NotificationDeliverySummary delivery)
+    {
+        _retrying.Add(delivery.Id);
+        try
+        {
+            NotificationRetryResult? result = null;
+            if (!await Logger.TryAsync(Snackbar, "The delivery couldn't be sent again.", async () => result = await History.RetryDeliveryAsync(delivery.Id)) || result is null)
+            {
+                return;
+            }
+
+            Report(result, $"Sending to {DeliveryDisplay.Channel(delivery)} again.");
+            await ReloadAsync();
+        }
+        finally
+        {
+            _ = _retrying.Remove(delivery.Id);
+        }
+    }
+
+    private async Task RetryEventAsync(NotificationHistoryEvent notification)
+    {
+        _retrying.Add(default);
+        try
+        {
+            NotificationRetryResult? result = null;
+            if (!await Logger.TryAsync(Snackbar, "The deliveries couldn't be sent again.", async () => result = await History.RetryEventAsync(notification.Id)) || result is null)
+            {
+                return;
+            }
+
+            Report(result, $"Sending {Wording.Plural(result.Retried, "delivery", "deliveries")} again.");
+            await ReloadAsync();
+        }
+        finally
+        {
+            _ = _retrying.Remove(default);
+        }
+    }
+
+    private void Report(NotificationRetryResult result, string done)
+    {
+        if (result.Status == IssuanceChangeStatus.Committed)
+        {
+            Snackbar.Add(done, Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Status switch
+            {
+                IssuanceChangeStatus.Denied => "Your role can't send notifications again.",
+                IssuanceChangeStatus.NotFound => "That notification is gone: it was older than the history kept.",
+                IssuanceChangeStatus.Unavailable => "The config store is unavailable, so nothing can be sent again right now.",
+                _ => string.Join(" ", CertificateMessages.Sentences(result.Errors, "The request was refused.")),
+            }, Severity.Error);
+        }
+    }
+}

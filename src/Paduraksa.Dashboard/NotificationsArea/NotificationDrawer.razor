@@ -4,7 +4,14 @@
 @inject ISnackbar Snackbar
 
 <DrawerShell Title="@(Channel is null ? "Add a notification channel" : $"Edit {Channel.Label}")" Icon="@Icons.Material.Outlined.NotificationsActive" Name="notification-channel">
-    <NotificationForm Submit="SubmitAsync" Channel="Channel" Saved="Saved" OnCancel="() => Level?.RequestClose()" />
+    <NotificationForm Submit="SubmitAsync" Channel="Channel" Saved="Saved" OnCancel="() => Level?.RequestClose()">
+        <Below>
+            @if (Channel is { } existing)
+            {
+                <NotificationRecent Channel="existing.Id" />
+            }
+        </Below>
+    </NotificationForm>
 </DrawerShell>
 
 @code {

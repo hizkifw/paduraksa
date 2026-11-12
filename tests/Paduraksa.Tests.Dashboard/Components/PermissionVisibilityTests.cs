@@ -13,9 +13,9 @@ namespace Paduraksa.Tests.Dashboard.Components;
 public sealed class PermissionVisibilityTests
 {
     [Theory]
-    [InlineData(Role.Owner, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Analytics", "Simulator", "History", "Audit", "Logs", "Live tail", "Global defaults", "Users and roles", "Notifications", "Export and import", "API tokens", "Backup" })]
-    [InlineData(Role.Viewer, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Analytics", "Simulator", "History", "Global defaults", "Notifications", "Export and import", "API tokens" })]
-    [InlineData(Role.Auditor, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Analytics", "History", "Audit", "Logs", "Live tail", "Global defaults", "Notifications", "Export and import", "API tokens" })]
+    [InlineData(Role.Owner, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Analytics", "Simulator", "History", "Audit", "Logs", "Live tail", "Global defaults", "Users and roles", "Notifications", "Notification history", "Export and import", "API tokens", "Backup" })]
+    [InlineData(Role.Viewer, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Analytics", "Simulator", "History", "Global defaults", "Notifications", "Notification history", "Export and import", "API tokens" })]
+    [InlineData(Role.Auditor, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Analytics", "History", "Audit", "Logs", "Live tail", "Global defaults", "Notifications", "Notification history", "Export and import", "API tokens" })]
     public void TheNavigation_ListsThePagesTheRoleMaySee(Role role, string[] expected)
     {
         using DashboardTestContext context = new();

@@ -21,6 +21,7 @@
 
 <PageHeader Title="Notifications" ListEmpty="@(_channels is { Count: 0 })">
     <Actions>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.History" Href="@SettingsRoutes.NotificationHistory" data-action="history">History</MudButton>
         @if (_mayWrite)
         {
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-channel" data-action="add-channel">Add channel</MudButton>
@@ -88,6 +89,7 @@ else
                             <span class="pdk-muted">Nothing sent yet</span>
                         }
                     </span>
+                    <ChannelDeliveryFigures Channel="channel" />
                 </div>
                 <div class="pdk-provider-actions">
                     @if (_mayWrite)

@@ -338,7 +338,7 @@ public sealed class ConfigPagesEndToEndTests
     /// <summary>Follows a side-navigation link, and waits for the live page.</summary>
     private static async Task OpenFromNavigationAsync(IPage page, string name)
     {
-        await page.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = name }).ClickAsync();
+        await page.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = name, Exact = true }).ClickAsync();
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
     }
 
