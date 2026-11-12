@@ -134,6 +134,18 @@ public sealed class AnalyticsEndToEndTests
         await Expect(page.Locator("[data-chart=requests] rect.pdk-chart-gap")).ToHaveCountAsync(1);
         await PlaywrightBrowser.ScreenshotAsync(page, "analytics-day", fullPage: true);
 
+        // A share list is one grid: every row's bar starts and ends at the same x, whatever the width of its count, and a fill starts at its
+        // track's left edge.
+        foreach (var list in new[] { "status-codes", "browsers" })
+        {
+            var tracks = page.Locator($"[data-share={list}] .pdk-share-bar");
+            IReadOnlyList<LocatorBoundingBoxResult> boxes = [.. await Task.WhenAll((await tracks.AllAsync()).Select(async t => (await t.BoundingBoxAsync())!))];
+            Assert.True(boxes.Count > 1, $"{list} has rows");
+            Assert.All(boxes, box => Assert.True(Math.Abs(box.X - boxes[0].X) < 0.5 && Math.Abs(box.Width - boxes[0].Width) < 0.5, $"A {list} bar at x={box.X}, width {box.Width} should match the first ({boxes[0].X}, {boxes[0].Width})."));
+            var fill = (await page.Locator($"[data-share={list}] .pdk-share-fill").Last.BoundingBoxAsync())!;
+            Assert.True(Math.Abs(fill.X - boxes[^1].X) < 0.5, $"The last {list} fill starts at x={fill.X}, its track at {boxes[^1].X}.");
+        }
+
         // The tables carry the paths, the bots and the one who ignored robots.txt, and a path links to the live tail filtered to it.
         await Expect(page.Locator("[data-section=top-paths] tbody tr").First).ToBeVisibleAsync();
         await Expect(page.Locator("[data-section=ignoring-robots] tbody tr")).ToHaveCountAsync(1);
