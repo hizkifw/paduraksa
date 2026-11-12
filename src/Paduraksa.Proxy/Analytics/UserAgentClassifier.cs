@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 using Paduraksa.Core.Model;
 
@@ -325,11 +326,9 @@ public static class UserAgentClassifier
         var best = int.MaxValue;
         var bestAt = 0;
         var matches = 0;
-        var bits = PrefixBits;
         for (var i = 0; i + 2 < ua.Length && best > 0; i++)
         {
-            var h = PrefixHash(Fold(ua[i]), Fold(ua[i + 1]), Fold(ua[i + 2]));
-            if ((bits[h >> 6] & (1UL << (h & 63))) == 0)
+            if (!StartsAToken(ua, i))
             {
                 continue;
             }
@@ -362,6 +361,15 @@ public static class UserAgentClassifier
 
         var rule = AllBotRules[best];
         return best >= FirstGenericRule ? (BotClass.Unknown, ProductAround(ua, bestAt, rule.Token.Length)) : (rule.Class, rule.Name);
+    }
+
+    // The only gate in front of a rule comparison: a position that fails it costs no comparison, which is what makes an agent with no token a cheap miss.
+    // Internal so a test can count the positions that pass instead of timing the scan.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool StartsAToken(ReadOnlySpan<char> ua, int i)
+    {
+        var h = PrefixHash(Fold(ua[i]), Fold(ua[i + 1]), Fold(ua[i + 2]));
+        return (PrefixBits[h >> 6] & (1UL << (h & 63))) != 0;
     }
 
     private static ReadOnlySpan<int> RulesFor(char c)

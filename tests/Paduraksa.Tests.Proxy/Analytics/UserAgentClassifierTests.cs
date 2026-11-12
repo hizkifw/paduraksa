@@ -223,18 +223,31 @@ public sealed class UserAgentClassifierTests
     }
 
     [Fact]
-    public void AnAgentWithNoTokenAtAllIsAFastMiss()
+    public void AnAgentWithNoTokenAtAllReachesAlmostNoRuleComparison()
     {
         var agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " + string.Concat(Enumerable.Range(0, 80).Select(static i => "Zq" + i + "xv/1.0 ")).PadRight(1_024, 'q');
-        _ = UserAgentClassifier.Classify(agent);
-        var watch = System.Diagnostics.Stopwatch.StartNew();
-        for (var i = 0; i < 2_000; i++)
+
+        // A rule is compared only at a position the prefix filter passes, so an agent without a token costs a filter test a character and
+        // a few collisions ("Win" in Windows starts WinHttp), however slow the machine. The nanoseconds a character are measured in the
+        // benchmark project; this fixes the count, which the 150-rule scan it replaced would have made one per rule and position.
+        Assert.InRange(PositionsAtWhichATokenCouldStart(agent), 0, agent.Length / 100);
+        Assert.False(UserAgentClassifier.Classify(agent).IsBot);
+        Assert.True(PositionsAtWhichATokenCouldStart("Mozilla/5.0 Googlebot/2.1") > 0);
+    }
+
+    private static int PositionsAtWhichATokenCouldStart(string agent)
+    {
+        var span = agent.AsSpan(0, Math.Min(agent.Length, UserAgentClassifier.MaxLength));
+        var count = 0;
+        for (var i = 0; i + 2 < span.Length; i++)
         {
-            _ = UserAgentClassifier.Classify(agent + i);
+            if (UserAgentClassifier.StartsAToken(span, i))
+            {
+                count++;
+            }
         }
 
-        // Release does this in a few microseconds each; the bound is for an unoptimised build on a busy machine and still far under the 150-rule scans it replaced.
-        Assert.True(watch.Elapsed.TotalMilliseconds / 2_000 < 0.15, $"{watch.Elapsed.TotalMilliseconds / 2_000 * 1000:0} us a miss");
+        return count;
     }
 
     [Fact]
