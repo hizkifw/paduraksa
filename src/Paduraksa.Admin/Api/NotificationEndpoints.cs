@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Notifications;
+using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
@@ -12,7 +13,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Admin.Api;
 
 /// <summary>
-/// Notification channels and live upstream health. A channel's URL, token or password is stored in the vault the moment it arrives and is never
+/// Notification channels, their delivery history and live upstream health. A channel's URL, token or password is stored in the vault the moment it arrives and is never
 /// returned: there is no endpoint that reads a secret and no response type that could carry one. Channels share <c>providers:read</c> and
 /// <c>providers:write</c> with ACME accounts and DNS providers, since they hold credentials the same way.
 /// </summary>
@@ -39,6 +40,17 @@ internal static class NotificationEndpoints
         channels.MapPost("/{id:NotificationChannelId}/test", TestAsync).WithName("TestNotificationChannel").WithSummary("Send a test message through a channel")
             .WithDescription("Sends one message now, without retries. A message that could not be delivered is delivered=false with the reason, not an error. The test is audited (notification.channel.test) with its verdict only.")
             .Produces<NotificationTestOutcome>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersWrite);
+
+        var notifications = api.MapGroup("/notifications").WithTags("Notifications");
+        notifications.MapGet("/history", HistoryAsync).WithName("QueryNotificationHistory").WithSummary("Query the notification history")
+            .WithDescription("Every event that was published, newest first, each with what happened on every channel it was addressed to (state, attempts, the next try of a pending one, the last error, when it was sent). An event no channel subscribes to is listed with no deliveries. Filters (all optional, all must match): channel (a channel ID: events with a delivery to it), kind (an event name such as upstream.down), outcome (pending, sent, failed, expired or dropped: events with a delivery in that state, to the channel when one is given), from (inclusive) and to (exclusive) as ISO 8601 times of publication. Pagination: limit (1 to 200) and cursor. History is kept for Paduraksa:Notifications:HistoryRetention.")
+            .Produces<Page<NotificationHistoryEvent>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
+        notifications.MapPost("/deliveries/{id:NotificationDeliveryId}/retry", RetryDeliveryAsync).WithName("RetryNotificationDelivery").WithSummary("Send a failed or expired delivery again")
+            .WithDescription("Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not paused (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.")
+            .Produces<NotificationRetryOutcome>().ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
+        notifications.MapPost("/events/{id:NotificationEventId}/retry", RetryEventAsync).WithName("RetryNotificationEvent").WithSummary("Send every failed or expired delivery of an event again")
+            .WithDescription("As the delivery's retry, for every failed or expired delivery of the event whose channel exists and is not paused. 422 when there is none. Audited (notification.event.retry) with how many.")
+            .Produces<NotificationRetryOutcome>().ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
 
         var upstreams = api.MapGroup("/upstreams").WithTags("Upstreams");
         upstreams.MapGet("/health", ListHealth).WithName("ListUpstreamHealth").WithSummary("Read every upstream's live health")
@@ -83,6 +95,108 @@ internal static class NotificationEndpoints
             { Found: false } => ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such notification channel."),
             _ => EndpointSupport.Json(new NotificationTestOutcome(result.Delivered, result.Error), AdminJsonContext.Default.NotificationTestOutcome),
         };
+    }
+
+    private static async Task<IResult> HistoryAsync(HttpContext http, NotificationHistoryService history, CancellationToken ct)
+    {
+        if (!Pagination.TryGetPage(http, out var limit, out var cursor, out var problem))
+        {
+            return problem!;
+        }
+
+        NotificationEventId? after = null;
+        if (cursor is not null)
+        {
+            if (!Pagination.TryDecode(cursor, out NotificationEventId id))
+            {
+                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The cursor is not one this API issued for the notification history.");
+            }
+
+            after = id;
+        }
+
+        if (!AuditEndpoints.TryGetTime(http, "from", out var from) || !AuditEndpoints.TryGetTime(http, "to", out var to))
+        {
+            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from and to must be ISO 8601 times with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
+        }
+
+        if (from > to)
+        {
+            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from must not be after to.");
+        }
+
+        NotificationChannelId? channel = null;
+        if (http.Request.Query["channel"].ToString() is { Length: > 0 } channelText)
+        {
+            if (!TypedIdRouting.TryParse(channelText, out NotificationChannelId parsed))
+            {
+                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "channel must be a notification channel ID (ntf_...).");
+            }
+
+            channel = parsed;
+        }
+
+        NotificationEventKind? kind = null;
+        if (http.Request.Query["kind"].ToString() is { Length: > 0 } kindText)
+        {
+            if (!TryParse(kindText, ModelNames.ParseNotificationEventKind, out var parsedKind))
+            {
+                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "kind must be an event name such as upstream.down, certificate.expiring or signin.lockout.");
+            }
+
+            kind = parsedKind;
+        }
+
+        NotificationDeliveryState? outcome = null;
+        if (http.Request.Query["outcome"].ToString() is { Length: > 0 } outcomeText)
+        {
+            if (!TryParse(outcomeText, ModelNames.ParseNotificationDeliveryState, out var parsedOutcome))
+            {
+                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "outcome must be pending, sent, failed, expired or dropped.");
+            }
+
+            outcome = parsedOutcome;
+        }
+
+        var page = await history.QueryAsync(new NotificationHistoryFilter(channel, kind, outcome, from, to), limit, after, ct).ConfigureAwait(false);
+        return EndpointSupport.Json(
+            new Page<NotificationHistoryEvent>(page.Items, page.Next is { } next ? Pagination.Encode(next) : null),
+            AdminJsonContext.Default.PageNotificationHistoryEvent);
+    }
+
+    private static async Task<IResult> RetryDeliveryAsync(AdminCaller caller, NotificationDeliveryId id, NotificationHistoryService history, CancellationToken ct) =>
+        Retried(await history.RetryDeliveryAsync(id, caller.Origin, ct).ConfigureAwait(false), "There is no such notification delivery.");
+
+    private static async Task<IResult> RetryEventAsync(AdminCaller caller, NotificationEventId id, NotificationHistoryService history, CancellationToken ct) =>
+        Retried(await history.RetryEventAsync(id, caller.Origin, ct).ConfigureAwait(false), "There is no such notification event.");
+
+    private static IResult Retried(NotificationRetryResult result, string notFound)
+    {
+        var status = ApiStatusMapping.Of(result.Status, MutationKind.Change);
+        return ApiStatusMapping.IsSuccess(status)
+            ? EndpointSupport.Json(new NotificationRetryOutcome(result.Retried), AdminJsonContext.Default.NotificationRetryOutcome)
+            : ApiProblems.Problem(status, result.Status switch
+            {
+                IssuanceChangeStatus.NotFound => notFound,
+                IssuanceChangeStatus.Invalid => "The request was refused; see errors.",
+                IssuanceChangeStatus.Denied => "You may not send notifications again.",
+                IssuanceChangeStatus.Unavailable => "The config store is unavailable, so changes are refused now.",
+                _ => "The request could not be completed.",
+            }, null, result.Errors);
+    }
+
+    private static bool TryParse<T>(string text, Func<string, T> parse, out T value)
+    {
+        try
+        {
+            value = parse(text);
+            return true;
+        }
+        catch (FormatException)
+        {
+            value = default!;
+            return false;
+        }
     }
 
     private static IResult ListHealth(UpstreamHealthBoard board) =>

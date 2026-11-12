@@ -17,7 +17,7 @@ internal sealed class RecordingHook : IAsyncDisposable
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private readonly IHost _host;
-    private readonly ConcurrentQueue<(string Path, string Body, string? Signature)> _received = new();
+    private readonly ConcurrentQueue<(string Path, string Body, string? Signature, string? EventId)> _received = new();
 
     private RecordingHook(IHost host, string url)
     {
@@ -27,7 +27,10 @@ internal sealed class RecordingHook : IAsyncDisposable
 
     public string Url { get; }
 
-    public IReadOnlyList<(string Path, string Body, string? Signature)> Received => [.. _received];
+    /// <summary>The status POSTs are answered with (200 unless a test changes it).</summary>
+    public int Status { get; set; } = 200;
+
+    public IReadOnlyList<(string Path, string Body, string? Signature, string? EventId)> Received => [.. _received];
 
     public static async Task<RecordingHook> StartAsync()
     {
@@ -42,8 +45,9 @@ internal sealed class RecordingHook : IAsyncDisposable
                         return;
                     }
 
+                    context.Response.StatusCode = hook!.Status;
                     using StreamReader reader = new(context.Request.Body, Encoding.UTF8);
-                    hook!._received.Enqueue((context.Request.Path.Value!, await reader.ReadToEndAsync(), context.Request.Headers["X-Paduraksa-Signature"].ToString() is { Length: > 0 } sig ? sig : null));
+                    hook!._received.Enqueue((context.Request.Path.Value!, await reader.ReadToEndAsync(), context.Request.Headers["X-Paduraksa-Signature"].ToString() is { Length: > 0 } sig ? sig : null, context.Request.Headers["X-Paduraksa-Event-Id"].ToString() is { Length: > 0 } id ? id : null));
                 })))
             .Build();
         await host.StartAsync(Ct);

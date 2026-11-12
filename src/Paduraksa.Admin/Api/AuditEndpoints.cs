@@ -133,7 +133,7 @@ internal static class AuditEndpoints
     private static readonly string[] TimeFormats = ["yyyy'-'MM'-'dd'T'HH':'mm':'ssK", "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'FFFFFFFK"];
 
     /// <summary>An ISO 8601 date and time with a zone (<c>Z</c> or an offset), in the round-trip shapes, and nothing looser.</summary>
-    private static bool TryGetTime(HttpContext http, string name, out DateTimeOffset? value)
+    internal static bool TryGetTime(HttpContext http, string name, out DateTimeOffset? value)
     {
         value = null;
         var text = http.Request.Query[name].ToString();

@@ -134,6 +134,8 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(NotificationChannelSummary))]
 [JsonSerializable(typeof(IReadOnlyList<NotificationChannelSummary>))]
 [JsonSerializable(typeof(NotificationTestOutcome))]
+[JsonSerializable(typeof(Page<NotificationHistoryEvent>))]
+[JsonSerializable(typeof(NotificationRetryOutcome))]
 [JsonSerializable(typeof(UpstreamHealthView))]
 [JsonSerializable(typeof(IReadOnlyList<UpstreamHealthView>))]
 [JsonSerializable(typeof(CaRootCertificate))]

@@ -43,6 +43,8 @@ internal static class TypedIdRouting
         Add<AcmeAccountId>(options);
         Add<DnsProviderId>(options);
         Add<NotificationChannelId>(options);
+        Add<NotificationEventId>(options);
+        Add<NotificationDeliveryId>(options);
         Add<UserId>(options);
         Add<SessionId>(options);
         Add<ApiTokenId>(options);
