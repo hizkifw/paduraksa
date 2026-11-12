@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Proxy;
+using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
@@ -89,6 +90,38 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel with a tail subscriber attached: {server.GateStats}");
         Assert.True(tail.Offered >= Warmup + Measured, $"the tail was offered only {tail.Offered} entries");
         Assert.True(subscription.Skipped > 0, "the slow subscriber should have been skipping");
+    }
+
+    /// <summary>
+    /// The traffic analytics are the drain's too: a running drain that feeds them (classifying agents, hashing addresses, filling
+    /// the sketches and closing buckets on its own thread) leaves the request path at 0 B a request.
+    /// </summary>
+    [Fact]
+    public async Task TheGateAllocatesNothingWhileTheAnalyticsAreFedByTheDrain()
+    {
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            Hosts = [ProxyHost("app", "app.test", Route("app-root", "web"))],
+        };
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, Metrics = new MetricsRegistry() });
+        AnalyticsBacklog backlog = new();
+        TrafficAnalytics analytics = new(server.Store, TimeProvider.System, backlog);
+        using AccessLogDrainService drain = new(server.AccessLog, NullAccessLogSink.Instance, AccessLogFormatOptions.Default, NullLogger<AccessLogDrainService>.Instance, analytics: analytics);
+        await drain.StartAsync(TestContext.Current.CancellationToken);
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+
+        await SendAsync(server, client, "app.test", "/api/items", HttpStatusCode.OK, Warmup);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, "app.test", "/api/items", HttpStatusCode.OK, Measured);
+        await WaitForEntriesAsync(server.AccessLog, Warmup + Measured);
+        await drain.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel with the analytics on: {server.GateStats}");
+        // The analytics really counted them: stopping the drain closed the bucket into the backlog.
+        var counted = backlog.Unwritten().Where(static rollup => rollup.Subject == AnalyticsSubject.Host).Sum(static rollup => rollup.Requests);
+        Assert.True(counted >= Warmup + Measured, $"the analytics counted only {counted} requests");
     }
 
     /// <summary>

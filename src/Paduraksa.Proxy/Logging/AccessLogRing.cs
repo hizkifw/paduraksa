@@ -79,6 +79,9 @@ public sealed class AccessLogRing
     /// <summary>Entries the consumer has read so far.</summary>
     public long EntriesRead => Interlocked.Read(ref _head);
 
+    /// <summary>Entries written and not yet read: how far the drain is behind.</summary>
+    public long Pending => EntriesWritten - EntriesRead;
+
     /// <summary>
     /// Writes <paramref name="entry"/> to the next slot. False (and the drop counted) when the ring is full: the caller
     /// lets the line go rather than wait. Allocation-free; safe from any number of threads.

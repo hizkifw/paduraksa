@@ -3,6 +3,8 @@ using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Proxy.Analytics;
+
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
@@ -14,6 +16,8 @@ namespace Paduraksa.Proxy.Logging;
 /// rate-limited, and the line skipped: the drain keeps going, so one bad write never stops the log.</para>
 /// <para><b>The live tail</b> gets each entry after the file's line, from this same pass (<see cref="AccessLogTail"/>): the
 /// ring keeps one reader, and a failure in the tail is reported like a failing sink and never costs the file a line.</para>
+/// <para><b>The traffic analytics</b> (<see cref="TrafficAnalytics"/>) are the third consumer, offered each entry the same way and on the
+/// same terms: its own <c>try</c>, off the request path, nothing for the file to wait for.</para>
 /// <para><b>Drops.</b> A full ring drops entries and counts them (<see cref="AccessLogRing.Dropped"/>). The count since the
 /// last report goes to the process log at Warning at most once a minute, so a log that can't keep up is visible without
 /// filling the process log with it.</para>
@@ -26,11 +30,15 @@ public sealed partial class AccessLogDrainService : BackgroundService
     /// <summary>The least interval between two reports of the same failure (dropped lines, a failing sink).</summary>
     public static readonly TimeSpan ReportInterval = TimeSpan.FromMinutes(1);
 
+    /// <summary>The ring's fill, as a share (1 / this), past which the analytics stop classifying agents that are new to them: the file's lines come first.</summary>
+    public const int BehindDivisor = 2;
+
     private readonly AccessLogRing _ring;
     private readonly IAccessLogSink _sink;
     private readonly AccessLogFormatOptions _options;
     private readonly ILogger<AccessLogDrainService> _logger;
     private readonly AccessLogTail? _tail;
+    private readonly TrafficAnalytics? _analytics;
 
     // The line buffer, reused: a request's line never allocates here.
     private readonly char[] _buffer = new char[AccessLogFormatter.MaxLineLength];
@@ -39,7 +47,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
     private long _lastFailureReport;
     private long _pendingDrops;
 
-    public AccessLogDrainService(AccessLogRing ring, IAccessLogSink sink, AccessLogFormatOptions options, ILogger<AccessLogDrainService> logger, AccessLogTail? tail = null)
+    public AccessLogDrainService(AccessLogRing ring, IAccessLogSink sink, AccessLogFormatOptions options, ILogger<AccessLogDrainService> logger, AccessLogTail? tail = null, TrafficAnalytics? analytics = null)
     {
         ArgumentNullException.ThrowIfNull(ring);
         ArgumentNullException.ThrowIfNull(sink);
@@ -50,6 +58,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
         _options = options;
         _logger = logger;
         _tail = tail;
+        _analytics = analytics;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -85,6 +94,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
         try
         {
             DrainRing();
+            TickAnalytics();
         }
 #pragma warning disable CA1031 // A pass that fails must not stop the drain (or the core host): report it, rate-limited, and carry on.
         catch (Exception ex)
@@ -118,6 +128,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
             }
 
             OfferToTail(in entry);
+            OfferToAnalytics(in entry);
         }
 
         _pendingDrops += _ring.TakeDropped();
@@ -152,9 +163,48 @@ public sealed partial class AccessLogDrainService : BackgroundService
         }
     }
 
-    /// <summary>Pushes what the sink buffers to its destination, at shutdown.</summary>
+    private void OfferToAnalytics(in AccessLogEntry entry)
+    {
+        try
+        {
+            _analytics?.Offer(in entry, behind: _ring.Pending > _ring.Capacity / BehindDivisor);
+        }
+#pragma warning disable CA1031 // The analytics are a view: a failure in them must not cost the file a line or stop the drain.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            ReportFailure(ex);
+        }
+    }
+
+    private void TickAnalytics()
+    {
+        try
+        {
+            _analytics?.Tick();
+        }
+#pragma warning disable CA1031 // As above: a bucket that can't be closed is reported, and the next pass tries again.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            ReportFailure(ex);
+        }
+    }
+
+    /// <summary>Pushes what the sink buffers to its destination and closes the analytics' open buckets, at shutdown.</summary>
     public void Flush()
     {
+        try
+        {
+            _analytics?.Flush();
+        }
+#pragma warning disable CA1031 // Shutdown must finish; the failure is reported and the process still stops.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            ReportFailure(ex);
+        }
+
         try
         {
             _sink.Flush();
