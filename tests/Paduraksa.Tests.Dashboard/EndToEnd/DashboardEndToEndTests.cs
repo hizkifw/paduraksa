@@ -12,6 +12,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// a password and a TOTP code, the overview, a revoked session ending the open page, sign-in with a recovery code, and sign-out. Skipped
 /// when no Chromium is installed (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed partial class DashboardEndToEndTests
 {
     private const string SessionCookie = "__Host-paduraksa-session";

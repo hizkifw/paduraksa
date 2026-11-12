@@ -13,6 +13,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// codes once); a local-CA certificate and an uploaded PEM from the certificates page; a DNS provider added and tested (only with
 /// PADURAKSA_E2E_LIVE_DNS=1). Skipped without Chromium; screenshots of each page when <see cref="PlaywrightBrowser.ScreenshotVariable"/> is set.
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class FirstRunEndToEndTests
 {
     private const string HostName = "app.home.arpa";

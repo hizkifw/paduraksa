@@ -12,6 +12,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// Adding a notification channel sends it one real test message at once, so the operator learns whether it works; editing one does not.
 /// Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class NotificationsEndToEndTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

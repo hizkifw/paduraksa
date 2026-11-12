@@ -11,6 +11,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// form, percent-encoded; the robots.txt text area decodes such a paste and leaves every other one alone. Skipped when no Chromium is
 /// installed (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class RobotsPasteEndToEndTests
 {
     private const string Field = "textarea[data-field='robots-custom-text'], [data-field='robots-custom-text'] textarea";

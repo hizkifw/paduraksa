@@ -11,6 +11,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// Settings > Backup in a real browser against a real <c>PaduraksaHost</c>: the Owner downloads an archive through the page, a Viewer is
 /// offered no such page, and the passphrase is gone from the page afterwards. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class BackupEndToEndTests
 {
     private const string Passphrase = "correct horse battery staple";

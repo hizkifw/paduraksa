@@ -13,6 +13,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// and a phone width with no sideways scroll. Skipped when no Chromium is installed (see <see cref="PlaywrightBrowser"/>); screenshots of each
 /// page and drawer are kept when <see cref="PlaywrightBrowser.ScreenshotVariable"/> names a directory.
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class ConfigPagesEndToEndTests
 {
     private const string HostName = "app.home.test";

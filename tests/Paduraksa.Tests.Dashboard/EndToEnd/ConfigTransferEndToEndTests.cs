@@ -10,6 +10,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// Export and import in a real browser against a real <c>PaduraksaHost</c>: pasted YAML with a mistake is refused with its line, the fixed YAML is reviewed as a diff and
 /// applied as one revision (the hosts page lists it), and the page's download is the YAML the config now is. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class ConfigTransferEndToEndTests
 {
     private const string Yaml = """

@@ -17,6 +17,16 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// </remarks>
 internal static class PlaywrightBrowser
 {
+    /// <summary>
+    /// The xUnit collection of every test that drives a browser. Each one starts its own Chromium and server, and several at once on a CI runner's
+    /// four cores starve one another until a page load takes over 30 s; a collection runs its classes one after another, and with
+    /// <see cref="BrowserCollectionDefinition"/> parallelisation off, apart from the rest of the suite too.
+    /// </summary>
+    public const string CollectionName = "Browser end-to-end";
+
+    /// <summary>The longest an <c>Expect</c> waits: a circuit starting or a drawer closing on a loaded machine takes longer than Playwright's 5 s default.</summary>
+    private const float ExpectTimeoutMs = 15_000;
+
     /// <summary>The path of a Chromium to use instead of Playwright's own.</summary>
     public const string ExecutableVariable = "PADURAKSA_E2E_CHROMIUM";
 
@@ -25,6 +35,7 @@ internal static class PlaywrightBrowser
 
     public static async Task<(IPlaywright Playwright, IBrowser Browser)> LaunchOrSkipAsync()
     {
+        Assertions.SetDefaultExpectTimeout(ExpectTimeoutMs);
         IPlaywright playwright;
         try
         {
@@ -125,3 +136,7 @@ internal static class PlaywrightBrowser
 
     private static string FirstLine(string message) => message.Split('\n', 2)[0].Trim();
 }
+
+/// <summary>See <see cref="PlaywrightBrowser.CollectionName"/>.</summary>
+[CollectionDefinition(PlaywrightBrowser.CollectionName, DisableParallelization = true)]
+public sealed class BrowserCollectionDefinition;

@@ -20,6 +20,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// The notification history in a real browser on a real host: an event whose delivery is refused shows as failed with the error in its tooltip, a click on
 /// "send again" delivers it (the same event ID, twice at the receiver), and the channel's row and drawer show the outcome. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class NotificationHistoryEndToEndTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

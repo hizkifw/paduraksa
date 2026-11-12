@@ -13,6 +13,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// filter narrows them, a row opens its full entry with the request ID and the simulator link, the simulator starts from that link, and the
 /// page fits a phone. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class LiveTailEndToEndTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

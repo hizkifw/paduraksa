@@ -8,6 +8,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// Every outlined field's label sits on its border, empty or not (MudBlazor floats it only for a field with a value or a placeholder, so
 /// app.css floats the rest), and the dense toolbar fields keep one height beside the 40 px segmented control. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class FormLabelsEndToEndTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

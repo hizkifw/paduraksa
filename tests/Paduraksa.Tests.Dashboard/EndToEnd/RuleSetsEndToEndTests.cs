@@ -13,6 +13,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// scroll. Skipped when no Chromium is installed (see <see cref="PlaywrightBrowser"/>); screenshots are kept when
 /// <see cref="PlaywrightBrowser.ScreenshotVariable"/> names a directory.
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class RuleSetsEndToEndTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

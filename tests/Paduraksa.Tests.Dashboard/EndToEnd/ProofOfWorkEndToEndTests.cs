@@ -24,6 +24,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// SHA-256 in Blob workers) finds the solution, posts it, takes the cookie and lands on the upstream's page. It also pins
 /// the CSP hashes against the browser: a wrong hash is a console violation and the solve never happens.
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class ProofOfWorkEndToEndTests
 {
     private const int Difficulty = 10;

@@ -19,6 +19,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// light, with no sideways scroll. Skipped when no Chromium is installed (see <see cref="PlaywrightBrowser"/>); screenshots are kept when
 /// <see cref="PlaywrightBrowser.ScreenshotVariable"/> names a directory.
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class AuthProvidersEndToEndTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

@@ -14,6 +14,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// default changed through review and apply; the audit page shows all of it and the chain is intact; My account enrols TOTP and ends the
 /// Owner's other session, whose page goes to the sign-in page. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
+[Collection(PlaywrightBrowser.CollectionName)]
 public sealed class SettingsEndToEndTests
 {
     private const string ViewerName = "viewer";
