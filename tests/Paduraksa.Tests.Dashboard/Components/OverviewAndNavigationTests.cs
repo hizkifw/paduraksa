@@ -97,6 +97,93 @@ public sealed class OverviewAndNavigationTests
     }
 
     [Theory]
+    [InlineData(Role.Owner)]
+    [InlineData(Role.Admin)]
+    public async Task TheOverview_WarnsAnOwnerOrAdminWhoseAccountHasNoSecondFactor_WithALinkToMyAccount(Role role)
+    {
+        await using DashboardTestContext context = new();
+        IdentityPages.SignIn(context, role).Config.Document = new ConfigDocument();
+        context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
+
+        var page = context.Render<Home>();
+
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 1);
+        var item = page.Find(".pdk-attention-item");
+        Assert.Equal("warning", item.GetAttribute("data-tone"));
+        Assert.Contains("Your account has no second factor", item.TextContent, StringComparison.Ordinal);
+        Assert.Contains("only your password protects it", item.TextContent, StringComparison.Ordinal);
+        Assert.Equal(DashboardRoutes.Account, item.QuerySelector("a")!.GetAttribute("href"));
+        Assert.Null(item.QuerySelector("a")!.GetAttribute("target"));
+    }
+
+    [Fact]
+    public async Task TheOverview_SaysNothingOnceTheViewerHasASecondFactor_AndNamesOtherAdministratorsWhoHaveNone()
+    {
+        await using DashboardTestContext context = new();
+        var (identity, _, config, _) = IdentityPages.SignIn(context, Role.Owner);
+        config.Document = new ConfigDocument();
+        identity.Users[0] = identity.Users[0] with { TwoFactorEnabled = true };
+        identity.Users.Add(FakeDashboardIdentity.User("grace", Role.Admin));
+        identity.Users.Add(FakeDashboardIdentity.User("linus", Role.Operator));
+        identity.Users.Add(FakeDashboardIdentity.User("ken", Role.Viewer));
+        identity.Users.Add(FakeDashboardIdentity.User("dennis", Role.Admin) with { Disabled = true });
+        identity.Users.Add(FakeDashboardIdentity.User("barbara", Role.Admin) with { TwoFactorEnabled = true });
+        context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
+
+        var page = context.Render<Home>();
+
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 1);
+        var item = page.Find(".pdk-attention-item");
+        Assert.Contains("grace has no second factor", item.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("linus", item.TextContent, StringComparison.Ordinal);
+        Assert.Equal(SettingsRoutes.Users, item.QuerySelector("a")!.GetAttribute("href"));
+    }
+
+    [Fact]
+    public async Task TheOverview_CountsSeveralAdministratorsWithoutASecondFactorInOneLine()
+    {
+        await using DashboardTestContext context = new();
+        var (identity, _, config, _) = IdentityPages.SignIn(context, Role.Owner);
+        config.Document = new ConfigDocument();
+        identity.Users[0] = identity.Users[0] with { TwoFactorEnabled = true };
+        foreach (var name in new[] { "grace", "linus", "ken", "dennis" })
+        {
+            identity.Users.Add(FakeDashboardIdentity.User(name, Role.Admin));
+        }
+
+        context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
+
+        var page = context.Render<Home>();
+
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 1);
+        var text = page.Find(".pdk-attention-item").TextContent;
+        Assert.Contains("4 other administrators have no second factor", text, StringComparison.Ordinal);
+        Assert.Contains("grace, linus, ken and more", text, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(Role.Operator)]
+    [InlineData(Role.Viewer)]
+    [InlineData(Role.Auditor)]
+    public async Task TheOverview_DoesNotTellARoleThatCannotReadUsersAboutSecondFactors(Role role)
+    {
+        await using DashboardTestContext context = new();
+        var (identity, _, config, _) = IdentityPages.SignIn(context, role);
+        config.Document = new ConfigDocument();
+        identity.Users.Add(FakeDashboardIdentity.User("grace", Role.Owner));
+        context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
+
+        var page = context.Render<Home>();
+
+        await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
+        Assert.Empty(page.FindAll("[data-section=attention]"));
+    }
+
+    [Theory]
     [InlineData("/profiles/prof_0J9zb3xQk1Lr8m2V7aYc4D", "Profiles")]
     [InlineData("/security", "Security overview")]
     [InlineData("/rate-limits", "Rate limits")]

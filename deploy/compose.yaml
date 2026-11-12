@@ -26,7 +26,12 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
-      - "9443:9443"
+      # The admin (sign-in, API, dashboard) is published on loopback only: Docker puts published ports ahead of the
+      # host's firewall rules, so a bare "9443:9443" would offer the sign-in page to every network the host is on. Open it
+      # from this machine, or through an SSH tunnel (ssh -L 9443:127.0.0.1:9443 you@server). To reach it from your LAN,
+      # replace the line with the host's LAN address (never a public one), and see "Exposing the admin" in docs/install.md:
+      - "127.0.0.1:9443:9443"
+      # - "192.168.1.10:9443:9443"
     volumes:
       - paduraksa-data:/data
       # /data/logs holds access.log and error.log: rotated by size and day, older files gzipped, trimmed by count, age

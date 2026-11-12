@@ -20,6 +20,7 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Auth;
 using Paduraksa.Dashboard.Config;
+using Paduraksa.Dashboard.Identity;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
@@ -142,6 +143,7 @@ internal static class ConfigPages
         context.Services.AddSingleton<AuthenticationStateProvider>(sp => sp.GetRequiredService<DashboardAuthenticationStateProvider>());
         context.Services.AddSingleton<IDashboardConfig>(config);
         context.Services.TryAddSingleton<IVaultLifecycle>(new FakeVaultLifecycle());
+        context.Services.TryAddSingleton<IDashboardIdentity>(new FakeDashboardIdentity());
         context.Services.AddSingleton(new Paduraksa.Application.Notifications.UpstreamHealthBoard());
         context.Services.AddScoped<DashboardCaller>();
         context.Services.AddScoped<ConfigUndo>();

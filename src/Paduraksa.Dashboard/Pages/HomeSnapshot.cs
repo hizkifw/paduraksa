@@ -3,6 +3,7 @@ using System.Globalization;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Dashboard.Certificates;
@@ -76,11 +77,12 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     /// What needs the person: hosts the live config warns about or whose
     /// certificate is a problem, upstreams a host uses with no destination switched on, certificates that failed, and certificates in use
     /// that end soon, a Cloudflare edge-range list that has gone stale, and a master key that sits beside the vault
-    /// (<paramref name="vault"/>, only for someone who may manage it). Each with the drawer that fixes it.
+    /// (<paramref name="vault"/>, only for someone who may manage it), and Owners and Admins with no second factor (<paramref name="viewer"/> and
+    /// <paramref name="users"/>, only for someone who may read users). Each with the drawer that fixes it.
     /// </summary>
     public static IReadOnlyList<AttentionItem> AttentionOf(
         ConfigDocument? document, IReadOnlyList<HostRow>? hosts, IReadOnlyList<CertificateSummary>? certificates, IReadOnlyList<ExpiringCertificate>? expiring, DateTimeOffset now,
-        CloudflareRangeStatus? cloudflareRanges = null, VaultStatus? vault = null)
+        CloudflareRangeStatus? cloudflareRanges = null, VaultStatus? vault = null, UserId? viewer = null, IReadOnlyList<UserSummary>? users = null)
     {
         List<AttentionItem> items = [];
         if (certificates is not null)
@@ -123,6 +125,8 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
                 $"{InstallGuide}#the-master-key", "How to move it"));
         }
 
+        items.AddRange(SecondFactorOf(viewer, users));
+
         if (document is not null)
         {
             foreach (var upstream in document.Upstreams)
@@ -136,6 +140,31 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
         }
 
         return [.. items.OrderBy(i => i.Tone == Tone.Error ? 0 : 1)];
+    }
+
+    /// <summary>
+    /// Owners and Admins who can sign in with a password alone: one line for the viewer's own account (the only one they can fix, in My
+    /// account), one for the others together (to be told, in Users). Nothing forces a second factor; this only says who has none.
+    /// </summary>
+    private static IEnumerable<AttentionItem> SecondFactorOf(UserId? viewer, IReadOnlyList<UserSummary>? users)
+    {
+        var open = (users ?? []).Where(u => !u.Disabled && !u.TwoFactorEnabled && u.Roles.Any(r => r is Role.Owner or Role.Admin)).ToList();
+        if (open.Any(u => u.Id == viewer))
+        {
+            yield return new AttentionItem(Tone.Warning, "Your account has no second factor",
+                "Your role can change everything on this proxy, and only your password protects it. Add an authenticator app.", DashboardRoutes.Account, "Open My account");
+        }
+
+        var others = open.Where(u => u.Id != viewer).ToList();
+        if (others.Count > 0)
+        {
+            yield return new AttentionItem(Tone.Warning,
+                others.Count == 1 ? $"{others[0].DisplayName} has no second factor" : $"{others.Count.ToString(CultureInfo.InvariantCulture)} other administrators have no second factor",
+                others.Count == 1
+                    ? "They can change everything on this proxy with a password alone. Ask them to add an authenticator app in My account."
+                    : $"{string.Join(", ", others.Take(3).Select(u => u.DisplayName))}{(others.Count > 3 ? " and more" : string.Empty)} can change everything on this proxy with a password alone. Ask them to add an authenticator app in My account.",
+                SettingsRoutes.Users, "Open users");
+        }
     }
 
     /// <summary>The hosts as the overview lists them: those that need attention first, then by name.</summary>

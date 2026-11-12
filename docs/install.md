@@ -66,7 +66,10 @@ runtimes that do not.
 
 3. **Trust the local CA root**, so the admin UI is not a certificate warning in your browser. Paduraksa issues its own
    admin certificate from a local CA; the root is offered unauthenticated, before setup, precisely so you can trust it
-   first:
+   first. The compose file publishes the admin port on **loopback only** (see [Exposing the admin](#exposing-the-admin)), so
+   use `localhost` for `<host>` below on the server itself, or from your own machine through an SSH tunnel
+   (`ssh -L 9443:127.0.0.1:9443 you@server`). To open it on your LAN instead, change the `9443` line of the compose file to the
+   server's LAN address (`"192.168.1.10:9443:9443"`) and run `docker compose up -d` again.
 
    ```sh
    curl -k -o paduraksa.crt https://<host>:9443/api/v1/ca/root.pem      # PEM: Linux/macOS trust stores
@@ -78,7 +81,7 @@ runtimes that do not.
    ignores a DER file, so save `root.pem` as a `.crt`:
    `sudo cp paduraksa.crt /usr/local/share/ca-certificates/paduraksa.crt && sudo update-ca-certificates`; on macOS, add
    it to the System keychain and mark it trusted; on Windows, import it into *Trusted Root Certification Authorities*.
-   Then open **`https://<host>:9443/`** and enter the setup token.
+   Then open **`https://<host>:9443/`** (`https://localhost:9443/` through the tunnel) and enter the setup token.
 
    The admin port is HTTPS only. A plain `http://<host>:9443/` GET is answered with a redirect to the same URL over
    `https://` (no page is ever served over plain HTTP), so a mistyped or old bookmark still lands on the panel. If you set
@@ -116,6 +119,25 @@ libmsquic and logs `HTTP/3 is on: QUIC on UDP 443 ...` at startup; if it says HT
 
 Do not remap the container's ports: `Alt-Svc` and the HTTP→HTTPS redirect advertise 443, because that is the port
 clients use. Behind a port translation, set `Paduraksa__Listen__PublicHttpsPort` to the outside port.
+
+### Exposing the admin
+
+The admin port (9443) holds the dashboard, the REST API and, if you turn it on, MCP. It is HTTPS only and its sign-in is throttled, locked
+out after repeated failures and protected by an optional second factor, but it is built for a trusted network, not the internet. The compose
+file therefore publishes it as `127.0.0.1:9443:9443`: Docker puts published ports ahead of the host's firewall rules (`ufw` does not see them),
+so an unqualified `9443:9443` would answer on every interface the host has.
+
+From the safest to the most open:
+
+1. **Loopback and an SSH tunnel** (the default): `ssh -L 9443:127.0.0.1:9443 you@server`, then `https://localhost:9443/`.
+2. **The admin as a host behind the proxy**, with its own name, certificate and an access list in front (`Hosts`, kind Admin; PLAN §3.1).
+   It reaches the admin over a socket inside the process, so the port itself stays on loopback. Put an IP access list on that host, and
+   never forward a public name to `127.0.0.1:9443` yourself: every client would look like loopback, share one throttle and pass an allowlist
+   that lists loopback.
+3. **The LAN address**: publish `"192.168.1.10:9443:9443"` and set `Paduraksa__Listen__AdminAllowedSources` to your management subnet
+   (loopback is not implied, add `127.0.0.1/32` for the container healthcheck; try it from a machine that should be refused).
+4. A public address, only behind a firewall that you control (not Docker's own rules) and with a second factor for every Owner and Admin.
+   The overview lists the Owners and Admins who have none, and does not force one.
 
 ### The master key
 
