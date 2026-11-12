@@ -28,12 +28,13 @@ public sealed record AccessLogFormatOptions
     /// <summary>The parameter names redacted to <c>name=REDACTED</c> (compared ignoring case).</summary>
     public IReadOnlyList<string> SensitiveQueryKeys { get; init; } = DefaultSensitiveQueryKeys;
 
-    /// <summary>Whether a parameter of this name is redacted. Cold path, so a set lookup is fine.</summary>
+    /// <summary>Whether a parameter of this name is redacted. Indexed, not enumerated: the interface's enumerator is boxed, and a line with a query would allocate per parameter.</summary>
     public bool IsSensitive(ReadOnlySpan<char> name)
     {
-        foreach (var key in SensitiveQueryKeys)
+        var keys = SensitiveQueryKeys;
+        for (var i = 0; i < keys.Count; i++)
         {
-            if (name.Equals(key, StringComparison.OrdinalIgnoreCase))
+            if (name.Equals(keys[i], StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

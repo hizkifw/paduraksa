@@ -1,4 +1,5 @@
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Logging;
 
@@ -230,6 +231,18 @@ public sealed class AccessLogFormatterTests
     public void ABufferTooSmallIsReportedRatherThanTruncated()
     {
         Assert.Equal(-1, AccessLogFormatter.Format(Complete(), Defaults, new char[8]));
+    }
+
+    [Fact]
+    public void ALineWithAQueryAllocatesNothing()
+    {
+        // The sensitive-name check used to enumerate its list through the interface, which boxes an enumerator for every parameter.
+        var entry = Target("/a/b", "?x=1&token=abc&y=2&code&=&&sig=zz") with { Host = "app.example", Protocol = "HTTP/2", StatusCode = 200 };
+        var buffer = new char[AccessLogFormatter.MaxLineLength];
+        AccessLogFormatOptions custom = Defaults with { SensitiveQueryKeys = ["alpha", "x-token", "token"] };
+
+        AllocAssert.Zero((entry, buffer), static s => AccessLogFormatter.Format(s.entry, Defaults, s.buffer), "a line with a query and the default sensitive keys");
+        AllocAssert.Zero((entry, buffer, custom), static s => AccessLogFormatter.Format(s.entry, s.custom, s.buffer), "a line with a query and custom sensitive keys");
     }
 
     [Fact]
