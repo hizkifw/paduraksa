@@ -278,8 +278,8 @@ Severity labels refer to the numbered gaps in section 8.
   size: past the table's 65 536 entries a new address isn't counted (it fails open, `paduraksa_connections_events_total{event="table_full"}`),
   and an attacker with many IPv6 /64s or botnet addresses is not slowed by a per-address cap. A flood that reaches the global
   cap makes Kestrel stop accepting for everyone, which is the cost of having a cap at all; the per-address cap is what keeps one
-  host from doing that alone. **Behind Cloudflare or another trusted proxy the connection stage sees only the proxy**, so it caps
-  and denies nothing per visitor there (a visitor is judged at the gate, by rate limits and access lists, which are **opt-in per
+  host from doing that alone. **Behind Cloudflare or another trusted proxy that doesn't speak PROXY protocol the connection stage sees
+  only the proxy**, so it caps and denies nothing per visitor there (a visitor is judged at the gate, by rate limits and access lists, which are **opt-in per
   host**; a new host has none, G10): use origin lockdown. Over **QUIC** a burst of simultaneous handshakes from one address can pass
   the cap by the size of the burst, because a place is only taken once the connection is established (Kestrel signals no close for
   a handshake that fails after its callback). There is **no limit on the rate of new connections**, and the **admin listener keeps

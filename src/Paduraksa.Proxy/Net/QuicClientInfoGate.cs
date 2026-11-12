@@ -30,8 +30,6 @@ public static class QuicClientInfoGate
     {
         var info = ClientInfo.FromEndPoint(remoteEndPoint);
 
-        // SEAM: the global connection-level IP deny and the per-IP connection cap go here, on info.Address,
-        // reading the live snapshot's deny set. Neither exists yet, so every connection is admitted.
         connection?.Features.Set<IClientInfoFeature>(info);
         return true;
     }
