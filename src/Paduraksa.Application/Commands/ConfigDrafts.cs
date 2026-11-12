@@ -169,7 +169,7 @@ internal sealed partial class ConfigDrafts
     }
 
     /// <summary>The checks reading applies, for the document or object a command carries; null: it passes.</summary>
-    private static ConfigError? Preflight(ConfigCommand command)
+    internal static ConfigError? Preflight(ConfigCommand command)
     {
         (ConfigDocument Document, string Prefix)? payload = command switch
         {

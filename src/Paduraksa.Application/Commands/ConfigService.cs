@@ -123,6 +123,29 @@ public sealed class ConfigService : IDisposable
     /// <summary>Configs to compile without publishing them, for the request simulator.</summary>
     internal ConfigDrafts Drafts { get; }
 
+    /// <summary>
+    /// Runs <paramref name="body"/> holding the writer lock, with the pipeline: for a change that must read the head, decide and commit as one
+    /// step (a draft's apply). A commit it returns is carried to live afterwards with <see cref="FinishAsync"/>, outside the lock, as
+    /// <see cref="ExecuteAsync"/> does.
+    /// </summary>
+    internal async Task<T> UnderWriterAsync<T>(Func<ConfigPipeline, Task<T>> body, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        ObjectDisposedException.ThrowIf(_publishing.IsDisposed, this);
+        await _writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await body(_pipeline).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writer.Release();
+        }
+    }
+
+    /// <summary>Waits for the publish of a commit <see cref="UnderWriterAsync{T}"/> made, and says how it went (see <see cref="ConfigPublishing.FinishAsync"/>).</summary>
+    internal Task<ConfigCommandResult> FinishAsync(Execution execution, CommandOrigin origin) => _publishing.FinishAsync(execution, origin);
+
     /// <summary>Completes once the startup publish has its outcome (tests); startup itself never waits for it.</summary>
     internal Task StartupPublishFollowed => _recovery.StartupPublishFollowed;
 

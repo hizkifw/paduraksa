@@ -84,52 +84,38 @@ internal sealed partial class ConfigPipeline
         return await AttemptAsync(command, origin, audited, message, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// What a draft changes about an attempt (PLAN §12). <paramref name="Base"/> stands in for the head's document as the config the command is
+    /// planned on (the head with the draft's other entries applied: an entry is validated in the context it will be applied in); the head is
+    /// still the latest revision. <paramref name="AuditDetails"/> adds to the commit's audit details, and <paramref name="InCommit"/> runs in the
+    /// commit's transaction (the draft's rows change with the revision or not at all). <paramref name="Gate"/> is asked once everything has passed
+    /// and a commit is next, with what that commit would be as a dry run's result: false answers with that result instead and commits nothing (a draft
+    /// whose review no longer matches what would be committed).
+    /// </summary>
+    internal sealed record DraftAttempt(
+        ConfigDocument? Base = null,
+        Action<Utf8JsonWriter>? AuditDetails = null,
+        Func<ConfigDbContext, RevisionInfo, Task>? InCommit = null,
+        Func<ConfigCommandResult, bool>? Gate = null);
+
     /// <summary>Load, plan, validate, compile and commit; a dry run or a simulation stops before the commit.</summary>
     internal async Task<Execution> AttemptAsync(
         ConfigCommand command, CommandOrigin origin, Audited audited, string? message,
-        CancellationToken cancellationToken, bool simulation = false)
+        CancellationToken cancellationToken, bool simulation = false, DraftAttempt? draft = null)
     {
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
             var (latest, current, headLegacy) = await ConfigHead.LoadForCommandAsync(context, cancellationToken).ConfigureAwait(false);
             var head = latest is null ? null : ConfigHead.Ref(latest.Info);
+            current = draft?.Base ?? current;
 
             // Before anything validates, stores or audits: a plain password leaves the command (the vault gets it once the command
             // is certain) and the document keeps the ID of its credential.
             var prepared = AccessListPasswords.Prepare(command, current);
             command = prepared.Command;
-            var plan = command switch
+            var plan = PlanObject(command, current, head) ?? command switch
             {
-                UpsertHostCommand c => Upsert(head, Required(c.Host), "hosts", current.Hosts, h => h.Id.ToString(),
-                    h => h.Version, l => current with { Hosts = l }),
-                DeleteHostCommand c => Delete(head, c.HostId.ToString(), c.Version, current.Hosts, h => h.Id.ToString(),
-                    h => h.Version, l => current with { Hosts = l }),
-                UpsertUpstreamCommand c => Upsert(head, Required(c.Upstream), "upstreams", current.Upstreams,
-                    u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
-                DeleteUpstreamCommand c => Delete(head, c.UpstreamId.ToString(), c.Version, current.Upstreams,
-                    u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
-                UpsertRateLimitPolicyCommand c => Upsert(head, Required(c.Policy), "rateLimitPolicies", current.RateLimitPolicies,
-                    p => p.Id.ToString(), p => p.Version, l => current with { RateLimitPolicies = l }),
-                DeleteRateLimitPolicyCommand c => Delete(head, c.RateLimitPolicyId.ToString(), c.Version, current.RateLimitPolicies,
-                    p => p.Id.ToString(), p => p.Version, l => current with { RateLimitPolicies = l }),
-                UpsertAccessListCommand c => Upsert(head, Required(c.AccessList), "accessLists", current.AccessLists,
-                    l => l.Id.ToString(), l => l.Version, l => current with { AccessLists = l }),
-                DeleteAccessListCommand c => Delete(head, c.AccessListId.ToString(), c.Version, current.AccessLists,
-                    l => l.Id.ToString(), l => l.Version, l => current with { AccessLists = l }),
-                UpsertRuleSetCommand c => Upsert(head, Required(c.RuleSet), "ruleSets", current.RuleSets,
-                    r => r.Id.ToString(), r => r.Version, l => current with { RuleSets = l }),
-                DeleteRuleSetCommand c => Delete(head, c.RuleSetId.ToString(), c.Version, current.RuleSets,
-                    r => r.Id.ToString(), r => r.Version, l => current with { RuleSets = l }),
-                UpsertAuthProviderCommand c => Upsert(head, Required(c.AuthProvider), "authProviders", current.AuthProviders,
-                    p => p.Id.ToString(), p => p.Version, l => current with { AuthProviders = l }),
-                DeleteAuthProviderCommand c => Delete(head, c.AuthProviderId.ToString(), c.Version, current.AuthProviders,
-                    p => p.Id.ToString(), p => p.Version, l => current with { AuthProviders = l }),
-                UpsertProfileCommand c => Upsert(head, Required(c.Profile), "profiles", current.Profiles,
-                    p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
-                DeleteProfileCommand c => Delete(head, c.ProfileId.ToString(), c.Version, current.Profiles,
-                    p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
-                UpdateSettingsCommand c => UpdateSettings(current, head, Required(c.Settings)),
                 ReplaceConfigCommand c => await ReplaceAsync(context, current, head, Required(c.Document),
                     c.BaseRevision, null, cancellationToken).ConfigureAwait(false),
                 RollbackConfigCommand c => await RollbackAsync(context, current, head, c, cancellationToken)
@@ -213,11 +199,10 @@ internal sealed partial class ConfigPipeline
                 }
             }
 
-            if (command.DryRun)
+            ConfigCommandResult planned = new(ConfigCommandStatus.DryRun, Changes: changes, Version: version, Warnings: compilation.Warnings);
+            if (command.DryRun || (draft?.Gate is { } gate && !gate(planned)))
             {
-                return new Execution(
-                    new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version,
-                        Warnings: compilation.Warnings), Candidate: snapshot);
+                return new Execution(planned, Candidate: snapshot);
             }
 
             // Past every check: the passwords the command carries (and the verifiers of a restored document) reach the vault now,
@@ -229,7 +214,7 @@ internal sealed partial class ConfigPipeline
             {
                 await AccessListPasswords.ImportAsync(_passwords, legacy, cancellationToken).ConfigureAwait(false);
                 execution = await CommitAsync(context, origin, audited, candidate, changes, revisionId, compilation,
-                        message ?? plan.DefaultMessage, version, cancellationToken)
+                        message ?? plan.DefaultMessage, version, cancellationToken, draft)
                     .ConfigureAwait(false);
             }
             catch
@@ -297,7 +282,8 @@ internal sealed partial class ConfigPipeline
         ConfigCompilation compilation,
         string? message,
         long? version,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DraftAttempt? draft = null)
     {
         var document = CanonicalConfigJson.Serialize(candidate);
         var summary = JsonSerializer.Serialize(changes, ConfigJsonContext.Default.IReadOnlyListConfigChange);
@@ -316,9 +302,15 @@ internal sealed partial class ConfigPipeline
                 {
                     w.WriteNumber("seq", info.Seq);
                     w.WriteNumber("changes", changes.Count);
+                    draft?.AuditDetails?.Invoke(w);
                 }),
             };
             await _audit.AppendAsync(context, entry, cancellationToken).ConfigureAwait(false);
+            if (draft?.InCommit is { } inCommit)
+            {
+                await inCommit(context, info).ConfigureAwait(false);
+            }
+
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 

@@ -96,6 +96,45 @@ internal static class ConfigCommandPlanner
             : Plan.Stop(Conflict(head, versionOf(existing)), AuditOutcome.Conflict, arranged);
     }
 
+    /// <summary>
+    /// What an object command (an upsert or delete of a host, upstream, profile, rate limit, access list, rule set, auth provider, or the
+    /// settings) does to <paramref name="current"/>; null for a whole-document command. A draft replays its entries through this, one at
+    /// a time on the document the earlier ones left, so a version check there is the one a live command makes.
+    /// </summary>
+    internal static Plan? PlanObject(ConfigCommand command, ConfigDocument current, RevisionRef? head) => command switch
+    {
+        UpsertHostCommand c => Upsert(head, Required(c.Host), "hosts", current.Hosts, h => h.Id.ToString(),
+            h => h.Version, l => current with { Hosts = l }),
+        DeleteHostCommand c => Delete(head, c.HostId.ToString(), c.Version, current.Hosts, h => h.Id.ToString(),
+            h => h.Version, l => current with { Hosts = l }),
+        UpsertUpstreamCommand c => Upsert(head, Required(c.Upstream), "upstreams", current.Upstreams,
+            u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
+        DeleteUpstreamCommand c => Delete(head, c.UpstreamId.ToString(), c.Version, current.Upstreams,
+            u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
+        UpsertRateLimitPolicyCommand c => Upsert(head, Required(c.Policy), "rateLimitPolicies", current.RateLimitPolicies,
+            p => p.Id.ToString(), p => p.Version, l => current with { RateLimitPolicies = l }),
+        DeleteRateLimitPolicyCommand c => Delete(head, c.RateLimitPolicyId.ToString(), c.Version, current.RateLimitPolicies,
+            p => p.Id.ToString(), p => p.Version, l => current with { RateLimitPolicies = l }),
+        UpsertAccessListCommand c => Upsert(head, Required(c.AccessList), "accessLists", current.AccessLists,
+            l => l.Id.ToString(), l => l.Version, l => current with { AccessLists = l }),
+        DeleteAccessListCommand c => Delete(head, c.AccessListId.ToString(), c.Version, current.AccessLists,
+            l => l.Id.ToString(), l => l.Version, l => current with { AccessLists = l }),
+        UpsertRuleSetCommand c => Upsert(head, Required(c.RuleSet), "ruleSets", current.RuleSets,
+            r => r.Id.ToString(), r => r.Version, l => current with { RuleSets = l }),
+        DeleteRuleSetCommand c => Delete(head, c.RuleSetId.ToString(), c.Version, current.RuleSets,
+            r => r.Id.ToString(), r => r.Version, l => current with { RuleSets = l }),
+        UpsertAuthProviderCommand c => Upsert(head, Required(c.AuthProvider), "authProviders", current.AuthProviders,
+            p => p.Id.ToString(), p => p.Version, l => current with { AuthProviders = l }),
+        DeleteAuthProviderCommand c => Delete(head, c.AuthProviderId.ToString(), c.Version, current.AuthProviders,
+            p => p.Id.ToString(), p => p.Version, l => current with { AuthProviders = l }),
+        UpsertProfileCommand c => Upsert(head, Required(c.Profile), "profiles", current.Profiles,
+            p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
+        DeleteProfileCommand c => Delete(head, c.ProfileId.ToString(), c.Version, current.Profiles,
+            p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
+        UpdateSettingsCommand c => UpdateSettings(current, head, Required(c.Settings)),
+        _ => null,
+    };
+
     internal static Plan UpdateSettings(ConfigDocument current, RevisionRef? head, GlobalSettings sent)
     {
         var arranged = current with { Settings = sent };
