@@ -171,6 +171,62 @@ The overview's warning is gone after the restart. Back `master.key` up apart fro
 been copied while the key was in it, that copy opens everything: follow the move with `paduraksa vault rotate-kek`
 ([Changing the master key](#changing-the-master-key)).
 
+### Connection floods and slow clients
+
+Before TLS, the public listeners (80/tcp, 443/tcp and 443/udp) refuse two kinds of connection, and Kestrel's limits are set
+explicitly rather than left to its defaults.
+
+**Per-address cap and deny list** (Settings → Global defaults → Connections; the Security overview's Connections card shows what
+they refuse):
+
+- *Open connections per address*: built-in **256**, `0` turns it off, at most 100 000. An address over it has its next connection
+  closed at once, before TLS. An IPv6 /64 counts as one address. **Trusted proxies are never counted** (Cloudflare's edge ranges in
+  the Cloudflare proxy mode, the cloudflared address in the tunnel mode, the proxies you list in the other one), because every
+  visitor behind one shares its address. If you put a proxy in front and haven't listed it as trusted (Client addresses), all its
+  visitors look like one address and share the cap: list it.
+- *Connection deny list*: an access list whose **deny addresses** are refused before TLS, with no reply and no handshake. Use it for
+  addresses you never want to talk to (a scanner's range). It judges the address that connects: **a visitor behind Cloudflare or
+  another trusted proxy is judged at the gate**, by the access lists and rate limits of the host, not here. The list's allow
+  addresses, countries and users are for the hosts that name it (the dashboard warns when the list has some). The admin port
+  (9443) is a separate listener and isn't affected.
+- With PROXY protocol on a listener, the address is the one in the header, so a load balancer's visitors are each their own.
+- Over HTTP/3 a place is taken once the connection is established, so a burst of simultaneous handshakes from one address can pass
+  the cap by the size of the burst.
+- A flood from very many addresses is not what the cap is for: the table keeps 65 536 addresses, past which a new address isn't
+  counted (`paduraksa_connections_events_total{event="table_full"}`), and the global cap below is what remains. Behind Cloudflare, use
+  origin lockdown.
+
+Refusals show in `/metrics` as `paduraksa_connections_events_total{event="refused_deny_list"|"refused_per_ip_limit"|"table_full"}`
+(and `paduraksa_connections_counted`), and in the log at Information, at most once every ten seconds per reason, with how many there
+were and the latest address.
+
+**Slow-client and connection limits** (`Paduraksa__Limits__*`, applied when the process starts, not reloadable, public listeners
+only: the admin listener keeps Kestrel's own). Times are `hh:mm:ss`; a bad value stops the start with the reason.
+
+| Setting | Default | Kestrel's own | What |
+|---|---|---|---|
+| `Paduraksa__Limits__RequestHeadersTimeout` | `00:00:15` | 30 s | From the first byte of a request to the end of its headers. A client that is slower gets 408 and is closed (a slowloris). It is per listener: the host isn't known until the headers are read, so there is no per-host timeout. |
+| `Paduraksa__Limits__KeepAliveTimeout` | `00:02:00` | 130 s | How long an idle HTTP/1.1 or HTTP/2 connection waits for its next request. |
+| `Paduraksa__Limits__TlsHandshakeTimeout` | `00:00:10` | 10 s | The TLS handshake over TCP. |
+| `Paduraksa__Limits__MinRequestBodyRate` | `120` | 240 B/s | The slowest a request body may arrive, in bytes per second, once the grace is over. `0` turns it off. |
+| `Paduraksa__Limits__MinRequestBodyGrace` | `00:00:10` | 5 s | Must be longer than one second. |
+| `Paduraksa__Limits__MinResponseRate` | `240` | 240 B/s | The slowest a client may take a response. `0` turns it off. |
+| `Paduraksa__Limits__MinResponseGrace` | `00:00:10` | 5 s | Must be longer than one second. |
+| `Paduraksa__Limits__MaxConnections` | `10000` | none | Open connections on the public listeners together; at it Kestrel stops accepting. `0` is unlimited. |
+| `Paduraksa__Limits__MaxUpgradedConnections` | `2000` | none | The WebSocket share of that; at it a new upgrade is refused. `0` is unlimited. |
+| `Paduraksa__Limits__Http2MaxStreamsPerConnection` | `100` | 100 | Concurrent requests on one HTTP/2 connection. |
+
+The rates are more forgiving than Kestrel's because the slow client worth keeping is a phone on a poor link. They do not cut a
+WebSocket or an event stream that sits idle between messages: Kestrel stops enforcing the request rate on an upgraded connection
+and times a response only while a write waits for the client. HTTP/3 has no stream setting (Kestrel's stable API has none): a QUIC
+connection keeps the transport's default of 100 concurrent requests. Raise `MaxConnections` if you serve many long-lived
+connections (a large number of WebSocket clients), and keep it below the process's open-file limit.
+
+```sh
+Paduraksa__Limits__RequestHeadersTimeout=00:00:10
+Paduraksa__Limits__MaxConnections=20000
+```
+
 ### Where things live, and backup
 
 The named volume `paduraksa-data` holds everything:
