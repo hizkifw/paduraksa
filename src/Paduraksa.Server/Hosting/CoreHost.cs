@@ -2,6 +2,7 @@ using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.Metrics;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Server.Placeholders;
@@ -58,6 +59,11 @@ internal static class CoreHost
         // last write carries what it filed.
         builder.Services.AddHostedService(static services => services.GetRequiredService<MetricRollupJob>());
         builder.Services.AddHostedService(static services => services.GetRequiredService<MetricSamplerService>());
+        // Notifications: the dispatcher first (it stops last, so the watchers' final events still go out), then the upstream health watcher and the
+        // certificate expiry monitor. They read the config store and the vault, which are up by now.
+        builder.Services.AddHostedService(static services => services.GetRequiredService<NotificationDispatcher>());
+        builder.Services.AddHostedService(static services => services.GetRequiredService<HealthMonitor>());
+        builder.Services.AddHostedService(static services => services.GetRequiredService<CertificateExpiryMonitor>());
         if (context.Options.Acme.Enabled)
         {
             // Last of the ones that start things up: the vault and the config store are ready. Its first look waits

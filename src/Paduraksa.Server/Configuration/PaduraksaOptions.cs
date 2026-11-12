@@ -49,6 +49,9 @@ internal sealed class PaduraksaOptions
     /// <summary>Metrics: how long the one-minute rollups behind the dashboard's longer ranges are kept, and how often they are written.</summary>
     public PaduraksaMetricsOptions Metrics { get; set; } = new();
 
+    /// <summary>Notifications: the address the dashboard is reached at, for the links in a message.</summary>
+    public PaduraksaNotificationOptions Notifications { get; set; } = new();
+
     /// <summary>
     /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core).
     /// When it elapses, Kestrel aborts the remaining connections and the rest stops without waiting.
@@ -464,4 +467,20 @@ internal sealed class PaduraksaMetricsOptions
     public TimeSpan WriteInterval { get; set; } = TimeSpan.FromSeconds(15);
 
     public Application.Metrics.MetricRollupOptions ToOptions() => new() { Retention = Retention, WriteInterval = WriteInterval };
+}
+
+
+/// <summary>
+/// Notifications (<c>Paduraksa:Notifications</c>). The channels themselves are managed in the dashboard (Settings, Notifications) and live in the
+/// database; this is the one thing a message needs that only the operator knows.
+/// </summary>
+internal sealed class PaduraksaNotificationOptions
+{
+    /// <summary>
+    /// The address the dashboard is reached at (<c>https://admin.example.com</c>, no path or query): messages carry a link to the page that
+    /// shows what happened. Empty sends no link, since the process cannot know which name or port its admin is reached by.
+    /// </summary>
+    public string? AdminUrl { get; set; }
+
+    public Application.Notifications.NotificationOptions ToOptions() => new() { AdminUrl = AdminUrl is { Length: > 0 } url ? new Uri(url.TrimEnd('/') + "/") : null };
 }

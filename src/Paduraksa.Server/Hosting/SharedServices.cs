@@ -347,7 +347,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.AddOwnedElsewhere(vault.Catalog);
             builder.AddOwnedElsewhere(vault.PasswordCredentials);
             var configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, options.Notifications.ToOptions(), coreLoggers);
 
             // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
             // persists the minutes (hosted services of the core host, below), and the meter, the service and the /metrics scrape read them.

@@ -109,6 +109,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         ValidateCloudflare(options, failures);
         ValidateLogs(options.Logs, failures);
         ValidateMetrics(options.Metrics, failures);
+        ValidateNotifications(options.Notifications, failures);
         ValidateAccessLog(options, failures);
 
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
@@ -341,6 +342,22 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         Bound(metrics.Retention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:Retention", failures);
         Bound(metrics.WriteInterval, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:WriteInterval", failures);
+    }
+
+    private static void ValidateNotifications(PaduraksaNotificationOptions? notifications, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":Notifications";
+        if (notifications is null)
+        {
+            failures.Add($"{Key} must not be null.");
+            return;
+        }
+
+        if (notifications.AdminUrl is { Length: > 0 } url
+            && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0))
+        {
+            failures.Add($"{Key}:AdminUrl must be an http or https address without credentials, a query or a fragment, was '{url}'.");
+        }
     }
 
     /// <summary>The smallest rotation size accepted: below one line's worth of bytes, every line would rotate the file again (thrashing).</summary>

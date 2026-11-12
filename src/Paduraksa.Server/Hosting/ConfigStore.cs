@@ -6,6 +6,7 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Metrics;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Vault;
@@ -53,6 +54,7 @@ internal static class ConfigStore
         AdminOptions admin,
         TimeProvider timeProvider,
         ProofOfWorkRuntime proofOfWork,
+        NotificationOptions notificationOptions,
         ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -77,6 +79,9 @@ internal static class ConfigStore
             .AddSingleton(vault.Catalog)
             .AddSingleton(vault.Totp)
             .AddSingleton(vault.PasswordCredentials)
+            .AddSingleton(vault.Secrets)
+            .AddSingleton(vault.MacKeys)
+            .AddSingleton(vault.NotificationSecrets)
             .AddPaduraksaIdentity(dataDirectory, admin.ToIdentityOptions())
             .AddSingleton<IUpstreamHealth>(health)
             .AddSingleton(new ListenerFacts(listeners.HttpProxyProtocol, listeners.HttpsProxyProtocol, listeners.Http3))
@@ -85,7 +90,8 @@ internal static class ConfigStore
             .AddPaduraksaConfigService()
             .AddPaduraksaCertificateOperations()
             .AddPaduraksaCertificateRecovery()
-            .AddPaduraksaMetricRollups();
+            .AddPaduraksaMetricRollups()
+            .AddPaduraksaNotifications(notificationOptions);
         if (placeholderEnabled)
         {
             services.AddSingleton<IBuiltInCertificates>(placeholder);
@@ -114,7 +120,16 @@ internal static class ConfigStore
         }
 
         var rollups = builder.AddOwnedElsewhere(container.GetRequiredService<MetricRollupStore>());
-        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups);
+
+        // The notification system: the dispatcher is also the one INotificationEvents that every producer (sign-in, ACME, the watchers) publishes to.
+        // The hosted services (the dispatcher, the health watcher, the expiry monitor) are started by the core host.
+        var events = builder.AddOwnedElsewhere<INotificationEvents>(container.GetRequiredService<NotificationDispatcher>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<NotificationDispatcher>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<HealthMonitor>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<CertificateExpiryMonitor>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<UpstreamHealthBoard>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<NotificationService>());
+        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups, events);
     }
 }
 
@@ -126,6 +141,7 @@ internal static class ConfigStore
 /// <param name="Setup">First-run setup: whether an Owner exists, and the one-time setup token.</param>
 /// <param name="Permissions">The one answer to "may this origin do that".</param>
 /// <param name="MetricRollups">The one-minute metric rollups' store.</param>
+/// <param name="Events">Where producers publish notification events.</param>
 internal sealed record ConfigStoreServices(
     IDbContextFactory<ConfigDbContext> Contexts,
     ConfigService Config,
@@ -133,4 +149,5 @@ internal sealed record ConfigStoreServices(
     CertificateOperations Operations,
     SetupService Setup,
     IPermissionEvaluator Permissions,
-    MetricRollupStore MetricRollups);
+    MetricRollupStore MetricRollups,
+    INotificationEvents Events);
