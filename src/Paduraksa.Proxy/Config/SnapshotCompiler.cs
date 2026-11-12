@@ -134,6 +134,8 @@ public static partial class SnapshotCompiler
 
         public EdgeRangeList? EdgeRanges { get; private set; }
 
+        public ConnectionPolicy Connections { get; private set; } = ConnectionPolicy.Off;
+
         public ResponseHeaderOperation[] DefaultHeaders { get; private set; } = [];
 
         public Dictionary<UpstreamId, ClusterConfig> Clusters { get; private set; } = [];
@@ -205,6 +207,7 @@ public static partial class SnapshotCompiler
             CheckErrorPages(Defaults.ErrorPages, CompileErrorSource.Defaults, Errors);
             TrustedProxies = CompileTrustedProxies(Defaults.TrustedProxies, Options, Errors, out var edgeRanges);
             EdgeRanges = edgeRanges;
+            Connections = CompileConnections(Defaults.Connections);
             DefaultHeaders = CompileResponseHeaders(
                 serverHeader: Defaults.ServerHeader,
                 hsts: null,
@@ -240,6 +243,7 @@ public static partial class SnapshotCompiler
             TrustedProxies = TrustedProxies,
             EdgeRanges = EdgeRanges,
             LockdownAtConnection = LocksDownEveryHost(),
+            Connections = Connections,
             AccessLog = Defaults.AccessLog,
             RequestIdPropagation = Defaults.RequestIdPropagation,
             DefaultResponseHeaders = DefaultHeaders,

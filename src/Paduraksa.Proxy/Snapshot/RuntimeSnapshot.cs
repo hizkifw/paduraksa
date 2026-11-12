@@ -101,6 +101,10 @@ public sealed class RuntimeSnapshot
     /// </summary>
     public bool LockdownAtConnection { get; init; }
 
+    /// <summary>The per-IP connection cap and the connection deny list, applied before TLS (PLAN §7.2 A). Only this limit and
+    /// this list come from the snapshot: what is counted lives in <see cref="Net.ConnectionRuntime"/>.</summary>
+    public Net.ConnectionPolicy Connections { get; init; } = Net.ConnectionPolicy.Off;
+
     /// <summary>The Cloudflare edge ranges the policy was compiled with, for the simulator and the dashboard; null unless
     /// the mode is <c>CloudflareProxy</c>, the only one that trusts them.</summary>
     public EdgeRangeList? EdgeRanges { get; init; }
@@ -182,6 +186,7 @@ public sealed class RuntimeSnapshot
             TrustedProxies = TrustedProxies,
             EdgeRanges = EdgeRanges,
             LockdownAtConnection = LockdownAtConnection,
+            Connections = Connections,
             AccessLog = AccessLog,
             RequestIdPropagation = RequestIdPropagation,
         };

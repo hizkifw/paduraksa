@@ -67,6 +67,28 @@ public sealed record DefaultsSpec
 
     /// <summary>The global defaults' error pages, which a request for an unknown host is answered with.</summary>
     public HostErrorPagesSpec ErrorPages { get; init; } = HostErrorPagesSpec.Default;
+
+    /// <summary>The connection stage: the per-IP cap and the connection deny list.</summary>
+    public ConnectionsSpec Connections { get; init; } = ConnectionsSpec.Default;
+}
+
+/// <summary>The connection-stage settings, compiled into a <see cref="ConnectionPolicy"/> (PLAN §7.2 A).</summary>
+public sealed record ConnectionsSpec
+{
+    /// <summary>The cap when the config sets none: far above what a household or a small office behind one address opens,
+    /// far below what one host needs to exhaust Kestrel's connection limit.</summary>
+    public const int DefaultMaxPerIp = 256;
+
+    /// <summary>The largest cap: past it the limit is "off" in all but name, and the table's count has no room.</summary>
+    public const int MaxMaxPerIp = 100_000;
+
+    public static ConnectionsSpec Default { get; } = new();
+
+    /// <summary>Open connections one client address (an IPv6 /64 is one) may hold; 0 turns the cap off.</summary>
+    public int MaxPerIp { get; init; } = DefaultMaxPerIp;
+
+    /// <summary>The access list whose deny addresses are refused before TLS; empty for none.</summary>
+    public AccessListId DenyList { get; init; }
 }
 
 /// <summary>Trusted proxies in front of Paduraksa, compiled into a <see cref="TrustedProxyPolicy"/>.</summary>

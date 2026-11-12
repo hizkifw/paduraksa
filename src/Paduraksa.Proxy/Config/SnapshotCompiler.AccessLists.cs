@@ -134,5 +134,30 @@ public static partial class SnapshotCompiler
         /// <summary>The compiled list <paramref name="id"/> names, or null for none (a missing one is the policies' compile error).</summary>
         public CompiledAccessList? AccessListOf(AccessListId? id) =>
             id is { } named && AccessLists.Lists.TryGetValue(named, out var list) ? list : null;
+
+        /// <summary>
+        /// The connection stage: the cap, and the deny addresses of the named list. The list's allow addresses, countries and
+        /// users are request-level rules that mean nothing before TLS, so only <c>deny</c> is used.
+        /// </summary>
+        private ConnectionPolicy CompileConnections(ConnectionsSpec spec)
+        {
+            if (spec.MaxPerIp is < 0 or > ConnectionsSpec.MaxMaxPerIp)
+            {
+                Errors.Add(new(CompileErrorSource.Defaults, $"the per-IP connection limit must be from 0 (off) to {ConnectionsSpec.MaxMaxPerIp}"));
+            }
+
+            if (spec.DenyList.IsEmpty)
+            {
+                return new ConnectionPolicy(Math.Clamp(spec.MaxPerIp, 0, ConnectionsSpec.MaxMaxPerIp), CidrSet.Empty, null, null);
+            }
+
+            var list = AccessListOf(spec.DenyList);
+            if (list is null)
+            {
+                Errors.Add(new(CompileErrorSource.Defaults, $"the connection deny list '{spec.DenyList}' doesn't exist"));
+            }
+
+            return new ConnectionPolicy(Math.Clamp(spec.MaxPerIp, 0, ConnectionsSpec.MaxMaxPerIp), list?.Deny ?? CidrSet.Empty, list?.Id, list?.Name);
+        }
     }
 }
