@@ -21,18 +21,19 @@ public sealed class LogTailService(AccessLogTail hub)
 
     /// <summary>
     /// A subscription to the requests <paramref name="filter"/> keeps, or null when the process is serving as many tails as it
-    /// allows. The caller has checked the filter (<see cref="LogTailFilter.Problem"/>) and disposes the stream.
+    /// allows; the caller disposes the stream. A filter that <see cref="LogTailFilter.Problem"/> faults (the dashboard's input is
+    /// as free as the API's) is refused with <see cref="ArgumentException"/>: the callers say it in their own words first.
     /// </summary>
     public LogTailFeed? Open(LogTailFilter filter, int backlog)
     {
-        ArgumentNullException.ThrowIfNull(filter);
+        Check(filter);
         return hub.Subscribe(ToHubFilter(filter), Math.Clamp(backlog, 0, MaxBacklog)) is { } subscription ? new LogTailFeed(subscription) : null;
     }
 
     /// <summary>The newest <paramref name="limit"/> requests the filter keeps, oldest first.</summary>
     public IReadOnlyList<LogTailEntry> Recent(LogTailFilter filter, int limit)
     {
-        ArgumentNullException.ThrowIfNull(filter);
+        Check(filter);
         var found = hub.Recent(ToHubFilter(filter), Math.Clamp(limit, 0, MaxBacklog));
         List<LogTailEntry> entries = new(found.Count);
         foreach (var entry in found)
@@ -45,6 +46,15 @@ public sealed class LogTailService(AccessLogTail hub)
 
     /// <summary>How many tails are open and how many the process allows.</summary>
     public (int Open, int Limit) Subscribers => (hub.SubscriberCount, AccessLogTail.MaxSubscribers);
+
+    private static void Check(LogTailFilter filter)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        if (filter.Problem() is { } problem)
+        {
+            throw new ArgumentException(problem, nameof(filter));
+        }
+    }
 
     private static AccessLogTailFilter ToHubFilter(LogTailFilter filter) => new()
     {

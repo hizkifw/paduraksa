@@ -6,9 +6,6 @@ namespace Paduraksa.Proxy.Logging;
 /// </summary>
 public sealed record AccessLogTailFilter
 {
-    /// <summary>The longest text any part may have: wider input is the caller's mistake, not a search.</summary>
-    public const int MaxTextLength = 256;
-
     /// <summary>Everything.</summary>
     public static AccessLogTailFilter All { get; } = new();
 

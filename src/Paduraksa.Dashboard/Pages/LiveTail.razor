@@ -52,7 +52,7 @@ else
                           Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" Error="@(StatusError is not null)"
                           ErrorText="@StatusError" spellcheck="false" data-field="status" />
             <MudTextField T="string" Value="_client" ValueChanged="@(value => SetAsync(() => _client = value))" Label="Client IP" Placeholder="192.168.1." Variant="Variant.Outlined"
-                          Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" spellcheck="false" data-field="client" />
+                          Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" MaxLength="LogTailFilter.MaxTextLength" spellcheck="false" data-field="client" />
             <MudSelect T="string" Value="_method" ValueChanged="@(value => SetAsync(() => _method = value))" Label="Method" Variant="Variant.Outlined" Margin="Margin.Dense"
                        Dense="true" data-field="method">
                 <MudSelectItem T="string" Value="@((string?)null)">Any method</MudSelectItem>
@@ -62,7 +62,7 @@ else
                 }
             </MudSelect>
             <MudTextField T="string" Value="_path" ValueChanged="@(value => SetAsync(() => _path = value))" Label="Path contains" Variant="Variant.Outlined" Margin="Margin.Dense"
-                          Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" spellcheck="false" data-field="path" />
+                          Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" MaxLength="LogTailFilter.MaxTextLength" spellcheck="false" data-field="path" />
         </div>
     </MudPaper>
 
@@ -210,12 +210,8 @@ else
         _ = TickAsync(_stop.Token);
     }
 
-    /// <summary>How many times the page has rendered: what the batching test counts (the renderer's own count includes every child).</summary>
-    internal int Renders { get; private set; }
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Renders++;
         if (firstRender && _started)
         {
             _self = DotNetObjectReference.Create(this);
@@ -264,12 +260,13 @@ else
         _skipped = 0;
         _pending = 0;
         _busy = false;
-        if (StatusError is not null)
+        var filter = BuildFilter();
+        if (StatusError is not null || filter.Problem() is not null)
         {
             return;
         }
 
-        _feed = Tail.Open(BuildFilter(), Backlog);
+        _feed = Tail.Open(filter, Backlog);
         if (_feed is null)
         {
             _busy = true;

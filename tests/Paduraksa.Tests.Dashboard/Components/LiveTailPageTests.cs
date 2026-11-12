@@ -8,6 +8,7 @@ using MudBlazor;
 
 using Paduraksa.Application.Logging;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Logging;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Drawers;
@@ -48,11 +49,11 @@ public sealed class LiveTailPageTests
         return (hub, context, config);
     }
 
-    private static IRenderedComponent<LiveTail> Render(DashboardTestContext context) =>
-        context.Render<LiveTail>(parameters => parameters.Add(p => p.BatchInterval, Batch));
+    private static IRenderedComponent<CountedLiveTail> Render(DashboardTestContext context) =>
+        context.Render<CountedLiveTail>(parameters => parameters.Add(p => p.BatchInterval, Batch));
 
     /// <summary>The page counts a render after the renderer has applied it, which is after a wait on the markup has been satisfied.</summary>
-    private static async Task Rendered(IRenderedComponent<LiveTail> page, int after)
+    private static async Task Rendered(IRenderedComponent<CountedLiveTail> page, int after)
     {
         for (var attempt = 0; attempt < 200 && page.Instance.Renders <= after; attempt++)
         {
@@ -60,7 +61,7 @@ public sealed class LiveTailPageTests
         }
     }
 
-    private static string[] Paths(IRenderedComponent<LiveTail> page) =>
+    private static string[] Paths(IRenderedComponent<CountedLiveTail> page) =>
         [.. page.FindAll("[data-seq] .pdk-tail-path").Select(link => link.TextContent.Trim())];
 
     [Fact]
@@ -238,6 +239,27 @@ public sealed class LiveTailPageTests
     }
 
     [Fact]
+    public async Task AFilterTextOverTheCapOpensNoTailAndTheFieldStopsAtTheCap()
+    {
+        var (hub, context, _) = SignIn(Role.Owner);
+        await using (context)
+        {
+            hub.Offer(Entry("/get"));
+            var page = Render(context);
+            await page.WaitForStateAsync(() => Paths(page).Length == 1);
+            Assert.Equal(LogTailFilter.MaxTextLength.ToString(System.Globalization.CultureInfo.InvariantCulture), page.Find("input[data-field=path]").GetAttribute("maxlength"));
+
+            // A client can send what the field would not let a person type; the page takes no subscription for it instead of faulting.
+            await page.Find("input[data-field=path]").InputAsync(new() { Value = new string('a', LogTailFilter.MaxTextLength + 1) });
+            await page.WaitForStateAsync(() => Paths(page).Length == 0);
+            Assert.Equal(0, hub.SubscriberCount);
+
+            await page.Find("input[data-field=path]").InputAsync(new() { Value = "get" });
+            await page.WaitForStateAsync(() => Paths(page).SequenceEqual(["/get"]));
+        }
+    }
+
+    [Fact]
     public async Task TheHostPickerOffersTheConfiguredHostsAndRequestsNoHostOwnedCanBeSelected()
     {
         var (hub, context, config) = SignIn(Role.Owner);
@@ -398,6 +420,18 @@ public sealed class LiveTailPageTests
             var sequences = page.FindAll("[data-seq]").Select(row => long.Parse(row.GetAttribute("data-seq")!, System.Globalization.CultureInfo.InvariantCulture)).ToList();
             Assert.Equal(sent, sequences[0]);
             Assert.Equal(sequences.OrderByDescending(sequence => sequence), sequences);
+        }
+    }
+
+    /// <summary>The page, counting its own renders after the renderer has applied them (bUnit's count includes every child).</summary>
+    private sealed class CountedLiveTail : LiveTail
+    {
+        public int Renders { get; private set; }
+
+        protected override Task OnAfterRenderAsync(bool firstRender)
+        {
+            Renders++;
+            return base.OnAfterRenderAsync(firstRender);
         }
     }
 }
