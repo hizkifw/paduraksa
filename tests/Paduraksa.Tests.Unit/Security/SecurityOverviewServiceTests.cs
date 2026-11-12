@@ -67,7 +67,7 @@ public sealed class SecurityOverviewServiceTests
         SecurityOverviewService service = new(store, new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), NewRuntime(), connections);
 
         // Before anything is published: the bootstrap snapshot has no stage, and the card says so.
-        Assert.Equal(new ConnectionCounters(0, null, 0, 0, 0, 0), service.Read().Connections);
+        Assert.Equal(new ConnectionCounters(0, 0, 0, 0, 0), service.Read().Connections);
 
         var scanners = new AccessListSpec { Id = Id<AccessListId>(5), Name = "scanners", Realm = "scanners", Deny = ["203.0.113.0/24", "198.51.100.0/24", "198.51.100.128/25"] };
         var result = SnapshotCompiler.Compile(Model(Host(1, "a.test")) with
@@ -97,7 +97,7 @@ public sealed class SecurityOverviewServiceTests
     public void TheAccessListCountersAreReadAsTheyStand()
     {
         var accessLists = NewRuntime();
-        SecurityOverviewService service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), accessLists);
+        SecurityOverviewService service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), accessLists, new ConnectionRuntime());
         var stats = accessLists.Stats;
         stats.CountAddressRefused();
         stats.CountUnauthorized();
@@ -434,7 +434,7 @@ public sealed class SecurityOverviewServiceTests
         ProofOfWorkRuntime proofOfWork = new();
         RateLimitRuntime rateLimits = new(new RateLimitTable(64));
         SnapshotStore store = new();
-        return (new SecurityOverviewService(store, proofOfWork, rateLimits, time ?? new FakeTime(DateTimeOffset.UnixEpoch), NewRuntime()), proofOfWork, rateLimits, store);
+        return (new SecurityOverviewService(store, proofOfWork, rateLimits, time ?? new FakeTime(DateTimeOffset.UnixEpoch), NewRuntime(), new ConnectionRuntime()), proofOfWork, rateLimits, store);
     }
 
     private static AccessListRuntime NewRuntime() => new(TimeProvider.System, new TestPasswords().Verifier);

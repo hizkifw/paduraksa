@@ -89,9 +89,24 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         {
             return await tcp.GetStream().ReadAsync(buffer, TestContext.Current.CancellationToken).AsTask().WaitAsync(Wait, TestContext.Current.CancellationToken) == 0;
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or SocketException)
         {
             return true; // reset
+        }
+    }
+
+    /// <summary>Connects and reports whether the server refused the connection without a byte; on loopback the refusal may reset it
+    /// before the connect call returns, which is a refusal too.</summary>
+    private static async Task<bool> RefusedAsync(PaduraksaHost host, string scheme = "http")
+    {
+        try
+        {
+            using var tcp = await ConnectAsync(host, scheme);
+            return await ClosedUnansweredAsync(tcp);
+        }
+        catch (SocketException)
+        {
+            return true;
         }
     }
 
@@ -114,15 +129,8 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         await PublishAsync(host, App(new ConnectionsSpec { MaxPerIp = 0, DenyList = Loopback.Id }));
 
         // A TLS server waits for a ClientHello and a plain one for a request: the one that closes first, unasked, refused the peer.
-        using (var plain = await ConnectAsync(host))
-        {
-            Assert.True(await ClosedUnansweredAsync(plain));
-        }
-
-        using (var secure = await ConnectAsync(host, "https"))
-        {
-            Assert.True(await ClosedUnansweredAsync(secure));
-        }
+        Assert.True(await RefusedAsync(host));
+        Assert.True(await RefusedAsync(host, "https"));
 
         Assert.Equal(2, stats.DeniedTcp);
         Assert.Equal(0, host.Shared.PublicListeners.Selector.Counters.UnknownServerNameTcp);
@@ -146,15 +154,8 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         Assert.StartsWith("HTTP/1.1 200", await GetAsync(second), StringComparison.Ordinal);
         Assert.Equal(2, stats.Open);
 
-        using (var third = await ConnectAsync(host))
-        {
-            Assert.True(await ClosedUnansweredAsync(third));
-        }
-
-        using (var thirdSecure = await ConnectAsync(host, "https"))
-        {
-            Assert.True(await ClosedUnansweredAsync(thirdSecure)); // the cap is the table's: both listeners count into it
-        }
+        Assert.True(await RefusedAsync(host));
+        Assert.True(await RefusedAsync(host, "https")); // the cap is the table's: both listeners count into it
 
         Assert.Equal(2, stats.OverCapTcp);
 

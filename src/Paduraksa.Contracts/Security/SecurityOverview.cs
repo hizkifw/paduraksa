@@ -31,7 +31,7 @@ public sealed record SecurityOverview(
 /// <param name="LimitRefused">Connections refused because their address already held the limit.</param>
 /// <param name="Uncounted">Connections let through uncounted because the table had no entry for their address; 0 unless a flood from many addresses filled it.</param>
 /// <param name="Counted">Connections the limit counts now.</param>
-public sealed record ConnectionCounters(int MaxPerIp, ConnectionDenyListRef? DenyList, long DenyListRefused, long LimitRefused, long Uncounted, long Counted);
+public sealed record ConnectionCounters(int MaxPerIp, long DenyListRefused, long LimitRefused, long Uncounted, long Counted, ConnectionDenyListRef? DenyList = null);
 
 /// <summary>The connection deny list.</summary>
 /// <param name="Id">The access list.</param>

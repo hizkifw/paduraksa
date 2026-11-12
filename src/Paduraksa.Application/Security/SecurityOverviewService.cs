@@ -30,7 +30,7 @@ public sealed class SecurityOverviewService
     private readonly TimeProvider _time;
     private readonly DateTimeOffset _since;
 
-    public SecurityOverviewService(SnapshotStore snapshots, ProofOfWorkRuntime proofOfWork, RateLimitRuntime rateLimits, TimeProvider time, AccessListRuntime accessLists, ConnectionRuntime? connections = null)
+    public SecurityOverviewService(SnapshotStore snapshots, ProofOfWorkRuntime proofOfWork, RateLimitRuntime rateLimits, TimeProvider time, AccessListRuntime accessLists, ConnectionRuntime connections)
     {
         ArgumentNullException.ThrowIfNull(snapshots);
         ArgumentNullException.ThrowIfNull(proofOfWork);
@@ -41,7 +41,8 @@ public sealed class SecurityOverviewService
         _proofOfWork = proofOfWork.Stats;
         _rateLimit = rateLimits.Stats;
         _accessLists = accessLists.Stats;
-        _connections = (connections ?? ConnectionRuntime.Default).Stats;
+        ArgumentNullException.ThrowIfNull(connections);
+        _connections = connections.Stats;
         _time = time;
         _since = time.GetUtcNow();
     }
@@ -71,7 +72,7 @@ public sealed class SecurityOverviewService
         var policy = snapshot.Connections;
         var stats = _connections;
         ConnectionDenyListRef? list = policy.DenyListId is { } id ? new(id, policy.DenyListName ?? string.Empty, policy.Deny.RangeCount) : null;
-        return new ConnectionCounters(policy.MaxPerIp, list, stats.Denied, stats.OverCap, stats.TableFull, stats.Open);
+        return new ConnectionCounters(policy.MaxPerIp, stats.Denied, stats.OverCap, stats.TableFull, stats.Open, list);
     }
 
     // Each provider the live config applies counts once, however many hosts and routes ask it.
