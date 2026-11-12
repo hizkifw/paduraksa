@@ -5,6 +5,7 @@ using Paduraksa.Data.Analytics;
 using Paduraksa.Data.Audit;
 using Paduraksa.Data.Certificates;
 using Paduraksa.Data.Conversion;
+using Paduraksa.Data.Drafts;
 using Paduraksa.Data.Identity;
 using Paduraksa.Data.Issuance;
 using Paduraksa.Data.Metrics;
@@ -61,6 +62,10 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<NotificationDeliveryRow> NotificationDeliveries => Set<NotificationDeliveryRow>();
 
+    internal DbSet<DraftRow> ConfigDrafts => Set<DraftRow>();
+
+    internal DbSet<DraftNoticeRow> ConfigDraftNotices => Set<DraftNoticeRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -98,6 +103,9 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration(new ExpiryNoticeRowConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationEventRowConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationDeliveryRowConfiguration());
+        DraftRowConfiguration drafts = new();
+        modelBuilder.ApplyConfiguration<DraftRow>(drafts);
+        modelBuilder.ApplyConfiguration<DraftNoticeRow>(drafts);
         IdentityConfiguration identity = new();
         modelBuilder.ApplyConfiguration<UserRow>(identity);
         modelBuilder.ApplyConfiguration<RoleAssignmentRow>(identity);

@@ -55,6 +55,10 @@ public readonly partial record struct CertificateId;
 [TypedId("rev")]
 public readonly partial record struct ConfigRevisionId;
 
+/// <summary>A draft: one user's open change set across pages, applied as one revision (PLAN §12).</summary>
+[TypedId("drf")]
+public readonly partial record struct DraftId;
+
 /// <summary>An audit-log entry. Int64Ordered: admin-only and append-only.</summary>
 [TypedId("aud", IdKind.Int64Ordered)]
 public readonly partial record struct AuditEventId;

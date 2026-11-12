@@ -63,4 +63,7 @@ namespace Paduraksa.Contracts.Config;
 [JsonSerializable(typeof(ConfigError))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigError>))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigChange>))]
+[JsonSerializable(typeof(ConfigCommand))]
+[JsonSerializable(typeof(IReadOnlyList<StoredDraftEntry>))]
+[JsonSerializable(typeof(IReadOnlyList<PasswordCredentialId>))]
 public sealed partial class ConfigJsonContext : JsonSerializerContext;

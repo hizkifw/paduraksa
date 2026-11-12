@@ -243,6 +243,81 @@ namespace Paduraksa.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Data.Drafts.DraftNoticeRow", b =>
+                {
+                    b.Property<byte[]>("DraftId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("DroppedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Entries")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("OwnerUserId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("DraftId");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.ToTable("ConfigDraftNotices", (string)null);
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Drafts.DraftRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Entries")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("NextNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("OwnerUserId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("PendingCredentials")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("StartedRevisionId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<long>("StartedSeq")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId")
+                        .IsUnique();
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.ToTable("ConfigDrafts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConfigDrafts_NextNumber", "\"NextNumber\" >= 1");
+
+                            t.HasCheckConstraint("CK_ConfigDrafts_Version", "\"Version\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Identity.ApiTokenRow", b =>
                 {
                     b.Property<byte[]>("Id")
@@ -993,6 +1068,24 @@ namespace Paduraksa.Data.Migrations
                     b.HasOne("Paduraksa.Data.Certificates.CertificateRow", null)
                         .WithMany()
                         .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Drafts.DraftNoticeRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Identity.UserRow", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Drafts.DraftRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Identity.UserRow", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
