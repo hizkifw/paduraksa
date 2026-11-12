@@ -19,7 +19,7 @@ users from a web dashboard or a REST API, with every change versioned and revers
   self-signed, or issued from a built-in local CA.
 - **Safe config changes:** review every change as a diff before it goes live, roll back any revision, and see who did
   what in a tamper-evident audit log. Changes go live in milliseconds without dropping requests.
-- **Dashboard and API:** a web dashboard with a first-run wizard, and a REST API with OpenAPI docs over the same
+- **Dashboard and API:** a web dashboard with a first-run checklist, and a REST API with OpenAPI docs over the same
   operations.
 - **Multiple users:** roles, two-step sign-in (TOTP) and scoped API tokens.
 - **Access control and WAF:** named access lists (addresses, countries by `CF-IPCountry`, and basic-auth users whose
@@ -31,12 +31,25 @@ users from a web dashboard or a REST API, with every change versioned and revers
 - **Security overview:** what protects each host and how much work each protection has done.
 - **Request simulator:** ask why a request was routed, redirected or refused, against the live config or a draft.
 - **Logs:** access and error logs, rotated and compressed, browsable from the dashboard.
+- **Custom error pages:** replace the page a visitor sees for a 404, a refused or rate-limited request, an upstream that is down or a maintenance
+  window with a short message or your own HTML document, globally, per profile or per host.
+- **Metrics:** a Prometheus `/metrics` endpoint on the admin port (behind a token) and live traffic charts in the dashboard.
+- **Notifications:** alerts for certificate expiry, ACME failures, upstream health and sign-in anomalies to ntfy, Gotify, Discord, a signed
+  webhook or email, with the secrets in the vault.
+- **Traffic analytics:** visitors, top paths, referers, browsers, devices and bots (including those that ignore `robots.txt`), computed off the
+  request path and with no client address stored.
+- **YAML import and export:** the whole config as one YAML document, in the dashboard or with `paduraksa config export` and `import`, with a dry
+  run that shows the diff before anything changes.
+- **Backups:** one passphrase-encrypted archive (`paduraksa backup`, or Settings, Backup) of the config and the vault, made while the server runs
+  and restorable on a fresh machine under its own master key.
+- **CLI:** the same binary resets a password, turns a second factor off, prints the setup token, rotates the master key, backs up and restores,
+  and checks health (`paduraksa --help`).
 - **AI assistants (MCP):** an MCP endpoint with two tools, `search` and `execute`, that let an assistant read the API description and call the
   API by writing code, as the API token it connects with. A read-only token can change nothing; a change is a dry run and then a confirmed request,
   recorded as MCP in the audit log. See [docs/install.md](docs/install.md#mcp-ai-assistants).
 - **Secrets stay encrypted:** certificate keys, DNS credentials and TOTP secrets live in an encrypted vault.
 
-**Planned:** custom error pages, metrics, a CLI, YAML import/export and backups. See the [roadmap](docs/PLAN.md#14-milestones).
+See the [roadmap](docs/PLAN.md#14-milestones) for what is next.
 
 ## Quick start
 
@@ -45,14 +58,17 @@ With Docker and Compose v2:
 ```sh
 mkdir paduraksa && cd paduraksa
 curl -fsSLO https://raw.githubusercontent.com/hizkifw/paduraksa/main/deploy/compose.yaml
+head -c 32 /dev/urandom | base64 | sudo install -m 400 -o 10001 -g 10001 /dev/stdin master.key   # the vault's master key, a Docker secret
 docker compose up -d
 docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"   # the one-time setup token
 ```
 
-Then open `https://<host>:9443/` and follow the setup wizard. The admin port uses Paduraksa's local CA; to stop the
-browser warning, trust its root from `https://<host>:9443/api/v1/ca/root.crt`.
+Keep a copy of `master.key` somewhere other than this machine: nothing else opens the vault. Then open `https://localhost:9443/` on the
+server (or through `ssh -L 9443:127.0.0.1:9443 you@server`) and create the Owner with the setup token. The compose file publishes the admin
+port on loopback only; [Exposing the admin](docs/install.md#exposing-the-admin) says how to open it on your LAN. The admin port uses Paduraksa's
+local CA; to stop the browser warning, trust its root from `https://localhost:9443/api/v1/ca/root.crt`.
 
-Map ports **80/tcp, 443/tcp, 443/udp and 9443/tcp** one to one (443/udp is HTTP/3).
+The compose file maps ports **80/tcp, 443/tcp and 443/udp** one to one (443/udp is HTTP/3).
 
 The image is `ghcr.io/hizkifw/paduraksa`, for amd64 and arm64. The [install guide](docs/install.md) covers the master
 key, backups, upgrades, building the image yourself and running without Docker.

@@ -568,7 +568,9 @@ response parser, multipart upload parsing (listed in PLAN §15 "Security" as a t
 ## 8. Gaps found
 
 Ordered by severity. "Gap" means a mismatch with PLAN, a missing mitigation that a reader would assume exists, or a default that
-weakens a documented property. Nothing here was fixed in this branch.
+weakens a documented property. The branch `security-gaps` closed the small ones: G2, G3, G4 (mitigated), G5 (documented), G7, G9 and
+G13 are struck through below with what was done and what remains, G14 was checked, and G12 stays open for the M11 fuzz run; the
+commits are listed under the table. G1, G6, G8, G10 and G11 are as described.
 
 | # | Severity | Gap | Evidence | Suggested fix |
 |---|---|---|---|---|
@@ -583,8 +585,8 @@ weakens a documented property. Nothing here was fixed in this branch.
 | G9 | ~~Low~~ **Fixed** | **CI had neither a CodeQL workflow nor an explicit vulnerability gate.** Fixed on branch `security-gaps`: `.github/workflows/codeql.yml` (C#, pushes to main, pull requests, weekly) and `NuGetAudit` set explicitly in `Directory.Build.props` (mode `all`, level `moderate`; NU1903 and NU1904 are errors, NU1902 stays a warning so that a moderate advisory with no fix yet cannot block every build; PLAN §15). A restore of the solution reported no advisory. Residual: the workflow has not run yet (it needs a push), nothing verifies image signatures or provenance for operators, and Dependabot is the only update path. | `.github/workflows/codeql.yml`, `Directory.Build.props` | Done. |
 | G10 | **Low** | **A new host is unprotected until the operator opts in.** PLAN §12.1 planned a security preset (Off / Balanced / Strict) in the wizard; the wizard and the presets were not built. Built-in defaults (`HostSettingsLayers.cs`): force-HTTPS off, HSTS off, PoW off, no rate-limit policy, access list or rule set until one is named, TLS 1.2 minimum, 100 MiB body limit. | PLAN §12.1 "Owner decision: no wizard"; `src/Paduraksa.Application/Compilation/HostSettingsLayers.cs:28-60` | A "Balanced" preset in the global defaults (sane rate limit, the built-in rule-set presets, request limits) and a checklist item. At least say so in install.md. |
 | G11 | **Low** | **The local CA root has no name constraints and no rotation.** A leaked vault means a CA that devices which trusted the root accept for any name, for ten years. Documented as deferred. | PLAN §8.2 "Vault-signed certificates", §3 "Not built" | Add name constraints limiting the root to the owner's domains, and warn in the trust-the-root card. |
-| G12 | **Low** | **Fuzz and property coverage gaps already admitted in PLAN §15 remain**: the rate-limit table and the PoW page have no property test; the ACME response parser, multipart parsing and the dashboard have no fuzz target; the release-length fuzz run (M11) is not yet recorded. | PLAN §15 "Gaps", "Left out" | Add the targets, run `scripts/fuzz.sh --time 3600 --merge` for the release, record the sessions in §15. |
-| G13 | **Info** | **Docs drift, not security:** the README still lists custom error pages, metrics, a CLI, YAML import/export and backups as "Planned"; all are built. | `README.md` ("Planned") | Update the README. |
+| G12 | **Low** (open, left to M11) | **Fuzz and property coverage gaps already admitted in PLAN §15 remain**: the rate-limit table and the PoW page have no property test; the ACME response parser, multipart parsing and the dashboard have no fuzz target; the release-length fuzz run (M11) is not yet recorded. | PLAN §15 "Gaps", "Left out" | Add the targets, run `scripts/fuzz.sh --time 3600 --merge` for the release, record the sessions in §15. **Not touched by the `security-gaps` branch:** it belongs to the M11 fuzz run. |
+| G13 | ~~Info~~ **Fixed** | **Docs drift, not security:** the README listed custom error pages, metrics, a CLI, YAML import/export and backups as "Planned". Fixed on branch `security-gaps`: those, notifications and analytics are listed as built with one line each, the quick start follows the compose file (key file, loopback admin) and the first-run wizard is no longer claimed. | `README.md` | Done. |
 | G14 | ~~Info~~ **Checked** | **Docker's default seccomp profile and Landlock.** Checked on the image built from this branch, run under Docker 29.9.3 on Linux 7.3.3 with the compose hardening and `Paduraksa__Mcp__Enabled=true`: the first MCP call logged `Landlock: no file system access (every thread); Landlock network: no TCP bind or connect (every thread); seccomp: only AF_UNIX sockets, no io_uring (every thread)`. A profile that blocks `landlock_*` was also run: the log says `Landlock: not available (errno 1)` and the call still works. | `src/Paduraksa.Mcp/SandboxProcessPool.cs` (the one-time log line) | install.md "MCP" documents the result and the operator's choice (a profile that allows the three calls, or accepting it). Podman and Kubernetes runtimes were not run; their profiles differ. |
 
 Things that were checked and **agree** with PLAN (spot checks, *code*): the key-material ban list and its wiring; session and
@@ -611,6 +613,6 @@ Update this document when any of the following changes, in the same pull request
 - **Backup format or key-handling changes**, a new place data is written under `/data`, or a new log or analytics field that
   carries client data.
 - **Fleet or control-plane work** (§16.1): this model covers one node; a second node needs its own trust-boundary section.
-- **A fixed gap**: remove it from section 8 and note the PR.
+- **A fixed gap**: strike it through in section 8 with what was done, what is left and the commit; drop it at the next release review.
 - Before every **release** (v0.x tag): re-read section 8 and the "agree" list, re-run the fuzz harnesses per §15, and confirm the
   evidence levels still hold. At least once per quarter otherwise.
