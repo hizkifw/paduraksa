@@ -85,7 +85,9 @@ public static class ConfigValidator
                 Add("/apiVersion", ApiVersionUnsupported, $"apiVersion '{document.ApiVersion}' isn't supported; this build reads '{ConfigDocument.V1}'");
             }
 
-            CheckSettings(document.Settings ?? new(), "/settings");
+            // Access lists first: the settings' connection deny list names one.
+            HashSet<AccessListId> listIds = [.. (document.AccessLists ?? []).Where(static l => l is not null).Select(static l => l.Id)];
+            CheckSettings(document.Settings ?? new(), "/settings", listIds);
 
             var profiles = document.Profiles ?? [];
             Dictionary<string, string> profileNames = new(StringComparer.OrdinalIgnoreCase);
@@ -177,7 +179,7 @@ public static class ConfigValidator
             }
         }
 
-        private void CheckSettings(GlobalSettings settings, string path)
+        private void CheckSettings(GlobalSettings settings, string path, HashSet<AccessListId> accessLists)
         {
             CheckVersion(settings.Version, path);
             CheckHostSettings(settings.Defaults, $"{path}/defaults");
@@ -196,6 +198,29 @@ public static class ConfigValidator
             }
 
             CheckTrustedProxies(settings.TrustedProxies ?? new(), $"{path}/trustedProxies");
+            CheckConnections(settings.Connections, accessLists, $"{path}/connections");
+        }
+
+        private void CheckConnections(ConnectionSettings? connections, HashSet<AccessListId> accessLists, string path)
+        {
+            if (connections is null)
+            {
+                return;
+            }
+
+            if (connections.MaxConnectionsPerIp is { } cap and (< 0 or > ConnectionSettings.MaxMaxConnectionsPerIp))
+            {
+                Add($"{path}/maxConnectionsPerIp", ConnectionsMaxPerIpInvalid, $"the per-IP connection limit must be from 0 (off) to {ConnectionSettings.MaxMaxConnectionsPerIp}, was {cap}");
+            }
+
+            if (connections.DenyListId is { IsEmpty: true })
+            {
+                Add($"{path}/denyListId", IdEmpty, "the connection deny list ID can't be empty (leave it unset for none)");
+            }
+            else if (connections.DenyListId is { } list && !accessLists.Contains(list))
+            {
+                Add($"{path}/denyListId", ConnectionsDenyListUnknown, $"access list '{list}' doesn't exist");
+            }
         }
 
         private void CheckTrustedProxies(TrustedProxySettings trusted, string path)

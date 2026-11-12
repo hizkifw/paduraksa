@@ -116,6 +116,7 @@ public static class ProxyConfigMapping
                 Certificate = DefaultCertificate(settings.DefaultCertificateId, inventory, warnings),
                 Tls = globalDefaults.Tls,
                 TrustedProxies = MapTrustedProxies(settings.TrustedProxies),
+                Connections = MapConnections(settings.Connections, accessLists, warnings),
                 // An unknown host has no layer of its own, so it follows the global default.
                 AccessLog = globalDefaults.AccessLog,
                 RequestIdPropagation = globalDefaults.RequestIdPropagation,
@@ -999,6 +1000,23 @@ public static class ProxyConfigMapping
         LoadBalancingPolicy.FirstAlphabetical => LoadBalancingPolicies.FirstAlphabetical,
         _ => null,
     };
+
+    private static ConnectionsSpec MapConnections(ConnectionSettings? connections, Dictionary<AccessListId, AccessListConfig> accessLists, List<MappedWarning> warnings)
+    {
+        var denyList = connections?.DenyListId ?? default;
+        if (!denyList.IsEmpty
+            && accessLists.TryGetValue(denyList, out var list)
+            && (list.Ip is { Allow.Count: > 0 } || list.Ip?.Countries is { Allow.Count: > 0 } or { Deny.Count: > 0 } || list.BasicAuth is { Users.Count: > 0 }))
+        {
+            warnings.Add(new MappedWarning(
+                CompileErrorSource.Defaults,
+                "/connections/denyListId",
+                ConfigWarningCodes.ConnectionsDenyListRequestRules,
+                $"before TLS only the deny addresses of '{list.Name}' apply; its allow addresses, countries and users are request rules for the hosts that name it"));
+        }
+
+        return new ConnectionsSpec { MaxPerIp = connections?.MaxConnectionsPerIp ?? ConnectionsSpec.DefaultMaxPerIp, DenyList = denyList };
+    }
 
     private static TrustedProxySpec MapTrustedProxies(TrustedProxySettings trusted) => new()
     {

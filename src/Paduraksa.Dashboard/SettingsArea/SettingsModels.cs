@@ -717,6 +717,8 @@ public sealed class GlobalSettingsEditModel
         UseTrueClientIp = original.TrustedProxies.UseTrueClientIp;
         ForwardedForFallback = original.TrustedProxies.ForwardedForFallback;
         TrustForwardedProto = original.TrustedProxies.TrustForwardedProto;
+        MaxConnectionsPerIp = original.Connections?.MaxConnectionsPerIp;
+        DenyListId = original.Connections?.DenyListId;
     }
 
     /// <summary>The version the form opened with.</summary>
@@ -744,6 +746,12 @@ public sealed class GlobalSettingsEditModel
 
     public bool TrustForwardedProto { get; set; }
 
+    /// <summary>The per-IP connection cap; null is the built-in one, 0 is off.</summary>
+    public int? MaxConnectionsPerIp { get; set; }
+
+    /// <summary>The access list whose deny addresses are refused before TLS; null is none.</summary>
+    public AccessListId? DenyListId { get; set; }
+
     /// <summary>Whether the mode takes a list of proxies.</summary>
     public bool ModeTakesProxies => ProxyMode is TrustedProxyMode.Generic or TrustedProxyMode.CloudflareTunnel;
 
@@ -770,6 +778,7 @@ public sealed class GlobalSettingsEditModel
                 cloudflare && UseTrueClientIp,
                 cloudflare && ForwardedForFallback,
                 generic && TrustForwardedProto),
+            Connections = new ConnectionSettings(MaxConnectionsPerIp, DenyListId) is { SetsNothing: false } connections ? connections : null,
         };
     }
 }

@@ -112,6 +112,9 @@ public static class FieldLabels
         ["useTrueClientIp"] = "True-Client-IP",
         ["forwardedForFallback"] = "X-Forwarded-For fallback",
         ["trustForwardedProto"] = "Trust X-Forwarded-Proto",
+        ["connections"] = "Connections",
+        ["maxConnectionsPerIp"] = "Connections per address",
+        ["denyListId"] = "Connection deny list",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     private static readonly FrozenDictionary<string, string> Values = new Dictionary<string, string>(StringComparer.Ordinal)

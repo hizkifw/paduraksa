@@ -37,6 +37,35 @@ public sealed class ProxyConfigMappingTests
     private static AccessListPolicySpec AddressOnly(AccessListConfig list) => new(list.Id, AccessListStage.AddressOnly);
 
     [Fact]
+    public void TheConnectionStageMapsWithItsBuiltInLimitAndWarnsWhenItsListHasRequestRules()
+    {
+        var plain = TestMapping.Map(new ConfigDocument(), Revision, CertificateInventory.Empty);
+        Assert.Equal(ConnectionsSpec.Default, plain.Model.Defaults.Connections);
+        Assert.Equal(256, plain.Model.Defaults.Connections.MaxPerIp);
+        Assert.Equal(ConnectionSettings.DefaultMaxConnectionsPerIp, ConnectionsSpec.DefaultMaxPerIp);
+        Assert.Equal(ConnectionSettings.MaxMaxConnectionsPerIp, ConnectionsSpec.MaxMaxPerIp);
+
+        AccessListConfig denyOnly = new(Id<AccessListId>(7), "scanners", Ip: new AccessListIp(Deny: ["203.0.113.0/24"]));
+        var clean = TestMapping.Map(
+            new ConfigDocument(Settings: new GlobalSettings(Connections: new ConnectionSettings(0, denyOnly.Id)), AccessLists: [denyOnly]), Revision, CertificateInventory.Empty);
+        Assert.Equal(new ConnectionsSpec { MaxPerIp = 0, DenyList = denyOnly.Id }, clean.Model.Defaults.Connections);
+        Assert.DoesNotContain(clean.Warnings, w => w.Code == ConfigWarningCodes.ConnectionsDenyListRequestRules);
+
+        foreach (var mixed in new[]
+        {
+            denyOnly with { Ip = new AccessListIp(Allow: ["10.0.0.0/8"], Deny: ["203.0.113.0/24"]) },
+            denyOnly with { Ip = new AccessListIp(Deny: ["203.0.113.0/24"], Countries: new AccessListCountries(Deny: ["DE"])) },
+            denyOnly with { BasicAuth = new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Id<PasswordCredentialId>(1))]) },
+        })
+        {
+            var warned = TestMapping.Map(
+                new ConfigDocument(Settings: new GlobalSettings(Connections: new ConnectionSettings(DenyListId: mixed.Id)), AccessLists: [mixed]), Revision, CertificateInventory.Empty);
+            var warning = Assert.Single(warned.Warnings, w => w.Code == ConfigWarningCodes.ConnectionsDenyListRequestRules);
+            Assert.Equal("/connections/denyListId", warning.Member);
+        }
+    }
+
+    [Fact]
     public void ARepresentativeDocumentMapsToTheExpectedModel()
     {
         ConfigDocument document = new(

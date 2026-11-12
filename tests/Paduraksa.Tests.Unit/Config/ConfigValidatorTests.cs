@@ -564,6 +564,52 @@ public sealed class ConfigValidatorTests
         AssertErrors(document with { Settings = document.Settings with { TrustedProxies = trusted } }, ($"/settings/trustedProxies{field}", code));
     }
 
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(0, false)]
+    [InlineData(256, false)]
+    [InlineData(100_000, false)]
+    [InlineData(100_001, true)]
+    public void ChecksThePerIpConnectionLimit(int limit, bool refused)
+    {
+        var document = Valid();
+        var changed = document with { Settings = document.Settings with { Connections = new ConnectionSettings(MaxConnectionsPerIp: limit) } };
+
+        if (refused)
+        {
+            AssertErrors(changed, ("/settings/connections/maxConnectionsPerIp", ConnectionsMaxPerIpInvalid));
+        }
+        else
+        {
+            Assert.Empty(ConfigValidator.Validate(changed));
+        }
+    }
+
+    [Fact]
+    public void TheConnectionDenyListMustBeAnAccessListThatExists()
+    {
+        var document = Valid();
+        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Connections = new ConnectionSettings(DenyListId: LanList) } }));
+
+        var missing = Id<AccessListId>(99);
+        AssertErrors(
+            document with { Settings = document.Settings with { Connections = new ConnectionSettings(DenyListId: missing) } },
+            ("/settings/connections/denyListId", ConnectionsDenyListUnknown));
+        AssertErrors(
+            document with { Settings = document.Settings with { Connections = new ConnectionSettings(DenyListId: default(AccessListId)) } },
+            ("/settings/connections/denyListId", IdEmpty));
+
+        // Deleting the list the settings name is refused like deleting one a host names.
+        AssertErrors(
+            document with
+            {
+                Settings = document.Settings with { Connections = new ConnectionSettings(DenyListId: LanList) },
+                AccessLists = [],
+                Profiles = [.. document.Profiles.Select(p => p with { Settings = new HostSettings() })],
+            },
+            ("/settings/connections/denyListId", ConnectionsDenyListUnknown));
+    }
+
     [Fact]
     public void ChecksTags()
     {

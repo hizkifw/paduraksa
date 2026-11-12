@@ -44,6 +44,10 @@ public static class ConfigWarningCodes
     /// client certificate, so every request is refused.</summary>
     public const string CloudflareAopTunnel = "cloudflare.aop.tunnel";
 
+    /// <summary>The connection deny list is an access list that also has allow addresses, countries or users: before TLS only its
+    /// deny addresses apply, and the rest is for the hosts that name the list.</summary>
+    public const string ConnectionsDenyListRequestRules = "connections.denyList.requestRules";
+
     /// <summary>The trusted-proxy mode is <c>CloudflareProxy</c> and the list of Cloudflare's edge ranges is older than 30
     /// days, or several refreshes in a row failed.</summary>
     public const string CloudflareRangesStale = "cloudflare.ranges.stale";

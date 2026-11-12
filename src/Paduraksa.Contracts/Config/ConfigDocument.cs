@@ -68,16 +68,43 @@ public sealed record ConfigDocument(
 /// <param name="DefaultCertificateId">Certificate served when the SNI matches no host or is absent, and to hosts whose
 /// binding resolves to no certificate of their own. Null: such handshakes are rejected.</param>
 /// <param name="TrustedProxies">Who may tell us the client IP and scheme.</param>
+/// <param name="Connections">The connection stage, before TLS: the per-IP connection cap and the connection deny list; null =
+/// the built-in cap and no list.</param>
 public sealed record GlobalSettings(
     long Version = 0,
     HostSettings? Defaults = null,
     UnknownHostBehaviour UnknownHost = UnknownHostBehaviour.NotFound,
     CertificateId? DefaultCertificateId = null,
-    TrustedProxySettings? TrustedProxies = null)
+    TrustedProxySettings? TrustedProxies = null,
+    ConnectionSettings? Connections = null)
 {
     public HostSettings Defaults { get; init; } = Defaults ?? new();
 
     public TrustedProxySettings TrustedProxies { get; init; } = TrustedProxies ?? new();
+
+    /// <summary>Null when it sets nothing (<see cref="ConnectionSettings.SetsNothing"/>): canonical JSON writes no key, so a
+    /// stored revision keeps its bytes and its hash.</summary>
+    public ConnectionSettings? Connections { get; init; } = Connections;
+}
+
+/// <summary>
+/// What the proxy does with a connection before the TLS handshake (PLAN §7.2 A). Global only: a connection has no host yet.
+/// A visitor behind a trusted proxy (Cloudflare, a load balancer) shares the proxy's address here, so the proxy is exempt from
+/// the cap and its visitors are judged by their real addresses later, at the gate.
+/// </summary>
+/// <param name="MaxConnectionsPerIp">Open connections one client address may hold (an IPv6 /64 counts as one address), 0 to
+/// 100000; 0 turns the cap off. Null = the built-in 256. Over it a connection is closed at once, before TLS.</param>
+/// <param name="DenyListId">The access list whose <c>ip.deny</c> addresses are refused before TLS, trusted proxies
+/// included. Only its deny addresses apply here: its allow addresses, countries and users are request rules. Null = none.</param>
+public sealed record ConnectionSettings(int? MaxConnectionsPerIp = null, AccessListId? DenyListId = null)
+{
+    /// <summary>The built-in cap when <see cref="MaxConnectionsPerIp"/> is null.</summary>
+    public const int DefaultMaxConnectionsPerIp = 256;
+
+    /// <summary>The largest cap that can be set.</summary>
+    public const int MaxMaxConnectionsPerIp = 100_000;
+
+    public bool SetsNothing => MaxConnectionsPerIp is null && DenyListId is null;
 }
 
 /// <summary>

@@ -162,6 +162,34 @@ else
             }
         </MudPaper>
 
+        <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true" data-card="connections">
+            <div class="pdk-card-head">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h3">Connections</MudText>
+                </div>
+            </div>
+            <div class="pdk-setting-list">
+                <SettingRow Title="Open connections per address"
+                            Help="A client address over this has its next connection closed before TLS. An IPv6 /64 counts as one address. Trusted proxies are not counted, so visitors behind one are never refused here. 0 turns it off.">
+                    <CountField Value="_model.MaxConnectionsPerIp" ValueChanged="@(value => Set(() => _model.MaxConnectionsPerIp = value, "/connections/maxConnectionsPerIp"))"
+                                Inherited="@ConnectionSettings.DefaultMaxConnectionsPerIp" InheritWord="Built-in default" Label="Connections per address" Field="max-connections-per-ip"
+                                ReadOnly="!_mayWrite" Error="@E("/connections/maxConnectionsPerIp")" Class="pdk-setting-control" />
+                </SettingRow>
+                <SettingRow Title="Connection deny list"
+                            Help="The deny addresses of this access list are refused before TLS and get no reply, trusted proxies included. Its allow addresses, countries and users only apply to hosts that name it.">
+                    <MudSelect T="AccessListId?" Value="_model.DenyListId" ValueChanged="@(value => Set(() => _model.DenyListId = value, "/connections/denyListId"))"
+                               Label="Deny list" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite" ToStringFunc="DenyListName"
+                               Class="pdk-setting-control" Error="@(E("/connections/denyListId") is not null)" ErrorText="@E("/connections/denyListId")" data-field="deny-list">
+                        <MudSelectItem T="AccessListId?" Value="null">None</MudSelectItem>
+                        @foreach (var list in _document.AccessLists)
+                        {
+                            <MudSelectItem T="AccessListId?" Value="list.Id">@list.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </SettingRow>
+            </div>
+        </MudPaper>
+
         @if (_mayWrite)
         {
             <div class="pdk-editor-bar">
@@ -277,6 +305,9 @@ else
             _errors = InlineValidation.ForSettings(_document, _model.ToSettings());
         }
     }
+
+    private string DenyListName(AccessListId? id) =>
+        id is not { } value ? "None" : _document?.AccessLists.FirstOrDefault(list => list.Id == value)?.Name ?? "A list that isn't here";
 
     private string CertificateName(CertificateId? id)
     {

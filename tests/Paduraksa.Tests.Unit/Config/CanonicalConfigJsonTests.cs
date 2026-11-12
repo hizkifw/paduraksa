@@ -635,6 +635,20 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void ConnectionSettingsThatSetNothingWriteNoKeyAndKeepTheDocumentsBytes()
+    {
+        var plain = new ConfigDocument();
+        var empty = plain with { Settings = plain.Settings with { Connections = new ConnectionSettings() } };
+        var set = plain with { Settings = plain.Settings with { Connections = new ConnectionSettings(MaxConnectionsPerIp: 0, DenyListId: LanList) } };
+
+        Assert.Equal(CanonicalConfigJson.Serialize(plain), CanonicalConfigJson.Serialize(empty));
+        Assert.DoesNotContain("connections", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(empty)), StringComparison.Ordinal);
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(set));
+        Assert.Contains("\"connections\":{\"maxConnectionsPerIp\":0,\"denyListId\":\"acl_", json, StringComparison.Ordinal);
+        Assert.Equal(CanonicalConfigJson.Serialize(set), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(set))));
+    }
+
+    [Fact]
     public void NormalisesSetsAndBlankValues()
     {
         ConfigDocument document = new(
