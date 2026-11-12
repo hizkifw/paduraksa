@@ -154,15 +154,6 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         }
     }
 
-    internal NotificationMessage Address(NotificationEvent notification) => new(
-        notification.Kind,
-        notification.Title,
-        notification.Body,
-        notification.Severity,
-        notification.At,
-        notification.LinkPath is { } path && _options.AdminUrl is { } admin ? new Uri(admin, path.TrimStart('/')).ToString() : null,
-        notification.Data);
-
     /// <summary>Drops a deleted channel's queue so the table holds only channels that exist; a message already waiting in it is dropped with it.</summary>
     private void Forget(NotificationChannelId id)
     {
@@ -316,7 +307,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 
     private async Task DeliverAsync(NotificationChannelId id, NotificationEvent notification, CancellationToken cancellationToken)
     {
-        var message = Address(notification);
+        var message = NotificationAddress.Message(notification, _options);
         for (var attempt = 0; ; attempt++)
         {
             NotificationChannelRow? row;
@@ -371,25 +362,8 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         }
     }
 
-    private async Task RecordAsync(NotificationChannelId id, string? error, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
-            {
-                var now = _time.GetUtcNow();
-                var channels = context.NotificationChannels.Where(c => c.Id == id);
-                _ = error is null
-                    ? await channels.ExecuteUpdateAsync(s => s.SetProperty(c => c.LastSentAt, now).SetProperty(c => c.LastError, (string?)null).SetProperty(c => c.LastErrorAt, (DateTimeOffset?)null), cancellationToken).ConfigureAwait(false)
-                    : await channels.ExecuteUpdateAsync(s => s.SetProperty(c => c.LastError, error).SetProperty(c => c.LastErrorAt, now), cancellationToken).ConfigureAwait(false);
-            }
-        }
-        catch (Exception ex) when (ex is DbUpdateException or Microsoft.Data.Sqlite.SqliteException)
-        {
-            LogRecordFailed(id, ex.GetType().Name);
-        }
-    }
+    private Task RecordAsync(NotificationChannelId id, string? error, CancellationToken cancellationToken) =>
+        NotificationChannelState.RecordAsync(_contexts, _time, id, error, _logger, cancellationToken);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notification queue full: dropped the oldest {What}; {Total} dropped since the process started.")]
     private partial void LogDropped(string what, long total);
@@ -402,7 +376,4 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel}: a sender failed unexpectedly ({Type}).")]
     private partial void LogUnexpected(NotificationChannelId channel, string type);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel}: its delivery state could not be saved ({Type}).")]
-    private partial void LogRecordFailed(NotificationChannelId channel, string type);
 }

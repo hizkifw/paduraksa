@@ -132,6 +132,10 @@ internal sealed class FakeDnsProviderFactory : IDnsProviderFactory
 internal sealed class FakeSecretStore : ISecretStore
 {
     private readonly Dictionary<SecretId, SecretMetadata> _secrets = [];
+    private readonly Dictionary<SecretId, byte[]> _values = [];
+
+    /// <summary>The value a secret holds now (the fake keeps them so a test can see what was stored; the real vault has no such call).</summary>
+    public byte[]? ValueOf(SecretId id) => _values.GetValueOrDefault(id);
 
     /// <summary>The secrets it holds now.</summary>
     public int Count => _secrets.Count;
@@ -145,6 +149,7 @@ internal sealed class FakeSecretStore : ISecretStore
         var id = SecretId.New();
         var now = DateTimeOffset.UtcNow;
         _secrets[id] = new SecretMetadata(id, kind, options.Label, options.MacAlgorithm, options.AllowedHosts ?? [], now, now, 1);
+        _values[id] = value.ToArray();
         return ValueTask.FromResult(id);
     }
 
@@ -161,10 +166,23 @@ internal sealed class FakeSecretStore : ISecretStore
         return ValueTask.FromResult(existing);
     }
 
-    public ValueTask<SecretMetadata> ReplaceAsync(SecretId id, ReadOnlyMemory<byte> value, SecretOptions? options, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+    public ValueTask<SecretMetadata> ReplaceAsync(SecretId id, ReadOnlyMemory<byte> value, SecretOptions? options, CancellationToken cancellationToken)
+    {
+        if (!_secrets.TryGetValue(id, out var existing))
+        {
+            throw new KeyNotFoundException($"There is no secret {id}.");
+        }
 
-    public ValueTask<bool> DeleteAsync(SecretId id, CancellationToken cancellationToken) => ValueTask.FromResult(_secrets.Remove(id));
+        _values[id] = value.ToArray();
+        _secrets[id] = existing with { Label = options?.Label ?? existing.Label, UpdatedAt = DateTimeOffset.UtcNow, Version = existing.Version + 1 };
+        return ValueTask.FromResult(_secrets[id]);
+    }
+
+    public ValueTask<bool> DeleteAsync(SecretId id, CancellationToken cancellationToken)
+    {
+        _values.Remove(id);
+        return ValueTask.FromResult(_secrets.Remove(id));
+    }
 
     public ValueTask<SecretMetadata?> DescribeAsync(SecretId id, CancellationToken cancellationToken) =>
         ValueTask.FromResult(_secrets.TryGetValue(id, out var metadata) ? metadata : null);

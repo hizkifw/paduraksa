@@ -10,6 +10,7 @@
     <ProjectReference Include="../../src/Paduraksa.Data/Paduraksa.Data.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/DockerCli.cs" Link="Shared/DockerCli.cs" />
