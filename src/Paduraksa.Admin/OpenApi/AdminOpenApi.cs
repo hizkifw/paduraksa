@@ -141,6 +141,13 @@ internal static class AdminOpenApi
             Describe(operation, $"Requires the `{name}` permission.");
             operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();
             operation.Extensions[PermissionExtension] = new JsonNodeExtension(JsonValue.Create(name)!);
+            if (metadata.OfType<PublishFailureMetadata>().Any())
+            {
+                // Every change that goes through the config pipeline reads ?dryRun= (Preconditions.TryGetDryRun); declaring it is what lets a client, MCP's
+                // request policy among them, know which operations have a dry run without a list of its own.
+                AddDryRun(operation);
+            }
+
             Secure(operation, context);
             AddProblem(operation, context, "401", "Authentication is required.");
             AddProblem(operation, context, "403", $"The caller lacks the `{name}` permission.");
@@ -164,6 +171,19 @@ internal static class AdminOpenApi
             Describe(operation, "Anonymous: it needs no credentials.");
             operation.Security = [];
         }
+    }
+
+    private static void AddDryRun(OpenApiOperation operation)
+    {
+        operation.Parameters ??= [];
+        operation.Parameters.Add(new OpenApiParameter
+        {
+            Name = "dryRun",
+            In = ParameterLocation.Query,
+            Required = false,
+            Description = "true validates and compiles the change and returns the plan without committing it.",
+            Schema = new OpenApiSchema { Type = JsonSchemaType.Boolean },
+        });
     }
 
     private static void Describe(OpenApiOperation operation, string sentence) =>
