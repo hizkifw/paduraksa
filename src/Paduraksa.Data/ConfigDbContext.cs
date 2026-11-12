@@ -7,6 +7,7 @@ using Paduraksa.Data.Conversion;
 using Paduraksa.Data.Identity;
 using Paduraksa.Data.Issuance;
 using Paduraksa.Data.Metrics;
+using Paduraksa.Data.Notifications;
 using Paduraksa.Data.Revisions;
 using Paduraksa.Storage;
 using Paduraksa.Storage.Ids;
@@ -49,6 +50,10 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<MetricRollupRow> MetricRollups => Set<MetricRollupRow>();
 
+    internal DbSet<NotificationChannelRow> NotificationChannels => Set<NotificationChannelRow>();
+
+    internal DbSet<ExpiryNoticeRow> ExpiryNotices => Set<ExpiryNoticeRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -63,6 +68,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         configurationBuilder.Properties<AcmeOrderStatus>().HaveConversion<AcmeOrderStatusConverter>();
         configurationBuilder.Properties<AcmeChallengeType>().HaveConversion<AcmeChallengeTypeConverter>();
         configurationBuilder.Properties<DnsProviderKind>().HaveConversion<DnsProviderKindConverter>();
+        configurationBuilder.Properties<NotificationChannelKind>().HaveConversion<NotificationChannelKindConverter>();
+        configurationBuilder.Properties<SmtpSecurity>().HaveConversion<SmtpSecurityConverter>();
         configurationBuilder.Properties<JwsAlgorithm>().HaveConversion<JwsAlgorithmConverter>();
         configurationBuilder.Properties<KeySpec>().HaveConversion<KeySpecConverter>();
     }
@@ -77,6 +84,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration(new DnsProviderRowConfiguration());
         modelBuilder.ApplyConfiguration(new AcmeOrderRowConfiguration());
         modelBuilder.ApplyConfiguration(new MetricRollupRowConfiguration());
+        modelBuilder.ApplyConfiguration(new NotificationChannelRowConfiguration());
+        modelBuilder.ApplyConfiguration(new ExpiryNoticeRowConfiguration());
         IdentityConfiguration identity = new();
         modelBuilder.ApplyConfiguration<UserRow>(identity);
         modelBuilder.ApplyConfiguration<RoleAssignmentRow>(identity);

@@ -13,6 +13,14 @@ public sealed class ModelNamesTests
         Assert.Equal(["success", "denied", "invalid", "conflict", "failed"], Enum.GetValues<AuditOutcome>().Select(o => o.ToName()));
         Assert.Equal(["acme", "uploaded", "self_signed", "local_ca", "local_ca_root"], Enum.GetValues<CertificateSource>().Select(s => s.ToName()));
         Assert.Equal(["pending", "active", "failed"], Enum.GetValues<CertificateStatus>().Select(s => s.ToName()));
+        Assert.Equal(["ntfy", "gotify", "discord", "webhook", "email"], Enum.GetValues<NotificationChannelKind>().Select(k => k.ToName()));
+        Assert.Equal(["starttls", "implicit-tls", "none"], Enum.GetValues<SmtpSecurity>().Select(s => s.ToName()));
+        Assert.Equal(
+            [
+                "upstream.down", "upstream.up", "destination.down", "destination.up", "certificate.expiring", "acme.renewal_failed",
+                "acme.renewal_recovered", "signin.lockout", "signin.new_address", "test",
+            ],
+            Enum.GetValues<NotificationEventKind>().Select(k => k.ToName()));
     }
 
     [Fact]
@@ -23,6 +31,9 @@ public sealed class ModelNamesTests
         Assert.All(Enum.GetValues<AuditOutcome>(), o => Assert.Equal(o, ModelNames.ParseAuditOutcome(o.ToName())));
         Assert.All(Enum.GetValues<CertificateSource>(), s => Assert.Equal(s, ModelNames.ParseCertificateSource(s.ToName())));
         Assert.All(Enum.GetValues<CertificateStatus>(), s => Assert.Equal(s, ModelNames.ParseCertificateStatus(s.ToName())));
+        Assert.All(Enum.GetValues<NotificationChannelKind>(), k => Assert.Equal(k, ModelNames.ParseNotificationChannelKind(k.ToName())));
+        Assert.All(Enum.GetValues<SmtpSecurity>(), s => Assert.Equal(s, ModelNames.ParseSmtpSecurity(s.ToName())));
+        Assert.All(Enum.GetValues<NotificationEventKind>(), k => Assert.Equal(k, ModelNames.ParseNotificationEventKind(k.ToName())));
     }
 
     [Theory]
@@ -37,6 +48,9 @@ public sealed class ModelNamesTests
         Assert.Throws<FormatException>(() => ModelNames.ParseAuditOutcome(name));
         Assert.Throws<FormatException>(() => ModelNames.ParseCertificateSource(name));
         Assert.Throws<FormatException>(() => ModelNames.ParseCertificateStatus(name));
+        Assert.Throws<FormatException>(() => ModelNames.ParseNotificationChannelKind(name));
+        Assert.Throws<FormatException>(() => ModelNames.ParseSmtpSecurity(name));
+        Assert.Throws<FormatException>(() => ModelNames.ParseNotificationEventKind(name));
     }
 
     [Fact]

@@ -85,6 +85,39 @@ public static class ModelNames
         _ => throw Undefined(kind),
     };
 
+    public static string ToName(this NotificationChannelKind kind) => kind switch
+    {
+        NotificationChannelKind.Ntfy => "ntfy",
+        NotificationChannelKind.Gotify => "gotify",
+        NotificationChannelKind.Discord => "discord",
+        NotificationChannelKind.Webhook => "webhook",
+        NotificationChannelKind.Email => "email",
+        _ => throw Undefined(kind),
+    };
+
+    public static string ToName(this SmtpSecurity security) => security switch
+    {
+        SmtpSecurity.StartTls => "starttls",
+        SmtpSecurity.ImplicitTls => "implicit-tls",
+        SmtpSecurity.None => "none",
+        _ => throw Undefined(security),
+    };
+
+    public static string ToName(this NotificationEventKind kind) => kind switch
+    {
+        NotificationEventKind.UpstreamDown => "upstream.down",
+        NotificationEventKind.UpstreamUp => "upstream.up",
+        NotificationEventKind.DestinationDown => "destination.down",
+        NotificationEventKind.DestinationUp => "destination.up",
+        NotificationEventKind.CertificateExpiring => "certificate.expiring",
+        NotificationEventKind.AcmeRenewalFailed => "acme.renewal_failed",
+        NotificationEventKind.AcmeRenewalRecovered => "acme.renewal_recovered",
+        NotificationEventKind.SignInLockout => "signin.lockout",
+        NotificationEventKind.SignInNewAddress => "signin.new_address",
+        NotificationEventKind.Test => "test",
+        _ => throw Undefined(kind),
+    };
+
     public static string ToName(this Role role) => role switch
     {
         Role.Owner => "owner",
@@ -202,6 +235,42 @@ public static class ModelNames
         "cloudflare" => DnsProviderKind.Cloudflare,
         "desec" => DnsProviderKind.DeSec,
         _ => throw NotAName<DnsProviderKind>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static NotificationChannelKind ParseNotificationChannelKind(string name) => name switch
+    {
+        "ntfy" => NotificationChannelKind.Ntfy,
+        "gotify" => NotificationChannelKind.Gotify,
+        "discord" => NotificationChannelKind.Discord,
+        "webhook" => NotificationChannelKind.Webhook,
+        "email" => NotificationChannelKind.Email,
+        _ => throw NotAName<NotificationChannelKind>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static SmtpSecurity ParseSmtpSecurity(string name) => name switch
+    {
+        "starttls" => SmtpSecurity.StartTls,
+        "implicit-tls" => SmtpSecurity.ImplicitTls,
+        "none" => SmtpSecurity.None,
+        _ => throw NotAName<SmtpSecurity>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static NotificationEventKind ParseNotificationEventKind(string name) => name switch
+    {
+        "upstream.down" => NotificationEventKind.UpstreamDown,
+        "upstream.up" => NotificationEventKind.UpstreamUp,
+        "destination.down" => NotificationEventKind.DestinationDown,
+        "destination.up" => NotificationEventKind.DestinationUp,
+        "certificate.expiring" => NotificationEventKind.CertificateExpiring,
+        "acme.renewal_failed" => NotificationEventKind.AcmeRenewalFailed,
+        "acme.renewal_recovered" => NotificationEventKind.AcmeRenewalRecovered,
+        "signin.lockout" => NotificationEventKind.SignInLockout,
+        "signin.new_address" => NotificationEventKind.SignInNewAddress,
+        "test" => NotificationEventKind.Test,
+        _ => throw NotAName<NotificationEventKind>(name),
     };
 
     /// <inheritdoc cref="ParseActorKind"/>

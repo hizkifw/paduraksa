@@ -661,6 +661,104 @@ namespace Paduraksa.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Data.Notifications.ExpiryNoticeRow", b =>
+                {
+                    b.Property<byte[]>("CertificateId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<long>("NotAfter")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Days")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SentAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("CertificateId", "NotAfter", "Days");
+
+                    b.ToTable("ExpiryNotices", (string)null);
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Notifications.NotificationChannelRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.PrimitiveCollection<string>("Events")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastErrorAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastSentAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MailFrom")
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("MailTo")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("SecretId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("ServerUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("SigningSecretId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("SmtpHost")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SmtpPort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SmtpSecurity")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SmtpUsername")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Topic")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NotificationChannels", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotificationChannels_Kind", "\"Kind\" IN ('ntfy', 'gotify', 'discord', 'webhook', 'email')");
+
+                            t.HasCheckConstraint("CK_NotificationChannels_SmtpSecurity", "\"SmtpSecurity\" IS NULL OR \"SmtpSecurity\" IN ('starttls', 'implicit-tls', 'none')");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Revisions.ConfigRevision", b =>
                 {
                     b.Property<byte[]>("Id")
@@ -798,6 +896,15 @@ namespace Paduraksa.Data.Migrations
                         .WithMany()
                         .HasForeignKey("DnsProviderId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Notifications.ExpiryNoticeRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Certificates.CertificateRow", null)
+                        .WithMany()
+                        .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Paduraksa.Data.Revisions.ConfigRevision", b =>

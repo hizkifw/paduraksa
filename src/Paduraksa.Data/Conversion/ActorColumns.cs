@@ -46,6 +46,10 @@ internal static class NameChecks
 
     public static string DnsProviderKind(string column) => In(column, Enum.GetValues<DnsProviderKind>().Select(k => k.ToName()));
 
+    public static string NotificationChannelKind(string column) => In(column, Enum.GetValues<NotificationChannelKind>().Select(k => k.ToName()));
+
+    public static string SmtpSecurity(string column) => In(column, Enum.GetValues<SmtpSecurity>().Select(s => s.ToName()));
+
     public static string JwsAlgorithm(string column) => In(column, Enum.GetValues<JwsAlgorithm>().Select(a => a.ToName()));
 
     public static string KeySpec(string column) => In(column, Enum.GetValues<KeySpec>().Select(k => k.ToName()));

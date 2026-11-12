@@ -34,6 +34,12 @@ internal sealed class AcmeChallengeTypeConverter()
 internal sealed class DnsProviderKindConverter()
     : ValueConverter<DnsProviderKind, string>(value => value.ToName(), name => ModelNames.ParseDnsProviderKind(name));
 
+internal sealed class NotificationChannelKindConverter()
+    : ValueConverter<NotificationChannelKind, string>(value => value.ToName(), name => ModelNames.ParseNotificationChannelKind(name));
+
+internal sealed class SmtpSecurityConverter()
+    : ValueConverter<SmtpSecurity, string>(value => value.ToName(), name => ModelNames.ParseSmtpSecurity(name));
+
 internal sealed class JwsAlgorithmConverter()
     : ValueConverter<JwsAlgorithm, string>(value => value.ToName(), name => JwsAlgorithmNames.Parse(name));
 
