@@ -31,11 +31,7 @@
     <div class="pdk-toolbar">
         @if (_mayAll)
         {
-            <MudToggleGroup T="bool" Value="_everyone" ValueChanged="SetEveryoneAsync" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
-                            Outlined="true" Size="Size.Small" aria-label="Whose tokens" data-field="whose">
-                <MudToggleItem Value="false" Text="Mine" />
-                <MudToggleItem Value="true" Text="Everyone's" />
-            </MudToggleGroup>
+            <SegmentedControl T="bool" Options="WhoseOptions" Value="_everyone" ValueChanged="SetEveryoneAsync" AriaLabel="Whose tokens" DataField="whose" />
         }
         else
         {
@@ -150,6 +146,8 @@
     private IReadOnlySet<Permission> _held = new HashSet<Permission>();
     private bool _mayIssue;
     private bool _mayAll;
+    private static readonly IReadOnlyList<SegmentOption<bool>> WhoseOptions = [new(false, "Mine"), new(true, "Everyone's", Key: "everyone")];
+
     private bool _everyone;
     private bool _showRevoked;
     private bool _failed;

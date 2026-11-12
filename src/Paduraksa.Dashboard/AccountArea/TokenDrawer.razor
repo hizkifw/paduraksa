@@ -41,15 +41,7 @@
                 </FormSection>
 
                 <FormSection Title="Expires" Description="@ExpiryText" Name="expiry">
-                    <MudToggleGroup T="TokenLifetime" @bind-Value="_lifetime" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
-                                    Outlined="true" Size="Size.Small" aria-label="Expires" data-field="lifetime" Class="pdk-wrap-toggle">
-                        <MudToggleItem Value="TokenLifetime.Week" Text="7 days" />
-                        <MudToggleItem Value="TokenLifetime.Month" Text="30 days" />
-                        <MudToggleItem Value="TokenLifetime.Quarter" Text="90 days" />
-                        <MudToggleItem Value="TokenLifetime.Year" Text="1 year" />
-                        <MudToggleItem Value="TokenLifetime.Never" Text="Never" />
-                        <MudToggleItem Value="TokenLifetime.Custom" Text="Date" />
-                    </MudToggleGroup>
+                    <SegmentedControl T="TokenLifetime" Options="LifetimeOptions" @bind-Value="_lifetime" AriaLabel="Expires" DataField="lifetime" />
                     @if (_lifetime == TokenLifetime.Custom)
                     {
                         <MudTextField T="string" @bind-Value="_customDate" InputType="InputType.Date" Label="Last day (UTC)" Variant="Variant.Outlined" Margin="Margin.Dense"
@@ -120,6 +112,16 @@
 
 @code {
     private string _name = string.Empty;
+    private static readonly IReadOnlyList<SegmentOption<TokenLifetime>> LifetimeOptions =
+    [
+        new(TokenLifetime.Week, "7 d", Tooltip: "7 days"),
+        new(TokenLifetime.Month, "30 d", Tooltip: "30 days"),
+        new(TokenLifetime.Quarter, "90 d", Tooltip: "90 days"),
+        new(TokenLifetime.Year, "1 y", Tooltip: "1 year"),
+        new(TokenLifetime.Never, "Never"),
+        new(TokenLifetime.Custom, "Date", Tooltip: "Until a date you pick"),
+    ];
+
     private TokenLifetime _lifetime = TokenLifetime.Quarter;
     private string? _customDate;
     private readonly HashSet<Permission> _scopes = [];

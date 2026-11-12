@@ -29,14 +29,7 @@
                 }
                 <MudSelectItem T="string" Value="@NoHost">No host matched</MudSelectItem>
             </MudSelect>
-            <div class="pdk-range" role="group" aria-label="Time range">
-                @foreach (var option in Ranges)
-                {
-                    var selected = option == _range;
-                    <button type="button" class="pdk-range-option" data-range="@option.ToString().ToLowerInvariant()" aria-pressed="@(selected ? "true" : "false")"
-                            @onclick="() => ChooseRangeAsync(option)">@TrafficFigures.Label(option)</button>
-                }
-            </div>
+            <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="_range" ValueChanged="ChooseRangeAsync" AriaLabel="Time range" DataField="range" />
             <MudTooltip Placement="Placement.Bottom" Arrow="true">
                 <ChildContent>
                     <MudIconButton Icon="@Icons.Material.Outlined.Info" Size="Size.Small" aria-label="How accurate these figures are" data-part="approx" />
@@ -93,7 +86,7 @@ else
     </div>
 
     <section data-section="content" aria-labelledby="pdk-analytics-content">
-        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-content" Class="pdk-analytics-heading">Visitors and content</MudText>
+        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-content" Class="pdk-section-heading">Visitors and content</MudText>
         <div class="pdk-home-grid pdk-analytics-charts">
             @foreach (var chart in Charts)
             {
@@ -234,7 +227,7 @@ else
     </section>
 
     <section data-section="clients" aria-labelledby="pdk-analytics-clients">
-        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-clients" Class="pdk-analytics-heading">Clients and bots</MudText>
+        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-clients" Class="pdk-section-heading">Clients and bots</MudText>
         <div class="pdk-home-grid">
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="browsers">
                 <MudText Typo="Typo.subtitle1" HtmlTag="h3">Browsers</MudText>
@@ -345,8 +338,6 @@ else
     private const string AllHosts = "all";
 
     private const string NoHost = "unmatched";
-
-    private static readonly MetricsRange[] Ranges = [MetricsRange.Hour, MetricsRange.Day, MetricsRange.Week, MetricsRange.Month];
 
     private sealed record HostChoice(HostId Id, string Name);
 

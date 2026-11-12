@@ -11,6 +11,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
+using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Pages;
 
@@ -128,7 +129,7 @@ public sealed class SettingsPagesTests
         var page = context.Render<ApiTokens>();
         await page.WaitForStateAsync(() => page.FindAll("[data-token=mine]").Count == 1);
 
-        await page.InvokeAsync(() => page.FindComponent<MudToggleGroup<bool>>().Instance.ValueChanged.InvokeAsync(true));
+        await page.InvokeAsync(() => page.FindComponent<SegmentedControl<bool>>().Instance.ValueChanged.InvokeAsync(true));
 
         await page.WaitForStateAsync(() => page.FindAll("[data-token=graces]").Count == 1);
         Assert.Contains("Grace Hopper", page.Find("[data-token=graces]").Closest("[role=row]")!.TextContent, StringComparison.Ordinal);

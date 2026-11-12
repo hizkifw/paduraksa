@@ -88,22 +88,13 @@ else
         </MudAlert>
     }
 
-    <MudPaper Class="pdk-card pdk-audit-filters" Elevation="0" Outlined="true" data-section="filters">
-        <div class="pdk-card-head">
-            <MudText Typo="Typo.subtitle2" HtmlTag="h2">Filter</MudText>
-            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAsync" Disabled="!Filtered" Class="@(Filtered ? null : "pdk-hidden")"
+    <MudPaper Class="pdk-card pdk-filters" Elevation="0" Outlined="true" data-section="filters">
+        <div class="pdk-filter-bar">
+            <SegmentedControl T="AuditRange" Options="RangeOptions" Value="_range" ValueChanged="SetRangeAsync" AriaLabel="Time range" DataField="range" />
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAsync" Disabled="!Filtered" Class="@(Filtered ? "pdk-filter-clear" : "pdk-filter-clear pdk-hidden")"
                        aria-hidden="@(Filtered ? null : "true")" data-action="clear-filters">Clear filters</MudButton>
         </div>
-        <MudToggleGroup T="AuditRange" Value="_range" ValueChanged="SetRangeAsync" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
-                        Outlined="true" Size="Size.Small" Class="pdk-range" aria-label="Time range" data-field="range">
-            <MudToggleItem Value="AuditRange.Hour" Text="1 hour" />
-            <MudToggleItem Value="AuditRange.Day" Text="24 hours" />
-            <MudToggleItem Value="AuditRange.Week" Text="7 days" />
-            <MudToggleItem Value="AuditRange.Month" Text="30 days" />
-            <MudToggleItem Value="AuditRange.All" Text="All" />
-            <MudToggleItem Value="AuditRange.Custom" Text="Custom" />
-        </MudToggleGroup>
-        <div class="pdk-audit-fields">
+        <div class="pdk-filter-fields">
             @if (_range == AuditRange.Custom)
             {
                 <MudTextField T="string" Value="_from" ValueChanged="@(value => SetAsync(() => _from = value))" InputType="InputType.DateTimeLocal" Label="From (UTC)"
@@ -242,6 +233,16 @@ else
     private DateTimeOffset? _verifiedAt;
     private bool _verifying;
     private bool _verifyFailed;
+    private static readonly IReadOnlyList<SegmentOption<AuditRange>> RangeOptions =
+    [
+        new(AuditRange.Hour, "1 h", Tooltip: "Last hour"),
+        new(AuditRange.Day, "24 h", Tooltip: "Last 24 hours"),
+        new(AuditRange.Week, "7 d", Tooltip: "Last 7 days"),
+        new(AuditRange.Month, "30 d", Tooltip: "Last 30 days"),
+        new(AuditRange.All, "All"),
+        new(AuditRange.Custom, "Custom", Tooltip: "Between two dates"),
+    ];
+
     private AuditRange _range = AuditRange.Week;
     private string? _from;
     private string? _to;

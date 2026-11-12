@@ -453,13 +453,13 @@ public sealed class AnalyticsPageTests
         await using var context = rig.SignIn();
         var page = Render(context);
         await page.WaitForStateAsync(() => page.FindAll("[data-tile]").Count == 4);
-        Assert.Equal("day", page.Find("[aria-pressed=true]").GetAttribute("data-range"));
+        Assert.Equal("day", page.Find("[aria-checked=true]").GetAttribute("data-value"));
 
         // Nothing happened in the last hour that is observed: the range changes what is read.
-        await page.Find("[data-range=hour]").ClickAsync(new());
+        await page.Find("[data-field=range] [data-value=hour]").ClickAsync(new());
         await page.WaitForStateAsync(() => page.FindAll("[data-section=empty]").Count == 1);
-        Assert.Equal("hour", page.Find("[aria-pressed=true]").GetAttribute("data-range"));
-        await page.Find("[data-range=week]").ClickAsync(new());
+        Assert.Equal("hour", page.Find("[aria-checked=true]").GetAttribute("data-value"));
+        await page.Find("[data-field=range] [data-value=week]").ClickAsync(new());
         await page.WaitForStateAsync(() => page.FindAll("[data-tile]").Count == 4);
         Assert.Equal("120", page.Find("[data-tile=requests] [data-part=value]").TextContent);
 

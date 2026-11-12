@@ -56,13 +56,7 @@
     </FormSection>
 
     <FormSection Title="What it does" Description="@KindHint" Name="kind">
-        <MudToggleGroup T="HostKind" Value="Model.Kind" ValueChanged="SetKindAsync" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
-                        Outlined="true" Size="Size.Small" Disabled="ReadOnly" Class="pdk-kind-toggle" aria-label="Kind">
-            <MudToggleItem Value="HostKind.Proxy" Text="Proxy" />
-            <MudToggleItem Value="HostKind.Redirect" Text="Redirect" />
-            <MudToggleItem Value="HostKind.Respond" Text="Fixed answer" />
-            <MudToggleItem Value="HostKind.Admin" Text="Admin" />
-        </MudToggleGroup>
+        <SegmentedControl T="HostKind" Options="KindOptions" Value="Model.Kind" ValueChanged="SetKindAsync" Disabled="ReadOnly" AriaLabel="Kind" DataField="kind" />
 
         @switch (Model.Kind)
         {
@@ -499,6 +493,14 @@
     private Task SetNameAsync(TextEntry entry, int index, string value) => SetAsync(() => entry.Value = value, $"/names/{index}");
 
     private Task SetEnabledAsync(bool value) => SetAsync(() => Model.Enabled = value, "/enabled");
+
+    private static readonly IReadOnlyList<SegmentOption<HostKind>> KindOptions =
+    [
+        new(HostKind.Proxy, "Proxy"),
+        new(HostKind.Redirect, "Redirect"),
+        new(HostKind.Respond, "Fixed answer", Key: "respond"),
+        new(HostKind.Admin, "Admin"),
+    ];
 
     private Task SetKindAsync(HostKind kind) => SetAsync(() => Model.Kind = kind, "/kind");
 

@@ -1,6 +1,7 @@
 using System.Globalization;
 
 using Paduraksa.Contracts.Metrics;
+using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.LogFiles;
 
 namespace Paduraksa.Dashboard.Pages;
@@ -52,6 +53,15 @@ internal static class TrafficFigures
         MetricsRange.Week => "7 d",
         _ => "30 d",
     };
+
+    /// <summary>The range switch: the same four segments on the overview and on Analytics.</summary>
+    public static readonly IReadOnlyList<SegmentOption<MetricsRange>> RangeOptions =
+    [
+        new(MetricsRange.Hour, "1 h", Tooltip: "Last hour"),
+        new(MetricsRange.Day, "24 h", Tooltip: "Last 24 hours"),
+        new(MetricsRange.Week, "7 d", Tooltip: "Last 7 days"),
+        new(MetricsRange.Month, "30 d", Tooltip: "Last 30 days"),
+    ];
 
     /// <summary>The format of the chart's two end labels: the time of day for the hour, the date and time beyond.</summary>
     public static string TimeFormat(MetricsRange range) => range == MetricsRange.Hour ? "HH:mm" : "MMM d HH:mm";

@@ -325,6 +325,13 @@
         }
     }, { capture: true });
 
+    // A SegmentedControl's arrow keys move its choice; the page must not also scroll.
+    document.addEventListener("keydown", (event) => {
+        if (event.key.startsWith("Arrow") && event.target instanceof Element && event.target.closest(".pdk-seg")) {
+            event.preventDefault();
+        }
+    });
+
     window.paduraksa = Object.freeze({
         drawers,
         logPane,
@@ -338,6 +345,11 @@
 
             write("paduraksa-theme", value);
             document.documentElement.dataset.theme = value;
+        },
+
+        /** Moves focus to the `index`th segment of a SegmentedControl (the arrow keys changed the choice). */
+        focusSegment(group, index) {
+            group?.querySelectorAll("[role=radio]")[index]?.focus();
         },
 
         /** Copies text to the clipboard; false when the browser refused (no secure context, no permission). */

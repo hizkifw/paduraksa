@@ -336,16 +336,18 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
 
 .pdk-page-header {
     display: grid;
-    gap: 16px;
+    gap: 4px;
     margin-bottom: 24px;
 }
 
+/* The title and the actions share a centre line, 40 px tall whether or not there are actions, so a title never moves between pages. */
 .pdk-page-header-row {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 8px 16px;
+    min-height: 40px;
 }
 
 .pdk-page-header h1:focus {
@@ -909,7 +911,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 /* The security page: each counter tile reads top to bottom (label, the number with its live rate beside it, then what it is a
    share of), the same at every width; the detail line keeps its height when empty so a row of tiles lines up. */
 .pdk-sec-since {
-    margin: 0 0 12px;
+    margin: 0 0 16px;
     color: var(--mud-palette-text-secondary);
     font-size: 0.8125rem;
 }
@@ -1248,17 +1250,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 }
 
 /* The live tail: one dense row a request, newest on top. Time and status have fixed widths, so a batch arriving doesn't move the columns. */
-.pdk-tail-filters {
-    padding: 12px 20px 6px;
-}
-
-.pdk-tail-fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 4px 12px;
-    align-items: start;
-}
-
 .pdk-tail-clear {
     margin-left: auto;
 }
@@ -1964,10 +1955,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-add.mud-button-root {
     justify-self: start;
     margin-top: 4px;
-}
-
-.pdk-kind-toggle {
-    margin-bottom: 4px;
 }
 
 .pdk-routes {
@@ -3313,15 +3300,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     }
 }
 
-/* Toggle groups: room around each choice's label (MudBlazor's outlined small items have 3px all round). */
-.mud-toggle-group.mud-toggle-group .mud-toggle-item.mud-toggle-item {
-    padding: 6px 16px;
-}
-
-.mud-toggle-group.mud-toggle-group .mud-toggle-item.mud-toggle-item-size-small {
-    padding: 4px 14px;
-}
-
 /* ---------- Connection lost (App.razor, #components-reconnect-modal) ---------- */
 /* A card at the bottom over a light scrim that keeps clicks off a page that can't answer. It fades in after a moment, so a blip that
    reconnects at once never shows. */
@@ -3556,21 +3534,31 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     margin-bottom: 16px;
 }
 
-.pdk-range {
+/* The segmented control (SegmentedControl): one 40 px row beside a dense outlined field, the chosen segment raised. When the segments
+   don't fit (a phone) they wrap onto further rows instead of hiding behind a scroll. */
+.pdk-seg {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 2px;
     box-sizing: border-box;
-    height: 40px;
+    max-width: 100%;
+    min-height: 40px;
     padding: 3px;
     border: 1px solid var(--pdk-line);
     border-radius: 8px;
     background: var(--pdk-surface-2);
+    justify-self: start;
 }
 
-.pdk-range-option {
+.pdk-seg-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     min-width: 44px;
     height: 32px;
-    padding: 0 10px;
+    padding: 0 12px;
     border: 0;
     border-radius: 6px;
     background: transparent;
@@ -3582,19 +3570,40 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     cursor: pointer;
 }
 
-.pdk-range-option:hover {
+.pdk-seg-option:hover:not(:disabled) {
     color: var(--pdk-text);
 }
 
-.pdk-range-option[aria-pressed="true"] {
+.pdk-seg-option[aria-checked="true"] {
     background: var(--pdk-surface);
     color: var(--pdk-text);
     box-shadow: 0 0 0 1px var(--pdk-line-strong);
 }
 
-.pdk-range-option:focus-visible {
+.pdk-seg-option:focus-visible {
     outline: 2px solid var(--mud-palette-primary, var(--pdk-accent));
     outline-offset: 1px;
+}
+
+.pdk-seg-dot {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--pdk-tone);
+}
+
+.pdk-seg-count {
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-seg-zero {
+    opacity: 0.6;
+}
+
+.pdk-seg-option:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 
 .pdk-chart {
@@ -3797,6 +3806,15 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     margin: 12px 0 0;
     padding: 0;
     list-style: none;
+/* One grid for the whole list and a subgrid for each row, so the label, bar, count and percentage columns are as wide as the widest
+   row needs and every bar starts and ends at the same x. */
+}
+    display: grid;
+    grid-template-columns: minmax(104px, 1.3fr) minmax(48px, 1.2fr) minmax(3ch, auto) minmax(4ch, auto);
+    column-gap: 10px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
 }
 
 .pdk-share + .pdk-share {
@@ -3807,15 +3825,16 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
 
 .pdk-share-row {
     display: grid;
-    grid-template-columns: minmax(104px, 1.3fr) minmax(48px, 1.2fr) auto 40px;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: 10px;
     min-height: 30px;
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
 }
 
 .pdk-share-label {
+    min-width: 0;
     overflow: hidden;
     font-weight: 600;
     text-overflow: ellipsis;
@@ -3829,10 +3848,12 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     overflow: hidden;
 }
 
+/* A tiny share is a few pixels of fill from the track's start, never a floating dot: the track rounds the left end, the fill only the right. */
 .pdk-share-fill {
     display: block;
     height: 100%;
-    border-radius: 4px;
+    min-width: 3px;
+    border-radius: 0 4px 4px 0;
     background: var(--mud-palette-info, var(--pdk-info));
 }
 
@@ -3867,8 +3888,75 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     }
 }
 
-.pdk-traffic-more {
-    margin-right: auto;
-    margin-left: 16px;
-    font-size: 0.875rem;
+.pdk-card-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px 8px;
+}
+
+.pdk-traffic .pdk-card-head {
+    align-items: center;
+}
+
+/* A control row above a table card (a segmented filter). */
+.pdk-toolbar-row {
+    margin-bottom: 12px;
+}
+
+/* A filter card (Audit, Live tail): an optional bar with a segmented control and "Clear filters", then the fields in a wrapping grid. */
+.pdk-card.pdk-filters.mud-paper {
+    padding: 16px 20px 8px;
+}
+
+.pdk-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.pdk-filter-clear {
+    margin-left: auto;
+}
+
+.pdk-filter-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 4px 12px;
+    align-items: start;
+}
+
+@media (max-width: 600px) {
+    /* On a phone the segments fill the width, wrapping to further rows that fill it too. */
+    .pdk-seg {
+        display: flex;
+        width: 100%;
+    }
+
+    .pdk-seg-option {
+        flex: 1 1 auto;
+        padding: 0 8px;
+    }
+
+    .pdk-filter-bar .pdk-hidden {
+        display: none;
+    }
+
+    /* The overview's traffic header: the title and the Analytics link on one row, the range under them. */
+    .pdk-traffic .pdk-card-head-actions {
+        display: contents;
+    }
+
+    .pdk-traffic .pdk-card-head-actions > .pdk-seg {
+        order: 3;
+    }
+
+    .pdk-traffic .pdk-card-head-actions > a {
+        order: 2;
+        margin-left: auto;
+    }
 }

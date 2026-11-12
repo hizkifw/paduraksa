@@ -140,8 +140,8 @@ public sealed class AnalyticsEndToEndTests
         await Expect(page.Locator("[data-section=ignoring-robots] tbody tr")).ToContainTextAsync("GPTBot");
         await Expect(page.Locator("[data-section=largest] tbody tr").First).ToContainTextAsync("/media/video.mp4");
 
-        await page.Locator("[data-range=week]").ClickAsync();
-        await Expect(page.Locator("[data-range=week]")).ToHaveAttributeAsync("aria-pressed", "true");
+        await page.Locator("[data-field=range] [data-value=week]").ClickAsync();
+        await Expect(page.Locator("[data-field=range] [data-value=week]")).ToHaveAttributeAsync("aria-checked", "true");
         await Expect(page.Locator("[data-tile]")).ToHaveCountAsync(4, new() { Timeout = 15_000 });
 
         await page.Locator("[data-section=top-paths] tbody tr a", new() { HasTextString = "/products/0" }).ClickAsync();

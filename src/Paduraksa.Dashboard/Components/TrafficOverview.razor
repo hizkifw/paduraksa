@@ -15,14 +15,10 @@
 <section class="pdk-traffic" data-section="traffic" aria-labelledby="pdk-traffic-title">
     <div class="pdk-card-head">
         <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-traffic-title">Traffic</MudText>
-        <MudLink Href="@DashboardRoutes.Analytics" Class="pdk-traffic-more" data-link="analytics">Analytics</MudLink>
-        <div class="pdk-range" role="group" aria-label="Time range">
-            @foreach (var option in Ranges)
-            {
-                var selected = option == _range;
-                <button type="button" class="pdk-range-option" data-range="@option.ToString().ToLowerInvariant()" aria-pressed="@(selected ? "true" : "false")"
-                        @onclick="() => ChooseAsync(option)">@TrafficFigures.Label(option)</button>
-            }
+        <div class="pdk-card-head-actions">
+            <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="_range" ValueChanged="ChooseAsync" AriaLabel="Time range" DataField="range" />
+            <MudButton Href="@DashboardRoutes.Analytics" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight"
+                       data-link="analytics">Analytics</MudButton>
         </div>
     </div>
 
@@ -155,8 +151,6 @@
 </section>
 
 @code {
-    private static readonly MetricsRange[] Ranges = [MetricsRange.Hour, MetricsRange.Day, MetricsRange.Week, MetricsRange.Month];
-
     private MetricsOverview? _overview;
     private MetricsRange _range = MetricsRange.Hour;
     private bool _failed;

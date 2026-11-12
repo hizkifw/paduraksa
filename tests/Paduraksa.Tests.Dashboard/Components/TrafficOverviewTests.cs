@@ -218,12 +218,12 @@ public sealed class TrafficOverviewTests
         await rig.StoreMinuteAsync(MetricRollupSubject.Host, App.ToString(), Start.AddMinutes(-10), requests: 900);
         await rig.StoreMinuteAsync(MetricRollupSubject.Upstream, Web.ToString(), Start.AddMinutes(-10), requests: 900, errors: 9);
         var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
-        Assert.Equal("true", page.Find("[data-range=hour]").GetAttribute("aria-pressed"));
+        Assert.Equal("true", page.Find("[data-field=range] [data-value=hour]").GetAttribute("aria-checked"));
 
-        await page.Find("[data-range=day]").ClickAsync(new());
+        await page.Find("[data-field=range] [data-value=day]").ClickAsync(new());
 
-        await page.WaitForStateAsync(() => page.Find("[data-range=day]").GetAttribute("aria-pressed") == "true" && page.FindAll("[data-chart]").Count == 2);
-        Assert.Equal("false", page.Find("[data-range=hour]").GetAttribute("aria-pressed"));
+        await page.WaitForStateAsync(() => page.Find("[data-field=range] [data-value=day]").GetAttribute("aria-checked") == "true" && page.FindAll("[data-chart]").Count == 2);
+        Assert.Equal("false", page.Find("[data-field=range] [data-value=hour]").GetAttribute("aria-checked"));
         Assert.Equal("app.test", page.Find("[data-section=top-hosts] tbody tr").GetAttribute("data-host"));
         Assert.Equal(Web.ToString(), page.Find("[data-section=upstream-errors] tbody tr").GetAttribute("data-upstream"));
         Assert.Contains("MMM", TrafficFigures.TimeFormat(MetricsRange.Week), StringComparison.Ordinal);
@@ -237,7 +237,7 @@ public sealed class TrafficOverviewTests
         rig.Publish();
         var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
         // No database is open, so the rollup store fails.
-        await page.Find("[data-range=week]").ClickAsync(new());
+        await page.Find("[data-field=range] [data-value=week]").ClickAsync(new());
 
         await page.WaitForStateAsync(() => page.FindAll("[data-part=failed]").Count == 1);
         Assert.Contains("couldn't be read", page.Find("[data-part=failed]").TextContent, StringComparison.Ordinal);

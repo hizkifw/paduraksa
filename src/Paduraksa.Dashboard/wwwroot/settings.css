@@ -530,23 +530,6 @@
 
 /* ---------- Audit ---------- */
 
-.pdk-audit-filters .pdk-card-head {
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.pdk-range.mud-toggle-group {
-    flex-wrap: wrap;
-    max-width: 100%;
-}
-
-.pdk-audit-fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 4px 12px;
-    margin-top: 8px;
-}
-
 /* The hash chain: a quiet line in the header while it verifies; a banner only when it doesn't. */
 .pdk-chain-status {
     display: inline-flex;

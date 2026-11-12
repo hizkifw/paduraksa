@@ -40,7 +40,7 @@ public sealed class HostFormTests
         await using DashboardTestContext context = new();
         var form = Render(context, model);
 
-        form.FindAll(".mud-toggle-item").Single(b => b.TextContent.Trim() == button).Click();
+        form.FindAll("[data-field=kind] [role=radio]").Single(b => b.TextContent.Trim() == button).Click();
 
         Assert.Equal(kind, model.Kind);
         Assert.Single(form.FindAll($"[data-section={section}]"));
