@@ -1,6 +1,7 @@
 using Paduraksa.Core.Model;
 
 using Yarp.ReverseProxy;
+using Yarp.ReverseProxy.Health;
 using Yarp.ReverseProxy.Model;
 
 namespace Paduraksa.Proxy.Yarp;
@@ -19,6 +20,9 @@ public interface IUpstreamHealth
 {
     /// <summary>The live proxy's view of <paramref name="upstream"/>, or null when it has no such cluster.</summary>
     UpstreamHealthSnapshot? Lookup(UpstreamId upstream);
+
+    /// <summary>Every upstream of the live proxy with each destination's active, passive and combined verdict; empty while there is no proxy.</summary>
+    IReadOnlyList<UpstreamReading> ReadAll();
 }
 
 /// <summary>
@@ -41,11 +45,57 @@ public sealed class DeferredUpstreamHealth : IUpstreamHealth
     public void Detach() => _inner = null;
 
     public UpstreamHealthSnapshot? Lookup(UpstreamId upstream) => _inner?.Lookup(upstream);
+
+    public IReadOnlyList<UpstreamReading> ReadAll() => _inner?.ReadAll() ?? [];
 }
 
 /// <summary><see cref="IUpstreamHealth"/> over YARP's runtime state (<see cref="IProxyStateLookup"/>).</summary>
-public sealed class YarpUpstreamHealth(IProxyStateLookup state) : IUpstreamHealth
+public sealed class YarpUpstreamHealth(IProxyStateLookup state, ProbeLog? probes = null) : IUpstreamHealth
 {
+    public IReadOnlyList<UpstreamReading> ReadAll()
+    {
+        List<UpstreamReading> readings = [];
+        foreach (var cluster in state.GetClusters())
+        {
+            if (!UpstreamId.TryParse(cluster.ClusterId, out var id))
+            {
+                continue;
+            }
+
+            var checks = cluster.Model.Config.HealthCheck;
+            List<DestinationReading> destinations = [];
+            foreach (var destination in cluster.DestinationsState.AllDestinations)
+            {
+                if (!DestinationId.TryParse(destination.DestinationId, out var destinationId))
+                {
+                    continue;
+                }
+
+                var active = Verdict(destination.Health.Active);
+                var passive = Verdict(destination.Health.Passive);
+                destinations.Add(new DestinationReading(
+                    destinationId, destination.Model.Config.Address, active, passive, Combine(active, passive), probes?.Last(destination)));
+            }
+
+            readings.Add(new UpstreamReading(id, checks?.Active?.Enabled == true, checks?.Passive?.Enabled == true, destinations));
+        }
+
+        return readings;
+    }
+
+    /// <summary>YARP's combined verdict (its own property is internal): either side unhealthy, or else a healthy side, or no verdict.</summary>
+    private static DestinationVerdict Combine(DestinationVerdict active, DestinationVerdict passive) =>
+        active == DestinationVerdict.Unhealthy || passive == DestinationVerdict.Unhealthy ? DestinationVerdict.Unhealthy
+        : active == DestinationVerdict.Healthy || passive == DestinationVerdict.Healthy ? DestinationVerdict.Healthy
+        : DestinationVerdict.Unknown;
+
+    private static DestinationVerdict Verdict(DestinationHealth health) => health switch
+    {
+        DestinationHealth.Healthy => DestinationVerdict.Healthy,
+        DestinationHealth.Unhealthy => DestinationVerdict.Unhealthy,
+        _ => DestinationVerdict.Unknown,
+    };
+
     public UpstreamHealthSnapshot? Lookup(UpstreamId upstream)
     {
         if (!state.TryGetCluster(upstream.ToString(), out var cluster))

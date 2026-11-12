@@ -99,7 +99,8 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton<TrustedProxyClientAddressSource>();
         services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();
-        services.TryAddSingleton<IUpstreamHealth>(static provider => new YarpUpstreamHealth(provider.GetRequiredService<IProxyStateLookup>()));
+        services.RecordActiveProbes();
+        services.TryAddSingleton<IUpstreamHealth>(static provider => new YarpUpstreamHealth(provider.GetRequiredService<IProxyStateLookup>(), provider.GetRequiredService<ProbeLog>()));
         services.AddPaduraksaRateLimiting(rateLimits);
         return services;
     }
