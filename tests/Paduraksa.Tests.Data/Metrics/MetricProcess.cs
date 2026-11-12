@@ -13,7 +13,7 @@ namespace Paduraksa.Tests.Data.Metrics;
 /// The metrics side of one run of the proxy: its registry, sampler, the two hosted services and the read side, over a database that
 /// outlives it and a clock the test moves. A second <see cref="MetricProcess"/> on the same database and clock is a restart.
 /// </summary>
-internal sealed class MetricProcess
+internal sealed class MetricProcess : IAsyncDisposable
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -31,6 +31,8 @@ internal sealed class MetricProcess
         Job = new MetricRollupJob(Sampler, Store, new MetricRollupOptions { WriteInterval = TimeSpan.FromHours(10) }, clock, NullLogger<MetricRollupJob>.Instance);
         Service = new MetricSamplerService(Sampler, clock, NullLogger<MetricSamplerService>.Instance);
         Metrics = new MetricsService(Registry, new SnapshotStore(), Sampler, Store, ProcessCounters.None, clock);
+        // A test that ends with this run still up (or "crashed") must not leave it writing while the database's directory goes.
+        database.Own(this);
     }
 
     public MetricsRegistry Registry { get; }
@@ -64,6 +66,12 @@ internal sealed class MetricProcess
     {
         await Service.StopAsync(Ct);
         await Job.StopAsync(Ct);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Service.StopAsync(CancellationToken.None);
+        await Job.StopAsync(CancellationToken.None);
     }
 
     public Task<MetricsOverview> OverviewAsync(MetricsRange range) => Metrics.ReadOverviewAsync(range, Ct);

@@ -206,7 +206,7 @@ public sealed class DrawerStackTests
             ? new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [new ConfigError("/upstreams/0/destinations/0/address", "upstream.address.invalid", "the address points at this proxy")])
             : new ConfigCommandResult(ConfigCommandStatus.DryRun);
         var reviewing = drawers.Find("form[data-drawer=host]").SubmitAsync();
-        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=invalid]").Count == 1);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=invalid]").Count == 1, ReviewTimeout);
         Assert.Contains("app-backend", drawers.Find("[data-review=invalid] .pdk-error-where").TextContent, StringComparison.Ordinal);
         await drawers.InvokeAsync(drawers.Instance.EscapeAsync);
         await reviewing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
