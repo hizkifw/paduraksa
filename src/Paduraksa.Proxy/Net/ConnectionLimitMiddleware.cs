@@ -53,7 +53,7 @@ public sealed class ConnectionLimitMiddleware
                 connection.Abort(new ConnectionAbortedException("Connection limits: the address already holds its limit of connections."));
                 return Task.CompletedTask;
             case ConnectionDecision.Counted:
-                return ServeCountedAsync(connection, hash);
+                return ServeCounted(connection, hash);
             default:
                 return _next(connection);
         }
@@ -70,11 +70,34 @@ public sealed class ConnectionLimitMiddleware
         return address;
     }
 
-    private async Task ServeCountedAsync(ConnectionContext connection, ulong hash)
+    // A pipeline that already finished is given back at once, with no continuation; one still running is awaited.
+    private Task ServeCounted(ConnectionContext connection, ulong hash)
+    {
+        Task served;
+        try
+        {
+            served = _next(connection);
+        }
+        catch
+        {
+            _runtime.Release(hash);
+            throw;
+        }
+
+        if (served.IsCompleted)
+        {
+            _runtime.Release(hash);
+            return served;
+        }
+
+        return ReleaseWhenDoneAsync(served, hash);
+    }
+
+    private async Task ReleaseWhenDoneAsync(Task served, ulong hash)
     {
         try
         {
-            await _next(connection).ConfigureAwait(false);
+            await served.ConfigureAwait(false);
         }
         finally
         {
