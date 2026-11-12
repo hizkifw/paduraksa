@@ -55,17 +55,9 @@ public sealed class MetricsService(
         List<UpstreamTraffic> upstreams = [];
         if (range == MetricsRange.Hour)
         {
-            if (sampler.Read(MetricRollupSubject.Total, Guid.Empty) is { } view)
+            foreach (var point in MetricTimeline.Hour(sampler.History(MetricRollupSubject.Total, Guid.Empty), sampler.Read(MetricRollupSubject.Total, Guid.Empty), at))
             {
-                foreach (var point in view.Points)
-                {
-                    series.Add(SeriesPoint(point));
-                }
-
-                if (view.Open.Requests > 0 || view.Points.Length > 0)
-                {
-                    series.Add(SeriesPoint(view.Open));
-                }
+                series.Add(SeriesPoint(point));
             }
 
             foreach (var (owner, point) in sampler.Summarise(MetricRollupSubject.Host, span))
@@ -82,7 +74,7 @@ public sealed class MetricsService(
         else
         {
             var read = await RollupsAsync(range, at, span, bucket, cancellationToken).ConfigureAwait(false);
-            foreach (var point in read.Series)
+            foreach (var point in MetricTimeline.Steps(read.Series, (int)bucket.TotalSeconds))
             {
                 series.Add(SeriesPoint(point));
             }
@@ -163,7 +155,9 @@ public sealed class MetricsService(
         point.PerSecond(point.Status5xx),
         point.PerSecond(point.Refused),
         new LatencyFigures(Milliseconds(point.TotalP50), Milliseconds(point.TotalP95), Milliseconds(point.TotalP99)),
-        new LatencyFigures(Milliseconds(point.UpstreamP50), Milliseconds(point.UpstreamP95), Milliseconds(point.UpstreamP99)));
+        new LatencyFigures(Milliseconds(point.UpstreamP50), Milliseconds(point.UpstreamP95), Milliseconds(point.UpstreamP99)),
+        point.Width,
+        point.CoveredSeconds);
 
     private static MetricsFigures Figures(MetricPoint point) => new(
         point.RequestsPerSecond,

@@ -62,8 +62,7 @@ public sealed class TrafficOverviewTests
         Assert.Contains("No traffic in this range yet", page.Find("[data-section=requests-chart]").TextContent, StringComparison.Ordinal);
 
         rig.Record(App, 10, status: 200, micros: 1_000);
-        rig.TickAt(12);
-        rig.TickAt(22);
+        rig.TickEverySecondTo(22);
 
         // The next poll reads the ring again.
         await page.WaitForStateAsync(() => page.FindAll("[data-chart]").Count == 2);
@@ -331,7 +330,19 @@ public sealed class TrafficOverviewTests
         {
             _clock.Now = Start.AddSeconds(seconds);
             Sampler.Tick();
+            _last = seconds;
         }
+
+        /// <summary>Samples on every second after the last tick, as the service does: a longer silence is a stall the sampler doesn't claim to have observed.</summary>
+        public void TickEverySecondTo(int seconds)
+        {
+            for (var second = _last + 1; second <= seconds; second++)
+            {
+                TickAt(second);
+            }
+        }
+
+        private int _last;
 
         public async Task UseDatabaseAsync()
         {

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Metrics;
+using Paduraksa.Contracts.Metrics;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Snapshot;
@@ -49,10 +50,12 @@ internal sealed class MetricProcess
     /// <summary>The hosted services start in registration order: the job (which seeds the sampler) and then the sampler.</summary>
     public async Task StartAsync()
     {
+        // A process that crashed left its timers armed on the shared clock: they are part of what "settled" means from here on.
+        var others = _clock.ArmedTimers;
         await Job.StartAsync(Ct);
         await Service.StartAsync(Ct);
         // Both loops run on their own: they are up when the job's write timer and the sampler's delay are armed.
-        _baselineTimers = 2;
+        _baselineTimers = others + 2;
         await SettledAsync();
     }
 
@@ -62,6 +65,8 @@ internal sealed class MetricProcess
         await Service.StopAsync(Ct);
         await Job.StopAsync(Ct);
     }
+
+    public Task<MetricsOverview> OverviewAsync(MetricsRange range) => Metrics.ReadOverviewAsync(range, Ct);
 
     public MetricSlot Host(Guid id) => Registry.SlotFor(MetricSubject.Host, id);
 
@@ -96,7 +101,14 @@ internal sealed class MetricProcess
         // The tick ran when the service's delay is armed again.
         for (var i = 0; i < 5_000 && _clock.ArmedTimers != _baselineTimers; i++)
         {
-            await Task.Delay(1, Ct);
+            if (i < 100)
+            {
+                await Task.Yield();
+            }
+            else
+            {
+                await Task.Delay(1, Ct);
+            }
         }
 
         Assert.Equal(_baselineTimers, _clock.ArmedTimers);

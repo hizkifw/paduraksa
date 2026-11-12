@@ -33,7 +33,8 @@ internal static class MetricsEndpoints
 
         metrics.MapGet("/overview", Overview)
             .WithName("GetMetricsOverview").WithSummary("Read the metrics overview")
-            .WithDescription("What the dashboard's overview draws: the pace over the last half minute, a chart, the busiest hosts and the upstreams' errors over ?range=hour (the default, from memory), day, week or month (from the one-minute rollups).")
+            .WithDescription("What the dashboard's overview draws: the pace over the last half minute, a chart, the busiest hosts and the upstreams' errors over ?range=hour (the default; from memory and the last hour of rollups, so it survives a restart), day, week or month (from the one-minute rollups). "
+                + "The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server was not running, a gap, and not a zero.")
             .Produces<MetricsOverview>().ProducesApiProblems(400)
             .RequirePermission(Permission.MetricsRead);
     }
