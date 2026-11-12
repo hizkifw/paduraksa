@@ -64,6 +64,7 @@ public static class AdminApiExtensions
         SecurityEndpoints.Map(api);
         ErrorPageEndpoints.Map(api);
         MetricsEndpoints.Map(api);
+        AnalyticsEndpoints.Map(api);
         SimulateEndpoints.Map(api);
         CaEndpoint.Map(api);
         AdminOpenApi.Map(endpoints);

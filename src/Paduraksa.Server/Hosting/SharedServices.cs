@@ -407,6 +407,7 @@ internal sealed class SharedServices : IAsyncDisposable
             ]));
             builder.Add(new PaduraksaMeter(metrics, snapshots, processCounters));
             builder.Add(new MetricsService(metrics, snapshots, sampler, rollupStore, processCounters, timeProvider));
+            builder.Add(new AnalyticsService(configStore.AnalyticsRollups, analytics, timeProvider));
 
             // After the config store, which it asks to compile the live config again when Cloudflare's ranges change: disposed
             // before it. The core host runs it (CoreHost) only when it is enabled.

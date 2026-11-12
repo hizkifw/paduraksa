@@ -317,6 +317,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("GET /api/v1/security/overview", Permission.ConfigRead),
             ("GET /api/v1/metrics", Permission.MetricsRead),
             ("GET /api/v1/metrics/overview", Permission.MetricsRead),
+            ("GET /api/v1/analytics", Permission.MetricsRead),
             ("POST /api/v1/simulate", Permission.Simulate),
             ("POST /api/v1/backup", Permission.BackupCreate),
             ("POST /api/v1/error-pages/preview", Permission.ConfigRead),

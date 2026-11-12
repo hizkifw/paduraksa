@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-
+using Paduraksa.Contracts.Analytics;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Audit;
 using Paduraksa.Contracts.Backup;
@@ -108,6 +108,7 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(AuditVerification))]
 [JsonSerializable(typeof(SecurityOverview))]
 [JsonSerializable(typeof(MetricsOverview))]
+[JsonSerializable(typeof(AnalyticsOverview))]
 [JsonSerializable(typeof(CertificateSummary))]
 [JsonSerializable(typeof(IReadOnlyList<CertificateSummary>))]
 [JsonSerializable(typeof(CertificateDetail))]
