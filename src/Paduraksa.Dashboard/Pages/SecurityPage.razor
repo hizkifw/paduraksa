@@ -289,6 +289,35 @@ else if (_current is { } current)
             </dl>
         </MudPaper>
 
+        @if (current.Connections is { } connections)
+        {
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="connections">
+                <div class="pdk-card-head">
+                    <MudText Typo="Typo.h6" HtmlTag="h2">Connections</MudText>
+                </div>
+                <dl class="pdk-sec-reasons">
+                    <div title="Open connections one client address may hold; an IPv6 /64 counts as one address. Trusted proxies are not counted"><dt>Limit per address</dt><dd data-reason="connection-limit">@SecurityFigures.LimitText(connections.MaxPerIp)</dd></div>
+                    <div title="The deny addresses of this access list are refused before TLS"><dt>Deny list</dt><dd data-reason="connection-deny-list">
+                        @if (connections.DenyList is { } denyList)
+                        {
+                            <a class="pdk-row-link" href="@DashboardRoutes.AccessList(denyList.Id)">@denyList.Name</a>
+                        }
+                        else
+                        {
+                            <span class="pdk-muted">None</span>
+                        }
+                    </dd></div>
+                    <div title="Closed before TLS because the address is in the deny list"><dt>Refused, deny list</dt><dd data-reason="connection-denied">@SecurityFigures.Count(connections.DenyListRefused)</dd></div>
+                    <div title="Closed before TLS because the address already held its limit"><dt>Refused, over the limit</dt><dd data-reason="connection-over-limit">@SecurityFigures.Count(connections.LimitRefused)</dd></div>
+                    <div title="Open connections the limit counts now"><dt>Counted now</dt><dd data-reason="connection-counted">@SecurityFigures.Count(connections.Counted)</dd></div>
+                    @if (connections.Uncounted > 0)
+                    {
+                        <div title="Let through without being counted because the table had no room: a flood from very many addresses filled it"><dt>Not counted, table full</dt><dd data-reason="connection-uncounted">@SecurityFigures.Count(connections.Uncounted)</dd></div>
+                    }
+                </dl>
+            </MudPaper>
+        }
+
         @if (current.ForwardAuth is { } signIn)
         {
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="sign-in">

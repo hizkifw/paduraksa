@@ -26,6 +26,9 @@ internal static class SecurityFigures
         { } value => string.Create(CultureInfo.InvariantCulture, $"{value:0}/s"),
     };
 
+    /// <summary>"256", or "Off" for the limit that is turned off.</summary>
+    public static string LimitText(int limit) => limit == 0 ? "Off" : limit.ToString("N0", CultureInfo.InvariantCulture);
+
     public static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
 
     /// <summary>"81%" of <paramref name="whole"/>; null when there is nothing to take a share of.</summary>

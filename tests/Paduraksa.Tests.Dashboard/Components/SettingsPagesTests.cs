@@ -334,6 +334,49 @@ public sealed class SettingsPagesTests
     }
 
     [Fact]
+    public async Task TheConnectionsCardSetsTheLimitAndTheDenyListThroughReview()
+    {
+        await using DashboardTestContext context = new();
+        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Operator);
+        AccessListConfig scanners = new(AccessListId.New(), "scanners", Ip: new AccessListIp(Deny: ["203.0.113.0/24"]));
+        config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 4), AccessLists: [scanners]);
+        context.Render<MudPopoverProvider>();
+        context.Render<Paduraksa.Dashboard.Drawers.DrawerHost>();
+        var page = context.Render<GlobalDefaults>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-form=defaults]").Count == 1);
+
+        var limit = page.FindComponents<MudNumericField<int?>>().Single(field => field.Instance.Label == "Connections per address");
+        Assert.Equal("Built-in default (256)", limit.Instance.Placeholder);
+        await page.InvokeAsync(() => limit.Instance.ValueChanged.InvokeAsync(32));
+        Assert.Equal("None", page.Find("[data-card=connections] [data-field=deny-list]").GetAttribute("value"));
+        await page.InvokeAsync(() => page.FindComponents<MudSelect<AccessListId?>>().Single(select => select.Instance.Label == "Deny list").Instance.ValueChanged.InvokeAsync(scanners.Id));
+        Assert.Equal("scanners", page.Find("[data-card=connections] [data-field=deny-list]").GetAttribute("value"));
+        await page.Find("[data-action=review]").ClickAsync(new());
+
+        await page.WaitForStateAsync(() => config.Executed.Count == 1);
+        var command = Assert.IsType<UpdateSettingsCommand>(config.Executed[0]);
+        Assert.Equal(new ConnectionSettings(32, scanners.Id), command.Settings.Connections);
+    }
+
+    [Fact]
+    public async Task SettingsThatLeaveTheConnectionsAloneSendNone()
+    {
+        await using DashboardTestContext context = new();
+        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 4));
+        context.Render<MudPopoverProvider>();
+        context.Render<Paduraksa.Dashboard.Drawers.DrawerHost>();
+        var page = context.Render<GlobalDefaults>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-form=defaults]").Count == 1);
+
+        await page.Find("[data-field=proxy-mode] [data-value=cloudflareproxy]").ClickAsync(new());
+        await page.Find("[data-action=review]").ClickAsync(new());
+
+        await page.WaitForStateAsync(() => config.Executed.Count == 1);
+        Assert.Null(Assert.IsType<UpdateSettingsCommand>(config.Executed[0]).Settings.Connections);
+    }
+
+    [Fact]
     public async Task TheClientAddressCardShowsTheEdgeRangeListWhereTheProxyModeNeedsIt()
     {
         await using DashboardTestContext context = new();

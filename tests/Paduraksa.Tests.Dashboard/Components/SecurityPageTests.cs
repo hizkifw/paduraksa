@@ -13,6 +13,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
@@ -71,6 +72,53 @@ public sealed class SecurityPageTests
         Assert.Equal("1", page.Find("[data-tile=limited] [data-part=value]").TextContent);
         Assert.Equal("25% of checked requests", page.Find("[data-tile=limited] [data-part=detail]").TextContent);
         Assert.Equal("0.5/s", page.Find("[data-tile=limited] [data-part=rate]").TextContent);
+    }
+
+    [Fact]
+    public async Task TheConnectionsCardShowsTheLimitTheDenyListAndWhatWasRefusedBeforeTls()
+    {
+        await using DashboardTestContext context = new();
+        var shell = Start(context, Role.Operator);
+        var scanners = new AccessListSpec { Id = AccessListId.New(), Name = "scanners", Realm = "scanners", Deny = ["203.0.113.0/24", "198.51.100.7"] };
+        var model = Hosts() with
+        {
+            AccessLists = [scanners],
+            Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 64, DenyList = scanners.Id } },
+        };
+        shell.Publish(model);
+        var runtime = shell.Connections;
+        var snapshot = shell.Store.Current;
+        _ = runtime.Admit(snapshot, IpKey.Parse("203.0.113.9"), ConnectionTransport.Tcp, out _);
+        _ = runtime.Admit(snapshot, IpKey.Parse("203.0.113.10"), ConnectionTransport.Quic, out _);
+        Assert.Equal(ConnectionDecision.Counted, runtime.Admit(snapshot, IpKey.Parse("192.0.2.1"), ConnectionTransport.Tcp, out _));
+
+        var page = context.Render<SecurityPage>();
+
+        var card = page.Find("[data-section=connections]");
+        Assert.Equal("64", card.QuerySelector("[data-reason=connection-limit]")!.TextContent);
+        Assert.Equal("scanners", card.QuerySelector("[data-reason=connection-deny-list]")!.TextContent.Trim());
+        Assert.EndsWith(DashboardRoutes.AccessList(scanners.Id), card.QuerySelector("[data-reason=connection-deny-list] a")!.GetAttribute("href"), StringComparison.Ordinal);
+        Assert.Equal("2", card.QuerySelector("[data-reason=connection-denied]")!.TextContent);
+        Assert.Equal("0", card.QuerySelector("[data-reason=connection-over-limit]")!.TextContent);
+        Assert.Equal("1", card.QuerySelector("[data-reason=connection-counted]")!.TextContent);
+        Assert.Null(card.QuerySelector("[data-reason=connection-uncounted]")); // only once the table has been full
+    }
+
+    [Fact]
+    public async Task TheConnectionsCardSaysOffAndNoneAndShowsTheTableFullLineOnlyOnceItHappened()
+    {
+        await using DashboardTestContext context = new();
+        var shell = Start(context, Role.Operator);
+        shell.Publish(Hosts() with { Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 0 } } });
+
+        var page = context.Render<SecurityPage>();
+
+        var card = page.Find("[data-section=connections]");
+        Assert.Equal("Off", card.QuerySelector("[data-reason=connection-limit]")!.TextContent);
+        Assert.Equal("None", card.QuerySelector("[data-reason=connection-deny-list]")!.TextContent.Trim());
+        Assert.Null(card.QuerySelector("[data-reason=connection-uncounted]"));
+        Assert.Equal("Off", SecurityFigures.LimitText(0));
+        Assert.Equal("1,000", SecurityFigures.LimitText(1000));
     }
 
     [Fact]
@@ -398,7 +446,7 @@ public sealed class SecurityPageTests
     private static Shell Start(DashboardTestContext context, Role role)
     {
         Shell shell = new();
-        context.Services.AddSingleton(new SecurityOverviewService(shell.Store, shell.ProofOfWork, shell.RateLimits, shell.Time, shell.AccessLists));
+        context.Services.AddSingleton(new SecurityOverviewService(shell.Store, shell.ProofOfWork, shell.RateLimits, shell.Time, shell.AccessLists, shell.Connections));
         ConfigPages.SignIn(context, role, shell.Time);
         return shell;
     }
@@ -500,6 +548,8 @@ public sealed class SecurityPageTests
         public RuleSetRuntime RuleSets { get; } = new();
 
         public ForwardAuthRuntime ForwardAuth { get; } = new();
+
+        public ConnectionRuntime Connections { get; } = new(new ConnectionTable(64));
 
         public void Publish(ProxyConfigModel model)
         {
