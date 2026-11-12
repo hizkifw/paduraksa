@@ -100,4 +100,96 @@ public sealed class NotificationStorageTests
         await db.ExecuteAsync("DELETE FROM Certificates");
         Assert.Equal(0L, await db.ScalarAsync("SELECT count(*) FROM ExpiryNotices"));
     }
+
+    private static NotificationEventRow Event() => new()
+    {
+        Id = NotificationEventId.New(),
+        Kind = NotificationEventKind.UpstreamDown,
+        Subject = "ups_x",
+        Title = "Upstream media is down",
+        Body = "body",
+        Severity = 3,
+        OccurredAt = T0,
+        CreatedAt = T0,
+    };
+
+    private static NotificationDeliveryRow Delivery(NotificationEventId eventId, NotificationChannelId channel) => new()
+    {
+        Id = NotificationDeliveryId.New(),
+        EventId = eventId,
+        ChannelId = channel,
+        NextAttemptAt = T0,
+    };
+
+    [Fact]
+    public async Task AnEventAndItsDeliveryRoundTripWithStableNames()
+    {
+        await using var db = await CreateAsync();
+        var channel = NotificationChannelId.New();
+        var row = Event();
+        await using (var write = db.NewContext())
+        {
+            write.NotificationEvents.Add(row);
+            write.NotificationDeliveries.Add(Delivery(row.Id, channel));
+            await write.SaveChangesAsync(Ct);
+        }
+
+        Assert.Equal(["upstream.down", "pending"], (await db.QueryAsync("SELECT e.Kind, d.State FROM NotificationEvents e JOIN NotificationDeliveries d ON d.EventId = e.Id")).Single());
+        await using var read = db.NewContext();
+        var back = await read.NotificationDeliveries.SingleAsync(Ct);
+        Assert.Equal(channel, back.ChannelId);
+        Assert.Equal(NotificationDeliveryState.Pending, back.State);
+        Assert.Null(back.DigestId);
+    }
+
+    [Fact]
+    public async Task UnknownStatesAndKindsAreRefusedAndAnEventIsAddressedToAChannelOnce()
+    {
+        await using var db = await CreateAsync();
+        var channel = NotificationChannelId.New();
+        var row = Event();
+        await using (var write = db.NewContext())
+        {
+            write.NotificationEvents.Add(row);
+            write.NotificationDeliveries.Add(Delivery(row.Id, channel));
+            await write.SaveChangesAsync(Ct);
+        }
+
+        var state = await Assert.ThrowsAnyAsync<Exception>(() => db.ExecuteAsync("UPDATE NotificationDeliveries SET State = 'claimed'"));
+        Assert.Contains("CK_NotificationDeliveries_State", state.Message, StringComparison.Ordinal);
+        var kind = await Assert.ThrowsAnyAsync<Exception>(() => db.ExecuteAsync("UPDATE NotificationEvents SET Kind = 'sms'"));
+        Assert.Contains("CK_NotificationEvents_Kind", kind.Message, StringComparison.Ordinal);
+
+        await using var again = db.NewContext();
+        again.NotificationDeliveries.Add(Delivery(row.Id, channel));
+        await Assert.ThrowsAsync<DbUpdateException>(() => again.SaveChangesAsync(Ct));
+    }
+
+    [Fact]
+    public async Task DeletingAnEventDeletesItsDeliveriesButADeletedChannelLeavesItsHistory()
+    {
+        await using var db = await CreateAsync();
+        var channel = Channel();
+        var row = Event();
+        await using (var write = db.NewContext())
+        {
+            write.NotificationChannels.Add(channel);
+            write.NotificationEvents.Add(row);
+            write.NotificationDeliveries.Add(Delivery(row.Id, channel.Id));
+            await write.SaveChangesAsync(Ct);
+        }
+
+        await using (var context = db.NewContext())
+        {
+            await context.NotificationChannels.Where(c => c.Id == channel.Id).ExecuteDeleteAsync(Ct);
+        }
+
+        Assert.Equal(1L, (await db.QueryAsync("SELECT COUNT(*) FROM NotificationDeliveries")).Single()[0]);
+        await using (var context = db.NewContext())
+        {
+            await context.NotificationEvents.Where(e => e.Id == row.Id).ExecuteDeleteAsync(Ct);
+        }
+
+        Assert.Equal(0L, (await db.QueryAsync("SELECT COUNT(*) FROM NotificationDeliveries")).Single()[0]);
+    }
 }

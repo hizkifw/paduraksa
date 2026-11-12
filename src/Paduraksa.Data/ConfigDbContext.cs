@@ -57,6 +57,10 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<ExpiryNoticeRow> ExpiryNotices => Set<ExpiryNoticeRow>();
 
+    internal DbSet<NotificationEventRow> NotificationEvents => Set<NotificationEventRow>();
+
+    internal DbSet<NotificationDeliveryRow> NotificationDeliveries => Set<NotificationDeliveryRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -72,6 +76,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         configurationBuilder.Properties<AcmeChallengeType>().HaveConversion<AcmeChallengeTypeConverter>();
         configurationBuilder.Properties<DnsProviderKind>().HaveConversion<DnsProviderKindConverter>();
         configurationBuilder.Properties<NotificationChannelKind>().HaveConversion<NotificationChannelKindConverter>();
+        configurationBuilder.Properties<NotificationEventKind>().HaveConversion<NotificationEventKindConverter>();
+        configurationBuilder.Properties<NotificationDeliveryState>().HaveConversion<NotificationDeliveryStateConverter>();
         configurationBuilder.Properties<SmtpSecurity>().HaveConversion<SmtpSecurityConverter>();
         configurationBuilder.Properties<JwsAlgorithm>().HaveConversion<JwsAlgorithmConverter>();
         configurationBuilder.Properties<KeySpec>().HaveConversion<KeySpecConverter>();
@@ -90,6 +96,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration(new AnalyticsRollupRowConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationChannelRowConfiguration());
         modelBuilder.ApplyConfiguration(new ExpiryNoticeRowConfiguration());
+        modelBuilder.ApplyConfiguration(new NotificationEventRowConfiguration());
+        modelBuilder.ApplyConfiguration(new NotificationDeliveryRowConfiguration());
         IdentityConfiguration identity = new();
         modelBuilder.ApplyConfiguration<UserRow>(identity);
         modelBuilder.ApplyConfiguration<RoleAssignmentRow>(identity);

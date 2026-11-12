@@ -95,6 +95,16 @@ public static class ModelNames
         _ => throw Undefined(kind),
     };
 
+    public static string ToName(this NotificationDeliveryState state) => state switch
+    {
+        NotificationDeliveryState.Pending => "pending",
+        NotificationDeliveryState.Sent => "sent",
+        NotificationDeliveryState.Failed => "failed",
+        NotificationDeliveryState.Expired => "expired",
+        NotificationDeliveryState.Dropped => "dropped",
+        _ => throw Undefined(state),
+    };
+
     public static string ToName(this SmtpSecurity security) => security switch
     {
         SmtpSecurity.StartTls => "starttls",
@@ -259,6 +269,16 @@ public static class ModelNames
     };
 
     /// <inheritdoc cref="ParseActorKind"/>
+    public static NotificationDeliveryState ParseNotificationDeliveryState(string name) => name switch
+    {
+        "pending" => NotificationDeliveryState.Pending,
+        "sent" => NotificationDeliveryState.Sent,
+        "failed" => NotificationDeliveryState.Failed,
+        "expired" => NotificationDeliveryState.Expired,
+        "dropped" => NotificationDeliveryState.Dropped,
+        _ => throw NotAName<NotificationDeliveryState>(name),
+    };
+
     public static NotificationEventKind ParseNotificationEventKind(string name) => name switch
     {
         "upstream.down" => NotificationEventKind.UpstreamDown,

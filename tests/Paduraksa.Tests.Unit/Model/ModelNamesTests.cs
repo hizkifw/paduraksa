@@ -21,6 +21,7 @@ public sealed class ModelNamesTests
                 "acme.renewal_recovered", "signin.lockout", "signin.new_address", "test",
             ],
             Enum.GetValues<NotificationEventKind>().Select(k => k.ToName()));
+        Assert.Equal(["pending", "sent", "failed", "expired", "dropped"], Enum.GetValues<NotificationDeliveryState>().Select(s => s.ToName()));
     }
 
     [Fact]
@@ -34,6 +35,7 @@ public sealed class ModelNamesTests
         Assert.All(Enum.GetValues<NotificationChannelKind>(), k => Assert.Equal(k, ModelNames.ParseNotificationChannelKind(k.ToName())));
         Assert.All(Enum.GetValues<SmtpSecurity>(), s => Assert.Equal(s, ModelNames.ParseSmtpSecurity(s.ToName())));
         Assert.All(Enum.GetValues<NotificationEventKind>(), k => Assert.Equal(k, ModelNames.ParseNotificationEventKind(k.ToName())));
+        Assert.All(Enum.GetValues<NotificationDeliveryState>(), s => Assert.Equal(s, ModelNames.ParseNotificationDeliveryState(s.ToName())));
     }
 
     [Theory]
@@ -51,6 +53,7 @@ public sealed class ModelNamesTests
         Assert.Throws<FormatException>(() => ModelNames.ParseNotificationChannelKind(name));
         Assert.Throws<FormatException>(() => ModelNames.ParseSmtpSecurity(name));
         Assert.Throws<FormatException>(() => ModelNames.ParseNotificationEventKind(name));
+        Assert.Throws<FormatException>(() => ModelNames.ParseNotificationDeliveryState(name));
     }
 
     [Fact]

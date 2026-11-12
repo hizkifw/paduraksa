@@ -50,6 +50,7 @@ namespace Paduraksa.Admin.Json;
         typeof(NotificationChannelKindWireConverter),
         typeof(SmtpSecurityWireConverter),
         typeof(NotificationEventKindWireConverter),
+        typeof(NotificationDeliveryStateWireConverter),
         typeof(KeySpecWireConverter),
         typeof(JwsAlgorithmWireConverter),
         // The enums the config document and the proxy share live in Core, and the source generator can't see their own

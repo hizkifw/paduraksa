@@ -74,3 +74,25 @@ public enum NotificationEventKind
     /// <summary>The "send test" button.</summary>
     Test = 10,
 }
+
+/// <summary>
+/// Where one delivery of an event to one channel stands. Persisted by name (<see cref="ModelNames"/>). <see cref="Pending"/> is the only state that
+/// is not final: a retry puts a final one back to it.
+/// </summary>
+public enum NotificationDeliveryState
+{
+    /// <summary>Waiting for the channel's worker: new, or between retries.</summary>
+    Pending = 1,
+
+    /// <summary>The service accepted it.</summary>
+    Sent = 2,
+
+    /// <summary>Given up: a permanent refusal, or the last retry failed.</summary>
+    Failed = 3,
+
+    /// <summary>Not sent because the event was older than the maximum delivery age when the process started.</summary>
+    Expired = 4,
+
+    /// <summary>Not sent because the channel was deleted or paused.</summary>
+    Dropped = 5,
+}

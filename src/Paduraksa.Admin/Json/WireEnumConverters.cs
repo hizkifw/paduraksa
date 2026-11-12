@@ -58,6 +58,8 @@ internal sealed class SmtpSecurityWireConverter() : WireEnumConverter<SmtpSecuri
 
 internal sealed class NotificationEventKindWireConverter() : WireEnumConverter<NotificationEventKind>(ModelNames.ToName);
 
+internal sealed class NotificationDeliveryStateWireConverter() : WireEnumConverter<NotificationDeliveryState>(ModelNames.ToName);
+
 internal sealed class KeySpecWireConverter() : WireEnumConverter<KeySpec>(VaultNames.ToName);
 
 internal sealed class JwsAlgorithmWireConverter() : WireEnumConverter<JwsAlgorithm>(JwsAlgorithmNames.ToName);

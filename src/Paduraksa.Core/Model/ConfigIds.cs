@@ -76,3 +76,16 @@ public readonly partial record struct MetricRollupId;
 /// process watched it). Int64Ordered: admin-only, append-only and high-volume.</summary>
 [TypedId("anr", IdKind.Int64Ordered)]
 public readonly partial record struct AnalyticsRollupId;
+
+/// <summary>A notification event as the outbox stores it: what happened, once, however many channels it was addressed to. Int64Ordered: admin-only,
+/// append-only and high-volume.</summary>
+[TypedId("nev", IdKind.Int64Ordered)]
+public readonly partial record struct NotificationEventId;
+
+/// <summary>One event's delivery to one channel. Int64Ordered, like its event.</summary>
+[TypedId("ndl", IdKind.Int64Ordered)]
+public readonly partial record struct NotificationDeliveryId;
+
+/// <summary>A digest: the deliveries to one channel that were sent as one message share it, and a webhook receives it as the message's event ID. Int64Ordered; never a row of its own.</summary>
+[TypedId("ndg", IdKind.Int64Ordered)]
+public readonly partial record struct NotificationDigestId;

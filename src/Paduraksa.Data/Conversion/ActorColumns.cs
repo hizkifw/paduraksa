@@ -48,6 +48,10 @@ internal static class NameChecks
 
     public static string NotificationChannelKind(string column) => In(column, Enum.GetValues<NotificationChannelKind>().Select(k => k.ToName()));
 
+    public static string NotificationDeliveryState(string column) => In(column, Enum.GetValues<NotificationDeliveryState>().Select(s => s.ToName()));
+
+    public static string NotificationEventKind(string column) => In(column, Enum.GetValues<NotificationEventKind>().Select(k => k.ToName()));
+
     public static string SmtpSecurity(string column) => In(column, Enum.GetValues<SmtpSecurity>().Select(s => s.ToName()));
 
     public static string JwsAlgorithm(string column) => In(column, Enum.GetValues<JwsAlgorithm>().Select(a => a.ToName()));

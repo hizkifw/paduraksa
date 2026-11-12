@@ -37,6 +37,12 @@ internal sealed class DnsProviderKindConverter()
 internal sealed class NotificationChannelKindConverter()
     : ValueConverter<NotificationChannelKind, string>(value => value.ToName(), name => ModelNames.ParseNotificationChannelKind(name));
 
+internal sealed class NotificationEventKindConverter()
+    : ValueConverter<NotificationEventKind, string>(value => value.ToName(), name => ModelNames.ParseNotificationEventKind(name));
+
+internal sealed class NotificationDeliveryStateConverter()
+    : ValueConverter<NotificationDeliveryState, string>(value => value.ToName(), name => ModelNames.ParseNotificationDeliveryState(name));
+
 internal sealed class SmtpSecurityConverter()
     : ValueConverter<SmtpSecurity, string>(value => value.ToName(), name => ModelNames.ParseSmtpSecurity(name));
 

@@ -24,6 +24,7 @@ internal static class WireEnums
         [typeof(NotificationChannelKind)] = Names<NotificationChannelKind>(ModelNames.ToName),
         [typeof(SmtpSecurity)] = Names<SmtpSecurity>(ModelNames.ToName),
         [typeof(NotificationEventKind)] = Names<NotificationEventKind>(ModelNames.ToName),
+        [typeof(NotificationDeliveryState)] = Names<NotificationDeliveryState>(ModelNames.ToName),
         [typeof(KeySpec)] = Names<KeySpec>(VaultNames.ToName),
         [typeof(JwsAlgorithm)] = Names<JwsAlgorithm>(JwsAlgorithmNames.ToName),
     }.ToFrozenDictionary();
