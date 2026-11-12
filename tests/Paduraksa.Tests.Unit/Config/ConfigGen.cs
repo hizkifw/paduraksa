@@ -135,7 +135,8 @@ internal static class ConfigGen
         Gen.Select(OptValue(Gen.Bool), Opt(Tls()), Opt(Hsts()), OptValue(Gen.Bool), OptValue(Enum<RequestIdPropagation>())),
         Gen.Select(Opt(ServerHeader()), Opt(ProofOfWork(route: false)), Opt(RateLimit(n)), Opt(Robots())),
         Gen.Select(Opt(Cloudflare()), Opt(AccessListRef(n)), Opt(RequestLimits(route: false)), Opt(RuleSetRef(n)), Opt(AuthProviderRef(n))),
-        static (a, b, c) => new HostSettings
+        Gen.Select(Opt(ErrorPages()), Opt(Maintenance(n))),
+        static (a, b, c, d) => new HostSettings
         {
             ForceHttps = a.Item1,
             Tls = a.Item2,
@@ -151,6 +152,8 @@ internal static class ConfigGen
             RequestLimits = c.Item3,
             RuleSet = c.Item4,
             AuthProvider = c.Item5,
+            ErrorPages = d.Item1,
+            Maintenance = d.Item2,
         });
 
     // A route's own layer: the subset it may set, mostly.
@@ -212,6 +215,54 @@ internal static class ConfigGen
             OptValue(Mostly(Gen.Int[1024, 65_536], Property.Pick(0, 1 << 20))),
             OptValue(Mostly(Gen.Int[256, 16_384], Property.Pick(0, 1 << 20))),
             static (body, count, bytes, url) => new RequestLimitsSettings { MaxBodySize = body, MaxHeaderCount = count, MaxHeaderBytes = bytes, MaxUrlLength = url });
+
+    private static readonly string[] Headings = ["Gone", "{status} {statusText}", "Not on {host}", "Down: {requestId}", "Ray {cfRay}", "caf\u00e9 <b>&\"'", "{{literal}", "a{color:red}", "100% {status", "{Status}x"];
+
+    private static readonly string[] BadHeadings = ["", "   ", new string('h', 121), "two\nlines", "{nope}", "{status} {requestid}", "tab\there"];
+
+    private static readonly string[] Sentences = ["", "Try again later.", "Quote {requestId} to us (ray {cfRay}) about {host}.", "<script>alert(1)</script> & \"q\" 'r'", "{{ {status} }}", new string('s', 500), "\u00e9\u00e8 \ud83d\ude00"];
+
+    private static readonly string[] BadSentences = [new string('s', 501), "a\r\nb", "{statusCode}", "bell\u0007"];
+
+    private static readonly string[] PageDocuments =
+    [
+        "<!doctype html><title>{status} {statusText}</title><p>{host} {requestId} {cfRay}</p>",
+        "<style>a{color:red}</style><p>{{x}} {status}</p>",
+        "plain {requestId}",
+        "\u00e9<b>\"'&</b> {host}",
+        "line one\nline two\r\n\ttabbed",
+    ];
+
+    private static readonly string[] BadDocuments = ["", "   ", "x\u0001y", "<p>{host} {unknown}</p>", new string('a', 64 * 1024 + 1)];
+
+    // A page of the document's own: mostly one that says what its mode says, now and then one with fields its mode doesn't take or a template the validator refuses.
+    private static Gen<ErrorPageContent> ErrorPage() => Gen.Frequency(
+        (50, Gen.Select(Mostly(Property.Pick(Headings), Property.Pick(BadHeadings)), Mostly(Property.Pick(Sentences), Property.Pick(BadSentences)), Gen.Bool, static (heading, text, withText) => new ErrorPageContent { Heading = heading, Text = withText ? text : null })),
+        (30, Mostly(Property.Pick(PageDocuments), Property.Pick(BadDocuments)).Select(static html => new ErrorPageContent { Mode = ErrorPageMode.Html, Html = html })),
+        (1, Gen.Select(Enum<ErrorPageMode>(), Property.Pick<string?>(null, "h"), Property.Pick<string?>(null, "t"), Property.Pick<string?>(null, "<p>x</p>"), static (mode, heading, text, html) => new ErrorPageContent { Mode = mode, Heading = heading, Text = text, Html = html })));
+
+    // Most entries unset, so a document's pages are a few; one in twenty of the set ones is wrong.
+    private static Gen<ErrorPagesSettings> ErrorPages()
+    {
+        var entry = Gen.Frequency((3, Gen.Const(static () => (ErrorPageContent?)null)), (1, ErrorPage().Select(static page => (ErrorPageContent?)page)));
+        return Gen.Select(entry.Array[ErrorPageStatuses.Keys.Count], OptValue(Enum<UpstreamErrorReplacement>()), static (entries, replace) =>
+        {
+            var settings = new ErrorPagesSettings { ReplaceUpstream = replace };
+            for (var i = 0; i < entries.Length; i++)
+            {
+                settings = settings.WithEntry(ErrorPageStatuses.Keys[i], entries[i]);
+            }
+
+            return settings;
+        });
+    }
+
+    private static Gen<MaintenanceSettings> Maintenance(Counts n) => Gen.Select(
+        OptValue(Gen.Bool),
+        OptValue(Mostly(Property.Pick([.. ErrorPageStatuses.MaintenanceStatuses]), Property.Pick(0, 418, 700))),
+        OptValue(Mostly(Gen.Int[0, ErrorPageStatuses.MaxRetryAfterSeconds], Property.Pick(-1, ErrorPageStatuses.MaxRetryAfterSeconds + 1))),
+        Ref<AccessListId>(n.Lists),
+        static (enabled, status, retry, bypass) => new MaintenanceSettings { Enabled = enabled, Status = status, RetryAfterSeconds = retry, BypassAccessListId = bypass });
 
     private static Gen<AccessListSettings> AccessListRef(Counts n) => Gen.Select(
         OptValue(Gen.Bool), Ref<AccessListId>(n.Lists), static (enabled, id) => new AccessListSettings { Enabled = enabled, AccessListId = id });

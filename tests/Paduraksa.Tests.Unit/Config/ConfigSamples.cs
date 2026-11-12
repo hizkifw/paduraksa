@@ -271,6 +271,8 @@ internal static class ConfigSamples
             ProofOfWork = settings.ProofOfWork ?? (random.Next(2) == 0 ? new ProofOfWorkSettings() : null),
             RateLimit = settings.RateLimit ?? (random.Next(2) == 0 ? new RateLimitSettings() : null),
             AccessList = settings.AccessList ?? (random.Next(2) == 0 ? new AccessListSettings() : null),
+            ErrorPages = settings.ErrorPages ?? (random.Next(2) == 0 ? new ErrorPagesSettings() : null),
+            Maintenance = settings.Maintenance ?? (random.Next(2) == 0 ? new MaintenanceSettings() : null),
         };
 
         return document with
