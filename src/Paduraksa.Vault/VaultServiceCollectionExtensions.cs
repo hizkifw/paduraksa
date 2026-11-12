@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Core.Vault;
+using Paduraksa.Vault.Backup;
 using Paduraksa.Vault.Certificates;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.DataProtection;
@@ -55,6 +56,8 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<MacKeyCache>();
         services.AddSingleton<KekRotation>();
         services.AddSingleton<IVaultKekRotation>(p => p.GetRequiredService<KekRotation>());
+        services.AddSingleton<VaultBackup>();
+        services.AddSingleton<IVaultBackup>(p => p.GetRequiredService<VaultBackup>());
 
         services.AddSingleton<ISecretStore, SecretStore>();
         services.AddSingleton<IMacKeySource, MacKeySource>();

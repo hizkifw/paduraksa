@@ -9,6 +9,8 @@
   <!-- Trust boundary: everything internal; only capability interfaces from Core are exposed. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!-- Argon2id for the backup passphrase (PLAN §8, As built (M10)); nothing outside the vault may reference it (BackupBoundaryTests). -->
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
     <!-- For `dotnet ef` (design time only; doesn't flow to referencing projects). -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Vault" />

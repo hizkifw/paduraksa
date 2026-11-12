@@ -52,6 +52,8 @@ public sealed class VaultContractTests
         typeof(INotificationSecretSource),
         typeof(IVaultLifecycle),
         typeof(IVaultKekRotation),
+        typeof(IVaultBackup),
+        typeof(IStagedBackup),
         typeof(ITotpAuthenticator),
         typeof(IDataProtectionKeyStore),
         typeof(IPasswordCredential),
@@ -87,6 +89,11 @@ public sealed class VaultContractTests
         $"{nameof(CsrResult)}.{nameof(CsrResult.Der)}",
         $"{nameof(CsrResult)}.{nameof(CsrResult.Pem)}",
         $"{nameof(CertificateInfo)}.{nameof(CertificateInfo.PublicChainPem)}",
+
+        // A backup is a stream the passphrase has sealed (AES-256-GCM under an Argon2id key, the master key never in it): what goes out is
+        // ciphertext, and what comes in is read once, sealed, and checked before any of it is used.
+        $"{nameof(IVaultBackup)}.{nameof(IVaultBackup.CreateAsync)}(destination)",
+        $"{nameof(IVaultBackup)}.{nameof(IVaultBackup.OpenAsync)}(archive)",
 
         // The third sanctioned egress: Data Protection must parse and use the key element in-process.
         $"{nameof(DataProtectionKey)}.{nameof(DataProtectionKey.KeyXml)}",
