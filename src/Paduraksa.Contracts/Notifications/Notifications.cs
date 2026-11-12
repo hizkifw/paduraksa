@@ -74,18 +74,18 @@ public sealed record NotificationChannelSummary(
     string Label,
     bool Enabled,
     IReadOnlyList<NotificationEventKind> Events,
-    string? ServerUrl,
-    string? Topic,
-    string? SmtpHost,
-    int? SmtpPort,
-    SmtpSecurity? SmtpSecurity,
-    string? SmtpUsername,
-    string? MailFrom,
     IReadOnlyList<string> MailTo,
     bool HasSecret,
     bool HasSigningSecret,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
+    string? ServerUrl = null,
+    string? Topic = null,
+    string? SmtpHost = null,
+    int? SmtpPort = null,
+    SmtpSecurity? SmtpSecurity = null,
+    string? SmtpUsername = null,
+    string? MailFrom = null,
     DateTimeOffset? LastSentAt = null,
     DateTimeOffset? LastErrorAt = null,
     string? LastError = null);
@@ -168,17 +168,17 @@ public enum DestinationHealthState
 /// <param name="Reason">Why it is unhealthy ("active probe: HTTP 503", "passive check: too many failed requests"); the last probe's result when healthy.</param>
 /// <param name="Since">When it last changed state, if it has since the process started.</param>
 /// <param name="Flapping">It changed too often and its changes are not reported until it settles.</param>
-public sealed record DestinationHealthView(DestinationId Id, string Address, DestinationHealthState State, string? Reason, DateTimeOffset? Since, bool Flapping);
+public sealed record DestinationHealthView(DestinationId Id, string Address, DestinationHealthState State, string? Reason = null, DateTimeOffset? Since = null, bool Flapping = false);
 
 /// <summary>The most recent state change of an upstream or one of its destinations.</summary>
 /// <param name="At">When the change began.</param>
 /// <param name="Summary">What changed ("Down", "Back up", "10.0.0.5:8096 down").</param>
 /// <param name="Reason">Why, where YARP says.</param>
-public sealed record HealthChangeView(DateTimeOffset At, string Summary, string? Reason);
+public sealed record HealthChangeView(DateTimeOffset At, string Summary, string? Reason = null);
 
 /// <summary>An upstream's live health.</summary>
 /// <param name="Id">The upstream.</param>
 /// <param name="State">The whole upstream's state.</param>
 /// <param name="Destinations">Each destination the proxy knows.</param>
 /// <param name="LastChange">The latest change of the upstream or any of its destinations since the process started; null if none.</param>
-public sealed record UpstreamHealthView(UpstreamId Id, UpstreamHealthState State, IReadOnlyList<DestinationHealthView> Destinations, HealthChangeView? LastChange);
+public sealed record UpstreamHealthView(UpstreamId Id, UpstreamHealthState State, IReadOnlyList<DestinationHealthView> Destinations, HealthChangeView? LastChange = null);

@@ -21,6 +21,9 @@ internal static class WireEnums
         [typeof(AcmeOrderStatus)] = Names<AcmeOrderStatus>(ModelNames.ToName),
         [typeof(AcmeChallengeType)] = Names<AcmeChallengeType>(ModelNames.ToName),
         [typeof(DnsProviderKind)] = Names<DnsProviderKind>(ModelNames.ToName),
+        [typeof(NotificationChannelKind)] = Names<NotificationChannelKind>(ModelNames.ToName),
+        [typeof(SmtpSecurity)] = Names<SmtpSecurity>(ModelNames.ToName),
+        [typeof(NotificationEventKind)] = Names<NotificationEventKind>(ModelNames.ToName),
         [typeof(KeySpec)] = Names<KeySpec>(VaultNames.ToName),
         [typeof(JwsAlgorithm)] = Names<JwsAlgorithm>(JwsAlgorithmNames.ToName),
     }.ToFrozenDictionary();

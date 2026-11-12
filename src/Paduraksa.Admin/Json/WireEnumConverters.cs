@@ -52,6 +52,12 @@ internal sealed class AcmeChallengeTypeWireConverter() : WireEnumConverter<AcmeC
 
 internal sealed class DnsProviderKindWireConverter() : WireEnumConverter<DnsProviderKind>(ModelNames.ToName);
 
+internal sealed class NotificationChannelKindWireConverter() : WireEnumConverter<NotificationChannelKind>(ModelNames.ToName);
+
+internal sealed class SmtpSecurityWireConverter() : WireEnumConverter<SmtpSecurity>(ModelNames.ToName);
+
+internal sealed class NotificationEventKindWireConverter() : WireEnumConverter<NotificationEventKind>(ModelNames.ToName);
+
 internal sealed class KeySpecWireConverter() : WireEnumConverter<KeySpec>(VaultNames.ToName);
 
 internal sealed class JwsAlgorithmWireConverter() : WireEnumConverter<JwsAlgorithm>(JwsAlgorithmNames.ToName);

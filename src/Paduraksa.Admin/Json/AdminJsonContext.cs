@@ -9,6 +9,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Logging;
 using Paduraksa.Contracts.Metrics;
+using Paduraksa.Contracts.Notifications;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Contracts.Simulation;
@@ -45,6 +46,9 @@ namespace Paduraksa.Admin.Json;
         typeof(AcmeOrderStatusWireConverter),
         typeof(AcmeChallengeTypeWireConverter),
         typeof(DnsProviderKindWireConverter),
+        typeof(NotificationChannelKindWireConverter),
+        typeof(SmtpSecurityWireConverter),
+        typeof(NotificationEventKindWireConverter),
         typeof(KeySpecWireConverter),
         typeof(JwsAlgorithmWireConverter),
         // The enums the config document and the proxy share live in Core, and the source generator can't see their own
@@ -120,6 +124,12 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(CreateDnsProviderBody))]
 [JsonSerializable(typeof(RotateDnsCredentialBody))]
 [JsonSerializable(typeof(DnsProviderTestOutcome))]
+[JsonSerializable(typeof(NotificationChannelBody))]
+[JsonSerializable(typeof(NotificationChannelSummary))]
+[JsonSerializable(typeof(IReadOnlyList<NotificationChannelSummary>))]
+[JsonSerializable(typeof(NotificationTestOutcome))]
+[JsonSerializable(typeof(UpstreamHealthView))]
+[JsonSerializable(typeof(IReadOnlyList<UpstreamHealthView>))]
 [JsonSerializable(typeof(CaRootCertificate))]
 [JsonSerializable(typeof(SimulateBody))]
 [JsonSerializable(typeof(ErrorPagePreviewRequest))]
