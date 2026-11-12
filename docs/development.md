@@ -55,7 +55,7 @@ holds the config database `paduraksa.db` and `last-good.json`, the config that w
 
 The server falls back to `last-good.json` (degraded) when the database can't be used at startup, and restores the
 database from it when the database has no revisions. So to start over with an empty config, stop the server and delete
-both. One data directory serves one server at a time.
+both. One data directory serves one server at a time: the server holds `run/server.lock` for its life, a second one fails to start, and `paduraksa restore` refuses while it is held.
 
 ## Database migrations
 
@@ -80,6 +80,10 @@ you name one after `--`, e.g. `dotnet ef database update --project src/Paduraksa
 The vault database (`VaultDbContext` in `src/Paduraksa.Vault`, `data/vault.db`) has its own migrations in
 `src/Paduraksa.Vault/Migrations`, applied at startup by `IVaultLifecycle.InitializeAsync`. Add one the same way:
 `dotnet ef migrations add <Name> --project src/Paduraksa.Vault --output-dir Migrations`.
+
+A new vault table that holds a sealed value must also be added to `KekRotation.RewrapAllAsync`: a KEK rotation, a backup and a restore
+all re-wrap through it (`RewrapCoverageTests` fails until it is). A backup restores an older schema by migrating it, so a migration needs
+no backup-specific step.
 
 ## Repository layout
 
