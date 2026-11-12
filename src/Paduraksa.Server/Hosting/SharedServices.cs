@@ -372,11 +372,10 @@ internal sealed class SharedServices : IAsyncDisposable
             // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
             // persists the minutes (hosted services of the core host, below), and the meter, the service and the /metrics scrape read them.
             // After the config store, whose database holds the rollups.
-            MetricRollupBacklog rollupQueue = new();
-            var sampler = builder.Add(new MetricSampler(metrics, timeProvider, rollupQueue));
+            var sampler = builder.Add(new MetricSampler(metrics, timeProvider, new MetricRollupBacklog()));
             var rollupStore = configStore.MetricRollups;
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
-            builder.Add(new MetricRollupJob(rollupQueue, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
+            builder.Add(new MetricRollupJob(sampler, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
             var peerGone = builder.Add(new PeerGoneLogFilter());
             var processCounters = builder.Add(new ProcessCounters(
             [

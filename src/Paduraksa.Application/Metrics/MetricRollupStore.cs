@@ -94,6 +94,23 @@ public sealed class MetricRollupStore
         }
     }
 
+    /// <summary>
+    /// Every minute of every series from <paramref name="from"/> to <paramref name="to"/>, as stored, for the sampler to start from. It is
+    /// a range of the Minute index; an hour of 150 series is a few thousand rows, read once at startup.
+    /// </summary>
+    public async Task<IReadOnlyList<MetricRollup>> ReadMinutesAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            var rows = await MinutesQuery(context, from.ToUnixTimeSeconds() / 60, to.ToUnixTimeSeconds() / 60).ToListAsync(cancellationToken).ConfigureAwait(false);
+            return [.. rows.Select(static row => new MetricRollup(row.Subject, row.SubjectKey, PointOf(row)))];
+        }
+    }
+
+    internal static IQueryable<MetricRollupRow> MinutesQuery(ConfigDbContext context, long fromMinute, long toMinute) =>
+        context.MetricRollups.AsNoTracking().Where(row => row.Minute >= fromMinute && row.Minute <= toMinute);
+
     /// <summary>What every object of <paramref name="subject"/> did between <paramref name="from"/> and <paramref name="to"/>, one combined point per object, keyed by its typed-ID string.</summary>
     public async Task<IReadOnlyDictionary<string, MetricPoint>> SummariseAsync(
         MetricRollupSubject subject, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)

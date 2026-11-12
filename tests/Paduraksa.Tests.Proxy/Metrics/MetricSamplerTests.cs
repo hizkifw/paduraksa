@@ -617,4 +617,60 @@ public sealed class MetricSamplerTests
         var points = rig.Sampler.Read(MetricRollupSubject.Total, Guid.Empty)!.Value.Points;
         Assert.Equal(2, points.Sum(p => p.Requests));
     }
+
+    private static MetricRollup SeededMinute(MetricRollupSubject subject, Guid owner, int minutesBefore, long requests, int covered = 60) => new(
+        subject,
+        owner == Guid.Empty ? string.Empty : subject == MetricRollupSubject.Host ? HostId.FromValue(owner).ToString() : UpstreamId.FromValue(owner).ToString(),
+        new MetricPoint { Start = Start.ToUnixTimeSeconds() - (minutesBefore * 60), Width = 60, CoveredSeconds = covered, Requests = requests, Status2xx = requests, TotalP95 = 2_000 });
+
+    [Fact]
+    public void ASummaryOfTheHourReachesBackIntoTheSeededMinutesAndIncludesHostsThatOnlyHaveHistory()
+    {
+        Rig rig = new(bootSeconds: 30);
+        rig.Sampler.Seed(
+        [
+            SeededMinute(MetricRollupSubject.Host, HostA, 10, 50),
+            SeededMinute(MetricRollupSubject.Host, HostA, 5, 30),
+            SeededMinute(MetricRollupSubject.Host, HostB, 5, 7),
+            SeededMinute(MetricRollupSubject.Upstream, UpstreamA, 5, 9),
+            SeededMinute(MetricRollupSubject.Host, HostC, 90, 1_000),
+        ]);
+        var host = rig.Host(HostA);
+        for (var i = 0; i < 10; i++)
+        {
+            rig.Request(host);
+        }
+
+        rig.TickEverySecondTo(40);
+
+        var hosts = rig.Sampler.Summarise(MetricRollupSubject.Host, TimeSpan.FromHours(1));
+        Assert.Equal(90, hosts[HostA].Requests);
+        Assert.Equal(7, hosts[HostB].Requests);
+        Assert.False(hosts.ContainsKey(HostC));
+        Assert.Equal(9, rig.Sampler.Summarise(MetricRollupSubject.Upstream, TimeSpan.FromHours(1))[UpstreamA].Requests);
+        Assert.Equal(10, rig.Sampler.Summarise(MetricRollupSubject.Host, TimeSpan.FromMinutes(1))[HostA].Requests);
+    }
+
+    [Fact]
+    public void TheSeedIsOnlyTheHourBeforeSoThePaceNowIgnoresItAndOldMinutesAreForgottenAsTimePasses()
+    {
+        Rig rig = new();
+        rig.Sampler.Seed([SeededMinute(MetricRollupSubject.Total, Guid.Empty, 20, 500), SeededMinute(MetricRollupSubject.Total, Guid.Empty, 50, 500)]);
+        var host = rig.Host(HostA);
+        for (var i = 0; i < 4; i++)
+        {
+            rig.Request(host);
+        }
+
+        rig.TickEverySecondTo(10);
+
+        Assert.Equal(0.4, rig.Sampler.SummariseTotal(TimeSpan.FromSeconds(30)).RequestsPerSecond, 3);
+        Assert.Equal(2, rig.Sampler.History(MetricRollupSubject.Total, Guid.Empty).Length);
+
+        // Thirty minutes on, the minute that was 50 minutes before the start is more than an hour old.
+        rig.TickAt(30 * 60);
+        rig.TickEverySecondTo((30 * 60) + 3);
+
+        Assert.Equal([Start.ToUnixTimeSeconds() - (20 * 60)], rig.Sampler.History(MetricRollupSubject.Total, Guid.Empty).Select(p => p.Start));
+    }
 }

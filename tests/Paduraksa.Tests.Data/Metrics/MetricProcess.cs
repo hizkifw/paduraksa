@@ -27,7 +27,7 @@ internal sealed class MetricProcess
         Sampler = new MetricSampler(Registry, clock, Backlog);
         Store = new MetricRollupStore(database.Factory);
         // The write interval is long: the job writes when it starts, when it stops and when a test asks.
-        Job = new MetricRollupJob(Backlog, Store, new MetricRollupOptions { WriteInterval = TimeSpan.FromHours(10) }, clock, NullLogger<MetricRollupJob>.Instance);
+        Job = new MetricRollupJob(Sampler, Store, new MetricRollupOptions { WriteInterval = TimeSpan.FromHours(10) }, clock, NullLogger<MetricRollupJob>.Instance);
         Service = new MetricSamplerService(Sampler, clock, NullLogger<MetricSamplerService>.Instance);
         Metrics = new MetricsService(Registry, new SnapshotStore(), Sampler, Store, ProcessCounters.None, clock);
     }

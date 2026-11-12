@@ -19,6 +19,8 @@ public sealed class MetricRollupStoreTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    private static MetricSampler Sampler(MetricRollupBacklog queue, TimeProvider time) => new(new MetricsRegistry(processors: 2, timeProvider: time), time, queue);
+
     private static MetricRollup Minute(MetricRollupSubject subject, string id, DateTimeOffset at, long requests, int p95 = 2_000, long errors = 0, int covered = 60) => new(
         subject,
         id,
@@ -265,7 +267,7 @@ public sealed class MetricRollupStoreTests
         ManualTimeProvider time = new(Noon);
         MetricRollupBacklog queue = new();
         MetricRollupStore store = new(database.Factory);
-        MetricRollupJob job = new(queue, store, new MetricRollupOptions { Retention = TimeSpan.FromDays(7) }, time, NullLogger<MetricRollupJob>.Instance);
+        MetricRollupJob job = new(Sampler(queue, time), store, new MetricRollupOptions { Retention = TimeSpan.FromDays(7) }, time, NullLogger<MetricRollupJob>.Instance);
         queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddDays(-8), 10));
         queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddMinutes(-1), 20));
 
@@ -283,7 +285,8 @@ public sealed class MetricRollupStoreTests
     {
         await using var database = TestConfigDatabase.Empty();
         MetricRollupBacklog queue = new();
-        MetricRollupJob job = new(queue, new MetricRollupStore(database.Factory), new MetricRollupOptions(), new ManualTimeProvider(Noon), NullLogger<MetricRollupJob>.Instance);
+        ManualTimeProvider time = new(Noon);
+        MetricRollupJob job = new(Sampler(queue, time), new MetricRollupStore(database.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance);
         queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon, 10));
 
         await job.WriteAsync(Ct);
@@ -304,6 +307,73 @@ public sealed class MetricRollupStoreTests
         Assert.Equal(5, queue.Dropped);
         Assert.Equal(MetricRollupBacklog.Capacity, queue.Count);
         Assert.Equal(5, queue.Drain(1)[0].Point.Requests);
+    }
+
+    [Fact]
+    public async Task EveryMinuteOfTheRangeIsReadBackWithItsSubjectAndCoverageForTheSeed()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        MetricRollupStore store = new(database.Factory);
+        await store.WriteAsync(
+        [
+            Minute(MetricRollupSubject.Total, string.Empty, Noon.AddMinutes(-90), 1),
+            Minute(MetricRollupSubject.Total, string.Empty, Noon.AddMinutes(-30), 5, covered: 40),
+            Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddMinutes(-30), 4),
+            Minute(MetricRollupSubject.Upstream, Web.ToString(), Noon.AddMinutes(-2), 3),
+            Minute(MetricRollupSubject.Total, string.Empty, Noon.AddMinutes(10), 9),
+        ], Ct);
+
+        var minutes = await store.ReadMinutesAsync(Noon.AddHours(-1), Noon, Ct);
+
+        Assert.Equal(3, minutes.Count);
+        var total = Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Total);
+        Assert.Equal(5, total.Point.Requests);
+        Assert.Equal(40, total.Point.CoveredSeconds);
+        Assert.Equal(60, total.Point.Width);
+        Assert.Equal(Noon.AddMinutes(-30).ToUnixTimeSeconds(), total.Point.Start);
+        Assert.Equal(App.ToString(), Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Host).SubjectId);
+    }
+
+    [Fact]
+    public async Task TheJobSeedsTheSamplerWithTheHourBeforeItStartsAndAnUnreadableDatabaseDoesNotStopIt()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        ManualTimeProvider time = new(Noon);
+        MetricRollupStore store = new(database.Factory);
+        await store.WriteAsync(
+        [
+            Minute(MetricRollupSubject.Total, string.Empty, Noon.AddMinutes(-20), 50),
+            Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddMinutes(-20), 40),
+            Minute(MetricRollupSubject.Total, string.Empty, Noon.AddHours(-3), 70),
+        ], Ct);
+        var sampler = Sampler(new MetricRollupBacklog(), time);
+
+        await new MetricRollupJob(sampler, store, new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance).SeedAsync(Ct);
+
+        Assert.Equal(50, Assert.Single(sampler.History(MetricRollupSubject.Total, Guid.Empty)).Requests);
+        Assert.Equal(40, Assert.Single(sampler.History(MetricRollupSubject.Host, App.Value)).Requests);
+
+        await using var down = TestConfigDatabase.Empty();
+        var cold = Sampler(new MetricRollupBacklog(), time);
+        await new MetricRollupJob(cold, new MetricRollupStore(down.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance).SeedAsync(Ct);
+        Assert.Empty(cold.History(MetricRollupSubject.Total, Guid.Empty));
+    }
+
+    [Fact]
+    public async Task TheSeedReadWalksTheMinuteIndexNotTheTable()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        MetricRollupStore store = new(database.Factory);
+        await store.WriteAsync([Minute(MetricRollupSubject.Total, string.Empty, Noon, 1)], Ct);
+        PlanCapture capture = new();
+
+        await using (var context = database.NewContext(capture))
+        {
+            Assert.Single(await MetricRollupStore.MinutesQuery(context, Noon.ToUnixTimeSeconds() / 60 - 60, Noon.ToUnixTimeSeconds() / 60).ToListAsync(Ct));
+        }
+
+        var statement = Assert.Single(capture.Statements);
+        Assert.Contains("USING INDEX IX_MetricRollups_Minute", statement.Plan, StringComparison.Ordinal);
     }
 
     /// <summary>Records each statement EF runs and the plan SQLite makes for it, asked on the same connection with the same parameters.</summary>

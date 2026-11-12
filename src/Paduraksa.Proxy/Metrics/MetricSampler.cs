@@ -37,7 +37,9 @@ public sealed class MetricSampler
     private readonly long[] _sumCounters = new long[RequestMetric.Stride];
     private readonly long[] _sumTotal = new long[LatencyBuckets.Stride];
     private readonly long[] _sumUpstream = new long[LatencyBuckets.Stride];
+    private readonly MetricHistory _history = new();
     private long _lastMillis;
+    private long _lastMinute = -1;
 
     public MetricSampler(MetricsRegistry registry, TimeProvider time, MetricRollupBacklog rollups)
     {
@@ -74,6 +76,12 @@ public sealed class MetricSampler
         var now = Math.Max(_time.GetUtcNow().ToUnixTimeMilliseconds(), _lastMillis);
         var split = TickSplit.Of(_lastMillis, now, now - _lastMillis <= MaxTickGap.TotalMilliseconds, MetricSeries.BucketSeconds * 1000L);
         _lastMillis = now;
+        if (now / 60_000 != _lastMinute)
+        {
+            _lastMinute = now / 60_000;
+            _history.Trim((now / 1000) - RingSeconds - 60);
+        }
+
         Array.Clear(_sumCounters);
         Array.Clear(_sumTotal);
         Array.Clear(_sumUpstream);
@@ -127,7 +135,8 @@ public sealed class MetricSampler
 
     /// <summary>
     /// What every object of <paramref name="subject"/> did over the last <paramref name="window"/> (at most the ring's hour), one point
-    /// each, keyed by the object's owner GUID; the unmatched host is under <see cref="Guid.Empty"/>.
+    /// each, keyed by the object's owner GUID; the unmatched host is under <see cref="Guid.Empty"/>. It reaches back before the
+    /// process started as far as the history it was seeded with does.
     /// </summary>
     public Dictionary<Guid, MetricPoint> Summarise(MetricRollupSubject subject, TimeSpan window)
     {
@@ -142,15 +151,31 @@ public sealed class MetricSampler
             }
         }
 
+        foreach (var (id, minutes) in _history.Since(subject, since))
+        {
+            summaries[id] = summaries.TryGetValue(id, out var live)
+                ? MetricPoints.Combine([live, .. minutes], Math.Min(since, minutes[0].Start), (int)(now - since))
+                : MetricPoints.Combine(minutes, minutes[0].Start, (int)(now - since));
+        }
+
         return summaries;
     }
 
-    /// <summary>The whole process over the last <paramref name="window"/> (at most the ring's hour).</summary>
+    /// <summary>The whole process over the last <paramref name="window"/> (at most the ring's hour), from the ring alone: it is the pace now, not the hour's history.</summary>
     public MetricPoint SummariseTotal(TimeSpan window)
     {
         var now = _time.GetUtcNow().ToUnixTimeSeconds();
         return _total.Summarise(now - (long)Math.Min(window.TotalSeconds, RingSeconds), now);
     }
+
+    /// <summary>The minutes before the process started that the sampler was seeded with, oldest first; empty for none.</summary>
+    public MetricPoint[] History(MetricRollupSubject subject, Guid id) => _history.Of(subject, id);
+
+    /// <summary>
+    /// Gives the sampler the rollup minutes of the hour before it started. Called once, before the first tick, by whatever reads the
+    /// database at startup; the sampler itself never touches it.
+    /// </summary>
+    public void Seed(IEnumerable<MetricRollup> history) => _history.Seed(history);
 
     /// <summary>
     /// Reads one slot into the sampler's buffers and returns its series, or null when there is nothing to file this tick. The
