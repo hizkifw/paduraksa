@@ -159,7 +159,7 @@ else
                                     @if (host.Enabled)
                                     {
                                         <MudTooltip Text="@(row.InMaintenance ? "End maintenance" : "Put in maintenance")" Placement="Placement.Bottom">
-                                            <MudIconButton Icon="@(row.InMaintenance ? Icons.Material.Filled.Construction : Icons.Material.Outlined.Construction)" Size="Size.Medium"
+                                            <MudIconButton Icon="@(row.InMaintenance ? Icons.Material.Filled.Construction : Icons.Material.Outlined.Construction)" Size="Size.Small"
                                                            Color="@(row.InMaintenance ? Color.Warning : Color.Default)" OnClick="() => ToggleMaintenanceAsync(row)"
                                                            aria-label="@($"{(row.InMaintenance ? "End maintenance of" : "Put in maintenance")} {Primary(host)}")" data-action="maintenance" />
                                         </MudTooltip>

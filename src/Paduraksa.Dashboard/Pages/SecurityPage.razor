@@ -40,7 +40,7 @@ else if (_current is { } current)
     <div class="pdk-sec-body">
         <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="hosts">
             <div class="pdk-card-head pdk-card-head-padded">
-                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Hosts</MudText>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Hosts</MudText>
             </div>
             @if (current.Hosts.Count == 0)
             {
@@ -264,7 +264,7 @@ else if (_current is { } current)
 
         <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="rejections">
             <div class="pdk-card-head">
-                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Proof-of-work rejections</MudText>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Proof-of-work rejections</MudText>
             </div>
             <dl class="pdk-sec-reasons">
                 <div title="A wrong challenge or solution sent to the verify endpoint"><dt>Bad solution</dt><dd data-reason="verify">@SecurityFigures.Count(pow.VerifyRejected)</dd></div>
@@ -278,7 +278,7 @@ else if (_current is { } current)
 
         <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="access-lists">
             <div class="pdk-card-head">
-                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Access lists</MudText>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Access lists</MudText>
             </div>
             <dl class="pdk-sec-reasons">
                 <div title="Refused for their address: a 403, or dropped"><dt>Address refused</dt><dd data-reason="address-refused">@SecurityFigures.Count(lists.AddressRefused)</dd></div>
@@ -293,7 +293,7 @@ else if (_current is { } current)
         {
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="sign-in">
                 <div class="pdk-card-head">
-                    <MudText Typo="Typo.subtitle2" HtmlTag="h2">Sign-in</MudText>
+                    <MudText Typo="Typo.h6" HtmlTag="h2">Sign-in</MudText>
                 </div>
                 <dl class="pdk-sec-reasons">
                     <div title="Let through by an auth provider: from its answer, or from the allow it gave a moment ago"><dt>Allowed</dt><dd data-reason="sign-in-allowed">@SecurityFigures.Count(signIn.Allowed)</dd></div>

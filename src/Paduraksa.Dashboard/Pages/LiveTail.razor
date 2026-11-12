@@ -37,8 +37,8 @@
 }
 else
 {
-    <MudPaper Class="pdk-card pdk-tail-filters" Elevation="0" Outlined="true" data-section="filters">
-        <div class="pdk-tail-fields">
+    <MudPaper Class="pdk-card pdk-filters" Elevation="0" Outlined="true" data-section="filters">
+        <div class="pdk-filter-fields">
             <MudSelect T="string" Value="_host" ValueChanged="@(value => SetAsync(() => _host = value))" Label="Host" Variant="Variant.Outlined" Margin="Margin.Dense"
                        Dense="true" ToStringFunc="HostLabel" data-field="host">
                 <MudSelectItem T="string" Value="@((string?)null)">Any host</MudSelectItem>
@@ -61,7 +61,7 @@ else
                     <MudSelectItem T="string" Value="@method">@method</MudSelectItem>
                 }
             </MudSelect>
-            <MudTextField T="string" Value="_path" ValueChanged="@(value => SetAsync(() => _path = value))" Label="Path contains" Variant="Variant.Outlined" Margin="Margin.Dense"
+            <MudTextField T="string" Value="_path" ValueChanged="@(value => SetAsync(() => _path = value))" Label="Path contains" Placeholder="/products" Variant="Variant.Outlined" Margin="Margin.Dense"
                           Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" MaxLength="LogTailFilter.MaxTextLength" spellcheck="false" data-field="path" />
         </div>
     </MudPaper>

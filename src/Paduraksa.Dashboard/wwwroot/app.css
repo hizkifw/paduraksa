@@ -354,10 +354,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     outline: none;
 }
 
-.pdk-page-lead {
-    margin-top: 4px;
-}
-
 .pdk-page-header-actions {
     display: flex;
     flex-wrap: wrap;
@@ -906,14 +902,18 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-tokens-table.pdk-tokens-everyone { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.6fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
 .pdk-certs-table { --pdk-dt-cols: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr); }
 .pdk-logs-table { --pdk-dt-cols: minmax(0, 2.2fr) minmax(110px, 0.9fr) minmax(70px, 0.5fr) 80px; }
-.pdk-security-table { --pdk-dt-cols: minmax(112px, 1.2fr) minmax(0, 0.85fr) minmax(0, 0.95fr) minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(132px, 1.35fr) minmax(0, 1fr); }
+.pdk-security-table { --pdk-dt-cols: minmax(168px, 1.5fr) minmax(0, 0.85fr) minmax(0, 0.95fr) minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(132px, 1.35fr) minmax(0, 1fr); }
 
 /* The security page: each counter tile reads top to bottom (label, the number with its live rate beside it, then what it is a
    share of), the same at every width; the detail line keeps its height when empty so a row of tiles lines up. */
 .pdk-sec-since {
     margin: 0 0 16px;
     color: var(--mud-palette-text-secondary);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
+}
+
+.pdk-page-header:has(+ .pdk-sec-since) {
+    margin-bottom: 4px;
 }
 
 .pdk-sec-tiles {
@@ -2144,6 +2144,9 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-drawer-head {
     display: grid;
+    align-content: center;
+    min-height: 80px;
+    box-sizing: border-box;
     gap: 6px;
     padding: 18px 24px 16px;
     border-bottom: 1px solid var(--mud-palette-lines-default);
@@ -3771,7 +3774,8 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
 }
 
 /* Analytics page: the host picker beside the range switch, bar lists with shares, and the approximation note. */
-.pdk-analytics-heading {
+/* A heading between groups of cards on a long page (Analytics): one size and rhythm wherever a page has them. */
+.pdk-section-heading {
     margin: 24px 0 12px;
 }
 
