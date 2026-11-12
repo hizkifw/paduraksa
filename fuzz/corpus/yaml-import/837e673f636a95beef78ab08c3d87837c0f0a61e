@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MtttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttEDI000000000000000

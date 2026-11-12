@@ -1,0 +1,7 @@
+9: p
+:
+  - &base {n: a}
+  - <<: *base
+  - &base {n: a}
+  - <<: *base
+  - <<<<: *base

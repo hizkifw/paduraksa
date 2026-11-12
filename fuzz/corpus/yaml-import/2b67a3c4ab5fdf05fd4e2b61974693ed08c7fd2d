@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: scanneqlmap]}}
+rateLimitPolicies:
+  - name: d

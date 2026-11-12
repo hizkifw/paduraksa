@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mtttttttttttttttttttttttonfig
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 395
+      body: |
+        <p>no77777777s: Co** []e *bjeiuject: Cosiuos:* []e *ile: media
+    routes:
+      - upstream: jellyfin
+        path: 

@@ -1,0 +1,32 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888888888888888kqa.no777777777777777777777777777kqa.dev/v1apa&e *bject:os.sys: Co*e t%u
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>n77777777777777kqa.dev/v01Apa&es: Co*siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.no777777777777777777kqv/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjeto/v1apa&e *bject:ames: [`tv.examp,-----,-------------com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no388888888888888888kqa.   contentTy/e: text/[hs:* []jec.sys:    contentTy/e: text/[html

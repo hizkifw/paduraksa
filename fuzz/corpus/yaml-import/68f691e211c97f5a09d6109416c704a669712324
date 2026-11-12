@@ -1,0 +1,16 @@
+ap/Version: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: nozFound
+  trustedProxies:
+    mode: 'off'
+    useTforceHttps: false
+upstreams:
+  - id: 1ups_0lB
+    nameity: false
+    led: true
+    profile: media
+    cetrificate:
+      mode: auto
+    routes:
+      - AHf/

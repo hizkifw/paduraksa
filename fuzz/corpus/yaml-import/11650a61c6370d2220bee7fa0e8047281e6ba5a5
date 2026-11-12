@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: M9213A
+hosts:
+  - names: [tv.exampl5.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: //000000000000000

@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - &p
+    name: media
+    settings: {forceHttps: true}
+upstreams: &u
+  - name: x

@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 0IIIIIIIIIIItttttttttttttttttttttttEDI000g
+accessLists:
+  - name: o&fi;ce
+    ip: {allow: [2], countries: {allow: [Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAA00

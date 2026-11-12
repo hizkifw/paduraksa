@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: close
+  defaults:
+    hsts: {enabled: true, maxAge: 315360}
+    errorPages:
+      "502": {mode: message, heading: GOne}
+  trustedProxies: {mode: generic, proxies: [10]}

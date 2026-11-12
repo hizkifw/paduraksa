@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 0?IIIIIIIIIIIIIIIIII
+  - name: IIIIttt0000000IIIIIIIIIIIIIa
+upstreams:
+  - name: jel&~yfin
+    destinations:
+      - address: http:/./0635.0.1:IIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000IIIIIIIIIII
+  - name: Mttttt'tttttttttt0tttttttIII
+  - name: Mttttt't	ttttttttt9551615IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtt000000

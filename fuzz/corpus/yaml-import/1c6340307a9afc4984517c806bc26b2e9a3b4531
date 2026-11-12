@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: "ca\e\nbe9 \e\nbr$eak"

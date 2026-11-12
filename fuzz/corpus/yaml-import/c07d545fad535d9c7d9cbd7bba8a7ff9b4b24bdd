@@ -1,0 +1,41 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MttttttIIIIIIIIII
+  - name: Mttttt'tttttttttttttIIIIIIII?ttttt'tttttttttttttttIII$a
+upstreams:
+  - name: jel&~yfin
+    destinations:
+      - address: http:/./1270.0.1:IIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000IIIIIIttttt'tttttttttt0000ttttttt::::::%ttqttIIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttel&~yfin
+    destinations:
+      - address: http:/./1270.0.1:IIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000II
+    destinations:
+      - address: http:/./1270.0.1:IIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttt270.0.1:IIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000II
+    destinations:
+      - address: http:/./1270.0.1:IIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI0000tttt0000ttttttt::::::%ttqttIIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttel&~yfin
+    destinations:
+      - address: http:/./1270.0.1:IIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000ttttttt::::::%ttqttIIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttel&~yfin
+    destinations:
+      - address: http:/./1270.0.1:IIIIIIIII&III
+  - name: Mttttt'tttttttttttttDI000000II
+    destinations:
+      - address: htt3297379213A
+hosts:
+  - names: [tv.ex    ample.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /web

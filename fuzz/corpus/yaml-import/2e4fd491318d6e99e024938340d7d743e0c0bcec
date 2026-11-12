@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.ss         s ssssssssssssssssss         s.1:8096
+hosts:
+  - names: [jellyfin.,:::6::::::::::::m]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <p>not here</e.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

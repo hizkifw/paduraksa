@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MED2I2"22222222IIIIIIIIIIIIIIIII&I
+  - name: MttttIig
+ruleSets:
+  - name: scIIIIIIIIIIIIIIIIiII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttt222222wndAAHBC95f4Al8rNFdAAHBC22222222222222222222222
+hosts:
+  - names: [tv.example.com]
+    profile: 

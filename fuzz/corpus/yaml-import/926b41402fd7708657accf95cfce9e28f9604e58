@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: host_02wndAAHBC94f4Al8rNFlB
+    names: [a.exale.com]
+    kind: &espond
+    respond: {statusCode: 00000000000001024819115206085861}

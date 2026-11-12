@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: M:ttttttttttqtA
+hosts:
+  - names: [tv.ample.cm]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+       th: /web

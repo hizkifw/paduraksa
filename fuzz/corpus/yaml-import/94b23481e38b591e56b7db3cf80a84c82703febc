@@ -1,0 +1,6 @@
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: fae.v~e
+    forwardedForFallback: ffo

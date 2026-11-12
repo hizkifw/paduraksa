@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: dia
+upstreams:
+  - name: jellyfin
+    destinations:
+      - address: http://516.#0.0.1ellyfin

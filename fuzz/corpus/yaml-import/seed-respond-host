@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [soon.example.com]
+    kind: respond
+    respond: {statusCode: 503, body: soon}

@@ -1,0 +1,52 @@
+apiVersion: paduraksa.dev/v1
+k mode: 'officate:
+      mode: autofalse
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+: prof_02wndAAHBC95f4Al8rNFlB
+    name: m name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC9f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: fal    forwardedForB
+    name: m name: media
+    settings:
+     [
+: [?:   forceHttps: false
+upstrBC9f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+    destinatapiVersia: &a [x? x, h, x,z x, x, x, x, x]
+bd: &d o[**c, *c, *c, *c]
+e: &e [*d, *d, *dd, *, *d, *ions:
+      - id: dst_02wndAAHBC95f4Al8rNFlB
+        addrese
+    destinations:
+      - id: dst_02wndAAHBC95f4Al8rNFlB
+        address: http://127.0.0.1:8096
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_02wndAAHBC95f4Al8rNFlB
+    name: apid,e
+    requests: 60
+    per: minute
+    burst: 60
+    key: clientIp
+accessLists:
+ at - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: staff
+    ip:
+      dropDenied: false
+      allow: [10.0.0.0: [
+: [?: [.: !/8]
+    satisfy: all
+    passCredentialsUpstream: false
+hosts:
+  - id: host_02wndAAHBC95f4Al8rNFlB
+    names: [jellyfin.example.com, tv.example.com]
+    kiund: proxy
+    enabled: true
+    profile: m

@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: med://128.0..00:1896
+hosts:
+  - names: [epjelm]
+   

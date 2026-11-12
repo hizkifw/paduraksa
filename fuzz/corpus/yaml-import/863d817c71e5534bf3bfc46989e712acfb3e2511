@@ -1,0 +1,8 @@
+api gsettings:
+      forceHttfal
+upstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlB
+    name: je
+    sessionAeam: false
+hosts:
+  - id: host_'1wndAAHBC66f4Al/

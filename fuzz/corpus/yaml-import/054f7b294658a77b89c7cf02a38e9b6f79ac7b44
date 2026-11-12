@@ -1,0 +1,51 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Il8rNFlB
+    name: jell?fin
+    sessionAffinity: false
+    destinations:
+      - id: dst_02wndAAHBC95f4Al8rNFlB
+        address: http://[a[:0.0.1:8096
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_02wndAAHBC95f4Al8rNFlB
+    name: api
+    requests: 60
+    per: minute
+    burst: 60
+    key: clientIp
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: st*aff
+    ip:
+      dropDenied: false
+      allow: [10.0.0.0/80]
+    satisfy: all
+    passCredentialsUpstream: false
+hosts:
+  - id: host_02wndHBCAA95f4Al8rNFlB
+    names: [jellyfin.exampl oe.mcdddddd,tv.example.com]
+    kind: proxy
+   #enabled: true
+    profile: media
+    certificate:
+      mode: auto
+    routes:
+      - id: rte_02wndAAHBC95f4Al8rNFlB
+        upstream: jellyfin
+        order: 0
+        match: prefix
+        path: /

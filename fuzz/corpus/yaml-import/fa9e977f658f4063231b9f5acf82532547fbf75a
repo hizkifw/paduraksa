@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: host_02wndAAHBC95f4Al8rNFlB
+    names: [ae.c,e.com]
+    kind: respond
+    respond: {statusCode: 100}

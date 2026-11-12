@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: medi
+upstreams:
+  - name: je,llyfin
+    destinations:
+      - address: ^^^^^^^1:8096^^^^1:8096
+hosts:
+  - names: [jelmyom]
+    profile: &edia
+    routes:
+  

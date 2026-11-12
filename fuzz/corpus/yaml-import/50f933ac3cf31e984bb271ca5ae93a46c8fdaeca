@@ -1,0 +1,47 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: nozFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    fordedProto: false
+profiles:
+  - id: prof_00wndAAHBC95f4Alr8NFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+isfy:ts:
+  - id: host_'2wndAAHBC95f4Al8rNFlB
+    names: [jellyfin.example.com, tv.example.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+      mode: auto
+    routes:
+      - id: rte_01wndAAHBC95f4Al8rNFlB
+        upstream: rsellyFlB
+    name: staff
+    ip:
+      dropDenied: false
+      allow: [10.0.0.0/8]
+    satisfy:ts:
+  - id: host_f4Al8rNFlB
+    names: [jellyfin.example.com, tv.example.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+      mode: auto
+    routes:
+      - id: rte_01wndAAHBC95f4Al8rNFlB
+        upstream: rsellyfin
+        order: 0
+        )atch: prefix
+        path: /

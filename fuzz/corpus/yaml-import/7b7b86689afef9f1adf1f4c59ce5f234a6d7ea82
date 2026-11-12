@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offce
+    ip: {allow: [8], countries: {allow: [TO, ID]}}# credentAl8rNFlB

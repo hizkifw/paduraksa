@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+ defaults:
+    hsts: {enabled: true, maxAge:  875487546762}
+    

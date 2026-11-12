@@ -1,0 +1,6 @@
+apiVersiots:apiVersion: pad
+hosts:
+  - names: alm
+  - names: px
+  - names: alm
+  - names: pxy]

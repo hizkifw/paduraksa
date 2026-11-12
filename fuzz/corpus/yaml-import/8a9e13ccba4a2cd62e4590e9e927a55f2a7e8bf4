@@ -1,0 +1,14 @@
+apiVersion: paduaksa.dev/v1
+kind: Sonvig
+hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC02wndAAHnd
+    respond: {statusCode: 228}
+  - ihosts:
+  - id: host_02wndAAH[nd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC02wndAAHnd
+    respogd   kindnames: [b.example.com]
+    kind: respond
+    resPond: {statusCode: 200}

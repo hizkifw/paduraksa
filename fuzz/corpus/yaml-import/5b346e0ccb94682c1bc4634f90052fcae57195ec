@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: "cad\u00e9\u672ce\nbreak"

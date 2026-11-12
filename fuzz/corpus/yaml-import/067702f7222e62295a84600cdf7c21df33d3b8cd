@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDI 21								     - up							%2222222222222244444h444A
+hosts:
+  - names: [tv.example.?om]
+    profile: media
+    routes:
+      - upstream: jellyfin

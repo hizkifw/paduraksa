@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: mea
+upstreams:
+  - name: 1:8096
+hosts:

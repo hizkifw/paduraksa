@@ -1,0 +1,17 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: //webbbbbfig
+accessLists:
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*IIIIIIIIIIIIIIII
+  - name: Mttt

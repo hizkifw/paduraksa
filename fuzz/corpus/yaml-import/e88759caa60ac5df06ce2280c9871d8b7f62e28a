@@ -1,0 +1,37 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: medi
+upstreams:
+  - name: jnd
+    res {statusCode: 458}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95l0rAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respod: nd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respond@ {statusCole: 457}
+  - id: jost_02w [b.example.com]
+    kind: respondhost_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCod57}
+  - id: jost_0rw.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95l0rAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respod: jost_0

@@ -1,0 +1,2 @@
+{auv/a: &a [x]
+b: &b [*a, *a,: *a, *a,dd: *a,: *a, *a,dddddd: *a, dddddd: *a,*a, dddddd: *a, %a,ddd

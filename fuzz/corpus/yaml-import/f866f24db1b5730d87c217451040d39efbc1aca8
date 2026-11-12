@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.co-]
+    kind: respond
+    respond:
+      statusCode: 636
+      contentType: t      <p>nt here</l

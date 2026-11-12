@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MtttttttttGGGGGGGttttttonfig
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 790
+      body: |
+        <p>no7777777s: Co*siu/s:* []e *a
+    routes:
+      - upstream: jellyfin
+        path: /web

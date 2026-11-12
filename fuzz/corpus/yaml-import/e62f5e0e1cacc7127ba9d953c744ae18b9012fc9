@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: scars
+    rules:
+      - action: deny
+        match: {userAgent: {contains: [sqap]}}
+rateLimitPolicies:
+  - name: ct
+    requests: 10
+    per: seconl

@@ -1,0 +1,14 @@
+aintps: false
+upstreams:
+  - id: ups_02 false
+    destinations:
+      - id: dst_01wnd@AHBC95f4Al8rNF`B
+        adAAAAtifigat  estinations:
+      - id: dst_01wndH@BAC95f4Al8rNF`B
+        
+  - id: ups_01wndAAHzBC95f48rNFl false
+    destinations:
+      - id: dst_01wnd@AHBC95f4Al8rNF`B
+        addres:.h:80AAAAAAAAAAAAAAtifigat  einations:
+      - id: dst_01wndH@BAC95f4Al8rNF`B
+        address:.h:80wnAAAAAAAAAAAAAAAAtifigt   h: /

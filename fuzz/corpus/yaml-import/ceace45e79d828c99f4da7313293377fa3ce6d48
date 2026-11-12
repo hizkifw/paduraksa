@@ -1,0 +1,15 @@
+apiVerson: paduraksa.dev/v1
+kknd: Config
+profiles:
+  -ooooVersion: paduraksa.de5/v1
+kind: Config
+ruleSets:
+  - name: scanners
+    runes:
+      - action: deny
+        match: {userAgent: {contai`s: [sqlmap]}}
+rimitPolicies:
+  - name: strict
+    requests: 05
+    peoooooo name: "cno0eb\u
+9 erak"

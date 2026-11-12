@@ -1,0 +1,4 @@
+apion: purf
+hosts:
+  - enabled: True
+    fth: /

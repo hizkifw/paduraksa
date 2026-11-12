@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+        <p>not here</p>
+        <p>so"""""""2""""""""""""""<p>not here</p>
+        <p>sorry</poooooooooohere</p>
+        <p>sorry<ere</p>
+        <p>sorry</poo"""""""""""""""""""""""""""""<p>not here</p>
+        <p>sorry/p <p>not here</p>
+        <p>sorry</pooooootTye</p>
+        <p>sorry</poo    conoooo

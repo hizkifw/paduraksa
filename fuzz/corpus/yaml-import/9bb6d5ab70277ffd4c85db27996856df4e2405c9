@@ -1,0 +1,18 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: mss
+
+
+
+
+
+
+
+
+               sss0:8096
+hosts:
+  - names: [jellyfin.exazple.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

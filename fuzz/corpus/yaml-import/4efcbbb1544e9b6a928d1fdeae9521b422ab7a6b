@@ -1,0 +1,7 @@
+aponrceHttps: false
+upstreams:
+  - id: wps_8l8rFlB
+    name:s:ts:
+  - id: host_'m]
+    kind: proxy
+   

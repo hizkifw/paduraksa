@@ -1,0 +1,21 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttEDI000000wttIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttttttIIIIIIIttttttttttttttEDI000000wttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIttttttttttttttttttttttttttEDI000000?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: MIIIIIII?ttttt'ttttttttttttttttttttttttttttttttttttEDI000000?ttttt'ttttttttttttttt
+  - name: Mttttt'tttttttttttttttttttttttttttttttttttttttttttIIIIIIII?ttttt'ttttttttttttttttttttttttttttttttttttEDI000000?ttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIttttttttttttttEDI51615IIIIIIIIII
+  - name: Mttttt'tttttttttttttttttt#tttttttttttttttttttttttttt'ttttttttttttttttIIIIIIII?ttttt'ttttttttttttttttttttttttttttttttttttEDI000000?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: MIIIIIII?ttttt'ttttttttttttttttttttttttttttttttttttEDI000000tttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII{IIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIaIII
+upstreams:
+  - name: jel&~yfin
+    destinations:
+      - address: http:/./12IIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttttttttttttIIIIIIII?ttttt'tttttt'tttttttttt0000000

@@ -13,6 +13,8 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
+    <!-- The yaml-import fuzz target reads the guarded reader (the caps are checked on its tree) and the mapper under its own limits. -->
+    <InternalsVisibleTo Include="Paduraksa.Fuzz.Targets" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Issuance" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />

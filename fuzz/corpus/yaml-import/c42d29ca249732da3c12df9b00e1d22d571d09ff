@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: medi
+upstreams:
+  - name: jellynif
+    destinations:
+      - address: http://461.01:8096
+hosts:
+  - names: [jelmyfxample.com]
+    profile: media
+    routes:
+      - upstream: jellyfin

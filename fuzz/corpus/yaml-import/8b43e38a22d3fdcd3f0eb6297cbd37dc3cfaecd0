@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: fedia
+upstreams:
+  - name: jellyfin
+    destinations:
+    
+hosts:
+  - names: [je,lyfin.example.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

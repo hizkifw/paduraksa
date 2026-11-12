@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+   

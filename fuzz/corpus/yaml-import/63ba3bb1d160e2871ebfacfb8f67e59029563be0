@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: media
+upstreams:
+  - name: jel6
+hosts:
+  - names: [jel|yfin.example˜om]
+    profile: mfin

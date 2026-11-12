@@ -1,0 +1,1 @@
+{apiVersion: paduraksa.dev/v1, kind: Config, hosts: [{names: [a.example.com], kind: respond, respond: {statusCode: 200}}]}

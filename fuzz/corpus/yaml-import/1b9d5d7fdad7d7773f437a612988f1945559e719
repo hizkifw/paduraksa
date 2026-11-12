@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedFs: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: jel,yfin
+    sessionAffinity:  |-1
+    ndestinationscies:
+  - id: r  
+    routes:
+      - id: 

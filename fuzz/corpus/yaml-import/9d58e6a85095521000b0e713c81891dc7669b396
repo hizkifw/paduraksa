@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "404": {mode: message, heading: G }
+  trustedProxies: {mode: generic, proxies: [10.0.0.0/x]}

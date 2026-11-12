@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: host_02wndAAHBC94f4Al8rNFlB
+    names: [a.example.]
+
+    respond: {statusCode: 819}

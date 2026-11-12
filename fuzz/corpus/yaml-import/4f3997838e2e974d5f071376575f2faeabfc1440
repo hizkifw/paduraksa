@@ -1,0 +1,5 @@
+apiVerss:
+upstreams:
+  - id: dAA
+    destinations:
+      - id: dst_ /

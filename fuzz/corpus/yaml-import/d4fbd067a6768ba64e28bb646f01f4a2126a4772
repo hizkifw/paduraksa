@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: #ost_04f4AB
+    names: [aȚxampm]
+    kind: respond
+    respond: {statusCode: 200}
+  - id: host_02wnd8AHBC95f4Al8rNNlB
+    names: [b.example.co KK
+
+                   sssssssssssssssssssssssssssss         s ssssssssssssssssssszm]
+    kind: respond
+    respond: {statusCode: 200}

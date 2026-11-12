@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mtttttttt13A
+hosts:
+  - names: [tv.example.com]
+    profile: medga
+    routes:
+  - names: [tv.example.com]
+    profile: medga
+    routes:
+      - upstream: jel

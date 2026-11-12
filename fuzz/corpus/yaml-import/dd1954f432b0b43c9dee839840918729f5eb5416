@@ -1,0 +1,9 @@
+a\piVersion: pardksuaa.dev/v1
+kind: Config
+~seustedProxies:
+    mowardedForFallback: fe
+profiles:
+  - id: prof_02wndAAHBdia
+    settings:
+    - id: rlp_15B[05.0.0.0/8]
+    sat    path: /

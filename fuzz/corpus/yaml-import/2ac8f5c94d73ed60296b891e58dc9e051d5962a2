@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&fice
+    ip: {allow: [40.0.0.0/8], countries: {allow: [Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dIIIIIIIIIIIIIIIIII
+  - name: Mttt, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4AFlB

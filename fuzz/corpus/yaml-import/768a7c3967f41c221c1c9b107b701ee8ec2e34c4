@@ -1,0 +1,20 @@
+apiVersion: paduraksa.dev/
+upstreams:
+  - name: jnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf+4lB
+    hosts:
+  - id: hosnd
+    r {statusCode: 457}
+  - id: josnd
+    r {statusCode: 457}
+  - id: jost_02w [b.example.com]
+    kiness: htn

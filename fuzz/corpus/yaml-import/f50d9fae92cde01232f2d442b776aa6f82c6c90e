@@ -1,0 +1,4 @@
+asnd: Cohfig
+hosts:
+  - i: hoswndAnspond
+    respond: {statusCode: 7777777777777777777777777777777100}

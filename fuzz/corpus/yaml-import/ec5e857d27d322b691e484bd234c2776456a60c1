@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: "ersion: paduraks: [a.example.com], kind: respond, respond:line\nbreak"

@@ -1,0 +1,8 @@
+{apiVersign: paduraksa.dev/v1, kind: Config, hosts: [{Vamzes: [a.example.com],kind: respond, respond: {}tatusCodv/a: &a [x, x, x,x, 1, x, x, x, x]
+b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a]
+c: &c [*b, *b, *b,aksa.dev/v1, kind: Config, hosts: [{Vamzes: [a.example.com],kind: respond, respond: {statusCodv/a: &a [x,jj, x, x, x, x]
+b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a]
+c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b]
+d: &d [*c, *c, *c, *c, *c, *c, *c]
+e: &e [*d,]
+f:  *f, *f,} *

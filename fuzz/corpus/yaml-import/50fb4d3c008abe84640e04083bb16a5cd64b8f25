@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: close
+  defaults:
+    hsts: {enabled: true, maxAge: 63072002}
+    errorPages:
+      "404": #{mode: Gonies:

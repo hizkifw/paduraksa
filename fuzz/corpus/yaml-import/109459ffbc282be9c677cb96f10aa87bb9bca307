@@ -1,0 +1,5 @@
+apiVind: Config
+settings:
+  unknownHost: close
+  defaults:
+    hsts: {enabled: true 31ddddddddddddddddddddddddddddddddddddddddddddtddddddddddddic, proxies: [20.0.0.0/8]}

@@ -1,0 +1,5 @@
+accessLists:
+  - id: s_t02w8Nf4lB
+    $osts:
+  - id: hosnd
+    recp: /

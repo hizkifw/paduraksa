@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name:  http//904.0.0.
+hosts:
+  - names: [jel:yfico$]
+    profile: media
+    routes:
+      - upstream: jellyfin

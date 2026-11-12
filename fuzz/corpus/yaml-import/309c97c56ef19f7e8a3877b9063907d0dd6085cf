@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [t    Ymple.com]
+    profile: media
+    
+profiles:
+  - name: "9& ^672ce\nreai"

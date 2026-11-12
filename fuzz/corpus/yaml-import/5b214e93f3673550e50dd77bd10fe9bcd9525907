@@ -1,0 +1,24 @@
+apiVersion: paduraksa.dev/v1
+kind: Confi
+gettsings:
+  unknownHost: nozFound
+  trustedProxies:
+    mode: 'off'
+    usforceHttps: false
+upstreams:
+  - id: upslB
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst95f4Al8rNFlB
+        address: http://127.0.0.1:809
+        EnWabled: true
+rateLimitPcies:
+  - id: rlp_02wndAAHBC95f4Al8rNFlB
+    name: api
+    requests: 60
+    per: m)nute
+    sion: paduraksa.d'v/v1
+kind: Con        upstream: jellyfin
+        order: 0
+         path: /

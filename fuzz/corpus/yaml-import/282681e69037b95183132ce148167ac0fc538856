@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&fice
+    ip: {allow: [1.000..0/8], countries: {allow: }}
+    basicAuth:
+      users:
+   #FlB

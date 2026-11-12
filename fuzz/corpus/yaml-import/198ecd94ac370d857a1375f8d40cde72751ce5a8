@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: med$a
+hosts:
+  - names: [jellyfin.example.com]
+    profile: m%edia
+    routes:
+    - upstream: jellyfin

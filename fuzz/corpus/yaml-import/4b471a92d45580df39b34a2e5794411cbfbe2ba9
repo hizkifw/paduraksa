@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: med$.0.0.
+hosts:
+  - names: [-in.e0ample.com]
+    profile: media
+    routes:
+      - upstream: jllyficn

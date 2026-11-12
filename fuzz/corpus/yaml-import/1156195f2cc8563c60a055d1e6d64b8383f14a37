@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - &p
+    name: m
+  - name: x

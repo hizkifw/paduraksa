@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: ofc
+    basicAuth:
+      users:
+        - username: e
+          credentialId: pwc_Ad19HnwABC95f4Al8pNFlB

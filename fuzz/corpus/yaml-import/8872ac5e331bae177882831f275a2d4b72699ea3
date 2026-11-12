@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: "caf\u00e9c"
+    notes: " tla\tbine\nbreak"

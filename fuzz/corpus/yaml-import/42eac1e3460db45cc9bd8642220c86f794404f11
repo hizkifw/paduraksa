@@ -1,0 +1,1 @@
+{apiVer, hosts: [{naspond, respond: {statusCode: +12}}]}

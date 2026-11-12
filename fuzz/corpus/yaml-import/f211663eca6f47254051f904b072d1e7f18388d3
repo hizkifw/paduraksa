@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: media
+upstreams:
+  - name: jel&yfin
+    destinations:
+      - address: http://127.0.0.1:8096
+hosts:
+  - names: [jele.com]
+    profile: media
+    routes:
+      - upstream: jellyfin

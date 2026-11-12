@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: off }
+    basicAuth:
+      users:
+        - username: alic:e
+       # cr  users:
+        - username: aliFlB

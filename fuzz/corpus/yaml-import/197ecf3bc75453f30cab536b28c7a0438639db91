@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mtt''''''''''''''''''''''''''7A
+hosts:
+  - names: [tv.example.com]
+    profile:

@@ -1,0 +1,19 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp:
+    trustForwardedProto: false
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: &ups_02wndAAHBC95f4Al8rNFlB
+    name: jel0.0.1:80se
+hosts:
+  - id: host_06wndHBCAA95f4Al8rNFlB
+    names: [jellyfin.example,com,example.comk]

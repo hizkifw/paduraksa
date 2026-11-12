@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: "cafX\tab\                                                                 t:k line\nbr$eak"

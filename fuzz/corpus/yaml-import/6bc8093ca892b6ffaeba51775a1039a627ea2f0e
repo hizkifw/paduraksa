@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: off ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        #AHBC95      users:
+        - username: alice
+        # credend: pwc_02wf4Al8rNs:
+        - username: alice
+        #edrs:
+        - username: aliFlB

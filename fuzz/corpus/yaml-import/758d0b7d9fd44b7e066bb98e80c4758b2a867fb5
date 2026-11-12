@@ -1,0 +1,91 @@
+apiVersion: padura)sa.dev/v1
+kind: Sonvig
+hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC02wndAAHnd
+    respond: {statusCode: 457}
+  - ihosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC0and
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC02wndAAHnd
+    respond: {statusC%de: 457}
+  - ihosts:
+  - id: host_02wndAAH2w.dAAHBC0awndAAHwndAAH
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respod: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH5lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 458}
+  - id: jost_02w.dAAHBC0awndAAHwndAAH
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respod: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH5lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - ihosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC0and
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC02wndAAHnd
+    respond: {statusC%de: 457}
+  - ihosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 458}
+  - id: jost_02w.dAAHBC0awndAAHwndAAH
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: josnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: 1hosnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAOBC9nd
+    respond: {statusCode: 457}
+  - id: josnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: 1hosnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAOBC95?lrAF!Nf4lB
+    names: [b.example.com]
+    kindnames: [b.example.com]
+    kind: respond
+    resPond: {statusCode: 200}

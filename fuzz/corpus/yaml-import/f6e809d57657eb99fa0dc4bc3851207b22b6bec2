@@ -1,0 +1,26 @@
+aintps: false
+upstreams:
+  - id: ups_02 false
+    destinations:
+      - id: dst_01wnd@AHBC95f4Al8rNF`B
+        adAAAAtifigat  :
+  - id: ups_02 false
+    destinations:
+      - id: dst_01wnd@AHBC95f4Al8rNF`B
+        adAAfigat  estinations:
+      - id: dst_01wndH@BAC95NlA4r8fF`B
+        
+  - id: ups_02wndAAHzBC95f48rNFl false
+    destinations:
+      - id: dst_01wnd@AHBC95f4Al8rNF`B
+        addres:.h:80AAAAAAAAAAAAAAtifigat  einations:
+      - id: dst_01wndH@BAC95f4Al8rNF`B
+        address:.h:8estinations:
+      - id: dst_01wndH@BAC95f4Al8rNF`B
+        
+  - id: ups_01wndAAHzBC95f48rNFl false
+    destinations:
+      - id: dst_01wnd@AHBC95f4Al8rNF`B
+        addres:.h:80AAAAAAAAAAAAAAtifigat  einations:
+      - id: dst_01wndH@BAC95f4Al8rNF`B
+        address:.h:80wnAAAAAAAAAAAAAAAAtifigt   h: /

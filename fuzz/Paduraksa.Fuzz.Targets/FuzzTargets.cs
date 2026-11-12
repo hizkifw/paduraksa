@@ -15,6 +15,7 @@ public static class FuzzTargets
         UpstreamErrorReplacementTarget.Target,
         ErrorPageTarget.Target,
         AccessLogTailTarget.Target,
+        YamlImportTarget.Target,
     ];
 
     public static FuzzTarget Get(string name) =>

@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: host_02wndAAHBC94f4Al8rNFlB
+    names: [a.exampcom]
+    kind: respond
+    respond: {statusCode: 100}
+  - id: host_02wndAAHBC95f4Al8rNFlB
+    names: [bom]
+    kind: respond
+    respond: {statusCode: 2}

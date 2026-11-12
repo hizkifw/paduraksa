@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: off (  ]B
+  - name: off (  ]B
+  - name: oB

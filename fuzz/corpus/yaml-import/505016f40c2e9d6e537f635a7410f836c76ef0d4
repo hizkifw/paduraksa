@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev Convalse
+hosts:
+  - id:bl: tr
+    routes:
+      - id: rte_00wndAfin
+        order: +
+        match: prefix
+        path: /J

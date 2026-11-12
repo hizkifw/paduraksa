@@ -1,0 +1,7 @@
+apiVersion:s: false
+upstreams:
+  - id:
+    destinations:
+      - id: dst_ndAAHB096
+$   ap       : trusion:e
+ rpaat

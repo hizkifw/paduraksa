@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: "e5\u672c"
+    notes: "\nbreak"

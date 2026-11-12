@@ -1,0 +1,15 @@
+aiofiofiles:
+  - &bpiles:
+  - &:
+  - &bqifilesfiles:
+  - &bqiofiles:
+$ - &bpiles:
+  - &:
+  - &bqiofiles:
+  - &bpiles:
+  - &:
+  - &bqifilesfiles:
+  - &bqiofiles:
+  - &bpiles:
+  - &:
+ bp

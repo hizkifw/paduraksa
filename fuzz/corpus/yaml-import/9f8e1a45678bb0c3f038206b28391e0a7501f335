@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.exa.com]
+    kind: respond
+    respond:
+      statusCode: 403
+      body: |
+        <p>not here</p>
+        <p>oooooooohere</p>
+        <ooohere</p>
+        <p>oooooo

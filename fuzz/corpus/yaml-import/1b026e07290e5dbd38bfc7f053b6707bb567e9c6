@@ -1,0 +1,18 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [axem.pale.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+       <p>nore</p>
+      
+        <p>sorentTyp:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+       <p>not here</p>
+        <p>sorryex]/[html

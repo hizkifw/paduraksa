@@ -1,0 +1,38 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Il8rNFlB
+    name: jelse
+    destinations:
+      - id: dst_02wndAAHBC95f4Al8rNFlB
+        address: http://[a[:0.0.1:8096
+    
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: staff
+    ip:
+      dropDenied: false
+      allow: [1000.../08]
+    satisfy: all
+    passCredentialsUpstream: false
+hosts:
+  - id: host_02wndHBCAA95f4Al8rNFlB
+    names: [jellyfin.exampl oe.mc,tv.example.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+      mode: auto
+    routes:
+      - id: rte_02wndAAHBC95f4Al8rNFlB
+        upstream: jellyfin
+        order: 0
+        match: prefix
+        path: /

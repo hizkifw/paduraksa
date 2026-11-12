@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [10.0.0.1/8], countries: {allow: [N ,OID]}}
+         # credentialIHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/8], countries: {allow: [N ,OID]}}
+    basicAuth:
+      users:
+        - username: 5f4Al

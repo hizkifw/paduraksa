@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: oFf, x, x, x, c, *NaB

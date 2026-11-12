@@ -1,0 +1,21 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: #respond
+    respond:
+      statusCode: 404
+      body: |
+        <p>nntentType: te*ahosts:
+  - names: [a.example.com]
+    kind: #respond
+    respond:
+      statusCode: 404
+      
+  - names: [a.example.com]
+    kind: #respond
+    respond:
+      statusCode: 404
+      body: |
+       body: |
+        <tType: te*a, *el

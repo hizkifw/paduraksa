@@ -1,0 +1,6 @@
+{apiVersign:sts: [{Vamzes: [a.example.com],kind: respond,v/a: &a [x, x, x,x, 2, x, x, x, x]
+b: &b [*a, *a, *a, *a,*a, *a, *a, *a, *a]
+c: &c [*b, *b, *b, paduraksa.dev/v1, kind: Config, hosts: [respond, respond: {statusCodv/a: &a [x, x, x,x, 1, x, x, x, x]
+b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a]
+c: &c [*b, *b, *b, *b, *b, *b,/127d, *d, *d, *d, apiVersion: paduraksv0
+d, k

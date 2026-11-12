@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: fice
+    ip: {countries: {allow: [OO, ID]}}
+  

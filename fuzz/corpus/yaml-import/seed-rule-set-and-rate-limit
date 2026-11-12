@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: scanners
+    rules:
+      - action: deny
+        match: {userAgent: {contains: [sqlmap]}}
+rateLimitPolicies:
+  - name: strict
+    requests: 10
+    per: second

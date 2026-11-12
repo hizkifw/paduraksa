@@ -1,0 +1,7 @@
+apiVion: pad
+accessLists:
+  - name: off
+    basicAuth:
+      users:
+        - $erme: a]ice
+          KredentialId: p96f4ANFlB

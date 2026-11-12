@@ -1,0 +1,58 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888888888888888kqa.dev/v1apa&uos8* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777jetos.sys: Co*siuo77777777777kqa.dev/v1apa&e *bject:os.sys: oC*siu/s:[]e *bjetos.sys: Co*siuos:* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 144
+      body: |
+        <p>no7777777777777777777kqa.dev/v1apa&e *bject:os.sys: Co* *bjetos.sys: Co*siuo77777777777kqa.dev/v0aCo*siuo8888888888kqa.dev/v1apa&uos:* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777jetos.sys: Co*siuo77777777776kqa.etos.sys: Co*siuos:* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 144
+      body: |
+        <p>no7777777777777777777kqa.dev/v1apa&e *bje:os.sys: Co*siu/s:[]e *bjetos.dy: |
+        <p>no3888888888888888888kqa.dev/v1apa&uos:* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777jetos.sys: Co*siuo77777777777kqa.dev/v1apa&e *bject:os.sys: oC*siu/s:[]e *bjetos.sys: Co*siuos:* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 144
+      body: |
+        <p>no7777777777777777777kqa.dev/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuo77777777777kqa.dev/v0aCo*siuo8888888888kqa.dev/v1apa&uos:* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777jetos.sys: Co*siuo77777777776kqa.etos.sys: Co*siuos:* []e ts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 144
+      body: |
+        <p>no7777777777777777777kqa.dev/v1apa&e *bje:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuo77777777777kqa.dev/v1apa&e *bject:os.sys: Co*siu/s:[]et/[html

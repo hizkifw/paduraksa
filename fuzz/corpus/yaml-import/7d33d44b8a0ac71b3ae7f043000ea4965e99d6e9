@@ -1,0 +1,4 @@
+: &a [x, x x,ap]
+b: &b [*a,  *a,a,*a,n:  *a]
+c: &c [*b, xy]
+]

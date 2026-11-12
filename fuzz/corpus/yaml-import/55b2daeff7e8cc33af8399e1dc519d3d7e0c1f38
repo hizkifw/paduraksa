@@ -1,0 +1,7 @@
+apiVersion: padua.
+kind: Cong
+accessLists:
+  - name: offic
+    basicAuth:
+      users:
+      - user : wndA8rNFlB

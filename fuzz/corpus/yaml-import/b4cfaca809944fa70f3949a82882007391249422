@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: sccanners
+    rules:
+      - action: deny
+ #ma]}
+rateLimitPolicies:
+  - name: sd

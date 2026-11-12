@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: oooo.1:80!96
+hosts:
+  - names: [j			ellyfin.excum]
+    profile: media
+    routes:

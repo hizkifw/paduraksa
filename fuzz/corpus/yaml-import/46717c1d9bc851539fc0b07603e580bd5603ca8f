@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.exae.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+       ' <pt h   <pQ>sor
+      contentType: t       l

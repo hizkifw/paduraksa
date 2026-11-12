@@ -1,0 +1,56 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unktrustedProxi:
+  - names: [tv.example.com]
+    profile: media
+    rutes:
+     ersioleSset:
+  - 
+ 
+  - 
+  -  oleSts-:
+  - 
+  -   - 
+  -  reqr:
+  - 
+  -  reqr:ts:
+  - 
+  -  oleSets*:
+  - 
+  -   - 
+  -  reqr:
+  - 
+  -  reqr:
+  - 
+  -   - 
+  - aSets:oleSets:
+  - 
+  -  oleSets:
+  - 
+  
+  -  reqr:
+  - 
+  -  reqr:ts:
+  - 
+  -  oleSets*:
+  - 
+  -   - 
+  -  reqr:
+  - 
+  -  reqr:
+  - 
+  -   - 
+  - aSets:oleSets:
+  - 
+  -  oleSets:
+  - 
+  -   - 
+  -  reqr: 
+  -   - 
+  - aSets:oleSets:
+   
+  -lB
+        upstream: rsellyfin
+  refix
+        path: /

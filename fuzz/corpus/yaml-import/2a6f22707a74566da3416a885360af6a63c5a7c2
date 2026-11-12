@@ -1,0 +1,17 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [10.0.0.1/8rof], countries: {allow: [N ,OID]}}
+# i ho0ts: [{Lists:
+  - name: office
+    ip: {allow: [10.0.0.1/8rof], countries: {allow: [N ,OID]}}
+#igg, 
+ 
+  - name: office
+    ip: {allow: [10.0.0.1/8rof], countries: {allow: [N ,OID]}}
+# i ho0ts: [{Lists:
+  - name: office
+    ip: {allow: [10.0.0.1/8rof], countries: {allow: [N ,OID]}}
+#igg, 
+               

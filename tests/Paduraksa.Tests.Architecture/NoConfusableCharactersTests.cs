@@ -107,6 +107,12 @@ public sealed class NoConfusableCharactersTests
     /// </summary>
     private static readonly string[] ExcludedDirectories = [".git", "bin", "obj", "TestResults", "node_modules"];
 
+    /// <summary>
+    /// The fuzz inputs are raw bytes a fuzzer made, and <c>.gitattributes</c> marks them binary (<c>git grep -I</c>, which
+    /// <c>check-confusables.sh</c> runs, skips them too): a YAML or header input mutated into a Cyrillic letter is the input, not text.
+    /// </summary>
+    private static readonly string[] RawInputPrefixes = ["fuzz/corpus/", "fuzz/regressions/"];
+
     /// <summary>The full scan: every tracked text file, every offending occurrence, one line each.</summary>
     /// <returns>A task.</returns>
     [Fact]
@@ -256,7 +262,8 @@ public sealed class NoConfusableCharactersTests
     /// repository's own definition of "tracked"), else by walking the tree without
     /// <see cref="ExcludedDirectories"/>.
     /// </summary>
-    private static async Task<List<string>> TrackedFilesAsync() => await GitLsFilesAsync() ?? WalkRepository();
+    private static async Task<List<string>> TrackedFilesAsync() =>
+        [.. (await GitLsFilesAsync() ?? WalkRepository()).Where(file => !RawInputPrefixes.Any(prefix => file.StartsWith(prefix, StringComparison.Ordinal)))];
 
     private static async Task<List<string>?> GitLsFilesAsync()
     {

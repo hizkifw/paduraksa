@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDI2222222222g
+accessLists:
+  - name: office
+   
+    basicAuth:
+      users:
+        - username: ali"ca0e9 ^u6rea,,,,,,,,,,,,o 22222A
+hosts:
+  - names: [tv.example2com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: eb	

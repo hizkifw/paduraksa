@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.exam:ple.com]
+    kind: respond
+    respond:
+      statusCode: 048
+      body: |
+       JJJJJJJJJJJJJJJJJJJJJJJJJJJJJ[!]JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ contentType: text/html

@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+upstreams:
+  - name: jellyfin
+    destinations:
+     - address: http://516.#0.0.1:8096
+hosts:
+  - names: [jellyxample.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

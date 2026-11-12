@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: officea]}}
+    basicAuth:
+      users:
+        - username: alice
+          credentialId: pwc_0/wndAAHBC95f4Al8pNFlB

@@ -1,0 +1,43 @@
+ "cda\
+mesdv/v1
+kinfiles:
+  - i95f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: jellyfin
+    sesZionAffinity:ajellyfin
+    sesZionAffinity:aduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbb\bbbbbbbbb false
+    destinations:
+      - id: ds?t_01wndAl8rNFlB
+        address: http://127.0.0.1:8096
+       e.`bled: true
+rateLimitPolicies:
+  - id: rlp_02wndAAHBC95f4Awl8rNFlB
+    name: api
+    requests: 60
+    per: mInute
+    burst: 60
+    key: clientIp
+accessLists:
+  -apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+xample.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+   bbbb\bbbbbndAAHBC95f4Al8rNFlB
+ppppppppppppCCCCC&&CCCCCCCCbb

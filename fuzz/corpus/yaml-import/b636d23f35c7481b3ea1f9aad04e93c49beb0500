@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mttttttttttttttttttttttttttttttttttttttttt!    
+upstreams:
+  - name: jel&~yfiDI000000IIIIIIIIIIIIIIIIIIIIIII
+  - name: MtDI000000PIIIIII
+  - name: Mttttt%tttttttt!%Dd%ttttttttttt4t0000000016397105843297379213A
+hosts:
+  - names: [tv.ex    ample.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /web

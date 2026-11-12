@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: oFfC40f8A2222222uuuuuu22
+  - name: 0rlNaB

@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mttttt|t00000000069914234A
+hosts:
+  - names: [tvpl'com]
+    profile: media
+

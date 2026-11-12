@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mttt:::tqtttttttt163971058432
+hosts:
+  - names: [tv. ample.com]
+    profile: media
+    routes:
+   

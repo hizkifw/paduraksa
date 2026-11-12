@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: meR.0.>1:8096
+hosts:
+  - names: [jel|yfin.exam^^^^0^^^ple˜om]
+    profile: media
+    routes:
+      - upstream: jellyfin

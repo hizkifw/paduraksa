@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: j096
+hosts:
+  - names: [elyl*hin.examp?e.cum]
+    profile: me&dia
+    routes:
+      - upstream: jellyfin3

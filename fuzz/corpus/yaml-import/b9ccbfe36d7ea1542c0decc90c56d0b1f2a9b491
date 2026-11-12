@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: sccanners
+    rules:
+      - action: deny
+ #maicies:
+  - name: strict se#ond

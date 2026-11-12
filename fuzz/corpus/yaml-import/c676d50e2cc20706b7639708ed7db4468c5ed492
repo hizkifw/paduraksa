@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [75.0.0.1/8rof], countries: {allow: [N ,OID]}}
+# hosts: [{nfig, 
+        

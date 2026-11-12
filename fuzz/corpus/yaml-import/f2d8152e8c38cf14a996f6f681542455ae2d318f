@@ -1,0 +1,20 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    #    ip: {allow: [10.!.0.1/ ], countries: {c_02wndAAHBs:
+  - name: office
+    basicAuth:
+      users:
+        - username: alice-
+        # credentie: ce
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credenti credentialIddentke: offic
+        - username: alice-
+        # credeneit: offntie: of  # credentialId: pw      users:
+        - username: alice
+        # cialId: pw      users:
+        - username: alice
+        # credenl8rl5f4Al8rNFlB

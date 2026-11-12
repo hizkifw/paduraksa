@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [axampleҡom]
+    kind: respond
+    respond:
+      statusCode: 220
+         

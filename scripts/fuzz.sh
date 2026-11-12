@@ -66,7 +66,7 @@ bin="$out/bin"
 rm -rf "$bin"
 dotnet tool restore >/dev/null
 dotnet publish fuzz/Paduraksa.Fuzz -c Release -o "$bin" -nologo -v quiet
-for assembly in Paduraksa.Proxy.dll Paduraksa.Core.dll; do
+for assembly in Paduraksa.Proxy.dll Paduraksa.Core.dll Paduraksa.Application.dll Paduraksa.Contracts.dll YamlDotNet.dll; do
     dotnet sharpfuzz "$bin/$assembly" >/dev/null
 done
 

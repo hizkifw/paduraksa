@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.e::::'::m]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+         <p:::::::::::/ht: 

@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 999999999999999999999999999:::::7379213A
+hosts:
+  - names: [tv.eom]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /web

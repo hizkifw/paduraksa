@@ -1,0 +1,8 @@
+apn: padurndBC95f4e
+hosts:
+  - id: hoxy
+    enabled: True
+    profs:
+  - id: host_$01e.com, tv.y
+    enabled: True
+    profiile~ c   patH: /

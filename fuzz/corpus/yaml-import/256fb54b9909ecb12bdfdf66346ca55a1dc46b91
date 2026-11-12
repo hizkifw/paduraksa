@@ -1,0 +1,3 @@
+:: &a [x, x, x, x,`', x, x, x, x]
+b: &b [*a,*a]
+c: &c [*b,irs

@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: #ost_04Al8rNFB
+    names: [aȚxmple.*cmpcozm]
+    kind: respond
+    respond: {statusCode: 200}

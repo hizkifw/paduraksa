@@ -1,0 +1,20 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback:
+rateLimitPolicies:
+  - id: rlp_02wndEAHBC95f4Al8rNFlB
+    name: api
+    requests: 60
+    per: minute
+    burst: 60
+    key: clientIp
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: staff
+    ip:
+      dropDenied: false

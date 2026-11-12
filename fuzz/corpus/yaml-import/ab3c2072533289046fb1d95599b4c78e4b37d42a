@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MttttI&IIItIIIIIIIIIIIIIIIIIIIIIIIIIIIa
+upstreams:
+  - name: jel&~
+    notes: IIIIIII00000

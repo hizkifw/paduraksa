@@ -1,0 +1,27 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: nozFound
+  trustedProxies:
+    mode: 'off,
+    useTrueClientIp: false
+    forwardedForFallback: fals  name: media
+    settings:
+      forceHttps: false
+upstame: media
+    settings:
+      forceHttps: false
+upstreams:
+(  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - ?d: dst_01wndAAHBC
+    kind: piV: g
+ruleSets:
+proxy
+    enabled: true
+    profile: media
+    cer0
+   prefix
+      /

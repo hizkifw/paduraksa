@@ -1,0 +1,5 @@
+apiVersion: paduraConfig
+accessLists:
+  - name: office
+    ip: {allow: [2:WWWWWWWWWW,WWWWWWaLs%r!:,g tNk d:,2nrsN-i':, 0g 'N:, WWW,WWWWWWWWWUWWWWWWWWWWWWW4], countries: {allow: [NO, ID]}}
+  

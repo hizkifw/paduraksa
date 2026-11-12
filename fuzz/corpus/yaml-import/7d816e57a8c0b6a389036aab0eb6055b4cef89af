@@ -1,0 +1,20 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offic}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    basicAuth:
+      users:
+        - username: re  # credentialId: pwcwndAAHBs:
+  - name: office
+    basicAuth:
+      users:
+        - username: alice-
+        # credentie: office
+    # credentiallIrs:
+        - username: alice
+        #NFlB

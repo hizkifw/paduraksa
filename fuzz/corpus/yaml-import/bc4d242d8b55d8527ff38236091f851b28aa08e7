@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+# - name: media
+upstreams:
+  - name: jelhttp://128..0.1:8096
+hosts:
+  - names: [jel|yfin]
+    kind: respmple.com]
+    profile: media
+    routes:
+     - upstream: jellyfin

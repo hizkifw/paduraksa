@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so*o~CCCCC x,`x, x~, x, xCCCom]
+  - names: [so*o~CCCCCom]
+    kind: respond
+   #tLind: respond
+   #tLLLLLLLLLLm]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbb}

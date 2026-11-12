@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [10.0.0.0/8], countries: {allow: [NO, ID]}}
+    basicAuth:
+      users:
+        - username: ali:e
+          credentialId: pwc_02wndAAHBC95f4Al8pNFlB

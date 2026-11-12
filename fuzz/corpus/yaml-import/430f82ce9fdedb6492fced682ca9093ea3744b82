@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: close
+ #ru}
+  trustedProxies: {mode: generic, proxies: [09.0.0.0/8]}

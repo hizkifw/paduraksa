@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDI2222222222g
+accessLists:
+  - name: office
+    ip: {allow: [10.0.5.0/8], countries: {allow: [NID]}}
+    basicAuth:
+      users:
+        - username: alice4apiV:rn,,,,,,,,,,,o kindVers,,,,,,,,44444444444444A
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /web	

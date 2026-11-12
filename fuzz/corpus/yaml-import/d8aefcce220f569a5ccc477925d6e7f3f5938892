@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    trustForwardedProto: false
+profiles:
+  - id: prof_01wndAA9Cf5HB4Al8rNFlB
+    name: medi{aplse
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: -jeg

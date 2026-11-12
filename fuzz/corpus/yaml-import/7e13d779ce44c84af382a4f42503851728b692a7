@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.eom]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+       >
+        <p>so>apniVerotsio 

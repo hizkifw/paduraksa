@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  # 6
+hosts:
+  - names: [lmyfin.e-]
+    profile: media
+    routes:
+      - upstream: nf

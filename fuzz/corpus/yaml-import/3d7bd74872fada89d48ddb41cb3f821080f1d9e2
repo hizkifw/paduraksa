@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MttttII
+  - name: MI
+  - name: Mtttttttt0000000

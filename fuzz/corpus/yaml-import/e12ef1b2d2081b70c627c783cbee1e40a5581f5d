@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.examp::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::6::::::::::::::::::::::::::::::::::+:::::::::::::::m]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+       00000000000000000000000tatusCodv/a: &a [x, x, x /html

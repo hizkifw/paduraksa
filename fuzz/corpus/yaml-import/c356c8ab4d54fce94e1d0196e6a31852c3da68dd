@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [10.V0.5.0/8], countries: {allow: [NN, ID]}}
+    basicAuth:
+      users:
+        - username: alice4apiV:rnesoi pr44444444A
+hosts:
+  - names: [tv.exam]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /web	

@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # a- name: office
+    basicAuth:
+      users:
+        - username: alice-
+        # redentialIddentcredentialI
+        - username: alice-
+        # cred8rNFlB

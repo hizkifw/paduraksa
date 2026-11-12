@@ -1,0 +1,6 @@
+apiVersion: pad
+hosts:
+  - id: host_02wndAAH`!n j
+  - id: jost_2w.dKAHBC95lrAF8Nf4lB
+    names: [b.example.com]
+    kind: r

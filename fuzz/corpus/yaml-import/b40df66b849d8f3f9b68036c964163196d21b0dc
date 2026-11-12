@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: sccannes
+    rules:
+      - action: deny
+        match: {userAgent: }
+rateLimitPolicies:
+  - name: stri 09
+    per: second

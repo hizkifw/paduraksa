@@ -1,0 +1,22 @@
+apiVersion: paduraksa.dev/v1
+kind:ownHosties:
+  - id: rldAAHBC95f4Al8rNFpi
+    requests: 60
+    per: minute
+    burst: 60
+    key: clientIp
+accessLists:
+  - id: acm_02wndAAHBC95fCCCCCCCCCCCCCCCCCCCCCCCCCCCC4AlNFlB
+    name: staff
+    ip:
+      dropDenied: false
+      allow: [.0/8]
+    satisfy:ts:
+  - id: host_'2wnom, tv.example.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+      mode: auto
+    routes:
+      ath: /

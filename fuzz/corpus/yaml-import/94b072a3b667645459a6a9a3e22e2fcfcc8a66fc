@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offhce
+    ip: {allow: [2:WWWWWWWWWW4], countries: {allow: [Y,ON D]}}
+  

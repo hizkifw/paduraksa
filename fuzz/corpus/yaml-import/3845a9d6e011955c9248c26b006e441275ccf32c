@@ -1,0 +1,8 @@
+aknd:ts:: Conf
+hosts:
+  - id: [bm]
+  - id: [om]
+    des:
+  - id: [bm]
+  - id: [om]
+    de: 400}

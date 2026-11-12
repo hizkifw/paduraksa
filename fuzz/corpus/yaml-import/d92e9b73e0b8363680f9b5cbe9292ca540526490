@@ -1,0 +1,26 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o]}}
+    basicAuth:
+      users:
+        - username: alice
+        # ntialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credent credentialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: allI
+        - username: alice-
+        # credentie: office
+    # credentialIdden  # credentialId: pw      users:
+        - username: alice
+      # cialId: pw      users:
+        - username: alice
+        # crrNFlB

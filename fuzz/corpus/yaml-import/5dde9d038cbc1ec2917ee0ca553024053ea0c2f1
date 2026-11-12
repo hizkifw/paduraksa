@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 0000000000016397105849213A
+hosts:
+  - names: [tv.exampleҢom(((((((((wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww.]
+    profile: media
+    

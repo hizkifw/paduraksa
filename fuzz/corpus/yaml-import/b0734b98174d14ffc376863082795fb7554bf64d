@@ -1,0 +1,26 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4AtIIIIIIIIHItIIIIIIItttttttttt0000000IIIIIIttttttttttt0000000IIIIIItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIII0000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - use15IIIIIIIIIIIIIIIIIIIIIIIIHItIIIIIIIttttttttIIIIIIIIIIIt0000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIHItIIIIIIItttttttttt0000000IIIICItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: dAAHBC8*IIIIIIIIIIIIIIIHItIIIIIIIttttttttIIIIIIIIIIIt0000IIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIttt]}}
+    basicAuth:
+      users:
+    #  -AtIIIttttttttIIIIIIIIIIIt0000tttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIme: IIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: dAAHBC8*IIIIIIIIIIIIIIIHItIIIIIIIttttttttIIIIIIIIIIIt0000IIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIII
+  - name: l8rNFlB

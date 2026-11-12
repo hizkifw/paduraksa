@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&00000000000z, ID]}}
+    basicAuth:
+      users:
+       

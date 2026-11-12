@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: stlse
+hosts:
+  - id: host_02wndAAHBC96f4Al8rNFlB
+    names: [jem]

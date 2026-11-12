@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: host_02WndAAHBC95f4Al8rNFlB
+    names: [ab.ecom]
+    kind: respond
+    respond: {statusCode: 200}

@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [1c0.0/..08], countries}
+    basicAuth:
+      users:
+        - username: alicB

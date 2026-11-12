@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+ #uone}
+  trustedProxies: {mode: generic, proxies: [050:/.0/8]}

@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: close
+  defaults:
+    hsts: {enabled: true, maxAge: 3153001}
+    errorPages:
+      "404": {mode: message, heading: Gone}
+  trustedProxies: {mode: generic, proxies: [1ue,es:xAg10..00.0/8]}

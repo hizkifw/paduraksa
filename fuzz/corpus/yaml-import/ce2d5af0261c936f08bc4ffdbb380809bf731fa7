@@ -1,0 +1,21 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no388888s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]es:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <pjec.sject:os.sys: Co*sIu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample?com]
+    kind: respond
+    respond:
+      statusCode: 101
+      body: |
+        <p>no7777777777777777777kqa.dev/v01Apajec.sys:    contentTy/e: text/[html

@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.0K[KK[KKKK+KKKKKKKKKKKKKKKKKKKKKKKKOKKKKHKKKKKKKKKKKKKKKK   sssssssssssssssssssssssssssssss.5:8096
+hosts:
+  - names: [jellyfin.example.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

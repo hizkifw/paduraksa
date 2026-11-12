@@ -1,0 +1,18 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 0I
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIa
+upstreams:
+  - name: jel&~yfin
+    destinations:
+   #   - address: h)tp:/./1270.0.1IIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIItttttttttttttDI000g
+accessLists:
+  - name: o&fice
+    ip: {allow: [20.0.0.0/8], countries: {allow: [Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAIIIIIIII00000IIII	IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtt00000

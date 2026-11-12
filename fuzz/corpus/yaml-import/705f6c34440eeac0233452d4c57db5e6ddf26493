@@ -1,0 +1,4 @@
+apiVersion: padrak96
+hosts:
+  - names: [jellyfampleom]
+    profile: mq  - ups

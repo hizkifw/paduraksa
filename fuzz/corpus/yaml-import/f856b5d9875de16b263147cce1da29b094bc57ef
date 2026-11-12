@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.e%xample.com]
+    kind: respond
+    respond:
+      statusCode: 304
+      body: |
+        <p>no""""""""""ooooooo
+  - names: [a.e%xample.com]
+    kind: respond
+    respond:
+      statusCode: 304
+      body: |
+        <p>no""

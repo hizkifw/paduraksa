@@ -1,0 +1,22 @@
+apiVersion: paduraksa.dev
+v1/kind: Config
+s#ttings:
+  unknownHost: nd
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    fordedProto: false
+profile:
+  - id: rof_05&4Alr8NFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_01wndBAHBC9f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst_FlB
+        
+         s: http://128.0.0.1:8096
+ 

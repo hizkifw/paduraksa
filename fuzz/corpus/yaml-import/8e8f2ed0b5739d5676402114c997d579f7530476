@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: medRRRR+27.0.0.16
+hosts:
+  - names: [jel|yfin.rexam^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ple˜om]
+    routes:
+      - upstream: jellyfin

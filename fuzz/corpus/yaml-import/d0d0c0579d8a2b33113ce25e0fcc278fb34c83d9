@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mtttig
+hosts:
+  - names: [a.example.com]
+    kind: r *siu/s:*edia
+    routes:
+      - upstream: jellyfin
+        path: /web

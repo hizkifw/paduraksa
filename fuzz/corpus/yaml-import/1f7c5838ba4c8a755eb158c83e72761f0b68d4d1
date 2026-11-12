@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow, countries: {allow: [NO, ID]}}
+    basicAuth:
+     users:
+        - username: alice
+        # credei     # cretialIdc_02!%Dd%BddD%Dd%BdwndAAHBC95s:
+  - name: o%DD%Ddffice
+    ip: {allow, countries: {allow: [NO, ID]}}
+    basicAuth:
+     users:
+     

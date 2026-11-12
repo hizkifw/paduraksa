@@ -1,0 +1,6 @@
+a: &a [x, x, x, x, x, x, x, x, x]
+b: &b [*a, *a,  za, *a]
+c: &c [*b, *b, *b, *b, *b, *b, *b,/*b, *b]
+d: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c]
+e: &e [*d, *b, *b, *b, *b, *b, *b,*b,/**b, *b, *
+ff,

@@ -1,0 +1,5 @@
+ion: pon
+profiles:
+  - &p
+    settings: {forceHttps: tcue}
+ms: &u

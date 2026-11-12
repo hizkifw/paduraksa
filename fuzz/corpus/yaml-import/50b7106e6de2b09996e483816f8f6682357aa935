@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MtttttttttGGnfig
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 197
+      body: |
+        <p>no777777
+    routes:
+      - upstream: jellyfin
+      

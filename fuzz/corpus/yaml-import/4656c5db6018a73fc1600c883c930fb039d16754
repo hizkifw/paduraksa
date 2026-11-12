@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: ofzice
+    ip: {allow: [1WWWWWWWWWWW,WWWWWWWWWWWWWWW,WWWWWWWW___WWWWWWW_______________:_W_________W,WWWWWWWWWWWWWWW_______________:___________WWWW$], countries: {allow: [NO, ID]}}
+  

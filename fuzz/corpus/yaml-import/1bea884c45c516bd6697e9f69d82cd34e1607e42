@@ -1,0 +1,6 @@
+:
+  MEDIA
+hosts:
+  - names: [o]
+    profile:
+      qupream: i   pb

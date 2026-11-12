@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [aom]
+    kind: respond
+    respond:
+      statusCode: 404
+  
+  - names: [a.example.com]

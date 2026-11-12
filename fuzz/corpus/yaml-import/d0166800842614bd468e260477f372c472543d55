@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbb000000000000000000000000000000;Ip
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: st(\\\\\\\\\\\\\\\222220000000148569

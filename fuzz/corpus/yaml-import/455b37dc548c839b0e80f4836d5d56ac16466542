@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: medi/461.0.6
+hosts:
+  - names: [jelmyfin.om]
+    profile: mefia
+    routes:
+      - upstream: jelylfin

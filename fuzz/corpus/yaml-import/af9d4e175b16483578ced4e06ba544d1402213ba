@@ -1,0 +1,20 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MtIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttEDI000000wttIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttt?ttttt'ttttttttI
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttttttttttttIIIIIII
+  - name: MttIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttttttttttttIItIII
+  - name: Mttttttt0000000eeeeeeeeeeeIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt000IIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIaIII
+upstreams:
+  - name: jel&~yfin
+    destinations:
+      - address: http:/./12IIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttt'tttttttttt9551615

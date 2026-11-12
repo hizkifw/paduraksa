@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: me27.0096
+hosts:
+  - names: [jel|yfin.]
+    profile: yfin

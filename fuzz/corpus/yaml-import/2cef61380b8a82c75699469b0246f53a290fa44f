@@ -1,0 +1,23 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+accessLists:
+  - id: acl_01wndAAHBC95f4Al8rNFlB
+    name: stlse
+hosts:
+  - id: host_02wndAAHBC95f4Al8rNFlB
+    names: [jmple.com]
+  
+    enabled: true
+    profile: media
+    certificate:
+      mode: auto
+    routes:
+      - id: rte_02wndAAHBC95f4Al8rNFlB
+        upstream: jellyfin
+        order: 0
+        match: prZefix
+        path: /

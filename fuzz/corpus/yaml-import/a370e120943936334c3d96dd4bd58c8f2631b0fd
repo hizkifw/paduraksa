@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+ 
+hosts:
+  - names: [tv.exam pl-e.com]
+    routes:
+      - upstream: jellyfin
+        path: /web

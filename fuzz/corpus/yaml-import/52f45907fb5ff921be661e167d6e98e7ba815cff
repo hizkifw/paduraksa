@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+ 
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFlB
+    name: media
+     tv.exampl.comk]

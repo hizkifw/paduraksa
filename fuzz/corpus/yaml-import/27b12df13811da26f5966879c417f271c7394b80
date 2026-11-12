@@ -1,0 +1,10 @@
+apiVen: paduraksa.dev/v1
+kind: Cznfig
+settings:
+  unknoOnHost: notFound
+  trustedProxies:
+     trustForwardedProto: False
+profiles:
+  - id: prol8rNFlB
+    na: jel=lyfin
+  

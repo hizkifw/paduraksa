@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDI222222222"""""""
+hosts:
+  - names: [t$v.example.com]
+    profile: media
+    routes:
+   

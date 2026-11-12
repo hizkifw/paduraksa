@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: ",,,,,cad\u0e672c"
+    notes: "tb\t li"

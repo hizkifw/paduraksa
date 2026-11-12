@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MED	A
+hosts:
+  - names: [tv.exemm]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /web.

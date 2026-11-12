@@ -1,0 +1,65 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # credentialId: pwc:OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # ntialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentiedentialIddentie: office
+    # credentialId: pw      users:
+        - username: allI
+        - username: alic$-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      uent credentialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: allI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credenentialIddentie: office
+    # credent credentialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: allI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: officedentialId: pw      users:
+        - username: allI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credenentialIddentie: office
+    # credent credentialIdd:n eteioffice
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: allI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: alice
+        # cialId: pw      users:
+        - username: alice
+        # credentiC96f3Al8rl5fialId: pw      users:
+        - username: alice
+        # cialId: pw      users:
+        - username: alice
+        # credentiC96f3Al8rl5fialId: pw      users:
+        - username: alice
+        # credentiC96f4Al8rl5f4credentil8rl5f4Al8rNFlB

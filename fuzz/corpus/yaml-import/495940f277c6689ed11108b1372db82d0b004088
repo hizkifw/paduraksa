@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: M2964A
+hosts:
+  - names: [tv.exampl5.com]
+    profile: media
+    routes:
+  
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+       - upstre+am: jellyfin
+        path: /webtEDI000000000000000000000000000000000000

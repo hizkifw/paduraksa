@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: medi
+upstreams:
+  - name: jelkKkkkkkkkkkkkkkkkk
+    destinations:
+      - address: htp:/lin

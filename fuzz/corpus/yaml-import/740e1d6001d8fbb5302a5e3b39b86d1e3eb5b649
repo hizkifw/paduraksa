@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [tv.ex    ample.com]
+    profile: media
+    
+profiles:
+ - name: "9 ^u6\u672ce\Nreak"

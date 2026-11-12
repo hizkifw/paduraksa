@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a,examp.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+        <p>not here</>
+        <p>sor, *a, *a, ry</p>   contenntentType: text/[html

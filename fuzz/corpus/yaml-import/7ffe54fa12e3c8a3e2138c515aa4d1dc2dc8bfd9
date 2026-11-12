@@ -1,0 +1,36 @@
+apiVersion: paduraksa.dev/v1
+kind: Sonvig
+hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 639}
+  - id: jost_02w.dAnd
+    respond: {statusCode: 457}
+  - ihosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8?Nf4lB
+    hosts:
+  - id: host_02wndAAH95l0rAF8Nf4lB
+    hosts:
+  - id: host_02wndAAHnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respond: {statusCode: 457}
+  - id: jost_02w [b.example.com]
+    kind: respondhost_02wndAAH95lrAF8Nf4lB
+    hosts:
+  - id: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAOBC95?
+    resPond: {statusCode: 200}

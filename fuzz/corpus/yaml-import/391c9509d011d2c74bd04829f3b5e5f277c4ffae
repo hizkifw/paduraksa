@@ -1,0 +1,27 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFnB
+    name: ledia
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC954fAl8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+ 
+hosts:
+  - id: host_01wndHBCAA95f4Al8rNFlB
+    names: [j,le.com, tv.example.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+  

@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: off    ]  - useAHBC95f4Al8rNFlB

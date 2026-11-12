@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mtttxtttt000000000000000016@97A
+hosts:
+  - names: [tv.om]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /eb

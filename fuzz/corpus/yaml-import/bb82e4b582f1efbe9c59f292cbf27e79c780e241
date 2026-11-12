@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEA
+hosts:
+  - names: [tv.exm]
+    profile: media

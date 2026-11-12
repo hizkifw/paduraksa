@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.1KKK
+
+
+
+
+     :8096
+hosts:
+  - names: [jellfin.exampm]
+    profile: media
+    routes:
+    

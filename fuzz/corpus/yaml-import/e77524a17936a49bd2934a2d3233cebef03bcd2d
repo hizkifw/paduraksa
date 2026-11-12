@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.ple.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body:  <rry</p>
+      contentType: text/[html

@@ -1,0 +1,8 @@
+api?Vers: false
+hosts:
+  - id: host_hos
+    certificate:
+    routes:
+      - id: rte0C75fin
+        order      match: prefx
+ath: /

@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.0KKKKKKKKKKKKKKKKK
+
+
+
+        ssssss42
+hosts:
+  - names: [jelum]
+    
+    routes:
+      - upstream: jellyfin

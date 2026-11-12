@@ -1,0 +1,4 @@
+a: &a [x, x, x, x,e, kind: Config, hots: x, x]
+b: &b [*a,*a, *a, *a]
+c: #c, *d
+

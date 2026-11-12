@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: fedia
+upstreams:
+  - name: jel1llyfin
