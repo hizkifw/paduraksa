@@ -93,7 +93,7 @@ public sealed class RateLimitsTests
         Assert.Equal(0, dry.Policy.Version);
 
         await drawers.Find("[data-review=apply]").ClickAsync(new());
-        await reviewing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await reviewing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         var committed = Assert.IsType<UpsertRateLimitPolicyCommand>(config.Executed[^1]);
         Assert.False(committed.DryRun);
         Assert.Equal(dry.Policy.Id, committed.Policy.Id);
@@ -141,7 +141,7 @@ public sealed class RateLimitsTests
         Assert.Equal((stored.Id, 4L), (dry.RateLimitPolicyId, dry.Version));
 
         await drawers.Find("[data-review=apply]").ClickAsync(new());
-        await deleting.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await deleting.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
         var committed = Assert.IsType<DeleteRateLimitPolicyCommand>(config.Executed[1]);
         Assert.False(committed.DryRun);

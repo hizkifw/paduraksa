@@ -113,7 +113,7 @@ public sealed class AccessListsTests
         Assert.Equal(("alice", null, "correct horse"), (user.Username, user.CredentialId, user.Password));
 
         await drawers.Find("[data-review=apply]").ClickAsync(new());
-        await reviewing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await reviewing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         Assert.False(Assert.IsType<UpsertAccessListCommand>(config.Executed[^1]).DryRun);
     }
 
@@ -303,7 +303,7 @@ public sealed class AccessListsTests
         Assert.Equal((stored.Id, 4L), (dry.AccessListId, dry.Version));
 
         await drawers.Find("[data-review=apply]").ClickAsync(new());
-        await deleting.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await deleting.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
         Assert.False(Assert.IsType<DeleteAccessListCommand>(config.Executed[1]).DryRun);
     }

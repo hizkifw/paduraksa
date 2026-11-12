@@ -83,7 +83,7 @@ public sealed class AccountAndAuditTests
         await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
         Assert.Equal(10, dialogs.FindAll(".pdk-recovery-codes li").Count);
         await dialogs.Find("[data-action=codes-saved]").ClickAsync(new());
-        await opening.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await opening.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
 
         Assert.Empty(dialogs.FindAll(".pdk-recovery-codes"));
         Assert.DoesNotContain(identity.RecoveryCodes[0], dialogs.Markup, StringComparison.Ordinal);

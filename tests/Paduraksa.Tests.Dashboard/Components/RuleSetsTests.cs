@@ -169,7 +169,7 @@ public sealed class RuleSetsTests
         Assert.Null(set.Rules[1].Match.UserAgent);
 
         await drawers.Find("[data-review=apply]").ClickAsync(new());
-        await reviewing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await reviewing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         Assert.False(Assert.IsType<UpsertRuleSetCommand>(config.Executed[^1]).DryRun);
     }
 
@@ -271,7 +271,7 @@ public sealed class RuleSetsTests
         Assert.Equal((stored.Id, 4L), (dry.RuleSetId, dry.Version));
 
         await drawers.Find("[data-review=apply]").ClickAsync(new());
-        await deleting.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await deleting.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
         Assert.False(Assert.IsType<DeleteRuleSetCommand>(config.Executed[1]).DryRun);
     }

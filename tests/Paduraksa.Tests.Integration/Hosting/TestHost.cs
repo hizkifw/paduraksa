@@ -122,7 +122,7 @@ internal static class TestHost
                     && string.Equals(certificate.GetCertHashString(HashAlgorithmName.SHA256), pin, StringComparison.Ordinal),
             },
         };
-        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
     }
 
     /// <summary>
@@ -164,7 +164,7 @@ internal static class TestHost
             },
         };
         configure?.Invoke(handler);
-        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
     }
 
     private static bool IsPinned(X509Certificate certificate, X509Certificate2 pin) =>

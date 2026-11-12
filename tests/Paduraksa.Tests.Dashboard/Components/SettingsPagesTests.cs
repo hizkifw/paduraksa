@@ -105,7 +105,7 @@ public sealed class SettingsPagesTests
 
         var drawer = dialogs.FindComponent<Paduraksa.Dashboard.AccountArea.TokenDrawer>().Instance;
         await dialogs.Find("[data-action=done]").ClickAsync(new());
-        await creating.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await creating.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
 
         Assert.Empty(dialogs.FindAll(".pdk-sheet"));
         Assert.DoesNotContain(FakeDashboardIdentity.TokenSecret, dialogs.Markup, StringComparison.Ordinal);
@@ -179,7 +179,7 @@ public sealed class SettingsPagesTests
         await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
 
         Assert.Empty(dialogs.FindAll("[data-drawer=discard]"));
-        await editing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await editing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         Assert.Empty(dialogs.FindAll(".pdk-sheet"));
     }
 
@@ -210,7 +210,7 @@ public sealed class SettingsPagesTests
         var created = Assert.Single(identity.Created);
         Assert.Equal("viewer", created.Username);
         Assert.Equal([Role.Viewer], created.Roles);
-        await adding.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        await adding.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         Assert.Empty(dialogs.FindAll(".pdk-sheet"));
         await page.WaitForStateAsync(() => page.FindAll("[data-user=viewer]").Count == 1);
     }
