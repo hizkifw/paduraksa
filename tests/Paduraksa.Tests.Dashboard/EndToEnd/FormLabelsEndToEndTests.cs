@@ -38,6 +38,8 @@ public sealed class FormLabelsEndToEndTests
 
         // The ntfy form: Server has a value, Topic is empty and has no placeholder, Access token is empty and a password field.
         await page.GotoAsync("/settings/notifications");
+        // A click before the new page's circuit is live is lost: nothing is listening yet.
+        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
         await page.ClickAsync("[data-action=add-channel]");
         await Expect(page.Locator("input[data-field=topic]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await PlaywrightBrowser.SettleAsync(page);
