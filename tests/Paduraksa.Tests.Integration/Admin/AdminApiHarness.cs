@@ -96,6 +96,9 @@ internal sealed class AdminApiHarness : IAsyncDisposable
     /// <summary>The ID of the API token a role's test user presents (the actor of what that user does through the API).</summary>
     public ApiTokenId TokenOf(string role) => _tokenIds[role];
 
+    /// <summary>The API token a role's test user presents (what a script or the CLI would be given).</summary>
+    public string TokenValueOf(string role) => _tokens[role];
+
     /// <summary>The user id of a role's test user.</summary>
     public UserId UserOf(string role) => _users[role];
 

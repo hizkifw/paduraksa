@@ -48,8 +48,9 @@ internal static class PaduraksaCli
         root.Subcommands.Add(DoctorCommands.Build());
         root.Subcommands.Add(BackupCommands.BuildBackup());
         root.Subcommands.Add(BackupCommands.BuildRestore());
+        root.Subcommands.Add(ConfigCommands.Build());
 
-        // TODO: the config and migrate commands, and the full doctor (ports, permissions, libmsquic, DNS, clock skew).
+        // TODO: the migrate command, and the full doctor (ports, permissions, libmsquic, DNS, clock skew).
         return root;
     }
 
