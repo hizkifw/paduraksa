@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.26**: M0-M8 done; M9 metrics, health state and notifications done, and the property tests and coverage-guided fuzzing built (§15); the M9 live tail is next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.27**: M0-M9 done, and the property tests and coverage-guided fuzzing built (§15); next fuzz targets for the M8/M9 surfaces, then M10 interop (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -2239,3 +2239,6 @@ These are cheap now and expensive later. Fold them into the milestones that touc
 - **v0.26:** M9 part 2a: upstream health state and notifications.
   - **Health (§7.4):** a watcher reads YARP's verdict per destination once a second, off the request path; a change must hold 10 s, a flapping destination is reported once, and a publish reports nothing. Each change is audited and shown as status dots on Upstreams, the hosts list and the overview.
   - **Notifications (§5.1):** ntfy, Gotify, Discord, a signed webhook and email (MailKit) channels, their secrets in the vault behind a lend-only capability; events for upstream down/up, certificate expiry at 30/14/7/1 days, ACME failure and recovery, and sign-in lockouts and new addresses; a bounded dispatcher with retries and storm digests; Settings > Notifications.
+- **v0.27:** M9 done: the live tail.
+  - **Tail (§7.4):** the access-log drain, still the ring's one reader, offers each entry to a bounded in-memory hub after the file line; viewers get bounded drop-oldest channels with filters, and conversion and redaction happen outside the hub's lock. The tail shows only what the file would: one shared escaper, the file's query cap and redaction, and a host with logging off is in neither. The request path is unchanged at 0 B.
+  - **Surfaces (§12, §11.1):** a Live tail page under Insight (filters, pause, batched rendering, an entry drawer that opens the simulator), and `GET /api/v1/logs/tail` as Server-Sent Events behind `logs:read`.
