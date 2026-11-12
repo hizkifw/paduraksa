@@ -48,9 +48,8 @@ internal static class ReplaceUpstreamErrorTransform
         if (http.Features.Get<IGateFeature>()?.State is not { Host: { } host }
             || host.ErrorPages.ReplaceUpstream == UpstreamErrorReplacement.Off
             || ErrorPages.Replacement((int)upstream.StatusCode) is not { } answer
-            || http.Response.HasStarted
-            || !Takes(host.ErrorPages.ReplaceUpstream, upstream)
-            || http.Request.Headers.Upgrade.Count > 0)
+            || !Replaces(
+                host.ErrorPages.ReplaceUpstream, (int)upstream.StatusCode, upstream.Content.Headers.ContentType?.MediaType, http.Request.Headers.Upgrade.Count > 0, http.Response.HasStarted))
         {
             return ValueTask.CompletedTask;
         }
@@ -66,10 +65,18 @@ internal static class ReplaceUpstreamErrorTransform
         return write.IsCompletedSuccessfully ? ValueTask.CompletedTask : new ValueTask(write);
     }
 
-    /// <summary>Whether the mode takes this response by its content type; an event stream and gRPC never.</summary>
-    private static bool Takes(UpstreamErrorReplacement mode, HttpResponseMessage upstream)
+    /// <summary>
+    /// Whether an upstream's answer with <paramref name="status"/> and <paramref name="mediaType"/> (the parsed media type of its
+    /// <c>Content-Type</c>, null when it has none or none that parses) is replaced under <paramref name="mode"/>. The transform and the fuzz target
+    /// both ask this, so the rules are written once.
+    /// </summary>
+    internal static bool Replaces(UpstreamErrorReplacement mode, int status, string? mediaType, bool upgrade, bool started)
     {
-        var mediaType = upstream.Content.Headers.ContentType?.MediaType;
+        if (mode == UpstreamErrorReplacement.Off || started || upgrade || ErrorPages.Replacement(status) is null)
+        {
+            return false;
+        }
+
         if (mediaType is not null
             && (mediaType.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase)
                 || mediaType.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase)))
