@@ -162,7 +162,7 @@ public sealed class DrawerStackTests
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1, ReviewTimeout);
         Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
         await drawers.Find("[data-review=apply]").ClickAsync(new());
-        await reviewing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await reviewing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
         // One dry run and one commit, both of the whole document: the new upstream and the host that routes to it, together.
         Assert.Equal(2, config.Executed.Count);
@@ -197,7 +197,7 @@ public sealed class DrawerStackTests
         Assert.StartsWith("Not applied yet", drawers.Find("[data-drawer=upstream] .pdk-drawer-subtitle").TextContent, StringComparison.Ordinal);
         await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=name]", "app-backend");
         await drawers.Find("form[data-drawer=upstream]").SubmitAsync();
-        await editing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await editing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
         Assert.Single(drawers.FindAll("[data-staged=app-backend]"));
         Assert.Equal(made.Id, drawers.FindComponent<HostForm>().Instance.Model.Routes[0].UpstreamId);
 
@@ -209,7 +209,7 @@ public sealed class DrawerStackTests
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=invalid]").Count == 1, ReviewTimeout);
         Assert.Contains("app-backend", drawers.Find("[data-review=invalid] .pdk-error-where").TextContent, StringComparison.Ordinal);
         await drawers.InvokeAsync(drawers.Instance.EscapeAsync);
-        await reviewing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await reviewing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
         Assert.Single(drawers.FindAll("[data-staged=app-backend] [data-chip=staged-error]"));
 
         _ = drawers.Find("[data-staged=app-backend] [data-action=edit-staged]").ClickAsync(new());
@@ -350,7 +350,7 @@ public sealed class DrawerStackTests
         Assert.Equal("Back to New host", drawers.Find("[data-drawer=rate-limit] [data-drawer-action=back]").GetAttribute("aria-label"));
         await TypeAsync(drawers, "[data-drawer=rate-limit] input[data-field=name]", "Strict API");
         await drawers.Find("form[data-drawer=rate-limit]").SubmitAsync();
-        await choosing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -396,7 +396,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=access-list] input[data-field=name]", "Office");
         await TypeAsync(drawers, "[data-drawer=access-list] textarea[data-field=allowed]", "10.0.0.0/8");
         await drawers.Find("form[data-drawer=access-list]").SubmitAsync();
-        await choosing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -446,7 +446,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=url]", "http://authelia:9091");
         Assert.Contains("Use this provider", drawers.Find("[data-drawer=auth-provider] [data-action=stage]").TextContent, StringComparison.Ordinal);
         await drawers.Find("form[data-drawer=auth-provider]").SubmitAsync();
-        await choosing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -490,7 +490,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=name]", "Spare");
         await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=url]", "http://auth:9091");
         await drawers.Find("form[data-drawer=auth-provider]").SubmitAsync();
-        await choosing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
         // The host picks no sign-in after all: the provider is no longer used, and the host goes alone.
         await drawers.InvokeAsync(() => drawers.FindComponents<MudSelect<string>>().Single(select => select.Instance.Label == "Sign-in").Instance.ValueChanged.InvokeAsync("off"));
@@ -526,7 +526,7 @@ public sealed class DrawerStackTests
         await drawers.InvokeAsync(() => drawers.FindComponents<MudSelect<RulePathKind?>>().Single().Instance.ValueChanged.InvokeAsync(RulePathKind.Prefix));
         await TypeAsync(drawers, "[data-drawer=rule-set] input[data-field=pattern-0]", "/admin");
         await drawers.Find("form[data-drawer=rule-set]").SubmitAsync();
-        await choosing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -553,13 +553,13 @@ public sealed class DrawerStackTests
     }
 
     /// <summary>What a level handed back; fails rather than waits forever when it is still open.</summary>
-    private static Task<DrawerResult> Done(DrawerLevel level) => level.Result.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+    private static Task<DrawerResult> Done(DrawerLevel level) => level.Result.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
-    /// <summary>Types into a MudBlazor field and leaves it (which sends what was typed at once, instead of after the field's debounce).</summary>
-    // A submit runs the server's dry run (validation and a whole compile) before the review sheet opens; a cold, loaded CI
-    // runner can take longer than bUnit's default for that, so this wait gets the room the work needs.
+    // A submit runs the server's dry run (validation and a whole compile) before the review sheet opens or a stacked drawer
+    // hands back; a cold, loaded CI runner can take longer than bUnit's default for that, so these waits get the room it needs.
     private static readonly TimeSpan ReviewTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>Types into a MudBlazor field and leaves it (which sends what was typed at once, instead of after the field's debounce).</summary>
     private static async Task TypeAsync(IRenderedComponent<DrawerHost> drawers, string selector, string value)
     {
         await drawers.Find(selector).InputAsync(new() { Value = value });
@@ -579,7 +579,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=name]", name);
         await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=destination-0]", address);
         await drawers.Find("form[data-drawer=upstream]").SubmitAsync();
-        await choosing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
+        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
 
         var id = route.UpstreamId ?? throw new InvalidOperationException("The route didn't get the new upstream.");
         return new UpstreamConfig(id, name, Destinations: [new DestinationConfig(DestinationId.New(), address)]);
