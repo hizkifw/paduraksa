@@ -150,6 +150,12 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
                 $"{Key}:RingSize must be a power of two between {Proxy.Logging.AccessLogRing.MinimumCapacity} and {Proxy.Logging.AccessLogRing.MaximumCapacity}, was {size}.");
         }
 
+        if (accessLog.TailSize is < Proxy.Logging.AccessLogTail.MinimumCapacity or > Proxy.Logging.AccessLogTail.MaximumCapacity)
+        {
+            failures.Add(
+                $"{Key}:TailSize must be between {Proxy.Logging.AccessLogTail.MinimumCapacity} and {Proxy.Logging.AccessLogTail.MaximumCapacity}, was {accessLog.TailSize}.");
+        }
+
         // The list itself can't be null (it is created with the options and never replaced), so only its entries are checked.
         for (var i = 0; i < accessLog.SensitiveQueryKeys.Count; i++)
         {

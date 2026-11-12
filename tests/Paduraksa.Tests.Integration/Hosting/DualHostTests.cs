@@ -621,6 +621,8 @@ public sealed class DualHostTests(SharedHost shared) : IClassFixture<SharedHost>
     [InlineData("Paduraksa:Acme:TrustedRootsFile", "/no/such/roots.pem")]
     [InlineData("Paduraksa:AccessLog:RingSize", "1000")]
     [InlineData("Paduraksa:AccessLog:RingSize", "1024.5")]
+    [InlineData("Paduraksa:AccessLog:TailSize", "63")]
+    [InlineData("Paduraksa:AccessLog:TailSize", "65537")]
     [InlineData("Paduraksa:AccessLog:SensitiveQueryKeys", "with space")]
     public void InvalidOptionsFailBeforeAnythingIsBuilt(string key, string value)
     {

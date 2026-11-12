@@ -35,6 +35,7 @@ public sealed class ConfigurationListBindingTests
         var options = Load();
 
         Assert.Equal(Paduraksa.Proxy.Logging.AccessLogRing.DefaultCapacity, options.AccessLog.RingSize);
+        Assert.Equal(Paduraksa.Proxy.Logging.AccessLogTail.DefaultCapacity, options.AccessLog.TailSize);
         Assert.True(options.AccessLog.LogQueryString);
         Assert.Empty(options.AccessLog.SensitiveQueryKeys);
         Assert.Equal(

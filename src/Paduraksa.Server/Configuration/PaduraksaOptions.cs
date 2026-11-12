@@ -111,6 +111,14 @@ internal sealed class PaduraksaAccessLogOptions
     public int RingSize { get; set; } = Proxy.Logging.AccessLogRing.DefaultCapacity;
 
     /// <summary>
+    /// Entries the dashboard's live tail keeps (<c>Paduraksa:AccessLog:TailSize</c>): from 64 to 65 536, default 4 096. They are
+    /// copies, capped and redacted like the file's lines. An entry is typically a few hundred bytes to a KiB (2 to 4 MiB for a full
+    /// default buffer) and at most about 8 KiB with every field at its cap, so a full buffer is at worst about 32 MiB at the default
+    /// and about 512 MiB at 65 536. A request a host keeps out of the file is not in it either.
+    /// </summary>
+    public int TailSize { get; set; } = Proxy.Logging.AccessLogTail.DefaultCapacity;
+
+    /// <summary>
     /// Query parameters whose values never reach the log (<c>Paduraksa:AccessLog:SensitiveQueryKeys</c>, comma-separated or
     /// indexed): each is written as <c>name=REDACTED</c>. Empty or unset, the built-in list of well-known secret-carrying
     /// names applies; setting it replaces that list, so a deployment that needs the defaults too lists them.

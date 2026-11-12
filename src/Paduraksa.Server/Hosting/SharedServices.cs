@@ -344,8 +344,10 @@ internal sealed class SharedServices : IAsyncDisposable
             // one reader, and it writes the lines into access.log through the writer above. Built after the log files, so
             // the writers outlive the drain's last flush (they are disposed after the hosts have stopped).
             builder.Add(new AccessLogRing(options.AccessLog.RingSize));
-            builder.Add(options.AccessLog.ToFormatOptions());
+            var accessLogFormat = builder.Add(options.AccessLog.ToFormatOptions());
             builder.Add<IAccessLogSink>(new AccessLogFileSink(logFiles));
+            // The dashboard's live tail is fed by that same drain, after the file; it keeps copies redacted with the file's options.
+            builder.Add(new AccessLogTail(options.AccessLog.TailSize, accessLogFormat, snapshots));
 
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate and the
             // request simulator read the class.
