@@ -42,7 +42,7 @@ public sealed class PaduraksaMeter : IDisposable
         _meter.CreateObservableCounter("paduraksa.gate.outcomes", ObserveOutcomes, "{request}", "What the gate did with each request, by host: forwarded, answered itself, or refused by which kind of policy or limit.");
         _meter.CreateObservableCounter("paduraksa.response.size", ObserveBytes, "By", "Bytes of response bodies whose Content-Length is known, by host.");
         _meter.CreateObservableCounter("paduraksa.request.duration.sum", ObserveRequestSeconds, "s", "Total time spent on requests, by host. Divide its increase by the increase of paduraksa.requests for the mean.");
-        _meter.CreateObservableCounter("paduraksa.request.upstream_duration.sum", ObserveHostUpstreamSeconds, "s", "Total time spent forwarding and waiting for the upstream, by host; the difference to paduraksa.request.duration.sum is the proxy's own time.");
+        _meter.CreateObservableCounter("paduraksa.request.upstream.duration.sum", ObserveHostUpstreamSeconds, "s", "Total time spent forwarding and waiting for the upstream, by host; the difference to paduraksa.request.duration.sum is the proxy's own time.");
         _meter.CreateObservableCounter("paduraksa.route.requests", ObserveRouteRequests, "{request}", "Requests answered, by route and status class.");
         _meter.CreateObservableCounter("paduraksa.upstream.requests", ObserveUpstreamRequests, "{request}", "Requests the gate forwarded to the upstream.");
         _meter.CreateObservableCounter("paduraksa.upstream.errors", ObserveUpstreamErrors, "{error}", "Forwards that failed, by YARP's kind of error.");

@@ -226,7 +226,7 @@ Histogram buckets end at 2^e - 1 microseconds for e from 4 to 26 (`le="0.000015"
 
 **OpenTelemetry.** The same counters are `System.Diagnostics.Metrics` instruments on the meter `Paduraksa`
 (`paduraksa.requests`, `paduraksa.gate.outcomes`, `paduraksa.upstream.errors`, ...), read only when a listener asks. A latency is
-a sum (`paduraksa.request.duration.sum`, seconds); the buckets are the Prometheus endpoint's.
+a sum in seconds (`paduraksa.request.duration.sum`, and `paduraksa.request.upstream.duration.sum` for the upstream's share of it); the buckets are the Prometheus endpoint's.
 
 | Setting | Default | What |
 |---|---|---|

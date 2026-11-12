@@ -109,7 +109,6 @@ public static class PrometheusWriter
         {
             Histogram(output, "paduraksa_host_upstream_duration_seconds", [("host", rows[i].Name), ("host_id", rows[i].Id)], upstream[i], hostCounters[i][RequestMetric.UpstreamMicros]);
         }
-
     }
 
     private static void WriteRoutes(TextWriter output, MetricsRegistry registry, MetricInventory inventory)

@@ -106,6 +106,10 @@ public sealed class PaduraksaMeterTests
         Assert.Equal(1, Assert.Single(observed, o => o.Instrument == "paduraksa.upstream.requests" && o.Tags["upstream_id"] == upstream).Value);
         Assert.Equal(1, Assert.Single(observed, o => o.Instrument == "paduraksa.upstream.errors" && o.Tags["upstream_id"] == upstream && o.Tags["kind"] == "response_body_destination").Value);
         Assert.Equal(1, Assert.Single(observed, o => o.Instrument == "paduraksa.destination.errors" && o.Tags["destination_id"] == TestIds.Destination("web-d0").ToString()).Value);
+
+        // The sums read the same way for the host's and the upstream's share of the time (500 microseconds here).
+        Assert.Equal(0.0005, Assert.Single(observed, o => o.Instrument == "paduraksa.request.upstream.duration.sum" && o.Tags["host"] == "app.test").Value, 6);
+        Assert.Equal(0.0005, Assert.Single(observed, o => o.Instrument == "paduraksa.upstream.duration.sum" && o.Tags["upstream_id"] == upstream).Value, 6);
     }
 
     [Fact]
