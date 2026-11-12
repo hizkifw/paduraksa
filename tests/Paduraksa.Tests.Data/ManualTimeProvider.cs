@@ -8,7 +8,19 @@ internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
 {
     private readonly List<ManualTimer> _timers = [];
 
-    public DateTimeOffset Now { get; set; } = now;
+    private DateTimeOffset _now = now;
+    private long _timestamp = now.UtcTicks;
+
+    /// <summary>The wall clock. Setting it forward moves the monotonic clock too (time passed); setting it back moves only the wall clock, as a correction would.</summary>
+    public DateTimeOffset Now
+    {
+        get => _now;
+        set
+        {
+            _timestamp += Math.Max(0, (value - _now).Ticks);
+            _now = value;
+        }
+    }
 
     /// <summary>How many timers are armed (not disposed, not fired and without a period).</summary>
     public int ArmedTimers
@@ -22,7 +34,11 @@ internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
         }
     }
 
-    public override DateTimeOffset GetUtcNow() => Now;
+    public override DateTimeOffset GetUtcNow() => _now;
+
+    public override long GetTimestamp() => _timestamp;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
@@ -39,13 +55,13 @@ internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
     /// <summary>Moves the clock forward and fires every timer that came due, earliest first.</summary>
     public void Advance(TimeSpan by)
     {
-        Now += by;
+        Now = _now + by;
         while (true)
         {
             ManualTimer[] due;
             lock (_timers)
             {
-                due = [.. _timers.Where(t => t.IsDue(Now)).OrderBy(t => t.DueAt)];
+                due = [.. _timers.Where(t => t.IsDue(_timestamp)).OrderBy(t => t.DueAt)];
             }
 
             if (due.Length == 0)
@@ -62,25 +78,26 @@ internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
 
     private sealed class ManualTimer(ManualTimeProvider owner, TimerCallback callback, object? state) : ITimer
     {
-        private DateTimeOffset? _dueAt;
+        // Timers run on the monotonic clock, as real ones do: a wall clock stepped back doesn't postpone them.
+        private long? _dueAt;
         private TimeSpan _period = Timeout.InfiniteTimeSpan;
 
-        public DateTimeOffset? DueAt => _dueAt;
+        public long? DueAt => _dueAt;
 
         public bool IsArmed => _dueAt is not null;
 
-        public bool IsDue(DateTimeOffset now) => _dueAt is { } at && at <= now;
+        public bool IsDue(long timestamp) => _dueAt is { } at && at <= timestamp;
 
         public bool Change(TimeSpan dueTime, TimeSpan period)
         {
-            _dueAt = dueTime == Timeout.InfiniteTimeSpan ? null : owner.Now + dueTime;
+            _dueAt = dueTime == Timeout.InfiniteTimeSpan ? null : owner._timestamp + dueTime.Ticks;
             _period = period;
             return true;
         }
 
         public void Fire()
         {
-            _dueAt = _period == Timeout.InfiniteTimeSpan || _period == TimeSpan.Zero ? null : owner.Now + _period;
+            _dueAt = _period == Timeout.InfiniteTimeSpan || _period == TimeSpan.Zero ? null : owner._timestamp + _period.Ticks;
             callback(state);
         }
 

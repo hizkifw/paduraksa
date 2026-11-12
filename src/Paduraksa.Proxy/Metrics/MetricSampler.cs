@@ -38,7 +38,9 @@ public sealed class MetricSampler
     private readonly long[] _sumTotal = new long[LatencyBuckets.Stride];
     private readonly long[] _sumUpstream = new long[LatencyBuckets.Stride];
     private readonly MetricHistory _history = new();
+    private readonly List<MetricSeries> _observed = [];
     private long _lastMillis;
+    private long _lastStamp;
     private long _lastMinute = -1;
 
     public MetricSampler(MetricsRegistry registry, TimeProvider time, MetricRollupBacklog rollups)
@@ -51,11 +53,13 @@ public sealed class MetricSampler
         Rollups = rollups;
         // The registry has counted since it was made: the first tick covers the time since the sampler was.
         _lastMillis = time.GetUtcNow().ToUnixTimeMilliseconds();
+        _lastStamp = time.GetTimestamp();
     }
 
     /// <summary>
-    /// A longer gap between two ticks (a suspended process, a stall) is not interpolated across: the gain is filed where the tick
-    /// landed and the gap is not counted as observed. It is also what keeps a tick's interval within one boundary.
+    /// A gap between two ticks longer than this in which nothing was counted is an outage or a suspension, and is not counted as observed.
+    /// One in which requests were counted means the process was running and serving and only the sampler was late: it is spread over
+    /// the whole gap like any tick (up to the ring's hour).
     /// </summary>
     public static readonly TimeSpan MaxTickGap = TimeSpan.FromSeconds(5);
 
@@ -66,25 +70,32 @@ public sealed class MetricSampler
     public static int RingSeconds => MetricSeries.RingPoints * MetricSeries.BucketSeconds;
 
     /// <summary>
-    /// Reads the registry once and files what it gained since the last call over the time since then, split in proportion where the
-    /// interval crosses a ten-second or a minute boundary and with the counts kept whole. One thread at a time. The time it files under never
-    /// goes back: a wall clock stepped backwards (an NTP correction) keeps the last instant, so a bucket or a minute already
-    /// closed is never opened again and a minute is never written twice.
+    /// Reads the registry once and files what it gained since the last call over the time it was observed, split in proportion where
+    /// the interval crosses a ten-second or a minute boundary and with the counts kept whole. One thread at a time.
+    /// <para>The length of the interval, and so the coverage, is monotonic time (<see cref="TimeProvider.GetTimestamp"/>); the wall
+    /// clock only says which bucket and minute a moment is in. It never goes back: a wall clock stepped backwards (an NTP
+    /// correction) leaves the labels running on at the monotonic rate until it catches up, so a bucket or a minute already closed is
+    /// never opened again, a minute is never written twice, and each real second is counted once.</para>
     /// </summary>
     public void Tick()
     {
-        var now = Math.Max(_time.GetUtcNow().ToUnixTimeMilliseconds(), _lastMillis);
-        var split = TickSplit.Of(_lastMillis, now, now - _lastMillis <= MaxTickGap.TotalMilliseconds, MetricSeries.BucketSeconds * 1000L);
-        _lastMillis = now;
-        if (now / 60_000 != _lastMinute)
+        var wall = _time.GetUtcNow().ToUnixTimeMilliseconds();
+        var stamp = _time.GetTimestamp();
+        var elapsed = Math.Max(0L, (long)_time.GetElapsedTime(_lastStamp, stamp).TotalMilliseconds);
+        _lastStamp = stamp;
+        var end = wall >= _lastMillis ? wall : _lastMillis + elapsed;
+        var start = Math.Max(_lastMillis, end - elapsed);
+        _lastMillis = end;
+        if (end / 60_000 != _lastMinute)
         {
-            _lastMinute = now / 60_000;
-            _history.Trim((now / 1000) - RingSeconds - 60);
+            _lastMinute = end / 60_000;
+            _history.Trim((end / 1000) - RingSeconds - 60);
         }
 
         Array.Clear(_sumCounters);
         Array.Clear(_sumTotal);
         Array.Clear(_sumUpstream);
+        _observed.Clear();
 
         for (var slot = 0; slot < _registry.Hosts.HighWater; slot++)
         {
@@ -93,7 +104,8 @@ public sealed class MetricSampler
                 continue;
             }
 
-            series.Sample(split, _counters, _totalHistogram, _upstreamHistogram, Rollups);
+            series.Sample(_counters, _totalHistogram, _upstreamHistogram);
+            _observed.Add(series);
 
             // The totals are the sum of the hosts' gains, not a read of their own: a host that is deleted keeps what it already counted.
             Add(_sumCounters, series.DeltaCounters);
@@ -101,15 +113,26 @@ public sealed class MetricSampler
             Add(_sumUpstream, series.DeltaUpstream);
         }
 
-        _total.Absorb(split, _sumCounters, _sumTotal, _sumUpstream, Rollups);
-
         for (var slot = 0; slot < _registry.Upstreams.HighWater; slot++)
         {
             if (Observe(_upstreams, MetricRollupSubject.Upstream, MetricSubject.Upstream, _registry.Upstreams, slot) is { } series)
             {
-                series.Sample(split, _counters, _totalHistogram, _upstreamHistogram, Rollups);
+                series.Sample(_counters, _totalHistogram, _upstreamHistogram);
+                _observed.Add(series);
             }
         }
+
+        // A long gap with nothing counted in it is time nobody observed; one with requests in it was lived through.
+        var gained = _sumCounters.AsSpan().ContainsAnyExcept(0L);
+        var split = elapsed > MaxTickGap.TotalMilliseconds && !gained
+            ? TickSplit.None(end, MetricSeries.BucketSeconds * 1000L)
+            : TickSplit.Of(Math.Max(start, end - (RingSeconds * 1000L)), end, MetricSeries.BucketSeconds * 1000L);
+        foreach (var series in _observed)
+        {
+            series.Absorb(split, Rollups);
+        }
+
+        _total.Absorb(split, _sumCounters, _sumTotal, _sumUpstream, Rollups);
     }
 
     /// <summary>

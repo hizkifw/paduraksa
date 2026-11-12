@@ -95,6 +95,26 @@ public sealed class TrafficOverviewTests
     }
 
     [Fact]
+    public async Task AStallInWhichRequestsWereServedIsNotAGapInEitherChart()
+    {
+        await using Rig rig = new();
+        var context = rig.SignIn();
+        rig.Publish();
+        rig.TickEverySecondTo(5);
+        rig.Record(App, 300, status: 200, micros: 2_000);
+        // The sampler is silent for 25 s, but the proxy answered 300 requests in it: the server was running.
+        rig.TickAt(30);
+        rig.TickEverySecondTo(60);
+
+        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+
+        Assert.Single(page.FindAll("[data-chart=requests] polyline.pdk-chart-a"));
+        Assert.Empty(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
+        Assert.DoesNotContain(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"), title => title.TextContent.Contains("No data", StringComparison.Ordinal));
+        Assert.Single(page.FindAll("[data-chart=latency] polyline.pdk-chart-b"));
+    }
+
+    [Fact]
     public async Task AQuietStretchTheServerWasUpForKeepsOneLineAtZeroAndAnEmptyLatencyLine()
     {
         await using Rig rig = new();
@@ -271,6 +291,7 @@ public sealed class TrafficOverviewTests
 
         public override DateTimeOffset GetUtcNow() => Now;
 
+        // The test only moves time forward, so the wall clock is also the monotonic one.
         public override long GetTimestamp() => Now.UtcTicks;
 
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;

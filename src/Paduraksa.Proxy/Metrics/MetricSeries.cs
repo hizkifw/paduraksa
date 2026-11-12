@@ -179,14 +179,16 @@ internal sealed class MetricSeries
 
     public ReadOnlySpan<long> DeltaUpstream => _deltaUpstream;
 
-    /// <summary>Diffs the cumulative values the sampler read against the ones before and files the gain over the interval the tick covered.</summary>
-    public void Sample(in TickSplit split, ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream, MetricRollupBacklog rollups)
+    /// <summary>Diffs the cumulative values the sampler read against the ones before; the gain is then in <see cref="DeltaCounters"/> and the others, to be filed by Absorb.</summary>
+    public void Sample(ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream)
     {
         Diff(counters, _previousCounters, _deltaCounters);
         Diff(total, _previousTotal, _deltaTotal);
         Diff(upstream, _previousUpstream, _deltaUpstream);
-        Absorb(split, _deltaCounters, _deltaTotal, _deltaUpstream, rollups);
     }
+
+    /// <summary>Files what <see cref="Sample"/> found over the interval the tick observed.</summary>
+    public void Absorb(in TickSplit split, MetricRollupBacklog rollups) => Absorb(split, _deltaCounters, _deltaTotal, _deltaUpstream, rollups);
 
     /// <summary>
     /// Files a gain over the interval <paramref name="split"/> describes: each bucket the interval touches gets its share, and the

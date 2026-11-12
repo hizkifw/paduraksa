@@ -10,14 +10,36 @@ public sealed class MetricSamplerTests
     private static readonly Guid HostC = new("00000000-0000-7000-8000-00000000000c");
     private static readonly Guid UpstreamA = new("00000000-0000-7000-8000-0000000000b1");
 
-    /// <summary>A clock the test moves: the sampler reads the date, the registry's grace period the monotonic timestamp.</summary>
+    /// <summary>
+    /// A clock the test moves: the sampler reads the date for labels and the monotonic timestamp for how long it observed. The two move
+    /// together unless a test steps the wall clock alone.
+    /// </summary>
     private sealed class ManualClock(DateTimeOffset start) : TimeProvider
     {
-        public DateTimeOffset Now { get; set; } = start;
+        private long _timestamp = start.UtcTicks;
+
+        public DateTimeOffset Now { get; private set; } = start;
+
+        /// <summary>Both clocks move forward by <paramref name="by"/>.</summary>
+        public void Advance(TimeSpan by)
+        {
+            Now += by;
+            _timestamp += by.Ticks;
+        }
+
+        /// <summary>Moves the wall clock to <paramref name="to"/>; the monotonic clock moves forward by the difference if there is one, and stays put when the wall clock goes back.</summary>
+        public void MoveTo(DateTimeOffset to)
+        {
+            _timestamp += Math.Max(0, (to - Now).Ticks);
+            Now = to;
+        }
+
+        /// <summary>Steps only the wall clock, as an NTP correction does.</summary>
+        public void StepWall(DateTimeOffset to) => Now = to;
 
         public override DateTimeOffset GetUtcNow() => Now;
 
-        public override long GetTimestamp() => Now.UtcTicks;
+        public override long GetTimestamp() => _timestamp;
 
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
     }
@@ -62,7 +84,7 @@ public sealed class MetricSamplerTests
         /// <summary>Moves the clock to <paramref name="seconds"/> after the start and samples.</summary>
         public void TickAt(double seconds)
         {
-            Clock.Now = Start.AddSeconds(seconds);
+            Clock.MoveTo(Start.AddSeconds(seconds));
             Sampler.Tick();
             _last = (int)Math.Floor(seconds);
         }
@@ -249,11 +271,11 @@ public sealed class MetricSamplerTests
         rig.TickAt(30);
         Assert.NotEqual(first, rig.Host(HostC));
 
-        rig.Clock.Now = Start.AddSeconds(70);
+        rig.TickEverySecondTo(72);
         var second = rig.Host(HostB);
         Assert.Equal(first.Index, second.Index);
         rig.Request(second, 500);
-        rig.Sampler.Tick();
+        rig.TickAt(73);
 
         var minutes = rig.Queue.Drain();
         var gone = Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Host && m.SubjectId == HostId.FromValue(HostA).ToString());
@@ -326,36 +348,40 @@ public sealed class MetricSamplerTests
     }
 
     [Fact]
-    public void AWallClockStepBackwardsNeverClosesAMinuteTwiceOrAddsAnEarlierRow()
+    public void AWallClockStepBackwardsNeverReopensAMinuteAndEveryRealSecondIsCountedOnce()
     {
         Rig rig = new();
         var host = rig.Host(HostA);
-        rig.Request(host);
-        rig.TickAt(5);
-        rig.Request(host);
-        rig.TickAt(65);
-        rig.Request(host);
-        rig.TickAt(125);
-        Assert.Equal(2, rig.Queue.Drain().Count(m => m.Subject == MetricRollupSubject.Host));
+        for (var second = 1; second <= 55; second++)
+        {
+            rig.Request(host);
+            rig.TickAt(second);
+        }
 
-        // NTP puts the clock back two minutes: ticks go on at the second the sampler had last reached.
-        rig.Request(host);
-        rig.TickAt(20);
-        rig.Request(host);
-        rig.TickAt(30);
-        Assert.Equal(0, rig.Queue.Count);
+        // NTP puts the wall clock back 100 s; real time goes on at a second a tick. The labels run on from where they were.
+        rig.Clock.StepWall(Start.AddSeconds(-45));
+        for (var second = 56; second <= 70; second++)
+        {
+            rig.Request(host);
+            rig.Clock.Advance(TimeSpan.FromSeconds(1));
+            rig.Sampler.Tick();
+        }
 
-        rig.Request(host);
-        rig.TickAt(185);
+        var closed = Assert.Single(rig.Queue.Drain(), m => m.Subject == MetricRollupSubject.Host);
+        Assert.Equal(Start.ToUnixTimeSeconds(), closed.Point.Start);
+        Assert.Equal(60, closed.Point.Requests);
+        Assert.Equal(60, closed.Point.CoveredSeconds);
+        Assert.Equal(1, closed.Point.RequestsPerSecond);
 
-        var minutes = rig.Queue.Drain().Where(m => m.Subject == MetricRollupSubject.Host).ToArray();
-        var minute = Assert.Single(minutes);
-        // The minute that was open when the clock stepped back, with what was counted while it was "in the past".
-        Assert.Equal(Start.ToUnixTimeSeconds() + 120, minute.Point.Start);
-        Assert.Equal(3, minute.Point.Requests);
-        var points = rig.Sampler.Read(MetricRollupSubject.Host, HostA)!.Value.Points;
-        Assert.Equal(points.OrderBy(p => p.Start).Select(p => p.Start), points.Select(p => p.Start));
-        Assert.Equal(points.Length, points.Select(p => p.Start).Distinct().Count());
+        rig.Sampler.Flush();
+
+        var rest = Assert.Single(rig.Queue.Drain(), m => m.Subject == MetricRollupSubject.Host);
+        Assert.Equal(Start.ToUnixTimeSeconds() + 60, rest.Point.Start);
+        Assert.Equal(10, rest.Point.Requests);
+        Assert.Equal(10, rest.Point.CoveredSeconds);
+        var starts = rig.Sampler.Read(MetricRollupSubject.Host, HostA)!.Value.Points.Select(p => p.Start).ToArray();
+        Assert.Equal(starts.Order(), starts);
+        Assert.Equal(starts.Length, starts.Distinct().Count());
     }
 
     [Fact]
@@ -370,13 +396,13 @@ public sealed class MetricSamplerTests
 
         rig.TickAt(5);
         rig.Registry.Publish(new MetricRegistrations());
-        rig.Clock.Now = Start.AddSeconds(70);
+        rig.TickEverySecondTo(72);
         var second = rig.Host(HostB);
         Assert.Equal(first.Index, second.Index);
 
         // The rent cleared the counters (50 -> 0): the drop must not be read as a gain, nor the old 50 as the new owner's.
         rig.Request(second);
-        rig.Sampler.Tick();
+        rig.TickAt(73);
 
         var view = rig.Sampler.Read(MetricRollupSubject.Host, HostB)!.Value;
         Assert.Equal(1, view.Open.Requests);
@@ -429,15 +455,11 @@ public sealed class MetricSamplerTests
     }
 
     [Fact]
-    public void AStallOfOverFiveSecondsIsNotInterpolatedAcrossAndShowsAsBucketsNobodyObserved()
+    public void AGapOfOverFiveSecondsWithNothingCountedInItIsNotObservedAndShowsAsBucketsNobodyObserved()
     {
         Rig rig = new();
-        var host = rig.Host(HostA);
+        _ = rig.Host(HostA);
         rig.TickEverySecondTo(8);
-        for (var i = 0; i < 20; i++)
-        {
-            rig.Request(host);
-        }
 
         rig.TickAt(41);
 
@@ -445,10 +467,32 @@ public sealed class MetricSamplerTests
         Assert.Equal([8, 0, 0, 0], view.Points.Select(p => p.CoveredSeconds));
         Assert.Equal(Start.ToUnixTimeSeconds() + 30, view.Points[3].Start);
         Assert.Equal(Start.ToUnixTimeSeconds() + 40, view.Open.Start);
-        // The stall's gain is filed where the tick landed; the seconds it took are not claimed.
-        Assert.Equal(20, view.Open.Requests);
         Assert.Equal(0, view.Open.CoveredSeconds);
         Assert.All(view.Points, point => Assert.Equal(0, point.Requests));
+    }
+
+    [Fact]
+    public void AStallInWhichRequestsWereServedIsObservedAndItsGainIsSpreadOverTheWholeGap()
+    {
+        Rig rig = new();
+        var host = rig.Host(HostA);
+        rig.TickEverySecondTo(5);
+        for (var i = 0; i < 300; i++)
+        {
+            rig.Request(host);
+        }
+
+        // The sampler was 25 s late (thread pool starvation); the requests were answered all along.
+        rig.TickAt(30);
+
+        var view = rig.Sampler.Read(MetricRollupSubject.Total, Guid.Empty)!.Value;
+        Assert.Equal([10, 10, 10], view.Points.Select(p => p.CoveredSeconds));
+        Assert.Equal([60, 120, 120], view.Points.Select(p => p.Requests));
+        rig.TickEverySecondTo(65);
+        var minute = Assert.Single(rig.Queue.Drain(), m => m.Subject == MetricRollupSubject.Total);
+        Assert.Equal(60, minute.Point.CoveredSeconds);
+        Assert.Equal(300, minute.Point.Requests);
+        Assert.Equal(5, minute.Point.RequestsPerSecond);
     }
 
     [Fact]
@@ -604,7 +648,7 @@ public sealed class MetricSamplerTests
         rig.TickEverySecondTo(44);
         rig.Request(host);
         rig.Request(host);
-        rig.Clock.Now = Start.AddSeconds(45.4);
+        rig.Clock.MoveTo(Start.AddSeconds(45.4));
 
         rig.Sampler.Flush();
 

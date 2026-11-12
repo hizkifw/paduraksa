@@ -94,6 +94,13 @@ internal sealed class MetricProcess
         }
     }
 
+    /// <summary>The clock jumps by <paramref name="span"/> in one step, so the sampler's next tick is that late: a stall with the process still up.</summary>
+    public async Task StallAsync(TimeSpan span)
+    {
+        _clock.Advance(span);
+        await SettledAsync();
+    }
+
     public Task RunForAsync(TimeSpan span) => RunUntilAsync(_clock.Now + span);
 
     private async Task SettledAsync()

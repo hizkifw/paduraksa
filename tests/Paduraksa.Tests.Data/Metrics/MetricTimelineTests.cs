@@ -221,6 +221,60 @@ public sealed class MetricTimelineTests
     }
 
     [Fact]
+    public async Task AStallWithRequestsServedIsCoveredInTheApiAndItsRateIsOverTheWholeMinute()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        ManualTimeProvider clock = new(Noon);
+        MetricProcess process = new(database, clock);
+        await process.StartAsync();
+        var host = process.Host(HostA);
+        await process.RunForAsync(TimeSpan.FromSeconds(5));
+        process.Request(host, 300);
+
+        // The sampler is 25 s late while the proxy answers: the gap is not downtime.
+        await process.StallAsync(TimeSpan.FromSeconds(25));
+        await process.RunUntilAsync(Noon.AddMinutes(2));
+
+        var hour = (await process.OverviewAsync(MetricsRange.Hour)).Series;
+        Assert.All(hour, point => Assert.True(point.CoveredSeconds > 0));
+        // Five seconds before the stall and the first five of it share a bucket; the other twenty fill two more.
+        Assert.Equal([10, 10, 10], hour.Take(3).Select(point => point.CoveredSeconds));
+        Assert.Equal(300, hour.Sum(point => point.RequestsPerSecond * point.CoveredSeconds), 6);
+
+        await process.StopAsync();
+        var day = (await process.OverviewAsync(MetricsRange.Day)).Series;
+        var step = Assert.Single(day);
+        Assert.Equal(120, step.CoveredSeconds);
+        Assert.Equal(2.5, step.RequestsPerSecond, 6);
+    }
+
+    [Fact]
+    public async Task AWallClockStepBackwardsDoesNotDoubleACountedSecondNorItsRate()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        ManualTimeProvider clock = new(Noon);
+        MetricProcess process = new(database, clock);
+        await process.StartAsync();
+        var host = process.Host(HostA);
+        await process.RunForAsync(TimeSpan.FromSeconds(30));
+        process.Request(host, 100);
+        await process.RunForAsync(TimeSpan.FromSeconds(10));
+
+        // NTP puts the wall clock back two minutes; the server goes on for another two minutes of real time.
+        clock.Now = Noon.AddSeconds(40 - 120);
+        process.Request(host, 100);
+        await process.RunForAsync(TimeSpan.FromMinutes(2));
+        await process.StopAsync();
+
+        var rows = await database.QueryAsync("SELECT \"Minute\", \"CoveredSeconds\", \"Requests\" FROM \"MetricRollups\" WHERE \"Subject\" = 0 ORDER BY \"Minute\"");
+        // 40 s + 120 s of real time, once each: the labels went on from 12:00:40, so they ran through 12:02:40 and never revisited a minute.
+        Assert.Equal(160L, rows.Sum(row => (long)row[1]!));
+        Assert.Equal(200L, rows.Sum(row => (long)row[2]!));
+        Assert.All(rows, row => Assert.InRange((long)row[1]!, 1, 60));
+        Assert.Equal(rows.Count, rows.Select(row => (long)row[0]!).Distinct().Count());
+    }
+
+    [Fact]
     public async Task TheBootMinutesFirstHalfIsInTheChartEvenWhenTheNewRingStartsOnTheMinuteItself()
     {
         await using var database = await TestConfigDatabase.CreateAsync();

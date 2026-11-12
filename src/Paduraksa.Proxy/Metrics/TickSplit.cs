@@ -1,81 +1,71 @@
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
-/// How one sampler tick's interval divides over the one or two ten-second buckets it touches, and how its gain divides with it. A
-/// tick whose reading arrives a few milliseconds past a boundary, or a pause that makes it late, then files each window the share
-/// of the gain the window's part of the interval is worth, and the pieces add up to the gain exactly. Two pieces at most, because
-/// <see cref="MetricSampler.MaxTickGap"/> is shorter than a bucket.
+/// How the interval one sampler tick observed divides over the ten-second buckets it touches, and how the tick's gain divides with
+/// it. Usually the interval is a second and touches one bucket; a tick a few milliseconds past a boundary touches two; a late tick
+/// that was serving all along (a stall) touches as many as it was late for. Each bucket gets the share of the gain its part of the
+/// interval is worth, in whole counts, and the shares add up to the gain exactly.
 /// </summary>
 internal readonly struct TickSplit
 {
-    private readonly long _first;
-    private readonly long _second;
+    private readonly long _start;
+    private readonly long _end;
+    private readonly long _bucketMillis;
 
-    private TickSplit(int segments, long first, long second, long firstBucket, long endBucket)
+    private TickSplit(long start, long end, long bucketMillis)
     {
-        Segments = segments;
-        _first = first;
-        _second = second;
-        FirstBucket = firstBucket;
-        EndBucket = endBucket;
+        _start = start;
+        _end = end;
+        _bucketMillis = bucketMillis;
     }
 
-    /// <summary>How many buckets the interval touches: 1 or 2.</summary>
-    public int Segments { get; }
+    /// <summary>How many buckets the interval touches; 1 for an interval of no length.</summary>
+    public int Segments => _end <= _start ? 1 : (int)(((_end - 1) / _bucketMillis) - (_start / _bucketMillis)) + 1;
 
-    /// <summary>The bucket the first piece belongs to; the second, if any, is the next one.</summary>
-    public long FirstBucket { get; }
+    /// <summary>The bucket the first piece belongs to; the next piece is the bucket after it, and so on.</summary>
+    public long FirstBucket => (_end <= _start ? _end : _start) / _bucketMillis;
 
     /// <summary>The bucket the clock is in at the end of the interval: the one after the last piece's when the interval ended exactly on a boundary.</summary>
-    public long EndBucket { get; }
+    public long EndBucket => _end / _bucketMillis;
 
-    /// <summary>
-    /// The interval from <paramref name="fromMillis"/> to <paramref name="toMillis"/> cut at the bucket boundaries. An interval that
-    /// counts as unobserved (a stall or a clock that didn't move) is one piece of no length, in the bucket <paramref name="toMillis"/> is in.
-    /// </summary>
-    public static TickSplit Of(long fromMillis, long toMillis, bool observed, long bucketMillis)
-    {
-        if (!observed || toMillis <= fromMillis)
-        {
-            var current = toMillis / bucketMillis;
-            return new TickSplit(1, 0, 0, current, current);
-        }
+    /// <summary>The interval from <paramref name="startMillis"/> to <paramref name="endMillis"/>, all of it observed.</summary>
+    public static TickSplit Of(long startMillis, long endMillis, long bucketMillis) => new(startMillis, Math.Max(startMillis, endMillis), bucketMillis);
 
-        var firstBucket = fromMillis / bucketMillis;
-        var endBucket = toMillis / bucketMillis;
-        var lastBucket = (toMillis - 1) / bucketMillis;
-        if (lastBucket == firstBucket)
-        {
-            return new TickSplit(1, toMillis - fromMillis, 0, firstBucket, endBucket);
-        }
-
-        System.Diagnostics.Debug.Assert(lastBucket - firstBucket == 1, "A tick no longer than a bucket crosses one boundary at most.");
-        var boundary = lastBucket * bucketMillis;
-        return new TickSplit(2, boundary - fromMillis, toMillis - boundary, firstBucket, endBucket);
-    }
+    /// <summary>An interval of no length at <paramref name="atMillis"/>: nothing observed, and any gain goes into that moment's bucket.</summary>
+    public static TickSplit None(long atMillis, long bucketMillis) => new(atMillis, atMillis, bucketMillis);
 
     /// <summary>The milliseconds of the interval the piece observed.</summary>
-    public long Millis(int segment) => segment == 0 ? _first : _second;
+    public long Millis(int segment)
+    {
+        if (_end <= _start)
+        {
+            return 0;
+        }
+
+        var bucket = FirstBucket + segment;
+        return Math.Min(_end, (bucket + 1) * _bucketMillis) - Math.Max(_start, bucket * _bucketMillis);
+    }
 
     /// <summary>
-    /// The piece of <paramref name="gain"/> that goes with the piece: proportional to its length, in whole counts, the leftover count going
-    /// to the piece with the larger fractional part (the earlier one on a tie), so the pieces sum to <paramref name="gain"/> exactly. An
-    /// interval of no length has one piece that takes it all.
+    /// The piece of <paramref name="gain"/> that goes with the piece: the gain rounded to the nearest whole count at the end of the
+    /// piece, less the same at the end of the one before. The pieces therefore sum to <paramref name="gain"/> exactly and none is
+    /// off its proportional share by more than one count; a tick 4 ms late keeps its three requests in the bucket they happened in,
+    /// and an even split of an odd count gives the leftover to the earlier piece. An interval of no length has one piece that takes it all.
     /// </summary>
     public long Share(long gain, int segment)
     {
-        if (Segments == 1 || gain == 0)
+        if (_end <= _start || gain == 0)
         {
             return segment == 0 ? gain : 0;
         }
 
-        var length = _first + _second;
-        var firstExact = (Int128)gain * _first;
-        var secondExact = (Int128)gain * _second;
-        var firstFloor = (long)(firstExact / length);
-        var secondFloor = (long)(secondExact / length);
-        var leftover = gain - firstFloor - secondFloor;
-        var firstGetsIt = leftover > 0 && firstExact % length >= secondExact % length;
-        return segment == 0 ? firstFloor + (firstGetsIt ? leftover : 0) : secondFloor + (leftover > 0 && !firstGetsIt ? leftover : 0);
+        return Cumulative(gain, segment) - (segment == 0 ? 0 : Cumulative(gain, segment - 1));
+    }
+
+    private long Cumulative(long gain, int segment)
+    {
+        var length = _end - _start;
+        var through = Math.Min(_end, (FirstBucket + segment + 1) * _bucketMillis) - _start;
+        return (long)((((Int128)2 * gain * through) + length) / (2 * (Int128)length));
     }
 }
