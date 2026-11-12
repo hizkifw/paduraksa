@@ -5,6 +5,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Metrics;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Shared;
@@ -208,6 +209,35 @@ public sealed partial class PrometheusWriterTests
         Assert.Contains("# TYPE paduraksa_rate_limit_decisions_total counter", types);
         Assert.Contains("# TYPE paduraksa_request_duration_seconds histogram", types);
         Assert.Contains(lines, l => l.StartsWith("paduraksa_rate_limit_decisions_total{result=\"limited\"} ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheConnectionStageIsExposedByWhatItRefusedAndHowManyItCountsNow()
+    {
+        var (registry, snapshot) = Live(ProxyHost("a", "a.test", Route("a-root", "web")));
+        ConnectionRuntime runtime = new(new ConnectionTable(64));
+        var live = Compile(new ProxyConfigModel
+        {
+            Upstreams = [Upstream("web", "http://127.0.0.1:1/")],
+            AccessLists = [new AccessListSpec { Id = TestIds.AccessList("scanners"), Name = "scanners", Realm = "scanners", Deny = ["203.0.113.0/24"] }],
+            Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 1, DenyList = TestIds.AccessList("scanners") } },
+            Hosts = [ProxyHost("a", "a.test", Route("a-root", "web"))],
+        });
+        _ = runtime.Admit(live, IpKey.Parse("203.0.113.5"), ConnectionTransport.Tcp, out _);
+        _ = runtime.Admit(live, IpKey.Parse("203.0.113.6"), ConnectionTransport.Quic, out _);
+        _ = runtime.Admit(live, IpKey.Parse("198.51.100.1"), ConnectionTransport.Tcp, out _);
+        _ = runtime.Admit(live, IpKey.Parse("198.51.100.1"), ConnectionTransport.Tcp, out _);
+
+        var lines = Lines(Scrape(registry, snapshot, ProcessCounters.Create(new(), new(), new(), runtime.Stats)));
+
+        Assert.Contains("# TYPE paduraksa_connections_events_total counter", lines);
+        Assert.Contains("paduraksa_connections_events_total{event=\"refused_deny_list\"} 2", lines);
+        Assert.Contains("paduraksa_connections_events_total{event=\"refused_per_ip_limit\"} 1", lines);
+        Assert.Contains("paduraksa_connections_events_total{event=\"table_full\"} 0", lines);
+        Assert.Contains("# TYPE paduraksa_connections_counted gauge", lines);
+        Assert.Contains("paduraksa_connections_counted 1", lines);
+        // Without the stage's stats nothing of it is exposed.
+        Assert.DoesNotContain(Lines(Scrape(registry, snapshot, ProcessCounters.Create(new(), new(), new()))), l => l.Contains("paduraksa_connections", StringComparison.Ordinal));
     }
 
     [Fact]

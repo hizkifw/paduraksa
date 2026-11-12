@@ -7,6 +7,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
@@ -56,6 +57,40 @@ public sealed class SecurityOverviewServiceTests
         Assert.Equal(new(1, 1, 1, 1), overview.ProofOfWork.TokensRejected);
         Assert.Equal(new(3, 1), overview.RateLimit);
         Assert.Empty(overview.Hosts);
+    }
+
+    [Fact]
+    public void TheConnectionStageIsReadFromTheLiveSnapshotAndTheRuntime()
+    {
+        var connections = new ConnectionRuntime(new ConnectionTable(64));
+        var store = new SnapshotStore();
+        SecurityOverviewService service = new(store, new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), NewRuntime(), connections);
+
+        // Before anything is published: the bootstrap snapshot has no stage, and the card says so.
+        Assert.Equal(new ConnectionCounters(0, null, 0, 0, 0, 0), service.Read().Connections);
+
+        var scanners = new AccessListSpec { Id = Id<AccessListId>(5), Name = "scanners", Realm = "scanners", Deny = ["203.0.113.0/24", "198.51.100.0/24", "198.51.100.128/25"] };
+        var result = SnapshotCompiler.Compile(Model(Host(1, "a.test")) with
+        {
+            AccessLists = [scanners],
+            Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 2, DenyList = scanners.Id } },
+        });
+        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
+        var live = result.Snapshot!;
+        store.Publish(live.Bind(1, [.. live.RouteIdBySlot.Select(_ => new Endpoint(null, null, "route"))]));
+        _ = connections.Admit(live, IpKey.Parse("203.0.113.1"), ConnectionTransport.Tcp, out _);
+        _ = connections.Admit(live, IpKey.Parse("192.0.2.1"), ConnectionTransport.Tcp, out _);
+        _ = connections.Admit(live, IpKey.Parse("192.0.2.1"), ConnectionTransport.Tcp, out _);
+        _ = connections.Admit(live, IpKey.Parse("192.0.2.1"), ConnectionTransport.Quic, out _);
+
+        var overview = service.Read().Connections!;
+
+        Assert.Equal(2, overview.MaxPerIp);
+        Assert.Equal(new ConnectionDenyListRef(scanners.Id, "scanners", 2), overview.DenyList); // the two /24s' ranges, merged
+        Assert.Equal(1, overview.DenyListRefused);
+        Assert.Equal(1, overview.LimitRefused);
+        Assert.Equal(0, overview.Uncounted);
+        Assert.Equal(2, overview.Counted);
     }
 
     [Fact]
