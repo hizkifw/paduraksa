@@ -66,7 +66,13 @@ internal sealed class AdminApiHarness : IAsyncDisposable
         await host.StartAsync(ct);
         // The admin listener serves the process's local-CA certificate, so the harness trusts that root. It sends
         // cookies by hand (the CSRF tests set them explicitly), so the handler must not keep a jar of its own.
-        var client = TestHost.CreateAdminClient(host, static handler => handler.UseCookies = false);
+        var client = TestHost.CreateAdminClient(host, static handler =>
+        {
+            handler.UseCookies = false;
+            // For a request that holds its body back until the server has answered (SendAsync's expectContinue): the default wait of 1 s ends on a
+            // loaded runner before the answer, and the body then goes out anyway.
+            handler.Expect100ContinueTimeout = TimeSpan.FromSeconds(30);
+        });
         AdminApiHarness harness = new(host, client, TestHost.Endpoint(host, HostRole.Admin, "https"));
         await harness.CreateUsersAsync(ct);
         return harness;
@@ -130,12 +136,22 @@ internal sealed class AdminApiHarness : IAsyncDisposable
         return request;
     }
 
-    public async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? caller = "owner", string? ifMatch = null, HttpContent? content = null)
+    /// <summary>
+    /// A request to the API as <paramref name="caller"/>. <paramref name="expectContinue"/> holds the body back until the server has answered: needed
+    /// for a body the server refuses by its declared length, as it answers and closes and a client still writing sees a reset (a broken pipe) instead.
+    /// </summary>
+    public async Task<HttpResponseMessage> SendAsync(
+        HttpMethod method, string path, string? caller = "owner", string? ifMatch = null, HttpContent? content = null, bool expectContinue = false)
     {
         using var request = Request(method, path, caller);
         if (ifMatch is not null)
         {
             request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        }
+
+        if (expectContinue)
+        {
+            request.Headers.ExpectContinue = true;
         }
 
         request.Content = content;

@@ -110,7 +110,8 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     {
         var api = shared.Api;
 
-        using var tooLarge = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody($$"""{"version":0,"padding":"{{new string('x', 300 * 1024)}}"}"""));
+        using var tooLarge = await api.SendAsync(
+            HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody($$"""{"version":0,"padding":"{{new string('x', 300 * 1024)}}"}"""), expectContinue: true);
         using var unknown = await api.GetAsync("/api/v1/nothing-here");
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, tooLarge.StatusCode);
@@ -172,7 +173,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
         var api = shared.Api;
 
         var huge = $$"""{"version":0,"padding":"{{new string('x', 300 * 1024)}}"}""";
-        using var response = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody(huge));
+        using var response = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody(huge), expectContinue: true);
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         Assert.Equal(413, (await AdminApiHarness.ProblemAsync(response, Ct)).Status);
