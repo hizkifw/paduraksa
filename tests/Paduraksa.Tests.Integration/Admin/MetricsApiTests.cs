@@ -56,6 +56,15 @@ public sealed class MetricsApiTests(SharedAdminApi shared) : IClassFixture<Share
         Assert.Contains("# TYPE paduraksa_request_duration_seconds histogram\n", text, StringComparison.Ordinal);
         Assert.Contains("paduraksa_hosts ", text, StringComparison.Ordinal);
         Assert.Contains("paduraksa_rate_limit_decisions_total{result=\"allowed\"}", text, StringComparison.Ordinal);
+        // The notification outbox: its queue depth is a gauge, and its outcomes are counters by the kind of channel (never a channel's name).
+        Assert.Contains("# TYPE paduraksa_notification_queue_depth gauge\n", text, StringComparison.Ordinal);
+        Assert.Contains("paduraksa_notification_queue_depth 0\n", text, StringComparison.Ordinal);
+        foreach (var outcome in new[] { "sent", "failed", "expired", "dropped" })
+        {
+            Assert.Contains($"# TYPE paduraksa_notification_{outcome}_total counter\n", text, StringComparison.Ordinal);
+            Assert.Contains($"paduraksa_notification_{outcome}_total{{kind=\"webhook\"}} 0\n", text, StringComparison.Ordinal);
+        }
+
         // The API path is the same endpoint.
         using var viaApi = await api.GetAsync("/api/v1/metrics");
         Assert.Equal(HttpStatusCode.OK, viaApi.StatusCode);

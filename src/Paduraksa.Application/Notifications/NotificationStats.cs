@@ -55,3 +55,34 @@ public sealed class NotificationStats
         return k < 0 || o < 0 ? -1 : (k * Outcomes.Length) + o;
     }
 }
+
+/// <summary>The outbox's figures as process counters for <c>/metrics</c> and the OpenTelemetry meter: by channel kind, never by channel.</summary>
+public static class NotificationMetrics
+{
+    /// <summary>One counter family per outcome (<c>paduraksa.notification.sent</c>, <c>failed</c>, <c>expired</c>, <c>dropped</c>, each with a <c>kind</c> label), the queue depth as a gauge and the buffer's drops.</summary>
+    public static IReadOnlyList<Paduraksa.Proxy.Metrics.ProcessCounter> Counters(NotificationStats stats)
+    {
+        ArgumentNullException.ThrowIfNull(stats);
+        List<Paduraksa.Proxy.Metrics.ProcessCounter> counters = [];
+        foreach (var outcome in NotificationStats.EndedStates)
+        {
+            var name = "paduraksa.notification." + outcome.ToName();
+            var help = outcome switch
+            {
+                NotificationDeliveryState.Sent => "Notification deliveries the service accepted, by kind of channel.",
+                NotificationDeliveryState.Failed => "Notification deliveries given up on after their retries (or refused for good), by kind of channel.",
+                NotificationDeliveryState.Expired => "Notification deliveries not sent because their event was too old when the process started, by kind of channel.",
+                _ => "Notification deliveries not sent because their channel was deleted or paused, by kind of channel.",
+            };
+            foreach (var kind in NotificationStats.ChannelKinds)
+            {
+                var captured = (kind, outcome);
+                counters.Add(new(name, help, "kind", kind.ToName(), () => stats.Ended(captured.kind, captured.outcome)));
+            }
+        }
+
+        counters.Add(new("paduraksa.notification.queue_depth", "Notification deliveries waiting to be sent or retried.", null, null, () => stats.Pending, Gauge: true));
+        counters.Add(new("paduraksa.notification.buffer_dropped", "Notification events dropped because the in-memory buffer in front of the outbox was full.", null, null, () => stats.BufferDropped));
+        return counters;
+    }
+}

@@ -67,7 +67,14 @@ public sealed class PaduraksaMeter : IDisposable
         foreach (var (name, family) in families)
         {
             var counters = family.ToArray();
-            _meter.CreateObservableCounter(name, () => Observe(counters), "{event}", counters[0].Help);
+            if (counters[0].Gauge)
+            {
+                _meter.CreateObservableGauge(name, () => Observe(counters), "{item}", counters[0].Help);
+            }
+            else
+            {
+                _meter.CreateObservableCounter(name, () => Observe(counters), "{event}", counters[0].Help);
+            }
         }
     }
 

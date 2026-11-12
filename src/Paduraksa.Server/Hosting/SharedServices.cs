@@ -411,6 +411,7 @@ internal sealed class SharedServices : IAsyncDisposable
             var processCounters = builder.Add(new ProcessCounters(
             [
                 .. ProcessCounters.Create(rateLimits.Stats, proofOfWork.Stats, accessLists.Stats).All,
+                .. NotificationMetrics.Counters(configStore.NotificationStats),
                 new ProcessCounter("paduraksa.connection.errors", "Connection errors the logs leave out, by kind: peer_gone is a client that vanished mid-write.", "kind", "peer_gone", () => peerGone.Count),
             ]));
             builder.Add(new PaduraksaMeter(metrics, snapshots, processCounters));

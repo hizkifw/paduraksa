@@ -4,13 +4,14 @@ using Paduraksa.Proxy.RateLimiting;
 
 namespace Paduraksa.Proxy.Metrics;
 
-/// <summary>One process-lifetime counter that already exists, read where it lives and exposed as it is.</summary>
+/// <summary>One process-lifetime counter (or, with <paramref name="Gauge"/>, a current level) that already exists, read where it lives and exposed as it is.</summary>
 /// <param name="Name">The instrument name, dotted (<c>paduraksa.rate_limit.decisions</c>); the Prometheus name is the same with underscores and <c>_total</c>.</param>
 /// <param name="Help">One line for Prometheus <c>HELP</c> and the instrument description.</param>
 /// <param name="LabelName">The one label that tells the counters of a family apart, or null.</param>
 /// <param name="LabelValue">Its value for this counter.</param>
-/// <param name="Read">The current total.</param>
-public sealed record ProcessCounter(string Name, string Help, string? LabelName, string? LabelValue, Func<long> Read);
+/// <param name="Read">The current total (or level).</param>
+/// <param name="Gauge">A level that goes up and down (a queue's depth), exposed as a gauge without the counter's <c>_total</c>.</param>
+public sealed record ProcessCounter(string Name, string Help, string? LabelName, string? LabelValue, Func<long> Read, bool Gauge = false);
 
 /// <summary>
 /// The counters the security page already reads (the proof-of-work gate, the rate limiter, the access lists), offered to the exporters so nothing is counted twice: these are the process's totals, while the

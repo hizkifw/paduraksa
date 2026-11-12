@@ -211,6 +211,24 @@ public sealed partial class PrometheusWriterTests
     }
 
     [Fact]
+    public void AGaugeIsTypedAsOneAndHasNoTotalSuffix()
+    {
+        var (registry, snapshot) = Live(ProxyHost("a", "a.test", Route("a-root", "web")));
+        var process = new ProcessCounters(
+        [
+            new("paduraksa.queue.depth", "Waiting items.", null, null, () => 4, Gauge: true),
+            new("paduraksa.queue.ended", "Items that ended.", "kind", "a", () => 9),
+        ]);
+
+        var lines = Lines(Scrape(registry, snapshot, process));
+
+        Assert.Contains("# TYPE paduraksa_queue_depth gauge", lines);
+        Assert.Contains("paduraksa_queue_depth 4", lines);
+        Assert.Contains("# TYPE paduraksa_queue_ended_total counter", lines);
+        Assert.Contains("paduraksa_queue_ended_total{kind=\"a\"} 9", lines);
+    }
+
+    [Fact]
     public void OnlyWhatTheLiveSnapshotHoldsIsReported()
     {
         var (registry, snapshot) = Live(ProxyHost("a", "a.test", Route("a-root", "web")), ProxyHost("b", "b.test", Route("b-root", "web")));

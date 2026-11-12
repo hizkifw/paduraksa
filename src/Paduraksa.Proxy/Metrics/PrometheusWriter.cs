@@ -218,10 +218,10 @@ public static class PrometheusWriter
         string? family = null;
         foreach (var counter in process.All)
         {
-            var name = counter.Name.Replace('.', '_') + "_total";
+            var name = counter.Name.Replace('.', '_') + (counter.Gauge ? string.Empty : "_total");
             if (!string.Equals(family, name, StringComparison.Ordinal))
             {
-                Header(output, name, counter.Help, "counter");
+                Header(output, name, counter.Help, counter.Gauge ? "gauge" : "counter");
                 family = name;
             }
 

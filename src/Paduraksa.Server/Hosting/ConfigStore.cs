@@ -141,7 +141,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateExpiryMonitor>());
         builder.AddOwnedElsewhere(container.GetRequiredService<UpstreamHealthBoard>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationService>());
-        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups, analyticsRollups, events);
+        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups, analyticsRollups, events, container.GetRequiredService<NotificationStats>());
     }
 }
 
@@ -155,6 +155,7 @@ internal static class ConfigStore
 /// <param name="MetricRollups">The one-minute metric rollups' store.</param>
 /// <param name="AnalyticsRollups">The traffic analytics' rollup store.</param>
 /// <param name="Events">Where producers publish notification events.</param>
+/// <param name="NotificationStats">The notification outbox's figures, for <c>/metrics</c>.</param>
 internal sealed record ConfigStoreServices(
     IDbContextFactory<ConfigDbContext> Contexts,
     ConfigService Config,
@@ -164,4 +165,5 @@ internal sealed record ConfigStoreServices(
     IPermissionEvaluator Permissions,
     MetricRollupStore MetricRollups,
     AnalyticsRollupStore AnalyticsRollups,
-    INotificationEvents Events);
+    INotificationEvents Events,
+    NotificationStats NotificationStats);

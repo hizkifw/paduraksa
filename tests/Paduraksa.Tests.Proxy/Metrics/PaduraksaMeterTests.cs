@@ -122,6 +122,7 @@ public sealed class PaduraksaMeterTests
                 new("paduraksa.rate_limit.decisions", "Rate-limit decisions.", "result", "allowed", () => 7),
                 new("paduraksa.rate_limit.decisions", "Rate-limit decisions.", "result", "limited", () => 3),
                 new("paduraksa.lone", "A counter with no label.", null, null, () => 11),
+                new("paduraksa.depth", "A level.", null, null, () => 5, Gauge: true),
             ]));
 
         var observed = Collect(meter);
@@ -129,6 +130,7 @@ public sealed class PaduraksaMeterTests
         Assert.Equal(7, Assert.Single(observed, o => o.Instrument == "paduraksa.rate_limit.decisions" && o.Tags["result"] == "allowed").Value);
         Assert.Equal(3, Assert.Single(observed, o => o.Instrument == "paduraksa.rate_limit.decisions" && o.Tags["result"] == "limited").Value);
         Assert.Equal(11, Assert.Single(observed, o => o.Instrument == "paduraksa.lone").Value);
+        Assert.Equal(5, Assert.Single(observed, o => o.Instrument == "paduraksa.depth").Value);
     }
 
 

@@ -35,6 +35,29 @@ public sealed class NotificationWorkerTests : OutboxTestBase
     }
 
     [Fact]
+    public async Task TheCountersByChannelKindAndTheQueueDepthFollowTheDeliveries()
+    {
+        _ = await AddChannel(NotificationChannelKind.Webhook, true, NotificationEventKind.UpstreamDown);
+        NotificationStats stats = new();
+        var dispatcher = Dispatcher(stats: stats);
+        await dispatcher.StartAsync(Ct);
+        long Read(string name, string kind) => NotificationMetrics.Counters(stats).Single(c => c.Name == name && c.LabelValue == kind).Read();
+
+        dispatcher.Publish(Event());
+        await SettledAsync(() => dispatcher.Routed >= 1);
+        Assert.Equal(1, NotificationMetrics.Counters(stats).Single(c => c.Name == "paduraksa.notification.queue_depth").Read());
+
+        await AdvanceUntilAsync(() => Sender.Sent.Count >= 1, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
+        await SettledAsync(() => stats.Pending == 0);
+
+        Assert.Equal(1, Read("paduraksa.notification.sent", "webhook"));
+        Assert.Equal(0, Read("paduraksa.notification.sent", "ntfy"));
+        Assert.Equal(0, Read("paduraksa.notification.failed", "webhook"));
+        Assert.Equal(["ntfy", "gotify", "discord", "webhook", "email"], NotificationMetrics.Counters(stats).Where(c => c.Name == "paduraksa.notification.sent").Select(c => c.LabelValue));
+        Assert.True(NotificationMetrics.Counters(stats).Single(c => c.Name == "paduraksa.notification.queue_depth").Gauge);
+    }
+
+    [Fact]
     public async Task OnlyDueDeliveriesAreClaimedAndNothingIsSentTwice()
     {
         var channel = await AddChannel();
