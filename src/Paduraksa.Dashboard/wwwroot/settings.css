@@ -750,8 +750,12 @@
     overflow-wrap: anywhere;
 }
 
-.pdk-health-change {
-    font-variant-numeric: tabular-nums;
+/* The reason is part of the line: it wraps instead of being cut at the column's edge. */
+.pdk-dt-note.pdk-health-change {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
 }
 
 .pdk-health-panel {

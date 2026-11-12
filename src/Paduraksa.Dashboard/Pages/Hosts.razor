@@ -93,6 +93,12 @@ else
                             <span class="pdk-status-dot pdk-tone-@row.Health.Css()" title="@HealthText(row)" aria-hidden="true"></span>
                             <div class="pdk-dt-titles">
                                 <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)" @onclick:stopPropagation="true">@Primary(host)</a>
+                                @if (UpstreamProblem(row) is { } problem)
+                                {
+                                    <span class="pdk-dt-chips">
+                                        <StatusChip Tone="@HealthDisplay.ToneOf(problem.State)" Text="@(problem.State == UpstreamHealthState.Down ? "Upstream down" : "Upstream degraded")" Detail="@problem.Detail" Name="upstream-health" />
+                                    </span>
+                                }
                                 @if (host.Names.Count > 1 || host.Tags.Count > 0)
                                 {
                                     <span class="pdk-dt-chips">
@@ -146,10 +152,6 @@ else
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-status" data-label="Status" @onclick:stopPropagation="true">
                             <StatusChip Tone="@StatusTone(row)" Dot="true" Text="@StatusText(row)" Detail="@HealthText(row)" Name="status" />
-                            @if (UpstreamProblem(row) is { } problem)
-                            {
-                                <StatusChip Tone="@HealthDisplay.ToneOf(problem.State)" Text="@(problem.State == UpstreamHealthState.Down ? "Upstream down" : "Upstream degraded")" Detail="@problem.Detail" Name="upstream-health" />
-                            }
                             @if (_mayWrite && host.Kind != HostKind.Admin && host.Enabled)
                             {
                                 <MudTooltip Text="@(row.InMaintenance ? "End maintenance" : "Put in maintenance")" Placement="Placement.Bottom">
