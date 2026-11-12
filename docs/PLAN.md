@@ -2199,9 +2199,8 @@ a sign the shared piece is missing something.
   the choice (it follows focus, as native radios do, and wraps), and `paduraksa.js` keeps the page from scrolling on those keys.
   It is always one 40 px row beside a dense outlined field, the chosen segment raised; when the segments don't fit (a phone) it
   fills the width and wraps onto further rows rather than hiding options behind a scroll. Tests find it by
-  `[data-field=...] [data-value=...]` and read `aria-checked`. Radio lists whose choices need a sentence each (Global defaults'
-  unknown-host answer, import's merge or replace) and card pickers (a provider, a notification service) stay as they are: they
-  are choices with explanations, not segments. A segment with a zero count is muted, or left out when it is a filter.
+  `[data-field=...] [data-value=...]` and read `aria-checked`. A choice whose options need a sentence each is not a segment: it is
+  `ChoiceCards` (below). A segment with a zero count is muted, or left out when it is a filter.
 - **Page header:** the title (h1) and the actions share one centre line in a row at least 40 px tall, so a title sits at the same
   height on every page; a lead, only where it says something the page doesn't, sits under the row.
 - **Headings:** a card's title is h6 (`Typo.h6`); a card under a section heading, on a page that has several (Analytics), is
@@ -2210,8 +2209,23 @@ a sign the shared piece is missing something.
   the fields in one wrapping grid; every field is dense outlined and floats its label (give it a placeholder).
 - **Heights and sizes:** dense outlined fields and the segmented control are 40 px; icon buttons are 36 px (`Size.Small`, never
   `Medium`) and carry a tooltip or `aria-label`; a drawer's header is at least 80 px whether or not it has a subtitle.
-- **Buttons:** one filled primary action per view (the page header's; an empty state offers the same action again where the eye is),
-  outlined for a secondary action that stands alone, text for the rest, destructive actions in the error colour.
+- **Buttons:** one filled primary action per view, outlined for a secondary action that stands alone, text for the rest, destructive
+  actions in the error colour. **A list page shows its primary action once:** while the list is empty the empty state carries it (the
+  same size as the header's, `Size.Small` only inside a compact card) and the page header hides its own (`PageHeader.ListEmpty`); once
+  the list has items the header has it. Both placements keep the one `data-action` hook (and any class a test uses), so a test clicks the
+  same selector either way. An empty state that offers a different, secondary action (History's "Add an upstream") is outlined.
+- **Labels:** every outlined text, numeric, select and autocomplete field floats its label on the border, empty or not, so forms never
+  mix floated and resting labels and a row lines up. MudBlazor floats it only for a field with a value or a placeholder and has no
+  global default for `ShrinkLabel` (nor a theme or cascading option), so `app.css` applies MudBlazor's own shrink rules (the label's
+  transform, the border's notch) to every outlined field, with no call site setting anything. A field with a placeholder shows it
+  (give a field one where an example helps); the label never covers it. The dense toolbar and filter fields are unchanged in height.
+  `FormLabelsEndToEndTests` holds an empty and a filled field's label to one position.
+- **Choices with explanations** (`ChoiceCards<T>`, options are `ChoiceOption<T>`: title, one line of help, optional icon): Import's merge
+  or replace, Global defaults' unknown-host answer and client addresses, the ACME challenge, the DNS provider and the notification
+  service. One look: cards in a wrapping grid (at least 190 px each), the title and its help under it, the icon level with the title,
+  the chosen card outlined and tinted in the primary colour; a radiogroup with the segmented control's keyboard behaviour. There is no
+  MudRadio list in the dashboard. The help sits on the option, so the setting's own help line does not say it again. Tests find a card by
+  `[data-field=...] [data-value=...]`.
 - **Text a person copies** is `CopyableCode`: the text in one box with the copy control inside its top-right corner, so all such
   values share one left and right edge. `SecretValue` (shown once) wraps it with a dashed, tinted box; the MCP snippets, the
   local CA fingerprint, the TOTP key and the restore command use it too. Recovery codes keep their Copy and Download pair.
