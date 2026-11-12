@@ -6,7 +6,7 @@
 <div class="pdk-form-stack" data-form="notification-channel">
     @if (Channel is null)
     {
-        <ChoiceCards T="NotificationChannelKind" Options="KindChoices" Value="_kind" ValueChanged="@(kind => _kind = kind)" AriaLabel="Service" DataField="service" Disabled="_busy" />
+        <ChoiceCards T="NotificationChannelKind" Options="KindChoices" Value="_kind" ValueChanged="ChooseKind" AriaLabel="Service" DataField="service" Disabled="_busy" />
     }
 
     <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="NotificationService.MaxLabelLength"
@@ -128,7 +128,20 @@
     private NotificationChannelKind _kind = NotificationChannelKind.Ntfy;
     private string? _label;
     private bool _enabled = true;
-    private string? _serverUrl = "https://ntfy.sh";
+    private const string NtfyDefaultServer = "https://ntfy.sh";
+    private string? _serverUrl = NtfyDefaultServer;
+
+    // ntfy's public server is a sensible default only for ntfy: switching service must not carry it into Gotify's field,
+    // while a server the person typed is theirs and stays.
+    private void ChooseKind(NotificationChannelKind kind)
+    {
+        var untouched = string.IsNullOrWhiteSpace(_serverUrl) || _serverUrl == NtfyDefaultServer;
+        _kind = kind;
+        if (untouched)
+        {
+            _serverUrl = kind == NotificationChannelKind.Ntfy ? NtfyDefaultServer : null;
+        }
+    }
     private string? _topic;
     private string? _smtpHost;
     private int? _smtpPort = 587;

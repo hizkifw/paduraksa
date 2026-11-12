@@ -38,6 +38,24 @@ public sealed class NotificationFormTests
     }
 
     [Fact]
+    public async Task NtfysPublicServerIsOnlyNtfysDefaultAndATypedServerStays()
+    {
+        await using DashboardTestContext context = new();
+        var form = context.Render<NotificationForm>(p => p.Add(f => f.Submit, _ => Task.FromResult<NotificationChannelResult?>(null)));
+        string? Server() => form.Find("[data-field=server-url]").GetAttribute("value");
+
+        Assert.Equal("https://ntfy.sh", Server());
+        form.Find("[data-field=service] [data-value=gotify]").Click();
+        Assert.True(string.IsNullOrEmpty(Server()));
+        form.Find("[data-field=service] [data-value=ntfy]").Click();
+        Assert.Equal("https://ntfy.sh", Server());
+
+        form.Find("[data-field=server-url]").Change("https://push.lan");
+        form.Find("[data-field=service] [data-value=gotify]").Click();
+        Assert.Equal("https://push.lan", Server());
+    }
+
+    [Fact]
     public async Task ATokenIsAPasswordFieldAndLeavesTheFormWithTheBodyAndNothingStaysOnThePage()
     {
         await using DashboardTestContext context = new();
