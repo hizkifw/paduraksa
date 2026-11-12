@@ -400,62 +400,6 @@
 
 /* ---------- The certificate list ---------- */
 
-.pdk-cert-summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 16px;
-}
-
-.pdk-cert-counter {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 14px;
-    border: 1px solid var(--mud-palette-lines-default);
-    border-radius: 999px;
-    background: var(--mud-palette-surface);
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    transition: border-color 150ms var(--pdk-ease-out), background-color 150ms var(--pdk-ease-out);
-}
-
-.pdk-cert-counter:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--pdk-tone) 50%, var(--mud-palette-lines-default));
-}
-
-.pdk-cert-counter:focus-visible {
-    outline: 2px solid var(--mud-palette-primary);
-    outline-offset: 2px;
-}
-
-.pdk-cert-counter:disabled {
-    cursor: default;
-    opacity: 0.55;
-}
-
-.pdk-cert-counter-on {
-    border-color: var(--pdk-tone);
-    background: color-mix(in srgb, var(--pdk-tone) 12%, var(--mud-palette-surface));
-}
-
-.pdk-cert-counter .pdk-status-dot {
-    width: 8px;
-    height: 8px;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-tone) 20%, transparent);
-}
-
-.pdk-cert-counter-value {
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-}
-
-.pdk-cert-counter-label {
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.8125rem;
-}
-
 .pdk-cert-card.mud-paper {
     margin-bottom: 16px;
 }

@@ -40,25 +40,8 @@
     </MudAlert>
 }
 
-<div class="pdk-cert-summary" role="group" aria-label="Show only">
-    @foreach (var filter in Filters)
-    {
-        int? count = _view is null ? null : _view.Rows.Count(row => filter.Matches(row, _now));
-        var on = _filter == filter.Key;
-        <button type="button" class="pdk-cert-counter pdk-tone-@filter.Tone @(on ? "pdk-cert-counter-on" : null)" aria-pressed="@(on ? "true" : "false")"
-                disabled="@(count is null || (count == 0 && !on))" @onclick="() => _filter = on ? null : filter.Key" data-filter="@filter.Key">
-            <span class="pdk-status-dot" aria-hidden="true"></span>
-            @if (count is null)
-            {
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="2.5rem" />
-            }
-            else
-            {
-                <span class="pdk-cert-counter-value">@count</span>
-            }
-            <span class="pdk-cert-counter-label">@filter.Label</span>
-        </button>
-    }
+<div class="pdk-toolbar-row">
+    <SegmentedControl T="string" Options="FilterOptions" Value="@(_filter ?? AllKey)" ValueChanged="ChooseFilter" AriaLabel="Show only" DataField="filter" Disabled="_view is null" />
 </div>
 
 <MudPaper Class="pdk-card pdk-table-card pdk-cert-card" Elevation="0" Outlined="true">
@@ -175,20 +158,48 @@
     [Parameter]
     public string? Key { get; set; }
 
+    private const string AllKey = "all";
+
     private string? _filter;
 
-    private sealed record CertificateFilter(string Key, string Tone, string Label, Func<CertificateSummary, DateTimeOffset, bool> Test)
+    /// <summary>"All", then each state that has certificates (or is the one picked), each with its count and tone.</summary>
+    private IReadOnlyList<SegmentOption<string>> FilterOptions
+    {
+        get
+        {
+            if (_view is null)
+            {
+                return [new(AllKey, "All")];
+            }
+
+            List<SegmentOption<string>> options = [new(AllKey, "All", Count: _view.Rows.Count)];
+            foreach (var filter in Filters)
+            {
+                var count = _view.Rows.Count(row => filter.Matches(row, _now));
+                if (count > 0 || _filter == filter.Key)
+                {
+                    options.Add(new(filter.Key, filter.Label, Tooltip: filter.Tooltip, Count: count, Tone: filter.Tone));
+                }
+            }
+
+            return options;
+        }
+    }
+
+    private void ChooseFilter(string key) => _filter = key == AllKey ? null : key;
+
+    private sealed record CertificateFilter(string Key, string Tone, string Label, string? Tooltip, Func<CertificateSummary, DateTimeOffset, bool> Test)
     {
         public bool Matches(CertificateRow row, DateTimeOffset now) => Test(row.Summary, now);
     }
 
     private static readonly CertificateFilter[] Filters =
     [
-        new("active", "success", "active", (s, now) => s.Status == CertificateStatus.Active && now >= s.NotBefore && now <= s.NotAfter),
-        new("expiring", "warning", $"expire within {CertificateDisplay.WarningDays} days",
+        new("active", "success", "Active", null, (s, now) => s.Status == CertificateStatus.Active && now >= s.NotBefore && now <= s.NotAfter),
+        new("expiring", "warning", "Expiring", $"Expire within {CertificateDisplay.WarningDays} days",
             (s, now) => s.Status == CertificateStatus.Active && s.NotAfter > now && s.NotAfter - now <= TimeSpan.FromDays(CertificateDisplay.WarningDays)),
-        new("failed", "error", "failed or expired", (s, now) => s.Status == CertificateStatus.Failed || (s.Status == CertificateStatus.Active && now > s.NotAfter)),
-        new("pending", "info", "pending", (s, _) => s.Status == CertificateStatus.Pending),
+        new("failed", "error", "Failed or expired", null, (s, now) => s.Status == CertificateStatus.Failed || (s.Status == CertificateStatus.Active && now > s.NotAfter)),
+        new("pending", "info", "Pending", null, (s, _) => s.Status == CertificateStatus.Pending),
     ];
 
     /// <summary>The rows the picked filter lets through; every row without one.</summary>
