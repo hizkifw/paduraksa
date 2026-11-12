@@ -14,6 +14,7 @@ public static class FuzzTargets
         ForwardAuthAnswerTarget.Target,
         UpstreamErrorReplacementTarget.Target,
         ErrorPageTarget.Target,
+        AccessLogTailTarget.Target,
     ];
 
     public static FuzzTarget Get(string name) =>
