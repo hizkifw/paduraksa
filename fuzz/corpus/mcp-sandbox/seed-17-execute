@@ -1,0 +1,1 @@
+async () => { for (let i = 0; i < 60; i++) { await paduraksa.request({ method: 'GET', path: '/api/v1/hosts' }); } }

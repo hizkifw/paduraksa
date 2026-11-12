@@ -1,0 +1,1 @@
+async () => Object.getOwnPropertyNames(paduraksa).concat(Object.getOwnPropertyNames(paduraksa.request))

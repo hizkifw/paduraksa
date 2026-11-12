@@ -4,5 +4,6 @@
     <ProjectReference Include="../../src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Mcp/Paduraksa.Mcp.csproj" />
   </ItemGroup>
 </Project>

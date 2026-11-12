@@ -66,7 +66,8 @@ bin="$out/bin"
 rm -rf "$bin"
 dotnet tool restore >/dev/null
 dotnet publish fuzz/Paduraksa.Fuzz -c Release -o "$bin" -nologo -v quiet
-for assembly in Paduraksa.Proxy.dll Paduraksa.Core.dll Paduraksa.Application.dll Paduraksa.Contracts.dll YamlDotNet.dll; do
+# The MCP sandbox's interpreter and parser are instrumented too: the bugs that matter there are in Jint and Acornima, not in the glue.
+for assembly in Paduraksa.Proxy.dll Paduraksa.Core.dll Paduraksa.Application.dll Paduraksa.Contracts.dll YamlDotNet.dll Paduraksa.Mcp.dll Jint.dll Acornima.dll; do
     dotnet sharpfuzz "$bin/$assembly" >/dev/null
 done
 

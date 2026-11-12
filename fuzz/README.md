@@ -14,6 +14,7 @@ Coverage-guided fuzzing of the byte-level parsers that read raw attacker input (
 | `upstream-error-replacement` | whether an upstream's own error answer is replaced by the host's page: status, `Content-Type`, mode (`off`, `html`, `any`), upgrade and a started response |
 | `access-log-tail` | a request's path, query, host, request ID, referer and user agent through the access-log file line and the live tail's entry, which must say the same thing |
 | `yaml-import` | the config YAML an import reads: the guarded reader (caps on size, depth, nodes with aliases expanded, scalars, anchors), the mapping onto the document, merge and replace, and that an accepted document exports and reads back to the same canonical bytes |
+| `mcp-sandbox` | a model's JavaScript through the MCP sandbox (`search` over a spec, `execute` against a recording stub): it returns within the limits and never throws, the output stays under its cap, nothing outside the globals is reachable, and what reaches the stub is what the request policy allows |
 
 Properties checked on every input: no exception; the same verdict for the same bytes; 0 B where the path promises it; and, per target, a differential
 against an independent reading of the same bytes (see each target's remarks).

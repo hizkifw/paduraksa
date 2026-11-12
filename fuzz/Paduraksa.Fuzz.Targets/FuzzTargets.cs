@@ -16,6 +16,7 @@ public static class FuzzTargets
         ErrorPageTarget.Target,
         AccessLogTailTarget.Target,
         YamlImportTarget.Target,
+        McpSandboxTarget.Target,
     ];
 
     public static FuzzTarget Get(string name) =>

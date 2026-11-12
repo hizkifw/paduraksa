@@ -1,0 +1,1 @@
+async () => paduraksa.request({ method: 'POST', path: '/api/v1/certificates/cert_a/renew' })
