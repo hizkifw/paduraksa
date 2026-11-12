@@ -6,9 +6,10 @@ namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
 /// Samples the registry once a second into in-memory rings and finished minutes (PLAN §7.4). Each tick reads every host's and
-/// upstream's cumulative counters and histograms, takes what each gained since the tick before, and adds it to the ten-second
-/// bucket and the minute that second belongs to; a finished bucket goes into the series' ring (an hour of them), a finished minute
-/// into the <see cref="MetricRollupBacklog"/> for the rollup job. A totals series sums every host.
+/// upstream's cumulative counters and histograms, takes what each gained since the tick before, and files it in the ten-second
+/// buckets and the minute the interval since the last tick belongs to (cut in proportion where it crosses a boundary); a finished
+/// bucket goes into the series' ring (an hour of them), a finished minute into the <see cref="MetricRollupBacklog"/> for the
+/// rollup job. A totals series sums every host. Every window also records the seconds the sampler observed.
 /// </summary>
 /// <remarks>
 /// <para><b>Series follow objects, not slots.</b> A series is keyed by the slot's owner. When a slot is rented to another object
@@ -16,7 +17,8 @@ namespace Paduraksa.Proxy.Metrics;
 /// empty. A retired slot is kept a grace period of many ticks before reuse, so the sampler has normally seen all its counts;
 /// a count that lands after the clear is lost, and a tick that overlaps a rent is skipped (see <see cref="Observe"/>).</para>
 /// <para><b>Memory is fixed by the slots.</b> A series holds an hour of 160-byte points (about 58 KB) and two windows; hosts and
-/// upstreams have series, routes and destinations only the counters. A series is created the first time its slot is seen in use.</para>
+/// upstreams have series, routes and destinations only the counters. A series is created the first time its slot is seen in use. The seed adds the
+/// hour before the start as minute points (a few thousand at most), forgotten as they leave the hour.</para>
 /// <para><b>The unmatched host</b> (requests no host owns) is a host series with an empty ID, and part of the totals.</para>
 /// <para><b>Threads.</b> <see cref="Tick"/> is called by one thread. Readers get copies taken under the series' own lock, never
 /// the sampler's arrays.</para>
@@ -35,7 +37,7 @@ public sealed class MetricSampler
     private readonly long[] _sumCounters = new long[RequestMetric.Stride];
     private readonly long[] _sumTotal = new long[LatencyBuckets.Stride];
     private readonly long[] _sumUpstream = new long[LatencyBuckets.Stride];
-    private long _lastSecond;
+    private long _lastMillis;
 
     public MetricSampler(MetricsRegistry registry, TimeProvider time, MetricRollupBacklog rollups)
     {
@@ -45,7 +47,15 @@ public sealed class MetricSampler
         _registry = registry;
         _time = time;
         Rollups = rollups;
+        // The registry has counted since it was made: the first tick covers the time since the sampler was.
+        _lastMillis = time.GetUtcNow().ToUnixTimeMilliseconds();
     }
+
+    /// <summary>
+    /// A longer gap between two ticks (a suspended process, a stall) is not interpolated across: the gain is filed where the tick
+    /// landed and the gap is not counted as observed. It is also what keeps a tick's interval within one boundary.
+    /// </summary>
+    public static readonly TimeSpan MaxTickGap = TimeSpan.FromSeconds(5);
 
     /// <summary>The queue the finished minutes go to.</summary>
     public MetricRollupBacklog Rollups { get; }
@@ -54,14 +64,16 @@ public sealed class MetricSampler
     public static int RingSeconds => MetricSeries.RingPoints * MetricSeries.BucketSeconds;
 
     /// <summary>
-    /// Reads the registry once and files what it gained since the last call. One thread at a time. The second it files under never
-    /// goes back: a wall clock stepped backwards (an NTP correction) keeps the last second, so a bucket or a minute already
+    /// Reads the registry once and files what it gained since the last call over the time since then, split in proportion where the
+    /// interval crosses a ten-second or a minute boundary and with the counts kept whole. One thread at a time. The time it files under never
+    /// goes back: a wall clock stepped backwards (an NTP correction) keeps the last instant, so a bucket or a minute already
     /// closed is never opened again and a minute is never written twice.
     /// </summary>
     public void Tick()
     {
-        var now = Math.Max(_time.GetUtcNow().ToUnixTimeSeconds(), _lastSecond);
-        _lastSecond = now;
+        var now = Math.Max(_time.GetUtcNow().ToUnixTimeMilliseconds(), _lastMillis);
+        var split = TickSplit.Of(_lastMillis, now, now - _lastMillis <= MaxTickGap.TotalMilliseconds, MetricSeries.BucketSeconds * 1000L);
+        _lastMillis = now;
         Array.Clear(_sumCounters);
         Array.Clear(_sumTotal);
         Array.Clear(_sumUpstream);
@@ -73,7 +85,7 @@ public sealed class MetricSampler
                 continue;
             }
 
-            series.Sample(now, _counters, _totalHistogram, _upstreamHistogram, Rollups);
+            series.Sample(split, _counters, _totalHistogram, _upstreamHistogram, Rollups);
 
             // The totals are the sum of the hosts' gains, not a read of their own: a host that is deleted keeps what it already counted.
             Add(_sumCounters, series.DeltaCounters);
@@ -81,14 +93,28 @@ public sealed class MetricSampler
             Add(_sumUpstream, series.DeltaUpstream);
         }
 
-        _total.Absorb(now, _sumCounters, _sumTotal, _sumUpstream, Rollups);
+        _total.Absorb(split, _sumCounters, _sumTotal, _sumUpstream, Rollups);
 
         for (var slot = 0; slot < _registry.Upstreams.HighWater; slot++)
         {
             if (Observe(_upstreams, MetricRollupSubject.Upstream, MetricSubject.Upstream, _registry.Upstreams, slot) is { } series)
             {
-                series.Sample(now, _counters, _totalHistogram, _upstreamHistogram, Rollups);
+                series.Sample(split, _counters, _totalHistogram, _upstreamHistogram, Rollups);
             }
+        }
+    }
+
+    /// <summary>
+    /// A last reading, then every unfinished bucket and minute is closed as it stands, partial, with the seconds it observed, and the
+    /// minutes are queued for the rollup job. For a process that is stopping: what it saw of its last minute isn't lost with it.
+    /// </summary>
+    public void Flush()
+    {
+        Tick();
+        _total.Flush(Rollups);
+        foreach (var series in _byOwner.Values)
+        {
+            series.Flush(Rollups);
         }
     }
 
@@ -96,7 +122,7 @@ public sealed class MetricSampler
     public MetricSeriesView? Read(MetricRollupSubject subject, Guid id)
     {
         var series = subject == MetricRollupSubject.Total ? _total : _byOwner.GetValueOrDefault((subject, id));
-        return series?.View(_time.GetUtcNow().ToUnixTimeSeconds());
+        return series?.View();
     }
 
     /// <summary>

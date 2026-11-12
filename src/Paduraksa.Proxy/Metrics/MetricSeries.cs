@@ -11,19 +11,26 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
     private readonly long[] _counters = new long[kind == MetricRollupSubject.Upstream ? UpstreamMetric.Stride : RequestMetric.Stride];
     private readonly long[] _total = new long[LatencyBuckets.Stride];
     private readonly long[] _upstream = new long[LatencyBuckets.Stride];
+    private long _coveredMillis;
 
-    public void Add(ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream)
+    /// <summary>
+    /// Adds the share of a tick's gain that belongs to this window: the <paramref name="segment"/>th of the pieces the tick's interval
+    /// was cut into at the window boundaries (<see cref="TickSplit"/>), and the milliseconds that piece observed.
+    /// </summary>
+    public void Add(ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream, in TickSplit split, int segment)
     {
         for (var i = 0; i < _counters.Length && i < counters.Length; i++)
         {
-            _counters[i] += counters[i];
+            _counters[i] += split.Share(counters[i], segment);
         }
 
         for (var i = 0; i < LatencyBuckets.Stride; i++)
         {
-            _total[i] += total[i];
-            _upstream[i] += upstream[i];
+            _total[i] += split.Share(total[i], segment);
+            _upstream[i] += split.Share(upstream[i], segment);
         }
+
+        _coveredMillis += split.Millis(segment);
     }
 
     public void Clear()
@@ -31,6 +38,7 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
         Array.Clear(_counters);
         Array.Clear(_total);
         Array.Clear(_upstream);
+        _coveredMillis = 0;
     }
 
     // The requests timed upstream are the upstream histogram's observations: one fewer counter on the request path.
@@ -45,8 +53,10 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
         return total;
     }
 
-    public MetricPoint ToPoint(long start, int seconds)
+    public MetricPoint ToPoint(long start, int width)
     {
+        // A window that saw any part of a second counts that second: 0 is reserved for "nobody was looking".
+        var covered = _coveredMillis <= 0 ? 0 : Math.Clamp((int)((_coveredMillis + 500) / 1000), 1, width);
         if (kind == MetricRollupSubject.Upstream)
         {
             long errors = 0;
@@ -61,8 +71,8 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
             return new MetricPoint
             {
                 Start = start,
-                Width = seconds,
-                CoveredSeconds = seconds,
+                Width = width,
+                CoveredSeconds = covered,
                 Requests = _counters[UpstreamMetric.Requests],
                 Errors = errors,
                 UpstreamMicrosSum = _counters[UpstreamMetric.UpstreamMicros],
@@ -91,8 +101,8 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
         return new MetricPoint
         {
             Start = start,
-            Width = seconds,
-            CoveredSeconds = seconds,
+            Width = width,
+            CoveredSeconds = covered,
             Requests = requests,
             Status1xx = _counters[RequestMetric.Status],
             Status2xx = _counters[RequestMetric.Status + 1],
@@ -123,6 +133,9 @@ internal sealed class MetricSeries
 
     /// <summary>A bucket's width in seconds.</summary>
     public const int BucketSeconds = 10;
+
+    private const int MinuteSeconds = 60;
+    private const int BucketsPerMinute = MinuteSeconds / BucketSeconds;
 
     private readonly Lock _gate = new();
     private readonly MetricRollupSubject _kind;
@@ -166,61 +179,58 @@ internal sealed class MetricSeries
 
     public ReadOnlySpan<long> DeltaUpstream => _deltaUpstream;
 
-    /// <summary>The cumulative values to diff against: the sampler writes what it read here, and this turns it into what happened since the last tick.</summary>
-    public void Sample(long unixSeconds, ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream, MetricRollupBacklog rollups)
+    /// <summary>Diffs the cumulative values the sampler read against the ones before and files the gain over the interval the tick covered.</summary>
+    public void Sample(in TickSplit split, ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream, MetricRollupBacklog rollups)
     {
         Diff(counters, _previousCounters, _deltaCounters);
         Diff(total, _previousTotal, _deltaTotal);
         Diff(upstream, _previousUpstream, _deltaUpstream);
-        Absorb(unixSeconds, _deltaCounters, _deltaTotal, _deltaUpstream, rollups);
+        Absorb(split, _deltaCounters, _deltaTotal, _deltaUpstream, rollups);
     }
 
-    /// <summary>Adds what happened during one second: closes the ten-second bucket and the minute that the second has left behind.</summary>
-    public void Absorb(long unixSeconds, ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream, MetricRollupBacklog rollups)
+    /// <summary>
+    /// Files a gain over the interval <paramref name="split"/> describes: each bucket the interval touches gets its share, and the
+    /// buckets and the minute the interval has left behind are closed.
+    /// </summary>
+    public void Absorb(in TickSplit split, ReadOnlySpan<long> counters, ReadOnlySpan<long> total, ReadOnlySpan<long> upstream, MetricRollupBacklog rollups)
     {
-        var bucketId = unixSeconds / BucketSeconds;
-        var minuteId = unixSeconds / 60;
         lock (_gate)
         {
-            if (bucketId != _bucketId)
+            for (var segment = 0; segment < split.Segments; segment++)
             {
-                if (_bucketId >= 0)
-                {
-                    Push(_bucket.ToPoint(_bucketId * BucketSeconds, BucketSeconds));
-                    // A sampler that stalled leaves empty buckets behind, so the ring's axis stays in time.
-                    for (var gap = _bucketId + 1; gap < bucketId && gap - _bucketId <= RingPoints; gap++)
-                    {
-                        Push(new MetricPoint { Start = gap * BucketSeconds, Width = BucketSeconds, CoveredSeconds = BucketSeconds });
-                    }
-                }
-
-                _bucket.Clear();
-                _bucketId = bucketId;
+                Advance(split.FirstBucket + segment, rollups);
+                _bucket.Add(counters, total, upstream, split, segment);
+                _minute.Add(counters, total, upstream, split, segment);
             }
 
-            if (minuteId != _minuteId)
-            {
-                CloseMinute(rollups);
-                _minuteId = minuteId;
-            }
-
-            _bucket.Add(counters, total, upstream);
-            _minute.Add(counters, total, upstream);
+            // An interval that ended on a boundary has finished its bucket, and the minute, though nothing is left to file in the next.
+            Advance(split.EndBucket, rollups);
         }
     }
 
-    /// <summary>The unfinished minute is written out when the object goes away, so its last figures aren't lost with its slot.</summary>
+    /// <summary>Writes out the unfinished minute and bucket as they stand (partial, with the seconds they observed): the object is going away, or the process is stopping.</summary>
     public void Flush(MetricRollupBacklog rollups)
     {
         lock (_gate)
         {
             CloseMinute(rollups);
+            if (_bucketId >= 0)
+            {
+                var open = _bucket.ToPoint(_bucketId * BucketSeconds, BucketSeconds);
+                if (open.CoveredSeconds > 0 || open.Requests > 0)
+                {
+                    Push(open);
+                }
+            }
+
+            _bucket.Clear();
+            _bucketId = -1;
             _minuteId = -1;
         }
     }
 
-    /// <summary>The finished buckets oldest first, the unfinished one (as many seconds wide as it has seen) and the last second.</summary>
-    public MetricSeriesView View(long unixSeconds)
+    /// <summary>The finished buckets oldest first and the one still filling, with the seconds it has observed so far.</summary>
+    public MetricSeriesView View()
     {
         lock (_gate)
         {
@@ -230,14 +240,11 @@ internal sealed class MetricSeries
                 points[i] = _ring[(_head - _count + i + RingPoints) % RingPoints];
             }
 
-            var open = _bucketId < 0
-                ? default
-                : _bucket.ToPoint(_bucketId * BucketSeconds, (int)Math.Clamp(unixSeconds - (_bucketId * BucketSeconds) + 1, 1, BucketSeconds));
-            return new MetricSeriesView(points, open);
+            return new MetricSeriesView(points, _bucketId < 0 ? default : _bucket.ToPoint(_bucketId * BucketSeconds, BucketSeconds));
         }
     }
 
-    /// <summary>Everything the ring and the open bucket hold from <paramref name="sinceUnixSeconds"/> on, as one point.</summary>
+    /// <summary>Everything the ring and the open bucket hold from <paramref name="sinceUnixSeconds"/> on, as one point: its rates are over the seconds those buckets observed.</summary>
     public MetricPoint Summarise(long sinceUnixSeconds, long unixSeconds)
     {
         lock (_gate)
@@ -257,12 +264,40 @@ internal sealed class MetricSeries
                 taken.Add(_bucket.ToPoint(_bucketId * BucketSeconds, BucketSeconds));
             }
 
-            // A series younger than the window is divided by the time it has existed, so a rate isn't diluted by an hour it never saw.
             var from = taken.Count > 0 ? Math.Max(sinceUnixSeconds, taken[0].Start) : sinceUnixSeconds;
             return MetricPoints.Combine(taken.ToArray(), from, (int)Math.Max(unixSeconds - from, 1));
         }
     }
 
+    private void Advance(long bucketId, MetricRollupBacklog rollups)
+    {
+        if (bucketId != _bucketId)
+        {
+            if (_bucketId >= 0)
+            {
+                Push(_bucket.ToPoint(_bucketId * BucketSeconds, BucketSeconds));
+                // Buckets the sampler never saw (a stall, a stop) are in the ring as buckets nobody observed, so its axis stays in
+                // time and a gap shows as a gap. Only the last hour's worth are kept: older ones would be evicted again at once.
+                for (var gap = Math.Max(_bucketId + 1, bucketId - RingPoints); gap < bucketId; gap++)
+                {
+                    Push(new MetricPoint { Start = gap * BucketSeconds, Width = BucketSeconds });
+                }
+            }
+
+            _bucket.Clear();
+            _bucketId = bucketId;
+        }
+
+        var minuteId = bucketId / BucketsPerMinute;
+        if (minuteId != _minuteId)
+        {
+            CloseMinute(rollups);
+            _minuteId = minuteId;
+        }
+    }
+
+    // The totals have a row for every minute the process observed, idle ones included: a minute with no row is a minute the
+    // process was down. The others stay sparse; a missing row inside an observed minute means no requests.
     private void CloseMinute(MetricRollupBacklog rollups)
     {
         if (_minuteId < 0)
@@ -270,8 +305,8 @@ internal sealed class MetricSeries
             return;
         }
 
-        var point = _minute.ToPoint(_minuteId * 60, 60);
-        if (point.Requests > 0)
+        var point = _minute.ToPoint(_minuteId * MinuteSeconds, MinuteSeconds);
+        if (point.Requests > 0 || (_kind == MetricRollupSubject.Total && point.CoveredSeconds > 0))
         {
             rollups.Enqueue(new MetricRollup(_kind, _subjectId, point));
         }
@@ -301,5 +336,5 @@ internal sealed class MetricSeries
 
 /// <summary>A series as the dashboard reads it: finished ten-second buckets oldest first, and the bucket still filling.</summary>
 /// <param name="Points">The ring, up to an hour.</param>
-/// <param name="Open">The bucket being filled; its <see cref="MetricPoint.CoveredSeconds"/> is how long it has been open.</param>
+/// <param name="Open">The bucket being filled; its <see cref="MetricPoint.CoveredSeconds"/> is the part of it observed so far.</param>
 public readonly record struct MetricSeriesView(MetricPoint[] Points, MetricPoint Open);
