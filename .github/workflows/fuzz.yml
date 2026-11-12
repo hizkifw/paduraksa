@@ -30,7 +30,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
-  # A nightly run: 15 minutes a target (six targets), and the same cases times 50.
+  # A nightly run: 15 minutes a target (nine targets), and the same cases times 50.
   FUZZ_SECONDS: ${{ github.event.inputs.seconds || '900' }}
   FUZZ_TARGET: ${{ github.event.inputs.target }}
   PROPERTY_SCALE: ${{ github.event.inputs.property_scale || '50' }}
