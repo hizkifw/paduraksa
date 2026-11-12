@@ -72,11 +72,13 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
     // machine may not have run them yet, so what a test expects is waited for in real time rather than read at once.
     private static async Task SettledAsync(Func<bool> done) => await UntilAsync(() => done() ? new object() : null);
 
-    private async Task<NotificationChannelRow> RowSentAsync(NotificationChannelId id)
+    private Task<NotificationChannelRow> RowSentAsync(NotificationChannelId id) => RowWhenAsync(id, static row => row.LastSentAt is not null);
+
+    private async Task<NotificationChannelRow> RowWhenAsync(NotificationChannelId id, Func<NotificationChannelRow, bool> done)
     {
         for (var i = 0; i < 300; i++)
         {
-            if (await Row(id) is { LastSentAt: not null } row)
+            if (await Row(id) is var row && done(row))
             {
                 return row;
             }
@@ -85,6 +87,19 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         }
 
         throw new TimeoutException();
+    }
+
+    // A retry's wait is armed only when the loop gets to it; if the clock moved first, that wait starts later in fake time. So a test that counts
+    // retries moves the clock until they have happened (bounded), rather than by a fixed amount.
+    private async Task AdvanceUntilAsync(Func<bool> done, TimeSpan step, TimeSpan max)
+    {
+        for (var spent = TimeSpan.Zero; !done() && spent < max; spent += step)
+        {
+            await Task.Delay(8, Ct);
+            _time.Advance(step);
+        }
+
+        await SettledAsync(done);
     }
 
     private static async Task<T> UntilAsync<T>(Func<T?> read)
@@ -114,8 +129,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event());
-        await AdvanceAsync(TimeSpan.FromSeconds(4));
-        await SettledAsync(() => _sender.Sent.Count >= 2);
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 2, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
 
         Assert.Equal([subscribed, also], _sender.Sent.Select(s => s.Channel).Order());
         Assert.All(_sender.Sent, s => Assert.Equal("https://admin.example.com/upstreams", s.Message.Link));
@@ -131,7 +145,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event());
-        await AdvanceAsync(TimeSpan.FromSeconds(4));
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 1, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
 
         Assert.Null(Assert.Single(_sender.Sent).Message.Link);
         await dispatcher.StopAsync(Ct);
@@ -151,7 +165,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
 
         dispatcher.Publish(Event(NotificationEventKind.SignInNewAddress, "ops signed in from a new address"));
         dispatcher.Publish(Event(NotificationEventKind.SignInNewAddress, "dev signed in from a new address"));
-        await AdvanceAsync(TimeSpan.FromSeconds(4));
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 3, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
 
         var digest = Assert.Single(_sender.Sent, s => s.Message.Kind == NotificationEventKind.UpstreamDown);
         Assert.Equal("12 notifications: upstreams down", digest.Message.Title);
@@ -170,8 +184,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event());
-        await AdvanceAsync(TimeSpan.FromMinutes(3));
-        await SettledAsync(() => _sender.Sent.Count >= 3);
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 3, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));
 
         Assert.Equal(3, _sender.Sent.Count);
 
@@ -194,10 +207,11 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event());
-        await AdvanceAsync(TimeSpan.FromMinutes(25), TimeSpan.FromSeconds(15));
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 5, TimeSpan.FromSeconds(15), TimeSpan.FromHours(1));
+        var row = await RowWhenAsync(channel, static row => row.LastError is not null);
+        await AdvanceAsync(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(1));
 
         Assert.Equal(5, _sender.Sent.Count);
-        var row = await Row(channel);
         Assert.Equal("Could not connect to the server.", row.LastError);
         Assert.NotNull(row.LastErrorAt);
         Assert.Null(row.LastSentAt);
@@ -214,10 +228,12 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event());
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 1, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(2));
+        var row = await RowWhenAsync(channel, static row => row.LastError is not null);
         await AdvanceAsync(TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(5));
 
         Assert.Single(_sender.Sent);
-        Assert.Equal("The server refused the credentials (HTTP 401).", (await Row(channel)).LastError);
+        Assert.Equal("The server refused the credentials (HTTP 401).", row.LastError);
         await dispatcher.StopAsync(Ct);
     }
 
