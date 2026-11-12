@@ -111,6 +111,25 @@ internal static class ApiCodes
         public const string PublishFailed = "config.publishFailed";
     }
 
+    /// <summary>Drafts: change sets applied as one revision.</summary>
+    public static class Draft
+    {
+        /// <summary>409: the caller has an open draft already (one each).</summary>
+        public const string Exists = "draft.exists";
+
+        /// <summary>409: the draft has no entries, so there is nothing to apply.</summary>
+        public const string NothingToApply = "draft.nothingToApply";
+
+        /// <summary>409: some entries are changed elsewhere (or depend on one that is); a draft is applied whole or not at all, so nothing was committed.</summary>
+        public const string Blocked = "draft.blocked";
+
+        /// <summary>412: what the apply would commit is not what the review in <c>If-Match</c> showed; nothing was committed, and the problem's review is the fresh one.</summary>
+        public const string ChangedSinceReview = "draft.changedSinceReview";
+
+        /// <summary>403: drafts belong to a user, or to a token's owner; this caller is neither.</summary>
+        public const string NotAUser = "draft.notAUser";
+    }
+
     /// <summary>Identity outcomes that are one thing over several operations.</summary>
     public static class Identity
     {

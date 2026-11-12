@@ -87,6 +87,7 @@ internal sealed class SharedServices : IAsyncDisposable
         KeyRing = keyRing;
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
+        Drafts = Get<DraftService>();
         CertificateService = Get<CertificateService>();
         CertificateOperations = Get<CertificateOperations>();
         CertificateRecovery = Get<CertificateRecovery>();
@@ -237,6 +238,9 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The config write path, started by the core host (<see cref="ConfigStartup"/>); see <see cref="ConfigStore"/>.</summary>
     public ConfigService Config { get; }
+
+    /// <summary>The users' drafts: change sets applied as one revision.</summary>
+    public DraftService Drafts { get; }
 
     /// <summary>The certificate inventory's service: shares <see cref="Config"/>'s writer; never calls the vault.</summary>
     public CertificateService CertificateService { get; }

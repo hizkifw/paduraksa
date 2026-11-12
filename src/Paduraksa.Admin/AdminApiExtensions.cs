@@ -53,6 +53,7 @@ public static class AdminApiExtensions
         ArgumentNullException.ThrowIfNull(endpoints);
         var api = endpoints.MapGroup("/api/v1");
         ConfigEndpoints.Map(api);
+        DraftEndpoints.Map(api);
         RevisionEndpoints.Map(api);
         ConfigTransferEndpoints.Map(api);
         CertificateEndpoints.Map(api);

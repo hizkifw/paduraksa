@@ -110,6 +110,9 @@ internal static class ConfigCommandResponses
         return ApiProblems.Problem(status, DetailOf(result.Status), null, result.Errors, result.RelatedErrors, result.Warnings, result.Conflict);
     }
 
+    /// <summary>What a refused command's problem says first.</summary>
+    public static string Detail(ConfigCommandStatus status) => DetailOf(status);
+
     private static string DetailOf(ConfigCommandStatus status) => status switch
     {
         ConfigCommandStatus.Invalid => "The change is well-formed but can't be applied; see errors (and relatedErrors for what it breaks elsewhere).",

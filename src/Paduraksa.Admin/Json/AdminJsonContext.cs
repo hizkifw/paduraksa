@@ -7,6 +7,7 @@ using Paduraksa.Contracts.Backup;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Drafts;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Logging;
 using Paduraksa.Contracts.Metrics;
@@ -97,6 +98,11 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(RouteConfig))]
 [JsonSerializable(typeof(IReadOnlyList<RouteConfig>))]
 [JsonSerializable(typeof(GlobalSettings))]
+[JsonSerializable(typeof(ConfigDraft))]
+[JsonSerializable(typeof(IReadOnlyList<ConfigDraft>))]
+[JsonSerializable(typeof(DraftConfig))]
+[JsonSerializable(typeof(DraftOutcome))]
+[JsonSerializable(typeof(AddDraftEntriesRequest))]
 [JsonSerializable(typeof(Page<RevisionSummary>))]
 [JsonSerializable(typeof(RevisionDetail))]
 [JsonSerializable(typeof(RevisionDiff))]

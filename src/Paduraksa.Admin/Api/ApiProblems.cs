@@ -31,8 +31,9 @@ public static class ApiProblems
         string? code = null,
         string? title = null,
         RevisionRef? revision = null,
-        long? version = null) =>
-        new ProblemResult(status, detail, instance, errors, relatedErrors, warnings, conflict, code, title, revision, version);
+        long? version = null,
+        Paduraksa.Contracts.Drafts.DraftOutcome? review = null) =>
+        new ProblemResult(status, detail, instance, errors, relatedErrors, warnings, conflict, code, title, revision, version, review);
 
     /// <summary>A 422 for what is wrong with a request body: the service's errors, verbatim.</summary>
     public static IResult Invalid(IReadOnlyList<ConfigError> errors, IReadOnlyList<ConfigError>? relatedErrors = null, IReadOnlyList<ConfigWarning>? warnings = null, string? instance = null, string? code = null) =>
@@ -51,7 +52,8 @@ public static class ApiProblems
         string? code = null,
         string? title = null,
         RevisionRef? revision = null,
-        long? version = null)
+        long? version = null,
+        Paduraksa.Contracts.Drafts.DraftOutcome? review = null)
     {
         ArgumentNullException.ThrowIfNull(http);
         // Every 403 names a code: a client can tell a missing permission from a CSRF or internal-hop refusal without reading
@@ -70,7 +72,8 @@ public static class ApiProblems
             conflict,
             code,
             revision,
-            version);
+            version,
+            review);
     }
 
     /// <summary>Writes <paramref name="problem"/> as the response (headers not yet sent).</summary>
@@ -144,9 +147,10 @@ public static class ApiProblems
         string? code,
         string? title,
         RevisionRef? revision,
-        long? version) : IResult
+        long? version,
+        Paduraksa.Contracts.Drafts.DraftOutcome? review) : IResult
     {
         public Task ExecuteAsync(HttpContext httpContext) =>
-            WriteAsync(httpContext, Build(httpContext, status, detail, instance, errors, relatedErrors, warnings, conflict, code, title, revision, version));
+            WriteAsync(httpContext, Build(httpContext, status, detail, instance, errors, relatedErrors, warnings, conflict, code, title, revision, version, review));
     }
 }

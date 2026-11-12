@@ -82,6 +82,7 @@ public static class EndpointRules
     public static IReadOnlyList<EndpointRule> ReadOnlyPosts { get; } =
     [
         new("POST", "/api/v1/simulate", false, "a simulation changes nothing"),
+        new("POST", "/api/v1/drafts/{id}/review", false, "a review is a dry run of the draft and changes nothing"),
         new("POST", "/api/v1/error-pages/preview", false, "a preview renders a page and changes nothing"),
     ];
 

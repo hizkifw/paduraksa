@@ -40,6 +40,7 @@ internal static class TypedIdRouting
         Add<RouteId>(options);
         Add<CertificateId>(options);
         Add<ConfigRevisionId>(options);
+        Add<DraftId>(options);
         Add<AcmeAccountId>(options);
         Add<DnsProviderId>(options);
         Add<NotificationChannelId>(options);

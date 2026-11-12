@@ -131,6 +131,33 @@ public sealed class McpRequestPolicyApiTests(SharedAdminApi shared) : IClassFixt
     }
 
     [Fact]
+    public async Task DraftsAreClassifiedTheReadsAndTheReviewAreAllowedAndTheOtherWritesNeedConfirm()
+    {
+        using var document = JsonDocument.Parse(await SpecAsync());
+        var policy = RequestPolicy.FromSpec(document.RootElement);
+
+        foreach (var (method, path) in new[]
+        {
+            ("GET", "/api/v1/drafts"), ("GET", "/api/v1/drafts/x_1"), ("GET", "/api/v1/drafts/x_1/config"), ("POST", "/api/v1/drafts/x_1/review"),
+        })
+        {
+            Assert.Equal(RequestKind.Read, policy.Decide(method, path).Kind);
+        }
+
+        foreach (var (method, path) in new[]
+        {
+            ("POST", "/api/v1/drafts"), ("POST", "/api/v1/drafts/x_1/entries"), ("DELETE", "/api/v1/drafts/x_1/entries/1"), ("POST", "/api/v1/drafts/x_1/apply"), ("DELETE", "/api/v1/drafts/x_1"),
+        })
+        {
+            Assert.Equal(RequestKind.Write, policy.Decide(method, path).Kind);
+        }
+
+        // An apply has a dry run, which is the review; the others change only the draft and have none.
+        Assert.True(policy.Decide("POST", "/api/v1/drafts/x_1/apply").SupportsDryRun);
+        Assert.False(policy.Decide("POST", "/api/v1/drafts/x_1/entries").SupportsDryRun);
+    }
+
+    [Fact]
     public async Task TheApiDescriptionBuildsIntoAFiniteSpecThatSearchCanWalk()
     {
         await using var tools = CodeModeTools.Create(await SpecAsync(), Paduraksa.Tests.Integration.Mcp.SandboxFixture.Command, TimeSpan.FromMinutes(1));

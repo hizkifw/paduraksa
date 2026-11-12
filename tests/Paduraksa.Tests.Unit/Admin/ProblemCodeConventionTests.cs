@@ -5,6 +5,7 @@ using Paduraksa.Admin.Api;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Config;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Contracts.Notifications;
@@ -35,7 +36,7 @@ public sealed partial class ProblemCodeConventionTests
     {
         // Every area is a nested class of ApiCodes, which is what the scan above walks: a code on a loose constant would escape it.
         Assert.Equal(
-            ["Admin", "Auth", "Backup", "Ca", "Config", "Csrf", "Identity", "Setup"],
+            ["Admin", "Auth", "Backup", "Ca", "Config", "Csrf", "Draft", "Identity", "Setup"],
             typeof(ApiCodes).GetNestedTypes(BindingFlags.Public).Select(t => t.Name).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(
             typeof(ApiCodes).GetFields(BindingFlags.Public | BindingFlags.Static),
@@ -72,6 +73,7 @@ public sealed partial class ProblemCodeConventionTests
             typeof(SimulationErrorCodes),
             typeof(CertificateErrorCodes),
             typeof(NotificationErrorCodes),
+            typeof(DraftErrorCodes),
         ])
         {
             foreach (var code in Constants(type))
