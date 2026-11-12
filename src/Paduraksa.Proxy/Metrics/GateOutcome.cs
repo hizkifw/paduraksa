@@ -18,8 +18,10 @@ public enum GateOutcome : byte
     /// <summary>An access list refused it by address, country or password.</summary>
     RefusedAccessList,
 
+    /// <summary>A rule set blocked it.</summary>
     RefusedRuleSet,
 
+    /// <summary>A rate limit turned it away.</summary>
     RefusedRateLimit,
 
     /// <summary>The proof-of-work page or a refusal of its token.</summary>

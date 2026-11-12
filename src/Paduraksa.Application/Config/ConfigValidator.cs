@@ -858,7 +858,7 @@ public static class ConfigValidator
         /// <summary>Maintenance mode's values where a layer sets them; the bypass list is judged on the host's resolved settings.</summary>
         private void CheckMaintenance(MaintenanceSettings settings, string path)
         {
-            if (settings.Status is { } status && !ErrorPageStatuses.MaintenanceStatuses.Contains(status))
+            if (settings.Status is { } status && !ErrorPageStatuses.IsMaintenanceStatus(status))
             {
                 Add($"{path}/status", MaintenanceStatusInvalid, $"a maintenance answer's status is one of {string.Join(", ", ErrorPageStatuses.MaintenanceStatuses)}, got {status}");
             }

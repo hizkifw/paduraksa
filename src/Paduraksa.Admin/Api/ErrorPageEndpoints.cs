@@ -14,14 +14,14 @@ namespace Paduraksa.Admin.Api;
 internal static class ErrorPageEndpoints
 {
     public static void Map(RouteGroupBuilder api) =>
-        api.MapPost("/error-pages/preview", PreviewAsync).WithName("PreviewErrorPage").WithTags("Error pages").WithSummary("Render an error page with sample values")
+        api.MapPost("/error-pages/preview", (Delegate)PreviewAsync).WithName("PreviewErrorPage").WithTags("Error pages").WithSummary("Render an error page with sample values")
             .WithDescription("The page is judged by the rules that saving it is (error paths point into the request: /page/heading, /page/text, /page/html, /status), then rendered by the proxy's own writer with a sample request ID, host and CF-Ray; "
                 + "html is the document it would serve, to be shown in a sandboxed frame without scripts, and contentSecurityPolicy the policy it is served with. Nothing is stored.")
             .Accepts<ErrorPagePreviewRequest>("application/json").Produces<ErrorPagePreview>().ProducesApiProblems(400, 415, 422)
             .WithAdminBodyLimit(ApiEndpointConventions.ErrorPagePreviewBodyLimit)
             .RequirePermission(Permission.ConfigRead);
 
-    private static async Task<IResult> PreviewAsync(HttpContext http, AdminCaller caller)
+    private static async Task<IResult> PreviewAsync(HttpContext http)
     {
         var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.ErrorPagePreviewRequest).ConfigureAwait(false);
         if (!body.Ok)

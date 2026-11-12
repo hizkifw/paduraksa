@@ -47,6 +47,16 @@ public sealed class ErrorPagesAndMaintenanceTests
     }
 
     [Fact]
+    public async Task EachPageRowIsTitledWithTheStatusTheProxySends()
+    {
+        await using DashboardTestContext context = new();
+        var fields = RenderField(context, new HostSettings());
+
+        Assert.Contains("431 Request Header Fields Too Large", fields.Markup, StringComparison.Ordinal);
+        Assert.Contains("413 Content Too Large", fields.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ADocumentsPreviewKeepsItsOwnStyleAndNoScriptRuns()
     {
         await using DashboardTestContext context = new();

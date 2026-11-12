@@ -84,7 +84,7 @@ internal sealed class CustomErrorPage
             return builder.Build(spec, status, DocumentHeaders);
         }
 
-        var heading = spec.Heading is { Length: > 0 } text ? text : $"{{status}} {{statusText}}";
+        var heading = spec.Heading is { Length: > 0 } text ? text : "{status} {statusText}";
         builder.Raw(HtmlPageTemplate.DocumentStart);
         builder.Text(heading);
         builder.Raw(HtmlPageTemplate.TitleEnd);

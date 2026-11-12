@@ -220,11 +220,11 @@
 
     <h4 class="pdk-setting-section">Error pages</h4>
 
-    @foreach (var (key, title, help) in ErrorPageRows)
+    @foreach (var (key, help) in ErrorPageRows)
     {
         var page = key;
         var name = ErrorPageStatuses.NameOf(page);
-        <ErrorPageField Key="page" Title="@title" Help="@help" Label="@($"{name} page")" Field="@($"error-page-{name}")"
+        <ErrorPageField Key="page" Title="@StatusText(key)" Help="@help" Label="@($"{name} page")" Field="@($"error-page-{name}")"
                         Value="_current.ErrorPages?.Entry(page)" ValueChanged="@(value => SetPage(page, value))"
                         Inherited="Resolved.ErrorPages?.Entry(page)" InheritWord="@InheritWord" PreviewStatus="page"
                         Errors="@(field => E($"/errorPages/{name}/{field}"))" OnChanged="@(field => PageChanged(page, field))" ReadOnly="@ReadOnly" />
@@ -499,19 +499,19 @@
 
     private HostSettings WithMaintenance(Func<MaintenanceSettings, MaintenanceSettings> change) => HostSettingsEdit.WithMaintenance(_current, change);
 
-    /// <summary>The statuses with a page, each with the row's title and the one line that says what makes the gate or the upstream answer it.</summary>
-    private static readonly (int Key, string Title, string Help)[] ErrorPageRows =
+    /// <summary>The statuses with a page, each with the one line that says what makes the gate or the upstream answer it.</summary>
+    private static readonly (int Key, string Help)[] ErrorPageRows =
     [
-        (403, "403 Forbidden", "An access list, rule set or Cloudflare check refused the request."),
-        (404, "404 Not Found", "No route takes the path, or the name isn't a host here."),
-        (413, "413 Content Too Large", "The request body is over the limit."),
-        (414, "414 URI Too Long", "The request target is over the limit."),
-        (421, "421 Misdirected Request", "The connection can't serve this host, so the client retries on its own."),
-        (429, "429 Too Many Requests", "A rate limit turned the request away."),
-        (431, "431 Header Fields Too Large", "The request headers are over the limit."),
-        (502, "502 Bad Gateway", "The upstream, or a sign-in service, didn't answer properly."),
-        (503, "503 Service Unavailable", "No upstream destination is healthy, or a sign-in service is busy."),
-        (504, "504 Gateway Timeout", "The upstream, or a sign-in service, took too long."),
+        (403, "An access list, rule set or Cloudflare check refused the request."),
+        (404, "No route takes the path, or the name isn't a host here."),
+        (413, "The request body is over the limit."),
+        (414, "The request target is over the limit."),
+        (421, "The connection can't serve this host, so the client retries on its own."),
+        (429, "A rate limit turned the request away."),
+        (431, "The request headers are over the limit."),
+        (502, "The upstream, or a sign-in service, didn't answer properly."),
+        (503, "No upstream destination is healthy, or a sign-in service is busy."),
+        (504, "The upstream, or a sign-in service, took too long."),
     ];
 
     private static string StatusText(int status) => $"{status.ToString(System.Globalization.CultureInfo.InvariantCulture)} {ErrorPageStatuses.StatusText(status)}";

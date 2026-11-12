@@ -588,7 +588,7 @@ public static partial class SnapshotCompiler
                     && ErrorPageText.IsPlainDocument(page.Html) && page.Heading is null && page.Text is null);
             if (!texts.Valid)
             {
-                errors.Add(new(where, $"the {name} error page isn't a valid {(page.Mode == ErrorPageMode.Message ? "message (a heading of up to 120 characters and a sentence of up to 500)" : "document (up to 64 KiB)")}"));
+                errors.Add(new(where, $"the {name} error page isn't a valid {(page.Mode == ErrorPageMode.Message ? $"message (a heading of up to {ErrorPageText.MaxHeadingLength} characters and a sentence of up to {ErrorPageText.MaxTextLength})" : "document (up to 64 KiB)")}"));
                 continue;
             }
 

@@ -99,23 +99,8 @@ internal static class ErrorPages
         return answers;
     }
 
-    private static readonly PrecomputedResponse UpstreamBadGateway =
-        PrecomputedResponse.Text(502, "bad gateway\n", htmlPage: BadGateway);
-
-    private static readonly PrecomputedResponse UpstreamServiceUnavailable =
-        PrecomputedResponse.Text(503, "service unavailable\n", htmlPage: ServiceUnavailable);
-
-    private static readonly PrecomputedResponse UpstreamGatewayTimeout =
-        PrecomputedResponse.Text(504, "gateway timeout\n", htmlPage: GatewayTimeout);
-
     /// <summary>The answer for a YARP error status that has a built-in page, else null (the response stays as YARP left it).</summary>
-    public static PrecomputedResponse? Upstream(int statusCode) => statusCode switch
-    {
-        502 => UpstreamBadGateway,
-        503 => UpstreamServiceUnavailable,
-        504 => UpstreamGatewayTimeout,
-        _ => null,
-    };
+    public static PrecomputedResponse? Upstream(int statusCode) => statusCode is 502 or 503 or 504 ? Replacement(statusCode) : null;
 
     // The heading starts with the status. Only a page whose status an operator can give a page of their own is customizable: a
     // proof-of-work step's refusal says what that step needs, which a generic page would hide.
