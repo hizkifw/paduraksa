@@ -49,13 +49,18 @@ public sealed class ProofOfWorkEndToEndTests
         var problems = PlaywrightBrowser.CollectProblems(page);
         var address = PublicHttpAddress(host.Host);
 
+        // The page's script solves the challenge and navigates on its own, so the body of the browser's own response may be gone by the time
+        // a test reads it. The challenge as served is read by a plain request (no script, no cookie), with the browser's Accept.
+        var challenge = await context.APIRequest.GetAsync(address, new() { Headers = new Dictionary<string, string> { ["Accept"] = "text/html" } });
+        Assert.Equal(200, challenge.Status);
+        var challengeHtml = await challenge.TextAsync();
+        Assert.Contains("Checking your browser", challengeHtml, StringComparison.Ordinal);
+        Assert.Contains("Enable JavaScript to continue", challengeHtml, StringComparison.Ordinal);
+        Assert.Equal("no-store", challenge.Headers["cache-control"]);
+
         var first = await page.GotoAsync(address);
         Assert.NotNull(first);
         Assert.Equal(200, first.Status);
-        var challengeHtml = await first.TextAsync();
-        Assert.Contains("Checking your browser", challengeHtml, StringComparison.Ordinal);
-        Assert.Contains("Enable JavaScript to continue", challengeHtml, StringComparison.Ordinal);
-        Assert.Equal("no-store", first.Headers["cache-control"]);
         await Expect(page.Locator("body")).ToContainTextAsync("the upstream page", new() { Timeout = 30_000 });
         var cookies = await context.CookiesAsync();
         var cookie = Assert.Single(cookies, cookie => cookie.Name == "paduraksa_pow");
