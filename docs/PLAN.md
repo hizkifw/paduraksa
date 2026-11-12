@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.28**: M0-M9 done, the property tests and coverage-guided fuzzing built with targets for the M8/M9 surfaces (§15); M10 interop in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.29**: M0-M9 done; M10 backup/restore, YAML import/export and MCP (code mode, child-process sandbox) done, drafts next; traffic analytics built (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -2503,3 +2503,9 @@ These are cheap now and expensive later. Fold them into the milestones that touc
   - **Logs (§7.4):** a client that vanished mid-write is one Debug line and a counter (`paduraksa_connection_errors_total{kind="peer_gone"}`), not two Error stacks per connection.
   - **Metrics (§7.4):** every observed minute is stored with its observed seconds, so downtime is a gap and never stitched; observed time is monotonic and a stall that served requests counts as observed; graceful stop writes the partial minute and a minute written twice merges; the 1 h view is seeded from the rollups at boot; the charts break their lines at gaps.
   - **Dashboard (§12):** the hosts list keeps the maintenance and enable controls inside the row.
+- **v0.29:** M10 interop (all but drafts) and traffic analytics.
+  - **Backup and restore (§8.4):** an Owner-only, passphrase-encrypted (Argon2id, chunked AES-256-GCM) online archive of the config and the vault, its keys re-wrapped under a backup-only key so it restores on a fresh machine under that machine's master key; `paduraksa backup|restore`, `POST /api/v1/backup`, Settings > Backup; one server per data directory (`run/server.lock`).
+  - **YAML import and export (§11.4, §11.5):** a friendly format with names and optional IDs that round-trips to the identical revision, merge and replace through the pipeline with dry-run, the API, the CLI (a client of the running instance) and Settings > Export and import; a `yaml-import` fuzz target.
+  - **MCP in code mode (§11.2):** two tools, `search` and `execute`, running stock Jint in a child process that the parent limits from outside and kills on any breach (time, CPU, memory, requests, protocol, frames bound to their run); the request policy (refused list, confirm or dry-run, the token's identity) stays in the parent; off by default (`Paduraksa:Mcp:Enabled`).
+  - **Analytics (§7.4, §12):** visitors and content, clients and bots, computed in the access-log drain off the request path (HyperLogLog visitors with a per-process salt, Space-Saving top-N, an own user-agent classifier that skips work when the drain falls behind, robots.txt parity for bots ignoring it), 5-minute, hourly and daily rollups, and an Analytics page.
+  - **Tests (§15):** the CI-only flakes found on the 4-core runner fixed at their cause (fake clocks moved before a wait was armed, parallel test classes sharing process state, bUnit's 1 s default).
