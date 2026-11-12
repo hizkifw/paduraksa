@@ -150,11 +150,12 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         probe.Enabled = false;
 
         Assert.True(probe.Requests >= Measured, $"only {probe.Requests} requests measured");
-        Assert.True(probe.RegistrationBytes == 0, $"the OnCompleted and OnStarting registrations allocated {probe.RegistrationBytes} B over {probe.Requests} requests");
-        Assert.True(probe.RecordingBytes == 0, $"the access-log callback allocated {probe.RecordingBytes} B over {probe.Requests} requests");
-        Assert.True(probe.MetricsBytes == 0, $"the request-counter callback allocated {probe.MetricsBytes} B over {probe.Requests} requests");
-        Assert.True(probe.ReapplyBytes == 0, $"the reapply callback allocated {probe.ReapplyBytes} B over {probe.Requests} requests");
-        Assert.True(probe.ResponseStartBytes == 0, $"the response-start hook allocated {probe.ResponseStartBytes} B over {probe.Requests} requests on the successful path");
+        // 0 B a request, except that one request in the run may carry a one-off of the runtime's own on that thread (see the gate test above):
+        // an allocation of the callbacks' own shows on every request.
+        Assert.True(
+            probe.RequestsThatAllocated <= 1,
+            $"callbacks allocated in {probe.RequestsThatAllocated} of {probe.Requests} requests: registrations {probe.RegistrationBytes} B, access-log {probe.RecordingBytes} B, "
+            + $"request counter {probe.MetricsBytes} B, reapply {probe.ReapplyBytes} B, response-start hook {probe.ResponseStartBytes} B");
         await WaitForEntriesAsync(server.AccessLog, Measured);
         Assert.Equal(0, server.AccessLog.Dropped);
     }
@@ -203,6 +204,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         private long _reapplyBytes;
         private long _metricsBytes;
         private long _responseStartBytes;
+        private long _requestsThatAllocated;
 
         public bool Enabled
         {
@@ -211,6 +213,8 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         }
 
         public long Requests => Volatile.Read(ref _requests);
+
+        public long RequestsThatAllocated => Volatile.Read(ref _requestsThatAllocated);
 
         public long RegistrationBytes => Volatile.Read(ref _registrationBytes);
 
@@ -230,6 +234,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             Volatile.Write(ref _reapplyBytes, 0);
             Volatile.Write(ref _metricsBytes, 0);
             Volatile.Write(ref _responseStartBytes, 0);
+            Volatile.Write(ref _requestsThatAllocated, 0);
         }
 
         public Task Invoke(HttpContext context, RequestDelegate next)
@@ -276,6 +281,11 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             var responseStart = GC.GetAllocatedBytesForCurrentThread() - before;
 
             Interlocked.Increment(ref _requests);
+            if (registration + recording + counting + reapply + responseStart != 0)
+            {
+                Interlocked.Increment(ref _requestsThatAllocated);
+            }
+
             Interlocked.Add(ref _registrationBytes, registration);
             Interlocked.Add(ref _recordingBytes, recording);
             Interlocked.Add(ref _reapplyBytes, reapply);
