@@ -1,0 +1,312 @@
+@attribute [Authorize]
+@attribute [Route(SettingsRoutes.Transfer)]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Yaml
+@using Paduraksa.Dashboard.Identity
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject DashboardBrowser Browser
+@inject ISnackbar Snackbar
+@inject ILogger<ConfigTransfer> Logger
+@* Settings: the config as YAML (PLAN §11.5). Export downloads the live config; import reads pasted text or a file, maps it onto the
+   document, and hands the command to the review drawer, whose dry run is the diff and whose Apply is one revision. *@
+
+<PageTitle>Export and import · Settings · Paduraksa</PageTitle>
+
+<PageHeader Title="Export and import" />
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
+    </MudPaper>
+}
+else if (_revision is null && !_loaded)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true" aria-busy="true">
+        <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" Height="28px" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" Class="mt-3" />
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-form-grid">
+        <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true" data-card="export">
+            <div class="pdk-card-head pdk-card-head-wrap">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h3">Export</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">
+                        @(_revision is { } revision ? $"Revision {revision}" : "No revision yet"). Passwords are never in it: an access list's users are a username and the vault's credential ID.
+                    </MudText>
+                </div>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Download" OnClick="ExportAsync" Disabled="_exporting" Class="pdk-no-wrap" data-action="export">Download YAML</MudButton>
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true" data-card="import">
+            <div class="pdk-card-head">
+                <MudText Typo="Typo.h6" HtmlTag="h3">Import</MudText>
+            </div>
+
+            <MudRadioGroup T="ConfigImportMode" Value="_mode" ValueChanged="SetMode" Disabled="!_mayWrite" Class="pdk-choice-group pdk-import-modes" data-field="import-mode">
+                <MudRadio T="ConfigImportMode" Value="ConfigImportMode.Merge" Color="Color.Primary">
+                    Merge <span class="pdk-import-mode-help">adds what the file names and updates what it matches by id or name; deletes nothing</span>
+                </MudRadio>
+                <MudRadio T="ConfigImportMode" Value="ConfigImportMode.Replace" Color="Color.Primary">
+                    Replace <span class="pdk-import-mode-help">the config becomes the file; whatever it leaves out is deleted</span>
+                </MudRadio>
+            </MudRadioGroup>
+
+            <div class="pdk-drop @(_file is not null ? "pdk-drop-filled" : null) @(_fileError is not null ? "pdk-drop-error" : null)">
+                <span class="pdk-drop-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.UploadFile" /></span>
+                <div class="pdk-drop-text">
+                    @if (_file is { } file)
+                    {
+                        <span class="pdk-drop-title" data-field="import-file">@file.Name</span>
+                        <span class="pdk-drop-hint">@FileSize(file.Bytes.Length)</span>
+                    }
+                    else
+                    {
+                        <span class="pdk-drop-title">Choose a YAML file</span>
+                        <span class="pdk-drop-hint">At most @FileSize(ConfigImportService.MaxBytes), or paste it below.</span>
+                    }
+                </div>
+                @if (_file is not null)
+                {
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearFile" Class="pdk-drop-clear" data-action="clear-file">Remove</MudButton>
+                }
+                <InputFile OnChange="OnFileChosenAsync" accept=".yaml,.yml,text/yaml,application/yaml" class="pdk-drop-input" aria-label="YAML file" disabled="@(!_mayWrite || _busy)" />
+            </div>
+            @if (_fileError is { } fileError)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Error" Class="pdk-field-error">@fileError</MudText>
+            }
+
+            @if (_file is null)
+            {
+                <MudTextField T="string" @bind-Value="_text" Lines="10" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input pdk-import-text"
+                              Label="Paste YAML" MaxLength="PasteLimit" ReadOnly="!_mayWrite" Immediate="false" spellcheck="false" data-field="import-text" />
+            }
+
+            @if (_errors.Count > 0)
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
+                    <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix"):</strong>
+                    <ul class="pdk-error-list">
+                        @foreach (var error in _errors)
+                        {
+                            <li><span class="pdk-error-where">@(error.Path.Length == 0 ? "File" : error.Path)</span> @error.Message</li>
+                        }
+                    </ul>
+                </MudAlert>
+            }
+
+            @if (_mayWrite)
+            {
+                <div class="pdk-form-actions">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" OnClick="ReviewAsync" Disabled="_busy" data-action="review-import">Review import</MudButton>
+                </div>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can't change the config.</MudAlert>
+            }
+        </MudPaper>
+    </div>
+
+    <ReviewDrawer @bind-Open="_reviewing" Title="@($"Import YAML ({ModeWord})")" Command="_command" AfterDocument="_command?.Document" ApplyLabel="Import" Destructive="_mode == ConfigImportMode.Replace"
+                  SuccessMessage="Imported the YAML" OnApplied="OnAppliedAsync" OnReload="OnReloadAsync" />
+}
+
+@code {
+    // The circuit's messages are 32 KiB and a character is up to 3 bytes of UTF-8 (10 000 of them: 30 000 B): a longer paste would drop the connection. A file is streamed in pieces.
+    private const int PasteLimit = 10_000;
+
+    private sealed record ChosenFile(string Name, byte[] Bytes);
+
+    private bool _denied;
+    private bool _loaded;
+    private bool _mayWrite;
+    private bool _exporting;
+    private bool _busy;
+    private bool _reviewing;
+    private RevisionRef? _revision;
+    private ConfigImportMode _mode = ConfigImportMode.Merge;
+    private string? _text;
+    private ChosenFile? _file;
+    private string? _fileError;
+    private ReplaceConfigCommand? _command;
+    private IReadOnlyList<ConfigError> _errors = [];
+    private IDisposable? _watch;
+
+    private string ModeWord => _mode == ConfigImportMode.Merge ? "merge" : "replace";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        _watch = Config.Watch(committed => InvokeAsync(() =>
+        {
+            _revision = committed.Revision;
+            StateHasChanged();
+        }));
+        _revision = (await Config.GetCurrentAsync()).Revision;
+        _loaded = true;
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private void SetMode(ConfigImportMode mode)
+    {
+        _mode = mode;
+        _command = null;
+        _errors = [];
+    }
+
+    private async Task ExportAsync()
+    {
+        _exporting = true;
+        try
+        {
+            await Logger.TryAsync(Snackbar, "The export couldn't be made.", async () =>
+            {
+                var export = await Config.ExportAsync();
+                var name = export.Revision is { } revision ? $"paduraksa-config-r{revision.Seq}.yaml" : "paduraksa-config.yaml";
+                if (!await Browser.DownloadTextAsync(name, export.Yaml, "application/yaml;charset=utf-8"))
+                {
+                    Snackbar.Add("The download didn't start. Try again from the API: GET /api/v1/config/export.", Severity.Warning);
+                }
+            });
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private async Task OnFileChosenAsync(InputFileChangeEventArgs args)
+    {
+        _fileError = null;
+        _errors = [];
+        _command = null;
+        var file = args.File;
+        if (file.Size > ConfigImportService.MaxBytes)
+        {
+            _file = null;
+            _fileError = $"The file is larger than {FileSize(ConfigImportService.MaxBytes)}.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(ConfigImportService.MaxBytes);
+            using MemoryStream buffer = new();
+            await stream.CopyToAsync(buffer);
+            _file = new ChosenFile(file.Name, buffer.ToArray());
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException)
+        {
+            Logger.LogWarning(ex, "Couldn't read the chosen YAML file.");
+            _file = null;
+            _fileError = "The file couldn't be read.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ClearFile()
+    {
+        _file = null;
+        _fileError = null;
+        _command = null;
+    }
+
+    private async Task ReviewAsync()
+    {
+        _errors = [];
+        _command = null;
+        var yaml = _file?.Bytes ?? System.Text.Encoding.UTF8.GetBytes(_text ?? string.Empty);
+        if (yaml.Length == 0 || (_file is null && string.IsNullOrWhiteSpace(_text)))
+        {
+            _errors = [new ConfigError(string.Empty, YamlErrorCodes.Documents, "Choose a file or paste the YAML first.")];
+            return;
+        }
+
+        var origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var prepared = await Config.PrepareImportAsync(yaml, _mode, origin);
+            if (prepared.Denied)
+            {
+                _errors = [new ConfigError(string.Empty, "denied", IdentityText.CantChangeConfig)];
+            }
+            else if (prepared.Command is { } command)
+            {
+                _command = command;
+                _reviewing = true;
+            }
+            else
+            {
+                _errors = prepared.Errors;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't prepare a YAML import.");
+            _errors = [new ConfigError(string.Empty, "failed", "The import couldn't be prepared. The details are in the server log.")];
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task OnAppliedAsync(ConfigCommandResult result)
+    {
+        _file = null;
+        _text = null;
+        _command = null;
+        _errors = [];
+        if (result.Revision is { } revision)
+        {
+            _revision = revision;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    // The config moved while the review was open: the command was built on the old one, so it goes and the person reviews again.
+    private Task OnReloadAsync()
+    {
+        _command = null;
+        return Task.CompletedTask;
+    }
+
+    private static string FileSize(int bytes) => bytes >= 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MiB" : bytes >= 1024 ? $"{bytes / 1024.0:0.#} KiB" : $"{bytes} B";
+}

@@ -6,6 +6,7 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Simulation;
+using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -20,6 +21,7 @@ namespace Paduraksa.Dashboard.Config;
 internal sealed partial class DashboardConfig(
     ConfigService config,
     RevisionQueryService revisions,
+    ConfigImportService import,
     CertificateService certificates,
     RequestSimulator simulator,
     UserService users,
@@ -36,6 +38,12 @@ internal sealed partial class DashboardConfig(
 
     public Task<ConfigCommandResult> ExecuteAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken = default) =>
         config.ExecuteAsync(command, origin, cancellationToken);
+
+    public async Task<ConfigExport> ExportAsync(CancellationToken cancellationToken = default) =>
+        (await import.ExportAsync(cancellationToken: cancellationToken).ConfigureAwait(false))!;
+
+    public Task<ConfigImportPreparation> PrepareImportAsync(ReadOnlyMemory<byte> yaml, ConfigImportMode mode, CommandOrigin origin, CancellationToken cancellationToken = default) =>
+        import.PrepareAsync(yaml, mode, origin, cancellationToken: cancellationToken);
 
     public Task<RevisionTimelinePage?> ListRevisionsAsync(int limit, ConfigRevisionId? after, CancellationToken cancellationToken = default) =>
         revisions.ListWithChangesAsync(limit, after, cancellationToken);

@@ -20,7 +20,10 @@ public sealed record ConfigImportOptions(bool DryRun = false, ConfigRevisionId? 
 /// <param name="Command">The command to review (a dry run of it) and run; null when there is none, see <paramref name="Errors"/> and <paramref name="Denied"/>.</param>
 /// <param name="Errors">Why there is no command: errors that point into the YAML, with their lines.</param>
 /// <param name="Denied">The caller may not change the config.</param>
-public sealed record ConfigImportPreparation(ReplaceConfigCommand? Command, IReadOnlyList<ConfigError> Errors, bool Denied = false);
+public sealed record ConfigImportPreparation(ReplaceConfigCommand? Command, IReadOnlyList<ConfigError>? Errors = null, bool Denied = false)
+{
+    public IReadOnlyList<ConfigError> Errors { get; init; } = Errors ?? [];
+}
 
 /// <summary>A config as YAML, with the revision it is.</summary>
 /// <param name="Yaml">The text.</param>

@@ -825,3 +825,40 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
+
+/* ---------- Export and import ---------- */
+
+.pdk-import-modes {
+    display: grid;
+    gap: 0;
+    margin-bottom: 14px;
+}
+
+.pdk-no-wrap {
+    white-space: nowrap;
+}
+
+.pdk-card-head-wrap {
+    flex-wrap: wrap;
+}
+
+.pdk-card-head-wrap > div {
+    flex: 1 1 240px;
+    min-width: 0;
+}
+
+.pdk-import-mode-help {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-import-text textarea {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.pdk-drop-clear {
+    position: relative;
+    z-index: 1;
+    margin-left: auto;
+}

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
+using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -56,6 +57,23 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
     {
         Executed.Add(command);
         return Task.FromResult(Results(command));
+    }
+
+    /// <summary>What an export gives.</summary>
+    public ConfigExport Export { get; set; } = new("apiVersion: paduraksa.dev/v1\nkind: Config\n", null);
+
+    /// <summary>What preparing an import gives; by default the command replacing the document with an empty one.</summary>
+    public Func<ReadOnlyMemory<byte>, ConfigImportMode, ConfigImportPreparation> Prepared { get; set; } = (_, _) =>
+        new ConfigImportPreparation(new ReplaceConfigCommand(new ConfigDocument(), null));
+
+    public List<(string Yaml, ConfigImportMode Mode)> Imports { get; } = [];
+
+    public Task<ConfigExport> ExportAsync(CancellationToken cancellationToken = default) => Task.FromResult(Export);
+
+    public Task<ConfigImportPreparation> PrepareImportAsync(ReadOnlyMemory<byte> yaml, ConfigImportMode mode, CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        Imports.Add((System.Text.Encoding.UTF8.GetString(yaml.Span), mode));
+        return Task.FromResult(Prepared(yaml, mode));
     }
 
     public Task<RevisionTimelinePage?> ListRevisionsAsync(int limit, ConfigRevisionId? after, CancellationToken cancellationToken = default) =>

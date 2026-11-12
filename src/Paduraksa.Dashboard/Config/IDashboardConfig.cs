@@ -1,4 +1,5 @@
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -39,6 +40,12 @@ public interface IDashboardConfig
 
     /// <summary>A revision with its document; null when there is none.</summary>
     Task<RevisionDetail?> GetRevisionAsync(ConfigRevisionId id, CancellationToken cancellationToken = default);
+
+    /// <summary>The live config as YAML, with its revision.</summary>
+    Task<ConfigExport> ExportAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>The command importing <paramref name="yaml"/> in <paramref name="mode"/> would run, for the review sheet to dry-run and apply; errors that point into the YAML when there is none.</summary>
+    Task<ConfigImportPreparation> PrepareImportAsync(ReadOnlyMemory<byte> yaml, ConfigImportMode mode, CommandOrigin origin, CancellationToken cancellationToken = default);
 
     /// <summary>The certificate inventory (public facts only).</summary>
     Task<IReadOnlyList<CertificateSummary>> ListCertificatesAsync(CancellationToken cancellationToken = default);
