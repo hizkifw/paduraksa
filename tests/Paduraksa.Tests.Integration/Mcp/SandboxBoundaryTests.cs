@@ -271,17 +271,21 @@ public sealed class SandboxBoundaryTests
         gate.Release();
     }
 
+    private const string SentinelName = "PADURAKSA_SANDBOX_TEST_SENTINEL";
+
     [Fact]
     public async Task TheChildHasNoneOfTheServersEnvironmentAndAppliesWhatItCan()
     {
-        Environment.SetEnvironmentVariable("PADURAKSA_MASTER_KEY", "a-key-the-child-must-not-have");
+        // A sentinel nothing reads, not a real PADURAKSA_MASTER_KEY: the process environment is shared with the test classes running beside
+        // this one, and a bad key there fails every host they start. The allowlist assertion below covers the key itself.
+        Environment.SetEnvironmentVariable(SentinelName, "a-value-the-child-must-not-have");
         try
         {
             await using var tools = SandboxFixture.Create();
             await tools.SearchAsync("async () => 1", Ct);
             var pid = Assert.Single(tools.Pool.ChildProcessIds);
             var environment = (await File.ReadAllTextAsync($"/proc/{pid}/environ", Ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);
-            Assert.DoesNotContain(environment, e => e.Contains("a-key-the-child-must-not-have", StringComparison.Ordinal) || e.StartsWith("PADURAKSA_MASTER_KEY", StringComparison.Ordinal));
+            Assert.DoesNotContain(environment, e => e.Contains("a-value-the-child-must-not-have", StringComparison.Ordinal) || e.StartsWith(SentinelName, StringComparison.Ordinal));
             Assert.All(environment, e => Assert.Matches("^(DOTNET_|PATH=|LD_LIBRARY_PATH=|PADURAKSA_MCP_CPU_SECONDS=)", e));
             Assert.Contains(environment, e => e.StartsWith("DOTNET_GCHeapHardLimit=0x10000000", StringComparison.Ordinal));
             // Per thread: the script thread has it.
@@ -290,7 +294,7 @@ public sealed class SandboxBoundaryTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("PADURAKSA_MASTER_KEY", null);
+            Environment.SetEnvironmentVariable(SentinelName, null);
         }
     }
 
