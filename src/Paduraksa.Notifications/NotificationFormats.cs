@@ -205,7 +205,7 @@ public static class NotificationFormats
         return escaped.ToString();
     }
 
-    private static string Clip(string text, int max) => text.Length <= max ? text : string.Concat(text.AsSpan(0, max - 1), "…");
+    private static string Clip(string text, int max) => text.Length <= max ? text : string.Concat(text.AsSpan(0, max - 1), "\u2026");
 
     private static int Priority(NotificationSeverity severity) => severity switch
     {
