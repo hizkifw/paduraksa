@@ -96,6 +96,14 @@ public sealed class NotificationWorkerTests : OutboxTestBase
         Assert.Equal(channel, Sender.Sent[2].Channel);
     }
 
+    private async Task DeliveryStateAsync(NotificationEventId eventId, NotificationDeliveryState state)
+    {
+        for (var i = 0; i < 300 && (await Deliveries()).Single(d => d.EventId == eventId).State != state; i++)
+        {
+            await Task.Delay(10, Ct);
+        }
+    }
+
     [Fact]
     public async Task EventsThatWaitedOutADatabaseOutageInTheBufferAreExpiredNotSentWhenItEnds()
     {
@@ -115,8 +123,11 @@ public sealed class NotificationWorkerTests : OutboxTestBase
         await SettledAsync(() => dispatcher.Routed >= 2);
         await AdvanceUntilAsync(() => dispatcher.Stats.Ended(NotificationChannelKind.Webhook, NotificationDeliveryState.Expired) >= 1, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
 
+        await SettledAsync(() => Sender.Sent.Count >= 1);
         Assert.Equal(["Upstream files is down"], Sender.Sent.Select(s => s.Message.Title));
         var events = (await Events()).ToDictionary(e => e.Title);
+        // The row is marked sent just after the send; a loaded runner can read it in between.
+        await DeliveryStateAsync(events["Upstream files is down"].Id, NotificationDeliveryState.Sent);
         Assert.Equal(NotificationDeliveryState.Expired, (await Deliveries()).Single(d => d.EventId == events["Upstream media is down"].Id).State);
         Assert.Equal(NotificationDeliveryState.Sent, (await Deliveries()).Single(d => d.EventId == events["Upstream files is down"].Id).State);
         Assert.Equal(channel, Sender.Sent[0].Channel);
