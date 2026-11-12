@@ -16,6 +16,12 @@ namespace Paduraksa.Application.Yaml;
 /// <param name="Message">The revision's note; null: "YAML import (merge)" or "(replace)".</param>
 public sealed record ConfigImportOptions(bool DryRun = false, ConfigRevisionId? BaseRevision = null, bool Force = false, string? Message = null);
 
+/// <summary>What an import would commit.</summary>
+/// <param name="Command">The command to review (a dry run of it) and run; null when there is none, see <paramref name="Errors"/> and <paramref name="Denied"/>.</param>
+/// <param name="Errors">Why there is no command: errors that point into the YAML, with their lines.</param>
+/// <param name="Denied">The caller may not change the config.</param>
+public sealed record ConfigImportPreparation(ReplaceConfigCommand? Command, IReadOnlyList<ConfigError> Errors, bool Denied = false);
+
 /// <summary>A config as YAML, with the revision it is.</summary>
 /// <param name="Yaml">The text.</param>
 /// <param name="Revision">Its revision; null for the empty config, which has none.</param>
@@ -82,42 +88,76 @@ public sealed class ConfigImportService
         return new ConfigExport(ConfigYamlExporter.Export(CanonicalConfigJson.Canonicalize(current.Document)), current.Revision);
     }
 
+    /// <summary>
+    /// What an import would commit, without running it: the command (a dry run of it is the review a page shows, and running it is the import), or why there is none.
+    /// A credential the vault lacks is an error here, as in <see cref="ImportAsync"/>.
+    /// </summary>
+    public async Task<ConfigImportPreparation> PrepareAsync(
+        ReadOnlyMemory<byte> yaml, ConfigImportMode mode, CommandOrigin origin, ConfigImportOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        var prepared = await PrepareCoreAsync(yaml, mode, origin, options ?? new ConfigImportOptions(), cancellationToken).ConfigureAwait(false);
+        return new ConfigImportPreparation(
+            prepared.Denied ? null : prepared.CredentialErrors.Count > 0 ? null : prepared.Command,
+            [.. prepared.Errors, .. prepared.CredentialErrors],
+            prepared.Denied);
+    }
+
     /// <summary>Imports <paramref name="yaml"/> in <paramref name="mode"/> and says how it ended, like any command; <see cref="ConfigCommandStatus.Invalid"/> carries errors that point into the YAML.</summary>
     public async Task<ConfigCommandResult> ImportAsync(
         ReadOnlyMemory<byte> yaml, ConfigImportMode mode, CommandOrigin origin, ConfigImportOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
         options ??= new ConfigImportOptions();
-        if (!await _permissions.IsAllowedAsync(origin, OperationPermissions.ForConfigCommand, cancellationToken).ConfigureAwait(false))
+        var prepared = await PrepareCoreAsync(yaml, mode, origin, options, cancellationToken).ConfigureAwait(false);
+        if (prepared.Denied)
         {
             return new ConfigCommandResult(ConfigCommandStatus.Denied);
+        }
+
+        if (prepared.Command is null || prepared.Plan is null || prepared.Mapped is null)
+        {
+            return new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: prepared.Errors);
+        }
+
+        if (prepared.CredentialErrors.Count > 0 && !options.DryRun)
+        {
+            return new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: prepared.CredentialErrors);
+        }
+
+        var result = await _config.ExecuteAsync(prepared.Command, origin, cancellationToken).ConfigureAwait(false);
+        result = PointIntoYaml(result, prepared.Plan, prepared.Mapped);
+        return prepared.CredentialErrors.Count == 0
+            ? result
+            : result with { Status = ConfigCommandStatus.Invalid, Errors = [.. prepared.CredentialErrors, .. result.Errors] };
+    }
+
+    private sealed record Prepared(
+        bool Denied, ReplaceConfigCommand? Command, ImportPlan? Plan, MappedYaml? Mapped, IReadOnlyList<ConfigError> Errors, IReadOnlyList<ConfigError> CredentialErrors);
+
+    private async Task<Prepared> PrepareCoreAsync(
+        ReadOnlyMemory<byte> yaml, ConfigImportMode mode, CommandOrigin origin, ConfigImportOptions options, CancellationToken cancellationToken)
+    {
+        if (!await _permissions.IsAllowedAsync(origin, OperationPermissions.ForConfigCommand, cancellationToken).ConfigureAwait(false))
+        {
+            return new Prepared(true, null, null, null, [], []);
         }
 
         var current = await _config.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
         var read = ConfigYamlImporter.Read(yaml.Span, current.Document, mode, _newId, _limits);
         if (read.Mapped is not { } mapped)
         {
-            return new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: read.Errors);
+            return new Prepared(false, null, null, null, read.Errors, []);
         }
 
         var plan = mode == ConfigImportMode.Merge ? ConfigImportMerge.Merge(current.Document, mapped) : ConfigImportMerge.Replace(mapped);
-        var credentialErrors = UnknownCredentials(current.Document, mapped);
-        if (credentialErrors.Count > 0 && !options.DryRun)
-        {
-            return new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: credentialErrors);
-        }
-
         ReplaceConfigCommand command = new(plan.Document, options.BaseRevision ?? current.Revision?.Id)
         {
             DryRun = options.DryRun,
             Force = options.Force,
             Message = string.IsNullOrWhiteSpace(options.Message) ? $"YAML import ({(mode == ConfigImportMode.Merge ? "merge" : "replace")})" : options.Message,
         };
-        var result = await _config.ExecuteAsync(command, origin, cancellationToken).ConfigureAwait(false);
-        result = PointIntoYaml(result, plan, mapped);
-        return credentialErrors.Count == 0
-            ? result
-            : result with { Status = ConfigCommandStatus.Invalid, Errors = [.. credentialErrors, .. result.Errors] };
+        return new Prepared(false, command, plan, mapped, [], UnknownCredentials(current.Document, mapped));
     }
 
     private List<ConfigError> UnknownCredentials(ConfigDocument stored, MappedYaml imported)

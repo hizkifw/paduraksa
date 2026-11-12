@@ -352,4 +352,38 @@ public sealed class ConfigImportServiceTests : IAsyncLifetime
         // And exporting the copy gives the very same text.
         Assert.Equal(exported.Yaml, (await ImportOn(fresh).ExportAsync(cancellationToken: TestContext.Current.CancellationToken))!.Yaml);
     }
+
+    [Fact]
+    public async Task PreparingGivesTheCommandAReviewRunsWithoutRunningIt()
+    {
+        var prepared = await _import.PrepareAsync(Encoding.UTF8.GetBytes(Header + TwoHosts), ConfigImportMode.Merge, ConfigServiceHarness.Admin, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(prepared.Errors);
+        Assert.False(prepared.Denied);
+        var command = Assert.IsType<ReplaceConfigCommand>(prepared.Command);
+        Assert.Equal(2, command.Document.Hosts.Count);
+        Assert.Equal("YAML import (merge)", command.Message);
+        Assert.False(command.DryRun);
+        Assert.Empty(await _h.RevisionsAsync());
+
+        var result = await _h.RunAsync(command);
+        Assert.Equal(ConfigCommandStatus.Committed, result.Status);
+    }
+
+    [Fact]
+    public async Task PreparingReportsYamlAndCredentialErrorsWithoutACommandAndDeniesWithoutTheWritePermission()
+    {
+        var bad = await _import.PrepareAsync(Encoding.UTF8.GetBytes(Header + "hosts:\n  - names: [a.example.com]\n    profile: nope\n"), ConfigImportMode.Replace, ConfigServiceHarness.Admin, cancellationToken: TestContext.Current.CancellationToken);
+        var credential = await _import.PrepareAsync(
+            Encoding.UTF8.GetBytes(Header + $"accessLists:\n  - name: a\n    basicAuth:\n      users:\n        - username: u\n          credentialId: {PasswordCredentialId.New()}\n"),
+            ConfigImportMode.Replace, ConfigServiceHarness.Admin, cancellationToken: TestContext.Current.CancellationToken);
+        var denied = await ImportOn(_h, TestPermissions.Deny).PrepareAsync(Encoding.UTF8.GetBytes(Header), ConfigImportMode.Merge, ConfigServiceHarness.Admin, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Null(bad.Command);
+        Assert.Equal("/hosts/0/profile", Assert.Single(bad.Errors).Path);
+        Assert.Null(credential.Command);
+        Assert.Equal(YamlErrorCodes.CredentialUnknown, Assert.Single(credential.Errors).Code);
+        Assert.True(denied.Denied);
+        Assert.Null(denied.Command);
+    }
 }
