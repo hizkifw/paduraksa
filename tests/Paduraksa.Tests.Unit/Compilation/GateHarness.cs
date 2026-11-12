@@ -61,6 +61,31 @@ internal sealed class GateHarness : IDisposable
         return forwarded ? Forwarded : lifetime.Aborted ? Aborted : context.Response.StatusCode;
     }
 
+    /// <summary>What a browser (<c>Accept: text/html</c>) is served: the status, the policy of the page and its bytes.</summary>
+    public async Task<ServedPage> ServePageAsync(string host, string scheme, string path, IPAddress client)
+    {
+        DefaultHttpContext context = new();
+        using MemoryStream body = new();
+        context.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(body));
+        context.Features.Set<IHttpRequestLifetimeFeature>(new Lifetime());
+        context.Request.Method = "GET";
+        context.Request.Headers.Accept = "text/html";
+        context.Request.Protocol = "HTTP/1.1";
+        context.Request.Scheme = scheme;
+        context.Request.Host = new HostString(host);
+        context.Request.Path = path;
+        context.Connection.RemoteIpAddress = client;
+
+        await _gate.InvokeAsync(context, static _ => Task.CompletedTask);
+        await context.Features.Get<IHttpResponseBodyFeature>()!.CompleteAsync();
+        return new ServedPage(
+            context.Response.StatusCode,
+            context.Response.Headers.ContentSecurityPolicy.ToString(),
+            System.Text.Encoding.UTF8.GetString(body.ToArray()));
+    }
+
+    internal sealed record ServedPage(int Status, string ContentSecurityPolicy, string Body);
+
     private sealed class Lifetime : IHttpRequestLifetimeFeature
     {
         public bool Aborted { get; private set; }
