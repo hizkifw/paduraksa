@@ -164,6 +164,14 @@ else
     [SupplyParameterFromQuery(Name = "url")]
     public string? UrlParameter { get; set; }
 
+    /// <summary>A client address to start from (<c>?clientIp=...</c>), as the live tail's link gives it.</summary>
+    [SupplyParameterFromQuery(Name = "clientIp")]
+    public string? ClientIpParameter { get; set; }
+
+    /// <summary>A method to start from (<c>?method=POST</c>); one the form doesn't offer is ignored.</summary>
+    [SupplyParameterFromQuery(Name = "method")]
+    public string? MethodParameter { get; set; }
+
     /// <summary><c>draft</c>: the change under review.</summary>
     [SupplyParameterFromQuery(Name = "target")]
     public string? TargetParameter { get; set; }
@@ -197,6 +205,16 @@ else
         else if (Draft.SampleHost is { } sample)
         {
             _form.Url = $"https://{sample}/";
+        }
+
+        if (!string.IsNullOrWhiteSpace(ClientIpParameter))
+        {
+            _form.ClientIp = ClientIpParameter.Trim();
+        }
+
+        if (Methods.FirstOrDefault(method => string.Equals(method, MethodParameter?.Trim(), StringComparison.OrdinalIgnoreCase)) is { } known)
+        {
+            _form.Method = known;
         }
 
         if (string.Equals(TargetParameter, "draft", StringComparison.Ordinal) && Draft.Command is not null)
