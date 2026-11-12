@@ -482,5 +482,22 @@ internal sealed class PaduraksaNotificationOptions
     /// </summary>
     public string? AdminUrl { get; set; }
 
-    public Application.Notifications.NotificationOptions ToOptions() => new() { AdminUrl = AdminUrl is { Length: > 0 } url ? new Uri(url.TrimEnd('/') + "/") : null };
+    /// <summary>
+    /// How long a destination's new health state must hold before it is reported (default 10 s; 1 s to 10 min): the debounce that keeps one failed
+    /// probe or a lapsing passive verdict from sending anything.
+    /// </summary>
+    public TimeSpan HealthHold { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How long a channel waits after a message for more of the same kind before sending, so a storm (ten upstreams down at once) is one digest
+    /// (default 3 s; 0 to 1 min).
+    /// </summary>
+    public TimeSpan CoalesceWindow { get; set; } = TimeSpan.FromSeconds(3);
+
+    public Application.Notifications.NotificationOptions ToOptions() => new()
+    {
+        AdminUrl = AdminUrl is { Length: > 0 } url ? new Uri(url.TrimEnd('/') + "/") : null,
+        HealthHold = HealthHold,
+        CoalesceWindow = CoalesceWindow,
+    };
 }

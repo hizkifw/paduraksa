@@ -12,6 +12,7 @@ using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Logging;
 using Paduraksa.Application.Metrics;
+using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Security;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
@@ -89,6 +90,8 @@ internal sealed class SharedServices : IAsyncDisposable
         AcmeIssuance = Get<AcmeIssuanceService>();
         AcmeScheduler = Get<AcmeRenewalScheduler>();
         Simulator = Get<RequestSimulator>();
+        Notifications = Get<NotificationService>();
+        HealthBoard = Get<UpstreamHealthBoard>();
         LastKnownGood = Get<LastKnownGoodFile>();
         Users = Get<UserService>();
         Sessions = Get<SessionService>();
@@ -98,6 +101,12 @@ internal sealed class SharedServices : IAsyncDisposable
         Setup = Get<SetupService>();
         Permissions = Get<IPermissionEvaluator>();
     }
+
+    /// <summary>Notification channels: add, replace, delete and test (the admin API and the dashboard).</summary>
+    public NotificationService Notifications { get; }
+
+    /// <summary>Every upstream's live health, as the health watcher last read it.</summary>
+    public UpstreamHealthBoard HealthBoard { get; }
 
     /// <summary>User management, the first of the identity services below that the admin app and the REST API use.</summary>
     public UserService Users { get; }

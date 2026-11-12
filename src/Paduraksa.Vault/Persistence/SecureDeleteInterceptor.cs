@@ -43,6 +43,11 @@ internal static class VaultDbContextRegistration
         ArgumentNullException.ThrowIfNull(services);
         var connectionString = PaduraksaSqlite.ConnectionString(databasePath);
         return services.AddDbContextFactory<VaultDbContext>(
-            options => options.UsePaduraksaSqlite(connectionString).AddInterceptors(SecureDeleteInterceptor.Instance));
+            options => options
+                .UsePaduraksaSqlite(connectionString)
+                .AddInterceptors(SecureDeleteInterceptor.Instance)
+                // A migration that widens a check constraint rebuilds the table, and EF warns that its "PRAGMA foreign_keys = 0" is not transactional. The
+                // dependents of Secrets (TotpStates cascades on delete) surviving such a rebuild is pinned by VaultDatabaseTests, so the warning is noise on every new install.
+                .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.NonTransactionalMigrationOperationWarning)));
     }
 }

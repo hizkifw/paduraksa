@@ -358,6 +358,9 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         {
             failures.Add($"{Key}:AdminUrl must be an http or https address without credentials, a query or a fragment, was '{url}'.");
         }
+
+        Bound(notifications.HealthHold, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:HealthHold", failures);
+        Bound(notifications.CoalesceWindow, TimeSpan.Zero, TimeSpan.FromMinutes(1), $"{Key}:CoalesceWindow", failures);
     }
 
     /// <summary>The smallest rotation size accepted: below one line's worth of bytes, every line would rotate the file again (thrashing).</summary>

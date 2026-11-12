@@ -63,6 +63,35 @@ public sealed class VaultDatabaseTests : IDisposable
     }
 
     [Fact]
+    public async Task ADatabaseFromBeforeTheNotificationSecretKindKeepsItsSecretsAndTheirTotpStatesWhenItIsMigrated()
+    {
+        // The Secrets table is rebuilt to widen its kind check; its dependents (TotpStates cascade on delete) must not be swept away by the rebuild.
+        var factory = Factory();
+        var ct = TestContext.Current.CancellationToken;
+        await using (var context = await factory.CreateDbContextAsync(ct))
+        {
+            await Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(context).MigrateAsync("20261111082322_PasswordCredentials", ct);
+            await context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO Secrets (Id, Kind, Label, MacAlgorithm, AllowedHosts, Version, CreatedAt, UpdatedAt, Sealed) "
+                + "VALUES (x'0102', 'totp-secret', 'alice', NULL, '[]', 1, '2026-11-08T12:00:00.0000000Z', '2026-11-08T12:00:00.0000000Z', x'AA'), "
+                + "(x'0304', 'dns-api-token', 'cf', NULL, '[\"api.cloudflare.com\"]', 1, '2026-11-08T12:00:00.0000000Z', '2026-11-08T12:00:00.0000000Z', x'BB'); "
+                + "INSERT INTO TotpStates (SecretId, Confirmed, LastStep) VALUES (x'0102', 1, 42)",
+                ct);
+        }
+
+        await using (var context = await factory.CreateDbContextAsync(ct))
+        {
+            await Microsoft.EntityFrameworkCore.Infrastructure.AccessorExtensions.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>(context).MigrateAsync(null, ct);
+            Assert.Equal(2, await context.Database.SqlQueryRaw<int>("SELECT count(*) AS Value FROM Secrets").SingleAsync(ct));
+            Assert.Equal(1, await context.Database.SqlQueryRaw<int>("SELECT count(*) AS Value FROM TotpStates WHERE SecretId = x'0102' AND LastStep = 42").SingleAsync(ct));
+            await context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO Secrets (Id, Kind, Label, MacAlgorithm, AllowedHosts, Version, CreatedAt, UpdatedAt, Sealed) "
+                + "VALUES (x'0506', 'notification-secret', 'hook', NULL, '[]', 1, '2026-11-08T12:00:00.0000000Z', '2026-11-08T12:00:00.0000000Z', x'CC')",
+                ct);
+        }
+    }
+
+    [Fact]
     public async Task TheModelHasNoChangesMissingAMigration()
     {
         // Fails when an entity or mapping changed without `dotnet ef migrations add` (docs/development.md, "Database migrations").
