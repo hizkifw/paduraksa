@@ -66,6 +66,105 @@ public sealed class KestrelQuicTlsTests : IDisposable
         return server;
     }
 
+    /// <summary>
+    /// The connection stage over real QUIC: the handshake gate refuses a deny-listed address and an address that holds the cap, the
+    /// established connection (through the multiplexed connection middleware) is what is counted, and closing it makes room again.
+    /// </summary>
+    [Fact]
+    public async Task TheCapCountsEstablishedHttp3ConnectionsAndTheDenyListRefusesTheHandshake()
+    {
+        QuicTestSupport.Require();
+        var scanners = new AccessListSpec { Id = TestIds.AccessList("scanners"), Name = "scanners", Realm = "scanners", Deny = ["198.51.100.0/24"] };
+        using var store = new SnapshotStore();
+        store.Publish(TestSnapshots.Bound(new ProxyConfigModel
+        {
+            Upstreams = [TestSnapshots.Upstream("web", "http://127.0.0.1:1/")],
+            AccessLists = [scanners],
+            Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 1, DenyList = scanners.Id } },
+            Hosts = [TestSnapshots.ProxyHost("app", "a.test", TestSnapshots.Route("app-root", "web"))],
+        }));
+        ConnectionRuntime runtime = new(new ConnectionTable(64));
+        var selector = new TlsHandshakeSelector(
+            new CertificateTableSource(Table()), QuicConnectionLimits.CreateGate(store, runtime, QuicClientInfoGate.Gate));
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource firstArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requests = 0;
+        var http3 = false;
+        await using var server = await QuicTestSupport.StartOnFreePortAsync(IPAddress.Loopback, port => TlsTestServer.StartAsync(
+            static web => web.UsePublicHttpsTransports(),
+            kestrel => http3 = kestrel.ListenPublicHttps(
+                new PublicHttpsListenerOptions
+                {
+                    Address = IPAddress.Loopback,
+                    Port = port,
+                    ConfigureQuicConnection = quic => quic.UseQuicConnectionLimits(store, runtime),
+                },
+                selector),
+            async context =>
+            {
+                if (Interlocked.Increment(ref requests) == 1)
+                {
+                    firstArrived.TrySetResult();
+                    await release.Task;
+                }
+
+                await context.Response.WriteAsync("held");
+            }));
+        Assert.True(http3);
+
+        // One connection, held open by a request the server doesn't answer yet: it is counted once established.
+        using var holderHandler = TlsProbe.CreateHandler(_pki, out _);
+        var holder = new HttpClient(holderHandler) { Timeout = TimeSpan.FromSeconds(20) };
+        var held = TlsProbe.SendAsync(holder, server.Port, "a.test", HttpVersion.Version30);
+        await firstArrived.Task.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
+        Assert.Equal(1, runtime.Stats.Open);
+
+        // The same address can't open another: the handshake is refused before the callback returns options.
+        await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30));
+        Assert.Equal(1, runtime.Stats.OverCapQuic);
+
+        release.SetResult();
+        using (var answered = await held)
+        {
+            Assert.Equal("held", await answered.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        }
+
+        holder.Dispose();
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (runtime.Stats.Open > 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(0, runtime.Stats.Open);
+        Assert.Equal(0, runtime.Table.TotalCount());
+        Assert.Equal("a.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30)).ServedSubject);
+    }
+
+    [Fact]
+    public async Task ADenyListedAddressIsRefusedInTheQuicHandshake()
+    {
+        QuicTestSupport.Require();
+        var scanners = new AccessListSpec { Id = TestIds.AccessList("scanners"), Name = "scanners", Realm = "scanners", Deny = ["127.0.0.0/8"] };
+        using var store = new SnapshotStore();
+        store.Publish(TestSnapshots.Bound(new ProxyConfigModel
+        {
+            Upstreams = [TestSnapshots.Upstream("web", "http://127.0.0.1:1/")],
+            AccessLists = [scanners],
+            Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 0, DenyList = scanners.Id } },
+            Hosts = [TestSnapshots.ProxyHost("app", "a.test", TestSnapshots.Route("app-root", "web"))],
+        }));
+        ConnectionRuntime runtime = new(new ConnectionTable(64));
+        var selector = new TlsHandshakeSelector(
+            new CertificateTableSource(Table()), QuicConnectionLimits.CreateGate(store, runtime, QuicClientInfoGate.Gate));
+        await using var server = await StartAsync(selector, IPAddress.Loopback);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30));
+
+        Assert.Equal(1, runtime.Stats.DeniedQuic);
+        Assert.Equal(1, selector.Counters.ConnectionDenied);
+    }
+
     [Fact]
     public void PortZeroIsRejectedWithHttp3()
     {
