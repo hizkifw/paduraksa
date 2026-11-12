@@ -91,7 +91,7 @@ internal static class NotificationText
             data.Add(new("reason", change.Reason));
         }
 
-        return new NotificationEvent(kind, title, body, severity, change.Since, "/upstreams", data);
+        return new NotificationEvent(kind, title, body, severity, change.Since, "/upstreams", data, (change.Destination is { } subject ? subject.ToString() : change.Upstream.ToString()));
     }
 
     private static NotificationEventKind Down(HealthChange change) =>
@@ -120,7 +120,8 @@ internal static class NotificationText
             days <= 1 ? NotificationSeverity.Critical : days <= 7 ? NotificationSeverity.Warning : NotificationSeverity.Info,
             now,
             "/certificates",
-            [new("certificateId", id.ToString()), new("notAfter", notAfter.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)), new("days", Number(Math.Max(days, 0)))]);
+            [new("certificateId", id.ToString()), new("notAfter", notAfter.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)), new("days", Number(Math.Max(days, 0)))],
+            id.ToString());
     }
 
     private static string SourceName(CertificateSource source) => source switch
@@ -143,7 +144,8 @@ internal static class NotificationText
         NotificationSeverity.Warning,
         now,
         "/certificates",
-        [new("certificateId", id.ToString()), new("attempts", Number(attempts))]);
+        [new("certificateId", id.ToString()), new("attempts", Number(attempts))],
+        id.ToString());
 
     public static NotificationEvent AcmeRecovered(string name, CertificateId id, DateTimeOffset notAfter, DateTimeOffset now) => new(
         NotificationEventKind.AcmeRenewalRecovered,
@@ -152,7 +154,8 @@ internal static class NotificationText
         NotificationSeverity.Good,
         now,
         "/certificates",
-        [new("certificateId", id.ToString())]);
+        [new("certificateId", id.ToString())],
+        id.ToString());
 
     public static NotificationEvent SignInLockout(string username, UserId? user, DateTimeOffset until, DateTimeOffset now) => new(
         NotificationEventKind.SignInLockout,
@@ -161,7 +164,8 @@ internal static class NotificationText
         NotificationSeverity.Warning,
         now,
         "/users",
-        user is { } id ? [new("userId", id.ToString())] : null);
+        user is { } id ? [new("userId", id.ToString())] : null,
+        user?.ToString());
 
     public static NotificationEvent SignInNewAddress(string username, UserId user, string address, DateTimeOffset now) => new(
         NotificationEventKind.SignInNewAddress,
@@ -170,7 +174,8 @@ internal static class NotificationText
         NotificationSeverity.Info,
         now,
         "/users",
-        [new("userId", user.ToString()), new("address", address)]);
+        [new("userId", user.ToString()), new("address", address)],
+        user.ToString());
 
     public static NotificationEvent Test(string label, DateTimeOffset now) => new(
         NotificationEventKind.Test,

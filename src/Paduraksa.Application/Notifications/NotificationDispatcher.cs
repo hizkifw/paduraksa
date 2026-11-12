@@ -11,81 +11,92 @@ using Paduraksa.Notifications;
 
 namespace Paduraksa.Application.Notifications;
 
+/// <summary>Wakes a channel's worker now, for a delivery that was made due outside the flusher (a manual retry).</summary>
+internal interface IDeliveryWake
+{
+    void Wake(NotificationChannelId channel);
+}
+
 /// <summary>
-/// Delivers events to the channels subscribed to them (PLAN §7.4 "As built (M9): health state and notifications"). Producers call
-/// <see cref="Publish"/>, which only queues; a background loop addresses each event to every enabled subscribed channel, and each channel
-/// has a queue and a delivery loop of its own, so a channel that is down never holds up the others.
+/// Delivers events to the channels subscribed to them, durably (PLAN §7.4 "As built: durable delivery and history"). Producers call
+/// <see cref="Publish"/>, which only puts the event in a small in-memory buffer; the flusher writes the buffer to the database in batches, with one
+/// pending delivery per subscribed channel, and each channel's worker takes its due deliveries from there. What is in the database survives a stop
+/// or a crash and resumes at the next start.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Bounded, never blocking.</b> Both queues drop their oldest entry when full and count it (<see cref="Dropped"/>, logged at Warning with a
-/// running total), so a dead channel or a flood cannot grow memory or stall the caller.
+/// <b>The one window.</b> A crash loses what the buffer holds: at most the events of one <see cref="NotificationOptions.FlushInterval"/> (or what a database
+/// that cannot be written to has held back, bounded by <see cref="NotificationOptions.EventCapacity"/>). A graceful stop flushes it. The buffer is
+/// bounded and drops its oldest event when full (<see cref="Dropped"/>), so a publisher never waits for the database.
 /// </para>
 /// <para>
-/// <b>Retry.</b> A transient failure is retried after each of <see cref="NotificationOptions.RetryDelays"/>, with the channel's later messages waiting
-/// behind it (order is kept); a permanent one (a refused login, a 404) is recorded at once. After the last retry the message is given up and the
-/// channel shows "last error" until a delivery succeeds. Settings are read again for every attempt, so an edit or a deleted channel takes effect.
-/// </para>
-/// <para>
-/// <b>Storms.</b> After the first message reaches a channel's queue the channel waits <see cref="NotificationOptions.CoalesceWindow"/> and then takes everything
-/// queued: events of one kind that are worth summarising (health, expiry, ACME) go out as one digest when there are several, anything else
-/// goes out as it is. Messages that pile up behind a retry are digested the same way.
+/// <b>At least once.</b> A crash between a send and the row update sends again at the next start, so a delivery can arrive twice; a webhook carries the event
+/// ID (the digest's, for a digest) to drop the second. <b>Retry</b> is stored in the row (attempts, next attempt) and is read off <see cref="NotificationOptions.RetryDelays"/>:
+/// a transient failure waits, a permanent one is final at once. While a channel has a retry waiting, its newer deliveries wait behind it (order is kept) and
+/// are digested with it when it comes due. <b>Storms:</b> a worker woken by new deliveries waits <see cref="NotificationOptions.CoalesceWindow"/> and then takes everything
+/// due: events of one digestible kind (health, expiry, ACME) go out as one digest when there are several.
 /// </para>
 /// </remarks>
-public sealed partial class NotificationDispatcher : BackgroundService, INotificationEvents
+public sealed partial class NotificationDispatcher : BackgroundService, INotificationEvents, IDeliveryWake
 {
-    private static readonly HashSet<NotificationEventKind> Digestible =
-    [
-        NotificationEventKind.UpstreamDown, NotificationEventKind.UpstreamUp, NotificationEventKind.DestinationDown, NotificationEventKind.DestinationUp,
-        NotificationEventKind.CertificateExpiring, NotificationEventKind.AcmeRenewalFailed, NotificationEventKind.AcmeRenewalRecovered,
-    ];
-
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly INotificationSenders _senders;
     private readonly NotificationOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
-    private readonly Channel<NotificationEvent> _events;
-    private readonly ConcurrentDictionary<NotificationChannelId, ChannelQueue> _queues = new();
-    private long _dropped;
-    private long _delivered;
-    private long _failed;
+    private readonly NotificationOutbox _outbox;
+    private readonly Channel<(NotificationEvent Event, DateTimeOffset At)> _buffer;
+    private readonly ConcurrentDictionary<NotificationChannelId, ChannelWorker> _workers = new();
+    private readonly CancellationTokenSource _workersStop = new();
+    private long _routed;
+    private long _flushFailures;
 
     internal NotificationDispatcher(
         IDbContextFactory<ConfigDbContext> contexts,
         INotificationSenders senders,
         NotificationOptions options,
         TimeProvider time,
-        ILogger<NotificationDispatcher> logger)
+        ILogger<NotificationDispatcher> logger,
+        NotificationStats stats)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(senders);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(stats);
         _contexts = contexts;
         _senders = senders;
         _options = options;
         _time = time;
         _logger = logger;
-        _events = System.Threading.Channels.Channel.CreateBounded<NotificationEvent>(
+        Stats = stats;
+        _outbox = new NotificationOutbox(contexts, Stats);
+        _buffer = System.Threading.Channels.Channel.CreateBounded<(NotificationEvent, DateTimeOffset)>(
             new BoundedChannelOptions(options.EventCapacity) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true },
-            _ => CountDrop("event"));
+            _ => CountDrop());
     }
 
-    /// <summary>The channels that have a queue now (a deleted channel's is dropped).</summary>
-    internal int QueueCount => _queues.Count;
+    /// <summary>The figures <c>/metrics</c> reads.</summary>
+    public NotificationStats Stats { get; }
 
-    /// <summary>Messages dropped because a queue was full, since the process started.</summary>
-    public long Dropped => Interlocked.Read(ref _dropped);
+    /// <summary>The channels that have a worker now (a deleted channel's goes).</summary>
+    internal int QueueCount => _workers.Count;
 
-    /// <summary>Messages delivered, and given up on, since the process started.</summary>
-    public (long Delivered, long Failed) Totals => (Interlocked.Read(ref _delivered), Interlocked.Read(ref _failed));
+    /// <summary>Events dropped because the in-memory buffer was full, since the process started.</summary>
+    public long Dropped => Stats.BufferDropped;
 
+    /// <summary>Deliveries sent, and given up on, since the process started.</summary>
+    public (long Delivered, long Failed) Totals => (Sum(NotificationDeliveryState.Sent), Sum(NotificationDeliveryState.Failed));
+
+    /// <summary>Events written to the database so far, for a test that must not move the clock before the flusher is done (a worker's window starts at its first wake).</summary>
+    internal long Routed => Interlocked.Read(ref _routed);
+
+    /// <summary>Puts the event in the buffer; the flusher stores it. Never waits for the database and never throws.</summary>
     public void Publish(NotificationEvent notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
-        _ = _events.Writer.TryWrite(notification);
+        _ = _buffer.Writer.TryWrite((notification, _time.GetUtcNow()));
     }
 
     public async Task<bool> HasSubscribersAsync(NotificationEventKind kind, CancellationToken cancellationToken)
@@ -98,35 +109,17 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         }
     }
 
-    /// <summary>Events handed to their channels' queues so far, for a test that must not move the clock before routing (a database read per event) is done.</summary>
-    internal long Routed => Interlocked.Read(ref _routed);
-
-    private long _routed;
-
-    /// <summary>Waits until nothing is queued or in flight, for a test that moves the clock.</summary>
-    internal async Task QuiesceAsync(CancellationToken cancellationToken)
-    {
-        while (_events.Reader.Count > 0 || _queues.Values.Any(q => q.Busy))
-        {
-            await Task.Delay(10, cancellationToken).ConfigureAwait(false);
-        }
-    }
+    void IDeliveryWake.Wake(NotificationChannelId channel) => Wake([channel]);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        Task upkeep = Task.CompletedTask;
+        List<BufferedEvent> carry = [];
         try
         {
-            await foreach (var notification in _events.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
-            {
-                try
-                {
-                    await RouteAsync(notification, stoppingToken).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    LogRouteFailed(ex, notification.Kind.ToName());
-                }
-            }
+            await RecoverAsync(stoppingToken).ConfigureAwait(false);
+            upkeep = Task.Run(() => UpkeepAsync(stoppingToken), CancellationToken.None);
+            await FlushAsync(carry, stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -134,216 +127,339 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         }
         finally
         {
-            foreach (var queue in _queues.Values)
+            await FlushRemainingAsync(carry).ConfigureAwait(false);
+            await _workersStop.CancelAsync().ConfigureAwait(false);
+            await upkeep.ConfigureAwait(false);
+            await Task.WhenAll(_workers.Values.Select(w => w.Stopped)).ConfigureAwait(false);
+            _workersStop.Dispose();
+        }
+    }
+
+    /// <summary>What the last process left: deliveries of a channel that is gone are dropped, stale ones expire, and a worker starts for each channel with something pending.</summary>
+    private async Task RecoverAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var now = _time.GetUtcNow();
+            Wake(await _outbox.RecoverAsync(now - _options.MaxDeliveryAge, now, cancellationToken).ConfigureAwait(false));
+            await _outbox.RefreshPendingAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogRecoverFailed(ex);
+        }
+    }
+
+    /// <summary>
+    /// The flusher. A burst gathers for <see cref="NotificationOptions.FlushInterval"/> of real time (a throughput knob: it must not wait for a clock a
+    /// test holds still), then one transaction stores the batch. A write that fails keeps the batch and tries again, so an event that was drained is not lost
+    /// to a locked database; what arrives meanwhile waits in the bounded buffer.
+    /// </summary>
+    private async Task FlushAsync(List<BufferedEvent> carry, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            if (carry.Count == 0 && !await _buffer.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                await queue.StopAsync().ConfigureAwait(false);
-                queue.Dispose();
+                return;
+            }
+
+            if (carry.Count + _buffer.Reader.Count < _options.FlushBatchSize)
+            {
+                await Task.Delay(_options.FlushInterval, cancellationToken).ConfigureAwait(false);
+            }
+
+            Drain(carry);
+            if (!await TryStoreAsync(carry, cancellationToken).ConfigureAwait(false))
+            {
+                await Task.Delay(_options.FlushInterval, cancellationToken).ConfigureAwait(false);
             }
         }
     }
 
-    private async Task RouteAsync(NotificationEvent notification, CancellationToken cancellationToken)
+    /// <summary>The stop's flush: everything still buffered is written once; if the database refuses, what is lost is counted in the log.</summary>
+    private async Task FlushRemainingAsync(List<BufferedEvent> carry)
     {
-        List<NotificationChannelRow> channels;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        Drain(carry, all: true);
+        while (carry.Count > 0)
         {
-            channels = [.. (await context.NotificationChannels.AsNoTracking().Where(c => c.Enabled).ToListAsync(cancellationToken).ConfigureAwait(false))
-                .Where(c => NotificationMapping.Subscribes(c, notification.Kind))];
+            var batch = carry.Take(_options.FlushBatchSize).ToList();
+            try
+            {
+                Wake(await _outbox.StoreAsync(batch, CancellationToken.None).ConfigureAwait(false));
+                _ = Interlocked.Add(ref _routed, batch.Count);
+                carry.RemoveRange(0, batch.Count);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogLostAtStop(ex, carry.Count);
+                return;
+            }
+        }
+    }
+
+    private void Drain(List<BufferedEvent> carry, bool all = false)
+    {
+        while ((all || carry.Count < _options.FlushBatchSize) && _buffer.Reader.TryRead(out var item))
+        {
+            carry.Add(new BufferedEvent(NotificationEventId.New(), item.Event, item.At));
+        }
+    }
+
+    private async Task<bool> TryStoreAsync(List<BufferedEvent> carry, CancellationToken cancellationToken)
+    {
+        if (carry.Count == 0)
+        {
+            return true;
+        }
+
+        try
+        {
+            Wake(await _outbox.StoreAsync(carry, cancellationToken).ConfigureAwait(false));
+            _ = Interlocked.Add(ref _routed, carry.Count);
+            carry.Clear();
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var total = Interlocked.Increment(ref _flushFailures);
+            if (total is 1 || total % 100 == 0)
+            {
+                LogFlushFailed(ex, carry.Count, total);
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>Counts the pending deliveries again and prunes the history, on a slow timer; a failure waits for the next tick.</summary>
+    private async Task UpkeepAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using PeriodicTimer timer = new(_options.PollInterval, _time);
+            var nextPrune = _time.GetUtcNow();
+            do
+            {
+                try
+                {
+                    await _outbox.RefreshPendingAsync(cancellationToken).ConfigureAwait(false);
+                    if (_time.GetUtcNow() >= nextPrune)
+                    {
+                        var removed = await PruneAsync(cancellationToken).ConfigureAwait(false);
+                        nextPrune = _time.GetUtcNow() + _options.PruneInterval;
+                        if (removed > 0)
+                        {
+                            LogPruned(removed, _options.HistoryRetention);
+                        }
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogUpkeepFailed(ex);
+                }
+            }
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException)
+        {
+            // Stopping.
+        }
+    }
+
+    /// <summary>One retention pass; internal for tests, which drive it without the timer.</summary>
+    internal Task<int> PruneAsync(CancellationToken cancellationToken) =>
+        _outbox.PruneAsync(_time.GetUtcNow() - _options.HistoryRetention, _options.PruneBatchSize, cancellationToken);
+
+    private void Wake(IEnumerable<NotificationChannelId> channels)
+    {
+        if (_workersStop.IsCancellationRequested)
+        {
+            return;
         }
 
         foreach (var channel in channels)
         {
-            var queue = _queues.GetOrAdd(channel.Id, id => new ChannelQueue(this, id));
-            queue.Enqueue(notification, cancellationToken);
-        }
-
-        Interlocked.Increment(ref _routed);
-    }
-
-    /// <summary>Drops a deleted channel's queue so the table holds only channels that exist; a message already waiting in it is dropped with it.</summary>
-    private void Forget(NotificationChannelId id)
-    {
-        if (_queues.TryRemove(id, out var queue))
-        {
-            queue.Retire();
+            var worker = _workers.GetOrAdd(channel, id => new ChannelWorker(this, id));
+            worker.Wake();
+            worker.Start();
         }
     }
 
-    private void CountDrop(string what)
+    /// <summary>A worker whose channel is gone leaves the table, so it holds only channels that exist.</summary>
+    private void Forget(NotificationChannelId id) => _ = _workers.TryRemove(id, out _);
+
+    private void CountDrop()
     {
-        var total = Interlocked.Increment(ref _dropped);
+        Stats.BufferDrop();
+        var total = Stats.BufferDropped;
         if (total is 1 || total % 100 == 0)
         {
-            LogDropped(what, total);
+            LogDropped(total);
         }
     }
 
-    /// <summary>One channel's queue and the loop that empties it, started when the first message arrives and ended when it is empty.</summary>
-    private sealed class ChannelQueue(NotificationDispatcher owner, NotificationChannelId id) : IDisposable
+    private long Sum(NotificationDeliveryState outcome) => NotificationStats.ChannelKinds.Sum(kind => Stats.Ended(kind, outcome));
+
+    /// <summary>One channel's worker: it sleeps until woken, until its next retry or until the poll, then takes what is due and sends it.</summary>
+    private sealed class ChannelWorker(NotificationDispatcher owner, NotificationChannelId id) : IDisposable
     {
-        private readonly Lock _lock = new();
-        private readonly Queue<NotificationEvent> _items = new();
-        private readonly CancellationTokenSource _stop = new();
-        private Task _loop = Task.CompletedTask;
-        private bool _running;
-        private bool _retired;
+        private readonly SemaphoreSlim _wake = new(0, 1);
+        private int _started;
+        private NotificationChannelKind? _kind;
 
-        public bool Busy
+        public Task Stopped { get; private set; } = Task.CompletedTask;
+
+        public void Start()
         {
-            get
+            if (Interlocked.Exchange(ref _started, 1) == 0)
             {
-                lock (_lock)
-                {
-                    return _running || _items.Count > 0;
-                }
+                Stopped = Task.Run(() => RunAsync(owner._workersStop.Token), CancellationToken.None);
             }
         }
 
-        public void Enqueue(NotificationEvent notification, CancellationToken cancellationToken)
+        public void Wake()
         {
-            lock (_lock)
+            try
             {
-                if (_retired)
-                {
-                    return;
-                }
-
-                if (_items.Count >= owner._options.ChannelCapacity)
-                {
-                    _ = _items.Dequeue();
-                    owner.CountDrop("channel message");
-                }
-
-                _items.Enqueue(notification);
-                if (_running || cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
-
-                _running = true;
-                _loop = Task.Run(RunAsync, CancellationToken.None);
+                _ = _wake.Release();
+            }
+            catch (Exception ex) when (ex is SemaphoreFullException or ObjectDisposedException)
+            {
+                // Already woken (one pass takes everything due), or retired with its channel.
             }
         }
 
-        public async Task StopAsync()
+        public void Dispose() => _wake.Dispose();
+
+        private async Task RunAsync(CancellationToken cancellationToken)
         {
-            await _stop.CancelAsync().ConfigureAwait(false);
-            await _loop.ConfigureAwait(false);
-        }
-
-        public void Dispose() => _stop.Dispose();
-
-        /// <summary>Called from this queue's own loop when its channel is gone: nothing is left to send, so stop waiting and release the token.</summary>
-        public void Retire()
-        {
-            lock (_lock)
-            {
-                _retired = true;
-                _items.Clear();
-                _running = false;
-            }
-
-            _stop.Cancel();
-        }
-
-        private async Task RunAsync()
-        {
+            // Born by a wake: its first pass waits the window too, so the events of one flush (or of a few) are one digest.
+            var woken = await _wake.WaitAsync(TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
+            var wait = TimeSpan.Zero;
             try
             {
                 while (true)
                 {
-                    await Task.Delay(owner._options.CoalesceWindow, owner._time, _stop.Token).ConfigureAwait(false);
-                    List<NotificationEvent> batch;
-                    lock (_lock)
+                    if (wait > TimeSpan.Zero)
                     {
-                        if (_items.Count == 0)
-                        {
-                            _running = false;
-                            return;
-                        }
-
-                        batch = [.. _items];
-                        _items.Clear();
+                        woken = await WaitAsync(wait, cancellationToken).ConfigureAwait(false);
                     }
 
-                    foreach (var message in Coalesce(batch))
+                    if (woken)
                     {
-                        await owner.DeliverAsync(id, message, _stop.Token).ConfigureAwait(false);
+                        await Task.Delay(owner._options.CoalesceWindow, owner._time, cancellationToken).ConfigureAwait(false);
                     }
+
+                    if (await PassAsync(cancellationToken).ConfigureAwait(false) is not { } next)
+                    {
+                        return;
+                    }
+
+                    wait = next;
+                    woken = false;
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                lock (_lock)
-                {
-                    _running = false;
-                }
+                // Stopping: whatever was taken stays pending and resumes at the next start.
             }
             finally
             {
-                // A retired queue is no longer in the table, so nothing else will dispose it.
-                if (_retired)
-                {
-                    _stop.Dispose();
-                }
+                Dispose();
             }
         }
 
-        private static IEnumerable<NotificationEvent> Coalesce(List<NotificationEvent> batch)
+        /// <summary>Waits for a wake or for <paramref name="wait"/> on the process clock; true when woken.</summary>
+        private async Task<bool> WaitAsync(TimeSpan wait, CancellationToken cancellationToken)
         {
-            HashSet<NotificationEventKind> done = [];
-            foreach (var item in batch)
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var signal = _wake.WaitAsync(cts.Token);
+            var timer = Task.Delay(wait, owner._time, cts.Token);
+            _ = await Task.WhenAny(signal, timer).ConfigureAwait(false);
+            await cts.CancelAsync().ConfigureAwait(false);
+            var woken = signal.IsCompletedSuccessfully;
+            await Task.WhenAll(signal, timer).AsCancellationSwallowed().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return woken;
+        }
+
+        /// <summary>
+        /// One look at the channel: read its settings again (an edit or a deleted channel takes effect), then send what is due, unless a retry is waiting.
+        /// Returns how long to sleep, or null when the channel is gone.
+        /// </summary>
+        private async Task<TimeSpan?> PassAsync(CancellationToken cancellationToken)
+        {
+            var poll = owner._options.PollInterval;
+            try
             {
-                if (!Digestible.Contains(item.Kind))
+                var channel = await ReadChannelAsync(cancellationToken).ConfigureAwait(false);
+                if (channel is null)
                 {
-                    yield return item;
-                    continue;
+                    _ = await owner._outbox.DropPendingAsync(id, _kind, NotificationOutbox.ChannelDeleted, owner._time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+                    owner.Forget(id);
+                    return null;
                 }
 
-                if (!done.Add(item.Kind))
+                _kind = channel.Kind;
+                var now = owner._time.GetUtcNow();
+                if (!channel.Enabled)
                 {
-                    continue;
+                    _ = await owner._outbox.DropPendingAsync(id, channel.Kind, NotificationOutbox.ChannelPaused, now, cancellationToken).ConfigureAwait(false);
+                    return poll;
                 }
 
-                var same = batch.Where(e => e.Kind == item.Kind).ToList();
-                yield return same.Count == 1 ? item : NotificationText.Digest(same);
+                if (await owner._outbox.RetryWaitingUntilAsync(id, now, cancellationToken).ConfigureAwait(false) is { } until)
+                {
+                    return Within(until - now, poll);
+                }
+
+                var groups = await owner._outbox.ClaimAsync(id, now, owner._options.ClaimBatchSize, cancellationToken).ConfigureAwait(false);
+                for (var i = 0; i < groups.Count; i++)
+                {
+                    if (i > 0 && await ReadChannelAsync(cancellationToken).ConfigureAwait(false) is { Enabled: true } current)
+                    {
+                        channel = current;
+                    }
+                    else if (i > 0)
+                    {
+                        // Deleted or paused while this pass sent: the next pass drops what is left.
+                        return TimeSpan.Zero;
+                    }
+
+                    if (await SendAsync(channel, groups[i], cancellationToken).ConfigureAwait(false) is { } retry)
+                    {
+                        // Its newer deliveries wait behind it: this pass ends here.
+                        return Within(retry, poll);
+                    }
+                }
+
+                return groups.Sum(g => g.Rows.Count) >= owner._options.ClaimBatchSize ? TimeSpan.Zero : poll;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                owner.LogWorkerFailed(ex, id);
+                return poll;
             }
         }
-    }
 
-    private async Task DeliverAsync(NotificationChannelId id, NotificationEvent notification, CancellationToken cancellationToken)
-    {
-        var message = NotificationAddress.Message(notification, _options);
-        for (var attempt = 0; ; attempt++)
+        /// <summary>Sends one group and records it. Returns the wait before its retry, or null when it ended (sent, or given up).</summary>
+        private async Task<TimeSpan?> SendAsync(NotificationChannelRow channel, DeliveryGroup group, CancellationToken cancellationToken)
         {
-            NotificationChannelRow? row;
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            if (owner._senders.Find(channel.Kind) is not { } sender)
             {
-                row = await context.NotificationChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
+                await EndAsync(channel, group, NotificationDeliveryState.Failed, "This build cannot send to that kind of channel.", cancellationToken).ConfigureAwait(false);
+                return null;
             }
 
-            if (row is null)
-            {
-                // Deleted: its queue (and the token it waits on) goes with it, once this loop has finished with it.
-                Forget(id);
-                return;
-            }
-
-            if (!row.Enabled || _senders.Find(row.Kind) is not { } sender)
-            {
-                return;
-            }
-
-            string? failure;
+            var message = NotificationAddress.Message(group.Message, owner._options) with { EventId = group.EventId };
+            string failure;
             var transient = true;
             try
             {
-                await sender.SendAsync(NotificationMapping.ToTarget(row), message, cancellationToken).ConfigureAwait(false);
-                Interlocked.Increment(ref _delivered);
-                await RecordAsync(id, error: null, cancellationToken).ConfigureAwait(false);
-                return;
+                await sender.SendAsync(NotificationMapping.ToTarget(channel), message, cancellationToken).ConfigureAwait(false);
+                await EndAsync(channel, group, NotificationDeliveryState.Sent, null, cancellationToken).ConfigureAwait(false);
+                return null;
             }
             catch (NotificationDeliveryException ex)
             {
@@ -353,34 +469,86 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Not one of ours: its text could hold anything, so only its type is kept.
-                LogUnexpected(id, ex.GetType().Name);
+                owner.LogUnexpected(id, ex.GetType().Name);
                 failure = "The notification could not be sent.";
             }
 
-            if (!transient || attempt >= _options.RetryDelays.Count)
+            var attempts = group.Attempts + 1;
+            var delays = owner._options.RetryDelays;
+            if (!transient || attempts > delays.Count)
             {
-                Interlocked.Increment(ref _failed);
-                LogGivenUp(id, notification.Kind.ToName(), failure);
-                await RecordAsync(id, failure, cancellationToken).ConfigureAwait(false);
-                return;
+                owner.LogGivenUp(id, group.Message.Kind.ToName(), failure);
+                await EndAsync(channel, group, NotificationDeliveryState.Failed, failure, cancellationToken).ConfigureAwait(false);
+                return null;
             }
 
-            await Task.Delay(_options.RetryDelays[attempt], _time, cancellationToken).ConfigureAwait(false);
+            var now = owner._time.GetUtcNow();
+            var delay = delays[attempts - 1];
+            _ = await owner._outbox.RecordAsync(group, NotificationDeliveryState.Pending, failure, now, now + delay, cancellationToken).ConfigureAwait(false);
+            return delay;
         }
+
+        /// <summary>A group ended: sent, or given up. The row update comes last, so a crash before it sends again (at least once).</summary>
+        private async Task EndAsync(NotificationChannelRow channel, DeliveryGroup group, NotificationDeliveryState state, string? error, CancellationToken cancellationToken)
+        {
+            var now = owner._time.GetUtcNow();
+            var changed = await owner._outbox.RecordAsync(group, state, error, now, null, cancellationToken).ConfigureAwait(false);
+            owner.Stats.Ended(channel.Kind, state, changed);
+            await NotificationChannelState.RecordAsync(owner._contexts, owner._time, id, error, owner._logger, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<NotificationChannelRow?> ReadChannelAsync(CancellationToken cancellationToken)
+        {
+            var context = await owner._contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            await using (context.ConfigureAwait(false))
+            {
+                return await context.NotificationChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private static TimeSpan Within(TimeSpan wait, TimeSpan poll) => wait <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : wait < poll ? wait : poll;
     }
 
-    private Task RecordAsync(NotificationChannelId id, string? error, CancellationToken cancellationToken) =>
-        NotificationChannelState.RecordAsync(_contexts, _time, id, error, _logger, cancellationToken);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Notification queue full: dropped the oldest {What}; {Total} dropped since the process started.")]
-    private partial void LogDropped(string what, long total);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Notification buffer full: dropped the oldest event; {Total} dropped since the process started.")]
+    private partial void LogDropped(long total);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel} gave up on a {Kind} message: {Reason}")]
     private partial void LogGivenUp(NotificationChannelId channel, string kind, string reason);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "A {Kind} event could not be addressed to its channels.")]
-    private partial void LogRouteFailed(Exception exception, string kind);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} buffered notification event(s) could not be saved ({Failures} failed attempt(s) so far); they are kept and tried again.")]
+    private partial void LogFlushFailed(Exception exception, int count, long failures);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "{Count} buffered notification event(s) could not be saved at shutdown and are lost.")]
+    private partial void LogLostAtStop(Exception exception, int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Notification deliveries left by the last run could not be recovered; pending ones are tried as they come due.")]
+    private partial void LogRecoverFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Notification upkeep (queue depth, history pruning) failed; it is tried again at the next interval.")]
+    private partial void LogUpkeepFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Count} notification event(s) past the history retention ({Retention}).")]
+    private partial void LogPruned(int count, TimeSpan retention);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel}: its worker failed; it tries again at the next interval.")]
+    private partial void LogWorkerFailed(Exception exception, NotificationChannelId channel);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel}: a sender failed unexpectedly ({Type}).")]
     private partial void LogUnexpected(NotificationChannelId channel, string type);
+}
+
+internal static class TaskExtensions
+{
+    /// <summary>Awaits <paramref name="task"/> and ignores its cancellation: the losing half of a race that was cancelled on purpose.</summary>
+    public static async Task AsCancellationSwallowed(this Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: the race's loser.
+        }
+    }
 }

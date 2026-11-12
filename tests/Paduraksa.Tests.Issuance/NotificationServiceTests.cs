@@ -8,6 +8,7 @@ using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
+using Paduraksa.Data.Notifications;
 using Paduraksa.Notifications;
 using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
@@ -21,9 +22,9 @@ public sealed class NotificationServiceTests
     private static readonly CommandOrigin Stranger = new(Actor.ForUser(UserId.New()), Channel.Api, IPAddress.Loopback);
     private static readonly NotificationEventKind[] Events = [NotificationEventKind.UpstreamDown, NotificationEventKind.CertificateExpiring];
 
-    private static NotificationService Service(IssuanceHarness h, INotificationSenders? senders = null) => new(
+    private static NotificationService Service(IssuanceHarness h, INotificationSenders? senders = null, NotificationStats? stats = null) => new(
         h.Config.Db.Factory, h.Config.Service, h.Secrets, senders ?? new NoSenders(), new NotificationOptions { AdminUrl = new Uri("https://admin.example.com") },
-        h.Time, h.Loggers.CreateLogger<NotificationService>(), h.Permissions);
+        h.Time, h.Loggers.CreateLogger<NotificationService>(), h.Permissions, stats ?? new NotificationStats());
 
     private static NotificationChannelBody Discord(string? secret = "https://discord.com/api/webhooks/1/abc-token") =>
         new(NotificationChannelKind.Discord, "  alerts  ", Events, Secret: secret);
@@ -237,6 +238,63 @@ public sealed class NotificationServiceTests
         Assert.Null(await service.GetAsync(channel.Id, Ct));
         Assert.Equal(IssuanceChangeStatus.NotFound, (await service.DeleteAsync(channel.Id, Admin, Ct)).Status);
         Assert.Single(await h.AuditAsync("notification.channel.delete"));
+    }
+
+    private static async Task<(NotificationEventId Event, NotificationDeliveryId Delivery)> Pending(IssuanceHarness h, NotificationChannelId channel)
+    {
+        NotificationEventRow row = new() { Id = NotificationEventId.New(), Kind = NotificationEventKind.UpstreamDown, Title = "Upstream media is down", Body = "b", OccurredAt = h.Time.GetUtcNow(), CreatedAt = h.Time.GetUtcNow() };
+        NotificationDeliveryRow delivery = new() { Id = NotificationDeliveryId.New(), EventId = row.Id, ChannelId = channel, NextAttemptAt = h.Time.GetUtcNow() };
+        await using var context = await h.Config.Db.Factory.CreateDbContextAsync(Ct);
+        context.NotificationEvents.Add(row);
+        context.NotificationDeliveries.Add(delivery);
+        await context.SaveChangesAsync(Ct);
+        return (row.Id, delivery.Id);
+    }
+
+    private static async Task<NotificationDeliveryRow> DeliveryOf(IssuanceHarness h, NotificationDeliveryId id)
+    {
+        await using var context = await h.Config.Db.Factory.CreateDbContextAsync(Ct);
+        return await context.NotificationDeliveries.AsNoTracking().SingleAsync(d => d.Id == id, Ct);
+    }
+
+    [Fact]
+    public async Task DeletingAChannelDropsItsPendingDeliveriesInTheSameChangeAndKeepsTheirHistory()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        NotificationStats stats = new();
+        var service = Service(h, stats: stats);
+        var channel = (await service.CreateAsync(Discord(), Admin, Ct)).Channel!;
+        var (eventId, pending) = await Pending(h, channel.Id);
+        var (_, sent) = await Pending(h, channel.Id);
+        await using (var context = await h.Config.Db.Factory.CreateDbContextAsync(Ct))
+        {
+            _ = await context.NotificationDeliveries.Where(d => d.Id == sent).ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Sent), Ct);
+        }
+
+        _ = await service.DeleteAsync(channel.Id, Admin, Ct);
+
+        var dropped = await DeliveryOf(h, pending);
+        Assert.Equal((NotificationDeliveryState.Dropped, "The channel was deleted."), (dropped.State, dropped.LastError));
+        Assert.Equal(NotificationDeliveryState.Sent, (await DeliveryOf(h, sent)).State);
+        Assert.Equal(eventId, dropped.EventId);
+        Assert.Equal(1, stats.Ended(NotificationChannelKind.Discord, NotificationDeliveryState.Dropped));
+    }
+
+    [Fact]
+    public async Task PausingAChannelDropsItsPendingDeliveriesAndSavingItAgainWhilePausedDoesNotCountThemTwice()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        NotificationStats stats = new();
+        var service = Service(h, stats: stats);
+        var channel = (await service.CreateAsync(Discord(), Admin, Ct)).Channel!;
+        var (_, pending) = await Pending(h, channel.Id);
+
+        _ = await service.UpdateAsync(channel.Id, Discord(secret: null) with { Enabled = false }, Admin, Ct);
+        _ = await service.UpdateAsync(channel.Id, Discord(secret: null) with { Enabled = false, Label = "renamed" }, Admin, Ct);
+
+        var dropped = await DeliveryOf(h, pending);
+        Assert.Equal((NotificationDeliveryState.Dropped, "The channel is paused."), (dropped.State, dropped.LastError));
+        Assert.Equal(1, stats.Ended(NotificationChannelKind.Discord, NotificationDeliveryState.Dropped));
     }
 
     [Fact]

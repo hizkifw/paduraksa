@@ -10,6 +10,7 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 namespace Paduraksa.Tests.Data.Notifications;
 
 /// <summary>The dispatcher on a real database with a scripted sender and a manual clock: routing, digests, retry and backoff, give-up, bounds.</summary>
+/// <remarks>The outbox's own behaviour (the flusher, restarts, expiry, history, pruning) is in the neighbouring <c>NotificationOutbox*</c> classes.</remarks>
 public sealed class NotificationDispatcherTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset T0 = new(2026, 11, 12, 14, 0, 0, TimeSpan.Zero);
@@ -24,8 +25,10 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
 
     public async ValueTask DisposeAsync() => await _db.DisposeAsync();
 
+    private static readonly TimeSpan Flush = TimeSpan.FromMilliseconds(10);
+
     private NotificationDispatcher Dispatcher(NotificationOptions? options = null) =>
-        new(_db.Factory, new Senders(_sender), options ?? new NotificationOptions { AdminUrl = new Uri("https://admin.example.com") }, _time, NullLogger<NotificationDispatcher>.Instance);
+        new(_db.Factory, new Senders(_sender), options ?? new NotificationOptions { AdminUrl = new Uri("https://admin.example.com"), FlushInterval = Flush }, _time, NullLogger<NotificationDispatcher>.Instance, new NotificationStats());
 
     private async Task<NotificationChannelId> AddChannel(NotificationChannelKind kind = NotificationChannelKind.Webhook, bool enabled = true, params NotificationEventKind[] events)
     {
@@ -141,7 +144,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
     public async Task WithoutAKnownAdminUrlTheMessageHasNoLink()
     {
         await AddChannel();
-        var dispatcher = Dispatcher(new NotificationOptions());
+        var dispatcher = Dispatcher(new NotificationOptions { FlushInterval = Flush });
         await dispatcher.StartAsync(Ct);
 
         dispatcher.Publish(Event());
@@ -257,29 +260,30 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AChannelsQueueIsBoundedAndCountsWhatItDrops()
+    public async Task ABacklogLargerThanOnePassIsSentInSuccessivePassesWithoutWaitingForThePoll()
     {
-        var channel = await AddChannel();
-        var gate = _sender.Block(channel);
-        var dispatcher = Dispatcher(new NotificationOptions { ChannelCapacity = 3, CoalesceWindow = TimeSpan.FromSeconds(1) });
+        await AddChannel(NotificationChannelKind.Webhook, true, NotificationEventKind.SignInNewAddress);
+        var dispatcher = Dispatcher(new NotificationOptions { FlushInterval = Flush, ClaimBatchSize = 5 });
         await dispatcher.StartAsync(Ct);
 
-        dispatcher.Publish(Event(title: "first"));
-        await AdvanceUntilAsync(() => _sender.Sent.Count >= 1, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
-        for (var i = 0; i < 10; i++)
+        for (var i = 0; i < 12; i++)
         {
-            dispatcher.Publish(Event(NotificationEventKind.UpstreamDown, $"later {i}"));
+            dispatcher.Publish(Event(NotificationEventKind.SignInNewAddress, $"user {i} signed in from a new address"));
         }
 
-        await UntilAsync(() => dispatcher.Dropped == 7 ? dispatcher : null);
-        gate.SetResult();
+        await SettledAsync(() => dispatcher.Routed >= 12);
+        // Well under the 30 s poll: the pass that hit its limit goes on at once.
+        await AdvanceUntilAsync(() => _sender.Sent.Count >= 12, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20));
+
+        Assert.Equal(12, _sender.Sent.Count);
+        Assert.Equal(Enumerable.Range(0, 12).Select(i => $"user {i} signed in from a new address"), _sender.Sent.Select(s => s.Message.Title));
         await dispatcher.StopAsync(Ct);
     }
 
     [Fact]
     public async Task TheEventQueueIsBoundedAndNeverBlocksTheCaller()
     {
-        var dispatcher = Dispatcher(new NotificationOptions { EventCapacity = 2 });
+        var dispatcher = Dispatcher(new NotificationOptions { EventCapacity = 2, FlushInterval = Flush });
 
         for (var i = 0; i < 5; i++)
         {
@@ -297,14 +301,14 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         var dispatcher = Dispatcher();
         await dispatcher.StartAsync(Ct);
         dispatcher.Publish(Event());
-        await Task.Delay(100, Ct);
+        await SettledAsync(() => dispatcher.Routed >= 1);
 
         await using (var context = _db.NewContext())
         {
             await context.NotificationChannels.Where(c => c.Id == channel).ExecuteDeleteAsync(Ct);
         }
 
-        await AdvanceAsync(TimeSpan.FromSeconds(5));
+        await AdvanceUntilAsync(() => dispatcher.QueueCount == 0, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
 
         Assert.Empty(_sender.Sent);
         Assert.Equal(0, dispatcher.QueueCount);

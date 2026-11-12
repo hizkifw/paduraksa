@@ -36,6 +36,7 @@ public sealed partial class NotificationService
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly IPermissionEvaluator _permissions;
+    private readonly NotificationStats _stats;
 
     internal NotificationService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -45,7 +46,8 @@ public sealed partial class NotificationService
         NotificationOptions options,
         TimeProvider time,
         ILogger<NotificationService> logger,
-        IPermissionEvaluator permissions)
+        IPermissionEvaluator permissions,
+        NotificationStats stats)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -55,6 +57,7 @@ public sealed partial class NotificationService
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(stats);
         _contexts = contexts;
         _config = config;
         _secrets = secrets;
@@ -63,6 +66,7 @@ public sealed partial class NotificationService
         _time = time;
         _logger = logger;
         _permissions = permissions;
+        _stats = stats;
     }
 
     public async Task<NotificationChannelResult> CreateAsync(NotificationChannelBody body, CommandOrigin origin, CancellationToken cancellationToken = default)
@@ -152,6 +156,8 @@ public sealed partial class NotificationService
         List<SecretId> orphaned = [];
         SecretId? created = null;
         SecretId? createdSigning = null;
+        var dropped = 0;
+        NotificationChannelKind? droppedKind = null;
         try
         {
             var result = await _config.ApplyOperationalChangeAsync(
@@ -177,7 +183,14 @@ public sealed partial class NotificationService
                     }
 
                     var now = _time.GetUtcNow();
+                    var wasEnabled = row.Enabled;
                     Apply(row, body, label, now);
+                    if (wasEnabled && !row.Enabled)
+                    {
+                        dropped = await NotificationOutbox.DropPendingAsync(context, id, NotificationOutbox.ChannelPaused, now, cancellationToken).ConfigureAwait(false);
+                        droppedKind = row.Kind;
+                    }
+
                     created = await ChangeSecretAsync(row.SecretId, body.Secret, label, orphaned, signing: false, cancellationToken).ConfigureAwait(false);
                     row.SecretId = created is { } fresh ? fresh : body.Secret is { Length: 0 } ? null : row.SecretId;
                     createdSigning = await ChangeSecretAsync(row.SigningSecretId, body.SigningSecret, label, orphaned, signing: true, cancellationToken).ConfigureAwait(false);
@@ -189,6 +202,7 @@ public sealed partial class NotificationService
                 cancellationToken).ConfigureAwait(false);
             if (result.Status == IssuanceChangeStatus.Committed)
             {
+                CountDropped(droppedKind, dropped);
                 await DeleteSecretsAsync([.. orphaned.Select(s => (SecretId?)s)], cancellationToken).ConfigureAwait(false);
             }
             else
@@ -214,6 +228,8 @@ public sealed partial class NotificationService
         }
 
         SecretId?[] secrets = [];
+        var dropped = 0;
+        NotificationChannelKind? droppedKind = null;
         var result = await _config.ApplyOperationalChangeAsync(
             async context =>
             {
@@ -224,6 +240,8 @@ public sealed partial class NotificationService
                 }
 
                 secrets = [row.SecretId, row.SigningSecretId];
+                dropped = await NotificationOutbox.DropPendingAsync(context, id, NotificationOutbox.ChannelDeleted, _time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+                droppedKind = row.Kind;
                 await context.NotificationChannels.Where(c => c.Id == id).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
                 return (new NotificationChannelResult(IssuanceChangeStatus.Committed), IssuanceMapping.Entry(origin, "notification.channel.delete", id, AuditOutcome.Success));
             },
@@ -231,6 +249,7 @@ public sealed partial class NotificationService
             cancellationToken).ConfigureAwait(false);
         if (result.Status == IssuanceChangeStatus.Committed)
         {
+            CountDropped(droppedKind, dropped);
             await DeleteSecretsAsync(secrets, cancellationToken).ConfigureAwait(false);
             LogDeleted(id);
         }
@@ -426,6 +445,16 @@ public sealed partial class NotificationService
             {
                 await SecretCleanup.TryDeleteAsync(_secrets, id, _logger, cancellationToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    /// <summary>The deliveries a deleted or paused channel dropped, for the queue depth and the dropped counter (the rows are marked in the change's own transaction).</summary>
+    private void CountDropped(NotificationChannelKind? kind, int count)
+    {
+        _stats.PendingAdded(-count);
+        if (kind is { } known)
+        {
+            _stats.Ended(known, NotificationDeliveryState.Dropped, count);
         }
     }
 

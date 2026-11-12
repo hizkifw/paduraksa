@@ -28,12 +28,14 @@ public static class NotificationServiceCollectionExtensions
         services.TryAddSingleton(options ?? new NotificationOptions());
         services.TryAddSingleton<INotificationSenders>(sp => new NotificationSenders(
             sp.GetRequiredService<INotificationSecretSource>(), sp.GetRequiredService<IMacKeySource>(), sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<NotificationStats>();
         services.AddSingleton(sp => new NotificationDispatcher(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<INotificationSenders>(),
             sp.GetRequiredService<NotificationOptions>(),
             sp.GetRequiredService<TimeProvider>(),
-            Logger<NotificationDispatcher>(sp)));
+            Logger<NotificationDispatcher>(sp),
+            sp.GetRequiredService<NotificationStats>()));
         services.AddSingleton<INotificationEvents>(sp => sp.GetRequiredService<NotificationDispatcher>());
         services.AddSingleton<UpstreamHealthBoard>();
         services.AddSingleton(sp => new HealthMonitor(
@@ -59,7 +61,8 @@ public static class NotificationServiceCollectionExtensions
             sp.GetRequiredService<NotificationOptions>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<NotificationService>(sp),
-            sp.GetRequiredService<IPermissionEvaluator>()));
+            sp.GetRequiredService<IPermissionEvaluator>(),
+            sp.GetRequiredService<NotificationStats>()));
         services.AddSingleton(sp => new SignInWatch(
             sp.GetRequiredService<INotificationEvents>(), sp.GetRequiredService<NotificationOptions>(), sp.GetRequiredService<TimeProvider>()));
         return services;

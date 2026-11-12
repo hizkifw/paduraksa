@@ -14,6 +14,7 @@ namespace Paduraksa.Application.Notifications;
 /// <param name="At">When it happened.</param>
 /// <param name="LinkPath">The dashboard page that shows it (<c>/upstreams</c>); joined to the public admin URL when that is known.</param>
 /// <param name="Data">Machine-readable facts for a webhook.</param>
+/// <param name="Subject">The object it is about (an upstream, destination, certificate or user ID), as text, for the history; null when it is about nothing in particular.</param>
 public sealed record NotificationEvent(
     NotificationEventKind Kind,
     string Title,
@@ -21,12 +22,16 @@ public sealed record NotificationEvent(
     NotificationSeverity Severity,
     DateTimeOffset At,
     string? LinkPath = null,
-    IReadOnlyList<KeyValuePair<string, string>>? Data = null);
+    IReadOnlyList<KeyValuePair<string, string>>? Data = null,
+    string? Subject = null);
 
 /// <summary>Where the parts of the product that notice something hand it over; never blocks and never throws.</summary>
 public interface INotificationEvents
 {
-    /// <summary>Queues <paramref name="notification"/> for every enabled channel subscribed to its kind. Drops the oldest queued event when the queue is full.</summary>
+    /// <summary>
+    /// Hands <paramref name="notification"/> to the outbox, which stores it and addresses it to every enabled channel subscribed to its kind. Only
+    /// buffers in memory, so it never waits for the database; drops the oldest buffered event when the buffer is full.
+    /// </summary>
     void Publish(NotificationEvent notification);
 
     /// <summary>Whether at least one enabled channel is subscribed to <paramref name="kind"/>.</summary>
@@ -39,17 +44,38 @@ public sealed class NotificationOptions
     /// <summary>The address the dashboard is reached at (<c>https://admin.example.com</c>), for the links in a message; null sends none.</summary>
     public Uri? AdminUrl { get; init; }
 
-    /// <summary>Events waiting for the dispatcher before the oldest is dropped (and counted).</summary>
+    /// <summary>Events waiting in memory for the flusher before the oldest is dropped (and counted); the only window in which a crash loses an event.</summary>
     public int EventCapacity { get; init; } = 1000;
 
-    /// <summary>Messages waiting for one channel before its oldest is dropped (and counted).</summary>
-    public int ChannelCapacity { get; init; } = 100;
+    /// <summary>How long the flusher lets events collect before it writes them in one transaction (in real time: it is a throughput knob, not a schedule).</summary>
+    public TimeSpan FlushInterval { get; init; } = TimeSpan.FromMilliseconds(250);
 
-    /// <summary>How long a channel waits after the first message for more of the same kind, so a storm becomes one digest.</summary>
+    /// <summary>The most events one flush writes; a fuller buffer is written at once.</summary>
+    public int FlushBatchSize { get; init; } = 100;
+
+    /// <summary>How long a channel waits after new deliveries for more of the same kind, so a storm becomes one digest.</summary>
     public TimeSpan CoalesceWindow { get; init; } = TimeSpan.FromSeconds(3);
 
-    /// <summary>The wait before each retry of a transient failure; the message is given up after the last.</summary>
+    /// <summary>The most deliveries a channel takes in one pass; if more are due it goes on at once.</summary>
+    public int ClaimBatchSize { get; init; } = 500;
+
+    /// <summary>How often a channel looks for due deliveries when nothing woke it: a safety net, since a retry's own time and the flusher's signal wake it.</summary>
+    public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>The wait before each retry of a transient failure; the delivery is given up after the last.</summary>
     public IReadOnlyList<TimeSpan> RetryDelays { get; init; } = [TimeSpan.FromSeconds(15), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(4), TimeSpan.FromMinutes(16)];
+
+    /// <summary>A delivery still pending for an event older than this when the process starts is expired, not sent (a long outage must not end in a burst of stale messages).</summary>
+    public TimeSpan MaxDeliveryAge { get; init; } = TimeSpan.FromHours(1);
+
+    /// <summary>How long a finished event and its deliveries are kept for the history.</summary>
+    public TimeSpan HistoryRetention { get; init; } = TimeSpan.FromDays(14);
+
+    /// <summary>How often events past <see cref="HistoryRetention"/> are deleted.</summary>
+    public TimeSpan PruneInterval { get; init; } = TimeSpan.FromHours(1);
+
+    /// <summary>How many events one delete takes along with their deliveries, so a long history is pruned in short transactions.</summary>
+    public int PruneBatchSize { get; init; } = 500;
 
     /// <summary>A health state must hold this long before it is reported.</summary>
     public TimeSpan HealthHold { get; init; } = TimeSpan.FromSeconds(10);
