@@ -88,8 +88,8 @@ else
                     var serving = upstream.Destinations.Any(d => d.Enabled);
                     var live = _health.GetValueOrDefault(upstream.Id);
                     var checkedLive = live is { State: not UpstreamHealthState.Unchecked };
-                    var dotTone = checkedLive ? HealthDisplay.ToneOf(live!.State).Css() : serving ? "success" : "warning";
-                    var dotText = checkedLive ? HealthDisplay.Word(live!.State) : serving ? "Has destinations in rotation" : "No destination is switched on";
+                    var dotTone = checkedLive ? HealthDisplay.ToneOf(live!.State).Css() : serving ? "default" : "warning";
+                    var dotText = checkedLive ? HealthDisplay.Word(live!.State) : serving ? "Not health-checked" : "No destination is switched on";
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(upstream)" data-upstream="@upstream.Name" @key="upstream.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-status-dot pdk-tone-@dotTone" title="@dotText" role="img" aria-label="@dotText" data-health="@(checkedLive ? live!.State.ToString().ToLowerInvariant() : null)"></span>
@@ -269,7 +269,7 @@ else
 
         if (upstream.ActiveHealth is { } active)
         {
-            parts.Add($"checks {active.Path} every {(int)(active.Interval ?? ActiveHealthConfig.DefaultInterval).TotalSeconds} s");
+            parts.Add($"checks {active.Path} every {Every(active.Interval ?? ActiveHealthConfig.DefaultInterval)}");
         }
         else if (upstream.PassiveHealth is not null)
         {
@@ -283,4 +283,7 @@ else
 
         return string.Join(" · ", parts);
     }
+
+    private static string Every(TimeSpan interval) =>
+        interval < TimeSpan.FromSeconds(1) ? $"{(int)interval.TotalMilliseconds} ms" : $"{(int)interval.TotalSeconds} s";
 }

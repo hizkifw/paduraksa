@@ -66,7 +66,7 @@ public sealed class UpstreamHealthTests
     }
 
     [Fact]
-    public async Task AnUpstreamWithoutAHealthCheckKeepsItsConfigDotAndShowsNoHealth()
+    public async Task AnUpstreamWithoutAHealthCheckGetsANeutralDotAndShowsNoHealth()
     {
         var (context, _, board) = Setup();
         await using var _ = context;
@@ -78,7 +78,19 @@ public sealed class UpstreamHealthTests
         var row = page.Find("[data-upstream=plain]");
         Assert.Empty(row.QuerySelectorAll("[data-health]"));
         Assert.Empty(row.QuerySelectorAll("[data-destination-health]"));
-        Assert.Contains("pdk-tone-success", row.QuerySelector(".pdk-status-dot")!.ClassName, StringComparison.Ordinal);
+        // Green would read as "checked and fine".
+        Assert.Contains("pdk-tone-default", row.QuerySelector(".pdk-status-dot")!.ClassName, StringComparison.Ordinal);
+        Assert.Equal("Not health-checked", row.QuerySelector(".pdk-status-dot")!.GetAttribute("aria-label"));
+    }
+
+    [Theory]
+    [InlineData(200, "every 200 ms")]
+    [InlineData(5000, "every 5 s")]
+    public void AProbeIntervalUnderASecondIsShownInMilliseconds(int milliseconds, string expected)
+    {
+        var upstream = Plain with { ActiveHealth = new ActiveHealthConfig("/health", TimeSpan.FromMilliseconds(milliseconds)) };
+
+        Assert.Contains(expected, Upstreams.Describe(upstream), StringComparison.Ordinal);
     }
 
     [Fact]
