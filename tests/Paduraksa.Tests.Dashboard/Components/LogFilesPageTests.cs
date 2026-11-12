@@ -236,11 +236,13 @@ public sealed class LogFilesPageTests
         var drawer = await Open(context, store, "error.log", ["warn: one"], TimeSpan.FromMilliseconds(25));
 
         await drawer.Find("button[data-action=follow]").ClickAsync(new());
-        drawer.WaitForAssertion(() => context.JSInterop.VerifyInvoke("paduraksa.logPane.toEnd"));
-        var afterOn = context.JSInterop.Invocations["paduraksa.logPane.toEnd"].Count;
         store.Lines["error.log"].Add("warn: two");
 
-        await drawer.WaitForStateAsync(() => context.JSInterop.Invocations["paduraksa.logPane.toEnd"].Count > afterOn);
+        // Every tick of an at-the-end pane scrolls again, new lines or not, so a scroll only proves anything once the new line is on
+        // screen: count from there, and wait for one more.
+        await drawer.WaitForStateAsync(() => drawer.FindAll(".pdk-log-line").Count == 2);
+        var afterTwo = ToEndCalls(context);
+        await drawer.WaitForStateAsync(() => ToEndCalls(context) > afterTwo);
         Assert.Equal(2, drawer.FindAll(".pdk-log-line").Count);
     }
 
@@ -330,6 +332,9 @@ public sealed class LogFilesPageTests
 
         Assert.Contains("error.log", page.Markup, StringComparison.Ordinal);
     }
+
+    private static int ToEndCalls(DashboardTestContext context) =>
+        context.JSInterop.Invocations["paduraksa.logPane.toEnd"].Count;
 
     private static async Task<IRenderedComponent<LogFileDrawer>> Open(
         DashboardTestContext context, FakeLogFiles store, string name, string[] lines, TimeSpan? followInterval = null)
