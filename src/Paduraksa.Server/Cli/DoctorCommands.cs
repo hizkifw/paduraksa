@@ -46,13 +46,17 @@ internal static class DoctorCommands
         return doctor;
     }
 
-    /// <summary>Runs <c>doctor</c>. Returns 0 or 1 (never another code): its one caller is a healthcheck.</summary>
+    /// <summary>
+    /// Runs <c>doctor</c>. Returns 0 or 1 (never another code): its one caller is a healthcheck. <paramref name="timeout"/> is for tests, which
+    /// share a loaded machine with the server they probe: the first TLS handshake of a fresh process can take more than <see cref="Timeout"/> there.
+    /// </summary>
     internal static async Task<int> LivenessAsync(
         PaduraksaHostOptions? hostOptions,
         bool liveness,
         TextWriter output,
         TextWriter error,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan? timeout = null)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
@@ -81,7 +85,7 @@ internal static class DoctorCommands
 
         var uris = HealthUris(options);
         var plainHttp = uris[0].Scheme == Uri.UriSchemeHttp;
-        using var client = CreateClient(plainHttp);
+        using var client = CreateClient(plainHttp, timeout ?? Timeout);
 
         string? answerFailure = null;
         string? transportFailure = null;
@@ -149,13 +153,13 @@ internal static class DoctorCommands
     private static Uri HealthUri(string scheme, string host, int port) =>
         new UriBuilder(scheme, host, port, "/healthz").Uri;
 
-    private static HttpClient CreateClient(bool plainHttp)
+    private static HttpClient CreateClient(bool plainHttp, TimeSpan timeout)
     {
         SocketsHttpHandler handler = new()
         {
             UseProxy = false,
             AllowAutoRedirect = false,
-            ConnectTimeout = Timeout,
+            ConnectTimeout = timeout,
             PooledConnectionLifetime = TimeSpan.Zero,
         };
 
@@ -169,6 +173,6 @@ internal static class DoctorCommands
             handler.SslOptions.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
         }
 
-        return new HttpClient(handler) { Timeout = Timeout };
+        return new HttpClient(handler) { Timeout = timeout };
     }
 }

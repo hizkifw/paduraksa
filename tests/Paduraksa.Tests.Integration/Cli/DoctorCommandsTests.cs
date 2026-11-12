@@ -185,7 +185,8 @@ public sealed class DoctorCommandsTests
     {
         using StringWriter output = new();
         using StringWriter error = new();
-        var exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(options, liveness: true, output, error, Ct);
+        // The probe's own 3 s budget is the product's contract and is not what these tests check; a loaded runner can spend that on one cold TLS handshake.
+        var exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(options, liveness: true, output, error, Ct, TimeSpan.FromSeconds(30));
         return (exitCode, output.ToString(), error.ToString());
     }
 }
