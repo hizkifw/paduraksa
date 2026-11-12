@@ -1506,6 +1506,20 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 /* ---------- Forms ---------- */
 
+/* An outlined field's label always sits on the border. MudBlazor floats it only for a field with a value or a placeholder (its
+   `mud-shrink` class, set per component from `ShrinkLabel`, which has no global default), so forms mixed floated and resting labels.
+   These are MudBlazor's own shrink rules (the label's transform and the border's notch) applied to every outlined field, so no call site
+   sets anything. The notch is only opened for a field that has a label. */
+.mud-input.mud-input-outlined ~ label.mud-input-label.mud-input-label-inputcontrol.mud-input-label-outlined {
+    transform: translate(14px, -6px) scale(0.75);
+    max-width: calc((100% - 14px) / 0.75);
+}
+
+.mud-input.mud-input-outlined:has(~ label.mud-input-label) > .mud-input-outlined-border legend {
+    width: auto;
+    padding: 0 5px;
+}
+
 .pdk-editor {
     display: grid;
     gap: 16px;
