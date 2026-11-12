@@ -28,7 +28,7 @@ public static class IdentityText
     {
         Role.Owner => "Everything: users and roles, the vault, and every token and session.",
         Role.Admin => "All config, certificates, providers and logs, and the audit log. Sees users but can't change them.",
-        Role.Operator => "Hosts, upstreams and certificates. No users, secrets or audit log.",
+        Role.Operator => "Everything in the config, certificates included: can route to any internal address, set forward-auth endpoints, change trusted proxies and edit access-list passwords. A trusted role. No users, vault or audit log.",
         Role.Viewer => "Reads the config and certificates and runs the simulator. Changes nothing.",
         Role.Auditor => "Reads the audit log, the logs and the config. Changes nothing.",
         _ => string.Empty,
@@ -38,7 +38,7 @@ public static class IdentityText
     public static string Describe(Permission permission) => permission switch
     {
         Permission.ConfigRead => "Read hosts, upstreams, profiles, settings and history",
-        Permission.ConfigWrite => "Change them, roll back",
+        Permission.ConfigWrite => "Change them, roll back: routes to any address, forward-auth endpoints, trusted proxies, access-list passwords",
         Permission.CertificatesRead => "Read the certificate inventory",
         Permission.CertificatesWrite => "Upload, issue, renew and delete certificates",
         Permission.ProvidersRead => "Read ACME accounts and DNS providers",
