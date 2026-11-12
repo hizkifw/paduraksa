@@ -175,35 +175,7 @@ public static class AccessLogFormatter
 
         if (options.LogQueryString && entry.Query is { Length: > 0 } query)
         {
-            // The entry carries the raw query, '?' included; the target writes it back as one token.
-            truncated |= !Append("?", target, ref length);
-            var start = query[0] == '?' ? 1 : 0;
-            while (true)
-            {
-                var end = query.AsSpan(start).IndexOf('&');
-                var parameter = end < 0 ? query.AsSpan(start) : query.AsSpan(start, end);
-                var equals = parameter.IndexOf('=');
-                var name = equals < 0 ? parameter : parameter[..equals];
-                if (options.IsSensitive(name))
-                {
-                    // Whatever the value was, it doesn't reach the log. A bare name becomes an explicit redacted pair, so
-                    // `?token` and `?token=` read the same way.
-                    truncated |= !Append(name, target, ref length);
-                    truncated |= !Append(Redacted, target, ref length);
-                }
-                else
-                {
-                    truncated |= !Append(parameter, target, ref length);
-                }
-
-                if (end < 0)
-                {
-                    break;
-                }
-
-                truncated |= !Append("&", target, ref length);
-                start += end + 1;
-            }
+            AppendQuery(query, options, target, ref length, ref truncated);
         }
 
         truncated |= !Append(" ", target, ref length);
@@ -221,6 +193,42 @@ public static class AccessLogFormatter
         }
 
         return length;
+    }
+
+    /// <summary>
+    /// The query as the file writes it (the entry carries it raw, <c>?</c> included): its sensitive parameters redacted, written
+    /// back as one token. Shared with the live tail, so what the tail shows is what the file says by construction.
+    /// </summary>
+    internal static void AppendQuery(string query, AccessLogFormatOptions options, Span<char> target, ref int length, ref bool truncated)
+    {
+        truncated |= !Append("?", target, ref length);
+        var start = query[0] == '?' ? 1 : 0;
+        while (true)
+        {
+            var end = query.AsSpan(start).IndexOf('&');
+            var parameter = end < 0 ? query.AsSpan(start) : query.AsSpan(start, end);
+            var equals = parameter.IndexOf('=');
+            var name = equals < 0 ? parameter : parameter[..equals];
+            if (options.IsSensitive(name))
+            {
+                // Whatever the value was, it doesn't reach the log. A bare name becomes an explicit redacted pair, so
+                // `?token` and `?token=` read the same way.
+                truncated |= !Append(name, target, ref length);
+                truncated |= !Append(Redacted, target, ref length);
+            }
+            else
+            {
+                truncated |= !Append(parameter, target, ref length);
+            }
+
+            if (end < 0)
+            {
+                break;
+            }
+
+            truncated |= !Append("&", target, ref length);
+            start += end + 1;
+        }
     }
 
     /// <summary>
@@ -300,7 +308,7 @@ public static class AccessLogFormatter
             }
         }
 
-        public void Write(ReadOnlySpan<char> value)
+        public void Write(scoped ReadOnlySpan<char> value)
         {
             if (value.Length > _buffer.Length - _length)
             {
@@ -363,65 +371,31 @@ public static class AccessLogFormatter
 
             Write('"');
             var written = 0;
+            Span<char> escaped = stackalloc char[LogEscaping.MaxEscapedLength];
             for (var i = 0; i < value.Length; i++)
             {
                 var c = value[i];
-                if (c is '"' or '\\')
+                var cost = LogEscaping.EscapedLength(c);
+                if (written + cost > budget)
                 {
-                    if (written + 2 > budget)
-                    {
-                        Write(TruncationMarker);
-                        break;
-                    }
+                    Write(TruncationMarker);
+                    break;
+                }
 
-                    Write('\\');
+                if (cost == 1)
+                {
                     Write(c);
-                    written += 2;
-                }
-                else if (c < ' ' || c is >= '\x7F' and <= '\x9F')
-                {
-                    if (written + 4 > budget)
-                    {
-                        Write(TruncationMarker);
-                        break;
-                    }
-
-                    Write('\\');
-                    Write('x');
-                    Write(HexDigit(c >> 4));
-                    Write(HexDigit(c & 0xF));
-                    written += 4;
-                }
-                else if (c is '\u2028' or '\u2029')
-                {
-                    // Unicode's line and paragraph separators end a line for readers that split on them, as NEL (0x85) does.
-                    if (written + 6 > budget)
-                    {
-                        Write(TruncationMarker);
-                        break;
-                    }
-
-                    Write("\\u202");
-                    Write(c == '\u2028' ? '8' : '9');
-                    written += 6;
                 }
                 else
                 {
-                    if (written + 1 > budget)
-                    {
-                        Write(TruncationMarker);
-                        break;
-                    }
-
-                    Write(c);
-                    written++;
+                    Write(escaped[..LogEscaping.Escape(c, escaped)]);
                 }
+
+                written += cost;
             }
 
             Write('"');
         }
-
-        private static char HexDigit(int value) => (char)(value < 10 ? '0' + value : 'a' + (value - 10));
 
         private void MarkOverflow()
         {

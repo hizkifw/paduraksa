@@ -100,6 +100,37 @@ public sealed class AccessLogDrainServiceTests
     }
 
     [Fact]
+    public void ATailThatThrowsIsReportedAndTheFileStillGetsEveryLine()
+    {
+        // The tail converts an entry for a listening subscriber with its own options; a list of sensitive names that throws makes
+        // that conversion fail on every entry with a query. The file's formatter has the working options.
+        AccessLogRing ring = new(16);
+        CapturingSink sink = new();
+        RecordingLogger logger = new();
+        AccessLogTail tail = new(8, new AccessLogFormatOptions { SensitiveQueryKeys = new ThrowingList() });
+        using var subscription = tail.Subscribe(AccessLogTailFilter.All, 0)!;
+        AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, logger, tail);
+        for (var i = 1; i <= 3; i++)
+        {
+            Assert.True(ring.TryWrite(new() { Method = "GET", Protocol = "HTTP/1.1", Path = "/p" + i, Query = "?a=" + i }));
+        }
+
+        drain.Drain();
+
+        Assert.Equal(3, sink.Lines.Count);
+        for (var i = 1; i <= 3; i++)
+        {
+            Assert.Contains($"\"GET /p{i}?a={i} HTTP/1.1\"", sink.Lines[i - 1], StringComparison.Ordinal);
+        }
+
+        Assert.False(subscription.Reader.TryRead(out _));
+        // Reported once for the three failures (the drain's report interval), as a failing sink is.
+        var (level, message) = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains("access log isn't being written", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AFlushThatFailsAtShutdownIsReportedButNotThrown()
     {
         RecordingLogger logger = new();
@@ -133,6 +164,18 @@ public sealed class AccessLogDrainServiceTests
         var line = Assert.Single(sink.Lines);
         Assert.Contains("\"GET /good HTTP/1.1\"", line, StringComparison.Ordinal);
         Assert.Single(logger.Entries);
+    }
+
+    /// <summary>A list whose enumeration fails: what the formatter's redaction walks for every query.</summary>
+    private sealed class ThrowingList : IReadOnlyList<string>
+    {
+        public int Count => 1;
+
+        public string this[int index] => throw new InvalidOperationException("the sensitive-name list is unreadable");
+
+        public IEnumerator<string> GetEnumerator() => throw new InvalidOperationException("the sensitive-name list is unreadable");
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     /// <summary>Keeps the lines the drain hands it.</summary>

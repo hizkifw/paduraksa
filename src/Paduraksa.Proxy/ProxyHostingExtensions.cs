@@ -11,6 +11,7 @@ using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy;
@@ -70,6 +71,8 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton(new AccessLogRing());
         services.TryAddSingleton(AccessLogFormatOptions.Default);
         services.TryAddSingleton<IAccessLogSink>(NullAccessLogSink.Instance);
+        services.TryAddSingleton(static provider => new AccessLogTail(
+            AccessLogTail.DefaultCapacity, provider.GetRequiredService<AccessLogFormatOptions>(), provider.GetRequiredService<SnapshotStore>()));
         services.TryAddSingleton(metrics ?? new MetricsRegistry());
         services.TryAddSingleton<AccessLogMiddleware>();
 

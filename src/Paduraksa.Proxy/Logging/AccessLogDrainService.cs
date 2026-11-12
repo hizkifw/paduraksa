@@ -12,6 +12,8 @@ namespace Paduraksa.Proxy.Logging;
 /// <remarks>
 /// <para><b>Never a request's problem.</b> A sink that throws (a full disk, a closed file) is reported at Warning,
 /// rate-limited, and the line skipped: the drain keeps going, so one bad write never stops the log.</para>
+/// <para><b>The live tail</b> gets each entry after the file's line, from this same pass (<see cref="AccessLogTail"/>): the
+/// ring keeps one reader, and a failure in the tail is reported like a failing sink and never costs the file a line.</para>
 /// <para><b>Drops.</b> A full ring drops entries and counts them (<see cref="AccessLogRing.Dropped"/>). The count since the
 /// last report goes to the process log at Warning at most once a minute, so a log that can't keep up is visible without
 /// filling the process log with it.</para>
@@ -28,6 +30,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
     private readonly IAccessLogSink _sink;
     private readonly AccessLogFormatOptions _options;
     private readonly ILogger<AccessLogDrainService> _logger;
+    private readonly AccessLogTail? _tail;
 
     // The line buffer, reused: a request's line never allocates here.
     private readonly char[] _buffer = new char[AccessLogFormatter.MaxLineLength];
@@ -36,7 +39,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
     private long _lastFailureReport;
     private long _pendingDrops;
 
-    public AccessLogDrainService(AccessLogRing ring, IAccessLogSink sink, AccessLogFormatOptions options, ILogger<AccessLogDrainService> logger)
+    public AccessLogDrainService(AccessLogRing ring, IAccessLogSink sink, AccessLogFormatOptions options, ILogger<AccessLogDrainService> logger, AccessLogTail? tail = null)
     {
         ArgumentNullException.ThrowIfNull(ring);
         ArgumentNullException.ThrowIfNull(sink);
@@ -46,6 +49,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
         _sink = sink;
         _options = options;
         _logger = logger;
+        _tail = tail;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -112,6 +116,8 @@ public sealed partial class AccessLogDrainService : BackgroundService
             {
                 ReportFailure(ex);
             }
+
+            OfferToTail(in entry);
         }
 
         _pendingDrops += _ring.TakeDropped();
@@ -130,6 +136,20 @@ public sealed partial class AccessLogDrainService : BackgroundService
         LogDropped(_logger, _pendingDrops);
         _pendingDrops = 0;
         _lastDropReport = now;
+    }
+
+    private void OfferToTail(in AccessLogEntry entry)
+    {
+        try
+        {
+            _tail?.Offer(in entry);
+        }
+#pragma warning disable CA1031 // The tail is a view: a failure in it must not cost the file a line or stop the drain.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            ReportFailure(ex);
+        }
     }
 
     /// <summary>Pushes what the sink buffers to its destination, at shutdown.</summary>
