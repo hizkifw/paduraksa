@@ -101,6 +101,8 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(Page<AuditEventSummary>))]
 [JsonSerializable(typeof(IReadOnlyList<LogFileSummary>))]
 [JsonSerializable(typeof(LogFileTail))]
+[JsonSerializable(typeof(LogTailEntry))]
+[JsonSerializable(typeof(LogTailSkipped))]
 [JsonSerializable(typeof(AuditVerification))]
 [JsonSerializable(typeof(SecurityOverview))]
 [JsonSerializable(typeof(MetricsOverview))]

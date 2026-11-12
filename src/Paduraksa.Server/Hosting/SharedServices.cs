@@ -347,7 +347,8 @@ internal sealed class SharedServices : IAsyncDisposable
             var accessLogFormat = builder.Add(options.AccessLog.ToFormatOptions());
             builder.Add<IAccessLogSink>(new AccessLogFileSink(logFiles));
             // The dashboard's live tail is fed by that same drain, after the file; it keeps copies redacted with the file's options.
-            builder.Add(new AccessLogTail(options.AccessLog.TailSize, accessLogFormat, snapshots));
+            var accessLogTail = builder.Add(new AccessLogTail(options.AccessLog.TailSize, accessLogFormat, snapshots));
+            builder.Add(new LogTailService(accessLogTail));
 
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate and the
             // request simulator read the class.
