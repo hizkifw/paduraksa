@@ -75,6 +75,7 @@ internal sealed class SharedServices : IAsyncDisposable
         AccessLists = Get<AccessListRuntime>();
         LogFiles = Get<ServerLogFiles>();
         LogStore = Get<ILogFileStore>();
+        AccessLogTail = Get<AccessLogTail>();
         Catalog = Get<ICertificateCatalog>();
         PasswordCredentials = Get<IPasswordCredentials>();
         KeyRing = keyRing;
@@ -201,6 +202,9 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The read side of the log files: what the dashboard's log page browses and the API's log endpoints serve.</summary>
     public ILogFileStore LogStore { get; }
+
+    /// <summary>The live tail's hub: the access-log drain feeds it, the dashboard's Live tail page and the API's stream read it.</summary>
+    public AccessLogTail AccessLogTail { get; }
 
     /// <summary>The vault describing the certificates it holds (public facts only); the CA download endpoints read the root from it.</summary>
     public ICertificateCatalog Catalog { get; }
