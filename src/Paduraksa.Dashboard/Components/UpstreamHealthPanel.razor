@@ -1,0 +1,47 @@
+@inject TimeProvider Time
+@* An upstream's live health in its drawer: the whole state, each destination with its dot and why, and the last change. *@
+
+<UpstreamHealthFeed Updated="OnUpdated" PollInterval="PollInterval" />
+
+@if (_view is { State: not UpstreamHealthState.Unchecked } view)
+{
+    <div class="pdk-health-panel" data-section="health" data-state="@view.State.ToString().ToLowerInvariant()">
+        <div class="pdk-health-head">
+            <StatusChip Tone="@HealthDisplay.ToneOf(view.State)" Dot="true" Text="@HealthDisplay.Word(view.State)" Name="upstream-health" />
+            @if (view.LastChange is { } change)
+            {
+                <span class="pdk-muted pdk-health-change" title="@change.At.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) UTC">@HealthDisplay.LastChange(change, Time.GetUtcNow())</span>
+            }
+        </div>
+        <ul class="pdk-health-dests">
+            @foreach (var destination in view.Destinations)
+            {
+                <li data-destination="@destination.Address">
+                    <span class="pdk-status-dot pdk-tone-@HealthDisplay.ToneOf(destination.State).Css()" title="@HealthDisplay.Word(destination.State)" role="img" aria-label="@HealthDisplay.Word(destination.State)"></span>
+                    <span class="pdk-mono pdk-health-address">@destination.Address</span>
+                    @if (destination.Flapping)
+                    {
+                        <StatusChip Tone="Tone.Warning" Text="Flapping" Detail="It changed state too often; its changes are not reported until it has settled." />
+                    }
+                    @if (destination.Reason is { Length: > 0 } reason)
+                    {
+                        <span class="pdk-muted pdk-health-reason">@reason</span>
+                    }
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    private UpstreamHealthView? _view;
+
+    /// <summary>The upstream whose health is shown.</summary>
+    [Parameter, EditorRequired]
+    public UpstreamId Id { get; set; }
+
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(3);
+
+    private void OnUpdated(IReadOnlyList<UpstreamHealthView> views) => _view = views.FirstOrDefault(v => v.Id == Id);
+}

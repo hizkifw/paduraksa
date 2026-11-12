@@ -84,9 +84,11 @@
                   Detail="@(Snapshot is { Hosts: > 0 } ? $"{Snapshot.Online} online · {Snapshot.Off} off" : "None yet")">
             <Value>@(Snapshot?.Hosts ?? 0)</Value>
         </StatCard>
-        <StatCard Label="Upstreams" Icon="@Icons.Material.Outlined.Hub" Loading="Snapshot is null" Href="@DashboardRoutes.Upstreams" LinkText="Upstreams">
+        <StatCard Label="Upstreams" Icon="@Icons.Material.Outlined.Hub" Loading="Snapshot is null" Href="@DashboardRoutes.Upstreams" LinkText="Upstreams"
+                  Tone="@(_upstreamsDown > 0 ? Color.Error : _upstreamsDegraded > 0 ? Color.Warning : Color.Primary)" Detail="@UpstreamDetail">
             <Value>@(Snapshot?.Upstreams ?? 0)</Value>
         </StatCard>
+        <UpstreamHealthFeed Updated="OnHealth" />
     }
 
     @if (_mayReadCertificates)
@@ -212,6 +214,19 @@
     public HomeSnapshot? Snapshot { get; set; }
 
     private ConfigStoreStatus Status => Config.Status;
+
+    private int _upstreamsDown;
+    private int _upstreamsDegraded;
+
+    private string? UpstreamDetail => _upstreamsDown > 0
+        ? $"{_upstreamsDown.ToString(CultureInfo.InvariantCulture)} down"
+        : _upstreamsDegraded > 0 ? $"{_upstreamsDegraded.ToString(CultureInfo.InvariantCulture)} degraded" : null;
+
+    private void OnHealth(IReadOnlyList<UpstreamHealthView> views)
+    {
+        _upstreamsDown = views.Count(view => view.State == UpstreamHealthState.Down);
+        _upstreamsDegraded = views.Count(view => view.State == UpstreamHealthState.Degraded);
+    }
 
     private int ExpiringCount => Snapshot?.Expiring?.Count ?? 0;
 

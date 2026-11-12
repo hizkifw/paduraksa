@@ -115,6 +115,7 @@ internal static class ConfigPages
         context.Services.AddSingleton(_ => auth);
         context.Services.AddSingleton<AuthenticationStateProvider>(sp => sp.GetRequiredService<DashboardAuthenticationStateProvider>());
         context.Services.AddSingleton<IDashboardConfig>(config);
+        context.Services.AddSingleton(new Paduraksa.Application.Notifications.UpstreamHealthBoard());
         context.Services.AddScoped<DashboardCaller>();
         context.Services.AddScoped<ConfigUndo>();
         context.Services.AddScoped<ReviewedDraft>();

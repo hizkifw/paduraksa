@@ -734,3 +734,90 @@
     background: #fff;
     color-scheme: light dark;
 }
+
+/* ---------- Live upstream health (the Upstreams page, an upstream's drawer, the hosts list) ---------- */
+
+.pdk-status-dot-small {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-tone) 20%, transparent);
+}
+
+.pdk-health-reason {
+    color: var(--mud-palette-error);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-health-change {
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-health-panel {
+    display: grid;
+    gap: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    background: var(--mud-palette-background-gray);
+}
+
+.pdk-health-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    font-size: 0.8125rem;
+}
+
+.pdk-health-dests {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-health-dests li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    min-width: 0;
+}
+
+.pdk-health-address {
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+}
+
+/* ---------- Notification channels ---------- */
+
+.pdk-channel-state {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.pdk-event-groups {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.pdk-event-group {
+    display: grid;
+    gap: 0;
+}
+
+.pdk-event-group-title {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}

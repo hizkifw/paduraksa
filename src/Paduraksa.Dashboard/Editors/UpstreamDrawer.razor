@@ -71,6 +71,11 @@
                     </MudAlert>
                 }
 
+                @if (Id is { } liveId && !Model.IsNew)
+                {
+                    <UpstreamHealthPanel Id="liveId" />
+                }
+
                 <FormSection Title="Where requests go" Name="destinations">
                     <MudTextField T="string" Value="Model.Name" ValueChanged="@(value => Set(() => Model.Name = value, "/name"))" Immediate="true" DebounceInterval="250"
                                   Label="Name" Placeholder="jellyfin" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" AutoFocus="Model.IsNew"

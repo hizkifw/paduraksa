@@ -1,0 +1,62 @@
+@implements IDisposable
+@inject Paduraksa.Application.Notifications.UpstreamHealthBoard Board
+@inject TimeProvider Time
+@* Live upstream health for a page: reads the watcher's board every few seconds and calls Updated when something differs from the last reading.
+   No tab-visibility pause: a read of memory that renders nothing unless it changed costs a hidden tab nothing. *@
+
+@code {
+    private CancellationTokenSource? _stop;
+    private IReadOnlyList<UpstreamHealthView>? _last;
+
+    /// <summary>Called with every upstream's health, once at the start and then whenever it changed.</summary>
+    [Parameter, EditorRequired]
+    public EventCallback<IReadOnlyList<UpstreamHealthView>> Updated { get; set; }
+
+    /// <summary>How often the board is read. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(3);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _stop = new CancellationTokenSource();
+        await PushAsync();
+        _ = PollAsync(_stop.Token);
+    }
+
+    public void Dispose()
+    {
+        _stop?.Cancel();
+        _stop?.Dispose();
+    }
+
+    private async Task PushAsync()
+    {
+        var now = Board.All();
+        if (!HealthDisplay.Same(_last, now))
+        {
+            _last = now;
+            await Updated.InvokeAsync(now);
+        }
+    }
+
+    private async Task PollAsync(CancellationToken token)
+    {
+        try
+        {
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(3), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(PushAsync);
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The page is gone.
+        }
+    }
+}

@@ -31,6 +31,7 @@
 }
 else
 {
+    <UpstreamHealthFeed Updated="OnHealth" />
     @if (_failed)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
@@ -145,6 +146,10 @@ else
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-status" data-label="Status" @onclick:stopPropagation="true">
                             <StatusChip Tone="@StatusTone(row)" Dot="true" Text="@StatusText(row)" Detail="@HealthText(row)" Name="status" />
+                            @if (UpstreamProblem(row) is { } problem)
+                            {
+                                <StatusChip Tone="@HealthDisplay.ToneOf(problem.State)" Text="@(problem.State == UpstreamHealthState.Down ? "Upstream down" : "Upstream degraded")" Detail="@problem.Detail" Name="upstream-health" />
+                            }
                             @if (_mayWrite && host.Kind != HostKind.Admin && host.Enabled)
                             {
                                 <MudTooltip Text="@(row.InMaintenance ? "End maintenance" : "Put in maintenance")" Placement="Placement.Bottom">
@@ -168,6 +173,8 @@ else
 
 @code {
     private IReadOnlyList<HostRow>? _rows;
+    private Dictionary<UpstreamId, UpstreamHealthView> _health = [];
+    private Dictionary<UpstreamId, string> _upstreamNames = [];
     private string? _search;
     private bool _mayWrite;
     private bool _mayReadCertificates;
@@ -238,6 +245,7 @@ else
             var current = await Config.GetCurrentAsync();
             var certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
             _rows = HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, Time.GetUtcNow());
+            _upstreamNames = current.Document.Upstreams.ToDictionary(upstream => upstream.Id, upstream => upstream.Name);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -245,6 +253,28 @@ else
             _failed = true;
             _rows ??= [];
         }
+    }
+
+    private void OnHealth(IReadOnlyList<UpstreamHealthView> views) => _health = views.ToDictionary(view => view.Id);
+
+    /// <summary>The worst of the upstreams a host's routes send to, when one is down or degraded; null when they all work (or have no checks).</summary>
+    private (UpstreamHealthState State, string Detail)? UpstreamProblem(HostRow row)
+    {
+        if (!row.Host.Enabled || row.Host.Kind != HostKind.Proxy)
+        {
+            return null;
+        }
+
+        List<UpstreamHealthView> hurt = [.. row.Host.Routes.Select(route => route.UpstreamId).Distinct()
+            .Select(id => _health.GetValueOrDefault(id)).OfType<UpstreamHealthView>().Where(view => view.State is UpstreamHealthState.Down or UpstreamHealthState.Degraded)];
+        if (hurt.Count == 0)
+        {
+            return null;
+        }
+
+        var state = hurt.Any(view => view.State == UpstreamHealthState.Down) ? UpstreamHealthState.Down : UpstreamHealthState.Degraded;
+        var names = string.Join(", ", hurt.Select(view => $"{_upstreamNames.GetValueOrDefault(view.Id) ?? view.Id.ToString()} is {HealthDisplay.Word(view.State).ToLowerInvariant()}"));
+        return (state, names);
     }
 
     /// <summary>The drawer an address names. Blazor's router has no typed-ID constraint: the segment is parsed here, and anything that isn't a host ID is not found.</summary>

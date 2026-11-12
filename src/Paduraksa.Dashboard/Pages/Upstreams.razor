@@ -6,6 +6,7 @@
 @inject DashboardCaller Caller
 @inject DrawerStack Drawers
 @inject NavigationManager Navigation
+@inject TimeProvider Time
 @inject ILogger<Upstreams> Logger
 @* The upstreams: each one's addresses, how it spreads load and checks health, and which hosts send requests to it.
    /upstreams/ups_... is this list with that drawer open. *@
@@ -29,6 +30,7 @@
 }
 else
 {
+    <UpstreamHealthFeed Updated="OnHealth" />
     @if (_failed)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
@@ -84,20 +86,38 @@ else
                 {
                     var uses = HostOverview.UsesOf(_document, upstream.Id);
                     var serving = upstream.Destinations.Any(d => d.Enabled);
+                    var live = _health.GetValueOrDefault(upstream.Id);
+                    var checkedLive = live is { State: not UpstreamHealthState.Unchecked };
+                    var dotTone = checkedLive ? HealthDisplay.ToneOf(live!.State).Css() : serving ? "success" : "warning";
+                    var dotText = checkedLive ? HealthDisplay.Word(live!.State) : serving ? "Has destinations in rotation" : "No destination is switched on";
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(upstream)" data-upstream="@upstream.Name" @key="upstream.Id">
                         <div role="cell" class="pdk-dt-main">
-                            <span class="pdk-status-dot pdk-tone-@(serving ? "success" : "warning")" title="@(serving ? "Has destinations in rotation" : "No destination is switched on")" aria-hidden="true"></span>
+                            <span class="pdk-status-dot pdk-tone-@dotTone" title="@dotText" role="img" aria-label="@dotText" data-health="@(checkedLive ? live!.State.ToString().ToLowerInvariant() : null)"></span>
                             <div class="pdk-dt-titles">
                                 <a class="pdk-row-link" href="@DashboardRoutes.Upstream(upstream.Id)" @onclick:stopPropagation="true">@upstream.Name</a>
                                 <span class="pdk-dt-note">@Describe(upstream)</span>
+                                @if (live?.LastChange is { } change)
+                                {
+                                    <span class="pdk-dt-note pdk-health-change" title="@change.At.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) UTC">@HealthDisplay.LastChange(change, Time.GetUtcNow())</span>
+                                }
                             </div>
                         </div>
                         <div role="cell" class="pdk-dt-cell" data-label="Destinations">
                             <ul class="pdk-dest-list">
                                 @foreach (var destination in upstream.Destinations.Take(3))
                                 {
+                                    var liveDestination = live?.Destinations.FirstOrDefault(d => d.Id == destination.Id);
                                     <li class="@(destination.Enabled ? null : "pdk-disabled")">
+                                        @if (checkedLive && liveDestination is not null && destination.Enabled)
+                                        {
+                                            <span class="pdk-status-dot pdk-status-dot-small pdk-tone-@HealthDisplay.ToneOf(liveDestination.State).Css()" title="@HealthDisplay.Word(liveDestination.State)"
+                                                  role="img" aria-label="@HealthDisplay.Word(liveDestination.State)" data-destination-health="@liveDestination.State.ToString().ToLowerInvariant()"></span>
+                                        }
                                         <span class="pdk-dest-detail pdk-mono">@destination.Address</span>
+                                        @if (checkedLive && liveDestination is { State: DestinationHealthState.Unhealthy, Reason: { Length: > 0 } reason } && destination.Enabled)
+                                        {
+                                            <span class="pdk-muted pdk-health-reason">@reason</span>
+                                        }
                                         @if (!destination.Enabled)
                                         {
                                             <StatusChip Text="Off" />
@@ -134,6 +154,7 @@ else
 
 @code {
     private ConfigDocument? _document;
+    private Dictionary<UpstreamId, UpstreamHealthView> _health = [];
     private string? _search;
     private bool _mayWrite;
     private bool _denied;
@@ -219,6 +240,8 @@ else
             ? Drawers.Push<UpstreamDrawer>(new Dictionary<string, object?> { [nameof(UpstreamDrawer.Id)] = id }, DrawerWidth.Medium)
             : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Upstream not found", "There is no such upstream", "Back to the upstreams"), DrawerWidth.Narrow);
     }
+
+    private void OnHealth(IReadOnlyList<UpstreamHealthView> views) => _health = views.ToDictionary(view => view.Id);
 
     private void Open(UpstreamConfig upstream) => Navigation.NavigateTo(DashboardRoutes.Upstream(upstream.Id));
 
