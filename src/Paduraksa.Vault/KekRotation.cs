@@ -93,48 +93,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
             {
-                var secrets = 0;
-                foreach (var row in await context.Secrets.ToListAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, SecretReader.ContextOf(row, row.Version));
-                    secrets++;
-                    if (row.PreviousSealed is { } previous && row.PreviousVersion is { } previousVersion)
-                    {
-                        row.PreviousSealed = EnvelopeCipher.Rewrap(old, newKek, previous, SecretReader.ContextOf(row, previousVersion));
-                        secrets++;
-                    }
-                }
-
-                var accountKeys = 0;
-                foreach (var row in await context.AccountKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, JwsSigner.ContextOf(row.Id, row.Algorithm));
-                    accountKeys++;
-                }
-
-                var certificateKeys = 0;
-                foreach (var row in await context.CertificateKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.ContextOf(row.Id, row.IsLocalCaRoot, row.Version));
-                    certificateKeys++;
-                }
-
-                var stagedKeys = 0;
-                foreach (var row in await context.StagedKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.StagedContextOf(row.CertificateId, row.StagedKeyId, row.Names));
-                    stagedKeys++;
-                }
-
-                // The admin app's Data Protection key ring: its elements are keys like any other.
-                var dataProtectionKeys = 0;
-                foreach (var row in await context.DataProtectionKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, DataProtectionKeyStore.ContextOf(row));
-                    dataProtectionKeys++;
-                }
-
-                var passwordCredentials = await PasswordCredentialStore.RewrapAsync(context, old, newKek, cancellationToken).ConfigureAwait(false);
+                var rotated = await RewrapAllAsync(context, old, newKek, cancellationToken).ConfigureAwait(false);
 
                 var meta = await context.Meta.SingleAsync(cancellationToken).ConfigureAwait(false);
                 meta.KekCheck = newKek.CheckValue;
@@ -146,9 +105,63 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                 await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 runtime.ReplaceKek(newKek);
                 await CheckpointAsync(context).ConfigureAwait(false);
-                return new KekRotated(secrets, accountKeys, certificateKeys, stagedKeys, dataProtectionKeys, passwordCredentials);
+                return rotated;
             }
         }
+    }
+
+    /// <summary>
+    /// Re-wraps every sealed value of <paramref name="context"/>'s database from <paramref name="old"/> to <paramref name="newKek"/> and
+    /// saves, without committing: the caller owns the transaction and the KEK check value. The one list of what holds a sealed value,
+    /// so a rotation and a backup's re-wraps can't disagree about it.
+    /// </summary>
+    internal static async Task<KekRotated> RewrapAllAsync(Persistence.VaultDbContext context, Kek old, Kek newKek, CancellationToken cancellationToken)
+    {
+        var secrets = 0;
+        foreach (var row in await context.Secrets.ToListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, SecretReader.ContextOf(row, row.Version));
+            secrets++;
+            if (row.PreviousSealed is { } previous && row.PreviousVersion is { } previousVersion)
+            {
+                row.PreviousSealed = EnvelopeCipher.Rewrap(old, newKek, previous, SecretReader.ContextOf(row, previousVersion));
+                secrets++;
+            }
+        }
+
+        var accountKeys = 0;
+        foreach (var row in await context.AccountKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, JwsSigner.ContextOf(row.Id, row.Algorithm));
+            accountKeys++;
+        }
+
+        var certificateKeys = 0;
+        foreach (var row in await context.CertificateKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.ContextOf(row.Id, row.IsLocalCaRoot, row.Version));
+            certificateKeys++;
+        }
+
+        var stagedKeys = 0;
+        foreach (var row in await context.StagedKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.StagedContextOf(row.CertificateId, row.StagedKeyId, row.Names));
+            stagedKeys++;
+        }
+
+        // The admin app's Data Protection key ring: its elements are keys like any other.
+        var dataProtectionKeys = 0;
+        foreach (var row in await context.DataProtectionKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, DataProtectionKeyStore.ContextOf(row));
+            dataProtectionKeys++;
+        }
+
+        var passwordCredentials = await PasswordCredentialStore.RewrapAsync(context, old, newKek, cancellationToken).ConfigureAwait(false);
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return new KekRotated(secrets, accountKeys, certificateKeys, stagedKeys, dataProtectionKeys, passwordCredentials);
     }
 
     /// <summary>Moves the write-ahead log into the database file and empties it, so the pages that held the old wraps are gone from it.</summary>
