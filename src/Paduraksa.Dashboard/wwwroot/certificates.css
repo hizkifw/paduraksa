@@ -204,56 +204,6 @@
     cursor: pointer;
 }
 
-.pdk-choice-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-
-.pdk-choice {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 2px 8px;
-    padding: 12px 14px;
-    border: 1px solid var(--mud-palette-lines-inputs);
-    border-radius: var(--pdk-radius);
-    background: transparent;
-    color: var(--mud-palette-text-primary);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
-}
-
-.pdk-choice:hover {
-    border-color: color-mix(in srgb, var(--mud-palette-primary) 55%, var(--mud-palette-lines-inputs));
-}
-
-.pdk-choice:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mud-palette-primary) 30%, transparent);
-}
-
-.pdk-choice-on {
-    border-color: var(--mud-palette-primary);
-    background: color-mix(in srgb, var(--mud-palette-primary) 9%, transparent);
-}
-
-.pdk-choice .mud-icon-root {
-    color: var(--mud-palette-primary);
-}
-
-.pdk-choice-title {
-    font-weight: 600;
-}
-
-.pdk-choice-hint {
-    grid-column: 1 / -1;
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.75rem;
-}
-
 /* ---------- ACME progress ---------- */
 
 .pdk-progress {
@@ -490,7 +440,7 @@
 
 /* Phones and narrow windows: each row becomes a card, the cells labelled. */
 @media (max-width: 900px) {
-    .pdk-field-pair, .pdk-choice-grid {
+    .pdk-field-pair {
         grid-template-columns: 1fr;
     }
 }

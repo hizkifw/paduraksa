@@ -49,14 +49,7 @@ else
                 <MudText Typo="Typo.h6" HtmlTag="h3">Import</MudText>
             </div>
 
-            <MudRadioGroup T="ConfigImportMode" Value="_mode" ValueChanged="SetMode" Disabled="!_mayWrite" Class="pdk-choice-group pdk-import-modes" data-field="import-mode">
-                <MudRadio T="ConfigImportMode" Value="ConfigImportMode.Merge" Color="Color.Primary">
-                    Merge <span class="pdk-import-mode-help">adds what the file names and updates what it matches by id or name; deletes nothing</span>
-                </MudRadio>
-                <MudRadio T="ConfigImportMode" Value="ConfigImportMode.Replace" Color="Color.Primary">
-                    Replace <span class="pdk-import-mode-help">the config becomes the file; whatever it leaves out is deleted</span>
-                </MudRadio>
-            </MudRadioGroup>
+            <ChoiceCards T="ConfigImportMode" Options="Modes" Value="_mode" ValueChanged="SetMode" AriaLabel="Import mode" DataField="import-mode" Disabled="!_mayWrite" Class="mb-3" />
 
             <div class="pdk-drop @(_file is not null ? "pdk-drop-filled" : null) @(_fileError is not null ? "pdk-drop-error" : null)">
                 <span class="pdk-drop-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.UploadFile" /></span>
@@ -132,6 +125,12 @@ else
     private bool _busy;
     private bool _reviewing;
     private RevisionRef? _revision;
+    private static readonly IReadOnlyList<ChoiceOption<ConfigImportMode>> Modes =
+    [
+        new(ConfigImportMode.Merge, "Merge", "Adds what the file names and updates what it matches by id or name; deletes nothing."),
+        new(ConfigImportMode.Replace, "Replace", "The config becomes the file; whatever it leaves out is deleted."),
+    ];
+
     private ConfigImportMode _mode = ConfigImportMode.Merge;
     private string? _text;
     private ChosenFile? _file;

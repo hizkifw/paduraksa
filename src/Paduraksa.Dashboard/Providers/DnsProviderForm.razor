@@ -6,17 +6,7 @@
 <div class="pdk-form-stack">
     @if (RotateFor is null)
     {
-        <div class="pdk-choice-grid" role="radiogroup" aria-label="Provider">
-            @foreach (var kind in Kinds)
-            {
-                <button type="button" class="pdk-choice pdk-dns-kind-@kind.ToName() @(_kind == kind ? "pdk-choice-on" : null)" role="radio"
-                        aria-checked="@(_kind == kind ? "true" : "false")" disabled="@_busy" @onclick="() => _kind = kind">
-                    <MudIcon Icon="@ProviderDisplay.KindIcon(kind)" Size="Size.Small" />
-                    <span class="pdk-choice-title">@ProviderDisplay.KindLabel(kind)</span>
-                    <span class="pdk-choice-hint">Sent only to @DnsProviderService.ApiHostOf(kind)</span>
-                </button>
-            }
-        </div>
+        <ChoiceCards T="DnsProviderKind" Options="KindChoices" Value="_kind" ValueChanged="@(kind => _kind = kind)" AriaLabel="Provider" DataField="provider" Disabled="_busy" />
         <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="DnsProviderService.MaxLabelLength"
                       Placeholder="@($"{ProviderDisplay.KindLabel(_kind)} - example.com")" Error="_labelError is not null" ErrorText="@_labelError"
                       Disabled="_busy" Class="pdk-dns-label" />
@@ -57,6 +47,12 @@
 
 @code {
     private static readonly DnsProviderKind[] Kinds = [DnsProviderKind.Cloudflare, DnsProviderKind.DeSec];
+
+    private static readonly IReadOnlyList<ChoiceOption<DnsProviderKind>> KindChoices =
+    [
+        .. Kinds.Select(kind => new ChoiceOption<DnsProviderKind>(
+            kind, ProviderDisplay.KindLabel(kind), $"Sent only to {DnsProviderService.ApiHostOf(kind)}", ProviderDisplay.KindIcon(kind), kind.ToName())),
+    ];
 
     private DnsProviderKind _kind = DnsProviderKind.Cloudflare;
     private string? _label;

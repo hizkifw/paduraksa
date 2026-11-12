@@ -76,14 +76,10 @@ else
                 <div class="pdk-setting pdk-setting-wide">
                     <div class="pdk-setting-text">
                         <span class="pdk-setting-title">A request for a hostname no host answers</span>
-                        <span class="pdk-setting-help">Closing the connection tells a scanner the least; a 404 is the friendliest to a person who mistyped.</span>
                     </div>
-                    <MudRadioGroup T="UnknownHostBehaviour" Value="_model.UnknownHost" ValueChanged="@(value => Set(() => _model.UnknownHost = value, "/unknownHost"))"
-                                   Disabled="!_mayWrite" Class="pdk-choice-group" data-field="unknown-host">
-                        <MudRadio T="UnknownHostBehaviour" Value="UnknownHostBehaviour.NotFound" Color="Color.Primary">404 Not Found</MudRadio>
-                        <MudRadio T="UnknownHostBehaviour" Value="UnknownHostBehaviour.MisdirectedRequest" Color="Color.Primary">421 Misdirected Request</MudRadio>
-                        <MudRadio T="UnknownHostBehaviour" Value="UnknownHostBehaviour.Close" Color="Color.Primary">Close the connection</MudRadio>
-                    </MudRadioGroup>
+                    <ChoiceCards T="UnknownHostBehaviour" Options="UnknownHostAnswers" Value="_model.UnknownHost"
+                                 ValueChanged="@(value => Set(() => _model.UnknownHost = value, "/unknownHost"))"
+                                 AriaLabel="Answer to an unknown hostname" DataField="unknown-host" Disabled="!_mayWrite" />
                 </div>
                 <div class="pdk-setting">
                     <div class="pdk-setting-text">
@@ -119,18 +115,8 @@ else
                     <MudText Typo="Typo.caption" Class="pdk-muted">Anyone else connecting is the client, whatever headers they send.</MudText>
                 </div>
             </div>
-            <div class="pdk-choice-cards" role="radiogroup" aria-label="Trusted proxies" data-field="proxy-mode">
-                @foreach (var (mode, title, help, icon) in ProxyModes)
-                {
-                    var selected = _model.ProxyMode == mode;
-                    <button type="button" class="pdk-choice-card @(selected ? "pdk-selected" : null)" role="radio" aria-checked="@(selected ? "true" : "false")"
-                            disabled="@(!_mayWrite)" @onclick="@(() => Set(() => _model.ProxyMode = mode, "/trustedProxies"))" data-mode="@mode.ToString().ToLowerInvariant()">
-                        <MudIcon Icon="@icon" Size="Size.Small" Class="pdk-choice-icon" />
-                        <span class="pdk-choice-title">@title</span>
-                        <span class="pdk-choice-help">@help</span>
-                    </button>
-                }
-            </div>
+            <ChoiceCards T="TrustedProxyMode" Options="ProxyModes" Value="_model.ProxyMode" ValueChanged="@(mode => Set(() => _model.ProxyMode = mode, "/trustedProxies"))"
+                         AriaLabel="Trusted proxies" DataField="proxy-mode" Disabled="!_mayWrite" />
 
             @if (_model.ProxyMode == TrustedProxyMode.CloudflareProxy)
             {
@@ -198,12 +184,19 @@ else
 
 @code {
     private bool _denied;
-    private static readonly (TrustedProxyMode Mode, string Title, string Help, string Icon)[] ProxyModes =
+    private static readonly IReadOnlyList<ChoiceOption<TrustedProxyMode>> ProxyModes =
     [
-        (TrustedProxyMode.Off, "Direct", "Clients connect straight to Paduraksa. The connection's address is the client's.", Icons.Material.Outlined.Lan),
-        (TrustedProxyMode.Generic, "Behind a proxy", "A load balancer or another proxy you list passes the client in a header.", Icons.Material.Outlined.AltRoute),
-        (TrustedProxyMode.CloudflareProxy, "Cloudflare proxy", "Cloudflare's edge connects (orange cloud). Its published ranges are trusted.", Icons.Material.Outlined.Cloud),
-        (TrustedProxyMode.CloudflareTunnel, "Cloudflare Tunnel", "A local cloudflared connects. List where it connects from.", Icons.Material.Outlined.Route),
+        new(TrustedProxyMode.Off, "Direct", "Clients connect straight to Paduraksa. The connection's address is the client's.", Icons.Material.Outlined.Lan),
+        new(TrustedProxyMode.Generic, "Behind a proxy", "A load balancer or another proxy you list passes the client in a header.", Icons.Material.Outlined.AltRoute),
+        new(TrustedProxyMode.CloudflareProxy, "Cloudflare proxy", "Cloudflare's edge connects (orange cloud). Its published ranges are trusted.", Icons.Material.Outlined.Cloud),
+        new(TrustedProxyMode.CloudflareTunnel, "Cloudflare Tunnel", "A local cloudflared connects. List where it connects from.", Icons.Material.Outlined.Route),
+    ];
+
+    private static readonly IReadOnlyList<ChoiceOption<UnknownHostBehaviour>> UnknownHostAnswers =
+    [
+        new(UnknownHostBehaviour.NotFound, "404 Not Found", "A person who mistyped sees an ordinary not-found page."),
+        new(UnknownHostBehaviour.MisdirectedRequest, "421 Misdirected Request", "Tells the client this server is not the one for that name, so it may retry elsewhere."),
+        new(UnknownHostBehaviour.Close, "Close the connection", "Drops it without a reply, which tells a scanner the least."),
     ];
 
     private ConfigDocument? _document;

@@ -322,7 +322,7 @@ public sealed class SettingsPagesTests
             return;
         }
 
-        await page.Find("[data-mode=cloudflareproxy]").ClickAsync(new());
+        await page.Find("[data-field=proxy-mode] [data-value=cloudflareproxy]").ClickAsync(new());
         await page.Find("[data-action=review]").ClickAsync(new());
 
         await page.WaitForStateAsync(() => config.Executed.Count == 1);
@@ -347,24 +347,24 @@ public sealed class SettingsPagesTests
 
         // Only the Cloudflare proxy mode trusts the list.
         Assert.Empty(page.FindAll("[data-field=cloudflare-ranges]"));
-        await page.Find("[data-mode=cloudflareproxy]").ClickAsync(new());
+        await page.Find("[data-field=proxy-mode] [data-value=cloudflareproxy]").ClickAsync(new());
         var line = page.Find("[data-field=cloudflare-ranges]");
         Assert.Equal("ok", line.GetAttribute("data-state"));
         Assert.Equal("Cloudflare ranges: updated 3 days ago (22 ranges)", line.TextContent.Trim());
 
         // The warning replaces the line, in the words the compiler gives.
         config.CloudflareRanges = config.CloudflareRanges with { Warning = "Cloudflare's edge ranges are the stored list, 40 days old." };
-        await page.Find("[data-mode=cloudflaretunnel]").ClickAsync(new());
+        await page.Find("[data-field=proxy-mode] [data-value=cloudflaretunnel]").ClickAsync(new());
         Assert.Empty(page.FindAll("[data-field=cloudflare-ranges]"));
-        await page.Find("[data-mode=cloudflareproxy]").ClickAsync(new());
+        await page.Find("[data-field=proxy-mode] [data-value=cloudflareproxy]").ClickAsync(new());
         var warning = page.Find("[data-field=cloudflare-ranges]");
         Assert.Equal("warning", warning.GetAttribute("data-state"));
         Assert.Contains("40 days old", warning.TextContent, StringComparison.Ordinal);
 
         // The host settings on this page say what they need while the mode is something else.
-        await page.Find("[data-mode=off]").ClickAsync(new());
+        await page.Find("[data-field=proxy-mode] [data-value=off]").ClickAsync(new());
         Assert.Single(page.FindAll("[data-field=cloudflare-needs-mode]"));
-        await page.Find("[data-mode=cloudflareproxy]").ClickAsync(new());
+        await page.Find("[data-field=proxy-mode] [data-value=cloudflareproxy]").ClickAsync(new());
         Assert.Empty(page.FindAll("[data-field=cloudflare-needs-mode]"));
     }
 

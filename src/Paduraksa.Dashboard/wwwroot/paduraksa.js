@@ -325,9 +325,9 @@
         }
     }, { capture: true });
 
-    // A SegmentedControl's arrow keys move its choice; the page must not also scroll.
+    // A SegmentedControl's or ChoiceCards' arrow keys move its choice; the page must not also scroll.
     document.addEventListener("keydown", (event) => {
-        if (event.key.startsWith("Arrow") && event.target instanceof Element && event.target.closest(".pdk-seg")) {
+        if (event.key.startsWith("Arrow") && event.target instanceof Element && event.target.closest(".pdk-seg, .pdk-choice-cards")) {
             event.preventDefault();
         }
     });

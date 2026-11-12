@@ -6,16 +6,7 @@
 <div class="pdk-form-stack" data-form="notification-channel">
     @if (Channel is null)
     {
-        <div class="pdk-choice-grid" role="radiogroup" aria-label="Service">
-            @foreach (var kind in NotificationDisplay.Kinds)
-            {
-                <button type="button" class="pdk-choice pdk-notify-kind-@kind.ToName() @(_kind == kind ? "pdk-choice-on" : null)" role="radio"
-                        aria-checked="@(_kind == kind ? "true" : "false")" disabled="@_busy" @onclick="() => _kind = kind">
-                    <MudIcon Icon="@NotificationDisplay.KindIcon(kind)" Size="Size.Small" />
-                    <span class="pdk-choice-title">@NotificationDisplay.KindLabel(kind)</span>
-                </button>
-            }
-        </div>
+        <ChoiceCards T="NotificationChannelKind" Options="KindChoices" Value="_kind" ValueChanged="@(kind => _kind = kind)" AriaLabel="Service" DataField="service" Disabled="_busy" />
     }
 
     <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="NotificationService.MaxLabelLength"
@@ -128,6 +119,12 @@
 </div>
 
 @code {
+    private static readonly IReadOnlyList<ChoiceOption<NotificationChannelKind>> KindChoices =
+    [
+        .. NotificationDisplay.Kinds.Select(kind => new ChoiceOption<NotificationChannelKind>(
+            kind, NotificationDisplay.KindLabel(kind), Icon: NotificationDisplay.KindIcon(kind), Key: kind.ToName())),
+    ];
+
     private NotificationChannelKind _kind = NotificationChannelKind.Ntfy;
     private string? _label;
     private bool _enabled = true;

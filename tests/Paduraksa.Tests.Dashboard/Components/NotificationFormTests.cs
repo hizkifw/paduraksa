@@ -24,12 +24,12 @@ public sealed class NotificationFormTests
 
         Assert.NotEmpty(form.FindAll("[data-field=topic]"));
         Assert.Empty(form.FindAll("[data-field=smtp-host]"));
-        form.Find(".pdk-notify-kind-email").Click();
+        form.Find("[data-field=service] [data-value=email]").Click();
         Assert.NotEmpty(form.FindAll("[data-field=smtp-host]"));
         Assert.Empty(form.FindAll("[data-field=topic]"));
-        form.Find(".pdk-notify-kind-webhook").Click();
+        form.Find("[data-field=service] [data-value=webhook]").Click();
         Assert.NotEmpty(form.FindAll("[data-field=signing-secret]"));
-        form.Find(".pdk-notify-kind-discord").Click();
+        form.Find("[data-field=service] [data-value=discord]").Click();
         Assert.Empty(form.FindAll("[data-field=signing-secret]"));
 
         Assert.Equal(9, form.FindAll("[data-event]").Count);
@@ -49,7 +49,7 @@ public sealed class NotificationFormTests
                 return Task.FromResult<NotificationChannelResult?>(Saved(Existing(NotificationChannelKind.Gotify)));
             }));
 
-        form.Find(".pdk-notify-kind-gotify").Click();
+        form.Find("[data-field=service] [data-value=gotify]").Click();
         form.Find("[data-field=label]").Change("Gotify - lab");
         form.Find("[data-field=server-url]").Change(" https://gotify.lan ");
         Assert.Equal("password", form.Find("[data-field=secret]").GetAttribute("type"));
@@ -75,7 +75,7 @@ public sealed class NotificationFormTests
             return Task.FromResult<NotificationChannelResult?>(Saved(Existing(NotificationChannelKind.Email)));
         }));
 
-        form.Find(".pdk-notify-kind-email").Click();
+        form.Find("[data-field=service] [data-value=email]").Click();
         form.Find("[data-field=smtp-host]").Change("smtp.example.com");
         form.Find("[data-field=mail-from]").Change("paduraksa@example.com");
         form.Find("[data-field=mail-to]").Change("ops@example.com, me@example.com;\n you@example.com");
@@ -102,7 +102,7 @@ public sealed class NotificationFormTests
                 return Task.FromResult<NotificationChannelResult?>(Saved(channel));
             }));
 
-        Assert.Empty(form.FindAll(".pdk-notify-kind-email"));
+        Assert.Empty(form.FindAll("[data-field=service] [data-value=email]"));
         Assert.Equal("ops", form.Find("[data-field=label]").GetAttribute("value"));
         await form.InvokeAsync(() => form.Find(".pdk-notify-submit").Click());
         Assert.Null(sent[0].Secret);
@@ -123,7 +123,7 @@ public sealed class NotificationFormTests
         var form = context.Render<NotificationForm>(p => p.Add(f => f.Submit, _ => Task.FromResult<NotificationChannelResult?>(new NotificationChannelResult(
             IssuanceChangeStatus.Invalid, Errors: [new ConfigError("/secret", NotificationErrorCodes.UrlInvalid, "the secret must be a Discord webhook URL")]))));
 
-        form.Find(".pdk-notify-kind-discord").Click();
+        form.Find("[data-field=service] [data-value=discord]").Click();
         form.Find("[data-field=secret]").Change("https://example.com/x");
         await form.InvokeAsync(() => form.Find(".pdk-notify-submit").Click());
 

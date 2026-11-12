@@ -1,0 +1,122 @@
+@typeparam T
+@inject IJSRuntime JS
+@* A choice among a few whose options each need a sentence (what a merge does, what the server does with an unknown name), as cards: a radio
+   group, so the selected card is the one tab stop and the arrow keys move the choice, as in SegmentedControl, which is the control for
+   choices that need no explanation. One look for every such choice: cards in a wrapping grid, an optional icon, the title and its help under
+   it. *@
+<div @ref="_root" class="pdk-choice-cards @Class" role="radiogroup" aria-label="@AriaLabel" aria-disabled="@(Disabled ? "true" : null)" data-field="@DataField">
+    @for (var i = 0; i < Options.Count; i++)
+    {
+        var index = i;
+        var option = Options[i];
+        var selected = IsSelected(option);
+        <button type="button" role="radio" class="pdk-choice-card @(selected ? "pdk-selected" : null)" aria-checked="@(selected ? "true" : "false")"
+                tabindex="@(index == TabStop ? 0 : -1)" disabled="@Disabled" data-value="@KeyOf(option)"
+                @onclick="() => ChooseAsync(option)" @onkeydown="e => KeyAsync(e, index)">
+            @if (option.Icon is not null)
+            {
+                <MudIcon Icon="@option.Icon" Size="Size.Small" Class="pdk-choice-icon" />
+            }
+            <span class="pdk-choice-title">@option.Title</span>
+            @if (option.Help is not null)
+            {
+                <span class="pdk-choice-help">@option.Help</span>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    private ElementReference _root;
+    private int _focus = -1;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChoiceOption<T>> Options { get; set; } = [];
+
+    [Parameter]
+    public T? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<T> ValueChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public string AriaLabel { get; set; } = string.Empty;
+
+    /// <summary>The group's <c>data-field</c>, for tests.</summary>
+    [Parameter]
+    public string? DataField { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private bool IsSelected(ChoiceOption<T> option) => EqualityComparer<T>.Default.Equals(option.Value, Value);
+
+    private static string? KeyOf(ChoiceOption<T> option) => option.Key ?? option.Value?.ToString()?.ToLowerInvariant();
+
+    /// <summary>The card that takes Tab: the selected one, else the first.</summary>
+    private int TabStop
+    {
+        get
+        {
+            for (var i = 0; i < Options.Count; i++)
+            {
+                if (IsSelected(Options[i]))
+                {
+                    return i;
+                }
+            }
+
+            return 0;
+        }
+    }
+
+    private async Task ChooseAsync(ChoiceOption<T> option)
+    {
+        if (!Disabled && !IsSelected(option))
+        {
+            await ValueChanged.InvokeAsync(option.Value);
+        }
+    }
+
+    private async Task KeyAsync(KeyboardEventArgs e, int index)
+    {
+        var count = Options.Count;
+        var target = e.Key switch
+        {
+            "ArrowRight" or "ArrowDown" => (index + 1) % count,
+            "ArrowLeft" or "ArrowUp" => (index + count - 1) % count,
+            "Home" => 0,
+            "End" => count - 1,
+            _ => -1,
+        };
+        if (target < 0 || Disabled)
+        {
+            return;
+        }
+
+        _focus = target;
+        await ChooseAsync(Options[target]);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focus < 0)
+        {
+            return;
+        }
+
+        var target = _focus;
+        _focus = -1;
+        try
+        {
+            await JS.InvokeVoidAsync("paduraksa.focusSegment", _root, target);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            // Focus is a nicety: the choice was made.
+        }
+    }
+}

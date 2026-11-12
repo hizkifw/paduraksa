@@ -1520,6 +1520,75 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     padding: 0 5px;
 }
 
+/* A choice whose options each carry an explanation (ChoiceCards): cards in a wrapping grid, the title and its help under it, an icon
+   to the left when there is one. The selected card is outlined in the primary colour and tinted. */
+.pdk-choice-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+}
+
+.pdk-choice-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 4px 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: var(--pdk-radius);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.pdk-choice-card:has(.pdk-choice-icon) {
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+.pdk-choice-card:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 50%, var(--mud-palette-lines-inputs));
+}
+
+.pdk-choice-card:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-choice-card:disabled {
+    cursor: default;
+}
+
+.pdk-choice-card.pdk-selected {
+    border-color: var(--mud-palette-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mud-palette-primary);
+}
+
+.pdk-choice-icon {
+    align-self: center;
+    color: var(--mud-palette-primary);
+}
+
+/* With a help line the icon spans both rows and sits level with the title. */
+.pdk-choice-card:has(.pdk-choice-help) .pdk-choice-icon {
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin-top: 2px;
+}
+
+.pdk-choice-title {
+    font-weight: 600;
+}
+
+.pdk-choice-help {
+    grid-column: -2;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
 .pdk-editor {
     display: grid;
     gap: 16px;

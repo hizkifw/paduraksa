@@ -70,7 +70,7 @@ public sealed class ConfigTransferPageTests
             ? new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: [new HostChange(ConfigChangeKind.Added, document.Hosts[0].Id, "/hosts/0", [])])
             : new ConfigCommandResult(ConfigCommandStatus.Committed, new RevisionRef(ConfigRevisionId.New(), 8));
 
-        await page.FindAll("[data-field=import-mode] input[type=radio]")[1].ClickAsync(new());
+        await page.FindAll("[data-field=import-mode] [data-value=replace]")[0].ClickAsync(new());
         await page.Find("textarea").ChangeAsync(new() { Value = "apiVersion: paduraksa.dev/v1\nkind: Config\n" });
         await page.Find("[data-action=review-import]").ClickAsync(new());
 

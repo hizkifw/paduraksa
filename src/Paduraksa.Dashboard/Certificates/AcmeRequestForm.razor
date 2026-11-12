@@ -32,20 +32,7 @@
         </RefPicker>
     }
 
-    <div class="pdk-choice-grid" role="radiogroup" aria-label="Challenge type">
-        <button type="button" class="pdk-choice @(_challenge == AcmeChallengeType.Http01 ? "pdk-choice-on" : null)" role="radio"
-                aria-checked="@(_challenge == AcmeChallengeType.Http01 ? "true" : "false")" disabled="@Busy" @onclick="() => Choose(AcmeChallengeType.Http01)">
-            <MudIcon Icon="@Icons.Material.Outlined.Http" Size="Size.Small" />
-            <span class="pdk-choice-title">HTTP-01</span>
-            <span class="pdk-choice-hint">The CA fetches a token from port 80 of each hostname. No wildcards.</span>
-        </button>
-        <button type="button" class="pdk-choice @(_challenge == AcmeChallengeType.Dns01 ? "pdk-choice-on" : null)" role="radio"
-                aria-checked="@(_challenge == AcmeChallengeType.Dns01 ? "true" : "false")" disabled="@Busy" @onclick="() => Choose(AcmeChallengeType.Dns01)">
-            <MudIcon Icon="@Icons.Material.Outlined.Dns" Size="Size.Small" />
-            <span class="pdk-choice-title">DNS-01</span>
-            <span class="pdk-choice-hint">A TXT record through your DNS provider. Wildcards work; nothing needs to be reachable.</span>
-        </button>
-    </div>
+    <ChoiceCards T="AcmeChallengeType" Options="Challenges" Value="_challenge" ValueChanged="Choose" AriaLabel="Challenge type" DataField="challenge" Disabled="Busy" />
 
     @if (_challenge == AcmeChallengeType.Dns01)
     {
@@ -98,6 +85,12 @@
 </div>
 
 @code {
+    private static readonly IReadOnlyList<ChoiceOption<AcmeChallengeType>> Challenges =
+    [
+        new(AcmeChallengeType.Http01, "HTTP-01", "The CA fetches a token from port 80 of each hostname. No wildcards.", Icons.Material.Outlined.Http),
+        new(AcmeChallengeType.Dns01, "DNS-01", "A TXT record through your DNS provider. Wildcards work; nothing needs to be reachable.", Icons.Material.Outlined.Dns),
+    ];
+
     private string? _names;
     private string? _label;
     private AcmeAccountId? _account;

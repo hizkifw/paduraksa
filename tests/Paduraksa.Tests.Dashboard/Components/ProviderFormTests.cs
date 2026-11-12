@@ -88,7 +88,7 @@ public sealed class ProviderFormTests
                 return Task.FromResult<DnsProviderResult?>(new DnsProviderResult(IssuanceChangeStatus.Committed, Provider()));
             }));
 
-        form.Find(".pdk-dns-kind-desec").Click();
+        form.Find("[data-field=provider] [data-value=desec]").Click();
         form.Find(".pdk-dns-label input").Change("deSEC - home");
         form.Find(".pdk-dns-credential input").Change("  token-123  ");
         Assert.Equal("password", form.Find(".pdk-dns-credential input").GetAttribute("type"));
