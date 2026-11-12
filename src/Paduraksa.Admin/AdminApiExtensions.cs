@@ -50,6 +50,7 @@ public static class AdminApiExtensions
         CertificateEndpoints.Map(api);
         ProviderEndpoints.Map(api);
         NotificationEndpoints.Map(api);
+        BackupEndpoints.Map(api);
         AuditEndpoints.Map(api);
         LogEndpoints.Map(api);
         SecurityEndpoints.Map(api);

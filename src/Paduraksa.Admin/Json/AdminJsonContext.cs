@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Audit;
+using Paduraksa.Contracts.Backup;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -134,6 +135,7 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(IReadOnlyList<UpstreamHealthView>))]
 [JsonSerializable(typeof(CaRootCertificate))]
 [JsonSerializable(typeof(SimulateBody))]
+[JsonSerializable(typeof(BackupRequest))]
 [JsonSerializable(typeof(ErrorPagePreviewRequest))]
 [JsonSerializable(typeof(ErrorPagePreview))]
 [JsonSerializable(typeof(SimulationResult))]

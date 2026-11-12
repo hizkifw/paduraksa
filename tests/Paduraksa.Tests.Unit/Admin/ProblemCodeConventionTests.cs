@@ -35,7 +35,7 @@ public sealed partial class ProblemCodeConventionTests
     {
         // Every area is a nested class of ApiCodes, which is what the scan above walks: a code on a loose constant would escape it.
         Assert.Equal(
-            ["Admin", "Auth", "Ca", "Config", "Csrf", "Identity", "Setup"],
+            ["Admin", "Auth", "Backup", "Ca", "Config", "Csrf", "Identity", "Setup"],
             typeof(ApiCodes).GetNestedTypes(BindingFlags.Public).Select(t => t.Name).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(
             typeof(ApiCodes).GetFields(BindingFlags.Public | BindingFlags.Static),

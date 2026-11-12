@@ -93,6 +93,18 @@ internal static class ApiCodes
         public const string NotFound = "ca.notFound";
     }
 
+    public static class Backup
+    {
+        /// <summary>422: the passphrase is shorter than the minimum or longer than the maximum.</summary>
+        public const string Passphrase = "backup.passphrase";
+
+        /// <summary>409: another backup is already being made.</summary>
+        public const string Busy = "backup.busy";
+
+        /// <summary>500: the backup could not be made; the server's log says why.</summary>
+        public const string Failed = "backup.failed";
+    }
+
     public static class Config
     {
         /// <summary>500: the change is stored but could not go live; the previous config still serves.</summary>
