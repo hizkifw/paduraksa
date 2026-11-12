@@ -52,7 +52,7 @@ public static class EndpointRules
     /// <summary>Refused outright: no token, scope or <c>confirm</c> changes it.</summary>
     public static IReadOnlyList<EndpointRule> Refused { get; } =
     [
-        new("*", "/api/v1/backup", true, "backups hold the whole configuration and the sealed secrets; creating and restoring them is for the operator, not a script", InSpec: false),
+        new("*", "/api/v1/backup", true, "backups hold the whole configuration and the sealed secrets; creating and restoring them is for the operator, not a script"),
         new("*", "/api/v1/restore", true, "restoring replaces the whole configuration; it is for the operator, not a script", InSpec: false),
         new("*", "/api/v1/tokens", true, "a script that could mint or revoke API tokens could give itself more access"),
         new("*", "/api/v1/users", true, "accounts, roles and credentials are not for a script"),
