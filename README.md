@@ -70,6 +70,10 @@ The checks CI runs, the data directory, database migrations and the repository l
 [docs/development.md](docs/development.md). The design is in [docs/PLAN.md](docs/PLAN.md). Performance against nginx,
 Caddy, HAProxy, Traefik, Envoy and a bare YARP reference is in [bench/RESULTS.md](bench/RESULTS.md).
 
+## Security
+
+What Paduraksa defends against, what it does not, and what to do about it: [docs/threat-model.md](docs/threat-model.md).
+
 ## License
 
 [Apache-2.0](LICENSE). See [NOTICE](NOTICE).
