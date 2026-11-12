@@ -60,6 +60,7 @@ public sealed class NotificationOptions
     /// <summary>The window in which <see cref="FlapThreshold"/> changes make an object "flapping".</summary>
     public TimeSpan FlapWindow { get; init; } = TimeSpan.FromMinutes(10);
 
+    /// <summary>How many state changes within <see cref="FlapWindow"/> make an object flapping.</summary>
     public int FlapThreshold { get; init; } = 4;
 
     /// <summary>A flapping object is reported again once it has been still for this long.</summary>
@@ -68,11 +69,12 @@ public sealed class NotificationOptions
     /// <summary>The expiry thresholds in days, largest first.</summary>
     public IReadOnlyList<int> ExpiryThresholdDays { get; init; } = [30, 14, 7, 1];
 
+    /// <summary>How often the certificates' expiry is checked against <see cref="ExpiryThresholdDays"/>.</summary>
     public TimeSpan ExpiryCheckInterval { get; init; } = TimeSpan.FromHours(1);
 
-    /// <summary>How long an address stays "known" for a user after they last signed in from it.</summary>
     /// <summary>How far back a user's earlier sign-in counts as "has signed in before" (so the very first sign-in is not an anomaly); bounded so the check seeks an index, not the audit table.</summary>
     public TimeSpan SignedInBeforeWindow { get; init; } = TimeSpan.FromDays(365);
 
+    /// <summary>How long an address stays "known" for a user after they last signed in from it.</summary>
     public TimeSpan KnownAddressWindow { get; init; } = TimeSpan.FromDays(30);
 }

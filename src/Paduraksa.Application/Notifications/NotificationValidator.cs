@@ -21,8 +21,7 @@ internal static partial class NotificationValidator
     [GeneratedRegex(@"^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$", RegexOptions.CultureInvariant)]
     private static partial Regex HostPattern();
 
-    /// <param name="body">The request.</param>
-    /// <param name="isNew">A new channel: required secrets must be present (a replacement may leave them out to keep the stored ones).</param>
+    /// <summary>What is wrong with a channel request. A new channel must carry its required secrets; a replacement may leave them out to keep the stored ones.</summary>
     public static List<ConfigError> Check(NotificationChannelBody body, bool isNew)
     {
         List<ConfigError> errors = [];

@@ -224,7 +224,7 @@
         var email = kind == NotificationChannelKind.Email;
         NotificationChannelBody body = new(
             kind,
-            _label is { Length: > 0 } ? _label.Trim() : $"{NotificationDisplay.KindLabel(kind)}",
+            _label is { Length: > 0 } ? _label.Trim() : NotificationDisplay.KindLabel(kind),
             [.. _events.OrderBy(e => (int)e)],
             _enabled,
             kind is NotificationChannelKind.Ntfy or NotificationChannelKind.Gotify ? _serverUrl?.Trim() : null,

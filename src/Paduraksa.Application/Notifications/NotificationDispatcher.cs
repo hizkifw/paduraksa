@@ -12,7 +12,7 @@ using Paduraksa.Notifications;
 namespace Paduraksa.Application.Notifications;
 
 /// <summary>
-/// Delivers events to the channels subscribed to them (PLAN §9 "As built (M9): health state and notifications"). Producers call
+/// Delivers events to the channels subscribed to them (PLAN §7.4 "As built (M9): health state and notifications"). Producers call
 /// <see cref="Publish"/>, which only queues; a background loop addresses each event to every enabled subscribed channel, and each channel
 /// has a queue and a delivery loop of its own, so a channel that is down never holds up the others.
 /// </summary>
