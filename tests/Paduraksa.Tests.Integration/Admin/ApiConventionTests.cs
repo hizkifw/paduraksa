@@ -228,6 +228,8 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
         (string Route, Permission Permission)[] expected =
         [
             ("GET /api/v1/config", Permission.ConfigRead),
+            ("GET /api/v1/config/export", Permission.ConfigRead),
+            ("POST /api/v1/config/import", Permission.ConfigWrite),
             ("GET /api/v1/settings", Permission.ConfigRead),
             ("PUT /api/v1/settings", Permission.ConfigWrite),
             ("GET /api/v1/hosts", Permission.ConfigRead),
@@ -341,7 +343,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     {
         // The endpoints name their permission literally and the services enforce OperationPermissions on their own; this keeps the two
         // from drifting apart. Config resources run config commands, the certificate routes run certificate operations.
-        string[] configResources = ["hosts", "upstreams", "rateLimitPolicies", "accessLists", "ruleSets", "authProviders", "profiles", "settings", "revisions"];
+        string[] configResources = ["config", "hosts", "upstreams", "rateLimitPolicies", "accessLists", "ruleSets", "authProviders", "profiles", "settings", "revisions"];
         var mutating = ApiEndpoints(shared.Api)
             .SelectMany(e => (e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? [])
                 .Where(method => method is "POST" or "PUT" or "DELETE")
