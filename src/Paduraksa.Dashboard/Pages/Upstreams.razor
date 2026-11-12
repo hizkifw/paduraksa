@@ -89,7 +89,7 @@ else
                     var live = _health.GetValueOrDefault(upstream.Id);
                     var checkedLive = live is { State: not UpstreamHealthState.Unchecked };
                     var dotTone = checkedLive ? HealthDisplay.ToneOf(live!.State).Css() : serving ? "default" : "warning";
-                    var dotText = checkedLive ? HealthDisplay.Word(live!.State) : serving ? "Not health-checked" : "No destination is switched on";
+                    var dotText = checkedLive ? HealthDisplay.Word(live!.State) : serving ? HealthDisplay.Word(UpstreamHealthState.Unchecked) : "No destination is switched on";
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(upstream)" data-upstream="@upstream.Name" @key="upstream.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-status-dot pdk-tone-@dotTone" title="@dotText" role="img" aria-label="@dotText" data-health="@(checkedLive ? live!.State.ToString().ToLowerInvariant() : null)"></span>
@@ -98,7 +98,7 @@ else
                                 <span class="pdk-dt-note">@Describe(upstream)</span>
                                 @if (live?.LastChange is { } change)
                                 {
-                                    <span class="pdk-dt-note pdk-health-change" title="@change.At.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) UTC">@HealthDisplay.LastChange(change, Time.GetUtcNow())</span>
+                                    <span class="pdk-dt-note pdk-health-change" title="@RevisionText.Exact(change.At)">@HealthDisplay.LastChange(change, Time.GetUtcNow())</span>
                                 }
                             </div>
                         </div>

@@ -7,6 +7,7 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.Simulation;
+using Paduraksa.Contracts.Notifications;
 
 namespace Paduraksa.Tests.Unit.Admin;
 
@@ -70,6 +71,7 @@ public sealed partial class ProblemCodeConventionTests
             typeof(IssuanceErrorCodes),
             typeof(SimulationErrorCodes),
             typeof(CertificateErrorCodes),
+            typeof(NotificationErrorCodes),
         ])
         {
             foreach (var code in Constants(type))

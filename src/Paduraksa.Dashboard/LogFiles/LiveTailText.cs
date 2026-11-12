@@ -55,41 +55,6 @@ public static class LiveTailText
         return (entry.Path ?? "-") + entry.Query;
     }
 
-    /// <summary>
-    /// The status field: a status (<c>404</c>) or a class (<c>5xx</c>, or just <c>5</c>). Empty is no filter; anything else is
-    /// <see langword="false"/>.
-    /// </summary>
-    public static bool TryParseStatus(string? text, out int? statusClass, out int? status)
-    {
-        statusClass = null;
-        status = null;
-        var trimmed = text?.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return true;
-        }
-
-        if (trimmed.Length is 1 or 3 && char.IsAsciiDigit(trimmed[0]) && (trimmed.Length == 1 || trimmed.EndsWith("xx", StringComparison.OrdinalIgnoreCase)))
-        {
-            var digit = trimmed[0] - '0';
-            if (digit is >= 1 and <= 5)
-            {
-                statusClass = digit;
-                return true;
-            }
-
-            return false;
-        }
-
-        if (int.TryParse(trimmed, NumberStyles.None, CultureInfo.InvariantCulture, out var exact) && exact is >= 100 and <= 599)
-        {
-            status = exact;
-            return true;
-        }
-
-        return false;
-    }
-
     /// <summary>The link to the simulator, prefilled with what this request was (host, method, path, client IP).</summary>
     public static string SimulatorLink(LogTailEntry entry)
     {

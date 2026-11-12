@@ -5,6 +5,7 @@ using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Certificates;
+using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Config;
 
 namespace Paduraksa.Dashboard.Pages;
@@ -89,7 +90,7 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
         foreach (var soon in expiring ?? [])
         {
             var left = soon.NotAfter - now;
-            var when = left <= TimeSpan.Zero ? "has expired" : left.TotalDays < 1 ? "expires today" : $"expires in {Plural((int)left.TotalDays, "day", "days")}";
+            var when = left <= TimeSpan.Zero ? "has expired" : left.TotalDays < 1 ? "expires today" : $"expires in {Wording.Plural((int)left.TotalDays, "day", "days")}";
             items.Add(new AttentionItem(left <= TimeSpan.FromDays(7) ? Tone.Error : Tone.Warning, $"{soon.Name} {when}",
                 $"A {soon.Source} certificate in use. Renew it, or check why it hasn't renewed on its own.",
                 soon.Id is { } id ? DashboardRoutes.Certificate(id) : DashboardRoutes.Certificates, "Open certificate"));
@@ -145,9 +146,6 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     }
 
     private static string HostName(HostConfig host) => host.Names.Count > 0 ? host.Names[0] : "Unnamed host";
-
-    private static string Plural(int count, string one, string many) =>
-        string.Create(CultureInfo.InvariantCulture, $"{count} {(count == 1 ? one : many)}");
 }
 
 /// <summary>One certificate on the overview's expiry list.</summary>

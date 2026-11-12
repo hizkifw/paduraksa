@@ -69,7 +69,7 @@ else
     <MudPaper Class="pdk-card pdk-table-card mt-4" Elevation="0" Outlined="true" data-section="tail">
         <div class="pdk-tail-status" data-state="@State">
             <span data-part="state">@StateText</span>
-            <span class="pdk-muted" data-part="count">@Count(_rows.Count, "request")@(_rows.Count == MaxRows ? $" (the newest {MaxRows})" : null)</span>
+            <span class="pdk-muted" data-part="count">@Wording.Plural(_rows.Count, "request", "requests")@(_rows.Count == MaxRows ? $" (the newest {MaxRows})" : null)</span>
             @if (_pending > 0 && State != "following")
             {
                 <span class="pdk-badge pdk-tone-info" data-part="waiting">@_pending.ToString("N0") waiting</span>
@@ -166,7 +166,7 @@ else
 
     private bool Filtered => _host is not null || !string.IsNullOrWhiteSpace(_status) || !string.IsNullOrWhiteSpace(_client) || _method is not null || !string.IsNullOrWhiteSpace(_path);
 
-    private string? StatusError => LiveTailText.TryParseStatus(_status, out _, out _) ? null : "A status such as 404, or a class such as 5xx.";
+    private string? StatusError => LogTailFilter.TryParseStatus(_status, out _, out _) ? null : "A status such as 404, or a class such as 5xx.";
 
     private string State => !_visible ? "hidden" : _paused ? "paused" : "following";
 
@@ -281,7 +281,7 @@ else
 
     private LogTailFilter BuildFilter()
     {
-        LiveTailText.TryParseStatus(_status, out var statusClass, out var status);
+        LogTailFilter.TryParseStatus(_status, out var statusClass, out var status);
         return new LogTailFilter(
             _host is { } host && host != NoHost ? host : null,
             _host == NoHost,
@@ -427,8 +427,6 @@ else
         Drawers.Push<LogTailEntryDrawer>(LogTailEntryDrawer.For(entry, _maySimulate), DrawerWidth.Wide);
 
     private static string HostLabel(string? value) => value ?? "Any host";
-
-    private static string Count(int count, string one) => count == 1 ? $"1 {one}" : $"{count} {one}s";
 
     public async ValueTask DisposeAsync()
     {

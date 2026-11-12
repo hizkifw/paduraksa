@@ -5,6 +5,7 @@ using MudBlazor;
 
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Certificates;
 
@@ -117,16 +118,16 @@ public static class CertificateDisplay
         if (left <= TimeSpan.Zero)
         {
             var ago = (int)Math.Floor(-left.TotalDays);
-            return ago == 0 ? "Expired today" : $"Expired {Plural(ago, "day", "days")} ago";
+            return ago == 0 ? "Expired today" : $"Expired {Wording.Plural(ago, "day", "days")} ago";
         }
 
         var days = (int)Math.Floor(left.TotalDays);
         return days switch
         {
-            0 => left.TotalHours >= 1 ? $"{Plural((int)left.TotalHours, "hour", "hours")} left" : "Expires within the hour",
-            < 60 => $"{Plural(days, "day", "days")} left",
-            < 730 => $"{Plural(days / 30, "month", "months")} left",
-            _ => $"{Plural(days / 365, "year", "years")} left",
+            0 => left.TotalHours >= 1 ? $"{Wording.Plural((int)left.TotalHours, "hour", "hours")} left" : "Expires within the hour",
+            < 60 => $"{Wording.Plural(days, "day", "days")} left",
+            < 730 => $"{Wording.Plural(days / 30, "month", "months")} left",
+            _ => $"{Wording.Plural(days / 365, "year", "years")} left",
         };
     }
 
@@ -218,7 +219,4 @@ public static class CertificateDisplay
     public static string Date(DateTimeOffset value) => value.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 
     public static string DateTime(DateTimeOffset value) => value.ToString("d MMM yyyy, HH:mm 'UTC'", CultureInfo.InvariantCulture);
-
-    public static string Plural(int count, string one, string many) =>
-        string.Create(CultureInfo.InvariantCulture, $"{count} {(count == 1 ? one : many)}");
 }

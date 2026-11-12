@@ -230,25 +230,20 @@ internal static class LogEndpoints
 
         if (query["statusClass"].ToString() is { Length: > 0 } classText)
         {
-            var digit = classText.Length == 3 && classText.EndsWith("xx", StringComparison.OrdinalIgnoreCase) ? classText[..1] : classText;
-            if (!int.TryParse(digit, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) || parsed is < 1 or > 5)
+            if (!LogTailFilter.TryParseStatus(classText, out statusClass, out _) || statusClass is null)
             {
                 problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "statusClass must be 1 to 5 (or 1xx to 5xx).");
                 return false;
             }
-
-            statusClass = parsed;
         }
 
         if (query["status"].ToString() is { Length: > 0 } statusText)
         {
-            if (!int.TryParse(statusText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) || parsed is < 100 or > 599)
+            if (!LogTailFilter.TryParseStatus(statusText, out _, out status) || status is null)
             {
                 problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "status must be 100 to 599.");
                 return false;
             }
-
-            status = parsed;
         }
 
         if (query["backlog"].ToString() is { Length: > 0 } backlogText

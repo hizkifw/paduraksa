@@ -89,7 +89,7 @@ else
                         <span> · @account.KeyAlgorithm · added @CertificateDisplay.Date(account.CreatedAt)</span>
                         @if (_inUse.GetValueOrDefault(account.Id) is > 0 and var count)
                         {
-                            <span> · @CertificateDisplay.Plural(count, "certificate", "certificates")</span>
+                            <span> · @Wording.Plural(count, "certificate", "certificates")</span>
                         }
                     </span>
                 </div>

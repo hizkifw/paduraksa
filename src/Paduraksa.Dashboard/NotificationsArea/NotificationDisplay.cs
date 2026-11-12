@@ -100,6 +100,4 @@ public static class NotificationDisplay
 
     private static string Host(string? url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Authority : url ?? string.Empty;
-
-    public static string EventCount(int count) => count == 1 ? "1 event" : $"{count.ToString(CultureInfo.InvariantCulture)} events";
 }

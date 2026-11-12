@@ -182,12 +182,11 @@ public sealed class UpstreamHealthTests
     [Fact]
     public void TheWordsAreShortAndTheLastChangeSaysWhenAndWhy()
     {
-        Assert.Equal("just now", HealthDisplay.Ago(Now.AddSeconds(-20), Now));
-        Assert.Equal("5 min ago", HealthDisplay.Ago(Now.AddMinutes(-5), Now));
-        Assert.Equal("3 h ago", HealthDisplay.Ago(Now.AddHours(-3), Now));
-        Assert.Equal("2026-11-10 14:10 UTC", HealthDisplay.Ago(Now.AddDays(-2), Now));
+        Assert.Equal("Last change: Down, yesterday", HealthDisplay.LastChange(new HealthChangeView(Now.AddHours(-30), "Down"), Now));
+        Assert.Equal("Last change: Down, 10 Nov 2026", HealthDisplay.LastChange(new HealthChangeView(Now.AddDays(-2), "Down"), Now));
         Assert.Equal("Last change: Back up, 5 min ago", HealthDisplay.LastChange(new HealthChangeView(Now.AddMinutes(-5), "Back up"), Now));
         Assert.Equal("Checking", HealthDisplay.Word(UpstreamHealthState.Unknown));
+        Assert.Equal("Not health-checked", HealthDisplay.Word(UpstreamHealthState.Unchecked));
     }
 
     /// <summary>The feed renders nothing, so there is no render to wait for: poll the condition.</summary>

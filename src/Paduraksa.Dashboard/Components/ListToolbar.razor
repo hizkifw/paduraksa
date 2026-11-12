@@ -7,7 +7,7 @@
     }
     @if (Total is { } total)
     {
-        <span class="pdk-toolbar-count" aria-live="polite">@Count(Shown ?? total, One, Many)@(Shown is { } shown && shown != total ? $" of {total}" : string.Empty)</span>
+        <span class="pdk-toolbar-count" aria-live="polite">@Wording.Plural(Shown ?? total, One, Many)@(Shown is { } shown && shown != total ? $" of {total}" : string.Empty)</span>
     }
     @if (ChildContent is not null)
     {
@@ -41,6 +41,4 @@
 
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
-
-    private static string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
 }

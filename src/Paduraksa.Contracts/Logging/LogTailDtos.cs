@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Paduraksa.Contracts.Logging;
 
 /// <summary>
@@ -76,18 +78,58 @@ public sealed record LogTailFilter(
             return $"A filter text is at most {MaxTextLength} characters.";
         }
 
-        if (StatusClass is < 1 or > 5)
+        if (StatusClass is { } statusClass && !IsStatusClass(statusClass))
         {
             return "statusClass must be 1 to 5.";
         }
 
-        if (Status is < 100 or > 599)
+        if (Status is { } status && !IsStatus(status))
         {
             return "status must be 100 to 599.";
         }
 
         return UnmatchedHost && !string.IsNullOrEmpty(Host) ? "host and unmatched can't be combined: a request that no host owns has no host name." : null;
     }
+
+    /// <summary>
+    /// Reads a status field: a status (<c>404</c>) or a class (<c>5xx</c>, or just <c>5</c>); the one grammar the API's
+    /// <c>status</c> and <c>statusClass</c> parameters and the dashboard's field share. Empty is no filter and succeeds with
+    /// both outputs absent; anything else that is no status or class fails.
+    /// </summary>
+    public static bool TryParseStatus(string? text, out int? statusClass, out int? status)
+    {
+        statusClass = null;
+        status = null;
+        var trimmed = text?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return true;
+        }
+
+        if (trimmed.Length is 1 or 3 && char.IsAsciiDigit(trimmed[0]) && (trimmed.Length == 1 || trimmed.EndsWith("xx", StringComparison.OrdinalIgnoreCase)))
+        {
+            var digit = trimmed[0] - '0';
+            if (IsStatusClass(digit))
+            {
+                statusClass = digit;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (int.TryParse(trimmed, NumberStyles.None, CultureInfo.InvariantCulture, out var exact) && IsStatus(exact))
+        {
+            status = exact;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsStatusClass(int value) => value is >= 1 and <= 5;
+
+    private static bool IsStatus(int value) => value is >= 100 and <= 599;
 }
 
 /// <summary>The data of a <c>skipped</c> event on the tail stream: how many entries the reader missed because it fell behind.</summary>

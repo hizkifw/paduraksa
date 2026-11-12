@@ -143,8 +143,6 @@ public sealed class NotificationFormTests
         Assert.Equal("ntfy.sh/home", NotificationDisplay.Target(ntfy));
         Assert.Equal("a@example.com, b@example.com +1 via smtp.example.com", NotificationDisplay.Target(email));
         Assert.Equal("Signed JSON webhook", NotificationDisplay.Target(Existing(NotificationChannelKind.Webhook)));
-        Assert.Equal("2 events", NotificationDisplay.EventCount(2));
-        Assert.Equal("1 event", NotificationDisplay.EventCount(1));
         Assert.All(Enum.GetValues<NotificationEventKind>().Where(k => k != NotificationEventKind.Test), kind =>
             Assert.Contains(NotificationDisplay.Groups, g => g.Events.Contains(kind)));
     }

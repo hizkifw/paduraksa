@@ -221,7 +221,7 @@ public sealed class TrafficOverviewTests
 
     [Theory]
     [InlineData(0, "-")]
-    [InlineData(0.4, "0.40 ms")]
+    [InlineData(0.4, "0.4 ms")]
     [InlineData(4.4, "4.4 ms")]
     [InlineData(44, "44 ms")]
     [InlineData(1_300, "1.3 s")]

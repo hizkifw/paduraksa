@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Dashboard.Config;
 
@@ -29,7 +27,7 @@ public static class HealthDisplay
         UpstreamHealthState.Degraded => "Degraded",
         UpstreamHealthState.Healthy => "Healthy",
         UpstreamHealthState.Unknown => "Checking",
-        _ => "No health check",
+        _ => "Not health-checked",
     };
 
     public static string Word(DestinationHealthState state) => state switch
@@ -44,25 +42,7 @@ public static class HealthDisplay
     {
         ArgumentNullException.ThrowIfNull(change);
         var reason = change.Reason is { Length: > 0 } why ? $" ({why})" : string.Empty;
-        return $"Last change: {change.Summary}, {Ago(change.At, now)}{reason}";
-    }
-
-    public static string Ago(DateTimeOffset at, DateTimeOffset now)
-    {
-        var elapsed = now - at;
-        if (elapsed < TimeSpan.FromMinutes(1))
-        {
-            return "just now";
-        }
-
-        if (elapsed < TimeSpan.FromHours(1))
-        {
-            return $"{((int)elapsed.TotalMinutes).ToString(CultureInfo.InvariantCulture)} min ago";
-        }
-
-        return elapsed < TimeSpan.FromDays(1)
-            ? $"{((int)elapsed.TotalHours).ToString(CultureInfo.InvariantCulture)} h ago"
-            : at.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " UTC";
+        return $"Last change: {change.Summary}, {RevisionText.Ago(change.At, now)}{reason}";
     }
 
     /// <summary>Whether two readings say the same, so a poll that found nothing new renders nothing.</summary>

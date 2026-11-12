@@ -199,15 +199,13 @@ public sealed class MetricRollupStore
         TotalMicrosSum = sums.TotalMicrosSum,
         UpstreamMicrosSum = sums.UpstreamMicrosSum,
         UpstreamTimed = sums.UpstreamTimed,
-        TotalP50 = Mean(sums.WeightedTotalP50, sums.Requests),
-        TotalP95 = Mean(sums.WeightedTotalP95, sums.Requests),
-        TotalP99 = Mean(sums.WeightedTotalP99, sums.Requests),
-        UpstreamP50 = Mean(sums.WeightedUpstreamP50, sums.UpstreamTimed),
-        UpstreamP95 = Mean(sums.WeightedUpstreamP95, sums.UpstreamTimed),
-        UpstreamP99 = Mean(sums.WeightedUpstreamP99, sums.UpstreamTimed),
+        TotalP50 = MetricPoints.WeightedMean(sums.WeightedTotalP50, sums.Requests),
+        TotalP95 = MetricPoints.WeightedMean(sums.WeightedTotalP95, sums.Requests),
+        TotalP99 = MetricPoints.WeightedMean(sums.WeightedTotalP99, sums.Requests),
+        UpstreamP50 = MetricPoints.WeightedMean(sums.WeightedUpstreamP50, sums.UpstreamTimed),
+        UpstreamP95 = MetricPoints.WeightedMean(sums.WeightedUpstreamP95, sums.UpstreamTimed),
+        UpstreamP99 = MetricPoints.WeightedMean(sums.WeightedUpstreamP99, sums.UpstreamTimed),
     };
-
-    private static int Mean(double weighted, long weight) => weight <= 0 ? 0 : (int)Math.Round(weighted / weight);
 
     private static MetricRollupRow RowOf(MetricRollup rollup)
     {

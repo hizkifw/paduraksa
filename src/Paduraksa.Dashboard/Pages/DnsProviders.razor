@@ -73,7 +73,7 @@ else
                         @ProviderDisplay.KindLabel(provider.Kind) · @DnsProviderService.ApiHostOf(provider.Kind) · token updated @CertificateDisplay.Date(provider.UpdatedAt)
                         @if (_inUse.GetValueOrDefault(provider.Id) is > 0 and var count)
                         {
-                            <span> · @CertificateDisplay.Plural(count, "certificate", "certificates")</span>
+                            <span> · @Wording.Plural(count, "certificate", "certificates")</span>
                         }
                     </span>
                 </div>

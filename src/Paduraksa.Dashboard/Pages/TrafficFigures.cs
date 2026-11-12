@@ -1,6 +1,7 @@
 using System.Globalization;
 
 using Paduraksa.Contracts.Metrics;
+using Paduraksa.Dashboard.LogFiles;
 
 namespace Paduraksa.Dashboard.Pages;
 
@@ -27,15 +28,8 @@ internal static class TrafficFigures
         _ => string.Create(CultureInfo.InvariantCulture, $"{share * 100:0}%"),
     };
 
-    /// <summary>"-" for nothing timed, "0.4 ms", "12 ms", "1.3 s".</summary>
-    public static string Millis(double ms) => ms switch
-    {
-        <= 0 => "-",
-        < 1 => string.Create(CultureInfo.InvariantCulture, $"{ms:0.00} ms"),
-        < 10 => string.Create(CultureInfo.InvariantCulture, $"{ms:0.0} ms"),
-        < 1000 => string.Create(CultureInfo.InvariantCulture, $"{ms:0} ms"),
-        _ => string.Create(CultureInfo.InvariantCulture, $"{ms / 1000:0.0} s"),
-    };
+    /// <summary>"-" for nothing timed, else the live tail's wording of a duration.</summary>
+    public static string Millis(double ms) => ms <= 0 ? "-" : LiveTailText.Duration(ms);
 
     public static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
 

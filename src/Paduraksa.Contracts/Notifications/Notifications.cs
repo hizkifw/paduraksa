@@ -119,18 +119,18 @@ public static class NotificationErrorCodes
 {
     public const string KindUndefined = "notification.kind.undefined";
     public const string LabelRequired = "notification.label.required";
-    public const string TextTooLong = "notification.text.too_long";
+    public const string TextTooLong = "notification.text.tooLong";
     public const string EventsRequired = "notification.events.required";
     public const string EventUndefined = "notification.event.undefined";
     public const string UrlInvalid = "notification.url.invalid";
     public const string TopicInvalid = "notification.topic.invalid";
     public const string SecretRequired = "notification.secret.required";
-    public const string SecretTooLong = "notification.secret.too_long";
+    public const string SecretTooLong = "notification.secret.tooLong";
     public const string SmtpInvalid = "notification.smtp.invalid";
-    public const string SmtpInsecureLogin = "notification.smtp.insecure_login";
+    public const string SmtpInsecureLogin = "notification.smtp.insecureLogin";
     public const string AddressInvalid = "notification.address.invalid";
     public const string KindFixed = "notification.kind.fixed";
-    public const string FieldNotForKind = "notification.field.not_for_kind";
+    public const string FieldNotForKind = "notification.field.notForKind";
 }
 
 /// <summary>Whether and how an upstream is serving, as the live proxy sees it.</summary>

@@ -68,7 +68,7 @@ else
                 <span class="pdk-stat-icon pdk-tone-@(channel.Enabled ? "primary" : "default")"><MudIcon Icon="@NotificationDisplay.KindIcon(channel.Kind)" Size="Size.Small" /></span>
                 <div class="pdk-provider-main">
                     <span class="pdk-provider-title">@channel.Label</span>
-                    <span class="pdk-provider-sub">@NotificationDisplay.KindLabel(channel.Kind) · @NotificationDisplay.Target(channel) · @NotificationDisplay.EventCount(channel.Events.Count)</span>
+                    <span class="pdk-provider-sub">@NotificationDisplay.KindLabel(channel.Kind) · @NotificationDisplay.Target(channel) · @Wording.Plural(channel.Events.Count, "event", "events")</span>
                     <span class="pdk-provider-sub pdk-channel-state" data-section="state">
                         @if (!channel.Enabled)
                         {
@@ -77,11 +77,11 @@ else
                         @if (channel.LastError is { Length: > 0 } error)
                         {
                             <StatusChip Tone="Tone.Error" Dot="true" Text="Last delivery failed" Name="last-error" />
-                            <span class="pdk-health-reason" title="@(channel.LastErrorAt is { } failedAt ? CertificateDisplay.DateTime(failedAt) : null)">@error</span>
+                            <span class="pdk-health-reason" title="@(channel.LastErrorAt is { } failedAt ? RevisionText.Exact(failedAt) : null)">@error</span>
                         }
                         @if (channel.LastSentAt is { } sent)
                         {
-                            <span class="pdk-muted" title="@CertificateDisplay.DateTime(sent)">Last sent @HealthDisplay.Ago(sent, Time.GetUtcNow())</span>
+                            <span class="pdk-muted" title="@RevisionText.Exact(sent)">Last sent @RevisionText.Ago(sent, Time.GetUtcNow())</span>
                         }
                         else if (channel.LastError is null)
                         {

@@ -66,7 +66,7 @@ else
             <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-log="@group.Key">
                 <div class="pdk-card-head pdk-card-head-padded">
                     <MudText Typo="Typo.subtitle2" HtmlTag="h2">@LogTitle(group.Key)</MudText>
-                    <span class="pdk-muted pdk-log-total">@Count(group.Count(), "file") · @SizeText(group.Sum(file => file.Size))</span>
+                    <span class="pdk-muted pdk-log-total">@Wording.Plural(group.Count(), "file", "files") · @SizeText(group.Sum(file => file.Size))</span>
                 </div>
                 <div class="pdk-dt pdk-logs-table" role="table" aria-label="@LogTitle(group.Key)">
                     <div class="pdk-dt-row pdk-dt-head" role="row">
@@ -166,8 +166,6 @@ else
     private static bool Live(LogFileSummary file) => LogFileNames.KindOfLive(file.Name) is not null;
 
     private static string LogTitle(string log) => log == "access" ? "Access log" : "Error log";
-
-    private static string Count(int count, string one) => count == 1 ? $"1 {one}" : $"{count} {one}s";
 
     private static string SizeText(long bytes)
     {

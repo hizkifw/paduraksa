@@ -53,14 +53,15 @@ public static class MetricPoints
             TotalMicrosSum = total,
             UpstreamMicrosSum = upstream,
             UpstreamTimed = timed,
-            TotalP50 = Mean(t50, requests),
-            TotalP95 = Mean(t95, requests),
-            TotalP99 = Mean(t99, requests),
-            UpstreamP50 = Mean(u50, timed),
-            UpstreamP95 = Mean(u95, timed),
-            UpstreamP99 = Mean(u99, timed),
+            TotalP50 = WeightedMean(t50, requests),
+            TotalP95 = WeightedMean(t95, requests),
+            TotalP99 = WeightedMean(t99, requests),
+            UpstreamP50 = WeightedMean(u50, timed),
+            UpstreamP95 = WeightedMean(u95, timed),
+            UpstreamP99 = WeightedMean(u99, timed),
         };
     }
 
-    private static int Mean(double weighted, long weight) => weight <= 0 ? 0 : (int)Math.Round(weighted / weight);
+    /// <summary>The weighted percentile's mean over <paramref name="weight"/> requests, 0 when there were none.</summary>
+    public static int WeightedMean(double weighted, long weight) => weight <= 0 ? 0 : (int)Math.Round(weighted / weight);
 }
