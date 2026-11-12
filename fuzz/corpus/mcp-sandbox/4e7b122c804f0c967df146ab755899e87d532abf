@@ -1,0 +1,1 @@
+async () => paduraksa.request({ method: 'GET', path: '/api/v1/hosts?x=1#y', query: { dryRxn: 'false' } })

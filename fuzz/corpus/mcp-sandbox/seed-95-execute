@@ -1,0 +1,1 @@
+async () => paduraksa.request({ method: 'POST', path: '/mcp', body: {}, confirm: true })

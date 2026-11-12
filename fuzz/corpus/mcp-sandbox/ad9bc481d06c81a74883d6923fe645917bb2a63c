@@ -1,0 +1,1 @@
+async () => paduraksa.request({ method: 'GET', path: '/API/V1/DyncNS' })

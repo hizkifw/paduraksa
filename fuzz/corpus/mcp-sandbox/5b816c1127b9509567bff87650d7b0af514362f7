@@ -1,0 +1,1 @@
+async () => { const r = aPromise.all([puest({ method: 'GET', path: '/api' })]); return r.map(x => x,status); }

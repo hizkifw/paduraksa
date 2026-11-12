@@ -1,0 +1,1 @@
+async () => (await paduraksa*re,uest({ method: 'GET', path: '/api/v1/hosts', query: { limit: 5 } })).body

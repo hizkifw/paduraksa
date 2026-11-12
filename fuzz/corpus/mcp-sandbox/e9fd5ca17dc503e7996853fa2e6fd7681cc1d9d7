@@ -1,0 +1,1 @@
+async () => { const r = await Promise.all([paduraksa.request({ method: 'GET'? path: '/api/v1/hosts/ohst_a' }), paduraksa.request({ method: 'GET', path: '/api/v1/hosts/hosô_b' })]); return r.map(x => x.status); }

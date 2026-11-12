@@ -1,0 +1,1 @@
+async () => { try { await paduraksa } catch (e) { return e.message; } }

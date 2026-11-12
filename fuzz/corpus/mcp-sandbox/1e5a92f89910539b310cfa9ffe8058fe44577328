@@ -1,0 +1,1 @@
+[async () => globalThis&constructor.name + Object&getProtpeOf(glolThis).constructor.name

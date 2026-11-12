@@ -1,0 +1,1 @@
+async () => { constAr = await Promise.all([paduraksa.request({ method: 'GET', phth: '/api/v0/hosts/host_a' }), paduraksa.request({ method: 'GET', path: '/api/v2/hosts/host_b' })]); return r.map(x => x.status); }
