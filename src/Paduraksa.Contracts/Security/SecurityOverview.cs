@@ -13,6 +13,7 @@ namespace Paduraksa.Contracts.Security;
 /// <param name="AccessLists">The access lists' counters.</param>
 /// <param name="Hosts">The enabled hosts, by name.</param>
 /// <param name="ForwardAuth">The auth providers' counters, summed; absent when the response comes from an older server.</param>
+/// <param name="Connections">The connection stage before TLS: its limit and deny list, and what it refused; absent when the response comes from an older server.</param>
 public sealed record SecurityOverview(
     DateTimeOffset Since,
     DateTimeOffset SampledAt,
@@ -20,7 +21,23 @@ public sealed record SecurityOverview(
     RateLimitCounters RateLimit,
     AccessListCounters AccessLists,
     IReadOnlyList<HostProtections> Hosts,
-    SignInCounters? ForwardAuth = null);
+    SignInCounters? ForwardAuth = null,
+    ConnectionCounters? Connections = null);
+
+/// <summary>The connection stage: what runs before the TLS handshake and what it has refused since the process started, over TCP and QUIC.</summary>
+/// <param name="MaxPerIp">Open connections one client address may hold; 0 means the limit is off. Trusted proxies are exempt.</param>
+/// <param name="DenyList">The access list whose deny addresses are refused before TLS; absent when none is named.</param>
+/// <param name="DenyListRefused">Connections refused for being in the deny list.</param>
+/// <param name="LimitRefused">Connections refused because their address already held the limit.</param>
+/// <param name="Uncounted">Connections let through uncounted because the table had no entry for their address; 0 unless a flood from many addresses filled it.</param>
+/// <param name="Counted">Connections the limit counts now.</param>
+public sealed record ConnectionCounters(int MaxPerIp, ConnectionDenyListRef? DenyList, long DenyListRefused, long LimitRefused, long Uncounted, long Counted);
+
+/// <summary>The connection deny list.</summary>
+/// <param name="Id">The access list.</param>
+/// <param name="Name">Its name.</param>
+/// <param name="AddressRanges">The deny address ranges it covers, after merging overlaps.</param>
+public sealed record ConnectionDenyListRef(AccessListId Id, string Name, int AddressRanges);
 
 /// <summary>The proof-of-work gate's counters.</summary>
 /// <param name="ChallengesServed">Challenge pages sent to browsers without a valid token.</param>

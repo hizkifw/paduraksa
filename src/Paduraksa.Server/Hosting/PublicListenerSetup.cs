@@ -30,7 +30,9 @@ internal sealed class PublicListenerSetup
         X509Certificate2Collection? originPullCa = null,
         AccessListRuntime? accessLists = null,
         ForwardAuthRuntime? forwardAuth = null,
-        MetricsRegistry? metrics = null)
+        MetricsRegistry? metrics = null,
+        ConnectionRuntime? connections = null,
+        ServerLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -39,7 +41,12 @@ internal sealed class PublicListenerSetup
         Http3 = listen.Http3 && PublicListeners.IsHttp3Supported;
         HttpProxyProtocol = Create(listen.HttpProxyProtocol);
         HttpsProxyProtocol = Create(listen.HttpsProxyProtocol);
-        Selector = new TlsHandshakeSelector(snapshots, OriginLockdown.CreateQuicGate(snapshots, OriginLockdownCounters));
+        Connections = connections ?? ConnectionRuntime.Default;
+        Limits = limits ?? ServerLimits.Default;
+        Selector = new TlsHandshakeSelector(
+            snapshots,
+            QuicConnectionLimits.CreateGate(snapshots, Connections, OriginLockdown.CreateQuicGate(snapshots, OriginLockdownCounters)),
+            Limits.TlsHandshakeTimeout);
         CompilerOptions = new SnapshotCompilerOptions
         {
             PublicHttpsPort = listen.PublicHttpsPort,
@@ -70,6 +77,12 @@ internal sealed class PublicListenerSetup
 
     /// <summary>Connections dropped before TLS because every host is locked down to Cloudflare, per transport.</summary>
     public OriginLockdownCounters OriginLockdownCounters { get; } = new();
+
+    /// <summary>The per-IP connection table and the connection stage's counters, shared by both transports.</summary>
+    public ConnectionRuntime Connections { get; }
+
+    /// <summary>The slow-client and connection limits set on the public listeners' Kestrel.</summary>
+    public ServerLimits Limits { get; }
 
     /// <summary>Per-SNI certificate selection on TCP and QUIC, reading the live snapshot's certificate table.</summary>
     public TlsHandshakeSelector Selector { get; }

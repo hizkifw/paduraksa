@@ -2,6 +2,7 @@ using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Server.Configuration;
 
@@ -24,6 +25,9 @@ internal sealed class PaduraksaOptions
     public string DataDirectory { get; set; } = "./data";
 
     public PaduraksaListenOptions Listen { get; set; } = new();
+
+    /// <summary>Slow-client and connection limits of the public listeners (<c>Paduraksa:Limits</c>).</summary>
+    public PaduraksaLimitsOptions Limits { get; set; } = new();
 
     /// <summary>Sign-in, lockout, session and password settings (<c>Paduraksa:Admin</c>).</summary>
     public AdminOptions Admin { get; set; } = new();
@@ -554,5 +558,47 @@ internal sealed class PaduraksaNotificationOptions
         CoalesceWindow = CoalesceWindow,
         MaxDeliveryAge = MaxDeliveryAge,
         HistoryRetention = HistoryRetention,
+    };
+}
+
+/// <summary>
+/// The public listeners' slow-client and connection limits (<c>Paduraksa:Limits</c>), set on Kestrel explicitly at startup (not
+/// reloadable). The defaults are <see cref="ServerLimits.Default"/>; each setting is described on
+/// <see cref="ServerLimits"/> and in docs/install.md. The admin listener keeps Kestrel's own limits.
+/// </summary>
+internal sealed class PaduraksaLimitsOptions
+{
+    public TimeSpan RequestHeadersTimeout { get; set; } = ServerLimits.Default.RequestHeadersTimeout;
+
+    public TimeSpan KeepAliveTimeout { get; set; } = ServerLimits.Default.KeepAliveTimeout;
+
+    public TimeSpan TlsHandshakeTimeout { get; set; } = ServerLimits.Default.TlsHandshakeTimeout;
+
+    public long MinRequestBodyRate { get; set; } = ServerLimits.Default.MinRequestBodyRate;
+
+    public TimeSpan MinRequestBodyGrace { get; set; } = ServerLimits.Default.MinRequestBodyGrace;
+
+    public long MinResponseRate { get; set; } = ServerLimits.Default.MinResponseRate;
+
+    public TimeSpan MinResponseGrace { get; set; } = ServerLimits.Default.MinResponseGrace;
+
+    public long MaxConnections { get; set; } = ServerLimits.Default.MaxConnections;
+
+    public long MaxUpgradedConnections { get; set; } = ServerLimits.Default.MaxUpgradedConnections;
+
+    public int Http2MaxStreamsPerConnection { get; set; } = ServerLimits.Default.Http2MaxStreamsPerConnection;
+
+    public ServerLimits ToLimits() => new()
+    {
+        RequestHeadersTimeout = RequestHeadersTimeout,
+        KeepAliveTimeout = KeepAliveTimeout,
+        TlsHandshakeTimeout = TlsHandshakeTimeout,
+        MinRequestBodyRate = MinRequestBodyRate,
+        MinRequestBodyGrace = MinRequestBodyGrace,
+        MinResponseRate = MinResponseRate,
+        MinResponseGrace = MinResponseGrace,
+        MaxConnections = MaxConnections,
+        MaxUpgradedConnections = MaxUpgradedConnections,
+        Http2MaxStreamsPerConnection = Http2MaxStreamsPerConnection,
     };
 }

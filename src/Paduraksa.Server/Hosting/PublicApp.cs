@@ -61,7 +61,11 @@ internal static partial class PublicApp
                         // would silently break the uploads people put behind this, so what the gate leaves unlimited stays so.
                         kestrel.Limits.MaxRequestBodySize = null;
                         RequestLimitsGate.ConfigureTransport(kestrel.Limits);
-                        kestrel.ListenPublicHttp(address: null, listen.Http, http => http.UseClientInfo(listeners.HttpProxyProtocol));
+                        listeners.Limits.Apply(kestrel.Limits);
+                        kestrel.ListenPublicHttp(
+                            address: null,
+                            listen.Http,
+                            http => http.UseClientInfo(listeners.HttpProxyProtocol).UseConnectionLimits(context.Shared.SnapshotStore, listeners.Connections));
                         var http3 = kestrel.ListenPublicHttps(
                             new PublicHttpsListenerOptions
                             {
@@ -69,7 +73,9 @@ internal static partial class PublicApp
                                 EnableHttp3 = listeners.Http3,
                                 ConfigureTcpConnection = https => https
                                     .UseClientInfo(listeners.HttpsProxyProtocol)
-                                    .UseOriginLockdown(context.Shared.SnapshotStore, listeners.OriginLockdownCounters),
+                                    .UseOriginLockdown(context.Shared.SnapshotStore, listeners.OriginLockdownCounters)
+                                    .UseConnectionLimits(context.Shared.SnapshotStore, listeners.Connections),
+                                ConfigureQuicConnection = quic => quic.UseQuicConnectionLimits(context.Shared.SnapshotStore, listeners.Connections),
                             },
                             listeners.Selector);
                         if (http3 != listeners.Http3)

@@ -24,6 +24,9 @@ public sealed class PublicHttpsListenerOptions
     /// <summary>Adds TCP connection middleware (PROXY protocol, IP gate, per-IP cap, ClientInfo). It runs before TLS,
     /// so it is called before <c>UseHttps</c>.</summary>
     public Action<ListenOptions>? ConfigureTcpConnection { get; init; }
+
+    /// <summary>Adds QUIC connection middleware, which runs for each established connection (not in the handshake).</summary>
+    public Action<ListenOptions>? ConfigureQuicConnection { get; init; }
 }
 
 /// <summary>Kestrel listener layout for the public app: per HTTPS endpoint, two <c>Listen</c> calls on the same
@@ -79,6 +82,7 @@ public static class PublicListeners
                 listen.Protocols = HttpProtocols.Http3;
                 // Kestrel would otherwise add Alt-Svc (bound port) to H3 responses too.
                 listen.DisableAltSvcHeader = true;
+                options.ConfigureQuicConnection?.Invoke(listen);
                 listen.UseHttps(selector.CreateQuicCallbackOptions());
             });
         }

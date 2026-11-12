@@ -113,6 +113,10 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         ValidateNotifications(options.Notifications, failures);
         ValidateMcp(options.Mcp, failures);
         ValidateAccessLog(options, failures);
+        foreach (var failure in (options.Limits ?? new()).ToLimits().Validate())
+        {
+            failures.Add($"{PaduraksaOptions.SectionName}:Limits: {failure}.");
+        }
 
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
         ValidateProxyProtocol("HttpsProxyProtocol", listen.HttpsProxyProtocol, failures);

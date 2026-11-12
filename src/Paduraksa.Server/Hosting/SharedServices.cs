@@ -340,8 +340,11 @@ internal sealed class SharedServices : IAsyncDisposable
             // The forward-auth decision caches, clients and counters: compiled policies hold their provider's state, which this keeps
             // across publishes while the provider's configuration is the same.
             var forwardAuth = builder.Add(new ForwardAuthRuntime(timeProvider, coreLoggers.CreateLogger("Paduraksa.Proxy.ForwardAuth")));
+            // The per-IP connection table and the connection stage's counters: the public listeners count into it, and the security
+            // overview and the metrics read it.
+            var connections = builder.Add(new ConnectionRuntime(new ConnectionTable(), coreLoggers.CreateLogger("Paduraksa.Proxy.Connections"), timeProvider));
             // Built here so its start time is the process's: the counters it reports begin at zero with them.
-            builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider, accessLists));
+            builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider, accessLists, connections));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
@@ -370,7 +373,7 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             var originPullCa = LoadOriginPullCa(options.Cloudflare.OriginPullCaFile);
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth, metrics));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth, metrics, connections, options.Limits.ToLimits()));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
@@ -410,7 +413,7 @@ internal sealed class SharedServices : IAsyncDisposable
             var peerGone = builder.Add(new PeerGoneLogFilter());
             var processCounters = builder.Add(new ProcessCounters(
             [
-                .. ProcessCounters.Create(rateLimits.Stats, proofOfWork.Stats, accessLists.Stats).All,
+                .. ProcessCounters.Create(rateLimits.Stats, proofOfWork.Stats, accessLists.Stats, connections.Stats).All,
                 .. NotificationMetrics.Counters(configStore.NotificationStats),
                 new ProcessCounter("paduraksa.connection.errors", "Connection errors the logs leave out, by kind: peer_gone is a client that vanished mid-write.", "kind", "peer_gone", () => peerGone.Count),
             ]));

@@ -1,5 +1,6 @@
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 
 namespace Paduraksa.Proxy.Metrics;
@@ -30,7 +31,26 @@ public sealed class ProcessCounters
 
     public IReadOnlyList<ProcessCounter> All { get; }
 
-    public static ProcessCounters Create(RateLimitStats rateLimit, ProofOfWorkStats proofOfWork, AccessListStats accessLists)
+    // The connection stage: what it refused before TLS and why, what the full table let through uncounted, and what it counts now.
+    private static ProcessCounter[] ConnectionCounters(ConnectionStats? connections)
+    {
+        if (connections is null)
+        {
+            return [];
+        }
+
+        const string Name = "paduraksa.connections.events";
+        const string Help = "Connection-stage events before TLS: connections refused for the deny list or the per-IP limit, and connections let through uncounted because the table was full.";
+        return
+        [
+            new(Name, Help, "event", "refused_deny_list", () => connections.Denied),
+            new(Name, Help, "event", "refused_per_ip_limit", () => connections.OverCap),
+            new(Name, Help, "event", "table_full", () => connections.TableFull),
+            new("paduraksa.connections.counted", "Connections the per-IP limit counts now.", null, null, () => connections.Open, Gauge: true),
+        ];
+    }
+
+    public static ProcessCounters Create(RateLimitStats rateLimit, ProofOfWorkStats proofOfWork, AccessListStats accessLists, ConnectionStats? connections = null)
     {
         ArgumentNullException.ThrowIfNull(rateLimit);
         ArgumentNullException.ThrowIfNull(proofOfWork);
@@ -43,6 +63,7 @@ public sealed class ProcessCounters
         const string AccessListHelp = "Access-list events: refusals by address or password, password checks and what waited for one.";
         return new(
         [
+            .. ConnectionCounters(connections),
             new(RateLimitName, RateLimitHelp, "result", "allowed", () => rateLimit.Allowed),
             new(RateLimitName, RateLimitHelp, "result", "limited", () => rateLimit.Limited),
             new(ProofOfWorkName, ProofOfWorkHelp, "event", "challenge_served", () => proofOfWork.ChallengesServed),

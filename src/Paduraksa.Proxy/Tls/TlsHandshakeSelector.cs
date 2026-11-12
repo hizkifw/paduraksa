@@ -46,9 +46,16 @@ public sealed class TlsHandshakeSelector
 
     private readonly ICertificateTableSource _tables;
     private readonly QuicConnectionGate? _quicGate;
+    private readonly TimeSpan? _tcpHandshakeTimeout;
 
-    public TlsHandshakeSelector(ICertificateTableSource tables, QuicConnectionGate? quicConnectionGate = null)
+    public TlsHandshakeSelector(ICertificateTableSource tables, QuicConnectionGate? quicConnectionGate = null, TimeSpan? tcpHandshakeTimeout = null)
     {
+        if (tcpHandshakeTimeout is { } timeout && timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tcpHandshakeTimeout), timeout, "The TLS handshake timeout must be positive.");
+        }
+
+        _tcpHandshakeTimeout = tcpHandshakeTimeout;
         ArgumentNullException.ThrowIfNull(tables);
         _tables = tables;
         _quicGate = quicConnectionGate;
@@ -59,7 +66,9 @@ public sealed class TlsHandshakeSelector
 
     /// <summary>Options for the TCP (H1/H2) listener's <c>UseHttps</c>.</summary>
     public TlsHandshakeCallbackOptions CreateTcpCallbackOptions() =>
-        new() { OnConnection = TcpCallback, OnConnectionState = this };
+        _tcpHandshakeTimeout is { } timeout
+            ? new() { OnConnection = TcpCallback, OnConnectionState = this, HandshakeTimeout = timeout }
+            : new() { OnConnection = TcpCallback, OnConnectionState = this };
 
     /// <summary>Options for the QUIC (H3) listener's <c>UseHttps</c>; also runs the <see cref="QuicConnectionGate"/>.</summary>
     public TlsHandshakeCallbackOptions CreateQuicCallbackOptions() =>
