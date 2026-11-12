@@ -68,6 +68,25 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         await Task.Delay(30, Ct);
     }
 
+    // The fake clock moves only when a test advances it, but the dispatcher's loops run on real threads: after the clock has moved, a loaded
+    // machine may not have run them yet, so what a test expects is waited for in real time rather than read at once.
+    private static async Task SettledAsync(Func<bool> done) => await UntilAsync(() => done() ? new object() : null);
+
+    private async Task<NotificationChannelRow> RowSentAsync(NotificationChannelId id)
+    {
+        for (var i = 0; i < 300; i++)
+        {
+            if (await Row(id) is { LastSentAt: not null } row)
+            {
+                return row;
+            }
+
+            await Task.Delay(10, Ct);
+        }
+
+        throw new TimeoutException();
+    }
+
     private static async Task<T> UntilAsync<T>(Func<T?> read)
         where T : class
     {
@@ -96,10 +115,11 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
 
         dispatcher.Publish(Event());
         await AdvanceAsync(TimeSpan.FromSeconds(4));
+        await SettledAsync(() => _sender.Sent.Count >= 2);
 
         Assert.Equal([subscribed, also], _sender.Sent.Select(s => s.Channel).Order());
         Assert.All(_sender.Sent, s => Assert.Equal("https://admin.example.com/upstreams", s.Message.Link));
-        Assert.NotNull((await Row(subscribed)).LastSentAt);
+        await RowSentAsync(subscribed);
         await dispatcher.StopAsync(Ct);
     }
 
@@ -151,6 +171,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
 
         dispatcher.Publish(Event());
         await AdvanceAsync(TimeSpan.FromMinutes(3));
+        await SettledAsync(() => _sender.Sent.Count >= 3);
 
         Assert.Equal(3, _sender.Sent.Count);
 
@@ -158,8 +179,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         var at = _sender.Sent.Select(s => s.At).ToList();
         Assert.InRange(at[1] - at[0], TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(25));
         Assert.InRange(at[2] - at[1], TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(70));
-        var row = await Row(channel);
-        Assert.NotNull(row.LastSentAt);
+        var row = await RowSentAsync(channel);
         Assert.Null(row.LastError);
         Assert.Equal((1L, 0L), dispatcher.Totals);
         await dispatcher.StopAsync(Ct);
@@ -213,8 +233,9 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         dispatcher.Publish(Event());
         await AdvanceAsync(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1));
 
-        Assert.Contains(_sender.Sent, s => s.Channel == healthy);
-        Assert.NotNull((await Row(healthy)).LastSentAt);
+        // Waited for in real time only: the clock stays within the failing channel's first retry, so a healthy channel queued behind it never sends.
+        await SettledAsync(() => _sender.Sent.Any(s => s.Channel == healthy));
+        await RowSentAsync(healthy);
         await dispatcher.StopAsync(Ct);
     }
 
