@@ -94,7 +94,7 @@ public sealed class OverviewAndNavigationTests
     }
 
     [Theory]
-    [InlineData(Role.Owner, new[] { "Global defaults", "Users and roles", "API tokens" })]
+    [InlineData(Role.Owner, new[] { "Global defaults", "Users and roles", "API tokens", "Backup" })]
     [InlineData(Role.Viewer, new[] { "Global defaults", "API tokens" })]
     public void TheSettingsGroup_ListsThePagesTheRoleMaySee(Role role, string[] entries)
     {
@@ -103,7 +103,7 @@ public sealed class OverviewAndNavigationTests
         var menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(role))));
 
-        string[] all = ["Global defaults", "Users and roles", "API tokens"];
+        string[] all = ["Global defaults", "Users and roles", "API tokens", "Backup"];
         Assert.Equal(entries, menu.FindAll(".pdk-nav-label").Select(label => label.TextContent).Where(all.Contains));
     }
 }

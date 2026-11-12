@@ -12,6 +12,9 @@ public static class SettingsRoutes
     /// <summary>The notification channels: where an upstream going down, a certificate about to expire and the like are sent.</summary>
     public const string Notifications = "/settings/notifications";
 
+    /// <summary>The full backup: a passphrase-encrypted download of the config and the vault (<c>backup:create</c>, the Owner's).</summary>
+    public const string Backup = "/settings/backup";
+
     /// <summary>The API tokens: one's own, and everyone's with <c>tokens:all</c>.</summary>
     public const string Tokens = "/settings/tokens";
 }

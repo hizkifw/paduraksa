@@ -1,0 +1,152 @@
+@attribute [Authorize]
+@attribute [Route(SettingsRoutes.Backup)]
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Backup
+@using Paduraksa.Core.Backup
+@using Paduraksa.Dashboard.Backup
+@inject IDashboardBackup Backups
+@inject DashboardCaller Caller
+@inject DashboardBrowser Browser
+@inject ISnackbar Snackbar
+@inject ILogger<Backup> Logger
+@* Settings > Backup: the one full backup (the config and every key in the vault) as a download, encrypted under a passphrase that is
+   never stored. Restoring replaces the databases and needs the server stopped, so it is a command; the page says which. *@
+
+<PageTitle>Backup · Paduraksa</PageTitle>
+
+<PageHeader Title="Backup" />
+
+<div class="pdk-account-grid">
+    <MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="backup">
+        <div class="pdk-card-head">
+            <MudText Typo="Typo.h6" HtmlTag="h2">Download a backup</MudText>
+        </div>
+
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3" data-notice="passphrase">
+            The backup holds the config and every key in the vault, and only this passphrase protects it. Nothing can recover a lost one.
+        </MudAlert>
+
+        @if (_error is { } error)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-3" data-result="refused">@error</MudAlert>
+        }
+
+        <form class="pdk-password-form" @onsubmit="DownloadAsync" @onsubmit:preventDefault="true" novalidate>
+            <div>
+                <MudTextField T="string" @bind-Value="_passphrase" Label="Passphrase" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              autocomplete="new-password" Immediate="true" Error="@((_attempted || !string.IsNullOrEmpty(_passphrase)) && PassphraseError is not null)" ErrorText="@PassphraseError"
+                              HelperText="@($"At least {BackupPassphrase.MinLength} characters. A few unrelated words make a good one.")" data-field="passphrase" />
+                @if (!string.IsNullOrEmpty(_passphrase))
+                {
+                    var (level, label) = Strength();
+                    <div class="pdk-strength pdk-strength-@level" data-strength="@level" aria-live="polite">
+                        <span class="pdk-strength-bar"><span></span><span></span><span></span><span></span></span>
+                        <span class="pdk-strength-label">@label</span>
+                    </div>
+                }
+            </div>
+            <MudTextField T="string" @bind-Value="_repeat" Label="Passphrase again" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          autocomplete="new-password" Immediate="true" Error="@((_attempted || !string.IsNullOrEmpty(_repeat)) && RepeatError is not null)" ErrorText="@RepeatError"
+                          data-field="repeat" />
+            <div class="pdk-form-actions">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" StartIcon="@Icons.Material.Outlined.Download" data-action="download-backup">
+                    @if (_busy)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Download backup
+                </MudButton>
+            </div>
+        </form>
+    </MudPaper>
+
+    <MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="restore">
+        <div class="pdk-card-head">
+            <MudText Typo="Typo.h6" HtmlTag="h2">Restore</MudText>
+        </div>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            A restore replaces the databases, so it can't run while the server does. Stop the service, then run:
+        </MudText>
+        <code class="pdk-secret-value" data-command="restore">paduraksa restore &lt;file&gt;</code>
+        <MudText Typo="Typo.body2" Class="mt-3">
+            In the container: <code>docker compose run --rm paduraksa restore /data/backups/&lt;file&gt;</code>. The vault is re-wrapped under the target machine's
+            own master key, and the databases it replaces are kept in <code>pre-restore-&lt;time&gt;</code> beside them.
+        </MudText>
+    </MudPaper>
+</div>
+
+@code {
+    private string? _passphrase;
+    private string? _repeat;
+    private bool _attempted;
+    private bool _busy;
+    private string? _error;
+
+    private string? PassphraseError => BackupPassphrase.Check(_passphrase);
+
+    private string? RepeatError => _repeat == _passphrase ? null : "The two passphrases differ.";
+
+    private (int Level, string Label) Strength()
+    {
+        var length = BackupPassphrase.Length(_passphrase);
+        return BackupPassphrase.Rate(_passphrase) switch
+        {
+            PassphraseStrength.TooShort => (1, $"Too short: {BackupPassphrase.MinLength - length} more {(BackupPassphrase.MinLength - length == 1 ? "character" : "characters")}"),
+            PassphraseStrength.Fair => (2, "Fair: more characters or words are harder to guess"),
+            _ => (4, "Good"),
+        };
+    }
+
+    private static string SizeOf(long bytes) =>
+        bytes < 1024 * 1024
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Math.Max(1, bytes / 1024)} KB")
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{bytes / (1024.0 * 1024):0.#} MB");
+
+    private async Task DownloadAsync()
+    {
+        _attempted = true;
+        _error = null;
+        if (PassphraseError is not null || RepeatError is not null)
+        {
+            return;
+        }
+
+        var passphrase = _passphrase!;
+        _passphrase = _repeat = null;
+        _attempted = false;
+        var origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var outcome = await Backups.CreateAsync(origin, passphrase);
+            if (outcome.Download is { } download)
+            {
+                await using (download)
+                {
+                    if (await Browser.DownloadAsync(download.FileName, "application/octet-stream", download.Content))
+                    {
+                        Snackbar.Add($"Backup downloaded ({SizeOf(download.Length)}). Keep it, and the passphrase, apart from this machine.", Severity.Success);
+                    }
+                }
+            }
+            else
+            {
+                _error = outcome.Result.Problem;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogError(ex, "Couldn't make a backup.");
+            _error = "The backup couldn't be made. The server's log says why.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

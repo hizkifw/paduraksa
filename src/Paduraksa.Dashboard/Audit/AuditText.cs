@@ -35,6 +35,7 @@ public static class AuditText
         ["user.totp.disable"] = "Turned off two-step verification",
         ["user.recovery_codes.regenerate"] = "Made new recovery codes",
         ["setup.complete"] = "Finished first-run setup",
+        ["backup.create"] = "Made a full backup",
         ["config.host.upsert"] = "Saved a host",
         ["config.host.delete"] = "Deleted a host",
         ["config.upstream.upsert"] = "Saved an upstream",
@@ -62,7 +63,7 @@ public static class AuditText
 
     /// <summary>The action filters offered as suggestions: each area with <c>*</c>, then the actions in words.</summary>
     public static IReadOnlyList<string> Suggestions { get; } =
-        [.. new[] { "auth.*", "user.*", "token.*", "config.*", "certificate.*", "acme.*", "setup.*" }.Concat(Actions.Keys.Order(StringComparer.Ordinal))];
+        [.. new[] { "auth.*", "user.*", "token.*", "config.*", "certificate.*", "acme.*", "setup.*", "backup.*" }.Concat(Actions.Keys.Order(StringComparer.Ordinal))];
 
     /// <summary>The action in words; the dotted name, spelt out, for one this page doesn't know.</summary>
     public static string Describe(string action)
