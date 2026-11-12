@@ -13,9 +13,10 @@ public sealed class RolePermissionTests
         Assert.Equal(Enum.GetValues<Permission>().Order(), RolePermissions.Of(Role.Owner).Order());
 
     [Fact]
-    public void OnlyOwnerManagesUsersTheVaultAndOtherPeoplesTokensAndSessions()
+    public void OnlyOwnerManagesUsersTheVaultAndOtherPeoplesTokensAndSessionsAndMakesBackups()
     {
-        Permission[] ownerOnly = [Permission.UsersWrite, Permission.VaultManage, Permission.TokensAll, Permission.SessionsAll];
+        // A backup holds every key the vault does, so it is the Owner's alone (PLAN §8, As built (M10)).
+        Permission[] ownerOnly = [Permission.UsersWrite, Permission.VaultManage, Permission.TokensAll, Permission.SessionsAll, Permission.BackupCreate];
 
         foreach (var role in Enum.GetValues<Role>().Where(r => r != Role.Owner))
         {
@@ -100,7 +101,7 @@ public sealed class RolePermissionTests
             [
                 "config:read", "config:write", "certificates:read", "certificates:write", "providers:read", "providers:write",
                 "users:read", "users:write", "tokens:own", "tokens:all", "sessions:all", "audit:read", "vault:manage", "simulate", "logs:read",
-                "metrics:read",
+                "metrics:read", "backup:create",
             ],
             Enum.GetValues<Permission>().Select(p => p.ToName()));
         Assert.All(Enum.GetValues<Role>(), r => Assert.Equal(r, ModelNames.ParseRole(r.ToName())));

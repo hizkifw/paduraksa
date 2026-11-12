@@ -147,6 +147,7 @@ public static class ModelNames
         Permission.Simulate => "simulate",
         Permission.LogsRead => "logs:read",
         Permission.MetricsRead => "metrics:read",
+        Permission.BackupCreate => "backup:create",
         _ => throw Undefined(permission),
     };
 

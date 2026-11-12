@@ -70,4 +70,7 @@ public enum Permission
 
     /// <summary>Read the counters and latency figures: the dashboard overview and the Prometheus <c>/metrics</c> endpoint.</summary>
     MetricsRead = 16,
+
+    /// <summary>Make a full backup: the config and the vault in one passphrase-encrypted archive. The Owner only, since the archive holds every key the vault does.</summary>
+    BackupCreate = 17,
 }

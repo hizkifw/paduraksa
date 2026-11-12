@@ -48,6 +48,7 @@ public static class IdentityText
         Permission.AuditRead => "Read the audit log",
         Permission.LogsRead => "Browse, tail and download the log files",
         Permission.MetricsRead => "Read the request counters and latencies, and scrape /metrics",
+        Permission.BackupCreate => "Download a full backup: the config and every key in the vault",
         Permission.Simulate => "Run the request simulator",
         Permission.VaultManage => "Manage secrets in the vault",
         Permission.TokensOwn => "Manage one's own API tokens",
@@ -68,6 +69,7 @@ public static class IdentityText
         ("Metrics", [Permission.MetricsRead]),
         ("Users", [Permission.UsersRead, Permission.UsersWrite]),
         ("Vault", [Permission.VaultManage]),
+        ("Backup", [Permission.BackupCreate]),
     ];
 
     /// <summary>Whether a scope only reads.</summary>
