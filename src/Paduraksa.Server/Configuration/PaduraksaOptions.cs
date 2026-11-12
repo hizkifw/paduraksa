@@ -538,10 +538,21 @@ internal sealed class PaduraksaNotificationOptions
     /// </summary>
     public TimeSpan CoalesceWindow { get; set; } = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// A delivery still waiting for an event older than this when the process starts is expired, not sent (default 1 hour; 1 minute to 7 days), so a long outage
+    /// does not end in a burst of stale "upstream down" messages. Applied at start only: a retry in a running process finishes inside its own schedule (about 21 minutes).
+    /// </summary>
+    public TimeSpan MaxDeliveryAge { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>How long a finished event and its deliveries are kept for the notification history (default 14 days; 1 hour to 5 years). Older ones are deleted hourly.</summary>
+    public TimeSpan HistoryRetention { get; set; } = TimeSpan.FromDays(14);
+
     public Application.Notifications.NotificationOptions ToOptions() => new()
     {
         AdminUrl = AdminUrl is { Length: > 0 } url ? new Uri(url.TrimEnd('/') + "/") : null,
         HealthHold = HealthHold,
         CoalesceWindow = CoalesceWindow,
+        MaxDeliveryAge = MaxDeliveryAge,
+        HistoryRetention = HistoryRetention,
     };
 }

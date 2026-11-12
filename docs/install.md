@@ -389,7 +389,7 @@ time the server wasn't running (all its figures are 0): draw a gap, not a zero. 
 
 ### Notifications
 
-The channels (ntfy, Gotify, Discord, a webhook, email) are added in the dashboard under Settings, Notifications; their secrets are in the vault. Three
+The channels (ntfy, Gotify, Discord, a webhook, email) are added in the dashboard under Settings, Notifications; their secrets are in the vault. Five
 settings belong to the process, since only you know them:
 
 | Setting | Default | What |
@@ -397,6 +397,16 @@ settings belong to the process, since only you know them:
 | `Paduraksa__Notifications__AdminUrl` | none | The address the dashboard is reached at (`https://admin.example.com`: http or https, no login, query or fragment). Messages link to the page that shows what happened; empty sends no link, because the process cannot know which name or port you reach it by |
 | `Paduraksa__Notifications__HealthHold` | `00:00:10` | How long a destination's new health state must hold before it is reported (1 second to 10 minutes), so one failed probe sends nothing |
 | `Paduraksa__Notifications__CoalesceWindow` | `00:00:03` | How long a channel waits after a message for more of the same kind, so ten upstreams going down at once is one digest (0 to 1 minute) |
+| `Paduraksa__Notifications__MaxDeliveryAge` | `01:00:00` | A delivery that has been waiting longer than this (its event is that old, at start or when the channel takes it) is marked expired instead of sent, so a long outage of the process or of the database does not end in a burst of stale messages (1 minute to 7 days) |
+| `Paduraksa__Notifications__HistoryRetention` | `14.00:00:00` | How long a finished event and its deliveries stay in the notification history (1 hour to 5 years); older ones are deleted hourly |
+
+**Delivery is durable and at least once.** An event is written to the config database, with one delivery per subscribed channel, within about a quarter of a
+second of happening, and the first message to a quiet channel is sent at once (a burst behind it is digested); a restart, a crash or a channel that is down loses nothing but that quarter second (events still in memory when the process is killed).
+Retries (15 seconds, 1, 4 and 16 minutes after a transient failure) are kept in the database and carry on after a restart. A crash between the service accepting a
+message and Paduraksa recording it sends the message again at the next start, so a message can arrive twice. A webhook receiver drops the repeat by the **event
+ID**, which is `eventId` in the JSON body and the `X-Paduraksa-Event-Id` header (both signed with the rest when the channel has a signing key): the same ID on
+every resend of the same message, and a digest's own ID when several events go out as one message. The history is under Settings, Notification history, where a
+failed or expired delivery can be sent again; `/metrics` shows the queue depth and the deliveries sent, failed, expired and dropped by kind of channel.
 
 ### MCP (AI assistants)
 

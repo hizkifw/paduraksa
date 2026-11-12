@@ -14,6 +14,10 @@ public sealed class NotificationOptionsTests
     [InlineData("Paduraksa:Notifications:HealthHold", "00:00:00", "HealthHold")]
     [InlineData("Paduraksa:Notifications:HealthHold", "01:00:00", "HealthHold")]
     [InlineData("Paduraksa:Notifications:CoalesceWindow", "00:05:00", "CoalesceWindow")]
+    [InlineData("Paduraksa:Notifications:MaxDeliveryAge", "00:00:30", "MaxDeliveryAge")]
+    [InlineData("Paduraksa:Notifications:MaxDeliveryAge", "8.00:00:00", "MaxDeliveryAge")]
+    [InlineData("Paduraksa:Notifications:HistoryRetention", "00:30:00", "HistoryRetention")]
+    [InlineData("Paduraksa:Notifications:HistoryRetention", "1900.00:00:00", "HistoryRetention")]
     public void ABadSettingIsRefusedAtStartup(string key, string value, string named)
     {
         var exception = Assert.Throws<OptionsValidationException>(() =>
@@ -30,6 +34,21 @@ public sealed class NotificationOptionsTests
         Assert.Null(options.AdminUrl);
         Assert.Equal(TimeSpan.FromSeconds(10), options.HealthHold);
         Assert.Equal(TimeSpan.FromSeconds(3), options.CoalesceWindow);
+        Assert.Equal(TimeSpan.FromHours(1), options.MaxDeliveryAge);
+        Assert.Equal(TimeSpan.FromDays(14), options.HistoryRetention);
+    }
+
+    [Fact]
+    public void TheDeliveryAgeAndTheHistoryRetentionAreBound()
+    {
+        var options = PaduraksaHost.LoadOptions(TestHost.CreateOptions(settings: new Dictionary<string, string?>
+        {
+            ["Paduraksa:Notifications:MaxDeliveryAge"] = "00:20:00",
+            ["Paduraksa:Notifications:HistoryRetention"] = "30.00:00:00",
+        })).Notifications.ToOptions();
+
+        Assert.Equal(TimeSpan.FromMinutes(20), options.MaxDeliveryAge);
+        Assert.Equal(TimeSpan.FromDays(30), options.HistoryRetention);
     }
 
     [Fact]

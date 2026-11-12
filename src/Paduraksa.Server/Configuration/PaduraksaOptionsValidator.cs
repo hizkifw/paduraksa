@@ -391,6 +391,8 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         Bound(notifications.HealthHold, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:HealthHold", failures);
         Bound(notifications.CoalesceWindow, TimeSpan.Zero, TimeSpan.FromMinutes(1), $"{Key}:CoalesceWindow", failures);
+        Bound(notifications.MaxDeliveryAge, TimeSpan.FromMinutes(1), TimeSpan.FromDays(7), $"{Key}:MaxDeliveryAge", failures);
+        Bound(notifications.HistoryRetention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:HistoryRetention", failures);
     }
 
     /// <summary>The smallest rotation size accepted: below one line's worth of bytes, every line would rotate the file again (thrashing).</summary>
