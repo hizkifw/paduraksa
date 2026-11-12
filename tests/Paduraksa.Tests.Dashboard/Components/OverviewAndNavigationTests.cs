@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Layout;
@@ -52,6 +53,47 @@ public sealed class OverviewAndNavigationTests
         await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
         Assert.Empty(page.FindAll("[data-section=attention]"));
         Assert.Empty(page.FindAll("[data-action=add-host]"));
+    }
+
+    [Fact]
+    public async Task TheOverview_WarnsTheOwnerWhenTheMasterKeySitsBesideTheVault_WithALinkToTheGuide()
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddSingleton<IVaultLifecycle>(new FakeVaultLifecycle(KekSourceKind.GeneratedFile, besideDatabase: true));
+        ConfigPages.SignIn(context, Role.Owner).Document = new ConfigDocument();
+        context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
+
+        var page = context.Render<Home>();
+
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 1);
+        var item = page.Find(".pdk-attention-item");
+        Assert.Equal("warning", item.GetAttribute("data-tone"));
+        Assert.Contains("The master key is stored beside the vault", item.TextContent, StringComparison.Ordinal);
+        Assert.Contains("A copy of the data directory is a copy of every certificate key and secret", item.TextContent, StringComparison.Ordinal);
+        var link = item.QuerySelector("a")!;
+        Assert.EndsWith("/docs/install.md#the-master-key", link.GetAttribute("href"), StringComparison.Ordinal);
+        Assert.Equal("_blank", link.GetAttribute("target"));
+        Assert.Contains("noopener", link.GetAttribute("rel"), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(Role.Owner, KekSourceKind.File, false)]
+    [InlineData(Role.Owner, KekSourceKind.Environment, false)]
+    [InlineData(Role.Admin, KekSourceKind.GeneratedFile, true)]
+    [InlineData(Role.Operator, KekSourceKind.GeneratedFile, true)]
+    public async Task TheOverview_SaysNothingAboutTheMasterKeyWhenItIsElsewhere_OrTheRoleCannotManageTheVault(Role role, KekSourceKind source, bool beside)
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddSingleton<IVaultLifecycle>(new FakeVaultLifecycle(source, beside));
+        ConfigPages.SignIn(context, role).Document = new ConfigDocument();
+        context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
+
+        var page = context.Render<Home>();
+
+        await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
+        Assert.Empty(page.FindAll("[data-section=attention]"));
     }
 
     [Theory]

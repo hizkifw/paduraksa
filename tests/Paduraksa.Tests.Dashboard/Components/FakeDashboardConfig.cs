@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Commands;
@@ -15,6 +16,7 @@ using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Auth;
 using Paduraksa.Dashboard.Config;
@@ -112,6 +114,12 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
     }
 }
 
+/// <summary>The vault's own report of where its master key came from, as a page reads it.</summary>
+internal sealed class FakeVaultLifecycle(KekSourceKind source = KekSourceKind.File, bool besideDatabase = false) : IVaultLifecycle
+{
+    public ValueTask<VaultStatus> InitializeAsync(CancellationToken cancellationToken) => ValueTask.FromResult(new VaultStatus(source, besideDatabase));
+}
+
 /// <summary>Sets a bUnit context up for the config pages: a signed-in user in a role, the fake config, a live (interactive) renderer.</summary>
 internal static class ConfigPages
 {
@@ -133,6 +141,7 @@ internal static class ConfigPages
         context.Services.AddSingleton(_ => auth);
         context.Services.AddSingleton<AuthenticationStateProvider>(sp => sp.GetRequiredService<DashboardAuthenticationStateProvider>());
         context.Services.AddSingleton<IDashboardConfig>(config);
+        context.Services.TryAddSingleton<IVaultLifecycle>(new FakeVaultLifecycle());
         context.Services.AddSingleton(new Paduraksa.Application.Notifications.UpstreamHealthBoard());
         context.Services.AddScoped<DashboardCaller>();
         context.Services.AddScoped<ConfigUndo>();

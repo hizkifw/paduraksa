@@ -27,8 +27,13 @@ runtimes that do not.
    ```sh
    mkdir paduraksa && cd paduraksa
    curl -fsSLO https://raw.githubusercontent.com/hizkifw/paduraksa/main/deploy/compose.yaml
+   head -c 32 /dev/urandom | base64 | sudo install -m 400 -o 10001 -g 10001 /dev/stdin master.key
    docker compose up -d
    ```
+
+   `master.key` is the vault's master key, mounted as a Docker secret so that it is not in the data volume (see
+   [The master key](#the-master-key)); compose refuses to start without the file. **Copy it somewhere other than this
+   machine's volume now:** nothing else can open the vault.
 
    **To build the image yourself**, run compose from a checkout's `deploy/` directory with the commented `build:` block
    enabled (its context is the repository root, one directory up), and start it with `docker compose up -d --build`.
@@ -58,20 +63,6 @@ runtimes that do not.
    ```
 
    The token is single-use and is deleted once an Owner exists.
-
-   **The master key as a Docker secret (recommended).** Uncomment the `secrets:`/`environment:` block in
-   `deploy/compose.yaml`. Non-swarm Compose mounts a file secret as a bind mount and keeps the **host's** owner and mode,
-   while the container runs as uid 10001, so the file must be readable by that uid:
-
-   ```sh
-   head -c 32 /dev/urandom | base64 | sudo tee master.key >/dev/null
-   sudo chown 10001:10001 master.key
-   sudo chmod 400 master.key
-   ```
-
-   A host-root `0600` file is unreadable for the container and makes it restart forever; the startup error says so, with
-   the uid, when that happens. If you skip this step the vault generates `/data/master.key` (0600, uid 10001), which is
-   fine for a quick try but puts the key in the same volume as the database.
 
 3. **Trust the local CA root**, so the admin UI is not a certificate warning in your browser. Paduraksa issues its own
    admin certificate from a local CA; the root is offered unauthenticated, before setup, precisely so you can trust it
@@ -125,6 +116,38 @@ libmsquic and logs `HTTP/3 is on: QUIC on UDP 443 ...` at startup; if it says HT
 
 Do not remap the container's ports: `Alt-Svc` and the HTTP→HTTPS redirect advertise 443, because that is the port
 clients use. Behind a port translation, set `Paduraksa__Listen__PublicHttpsPort` to the outside port.
+
+### The master key
+
+The master key opens `vault.db`, which holds every certificate key, DNS and notification secret, TOTP seed and the Data Protection
+key ring. It is one line of text (32 random bytes in base64) and is read from, in this order:
+
+1. **`PADURAKSA_MASTER_KEY_FILE`**, the path of a file. The shipped `deploy/compose.yaml` sets it to a Docker secret, and the
+   systemd unit to a `LoadCredential` file. The key is then not in the data directory, and a copy of the directory or the volume
+   is not a copy of your keys. This is the setup to use for anything beyond a first try.
+2. `PADURAKSA_MASTER_KEY`, the key itself in the environment. Readable with `docker inspect` and from `/proc`, so prefer a file.
+3. `/data/master.key`, generated on the first start when neither is set. It is beside `vault.db`, so **a copy of `/data` is a
+   copy of every secret**, and the dashboard says so on the overview until the key is moved.
+
+Non-swarm Compose mounts a file secret as a bind mount that keeps the host's owner and mode, and the container runs as uid 10001,
+so the file must belong to that uid (`chown 10001:10001`, `chmod 400`). A root-only `0600` file makes the container restart in a
+loop, and the startup error says which uid has to read it.
+
+**Moving the key out of the data directory** of an install that generated its own (the overview's warning): stop it, copy the key
+to the host, and point the file variable at it. The key stays the same, so nothing is re-encrypted:
+
+```sh
+docker compose stop
+docker compose cp paduraksa:/data/master.key ./master.key
+sudo chown 10001:10001 master.key && sudo chmod 400 master.key
+# add the secrets: and environment: blocks from deploy/compose.yaml (they point at ./master.key), then remove the old copy:
+docker compose run --rm --no-deps --entrypoint rm paduraksa /data/master.key
+docker compose up -d
+```
+
+The overview's warning is gone after the restart. Back `master.key` up apart from the volume. If the data directory (or a backup of it) has
+been copied while the key was in it, that copy opens everything: follow the move with `paduraksa vault rotate-kek`
+([Changing the master key](#changing-the-master-key)).
 
 ### Where things live, and backup
 
@@ -622,8 +645,7 @@ A graceful stop writes the bucket in progress; a crash loses it and whatever was
    sudo useradd --system --user-group --home /var/lib/paduraksa --shell /usr/sbin/nologin paduraksa
    sudo install -d -o paduraksa -g paduraksa -m 0750 /var/lib/paduraksa
    sudo install -d -m 0750 /etc/paduraksa
-   head -c 32 /dev/urandom | base64 | sudo tee /etc/paduraksa/master.key >/dev/null
-   sudo chmod 600 /etc/paduraksa/master.key
+   head -c 32 /dev/urandom | base64 | sudo install -m 600 /dev/stdin /etc/paduraksa/master.key
    ```
 
 3. Install [`deploy/paduraksa.service`](../deploy/paduraksa.service) as `/etc/systemd/system/paduraksa.service` and

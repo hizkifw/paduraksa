@@ -4,6 +4,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Dashboard.Certificates;
 using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Config;
@@ -27,6 +28,9 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
 
     /// <summary>How many hosts the overview lists (the ones that need attention first).</summary>
     public const int HostLines = 6;
+
+    /// <summary>The install guide on the project's site: the dashboard has nowhere of its own for what only the person running the server can change.</summary>
+    internal const string InstallGuide = "https://github.com/hizkifw/paduraksa/blob/main/docs/install.md";
 
     /// <summary>What needs the person, most serious first, each with where to fix it.</summary>
     public IReadOnlyList<AttentionItem> Attention { get; init; } = [];
@@ -71,11 +75,12 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     /// <summary>
     /// What needs the person: hosts the live config warns about or whose
     /// certificate is a problem, upstreams a host uses with no destination switched on, certificates that failed, and certificates in use
-    /// that end soon, and a Cloudflare edge-range list that has gone stale. Each with the drawer that fixes it.
+    /// that end soon, a Cloudflare edge-range list that has gone stale, and a master key that sits beside the vault
+    /// (<paramref name="vault"/>, only for someone who may manage it). Each with the drawer that fixes it.
     /// </summary>
     public static IReadOnlyList<AttentionItem> AttentionOf(
         ConfigDocument? document, IReadOnlyList<HostRow>? hosts, IReadOnlyList<CertificateSummary>? certificates, IReadOnlyList<ExpiringCertificate>? expiring, DateTimeOffset now,
-        CloudflareRangeStatus? cloudflareRanges = null)
+        CloudflareRangeStatus? cloudflareRanges = null, VaultStatus? vault = null)
     {
         List<AttentionItem> items = [];
         if (certificates is not null)
@@ -109,6 +114,13 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
         if (document?.Settings.TrustedProxies.Mode == TrustedProxyMode.CloudflareProxy && cloudflareRanges?.Warning is { } rangesWarning)
         {
             items.Add(new AttentionItem(Tone.Warning, "Cloudflare's edge ranges aren't being refreshed", rangesWarning, SettingsRoutes.Defaults, "Open settings"));
+        }
+
+        if (vault?.KekBesideDatabase == true)
+        {
+            items.Add(new AttentionItem(Tone.Warning, "The master key is stored beside the vault",
+                "A copy of the data directory is a copy of every certificate key and secret in it. Keep the key in a Docker secret or a systemd credential, outside the data directory.",
+                $"{InstallGuide}#the-master-key", "How to move it"));
         }
 
         if (document is not null)
@@ -165,7 +177,11 @@ public sealed record ExpiringCertificate(string Name, int NameCount, string Sour
 /// <param name="Detail">Why, and what to do.</param>
 /// <param name="Href">The drawer that fixes it.</param>
 /// <param name="Action">The link's text.</param>
-public sealed record AttentionItem(Tone Tone, string Title, string Detail, string Href, string Action);
+public sealed record AttentionItem(Tone Tone, string Title, string Detail, string Href, string Action)
+{
+    /// <summary>The link leaves the dashboard (it is the install guide): it opens in a tab of its own.</summary>
+    public bool External => Href.StartsWith("https://", StringComparison.Ordinal);
+}
 
 /// <summary>A host on the overview: its name and address, where its requests go, and its status.</summary>
 public sealed record HostLine(string Name, string Href, string Destination, Tone Tone, string Status);

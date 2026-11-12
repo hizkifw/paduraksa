@@ -3,8 +3,10 @@
 @using Paduraksa.Contracts.Certificates
 @using Paduraksa.Application.Commands
 @using Microsoft.Extensions.Logging
+@using Paduraksa.Core.Vault
 @inject DashboardCaller Caller
 @inject IDashboardConfig Config
+@inject IVaultLifecycle VaultLifecycle
 @inject TimeProvider Time
 @inject ILogger<Home> Logger
 @* The overview: first what needs the person and where to fix it, then the live traffic, the counts, the hosts with where
@@ -65,7 +67,7 @@
                         <span class="pdk-attention-title">@item.Title</span>
                         <span class="pdk-list-sub">@item.Detail</span>
                     </span>
-                    <MudButton Href="@item.Href" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">@item.Action</MudButton>
+                    <MudButton Href="@item.Href" Target="@(item.External ? "_blank" : null)" rel="@(item.External ? "noopener noreferrer" : null)" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">@item.Action</MudButton>
                 </li>
             }
         </ul>
@@ -278,6 +280,7 @@
                 ];
             }
 
+            var vault = user.Has(Permission.VaultManage) ? await VaultLifecycle.InitializeAsync(default) : null;
             Snapshot = new HomeSnapshot(
                 current?.Revision?.Seq,
                 current?.Document.Hosts.Count,
@@ -286,7 +289,7 @@
                 expiring,
                 ExpiringInUse: current is not null)
             {
-                Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now, Config.CloudflareRanges),
+                Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now, Config.CloudflareRanges, vault),
                 Lines = rows is null ? null : HomeSnapshot.LinesOf(rows),
                 Online = rows?.Count(r => r.Health != Tone.Default) ?? 0,
                 Off = rows?.Count(r => r.Health == Tone.Default) ?? 0,

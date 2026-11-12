@@ -1,4 +1,5 @@
-# Paduraksa v0.1, single node (PLAN §16). Put this file in a directory of its own and run:
+# Paduraksa v0.1, single node (PLAN §16). Put this file in a directory of its own, create the master key file next to
+# it (the commands are under "Master key" below), and run:
 #
 #   docker compose up -d
 #
@@ -48,22 +49,21 @@ services:
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
 
-    # Master key (PLAN §8.3). Recommended for anything reachable: with PADURAKSA_MASTER_KEY_FILE pointing at a Docker
-    # secret, the key never sits in the data directory, so a copy of the volume is not a copy of all your keys.
-    #
-    # Non-swarm Compose mounts a file secret as a bind mount, keeping the *host's* owner and mode, and the container runs
-    # as uid 10001:
-    #   head -c 32 /dev/urandom | base64 | sudo tee master.key >/dev/null
-    #   sudo chown 10001:10001 master.key && sudo chmod 400 master.key
+    # Master key (PLAN §8.3). It is a Docker secret, so the key never sits in the data directory: a copy of the volume is
+    # not a copy of all your keys. Create the file BEFORE the first `docker compose up` (the container runs as uid 10001
+    # and non-swarm Compose mounts a file secret as a bind mount that keeps the *host's* owner and mode):
+    #   head -c 32 /dev/urandom | base64 | sudo install -m 400 -o 10001 -g 10001 /dev/stdin master.key
     #
     # WARNING: whichever key the vault is created under is the only key that opens it. Back the key up somewhere
     # separate from the volume; losing it loses every certificate key, secret, TOTP enrolment and the Data Protection
     # key ring (admin sessions are Paduraksa's own random cookie, not in the vault).
     #
-    # secrets:
-    #   - paduraksa-master-key
-    # environment:
-    #   PADURAKSA_MASTER_KEY_FILE: /run/secrets/paduraksa-master-key
+    # To try Paduraksa without a key file, delete the `secrets:` and `environment:` blocks below and the top-level `secrets:`; the vault then
+    # generates /data/master.key beside vault.db, and the dashboard warns about it.
+    secrets:
+      - paduraksa-master-key
+    environment:
+      PADURAKSA_MASTER_KEY_FILE: /run/secrets/paduraksa-master-key
 
     logging:
       driver: json-file
@@ -72,9 +72,9 @@ services:
         max-size: "10m"
         max-file: "5"
 
-# secrets:
-#   paduraksa-master-key:
-#     file: ./master.key
+secrets:
+  paduraksa-master-key:
+    file: ./master.key
 
 volumes:
   paduraksa-data:
