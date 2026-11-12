@@ -220,6 +220,7 @@ no host has are the `(unmatched)` host. The families:
 | `paduraksa_upstream_requests_total`, `_errors_total` (kind), `paduraksa_upstream_duration_seconds` | upstream_id | Forwards, YARP's failures by kind, and upstream time |
 | `paduraksa_destination_requests_total`, `_errors_total` | upstream_id, destination_id | Per destination |
 | `paduraksa_rate_limit_decisions_total`, `paduraksa_proof_of_work_events_total`, `paduraksa_access_list_events_total` | result / event | The process totals the Security overview shows |
+| `paduraksa_connection_errors_total` | kind | `peer_gone`: Kestrel errors from a client that vanished mid-write (a dropped phone or a sleeping laptop). They are logged at Debug as one line instead of filling `error.log` with stacks; a sudden rise is worth a look |
 | `paduraksa_config_generation`, `paduraksa_hosts` | | The live snapshot |
 
 Histogram buckets end at 2^e - 1 microseconds for e from 4 to 26 (`le="0.000015"` to `le="67.108863"`): an observation of exactly 16 microseconds is in `le="0.000031"`, not below.

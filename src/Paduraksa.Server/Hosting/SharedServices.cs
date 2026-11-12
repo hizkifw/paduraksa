@@ -60,6 +60,7 @@ internal sealed class SharedServices : IAsyncDisposable
         Options = Get<PaduraksaOptions>();
         Health = Get<HealthState>();
         SnapshotStore = Get<SnapshotStore>();
+        PeerGone = Get<PeerGoneLogFilter>();
         SnapshotPublisher = Get<SnapshotPublisher>();
         ServerCertificate = Get<PlaceholderServerCertificate>();
         Certificates = Get<PlaceholderCertificates>();
@@ -143,6 +144,9 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>Silences the generic hosts' error about a start that was aborted on request.</summary>
     public StartupLogFilter StartupLogFilter { get; } = new();
+
+    /// <summary>Counts and quiets Kestrel's reports of a client that went away; one per process, shared by every app's loggers.</summary>
+    internal PeerGoneLogFilter PeerGone { get; }
 
     /// <summary>The in-memory placeholder certificate. The public listener's fallback default in tests, and the admin listener's last-resort certificate until the local CA's is ready.</summary>
     public PlaceholderServerCertificate ServerCertificate { get; }
@@ -373,7 +377,12 @@ internal sealed class SharedServices : IAsyncDisposable
             var rollupStore = configStore.MetricRollups;
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
             builder.Add(new MetricRollupJob(rollupQueue, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
-            var processCounters = builder.Add(ProcessCounters.Create(rateLimits.Stats, proofOfWork.Stats, accessLists.Stats));
+            var peerGone = builder.Add(new PeerGoneLogFilter());
+            var processCounters = builder.Add(new ProcessCounters(
+            [
+                .. ProcessCounters.Create(rateLimits.Stats, proofOfWork.Stats, accessLists.Stats).All,
+                new ProcessCounter("paduraksa.connection.errors", "Connection errors the logs leave out, by kind: peer_gone is a client that vanished mid-write.", "kind", "peer_gone", () => peerGone.Count),
+            ]));
             builder.Add(new PaduraksaMeter(metrics, snapshots, processCounters));
             builder.Add(new MetricsService(metrics, snapshots, sampler, rollupStore, processCounters, timeProvider));
 
@@ -441,7 +450,7 @@ internal sealed class SharedServices : IAsyncDisposable
 
         // Every host has its own LoggerFactory registration by default; swap it for a view of the shared one.
         services.RemoveAll<ILoggerFactory>();
-        services.AddSingleton<ILoggerFactory>(new RoleLoggerFactory(LoggerFactory, role, StartupLogFilter));
+        services.AddSingleton<ILoggerFactory>(new RoleLoggerFactory(LoggerFactory, role, StartupLogFilter, PeerGone));
     }
 
     /// <summary>Disposes every shared instance exactly once (idempotent, thread-safe).</summary>
