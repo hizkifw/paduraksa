@@ -9,6 +9,14 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Known vulnerabilities in packages (threat model G9). Restore reports moderate and worse in direct and transitive packages; with TreatWarningsAsErrors every
+         one would fail the build, so the choice is made here: high and critical (NU1903, NU1904) always fail, and a moderate one (NU1902) stays a warning in the
+         log, because a moderate advisory with no fixed release yet would otherwise stop every build, the Dependabot pull request that updates the package included. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902</WarningsNotAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsPackable>false</IsPackable>
     <Authors>Hizkia Felix</Authors>
