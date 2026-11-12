@@ -37,6 +37,14 @@ public static class NotificationServiceCollectionExtensions
             Logger<NotificationDispatcher>(sp),
             sp.GetRequiredService<NotificationStats>()));
         services.AddSingleton<INotificationEvents>(sp => sp.GetRequiredService<NotificationDispatcher>());
+        services.AddSingleton<IDeliveryWake>(sp => sp.GetRequiredService<NotificationDispatcher>());
+        services.AddSingleton(sp => new NotificationHistoryService(
+            sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
+            sp.GetRequiredService<ConfigService>(),
+            sp.GetRequiredService<IPermissionEvaluator>(),
+            sp.GetRequiredService<NotificationStats>(),
+            sp.GetRequiredService<IDeliveryWake>(),
+            sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<UpstreamHealthBoard>();
         services.AddSingleton(sp => new HealthMonitor(
             sp.GetRequiredService<IUpstreamHealth>(),

@@ -263,10 +263,12 @@ public sealed partial class NotificationService
         await using (context.ConfigureAwait(false))
         {
             var rows = await context.NotificationChannels.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
-            return [.. rows.OrderBy(c => c.Label, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.Id).Select(NotificationMapping.ToSummary)];
+            var figures = await NotificationFigures.ReadAsync(context, _time.GetUtcNow() - NotificationHistoryService.FigureWindow, cancellationToken).ConfigureAwait(false);
+            return [.. rows.OrderBy(c => c.Label, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.Id).Select(c => NotificationMapping.ToSummary(c) with { Delivery = figures.GetValueOrDefault(c.Id, new NotificationChannelFigures(0, 0, 0)) })];
         }
     }
 
+    /// <summary>One channel's settings and delivery state, without the delivery figures (those are the list's: they read every channel's deliveries).</summary>
     public async Task<NotificationChannelSummary?> GetAsync(NotificationChannelId id, CancellationToken cancellationToken = default) =>
         await FindRowAsync(id, cancellationToken).ConfigureAwait(false) is { } row ? NotificationMapping.ToSummary(row) : null;
 

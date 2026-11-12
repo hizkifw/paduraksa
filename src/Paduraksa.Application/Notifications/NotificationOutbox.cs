@@ -37,7 +37,9 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
 
     public const string ChannelPaused = "The channel is paused.";
 
-    public const string TooOld = "Not sent: the event was too old when Paduraksa started.";
+    public const string TooOld = "Not sent: it was older than the maximum delivery age.";
+
+    public const string EventGone = "The event is gone.";
 
     /// <summary>
     /// Stores <paramref name="events"/> and, for each, one pending delivery per enabled channel subscribed to its kind, in one transaction: the
@@ -89,8 +91,10 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
     }
 
     /// <summary>
-    /// What a process start does to what the last one left: deliveries of a channel that no longer exists are dropped, and the rest that are pending for an
-    /// event older than <paramref name="oldest"/> are expired, so a long outage does not end in a burst of stale messages.
+    /// What a process start does to what the last one left: deliveries of a channel that no longer exists are dropped, and the rest that have been due for
+    /// longer than the maximum delivery age (<paramref name="oldest"/> is now minus it) are expired, so a long outage does not end in a burst of stale
+    /// messages. A fresh row is due from the moment its event was published, so this is the event's age; a manual retry is due from the retry, so an old
+    /// event sent again on purpose is not expired.
     /// </summary>
     public async Task<IReadOnlyList<NotificationChannelId>> RecoverAsync(DateTimeOffset oldest, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -99,7 +103,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
         {
             var orphans = await context.NotificationDeliveries
                 .Where(d => d.State == NotificationDeliveryState.Pending && !context.NotificationChannels.Any(c => c.Id == d.ChannelId))
-                .ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Dropped).SetProperty(d => d.LastError, ChannelDeleted).SetProperty(d => d.LastAttemptAt, now), cancellationToken)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Dropped).SetProperty(d => d.LastError, ChannelDeleted).SetProperty(d => d.LastAttemptAt, now).SetProperty(d => d.NextAttemptAt, now), cancellationToken)
                 .ConfigureAwait(false);
             stats.PendingAdded(-orphans);
 
@@ -108,9 +112,8 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             {
                 var channelId = channel.Id;
                 var expired = await context.NotificationDeliveries
-                    .Where(d => d.ChannelId == channelId && d.State == NotificationDeliveryState.Pending
-                        && context.NotificationEvents.Any(e => e.Id == d.EventId && e.CreatedAt < oldest))
-                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Expired).SetProperty(d => d.LastError, TooOld).SetProperty(d => d.LastAttemptAt, now), cancellationToken)
+                    .Where(d => d.ChannelId == channelId && d.State == NotificationDeliveryState.Pending && d.NextAttemptAt < oldest)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Expired).SetProperty(d => d.LastError, TooOld).SetProperty(d => d.LastAttemptAt, now).SetProperty(d => d.NextAttemptAt, now), cancellationToken)
                     .ConfigureAwait(false);
                 stats.PendingAdded(-expired);
                 stats.Ended(channel.Kind, NotificationDeliveryState.Expired, expired);
@@ -119,6 +122,26 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             return await context.NotificationDeliveries.AsNoTracking()
                 .Where(d => d.State == NotificationDeliveryState.Pending)
                 .Select(d => d.ChannelId).Distinct().ToListAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>The channels that have a pending delivery that is due, one seek per channel on the claim index: what the upkeep wakes, so a channel is never left without a worker.</summary>
+    public async Task<IReadOnlyList<NotificationChannelId>> ChannelsWithDueAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            List<NotificationChannelId> due = [];
+            foreach (var channel in await context.NotificationChannels.AsNoTracking().Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var id = channel;
+                if (await context.NotificationDeliveries.AsNoTracking().AnyAsync(d => d.ChannelId == id && d.State == NotificationDeliveryState.Pending && d.NextAttemptAt <= now, cancellationToken).ConfigureAwait(false))
+                {
+                    due.Add(id);
+                }
+            }
+
+            return due;
         }
     }
 
@@ -149,8 +172,11 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
     /// <summary>
     /// The channel's due deliveries as the messages to send: each event on its own, or events of one digestible kind as one digest. A digest's rows get
     /// its ID here, before anything is sent, and keep it through retries, so a resend after a failure or a crash is the same message with the same ID.
+    /// A row that has been due since before <paramref name="oldest"/> (the maximum delivery age ago) is expired instead of sent: events that waited out a
+    /// database outage in the buffer keep their publish time, and must not go out as a burst of stale messages when it ends. A row whose event is gone
+    /// (it cannot be, since retention keeps an event with a pending delivery, but nothing should sit pending for ever) is dropped.
     /// </summary>
-    public async Task<IReadOnlyList<DeliveryGroup>> ClaimAsync(NotificationChannelId channel, DateTimeOffset now, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DeliveryGroup>> ClaimAsync(NotificationChannelId channel, NotificationChannelKind kind, DateTimeOffset now, DateTimeOffset oldest, int limit, CancellationToken cancellationToken)
     {
         var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
@@ -168,14 +194,49 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             var events = (await context.NotificationEvents.AsNoTracking().Where(e => eventIds.Contains(e.Id)).ToListAsync(cancellationToken).ConfigureAwait(false))
                 .ToDictionary(e => e.Id);
 
-            var groups = Group(rows.Where(r => events.ContainsKey(r.EventId)).OrderBy(r => r.EventId).ToList(), events, out var assigned);
-            if (assigned)
+            var changed = false;
+            var expired = 0;
+            var dropped = 0;
+            foreach (var row in rows)
+            {
+                if (!events.ContainsKey(row.EventId))
+                {
+                    End(row, NotificationDeliveryState.Dropped, EventGone, now);
+                    dropped++;
+                }
+                else if (row.NextAttemptAt < oldest)
+                {
+                    End(row, NotificationDeliveryState.Expired, TooOld, now);
+                    expired++;
+                }
+                else
+                {
+                    continue;
+                }
+
+                changed = true;
+            }
+
+            var live = rows.Where(r => r.State == NotificationDeliveryState.Pending).OrderBy(r => r.EventId).ToList();
+            var groups = Group(live, events, out var assigned);
+            if (changed || assigned)
             {
                 _ = await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                stats.PendingAdded(-(expired + dropped));
+                stats.Ended(kind, NotificationDeliveryState.Expired, expired);
+                stats.Ended(kind, NotificationDeliveryState.Dropped, dropped);
             }
 
             return groups;
         }
+    }
+
+    private static void End(NotificationDeliveryRow row, NotificationDeliveryState state, string reason, DateTimeOffset now)
+    {
+        row.State = state;
+        row.LastError = reason;
+        row.LastAttemptAt = now;
+        row.NextAttemptAt = now;
     }
 
     /// <summary>The rows in event order, grouped: those already in a digest stay together; the rest of a digestible kind become a digest when there are several.</summary>
@@ -254,7 +315,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
     public static async Task<int> DropPendingAsync(ConfigDbContext context, NotificationChannelId channel, string reason, DateTimeOffset now, CancellationToken cancellationToken) =>
         await context.NotificationDeliveries
             .Where(d => d.ChannelId == channel && d.State == NotificationDeliveryState.Pending)
-            .ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Dropped).SetProperty(d => d.LastError, reason).SetProperty(d => d.LastAttemptAt, now), cancellationToken)
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Dropped).SetProperty(d => d.LastError, reason).SetProperty(d => d.LastAttemptAt, now).SetProperty(d => d.NextAttemptAt, now), cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>Marks a deleted channel's pending deliveries dropped (a worker found its channel gone).</summary>
@@ -274,9 +335,15 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
         }
     }
 
+    /// <summary>Runs between choosing the events to prune and deleting them, for a test that races a manual retry against the prune.</summary>
+    internal Func<Task>? AfterPruneSelection { get; set; }
+
     /// <summary>
     /// Deletes events older than <paramref name="cutoff"/> that have no pending delivery, with their deliveries, a batch at a time. A failed delivery is
-    /// final (it was given up), so a pending one is the only thing that keeps an old event.
+    /// final (it was given up), so a pending one is the only thing that keeps an old event. The choice is made outside the transaction, so a delivery can be
+    /// put back to pending (a manual retry) before the delete: <b>the delete guards for that itself</b>. It removes only deliveries that are not pending and then
+    /// only events that have no delivery left, in one transaction, so a retried delivery and its event are never touched whatever happened in between.
+    /// SQLite serialises the writes of the outbox, the retry and this; the guards make the result independent of the order they got in.
     /// </summary>
     public async Task<int> PruneAsync(DateTimeOffset cutoff, int batch, CancellationToken cancellationToken)
     {
@@ -295,12 +362,27 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
                     return removed;
                 }
 
+                if (AfterPruneSelection is { } hook)
+                {
+                    await hook().ConfigureAwait(false);
+                }
+
+                int deleted;
                 var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
                 await using (transaction.ConfigureAwait(false))
                 {
-                    _ = await context.NotificationDeliveries.Where(d => ids.Contains(d.EventId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-                    removed += await context.NotificationEvents.Where(e => ids.Contains(e.Id)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+                    _ = await context.NotificationDeliveries.Where(d => ids.Contains(d.EventId) && d.State != NotificationDeliveryState.Pending).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+                    deleted = await context.NotificationEvents
+                        .Where(e => ids.Contains(e.Id) && !context.NotificationDeliveries.Any(d => d.EventId == e.Id))
+                        .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
                     await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                removed += deleted;
+                if (deleted == 0)
+                {
+                    // Everything chosen was put back to pending meanwhile: the next look would choose nothing else, so stop rather than spin.
+                    return removed;
                 }
             }
         }

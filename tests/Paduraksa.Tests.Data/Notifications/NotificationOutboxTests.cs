@@ -97,6 +97,73 @@ public sealed class NotificationOutboxTests : OutboxTestBase
     }
 
     [Fact]
+    public async Task ADeliveryRetriedBetweenThePruneChoosingAndDeletingItsEventSurvivesWithItsEvent()
+    {
+        var channel = await AddChannel();
+        var (keptEvent, retried) = await LeftBehind(channel, TimeSpan.FromDays(20), title: "retried meanwhile");
+        var (goneEvent, _) = await LeftBehind(channel, TimeSpan.FromDays(20), title: "really old");
+        foreach (var row in await Deliveries())
+        {
+            await Settle(row.Id, NotificationDeliveryState.Failed);
+        }
+
+        var outbox = Outbox();
+        // The prune has chosen both events (no delivery of either is pending); a person sends the first one's delivery again before it deletes.
+        outbox.AfterPruneSelection = async () =>
+        {
+            await using var context = Db.NewContext();
+            _ = await context.NotificationDeliveries.Where(d => d.Id == retried).ExecuteUpdateAsync(s => s.SetProperty(d => d.State, NotificationDeliveryState.Pending), Ct);
+        };
+
+        var removed = await outbox.PruneAsync(T0.AddDays(-14), 100, Ct);
+
+        Assert.Equal(1, removed);
+        Assert.Equal(keptEvent, Assert.Single(await Events()).Id);
+        var survivor = Assert.Single(await Deliveries());
+        Assert.Equal((retried, NotificationDeliveryState.Pending), (survivor.Id, survivor.State));
+        Assert.DoesNotContain(await Events(), e => e.Id == goneEvent);
+    }
+
+    [Fact]
+    public async Task APendingDeliveryWhoseEventIsGoneIsDroppedAtClaimNotLeftToBeFoundEveryPass()
+    {
+        var channel = await AddChannel();
+        var (eventId, delivery) = await LeftBehind(channel, TimeSpan.FromMinutes(1));
+        // Foreign keys are off on this connection only: this is the state retention must never leave, made on purpose.
+        await Db.ExecuteAsync($"PRAGMA foreign_keys = OFF; DELETE FROM NotificationEvents WHERE Id = {eventId.Value}; PRAGMA foreign_keys = ON");
+        NotificationStats stats = new();
+        NotificationOutbox outbox = new(Db.Factory, stats);
+
+        var groups = await outbox.ClaimAsync(channel, NotificationChannelKind.Webhook, T0, T0 - TimeSpan.FromHours(1), 100, Ct);
+
+        Assert.Empty(groups);
+        var row = Assert.Single(await Deliveries());
+        Assert.Equal((delivery, NotificationDeliveryState.Dropped, "The event is gone."), (row.Id, row.State, row.LastError));
+        Assert.Equal(1, stats.Ended(NotificationChannelKind.Webhook, NotificationDeliveryState.Dropped));
+        Assert.Empty(await outbox.ClaimAsync(channel, NotificationChannelKind.Webhook, T0, T0 - TimeSpan.FromHours(1), 100, Ct));
+    }
+
+    [Fact]
+    public async Task ARowThatHasBeenDueForLongerThanTheMaximumAgeIsExpiredAtClaimWhileAManuallyRetriedOldEventIsNot()
+    {
+        var channel = await AddChannel();
+        var (_, stale) = await LeftBehind(channel, TimeSpan.FromHours(3), title: "stale");
+        var (_, retried) = await LeftBehind(channel, TimeSpan.FromDays(3), NotificationEventKind.SignInNewAddress, "old event sent again on purpose", nextAttemptAt: T0.AddMinutes(-1));
+        var (_, fresh) = await LeftBehind(channel, TimeSpan.FromMinutes(5), NotificationEventKind.SignInNewAddress, "fresh");
+        NotificationStats stats = new();
+        NotificationOutbox outbox = new(Db.Factory, stats);
+
+        var groups = await outbox.ClaimAsync(channel, NotificationChannelKind.Webhook, T0, T0 - TimeSpan.FromHours(1), 100, Ct);
+
+        Assert.Equal(["fresh", "old event sent again on purpose"], groups.Select(g => g.Message.Title).Order());
+        var rows = (await Deliveries()).ToDictionary(d => d.Id);
+        Assert.Equal((NotificationDeliveryState.Expired, "Not sent: it was older than the maximum delivery age."), (rows[stale].State, rows[stale].LastError));
+        Assert.Equal(NotificationDeliveryState.Pending, rows[retried].State);
+        Assert.Equal(NotificationDeliveryState.Pending, rows[fresh].State);
+        Assert.Equal(1, stats.Ended(NotificationChannelKind.Webhook, NotificationDeliveryState.Expired));
+    }
+
+    [Fact]
     public async Task TheWorkersStatementsAreIndexSeeksNotScansOfTheDeliveries()
     {
         var channel = await AddChannel();
@@ -105,7 +172,7 @@ public sealed class NotificationOutboxTests : OutboxTestBase
         var outbox = Outbox(capture);
 
         _ = await outbox.RetryWaitingUntilAsync(channel, T0, Ct);
-        var groups = await outbox.ClaimAsync(channel, T0, 100, Ct);
+        var groups = await outbox.ClaimAsync(channel, NotificationChannelKind.Webhook, T0, T0 - TimeSpan.FromHours(1), 100, Ct);
         var group = Assert.Single(groups);
         _ = await outbox.RecordAsync(group, NotificationDeliveryState.Sent, null, T0, null, Ct);
 

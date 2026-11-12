@@ -47,7 +47,7 @@ public sealed class NotificationRestartTests : OutboxTestBase
         var expired = Assert.Single(rows, d => d.Id == stale);
         Assert.Equal(NotificationDeliveryState.Expired, expired.State);
         Assert.Equal(staleEvent, expired.EventId);
-        Assert.Equal("Not sent: the event was too old when Paduraksa started.", expired.LastError);
+        Assert.Equal("Not sent: it was older than the maximum delivery age.", expired.LastError);
         Assert.Equal(2, rows.Count(d => d.State == NotificationDeliveryState.Expired));
         Assert.Equal(1, dispatcher.Stats.Ended(NotificationChannelKind.Webhook, NotificationDeliveryState.Expired));
         Assert.Equal(1, dispatcher.Stats.Ended(NotificationChannelKind.Ntfy, NotificationDeliveryState.Expired));

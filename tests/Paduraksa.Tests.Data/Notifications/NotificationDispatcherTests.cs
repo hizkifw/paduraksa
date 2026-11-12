@@ -300,8 +300,11 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         var channel = await AddChannel();
         var dispatcher = Dispatcher();
         await dispatcher.StartAsync(Ct);
-        dispatcher.Publish(Event());
-        await SettledAsync(() => dispatcher.Routed >= 1);
+        // The first message goes at once; the second arrives inside the coalescing window and waits for the rest of it.
+        dispatcher.Publish(Event(title: "first"));
+        await SettledAsync(() => _sender.Sent.Count >= 1);
+        dispatcher.Publish(Event(title: "second"));
+        await SettledAsync(() => dispatcher.Routed >= 2);
 
         await using (var context = _db.NewContext())
         {
@@ -310,7 +313,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
 
         await AdvanceUntilAsync(() => dispatcher.QueueCount == 0, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
 
-        Assert.Empty(_sender.Sent);
+        Assert.Equal(["first"], _sender.Sent.Select(s => s.Message.Title));
         Assert.Equal(0, dispatcher.QueueCount);
         await dispatcher.StopAsync(Ct);
     }

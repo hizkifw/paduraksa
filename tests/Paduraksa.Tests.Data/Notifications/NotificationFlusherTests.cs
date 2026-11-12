@@ -155,7 +155,7 @@ public sealed class NotificationFlusherTests : OutboxTestBase
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("FROM \"NotificationChannels\"", StringComparison.Ordinal) && command.CommandText.Contains("\"Enabled\"", StringComparison.Ordinal))
+            if (command.CommandText.Contains("FROM \"NotificationChannels\"", StringComparison.Ordinal) && command.CommandText.Contains("WHERE \"n\".\"Enabled\"", StringComparison.Ordinal))
             {
                 _ = Interlocked.Increment(ref _reads);
             }

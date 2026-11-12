@@ -141,6 +141,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateExpiryMonitor>());
         builder.AddOwnedElsewhere(container.GetRequiredService<UpstreamHealthBoard>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<NotificationHistoryService>());
         return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups, analyticsRollups, events, container.GetRequiredService<NotificationStats>());
     }
 }

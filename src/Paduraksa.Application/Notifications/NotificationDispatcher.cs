@@ -50,6 +50,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
     private readonly CancellationTokenSource _workersStop = new();
     private long _routed;
     private long _flushFailures;
+    private volatile bool _recovered;
 
     internal NotificationDispatcher(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -135,7 +136,10 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         }
     }
 
-    /// <summary>What the last process left: deliveries of a channel that is gone are dropped, stale ones expire, and a worker starts for each channel with something pending.</summary>
+    /// <summary>
+    /// What the last process left: deliveries of a channel that is gone are dropped, stale ones expire, and a worker starts for each channel with something
+    /// pending. A failure is logged and tried again by every upkeep tick until it works.
+    /// </summary>
     private async Task RecoverAsync(CancellationToken cancellationToken)
     {
         try
@@ -143,6 +147,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             var now = _time.GetUtcNow();
             Wake(await _outbox.RecoverAsync(now - _options.MaxDeliveryAge, now, cancellationToken).ConfigureAwait(false));
             await _outbox.RefreshPendingAsync(cancellationToken).ConfigureAwait(false);
+            _recovered = true;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -232,7 +237,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         }
     }
 
-    /// <summary>Counts the pending deliveries again and prunes the history, on a slow timer; a failure waits for the next tick.</summary>
+    /// <summary>On a slow timer: finishes a recovery that failed, wakes every channel with something due, counts the pending deliveries again and prunes the history; a failure waits for the next tick.</summary>
     private async Task UpkeepAsync(CancellationToken cancellationToken)
     {
         try
@@ -243,6 +248,13 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             {
                 try
                 {
+                    if (!_recovered)
+                    {
+                        await RecoverAsync(cancellationToken).ConfigureAwait(false);
+                    }
+
+                    // Whatever happened at start (or since), a channel with something due has a worker: the safety net under every other wake.
+                    Wake(await _outbox.ChannelsWithDueAsync(_time.GetUtcNow(), cancellationToken).ConfigureAwait(false));
                     await _outbox.RefreshPendingAsync(cancellationToken).ConfigureAwait(false);
                     if (_time.GetUtcNow() >= nextPrune)
                     {
@@ -307,6 +319,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         private readonly SemaphoreSlim _wake = new(0, 1);
         private int _started;
         private NotificationChannelKind? _kind;
+        private DateTimeOffset? _lastSendAt;
 
         public Task Stopped { get; private set; } = Task.CompletedTask;
 
@@ -334,7 +347,6 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 
         private async Task RunAsync(CancellationToken cancellationToken)
         {
-            // Born by a wake: its first pass waits the window too, so the events of one flush (or of a few) are one digest.
             var woken = await _wake.WaitAsync(TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
             var wait = TimeSpan.Zero;
             try
@@ -346,9 +358,10 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                         woken = await WaitAsync(wait, cancellationToken).ConfigureAwait(false);
                     }
 
-                    if (woken)
+                    if (woken && Remaining() is { } rest)
                     {
-                        await Task.Delay(owner._options.CoalesceWindow, owner._time, cancellationToken).ConfigureAwait(false);
+                        // The channel sent a moment ago: what arrives now waits out the rest of the window and goes together, as a digest when it is several.
+                        await Task.Delay(rest, owner._time, cancellationToken).ConfigureAwait(false);
                     }
 
                     if (await PassAsync(cancellationToken).ConfigureAwait(false) is not { } next)
@@ -368,6 +381,21 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             {
                 Dispose();
             }
+        }
+
+        /// <summary>
+        /// What is left of the coalescing window, null when there is none: <b>the first send goes at once</b>, so a channel that has not sent within the last
+        /// <see cref="NotificationOptions.CoalesceWindow"/> sends what is due without waiting, and only a channel that has (a burst) waits out the window.
+        /// </summary>
+        private TimeSpan? Remaining()
+        {
+            if (_lastSendAt is not { } last)
+            {
+                return null;
+            }
+
+            var rest = owner._options.CoalesceWindow - (owner._time.GetUtcNow() - last);
+            return rest > TimeSpan.Zero ? rest : null;
         }
 
         /// <summary>Waits for a wake or for <paramref name="wait"/> on the process clock; true when woken.</summary>
@@ -414,7 +442,12 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                     return Within(until - now, poll);
                 }
 
-                var groups = await owner._outbox.ClaimAsync(id, now, owner._options.ClaimBatchSize, cancellationToken).ConfigureAwait(false);
+                var groups = await owner._outbox.ClaimAsync(id, channel.Kind, now, now - owner._options.MaxDeliveryAge, owner._options.ClaimBatchSize, cancellationToken).ConfigureAwait(false);
+                if (groups.Count > 0)
+                {
+                    _lastSendAt = now;
+                }
+
                 for (var i = 0; i < groups.Count; i++)
                 {
                     if (i > 0 && await ReadChannelAsync(cancellationToken).ConfigureAwait(false) is { Enabled: true } current)
@@ -453,13 +486,11 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             }
 
             var message = NotificationAddress.Message(group.Message, owner._options) with { EventId = group.EventId };
-            string failure;
+            string? failure = null;
             var transient = true;
             try
             {
                 await sender.SendAsync(NotificationMapping.ToTarget(channel), message, cancellationToken).ConfigureAwait(false);
-                await EndAsync(channel, group, NotificationDeliveryState.Sent, null, cancellationToken).ConfigureAwait(false);
-                return null;
             }
             catch (NotificationDeliveryException ex)
             {
@@ -471,6 +502,13 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                 // Not one of ours: its text could hold anything, so only its type is kept.
                 owner.LogUnexpected(id, ex.GetType().Name);
                 failure = "The notification could not be sent.";
+            }
+
+            if (failure is null)
+            {
+                // Delivered: nothing that goes wrong in writing it down may count as a failure (it would be sent again), so this is outside the send's try.
+                await EndAsync(channel, group, NotificationDeliveryState.Sent, null, cancellationToken).ConfigureAwait(false);
+                return null;
             }
 
             var attempts = group.Attempts + 1;
@@ -488,13 +526,31 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             return delay;
         }
 
-        /// <summary>A group ended: sent, or given up. The row update comes last, so a crash before it sends again (at least once).</summary>
+        /// <summary>
+        /// A group ended: sent, or given up. The rows are written first, then the channel's last sent and last error. A failure of either is logged and goes no
+        /// further: the message was delivered (or given up on) whatever the bookkeeping did, and rows still pending are sent again, which at-least-once allows.
+        /// </summary>
         private async Task EndAsync(NotificationChannelRow channel, DeliveryGroup group, NotificationDeliveryState state, string? error, CancellationToken cancellationToken)
         {
-            var now = owner._time.GetUtcNow();
-            var changed = await owner._outbox.RecordAsync(group, state, error, now, null, cancellationToken).ConfigureAwait(false);
-            owner.Stats.Ended(channel.Kind, state, changed);
-            await NotificationChannelState.RecordAsync(owner._contexts, owner._time, id, error, owner._logger, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var changed = await owner._outbox.RecordAsync(group, state, error, owner._time.GetUtcNow(), null, cancellationToken).ConfigureAwait(false);
+                owner.Stats.Ended(channel.Kind, state, changed);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                owner.LogRecordFailed(ex, id);
+                return;
+            }
+
+            try
+            {
+                await NotificationChannelState.RecordAsync(owner._contexts, owner._time, id, error, owner._logger, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                owner.LogRecordFailed(ex, id);
+            }
         }
 
         private async Task<NotificationChannelRow?> ReadChannelAsync(CancellationToken cancellationToken)
@@ -532,6 +588,9 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel}: its worker failed; it tries again at the next interval.")]
     private partial void LogWorkerFailed(Exception exception, NotificationChannelId channel);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel}: a delivery's outcome could not be written down; a delivered message may be sent again.")]
+    private partial void LogRecordFailed(Exception exception, NotificationChannelId channel);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notification channel {Channel}: a sender failed unexpectedly ({Type}).")]
     private partial void LogUnexpected(NotificationChannelId channel, string type);

@@ -57,7 +57,7 @@ internal sealed class NotificationDeliveryRow
     /// <summary>How many times a send was tried; the retry schedule is read off it.</summary>
     public int Attempts { get; set; }
 
-    /// <summary>When the worker may take it: now for a new row, later after a transient failure.</summary>
+    /// <summary>When the worker may take it: now for a new row, later after a transient failure. A row in a final state keeps the time it ended here, which is what the channel's seven-day figures range over.</summary>
     public DateTimeOffset NextAttemptAt { get; set; }
 
     public DateTimeOffset? LastAttemptAt { get; set; }

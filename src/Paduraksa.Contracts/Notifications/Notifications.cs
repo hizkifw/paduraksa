@@ -68,6 +68,7 @@ public sealed record NotificationChannelBody(
 /// <param name="LastSentAt">The last time a notification was delivered.</param>
 /// <param name="LastErrorAt">The last time a delivery failed (after its retries).</param>
 /// <param name="LastError">What went wrong then, in a sentence; cleared by the next delivery.</param>
+/// <param name="Delivery">How its deliveries are going; null in the answer to a change, which does not read them.</param>
 public sealed record NotificationChannelSummary(
     NotificationChannelId Id,
     NotificationChannelKind Kind,
@@ -88,7 +89,14 @@ public sealed record NotificationChannelSummary(
     string? MailFrom = null,
     DateTimeOffset? LastSentAt = null,
     DateTimeOffset? LastErrorAt = null,
-    string? LastError = null);
+    string? LastError = null,
+    NotificationChannelFigures? Delivery = null);
+
+/// <summary>How a channel's deliveries are going: what waits now, and the outcomes of the last seven days (by when their event happened).</summary>
+/// <param name="Queued">Deliveries waiting to be sent or retried.</param>
+/// <param name="Sent">Deliveries the service accepted.</param>
+/// <param name="Failed">Deliveries given up on, or not sent because their event was too old when the process started. The success rate is <c>sent / (sent + failed)</c>; dropped ones (the channel was deleted or paused) are in neither.</param>
+public sealed record NotificationChannelFigures(int Queued, int Sent, int Failed);
 
 /// <summary>The outcome of a channel change.</summary>
 /// <param name="Status">How it ended.</param>
@@ -131,6 +139,8 @@ public static class NotificationErrorCodes
     public const string AddressInvalid = "notification.address.invalid";
     public const string KindFixed = "notification.kind.fixed";
     public const string FieldNotForKind = "notification.field.notForKind";
+    public const string NotRetryable = "notification.delivery.notRetryable";
+    public const string ChannelGone = "notification.delivery.channelGone";
 }
 
 /// <summary>Whether and how an upstream is serving, as the live proxy sees it.</summary>
@@ -182,3 +192,78 @@ public sealed record HealthChangeView(DateTimeOffset At, string Summary, string?
 /// <param name="Destinations">Each destination the proxy knows.</param>
 /// <param name="LastChange">The latest change of the upstream or any of its destinations since the process started; null if none.</param>
 public sealed record UpstreamHealthView(UpstreamId Id, UpstreamHealthState State, IReadOnlyList<DestinationHealthView> Destinations, HealthChangeView? LastChange = null);
+
+/// <summary>One event's delivery to one channel, as the history shows it.</summary>
+/// <param name="Id">The delivery.</param>
+/// <param name="ChannelId">The channel it went (or goes) to.</param>
+/// <param name="State">Pending (waiting, or between retries), sent, failed (given up), expired (the event was too old when the process started) or dropped (the channel was deleted or paused).</param>
+/// <param name="Attempts">How many times a send was tried.</param>
+/// <param name="ChannelLabel">The channel's display name; absent when the channel has been deleted (the history stays).</param>
+/// <param name="ChannelKind">The channel's service; absent when it has been deleted.</param>
+/// <param name="NextAttemptAt">When the next try is due; only for a pending delivery.</param>
+/// <param name="LastAttemptAt">When it was last tried or dropped.</param>
+/// <param name="SentAt">When the service accepted it.</param>
+/// <param name="LastError">What went wrong the last time, in the fixed, secret-free wording the senders use.</param>
+public sealed record NotificationDeliverySummary(
+    NotificationDeliveryId Id,
+    NotificationChannelId ChannelId,
+    NotificationDeliveryState State,
+    int Attempts,
+    string? ChannelLabel = null,
+    NotificationChannelKind? ChannelKind = null,
+    DateTimeOffset? NextAttemptAt = null,
+    DateTimeOffset? LastAttemptAt = null,
+    DateTimeOffset? SentAt = null,
+    string? LastError = null);
+
+/// <summary>An event that was published, with what happened to it on each channel. An event nothing was subscribed to has no deliveries.</summary>
+/// <param name="Id">The event; webhooks receive it as <c>eventId</c> (the digest's own ID when several events went out as one message).</param>
+/// <param name="Kind">Which event of the catalogue.</param>
+/// <param name="Title">One line: what happened to which object.</param>
+/// <param name="Body">What, since when, and what to do.</param>
+/// <param name="OccurredAt">When it happened.</param>
+/// <param name="CreatedAt">When it was published.</param>
+/// <param name="Deliveries">Its deliveries, in the order the channels were addressed.</param>
+/// <param name="Subject">The object it is about (an upstream, destination, certificate or user ID); absent when it is about nothing in particular.</param>
+/// <param name="LinkPath">The dashboard page that shows it (<c>/upstreams</c>).</param>
+public sealed record NotificationHistoryEvent(
+    NotificationEventId Id,
+    NotificationEventKind Kind,
+    string Title,
+    string Body,
+    DateTimeOffset OccurredAt,
+    DateTimeOffset CreatedAt,
+    IReadOnlyList<NotificationDeliverySummary> Deliveries,
+    string? Subject = null,
+    string? LinkPath = null);
+
+/// <summary>What the history is filtered by; every part is optional and all must match.</summary>
+/// <param name="Channel">Only events with a delivery to this channel.</param>
+/// <param name="Kind">Only events of this kind.</param>
+/// <param name="Outcome">Only events with a delivery in this state (with <paramref name="Channel"/>, to that channel).</param>
+/// <param name="From">Only events published at or after this time.</param>
+/// <param name="To">Only events published before this time.</param>
+public sealed record NotificationHistoryFilter(
+    NotificationChannelId? Channel = null,
+    NotificationEventKind? Kind = null,
+    NotificationDeliveryState? Outcome = null,
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null);
+
+/// <summary>A page of the history, newest first.</summary>
+/// <param name="Items">The events.</param>
+/// <param name="Next">The last event of the page when older ones remain; pass it as the cursor.</param>
+public sealed record NotificationHistoryPage(IReadOnlyList<NotificationHistoryEvent> Items, NotificationEventId? Next = null);
+
+/// <summary>The outcome of sending failed or expired deliveries again.</summary>
+/// <param name="Status">How it ended.</param>
+/// <param name="Retried">How many deliveries were put back to pending.</param>
+/// <param name="Errors">Why it was refused.</param>
+public sealed record NotificationRetryResult(IssuanceChangeStatus Status, int Retried = 0, IReadOnlyList<ConfigError>? Errors = null)
+{
+    public IReadOnlyList<ConfigError> Errors { get; init; } = Errors ?? [];
+}
+
+/// <summary>The answer of a retry: how many deliveries are pending again; each is sent within seconds.</summary>
+/// <param name="Retried">The deliveries put back to pending.</param>
+public sealed record NotificationRetryOutcome(int Retried);
