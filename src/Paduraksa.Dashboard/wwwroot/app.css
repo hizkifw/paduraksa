@@ -1237,6 +1237,101 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     }
 }
 
+/* The live tail: one dense row a request, newest on top. Time and status have fixed widths, so a batch arriving doesn't move the columns. */
+.pdk-tail-filters {
+    padding: 12px 20px 6px;
+}
+
+.pdk-tail-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 4px 12px;
+    align-items: start;
+}
+
+.pdk-tail-clear {
+    margin-left: auto;
+}
+
+.pdk-tail-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    padding: 14px 20px 10px;
+    font-size: 0.875rem;
+}
+
+.pdk-tail-status [data-part="state"] {
+    font-weight: 600;
+}
+
+.pdk-tail-status[data-state="following"] [data-part="state"]::before {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--mud-palette-success);
+    content: "";
+}
+
+.pdk-tail-table {
+    --pdk-dt-cols: 96px 56px minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.1fr) 76px minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+.pdk-tail-table .pdk-dt-row {
+    gap: 12px;
+}
+
+.pdk-tail-row {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 0.8125rem;
+}
+
+.pdk-tail-request {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.pdk-tail-method, .pdk-tail-millis {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-tail-path, .pdk-tail-host, .pdk-tail-client, .pdk-tail-upstream, .pdk-tail-id {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-tail-entry {
+    display: grid;
+    align-content: start;
+    gap: 16px;
+}
+
+.pdk-tail-facts {
+    display: grid;
+    grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+    gap: 10px 16px;
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.pdk-tail-facts dt {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-tail-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
 /* Where a host's requests go: "/api -> app  http://10.0.0.5:8080", a line per route. */
 .pdk-dest-list {
     display: grid;
@@ -1359,6 +1454,16 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     .pdk-sec-tiles {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
+    }
+
+    .pdk-tail-row .pdk-tail-request {
+        order: -1;
+    }
+
+    .pdk-tail-path, .pdk-tail-host, .pdk-tail-client, .pdk-tail-upstream, .pdk-tail-id {
+        overflow: visible;
+        overflow-wrap: anywhere;
+        white-space: normal;
     }
 
     .pdk-security-table .pdk-dt-row {

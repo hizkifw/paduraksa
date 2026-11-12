@@ -1,0 +1,33 @@
+@using Paduraksa.Contracts.Logging
+@* One request in the live tail. Immutable, so it renders once: the page re-renders every batch, and 500 rows that never change
+   shouldn't be diffed each time. *@
+<div class="pdk-dt-row pdk-dt-link pdk-tail-row" role="row" @onclick="() => OnOpen.InvokeAsync(Entry)" data-seq="@Entry.Sequence" data-status="@LiveTailText.StatusText(Entry.Status)">
+    <div role="cell" class="pdk-dt-cell pdk-tail-time pdk-mono" data-label="Time" title="@Entry.Time.ToString("u")">@Entry.Time.ToString("HH:mm:ss")<span class="pdk-tail-millis">.@Entry.Time.ToString("fff")</span></div>
+    <div role="cell" class="pdk-dt-cell" data-label="Status">
+        <span class="pdk-badge pdk-tone-@LiveTailText.ToneOf(Entry.Status).Css() pdk-mono">@LiveTailText.StatusText(Entry.Status)</span>
+    </div>
+    <div role="cell" class="pdk-dt-main pdk-tail-request">
+        <span class="pdk-tail-method pdk-mono">@Entry.Method</span>
+        <a class="pdk-row-link pdk-mono pdk-tail-path" href="#" @onclick:preventDefault="true" @onclick:stopPropagation="true"
+           @onclick="() => OnOpen.InvokeAsync(Entry)" title="@LiveTailText.Target(Entry)">@LiveTailText.Target(Entry)</a>
+    </div>
+    <div role="cell" class="pdk-dt-cell pdk-tail-host" data-label="Host" title="@Entry.Host">@(Entry.Host ?? "-")</div>
+    <div role="cell" class="pdk-dt-cell pdk-mono pdk-tail-client" data-label="Client" title="@Entry.ClientAddress">@(Entry.ClientAddress ?? "-")</div>
+    <div role="cell" class="pdk-dt-cell pdk-mono" data-label="Time taken">@LiveTailText.Duration(Entry.TotalMs)</div>
+    <div role="cell" class="pdk-dt-cell pdk-mono pdk-tail-upstream" data-label="Upstream" title="@Entry.Upstream">@LiveTailText.UpstreamText(Entry.Upstream)</div>
+    <div role="cell" class="pdk-dt-cell pdk-mono pdk-tail-id" data-label="Request ID" title="@Entry.RequestIdentifier">@(Entry.RequestIdentifier ?? "-")</div>
+</div>
+
+@code {
+    private bool _rendered;
+
+    [Parameter, EditorRequired]
+    public LogTailEntry Entry { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<LogTailEntry> OnOpen { get; set; }
+
+    protected override bool ShouldRender() => !_rendered;
+
+    protected override void OnAfterRender(bool firstRender) => _rendered = true;
+}

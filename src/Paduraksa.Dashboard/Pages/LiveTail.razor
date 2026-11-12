@@ -1,0 +1,456 @@
+@attribute [Route(DashboardRoutes.LiveTail)]
+@implements IAsyncDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Logging
+@using Paduraksa.Contracts.Logging
+@using Paduraksa.Dashboard.LogFiles
+@inject LogTailService Tail
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject IJSRuntime JS
+@inject TimeProvider Time
+@inject ILogger<LiveTail> Logger
+@* The requests as they end, newest first. The drain pushes entries into this page's own bounded channel; the page reads it on a
+   timer and renders once per batch, so the traffic's rate never sets the render rate. *@
+
+<PageTitle>Live tail · Paduraksa</PageTitle>
+
+<PageHeader Title="Live tail">
+    <Actions>
+        @if (_mayRead)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.DeleteSweep" OnClick="Clear" Disabled="_rows.Count == 0"
+                       data-action="clear">Clear</MudButton>
+            <MudButton Variant="@(_paused ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" StartIcon="@(_paused ? Icons.Material.Rounded.PlayArrow : Icons.Material.Rounded.Pause)"
+                       OnClick="TogglePause" aria-pressed="@(_paused ? "true" : "false")" data-action="@(_paused ? "follow" : "pause")">@(_paused ? "Follow" : "Pause")</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the logs"
+                    Description="An Owner can give you a role that reads the logs." />
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pdk-card pdk-tail-filters" Elevation="0" Outlined="true" data-section="filters">
+        <div class="pdk-tail-fields">
+            <MudSelect T="string" Value="_host" ValueChanged="@(value => SetAsync(() => _host = value))" Label="Host" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Dense="true" ToStringFunc="HostLabel" data-field="host">
+                <MudSelectItem T="string" Value="@((string?)null)">Any host</MudSelectItem>
+                <MudSelectItem T="string" Value="@NoHost">No host matched</MudSelectItem>
+                @foreach (var name in _hostNames)
+                {
+                    <MudSelectItem T="string" Value="@name">@name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField T="string" Value="_status" ValueChanged="@(value => SetAsync(() => _status = value))" Label="Status" Placeholder="404 or 5xx" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" Error="@(StatusError is not null)"
+                          ErrorText="@StatusError" spellcheck="false" data-field="status" />
+            <MudTextField T="string" Value="_client" ValueChanged="@(value => SetAsync(() => _client = value))" Label="Client IP" Placeholder="192.168.1." Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" spellcheck="false" data-field="client" />
+            <MudSelect T="string" Value="_method" ValueChanged="@(value => SetAsync(() => _method = value))" Label="Method" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Dense="true" data-field="method">
+                <MudSelectItem T="string" Value="@((string?)null)">Any method</MudSelectItem>
+                @foreach (var method in Methods)
+                {
+                    <MudSelectItem T="string" Value="@method">@method</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField T="string" Value="_path" ValueChanged="@(value => SetAsync(() => _path = value))" Label="Path contains" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true" spellcheck="false" data-field="path" />
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="pdk-card pdk-table-card mt-4" Elevation="0" Outlined="true" data-section="tail">
+        <div class="pdk-tail-status" data-state="@State">
+            <span data-part="state">@StateText</span>
+            <span class="pdk-muted" data-part="count">@Count(_rows.Count, "request")@(_rows.Count == MaxRows ? $" (the newest {MaxRows})" : null)</span>
+            @if (_pending > 0 && State != "following")
+            {
+                <span class="pdk-badge pdk-tone-info" data-part="waiting">@_pending.ToString("N0") waiting</span>
+            }
+            @if (Filtered)
+            {
+                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearFiltersAsync" Class="pdk-tail-clear" data-action="clear-filters">Clear filters</MudButton>
+            }
+            @if (_skipped > 0)
+            {
+                <span class="pdk-badge pdk-tone-warning" data-part="skipped" title="Entries this page couldn't show: it fell behind, or paused while more arrived than it holds.">@_skipped.ToString("N0") @(_skipped == 1 ? "line" : "lines") skipped</span>
+            }
+        </div>
+        @if (_busy)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="ma-3" data-alert="busy">
+                Too many live tails are open. Close one, then try again.
+                <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small" OnClick="ApplyAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        else if (!_started)
+        {
+            @for (var i = 0; i < 4; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="10%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                </div>
+            }
+        }
+        else if (_rows.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.Sensors" Title="@(Filtered ? "No request matches yet" : "No requests yet")"
+                        Description="@(Filtered ? "Requests that match show up as they end. Clear a filter to see more." : "Requests show up as they end. A host with its access log off never does.")" />
+        }
+        else
+        {
+            <div class="pdk-dt pdk-tail-table" role="table" aria-label="Requests">
+                <div class="pdk-dt-row pdk-dt-head" role="row">
+                    <span role="columnheader">Time (UTC)</span>
+                    <span role="columnheader">Status</span>
+                    <span role="columnheader">Request</span>
+                    <span role="columnheader">Host</span>
+                    <span role="columnheader">Client</span>
+                    <span role="columnheader">Time taken</span>
+                    <span role="columnheader">Upstream</span>
+                    <span role="columnheader">Request ID</span>
+                </div>
+                @foreach (var entry in _rows)
+                {
+                    <LiveTailRow @key="entry.Sequence" Entry="entry" OnOpen="OpenAsync" />
+                }
+            </div>
+        }
+    </MudPaper>
+}
+
+@code {
+    /// <summary>The most rows the table holds; older ones fall off the end.</summary>
+    public const int MaxRows = 500;
+
+    /// <summary>The requests a page starts with: the newest ones the process still holds.</summary>
+    public const int Backlog = 200;
+
+    private const string NoHost = "(no host matched)";
+
+    private static readonly string[] Methods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+
+    private IReadOnlyList<LogTailEntry> _rows = [];
+    private IReadOnlyList<string> _hostNames = [];
+    private LogTailFeed? _feed;
+    private CancellationTokenSource? _stop;
+    private DotNetObjectReference<LiveTail>? _self;
+    private bool _mayRead;
+    private bool _mayConfig;
+    private bool _denied;
+    private bool _started;
+    private bool _busy;
+    private bool _paused;
+    private bool _visible = true;
+    private int _pending;
+    private long _skipped;
+    private string? _host;
+    private string? _status;
+    private string? _client;
+    private string? _method;
+    private string? _path;
+    private bool _maySimulate;
+
+    /// <summary>How often the channel is read and the table rendered. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan BatchInterval { get; set; } = TimeSpan.FromMilliseconds(300);
+
+    private bool Filtered => _host is not null || !string.IsNullOrWhiteSpace(_status) || !string.IsNullOrWhiteSpace(_client) || _method is not null || !string.IsNullOrWhiteSpace(_path);
+
+    private string? StatusError => LiveTailText.TryParseStatus(_status, out _, out _) ? null : "A status such as 404, or a class such as 5xx.";
+
+    private string State => !_visible ? "hidden" : _paused ? "paused" : "following";
+
+    private string StateText => State switch
+    {
+        "hidden" => "Paused while this tab is hidden",
+        "paused" => "Paused",
+        _ => "Following",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayRead = user.Has(Permission.LogsRead);
+        if (!_mayRead)
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayConfig = user.Has(Permission.ConfigRead);
+        _maySimulate = user.Has(Permission.Simulate);
+        if (_mayConfig)
+        {
+            await LoadHostsAsync();
+        }
+
+        Open();
+        _started = true;
+        _stop = new CancellationTokenSource();
+        _ = TickAsync(_stop.Token);
+    }
+
+    /// <summary>How many times the page has rendered: what the batching test counts (the renderer's own count includes every child).</summary>
+    internal int Renders { get; private set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        Renders++;
+        if (firstRender && _started)
+        {
+            _self = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", _self);
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone; nothing watches, and the page follows until it is disposed.
+            }
+        }
+    }
+
+    /// <summary>The tab was hidden or shown: nothing is rendered while it is hidden, and what waited is shown at once when it is not.</summary>
+    [JSInvokable]
+    public async Task PageVisibilityChangedAsync(bool visible)
+    {
+        await InvokeAsync(() =>
+        {
+            _visible = visible;
+            Flush();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadHostsAsync()
+    {
+        try
+        {
+            _hostNames = [.. (await Config.GetCurrentAsync()).Document.Hosts.Where(host => host.Names.Count > 0).Select(host => host.Names[0]).Order(StringComparer.OrdinalIgnoreCase)];
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            // Without the config the picker offers "any host" and "no host matched".
+            Logger.LogDebug(ex, "The live tail couldn't read the hosts for its picker.");
+        }
+    }
+
+    /// <summary>Subscribes with the current filter, replacing the table with the newest matching requests.</summary>
+    private void Open()
+    {
+        _feed?.Dispose();
+        _feed = null;
+        _rows = [];
+        _skipped = 0;
+        _pending = 0;
+        _busy = false;
+        if (StatusError is not null)
+        {
+            return;
+        }
+
+        _feed = Tail.Open(BuildFilter(), Backlog);
+        if (_feed is null)
+        {
+            _busy = true;
+            return;
+        }
+
+        Prepend(_feed.Backlog);
+    }
+
+    private LogTailFilter BuildFilter()
+    {
+        LiveTailText.TryParseStatus(_status, out var statusClass, out var status);
+        return new LogTailFilter(
+            _host is { } host && host != NoHost ? host : null,
+            _host == NoHost,
+            statusClass,
+            status,
+            _client,
+            _method,
+            _path);
+    }
+
+    private async Task TickAsync(CancellationToken token)
+    {
+        try
+        {
+            using PeriodicTimer timer = new(BatchInterval > TimeSpan.Zero ? BatchInterval : TimeSpan.FromMilliseconds(300), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(() =>
+                {
+                    if (Flush())
+                    {
+                        StateHasChanged();
+                    }
+                });
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The page is gone.
+        }
+    }
+
+    /// <summary>
+    /// Takes what the channel holds into the table, once, and says whether anything changed. Paused or hidden, the channel keeps
+    /// filling to its bound and then drops its oldest, which is counted: the view stays as it was.
+    /// </summary>
+    private bool Flush()
+    {
+        if (_feed is null)
+        {
+            return false;
+        }
+
+        var changed = false;
+        var skipped = _feed.TakeSkipped();
+        if (skipped > 0)
+        {
+            _skipped += skipped;
+            changed = true;
+        }
+
+        if (_paused || !_visible)
+        {
+            var pending = _feed.Pending;
+            if (pending != _pending)
+            {
+                _pending = pending;
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        List<LogTailEntry>? batch = null;
+        while (_feed.TryRead(out var entry))
+        {
+            (batch ??= []).Add(entry);
+        }
+
+        if (_pending != 0)
+        {
+            _pending = 0;
+            changed = true;
+        }
+
+        if (batch is { Count: > 0 })
+        {
+            Prepend(batch);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>Puts <paramref name="oldestFirst"/> above the rows, newest on top, keeping the newest <see cref="MaxRows"/>.</summary>
+    private void Prepend(IReadOnlyList<LogTailEntry> oldestFirst)
+    {
+        var fresh = Math.Min(oldestFirst.Count, MaxRows);
+        // What a batch holds beyond the table's size was received and never shown: it counts as skipped like a drop.
+        _skipped += oldestFirst.Count - fresh;
+        var keep = Math.Min(_rows.Count, MaxRows - fresh);
+        List<LogTailEntry> rows = new(fresh + keep);
+        for (var i = 0; i < fresh; i++)
+        {
+            rows.Add(oldestFirst[^(i + 1)]);
+        }
+
+        for (var i = 0; i < keep; i++)
+        {
+            rows.Add(_rows[i]);
+        }
+
+        _rows = rows;
+    }
+
+    private void TogglePause()
+    {
+        _paused = !_paused;
+        if (!_paused)
+        {
+            Flush();
+        }
+    }
+
+    private void Clear()
+    {
+        _rows = [];
+        _skipped = 0;
+    }
+
+    private async Task SetAsync(Action change)
+    {
+        change();
+        await ApplyAsync();
+    }
+
+    private Task ApplyAsync()
+    {
+        Open();
+        return Task.CompletedTask;
+    }
+
+    private Task ClearFiltersAsync() => SetAsync(() =>
+    {
+        _host = null;
+        _status = null;
+        _client = null;
+        _method = null;
+        _path = null;
+    });
+
+    private void OpenAsync(LogTailEntry entry) =>
+        Drawers.Push<LogTailEntryDrawer>(LogTailEntryDrawer.For(entry, _maySimulate), DrawerWidth.Wide);
+
+    private static string HostLabel(string? value) => value ?? "Any host";
+
+    private static string Count(int count, string one) => count == 1 ? $"1 {one}" : $"{count} {one}s";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_stop is { } stop)
+        {
+            await stop.CancelAsync();
+            stop.Dispose();
+        }
+
+        _feed?.Dispose();
+        if (_self is not null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach");
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone.
+            }
+
+            _self.Dispose();
+        }
+    }
+}

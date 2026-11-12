@@ -46,6 +46,8 @@ public static class DashboardRoutes
 
     public const string Logs = "/logs";
 
+    public const string LiveTail = Logs + "/live";
+
     public const string Simulator = "/simulator";
 
     public const string Settings = "/settings";

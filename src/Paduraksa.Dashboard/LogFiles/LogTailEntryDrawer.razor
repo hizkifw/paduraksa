@@ -1,0 +1,69 @@
+@using Paduraksa.Contracts.Logging
+@* One request of the live tail in full. What it shows is what access.log holds: redacted and capped the same way. *@
+<DrawerShell Title="@(Entry.Method + " " + (Entry.Path ?? "-"))" Subtitle="@(Entry.Time.ToString("yyyy-MM-dd HH:mm:ss.fff") + " UTC")" Icon="@Icons.Material.Outlined.Sensors"
+             IconTone="LiveTailText.ToneOf(Entry.Status)" Name="tail-entry" Footer="@(CanSimulate ? SimulateButton : null)">
+    <ChildContent>
+        <div class="pdk-tail-entry" data-detail="@Entry.Sequence">
+            <div class="pdk-detail-chips">
+                <StatusChip Tone="LiveTailText.ToneOf(Entry.Status)" Dot="true" Class="pdk-mono"
+                            Text="@(Entry.Status is null ? "No answer" : LiveTailText.StatusText(Entry.Status))" Name="status" />
+                @if (Entry.MatchedHost is { } host)
+                {
+                    <StatusChip Tone="Tone.Default" Text="@host" Name="host" />
+                }
+                else
+                {
+                    <StatusChip Tone="Tone.Warning" Text="No host matched" Name="host" />
+                }
+            </div>
+            @if (Entry.RequestIdentifier is { } requestId)
+            {
+                <SecretValue Value="@requestId" Label="Request ID" Name="request-id" />
+            }
+            <dl class="pdk-tail-facts">
+                <dt>Request</dt><dd class="pdk-mono">@Entry.Method @LiveTailText.Target(Entry) @Entry.Protocol</dd>
+                <dt>Host</dt><dd class="pdk-mono">@(Entry.Host ?? "-")</dd>
+                <dt>Client</dt><dd class="pdk-mono">@(Entry.ClientAddress ?? "-")</dd>
+                <dt>Time taken</dt><dd class="pdk-mono">@LiveTailText.Duration(Entry.TotalMs)</dd>
+                @if (Entry.Upstream is { } upstream)
+                {
+                    <dt>Upstream</dt><dd class="pdk-mono">@upstream (@LiveTailText.Duration(Entry.UpstreamMs))</dd>
+                }
+                @if (Entry.ResponseBytes is { } bytes)
+                {
+                    <dt>Response size</dt><dd class="pdk-mono">@bytes.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) bytes</dd>
+                }
+                @if (Entry.CloudflareRay is { } ray)
+                {
+                    <dt>CF-Ray</dt><dd class="pdk-mono">@ray</dd>
+                }
+                @if (Entry.Referer is { } referer)
+                {
+                    <dt>Referer</dt><dd class="pdk-mono">@referer</dd>
+                }
+                @if (Entry.UserAgent is { } agent)
+                {
+                    <dt>User agent</dt><dd class="pdk-mono">@agent</dd>
+                }
+            </dl>
+        </div>
+    </ChildContent>
+</DrawerShell>
+
+@code {
+    private RenderFragment SimulateButton => __builder =>
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Science" Href="@LiveTailText.SimulatorLink(Entry)"
+                   data-action="simulate">Simulate this request</MudButton>
+    };
+
+    [Parameter, EditorRequired]
+    public LogTailEntry Entry { get; set; } = default!;
+
+    /// <summary>The viewer may run the simulator, so the drawer links to it.</summary>
+    [Parameter]
+    public bool CanSimulate { get; set; }
+
+    public static IReadOnlyDictionary<string, object?> For(LogTailEntry entry, bool canSimulate) =>
+        new Dictionary<string, object?> { [nameof(Entry)] = entry, [nameof(CanSimulate)] = canSimulate };
+}
