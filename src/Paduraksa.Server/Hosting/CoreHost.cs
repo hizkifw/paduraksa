@@ -1,5 +1,6 @@
 using Paduraksa.Application.Analytics;
 using Paduraksa.Application.Cloudflare;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.Metrics;
@@ -58,6 +59,8 @@ internal static class CoreHost
         builder.Services.AddHostedService(static services => services.GetRequiredService<AnalyticsRollupJob>());
         // The access log's one reader: it formats the ring's entries into the sink, and flushes on shutdown.
         builder.Services.AddHostedService<AccessLogDrainService>();
+        // Drafts nobody has touched for 30 days are dropped, with the vault values bound to them (after ConfigStartup, which migrates the database).
+        builder.Services.AddHostedService(static services => services.GetRequiredService<DraftExpiryJob>());
         // The metrics: the job writes the finished minutes to the config database (started after ConfigStartup has migrated it)
         // and the sampler files them once a second. Hosted services stop in reverse order, so the sampler stops first and the job's
         // last write carries what it filed.

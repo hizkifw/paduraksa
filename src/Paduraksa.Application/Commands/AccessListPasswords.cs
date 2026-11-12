@@ -191,10 +191,13 @@ internal static partial class AccessListPasswords
         }
     }
 
-    /// <summary>Deletes the vault's credentials the live config doesn't name: what a command that failed after setting a password left.</summary>
-    public static async Task DeleteOrphansAsync(IPasswordCredentials credentials, ConfigDocument live, ILogger logger, CancellationToken cancellationToken)
+    /// <summary>Deletes the vault's credentials the live config doesn't name: what a command that failed after setting a password left.
+    /// <paramref name="held"/> are the ones an open draft holds for the entries it will apply.</summary>
+    public static async Task DeleteOrphansAsync(
+        IPasswordCredentials credentials, ConfigDocument live, IReadOnlySet<PasswordCredentialId> held, ILogger logger, CancellationToken cancellationToken)
     {
         var kept = Referenced(live);
+        kept.UnionWith(held);
         foreach (var id in await credentials.ListAsync(cancellationToken).ConfigureAwait(false))
         {
             if (kept.Contains(id))

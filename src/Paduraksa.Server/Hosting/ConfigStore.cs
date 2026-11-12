@@ -5,6 +5,7 @@ using Paduraksa.Application.Backup;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Metrics;
@@ -112,6 +113,7 @@ internal static class ConfigStore
         var certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
         var operations = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RequestSimulator>());
+        var drafts = builder.AddOwnedElsewhere(container.GetRequiredService<DraftService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RevisionQueryService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<AuditQueryService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<ConfigImportService>());
@@ -142,13 +144,14 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<UpstreamHealthBoard>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationHistoryService>());
-        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups, analyticsRollups, events, container.GetRequiredService<NotificationStats>());
+        return new ConfigStoreServices(contexts, config, drafts, certificates, operations, setup, permissions, rollups, analyticsRollups, events, container.GetRequiredService<NotificationStats>());
     }
 }
 
 /// <summary>The config store's instances that later composition steps (ACME issuance, the admin certificate) build on.</summary>
 /// <param name="Contexts">The config database's context factory.</param>
 /// <param name="Config">The config write path.</param>
+/// <param name="Drafts">The users' drafts (change sets applied as one revision).</param>
 /// <param name="Certificates">The certificate inventory's service.</param>
 /// <param name="Operations">The certificate use cases that touch the vault.</param>
 /// <param name="Setup">First-run setup: whether an Owner exists, and the one-time setup token.</param>
@@ -160,6 +163,7 @@ internal static class ConfigStore
 internal sealed record ConfigStoreServices(
     IDbContextFactory<ConfigDbContext> Contexts,
     ConfigService Config,
+    DraftService Drafts,
     CertificateService Certificates,
     CertificateOperations Operations,
     SetupService Setup,

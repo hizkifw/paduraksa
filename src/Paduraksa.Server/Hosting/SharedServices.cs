@@ -8,6 +8,7 @@ using Paduraksa.Application.Analytics;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
@@ -409,6 +410,7 @@ internal sealed class SharedServices : IAsyncDisposable
             var rollupStore = configStore.MetricRollups;
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
             builder.Add(new MetricRollupJob(sampler, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
+            builder.Add(new DraftExpiryJob(configStore.Drafts, timeProvider, coreLoggers.CreateLogger<DraftExpiryJob>()));
             builder.Add(new AnalyticsRollupJob(configStore.AnalyticsRollups, options.Analytics.ToOptions(), timeProvider, coreLoggers.CreateLogger<AnalyticsRollupJob>()));
             var peerGone = builder.Add(new PeerGoneLogFilter());
             var processCounters = builder.Add(new ProcessCounters(

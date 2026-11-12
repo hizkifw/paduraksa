@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
@@ -222,7 +223,12 @@ internal sealed partial class ConfigRecovery
     {
         if (database is { Latest: not null, Document: { } document })
         {
-            await AccessListPasswords.DeleteOrphansAsync(_passwords, document, _logger, cancellationToken).ConfigureAwait(false);
+            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            await using (context.ConfigureAwait(false))
+            {
+                var held = await DraftService.PendingOfAllAsync(context, cancellationToken).ConfigureAwait(false);
+                await AccessListPasswords.DeleteOrphansAsync(_passwords, document, held, _logger, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 

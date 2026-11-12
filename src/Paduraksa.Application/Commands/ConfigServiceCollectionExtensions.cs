@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Revisions;
@@ -23,7 +24,7 @@ namespace Paduraksa.Application.Commands;
 public static class ConfigServiceCollectionExtensions
 {
     /// <summary>Registers <see cref="ConfigService"/> (the single writer) with the services that share its writer: the
-    /// <see cref="CertificateService"/>, the <see cref="RequestSimulator"/>, the <see cref="ConfigImportService"/> and the read-only <see cref="RevisionQueryService"/>
+    /// <see cref="CertificateService"/>, the <see cref="RequestSimulator"/>, the <see cref="DraftService"/>, the <see cref="ConfigImportService"/> and the read-only <see cref="RevisionQueryService"/>
     /// and <see cref="AuditQueryService"/>. Needs the config database's context factory, an <see cref="IConfigCompiler"/>, the
     /// <see cref="SnapshotPublisher"/>, the <see cref="IPermissionEvaluator"/> (<c>AddPaduraksaIdentity</c>), the log factory, a
     /// <see cref="LastKnownGoodFile"/>, the vault's <see cref="IServerCertificateSource"/>, <see cref="ICertificateCatalog"/> and <see cref="IPasswordCredentials"/>, the
@@ -66,6 +67,13 @@ public static class ConfigServiceCollectionExtensions
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<RequestSimulator>(),
             RequestSimulator.BusyWait,
             sp.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton(sp => new DraftService(
+            sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
+            sp.GetRequiredService<ConfigService>(),
+            sp.GetRequiredService<IPasswordCredentials>(),
+            sp.GetRequiredService<IPermissionEvaluator>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILoggerFactory>()));
         services.TryAddSingleton(sp => new RevisionQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
         services.TryAddSingleton(sp => new AuditQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
         services.TryAddSingleton(sp => new ConfigImportService(
