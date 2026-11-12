@@ -11,6 +11,7 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Simulation;
+using Paduraksa.Application.Yaml;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Gate;
@@ -22,7 +23,7 @@ namespace Paduraksa.Application.Commands;
 public static class ConfigServiceCollectionExtensions
 {
     /// <summary>Registers <see cref="ConfigService"/> (the single writer) with the services that share its writer: the
-    /// <see cref="CertificateService"/>, the <see cref="RequestSimulator"/> and the read-only <see cref="RevisionQueryService"/>
+    /// <see cref="CertificateService"/>, the <see cref="RequestSimulator"/>, the <see cref="ConfigImportService"/> and the read-only <see cref="RevisionQueryService"/>
     /// and <see cref="AuditQueryService"/>. Needs the config database's context factory, an <see cref="IConfigCompiler"/>, the
     /// <see cref="SnapshotPublisher"/>, the <see cref="IPermissionEvaluator"/> (<c>AddPaduraksaIdentity</c>), the log factory, a
     /// <see cref="LastKnownGoodFile"/>, the vault's <see cref="IServerCertificateSource"/>, <see cref="ICertificateCatalog"/> and <see cref="IPasswordCredentials"/>, the
@@ -67,6 +68,11 @@ public static class ConfigServiceCollectionExtensions
             sp.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton(sp => new RevisionQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
         services.TryAddSingleton(sp => new AuditQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
+        services.TryAddSingleton(sp => new ConfigImportService(
+            sp.GetRequiredService<ConfigService>(),
+            sp.GetRequiredService<RevisionQueryService>(),
+            sp.GetRequiredService<IPasswordCredentials>(),
+            sp.GetRequiredService<IPermissionEvaluator>()));
         return services;
     }
 }

@@ -10,6 +10,7 @@ using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Simulation;
+using Paduraksa.Application.Yaml;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Gate;
@@ -108,6 +109,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<RequestSimulator>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RevisionQueryService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<AuditQueryService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<ConfigImportService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateRecovery>());
         builder.AddOwnedElsewhere(container.GetRequiredService<UserService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<SessionService>());
