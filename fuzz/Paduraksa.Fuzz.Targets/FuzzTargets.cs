@@ -13,6 +13,7 @@ public static class FuzzTargets
         ClientAddressTarget.Target,
         ForwardAuthAnswerTarget.Target,
         UpstreamErrorReplacementTarget.Target,
+        ErrorPageTarget.Target,
     ];
 
     public static FuzzTarget Get(string name) =>
