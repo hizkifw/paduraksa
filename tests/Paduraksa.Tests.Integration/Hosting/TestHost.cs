@@ -59,6 +59,7 @@ internal static class TestHost
             ["Paduraksa:Listen:Admin"] = "0",
             ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
             ["Paduraksa:ShutdownTimeout"] = "00:00:05",
+            ["Paduraksa:Mcp:Enabled"] = "true", // off by default; the MCP tests need it and nothing else minds
             ["Paduraksa:Development:PlaceholderCertificate"] = "true", // the tests are Release builds and serve (and provide) placeholder certificates
             ["Paduraksa:Admin:PasswordIterations"] = "100000", // the validator's floor: a test host creates an Owner and a few users, and each hash is real work
             ["Logging:LogLevel:Default"] = "Warning",

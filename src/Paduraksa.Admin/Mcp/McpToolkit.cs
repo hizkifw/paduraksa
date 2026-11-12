@@ -1,0 +1,130 @@
+using System.Text.Json;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+using ModelContextProtocol.Protocol;
+
+using Paduraksa.Admin.Auth;
+using Paduraksa.Admin.OpenApi;
+using Paduraksa.Mcp;
+
+namespace Paduraksa.Admin.Mcp;
+
+/// <summary>
+/// The two tools of the MCP endpoint over the transport (PLAN §11.2): lists them, and runs a call as the caller authentication set on the request.
+/// A failure of any kind is a tool result with <c>isError</c>, never an exception into the MCP host.
+/// </summary>
+internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipeline pipeline, IServiceScopeFactory scopes, IHttpContextAccessor accessor, ILogger<McpToolkit> logger)
+{
+    private static readonly JsonElement CodeSchema = JsonDocument.Parse(
+        $$$"""{"type":"object","properties":{"code":{"type":"string","description":"{{{ToolDescriptions.CodeDescription}}}"}},"required":["code"],"additionalProperties":false}""").RootElement.Clone();
+
+    private readonly Lock _gate = new();
+    private Task<CodeModeTools>? _tools;
+
+    public static ListToolsResult List()
+    {
+        var limits = SandboxLimits.Default;
+        return new ListToolsResult
+        {
+            Tools =
+            [
+                new Tool
+                {
+                    Name = ToolDescriptions.SearchName,
+                    Title = "Search the API description",
+                    Description = ToolDescriptions.Search(limits),
+                    InputSchema = CodeSchema,
+                    Annotations = new ToolAnnotations { ReadOnlyHint = true, DestructiveHint = false, IdempotentHint = true, OpenWorldHint = false },
+                },
+                new Tool
+                {
+                    Name = ToolDescriptions.ExecuteName,
+                    Title = "Call the admin API",
+                    Description = ToolDescriptions.Execute(limits),
+                    InputSchema = CodeSchema,
+                    Annotations = new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = true, IdempotentHint = false, OpenWorldHint = false },
+                },
+            ],
+        };
+    }
+
+    public async Task<CallToolResult> CallAsync(CallToolRequestParams request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (request.Name is not (ToolDescriptions.SearchName or ToolDescriptions.ExecuteName))
+            {
+                return Failure($"There is no tool '{request.Name}'; the tools are {ToolDescriptions.SearchName} and {ToolDescriptions.ExecuteName}.");
+            }
+
+            if (request.Arguments is null || !request.Arguments.TryGetValue("code", out var code) || code.ValueKind != JsonValueKind.String || code.GetString() is not { } text)
+            {
+                return Failure("The argument 'code' is required and must be a string: a JavaScript async arrow function.");
+            }
+
+            var tools = await ToolsAsync().ConfigureAwait(false);
+            SandboxOutcome outcome;
+            if (request.Name == ToolDescriptions.SearchName)
+            {
+                outcome = await tools.SearchAsync(text, cancellationToken).ConfigureAwait(false);
+            }
+            else if (accessor.HttpContext is { } http && http.GetCaller() is { } caller)
+            {
+                InProcessApiDispatcher dispatcher = new(http, caller, pipeline, scopes, tools.Limits);
+                outcome = await tools.ExecuteAsync(text, dispatcher, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                return Failure("The request carries no authenticated caller.");
+            }
+
+            List<ContentBlock> content = [new TextContentBlock { Text = outcome.Text }];
+            if (outcome.Note is { } note)
+            {
+                content.Add(new TextContentBlock { Text = note });
+            }
+
+            return new CallToolResult { IsError = outcome.IsError, Content = content };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogToolFailed(logger, ex, request.Name);
+            return Failure("The tool failed on the server. The details are in the server log.");
+        }
+    }
+
+    private static CallToolResult Failure(string message) => new() { IsError = true, Content = [new TextContentBlock { Text = message }] };
+
+    /// <summary>Built once per process from the generated API description; a failed build is not kept, so the next call tries again.</summary>
+    private Task<CodeModeTools> ToolsAsync()
+    {
+        lock (_gate)
+        {
+            if (_tools is null || _tools.IsFaulted)
+            {
+                _tools = BuildAsync();
+            }
+
+            return _tools;
+        }
+    }
+
+    private async Task<CodeModeTools> BuildAsync()
+    {
+        var openApi = await document.GetAsync(CancellationToken.None).ConfigureAwait(false);
+        return CodeModeTools.Create(openApi, unexpected: ex => LogSandboxFailed(logger, ex));
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The MCP tool {Tool} failed.")]
+    private static partial void LogToolFailed(ILogger logger, Exception exception, string? tool);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The MCP sandbox failed on a script (the caller was told only that it failed).")]
+    private static partial void LogSandboxFailed(ILogger logger, Exception exception);
+}

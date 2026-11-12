@@ -47,9 +47,10 @@ internal sealed class AdminApiHarness : IAsyncDisposable
     public Uri BaseAddress { get; }
 
     /// <summary>Starts a host. <paramref name="adminServices"/> may replace services of the admin app (a test that needs a failing dependency).</summary>
-    public static async Task<AdminApiHarness> StartAsync(CancellationToken ct, LogCapture? logs = null, Action<IServiceCollection>? adminServices = null)
+    public static async Task<AdminApiHarness> StartAsync(CancellationToken ct, LogCapture? logs = null, Action<IServiceCollection>? adminServices = null, IReadOnlyDictionary<string, string?>? settings = null)
     {
         var host = TestHost.Create(
+            settings: settings,
             logs: logs,
             configureShared: TestHost.NoAccessLogFile,
             configureServices: (role, services) =>

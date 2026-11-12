@@ -123,11 +123,12 @@ internal static partial class AdminApp
         builder.Services.AddSingleton(sources);
         builder.Services.AddPaduraksaAdminAuth(
             context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
-        builder.Services.AddPaduraksaAdminApi();
+        builder.Services.AddPaduraksaAdminApi(context.Options.Mcp.Enabled);
         builder.Services.AddPaduraksaAdminWeb(DashboardWeb);
         builder.Services.AddPaduraksaDashboard(new DashboardOptions
         {
             MinPasswordLength = context.Options.Admin.MinPasswordLength,
+            McpEnabled = context.Options.Mcp.Enabled,
             SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
         });
         // The dashboard's password checks (change password, TOTP, recovery codes) share the API's derivation slots.

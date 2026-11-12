@@ -52,6 +52,9 @@ internal sealed class PaduraksaOptions
     /// <summary>Notifications: the address the dashboard is reached at, for the links in a message.</summary>
     public PaduraksaNotificationOptions Notifications { get; set; } = new();
 
+    /// <summary>MCP: whether the admin port serves <c>/mcp</c>.</summary>
+    public PaduraksaMcpOptions Mcp { get; set; } = new();
+
     /// <summary>
     /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core).
     /// When it elapses, Kestrel aborts the remaining connections and the rest stops without waiting.
@@ -477,6 +480,15 @@ internal sealed class PaduraksaMetricsOptions
     public Application.Metrics.MetricRollupOptions ToOptions() => new() { Retention = Retention, WriteInterval = WriteInterval };
 }
 
+
+/// <summary>
+/// MCP (<c>Paduraksa:Mcp</c>, PLAN section 11.2). The tools run a model's JavaScript in a sandbox inside the proxy's own process, so the operator opts in.
+/// </summary>
+internal sealed class PaduraksaMcpOptions
+{
+    /// <summary>Whether <c>/mcp</c> is mapped on the admin port (default false: it answers 404 and the dashboard says how to turn it on).</summary>
+    public bool Enabled { get; set; }
+}
 
 /// <summary>
 /// Notifications (<c>Paduraksa:Notifications</c>). The channels themselves are managed in the dashboard (Settings, Notifications) and live in the

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Admin.Api;
 using Paduraksa.Admin.Json;
+using Paduraksa.Admin.Mcp;
 using Paduraksa.Admin.OpenApi;
 
 namespace Paduraksa.Admin;
@@ -13,15 +14,20 @@ public static class AdminApiExtensions
 {
     /// <summary>
     /// Registers what the API needs: the typed-ID route constraints, the JSON contract (inserted first in the host's resolver chain, so
-    /// it composes with other contexts) and the OpenAPI generator. Add <see cref="UsePaduraksaAdminApi"/> as the first middleware. The services the endpoints call (config, certificates, issuance, simulator,
+    /// it composes with other contexts) and the OpenAPI generator, and, with <paramref name="mcpEnabled"/>, the MCP server (off unless the operator opts in, PLAN §11.2). Add <see cref="UsePaduraksaAdminApi"/> as the first middleware. The services the endpoints call (config, certificates, issuance, simulator,
     /// history, vault secrets) come from the host.
     /// </summary>
-    public static IServiceCollection AddPaduraksaAdminApi(this IServiceCollection services)
+    public static IServiceCollection AddPaduraksaAdminApi(this IServiceCollection services, bool mcpEnabled = false)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.Configure<RouteOptions>(TypedIdRouting.Register);
         services.ConfigureHttpJsonOptions(options => AdminJsonContext.AddTo(options.SerializerOptions));
         AdminOpenApi.AddServices(services);
+        if (mcpEnabled)
+        {
+            services.AddPaduraksaAdminMcp();
+        }
+
         return services;
     }
 
@@ -33,6 +39,7 @@ public static class AdminApiExtensions
     public static IApplicationBuilder UsePaduraksaAdminApi(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
+        McpPipeline.Capture(app);
         return app.UseMiddleware<ApiPipelineMiddleware>();
     }
 
@@ -60,6 +67,11 @@ public static class AdminApiExtensions
         SimulateEndpoints.Map(api);
         CaEndpoint.Map(api);
         AdminOpenApi.Map(endpoints);
+        if (endpoints.ServiceProvider.GetService(typeof(McpToolkit)) is not null)
+        {
+            endpoints.MapPaduraksaAdminMcp();
+        }
+
         return endpoints;
     }
 }

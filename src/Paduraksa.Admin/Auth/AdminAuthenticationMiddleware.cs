@@ -103,12 +103,19 @@ public static class AdminAuthEndpointExtensions
 internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, SessionService sessions, ApiTokenService tokens, AdminPipelineHooks hooks)
 {
     private const string BearerScheme = "Bearer";
+    private const string McpPath = "/mcp";
 
     public async Task InvokeAsync(HttpContext context)
     {
         if (context.GetCaller() is not null)
         {
             await next(context).ConfigureAwait(false);
+            return;
+        }
+
+        if (context.Request.Path.StartsWithSegments(McpPath, StringComparison.OrdinalIgnoreCase) && context.RequestServices.GetService(typeof(Mcp.McpPipeline)) is not null)
+        {
+            await AuthenticateMcpAsync(context).ConfigureAwait(false);
             return;
         }
 
@@ -175,6 +182,39 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
             }
         }
 
+        await next(context).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The MCP endpoint takes a bearer token and nothing else, and only that: a request without one, with a bad one or with a cookie is refused here,
+    /// so no ambient credential of a browser (a session cookie a page could make the browser send) ever acts through it. The caller's channel is
+    /// <see cref="Channel.Mcp"/>, so the audit trail and the history say that the change came through MCP.
+    /// </summary>
+    private async Task AuthenticateMcpAsync(HttpContext context)
+    {
+        var (cookiePresent, cookieAmbiguous, _) = AdminSessionCookie.Read(context.Request);
+        var authorization = context.Request.Headers.Authorization;
+        if (cookiePresent || cookieAmbiguous || authorization.Count != 1)
+        {
+            await RefuseAsync(context, "Send one bearer token: Authorization: Bearer pdk_...", ApiCodes.Auth.Required, authorization.Count == 0 && !cookiePresent ? null : "invalid_request").ConfigureAwait(false);
+            return;
+        }
+
+        if (!TryReadBearer(authorization[0], out var token))
+        {
+            await RefuseAsync(context, "The Authorization header must be 'Bearer <token>'.", ApiCodes.Auth.InvalidAuthorization, "invalid_request").ConfigureAwait(false);
+            return;
+        }
+
+        var verified = await tokens.VerifyAsync(token, context.RequestAborted).ConfigureAwait(false);
+        if (verified.Principal is not { } principal)
+        {
+            await RefuseAsync(context, "The API token is not valid.", ApiCodes.Auth.InvalidToken, "invalid_token").ConfigureAwait(false);
+            return;
+        }
+
+        CommandOrigin origin = new(Actor.ForToken(principal.TokenId), Channel.Mcp, context.GetClientAddress(), context.GetAdminRequestFacts());
+        context.SetCaller(new AdminCaller(origin, Token: principal.TokenId) { User = principal.UserId });
         await next(context).ConfigureAwait(false);
     }
 
