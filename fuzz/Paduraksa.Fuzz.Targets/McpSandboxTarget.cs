@@ -1,23 +1,30 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 
 using Paduraksa.Mcp;
 
 namespace Paduraksa.Fuzz;
 
 /// <summary>
-/// A model's JavaScript through the MCP sandbox (PLAN §11.2, PLAN §15): the input is a tool byte (even: <c>search</c> over a small API description, odd:
-/// <c>execute</c> against a recording stub) and the script as UTF-8. Properties, on every input: the tool returns and never throws; it returns within the time
-/// the limits allow (a script stuck in one native call is the failure this looks for: the call would be abandoned, or the next one told that others run); the
-/// process allocated a bounded amount; a successful result is at most the output cap and an error is a short message that names no type of this process and
-/// holds no stack; nothing outside the globals is reachable (a sentinel in the environment never appears in a result, nor does a type name or a path); the
-/// sandbox reported no unexpected exception (one is a bug in a native the guards do not cover, contained here but worth a look); and what the stub received
-/// is what the policy allows: a path under the API, a known method, at most the request limit, nothing refused, and a write only when the script says
-/// <c>confirm</c> (or as a dry run).
+/// The MCP sandbox's parent, against a child that is not to be trusted (PLAN §11.2, §15). The first input byte picks the mode.
+/// <list type="bullet">
+/// <item><b>Frames</b> (three inputs in four, in process, fast, instrumented): the rest of the input is what a hostile child writes to its stdout, fed to the
+/// parent's run protocol over a stub dispatcher. It may return an outcome or end the run as a breach or a protocol violation, and nothing else may happen:
+/// no other exception; a bounded outcome (a result within the output cap, an error short and without control characters); at most the request limit
+/// dispatched; and every request that reached the dispatcher is one the request policy allows, with a write only if the bytes say <c>confirm</c> or as a dry run.</item>
+/// <item><b>Scripts</b> (one in four, when the harness can start a child, see <see cref="ChildVariable"/>): the rest is a script, run on a real child of an
+/// uninstrumented copy of the harness. The properties are the parent's: it never throws, the call ends within the wall-time limit plus a margin, the answer is
+/// bounded, and the pool holds at most one child. The script itself is not under test: a stock engine in a child that is killed on a breach is the design, so
+/// crashes, hangs and exhaustion in there are expected and are what the seeds (the scripts that were once dangerous in process) show the parent absorbing.</item>
+/// </list>
+/// Without a child, a script input is read as frames, which keeps the corpus replayable in CI.
 /// </summary>
 internal static class McpSandboxTarget
 {
-    private const string Sentinel = "PADURAKSA_FUZZ_SANDBOX_SENTINEL_7f3a91";
+    /// <summary>The driver assembly the harness starts as the child (<c>dotnet &lt;it&gt; mcp-sandbox</c>); <c>scripts/fuzz.sh</c> sets it to an uninstrumented publish.</summary>
+    public const string ChildVariable = "PADURAKSA_FUZZ_CHILD";
 
     private const string OpenApi = """
         {
@@ -25,54 +32,60 @@ internal static class McpSandboxTarget
           "info": { "title": "Fuzz API", "version": "v1" },
           "paths": {
             "/api/v1/hosts": {
-              "get": { "operationId": "ListHosts", "summary": "List hosts", "responses": { "200": { "description": "ok", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Host" } } } } } } },
-              "post": { "operationId": "CreateHost", "parameters": [ { "name": "dryRun", "in": "query", "schema": { "type": "boolean" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Host" } } } }, "responses": { "201": { "description": "created" } } }
+              "get": { "operationId": "ListHosts", "responses": { "200": { "description": "ok" } } },
+              "post": { "operationId": "CreateHost", "parameters": [ { "name": "dryRun", "in": "query", "schema": { "type": "boolean" } } ], "responses": { "201": { "description": "created" } } }
             },
             "/api/v1/hosts/{id}": {
-              "get": { "operationId": "GetHost", "parameters": [ { "$ref": "#/components/parameters/Id" } ], "responses": { "200": { "description": "ok" } } },
-              "put": { "operationId": "ReplaceHost", "parameters": [ { "$ref": "#/components/parameters/Id" }, { "name": "dryRun", "in": "query", "schema": { "type": "boolean" } } ], "responses": { "200": { "description": "ok" } } },
-              "delete": { "operationId": "DeleteHost", "parameters": [ { "$ref": "#/components/parameters/Id" } ], "responses": { "204": { "description": "gone" } } }
+              "get": { "operationId": "GetHost", "responses": { "200": { "description": "ok" } } },
+              "delete": { "operationId": "DeleteHost", "responses": { "204": { "description": "gone" } } }
             },
-            "/api/v1/certificates/{id}/renew": { "post": { "operationId": "RenewCertificate", "responses": { "200": { "description": "ok" } } } },
             "/api/v1/simulate": { "post": { "operationId": "Simulate", "responses": { "200": { "description": "ok" } } } },
-            "/api/v1/tokens": { "get": { "operationId": "ListTokens", "responses": { "200": { "description": "ok" } } }, "post": { "operationId": "IssueToken", "responses": { "201": { "description": "ok" } } } },
-            "/api/v1/logs/tail": { "get": { "operationId": "StreamAccessLog", "responses": { "200": { "description": "ok" } } } },
-            "/api/v1/logs/recent": { "get": { "operationId": "RecentAccessLog", "responses": { "200": { "description": "ok" } } } }
-          },
-          "components": {
-            "parameters": { "Id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } },
-            "schemas": {
-              "Host": { "type": "object", "properties": { "name": { "type": "string" }, "settings": { "$ref": "#/components/schemas/Settings" }, "tree": { "$ref": "#/components/schemas/Node" } } },
-              "Settings": { "type": "object", "properties": { "hsts": { "type": "boolean" } } },
-              "Node": { "type": "object", "properties": { "children": { "type": "array", "items": { "$ref": "#/components/schemas/Node" } } } }
-            },
-            "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } }
+            "/api/v1/tokens": { "get": { "operationId": "ListTokens", "responses": { "200": { "description": "ok" } } } }
           }
         }
         """;
 
-    private static readonly string[] Forbidden =
-    [
-        Sentinel, "System.", "Jint.", "Acornima.", "Paduraksa.", "Microsoft.", ".cs:", "/home/", "/tmp/", "Exception",
-    ];
+    /// <summary>The run id the frames mode expects; the seeds carry it, so the fuzzer can mutate it into a wrong one, a missing one or an old one.</summary>
+    private const string RunId = "fuzzrunid";
 
-    /// <summary>The production limits, with the times cut so that a run is a fraction of a second; every cap that shapes a property (output, requests, statements, memory, stack) is the production one.</summary>
-    private static readonly SandboxLimits Limits = new() { ScriptTime = TimeSpan.FromMilliseconds(250), TotalTime = TimeSpan.FromSeconds(2) };
+    private static readonly SandboxLimits FrameLimits = new() { MaxRequests = 10, TotalTime = TimeSpan.FromSeconds(2) };
 
-    private static readonly List<string> Unexpected = [];
+    private static readonly SandboxLimits ScriptLimits = new()
+    {
+        ScriptTime = TimeSpan.FromSeconds(1),
+        CpuTime = TimeSpan.FromSeconds(1),
+        TotalTime = TimeSpan.FromSeconds(3),
+        ChildRssBytes = 300L * 1024 * 1024,
+        MaxRequests = 10,
+    };
 
+    private static readonly Lock Gate = new();
+    private static RequestPolicy? s_policy;
     private static CodeModeTools? s_tools;
 
     public static FuzzTarget Target { get; } = new(
         "mcp-sandbox",
-        "a model's JavaScript through the MCP sandbox (search over a spec, execute against a stub client)",
+        "the MCP sandbox's parent against a hostile child: raw frames in process, and scripts through a real child",
         Run,
         Seeds);
 
-    private static CodeModeTools Tools()
+    private static RequestPolicy Policy()
     {
-        Environment.SetEnvironmentVariable(Sentinel, Sentinel);
-        return s_tools ??= CodeModeTools.Create(Encoding.UTF8.GetBytes(OpenApi), Limits, ex => Unexpected.Add(ex.GetType().Name + ": " + ex.Message));
+        lock (Gate)
+        {
+            return s_policy ??= RequestPolicy.FromSpec(JsonDocument.Parse(OpenApi).RootElement.Clone());
+        }
+    }
+
+    private static SandboxChildCommand? ChildCommand()
+    {
+        var path = Environment.GetEnvironmentVariable(ChildVariable);
+        if (string.IsNullOrEmpty(path))
+        {
+            path = Path.Combine(AppContext.BaseDirectory, "Paduraksa.Fuzz.dll");
+        }
+
+        return File.Exists(path) ? SandboxChildCommand.ForAssembly(path) : null;
     }
 
     private static void Run(ReadOnlySpan<byte> input)
@@ -82,178 +95,191 @@ internal static class McpSandboxTarget
             return;
         }
 
-        var tools = Tools();
-        var execute = (input[0] & 1) == 1;
-        var code = Encoding.UTF8.GetString(input[1..]);
-        Unexpected.Clear();
-        RecordingDispatcher dispatcher = new();
+        var payload = input[1..];
+        if ((input[0] & 3) == 0 && ChildCommand() is { } command)
+        {
+            Script(payload, command);
+        }
+        else
+        {
+            Frames(payload);
+        }
+    }
 
-        var allocatedBefore = GC.GetTotalAllocatedBytes(precise: false);
+    private static void Frames(ReadOnlySpan<byte> input)
+    {
+        var hostile = input.ToArray();
+        using MemoryStream fromChild = new(hostile);
+        using MemoryStream toChild = new();
+        RecordingDispatcher dispatcher = new();
+        RequestBridge bridge = new(Policy(), dispatcher, FrameLimits);
+        RunState state = new(RunId);
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+
+        RunProtocol.Exchange? exchange = null;
+        try
+        {
+            exchange = RunProtocol.ExchangeAsync(fromChild, toChild, bridge, FrameLimits, state, _ => { }, timeout.Token).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is SandboxProtocolException or RunBreachException)
+        {
+            // the run ends: the parent kills the child and tells the caller a fixed message
+        }
+        catch (Exception ex)
+        {
+            throw new PropertyViolationException("the run protocol threw", ex);
+        }
+
+        if (exchange is { } done)
+        {
+            Bounded(done.Outcome);
+        }
+
+        Checks.That(state.Requests <= FrameLimits.MaxRequests + 1, $"{state.Requests} requests counted");
+        Checks.That(dispatcher.Calls.Count <= FrameLimits.MaxRequests, $"{dispatcher.Calls.Count} requests dispatched");
+        var says = Encoding.UTF8.GetString(hostile).Contains("confirm", StringComparison.Ordinal);
+        foreach (var call in dispatcher.Calls)
+        {
+            var decision = Policy().Decide(call.Method, call.Path);
+            Checks.That(decision.Kind is RequestKind.Read or RequestKind.Write, $"{call.Method} {call.Path} was dispatched and the policy says {decision.Kind}");
+            Checks.That(call.Path.StartsWith("/api/v1/", StringComparison.Ordinal) && call.Path.All(c => c is > ' ' and < '\u007f'), $"the path '{call.Path}' is not plain");
+            Checks.That(call.Query.Count <= 64 && call.Query.All(q => q.Value.Length <= 1024), "an oversized query reached the dispatcher");
+            Checks.That(call.BodyJson is null || Encoding.UTF8.GetByteCount(call.BodyJson) <= FrameLimits.MaxRequestBodyBytes, "an oversized body reached the dispatcher");
+            Checks.That(call.IfMatch is null || (call.IfMatch.Length <= 202 && call.IfMatch.All(c => c is > ' ' and < '\u007f')), "a bad entity tag reached the dispatcher");
+            if (decision.Kind == RequestKind.Write)
+            {
+                Checks.That(call.Query.Any(q => q.Key == "dryRun" && q.Value == "true") || says, $"{call.Method} {call.Path} was sent as a write and the bytes never say confirm");
+            }
+        }
+
+        // What the parent wrote back is frames the protocol allows, whatever the child sent.
+        using MemoryStream written = new(toChild.ToArray());
+        while (FrameCodec.Read(written, FrameCodec.MaxToChild) is { } frame)
+        {
+            using var message = Messages.Parse(frame);
+            Checks.That(Messages.TypeOf(message) == "response", "the parent wrote a frame that is not a response");
+        }
+    }
+
+    private static void Script(ReadOnlySpan<byte> input, SandboxChildCommand command)
+    {
+        CodeModeTools tools;
+        lock (Gate)
+        {
+            tools = s_tools ??= CodeModeTools.Create(Encoding.UTF8.GetBytes(OpenApi), command, TimeSpan.FromMinutes(1), ScriptLimits);
+        }
+
+        var code = Encoding.UTF8.GetString(input);
+        RecordingDispatcher dispatcher = new();
         var clock = Stopwatch.StartNew();
         SandboxOutcome outcome;
         try
         {
-            outcome = (execute ? tools.ExecuteAsync(code, dispatcher, CancellationToken.None) : tools.SearchAsync(code, CancellationToken.None)).GetAwaiter().GetResult();
+            outcome = tools.ExecuteAsync(code, dispatcher, CancellationToken.None).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
-            throw new PropertyViolationException("the tool threw", ex);
+            throw new PropertyViolationException("the parent threw", ex);
         }
 
-        clock.Stop();
-        var allocated = GC.GetTotalAllocatedBytes(precise: false) - allocatedBefore;
+        Checks.That(clock.Elapsed < ScriptLimits.TotalTime + TimeSpan.FromSeconds(4), $"the call took {clock.Elapsed}");
+        Checks.That(!outcome.Text.StartsWith("Other scripts are running", StringComparison.Ordinal), "an earlier call still holds the pool");
+        Checks.That(tools.Pool.ChildCount <= 1, $"{tools.Pool.ChildCount} children");
+        Checks.That(dispatcher.Calls.Count <= ScriptLimits.MaxRequests, $"{dispatcher.Calls.Count} requests dispatched");
+        Bounded(outcome);
+    }
 
-        Checks.That(clock.Elapsed < Limits.TotalTime + TimeSpan.FromSeconds(3), $"the call took {clock.Elapsed}");
-        Checks.That(allocated < 768L * 1024 * 1024, $"the process allocated {allocated / (1024 * 1024)} MiB for one call");
-        Checks.That(!outcome.Text.StartsWith("Other scripts are running", StringComparison.Ordinal), "an earlier script still holds the sandbox: it did not stop");
-        Checks.That(!outcome.Text.Contains("did not stop in time", StringComparison.Ordinal), "the script did not stop in time and was abandoned");
-        Checks.That(Unexpected.Count == 0, "the sandbox failed unexpectedly: " + string.Join("; ", Unexpected));
-
-        var bytes = Encoding.UTF8.GetByteCount(outcome.Text);
+    private static void Bounded(SandboxOutcome outcome)
+    {
         if (outcome.IsError)
         {
-            Checks.That(outcome.Text.Length <= 600, $"an error message of {outcome.Text.Length} characters");
+            Checks.That(outcome.Text.Length <= 700, $"an error of {outcome.Text.Length} characters");
+            Checks.That(!outcome.Text.Any(char.IsControl), "an error with a control character");
         }
         else
         {
-            Checks.That(bytes <= Limits.MaxOutputBytes, $"a result of {bytes} bytes is over the cap");
+            Checks.That(Encoding.UTF8.GetByteCount(outcome.Text) <= SandboxLimits.Default.MaxOutputBytes, "a result over the output cap");
         }
 
-        foreach (var marker in Forbidden)
-        {
-            Checks.That(!outcome.Text.Contains(marker, StringComparison.Ordinal) && (outcome.Note?.Contains(marker, StringComparison.Ordinal) != true), $"the result names '{marker}'");
-        }
-
-        Checks.That(outcome.Requests <= Limits.MaxRequests + 1, $"{outcome.Requests} requests");
-        Checks.That(dispatcher.Calls.Count <= Limits.MaxRequests, $"{dispatcher.Calls.Count} requests were dispatched");
-        var saysConfirm = code.Contains("confirm", StringComparison.Ordinal);
-        foreach (var call in dispatcher.Calls)
-        {
-            var decision = tools.Policy.Decide(call.Method, call.Path);
-            Checks.That(decision.Kind is RequestKind.Read or RequestKind.Write, $"{call.Method} {call.Path} was dispatched and the policy says {decision.Kind}");
-            Checks.That(call.Path.StartsWith("/api/v1/", StringComparison.Ordinal) && call.Path.All(c => c is > ' ' and < '\u007f'), $"the path '{call.Path}' is not a plain API path");
-            Checks.That(call.Query.Count <= 64 && call.Query.All(q => q.Value.Length <= 1024), "an oversized query reached the dispatcher");
-            Checks.That(call.BodyJson is null || Encoding.UTF8.GetByteCount(call.BodyJson) <= Limits.MaxRequestBodyBytes, "an oversized body reached the dispatcher");
-            Checks.That(call.IfMatch is null || (call.IfMatch.Length <= 202 && call.IfMatch.All(c => c is > ' ' and < '\u007f')), "a bad entity tag reached the dispatcher");
-            if (decision.Kind == RequestKind.Write)
-            {
-                var dryRun = call.Query.Any(q => q.Key == "dryRun" && q.Value == "true");
-                Checks.That(dryRun || saysConfirm, $"{call.Method} {call.Path} was sent as a write and the script never says confirm");
-            }
-        }
+        Checks.That(outcome.Note is null || (outcome.Note.Length <= 1500 && !outcome.Note.Any(char.IsControl)), "an unbounded note");
     }
+
+    private static byte[] Frame(string json)
+    {
+        var body = Encoding.UTF8.GetBytes(json);
+        var bytes = new byte[4 + body.Length];
+        BinaryPrimitives.WriteInt32BigEndian(bytes, body.Length);
+        body.CopyTo(bytes, 4);
+        return bytes;
+    }
+
+    private static byte[] Concat(params byte[][] parts) => [.. parts.SelectMany(p => p)];
 
     private static IEnumerable<(string Name, byte[] Bytes)> Seeds()
     {
         var index = 0;
-        foreach (var (execute, script) in Scripts)
+        foreach (var script in Scripts)
         {
-            yield return ($"{index++:00}-{(execute ? "execute" : "search")}", [(byte)(execute ? 1 : 0), .. Encoding.UTF8.GetBytes(script)]);
+            yield return ($"{index++:00}-script", [0, .. Encoding.UTF8.GetBytes(script)]);
+        }
+
+        foreach (var (name, frames) in Streams)
+        {
+            yield return ($"{index++:00}-frames-{name}", [1, .. frames]);
         }
     }
 
-    /// <summary>Well-formed starting points: ordinary scripts of both tools, then the shapes the sandbox exists for (runaway loops and recursion, allocation, escapes, amplifiers, nesting, promise floods).</summary>
-    private static readonly (bool Execute, string Script)[] Scripts =
+    private static readonly (string Name, byte[] Frames)[] Streams =
     [
-        (false, "async () => Object.keys(spec.paths).length"),
-        (false, "async () => Object.entries(spec.paths).flatMap(([p, ops]) => Object.entries(ops).map(([m, op]) => m.toUpperCase() + ' ' + p + ' ' + op.summary))"),
-        (false, "async () => spec.paths['/api/v1/hosts'].post.requestBody.content['application/json'].schema.properties.tree"),
-        (false, "async () => JSON.stringify(spec.components.schemas.Host, null, 2)"),
-        (true, "async () => (await paduraksa.request({ method: 'GET', path: '/api/v1/hosts', query: { limit: 5 } })).body"),
-        (true, "async () => { const r = await Promise.all([paduraksa.request({ method: 'GET', path: '/api/v1/hosts/host_a' }), paduraksa.request({ method: 'GET', path: '/api/v1/hosts/host_b' })]); return r.map(x => x.status); }"),
-        (true, "async () => paduraksa.request({ method: 'POST', path: '/api/v1/hosts', body: { name: 'a' } })"),
-        (true, "async () => paduraksa.request({ method: 'POST', path: '/api/v1/hosts', body: { name: 'a' }, confirm: true })"),
-        (true, "async () => paduraksa.request({ method: 'PUT', path: '/api/v1/hosts/host_a', body: {}, ifMatch: '\"3\"', confirm: true })"),
-        (true, "async () => paduraksa.request({ method: 'DELETE', path: '/api/v1/hosts/host_a' })"),
-        (true, "async () => paduraksa.request({ method: 'POST', path: '/api/v1/certificates/cert_a/renew' })"),
-        (true, "async () => paduraksa.request({ method: 'POST', path: '/api/v1/simulate', body: { host: 'a' } })"),
-        (true, "async () => paduraksa.request({ method: 'GET', path: '/api/v1/tokens' })"),
-        (true, "async () => paduraksa.request({ method: 'GET', path: '/api/v1/logs/tail' })"),
-        (true, "async () => paduraksa.request({ method: 'GET', path: '/api/v1/hosts/../tokens' })"),
-        (true, "async () => paduraksa.request({ method: 'GET', path: '/API/V1/TOKENS' })"),
-        (true, "async () => paduraksa.request({ method: 'GET', path: '/api/v1/hosts?x=1#y', query: { dryRun: 'false' } })"),
-        (true, "async () => { for (let i = 0; i < 60; i++) { await paduraksa.request({ method: 'GET', path: '/api/v1/hosts' }); } }"),
-        (true, "async () => { paduraksa.request({ method: 'POST', path: '/api/v1/hosts', body: {}, confirm: true }); return 1; }"),
-        (true, "async () => paduraksa.request({ method: 'GET', path: '/api/v1/hosts', headers: { Authorization: 'x' } })"),
-        (true, "async () => paduraksa.request({ method: 'POST', path: '/api/v1/hosts', body: { a: 'x'.repeat(1e6) }, confirm: true })"),
-        (true, "async () => paduraksa.request.call(null, { method: 'GET', path: '/api/v1/hosts' })"),
-        (false, "async () => { for (;;) { } }"),
-        (false, "async () => { while (true) { let x = 1; } }"),
-        (false, "async () => { const f = () => f(); return f(); }"),
-        (false, "async () => { function f(n) { return f(n + 1) + 1; } return f(0); }"),
-        (false, "async () => new Array(1e9)"),
-        (false, "async () => 'x'.repeat(2 ** 29)"),
-        (false, "async () => { let s = 'x'; for (let i = 0; i < 40; i++) s += s; return s.length; }"),
-        (false, "async () => 'x'.padStart(1e9)"),
-        (false, "async () => 'x'.repeat(1e6).replaceAll('x', 'y'.repeat(1e3))"),
-        (false, "async () => new Array(50000).fill('x'.repeat(1000)).join('')"),
-        (false, "async () => { const a = []; for (let i = 0; i < 90000; i++) a.push({ k: 'v'.repeat(500) + i }); return a.length; }"),
-        (false, "async () => { var a = []; for (var i = 0; i < 90000; i++) a = [a]; return String(a); }"),
-        (false, "async () => { var a = []; for (var i = 0; i < 90000; i++) a = [a]; return JSON.stringify(a); }"),
-        (false, "async () => { var a = []; for (var i = 0; i < 90000; i++) a = [a]; return a; }"),
-        (false, "async () => { var o = {}; for (var i = 0; i < 40; i++) o = { a: o, b: o }; return o; }"),
-        (false, "async () => { var o = {}; for (var i = 0; i < 40; i++) o = { a: o, b: o }; return JSON.stringify(o); }"),
-        (false, "async () => { const f = () => Promise.resolve().then(f); f(); return 1; }"),
-        (false, "async () => { for (let i = 0; i < 1e6; i++) Promise.resolve(i).then(() => { }); return 1; }"),
-        (false, "async () => { await new Promise(() => { }); }"),
-        (false, "async () => /(a+)+$/.test('a'.repeat(40) + 'b')"),
-        (false, "async () => 'a'.repeat(100000).replace(/(.*)*x/, '')"),
-        (false, "async () => 1n << 1000000000n"),
-        (false, "async () => BigInt(5)"),
-        (false, "async () => [typeof require, typeof process, typeof fetch, typeof setTimeout, typeof console, typeof globalThis, typeof Proxy, typeof Intl, typeof ArrayBuffer].join()"),
-        (false, "async () => this.constructor.constructor('return process')()"),
-        (false, "async () => (function () { return this; })().constructor.constructor('return process')()"),
-        (false, "async () => Function('return process.env')()"),
-        (false, "async () => eval('process')"),
-        (false, "async () => Object.getPrototypeOf(async () => { }).constructor('return process')()"),
-        (false, "async () => Object.getOwnPropertyNames(globalThis)"),
-        (false, "async () => Reflect.ownKeys(globalThis).map(String)"),
-        (false, "async () => { const out = []; for (const k of Object.getOwnPropertyNames(globalThis)) { try { out.push(k + ':' + typeof globalThis[k]); } catch (e) { } } return out; }"),
-        (false, "async () => globalThis.constructor.name + Object.getPrototypeOf(globalThis).constructor.name"),
-        (false, "async () => JSON.stringify(Object.getOwnPropertyDescriptors(globalThis))"),
-        (false, "async () => { const e = new Error('x'); return String(e.stack); }"),
-        (false, "async () => { try { null.x; } catch (e) { return e.stack; } }"),
-        (false, "async () => { throw new Error(Object.keys(spec).join()); }"),
-        (false, "async () => ({ get x() { throw new Error('getter'); } })"),
-        (false, "async () => ({ toJSON() { return 1; } })"),
-        (false, "async () => ({ [Symbol.toPrimitive]() { return 'x'; } }) + ''"),
-        (false, "async () => [1, 2, 3].map(x => x * 2).sort((a, b) => b - a).join()"),
-        (false, "async () => Array.from({ length: 1e9 })"),
-        (false, "async () => 'abc'.localeCompare('abd') + new Date(0).toLocaleString() + (1234.5).toLocaleString()"),
-        (false, "async () => 0.1 + 0.2 + Math.max(...new Array(100000).fill(1))"),
-        (false, "async () => { const a = []; a.length = 4294967295; return a.sort().length; }"),
-        (false, "async () => { const m = new Map(); for (let i = 0; i < 1e5; i++) m.set(i, i); return m.size; }"),
-        (false, "async () => { let s = ''; for (let i = 0; i < 1e5; i++) s += 'abcdefghij'; return s.length; }"),
-        (false, "async () => JSON.parse('[' .repeat(10000) + ']'.repeat(10000))"),
-        (false, "async () => new Date(NaN)"),
-        (false, "async () => ({ e: new Error('x'), d: new Date(0), f() { }, u: undefined, s: Symbol('x'), n: NaN, i: Infinity })"),
-        (false, "async () => { const o = {}; o.self = o; return o; }"),
-        (false, "async () => { let x = ; }"),
-        (false, "async () => { return "),
-        (false, "\u0000￿\ud800 async () => 1"),
-        (false, "return 1"),
-        (false, "async () => { const s = 'a'.repeat(60000); return s.replace(/a/g, \"$'\").length; }"),
-        (false, "async () => { const s = 'a'.repeat(60000); return s.replace(/a/g, '$`').length; }"),
-        (false, "async () => 'a'.repeat(60000).replaceAll('a', \"$'\").length"),
-        (false, "async () => /a/g[Symbol.replace]('a'.repeat(60000), \"$'\").length"),
-        (false, "async () => RegExp.prototype[Symbol.replace].call(/a/g, 'a'.repeat(60000), '$`').length"),
-        (false, "async () => 'a-b'.replace('-', '$&$1$<n>$$').length"),
-        (false, "async () => { const big = 'y'.repeat(1e6); return 'a'.repeat(60000).replace(/a/g, () => big).length; }"),
-        (false, "async () => 'x'.repeat('10000000').length"),
-        (false, "async () => String.prototype.repeat.call(new String('x'), 5e6).length"),
-        (false, "async () => 'x'.padStart({ valueOf() { return 1e9; } }).length"),
-        (false, "async () => String.prototype.padEnd.call(new String('x'), '1e7').length"),
-        (false, "async () => ''.concat(...new Array(5000).fill('x'.repeat(1e6))).length"),
-        (false, "async () => { let n = 0; const o = { toString() { n++; return 'ab'; } }; return [String.prototype.repeat.call(o, '2'), n]; }"),
-        (false, "async () => { var f = function () { return 1; }; for (var i = 0; i < 90000; i++) f = f.bind(null); return f(); }"),
-        (false, "async () => { var f = function () { return 1; }; for (var i = 0; i < 90000; i++) f = f.bind(null); return new f(); }"),
-        (false, "async () => { var o = {}; for (var i = 0; i < 90000; i++) o = Object.create(o); return o.x; }"),
-        (false, "async () => { var a = []; for (var i = 0; i < 90000; i++) a = [a]; return a.flat(Infinity).length; }"),
-        (false, "async () => { for (let i = 0; i < 100; i++) { /(a+)+$/.test('a'.repeat(40) + 'b'); } }"),
-        (true, "async () => paduraksa.request({ method: 'POST', path: '/mcp', body: {}, confirm: true })"),
-        (true, "async () => { try { await paduraksa.request({ method: 'GET', path: '/api/v1/tokens' }); } catch (e) { return e.message; } }"),
-        (true, "async () => Object.getOwnPropertyNames(paduraksa).concat(Object.getOwnPropertyNames(paduraksa.request))"),
-        (true, "async () => { const p = paduraksa.request({ method: 'GET', path: '/api/v1/hosts' }); return [typeof p.then, await p]; }"),
+        ("result", Frame("""{"t":"result","rid":"fuzzrunid","ok":true,"value":"[1,2]","truncated":false}""")),
+        ("error", Frame("""{"t":"result","rid":"fuzzrunid","ok":false,"error":"TypeError: x (line 1, column 2)"}""")),
+        ("request-then-result", Concat(Frame("""{"t":"request","rid":"fuzzrunid","id":1,"options":"{\"method\":\"GET\",\"path\":\"/api/v1/hosts\"}"}"""), Frame("""{"t":"result","rid":"fuzzrunid","ok":true,"value":"1","truncated":false}"""))),
+        ("write-confirmed", Concat(Frame("""{"t":"request","rid":"fuzzrunid","id":1,"options":"{\"method\":\"POST\",\"path\":\"/api/v1/hosts\",\"body\":{},\"confirm\":true}"}"""), Frame("""{"t":"result","rid":"fuzzrunid","ok":true,"value":"1","truncated":false}"""))),
+        ("write-dry-run", Concat(Frame("""{"t":"request","rid":"fuzzrunid","id":1,"options":"{\"method\":\"POST\",\"path\":\"/api/v1/hosts\",\"body\":{}}"}"""), Frame("""{"t":"result","rid":"fuzzrunid","ok":true,"value":"1","truncated":false}"""))),
+        ("delete-no-confirm", Concat(Frame("""{"t":"request","rid":"fuzzrunid","id":1,"options":"{\"method\":\"DELETE\",\"path\":\"/api/v1/hosts/host_a\"}"}"""), Frame("""{"t":"result","rid":"fuzzrunid","ok":true,"value":"1","truncated":false}"""))),
+        ("refused", Concat(Frame("""{"t":"request","rid":"fuzzrunid","id":1,"options":"{\"method\":\"GET\",\"path\":\"/api/v1/tokens\"}"}"""), Frame("""{"t":"result","rid":"fuzzrunid","ok":true,"value":"1","truncated":false}"""))),
+        ("path-tricks", Concat(Frame("""{"t":"request","rid":"fuzzrunid","id":1,"options":"{\"method\":\"GET\",\"path\":\"/api/v1/hosts/../tokens\"}"}"""), Frame("""{"t":"request","rid":"fuzzrunid","id":2,"options":"{\"method\":\"GET\",\"path\":\"/API/V1/TOKENS\"}"}"""), Frame("""{"t":"request","rid":"fuzzrunid","id":3,"options":"{\"method\":\"POST\",\"path\":\"/mcp\",\"confirm\":true}"}"""))),
+        ("too-many-requests", Concat([.. Enumerable.Range(1, 12).Select(i => Frame($$"""{"t":"request","rid":"fuzzrunid","id":{{i}},"options":"{\"method\":\"GET\",\"path\":\"/api/v1/hosts\"}"}"""))])),
+        ("ids-out-of-order", Frame("""{"t":"request","rid":"fuzzrunid","id":9,"options":"{}"}""")),
+        ("bad-options", Concat(Frame("""{"t":"request","rid":"fuzzrunid","id":1,"options":"not json"}"""), Frame("""{"t":"request","rid":"fuzzrunid","id":2,"options":"{\"method\":1}"}"""))),
+        ("unknown-type", Frame("""{"t":"surprise"}""")),
+        ("not-json", Frame("this is not json")),
+        ("no-type", Frame("""{"x":1}""")),
+        ("oversized-length", [0x7f, 0xff, 0xff, 0xff, 1, 2, 3]),
+        ("zero-length", [0, 0, 0, 0]),
+        ("cut-frame", [0, 0, 0, 64, 123, 34, 116, 34]),
+        ("long-error", Frame("{\"t\":\"result\",\"rid\":\"fuzzrunid\",\"ok\":false,\"error\":\"" + new string('x', 3000) + "\\u0007\\n\"}")),
+        ("long-value", Frame("{\"t\":\"result\",\"rid\":\"fuzzrunid\",\"ok\":true,\"value\":\"" + new string('é', 60000) + "\",\"truncated\":true}")),
+        ("deep-json", Frame("{\"t\":\"result\",\"rid\":\"fuzzrunid\",\"ok\":true,\"value\":\"x\",\"z\":" + new string('[', 200) + new string(']', 200) + "}")),
+        ("empty", []),
+    ];
+
+    /// <summary>The scripts that were once dangerous in process, and ordinary ones: each ends as a result or as a fixed error, with the parent unharmed.</summary>
+    private static readonly string[] Scripts =
+    [
+        "async () => (await paduraksa.request({ method: 'GET', path: '/api/v1/hosts' })).status",
+        "async () => paduraksa.request({ method: 'POST', path: '/api/v1/hosts', body: {} })",
+        "async () => paduraksa.request({ method: 'DELETE', path: '/api/v1/hosts/host_a', confirm: true })",
+        "async () => paduraksa.request({ method: 'GET', path: '/api/v1/tokens' })",
+        "async () => { for (let i = 0; i < 30; i++) { await paduraksa.request({ method: 'GET', path: '/api/v1/hosts' }); } }",
+        "async () => { for (;;) { } }",
+        "async () => { const a = []; for (;;) a.push('x'.repeat(1e6) + a.length); }",
+        "async () => { function f() { return f() + 1; } return f(); }",
+        "async () => { const s = 'a'.repeat(60000); return s.replace(/a/g, \"$'\").length; }",
+        "async () => 'x'.repeat('1e9').length",
+        "async () => ''.concat(...new Array(90000).fill('x'.repeat(1e6))).length",
+        "async () => { var a = []; for (var i = 0; i < 90000; i++) a = [a]; return a.flat(Infinity).length; }",
+        "async () => { var a = []; for (var i = 0; i < 200000; i++) a = [a]; return JSON.stringify(a).length; }",
+        "async () => { var o = {}; for (var i = 0; i < 30; i++) o = { a: o, b: o }; return JSON.stringify(o).length; }",
+        "async () => { var f = function () { return 1; }; for (var i = 0; i < 200000; i++) f = f.bind(null); return f(); }",
+        "async () => 1n << 1000000000n",
+        "async () => /(a+)+$/.test('a'.repeat(60) + 'b')",
+        "async () => { const f = () => Promise.resolve().then(f); f(); return 1; }",
+        "async () => { await new Promise(() => { }); }",
+        "async () => { throw { a: 1 }; }",
+        "async () => { let x = ; }",
+        "async () => 'é€😀'.repeat(50000)",
+        "async () => Array.from({ length: 5000 }, (_, i) => 'row ' + i)",
     ];
 
     private sealed class RecordingDispatcher : IApiDispatcher
@@ -263,9 +289,7 @@ internal static class McpSandboxTarget
         public ValueTask<ApiReply> SendAsync(ApiCall request, CancellationToken cancellationToken)
         {
             Calls.Add(request);
-            return ValueTask.FromResult(request.Path.EndsWith("/hosts", StringComparison.Ordinal)
-                ? new ApiReply(200, "application/json", "[{\"id\":\"host_a\",\"name\":\"a\",\"tree\":{\"children\":[]}}]", "\"3\"")
-                : new ApiReply(200, "application/json", "{\"ok\":true}"));
+            return ValueTask.FromResult(new ApiReply(200, "application/json", "{\"ok\":true}", "\"3\""));
         }
     }
 }

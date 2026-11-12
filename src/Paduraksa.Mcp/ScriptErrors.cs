@@ -11,11 +11,11 @@ internal static partial class ScriptErrors
 {
     public static string Describe(Exception exception, SandboxLimits limits) => exception switch
     {
-        SandboxLimitException limit => limit.Message,
-        StatementsCountOverflowException => $"The script ran more than {limits.MaxStatements:N0} statements. Do less per call: filter before you loop.",
-        MemoryLimitExceededException => $"The script built an array of more than {limits.MaxArraySize:N0} elements. Build less data per call.",
-        RecursionDepthOverflowException => $"The script called functions more than {limits.MaxCallDepth} deep.",
+        StatementsCountOverflowException => $"The script ran more than {limits.EngineMaxStatements:N0} statements. Do less per call: filter before you loop.",
+        MemoryLimitExceededException => $"The script allocated more than {limits.EngineMemoryBytes / (1024 * 1024)} MiB. Build less data per call.",
+        RecursionDepthOverflowException => $"The script called functions more than {limits.EngineCallDepth} deep.",
         System.Text.RegularExpressions.RegexMatchTimeoutException => "A regular expression took too long to match; simplify it.",
+        InsufficientExecutionStackException => "The script nested too deeply.",
         JavaScriptException script => FromScript(script),
         PromiseRejectedException rejected => Describe(rejected.RejectedValue),
         ScriptPreparationException { InnerException: Acornima.SyntaxErrorException syntax } => $"SyntaxError: {syntax.Description} (line {syntax.LineNumber}, column {syntax.Column + 1})",
@@ -58,7 +58,7 @@ internal static partial class ScriptErrors
         return at.Success ? text[..at.Index] + $" (line {at.Groups[1].Value}, column {at.Groups[2].Value})" : text;
     }
 
-    /// <summary>A thrown value that is not an error, as the JSON the script would have returned for it.</summary>
+    /// <summary>A thrown value that is not an error, as the JSON it would be returned as.</summary>
     private static string Brief(JsValue value)
     {
         if (value.IsUndefined())
@@ -66,16 +66,20 @@ internal static partial class ScriptErrors
             return "undefined";
         }
 
-        CappedJson json = new(300, 6);
-        try
+        if (value.IsObject())
         {
-            json.Write(value);
-            return json.Text;
+            try
+            {
+                var engine = value.AsObject().Engine;
+                return engine.Call(engine.Evaluate("JSON.stringify"), JsValue.Undefined, [value]).ToString();
+            }
+            catch (Exception ex) when (ex is JavaScriptException or JintException)
+            {
+                return "[object]";
+            }
         }
-        catch (JsonBudgetExceededException)
-        {
-            return json.Prefix();
-        }
+
+        return value.IsString() ? "\"" + value.AsString() + "\"" : value.ToString();
     }
 
     private static string Clip(string text) => text.Length <= 200 ? text : text[..200] + "...";

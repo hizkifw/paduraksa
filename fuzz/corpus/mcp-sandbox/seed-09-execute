@@ -1,1 +1,0 @@
-async () => paduraksa.request({ method: 'DELETE', path: '/api/v1/hosts/host_a' })

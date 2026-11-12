@@ -482,12 +482,15 @@ internal sealed class PaduraksaMetricsOptions
 
 
 /// <summary>
-/// MCP (<c>Paduraksa:Mcp</c>, PLAN section 11.2). The tools run a model's JavaScript in a sandbox inside the proxy's own process, so the operator opts in.
+/// MCP (<c>Paduraksa:Mcp</c>, PLAN section 11.2). The tools run a model's JavaScript in a child process the server starts, bounds from outside and kills on a breach; the operator opts in.
 /// </summary>
 internal sealed class PaduraksaMcpOptions
 {
     /// <summary>Whether <c>/mcp</c> is mapped on the admin port (default false: it answers 404 and the dashboard says how to turn it on).</summary>
     public bool Enabled { get; set; }
+
+    /// <summary>How long a sandbox child waits without a run before it is despawned (default 10 min; 10 s to 24 h). The next call starts a new one.</summary>
+    public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromMinutes(10);
 }
 
 /// <summary>

@@ -1,1 +1,0 @@
-async () =>{ { let s = ''; for (let i = 0; i < 1e5; i++); return s.length; }

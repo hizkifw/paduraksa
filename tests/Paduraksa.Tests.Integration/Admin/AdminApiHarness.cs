@@ -6,6 +6,7 @@ using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Admin.Json;
+using Paduraksa.Admin.Mcp;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Api;
@@ -57,6 +58,8 @@ internal sealed class AdminApiHarness : IAsyncDisposable
             {
                 if (role == HostRole.Admin)
                 {
+                    // The test process is not the server binary: the sandbox children are started from the server project's own output.
+                    services.AddSingleton(new AdminMcpOptions(Paduraksa.Tests.Integration.Mcp.SandboxFixture.Command, TimeSpan.FromMinutes(10)));
                     adminServices?.Invoke(services);
                 }
             });

@@ -1,1 +1,0 @@
-async () => { try { await paduraksa.request({ method: 'GET', path: '/api/v1/tokens' }); } catch /e) { return e.message; } }

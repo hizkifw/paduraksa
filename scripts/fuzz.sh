@@ -66,8 +66,12 @@ bin="$out/bin"
 rm -rf "$bin"
 dotnet tool restore >/dev/null
 dotnet publish fuzz/Paduraksa.Fuzz -c Release -o "$bin" -nologo -v quiet
-# The MCP sandbox's interpreter and parser are instrumented too: the bugs that matter there are in Jint and Acornima, not in the glue.
-for assembly in Paduraksa.Proxy.dll Paduraksa.Core.dll Paduraksa.Application.dll Paduraksa.Contracts.dll YamlDotNet.dll Paduraksa.Mcp.dll Jint.dll Acornima.dll; do
+# The mcp-sandbox target's script inputs run on a real child, which must be a copy that is not instrumented (instrumented code needs libFuzzer's shared memory).
+rm -rf "$out/child"
+dotnet publish fuzz/Paduraksa.Fuzz -c Release -o "$out/child" -nologo -v quiet
+export PADURAKSA_FUZZ_CHILD="$out/child/Paduraksa.Fuzz.dll"
+# The MCP sandbox's parent side (frames, request bridge, policy) is instrumented; the child runs from an uninstrumented copy.
+for assembly in Paduraksa.Proxy.dll Paduraksa.Core.dll Paduraksa.Application.dll Paduraksa.Contracts.dll YamlDotNet.dll Paduraksa.Mcp.dll; do
     dotnet sharpfuzz "$bin/$assembly" >/dev/null
 done
 

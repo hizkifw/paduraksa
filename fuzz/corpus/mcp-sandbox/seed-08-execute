@@ -1,1 +1,0 @@
-async () => paduraksa.request({ method: 'PUT', path: '/api/v1/hosts/host_a', body: {}, ifMatch: '"3"', confirm: true })

@@ -1,4 +1,5 @@
 using Paduraksa.Fuzz;
+using Paduraksa.Mcp;
 
 using SharpFuzz;
 
@@ -28,6 +29,9 @@ static int Run(string[] args)
             }
 
             return failures.Count == 0 ? 0 : 1;
+        case SandboxChildCommand.Subcommand:
+            // The MCP sandbox's child (a script input of the mcp-sandbox target starts this assembly as one).
+            return SandboxChild.Run(Console.OpenStandardInput(), Console.OpenStandardOutput());
         case "seed":
             Console.WriteLine($"{Corpus.WriteSeeds(Corpus.FuzzRoot())} seed inputs written");
             return 0;

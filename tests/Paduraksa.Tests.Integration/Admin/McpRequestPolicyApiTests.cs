@@ -137,7 +137,7 @@ public sealed class McpRequestPolicyApiTests(SharedAdminApi shared) : IClassFixt
     [Fact]
     public async Task TheApiDescriptionBuildsIntoAFiniteSpecThatSearchCanWalk()
     {
-        var tools = CodeModeTools.Create(await SpecAsync());
+        await using var tools = CodeModeTools.Create(await SpecAsync(), Paduraksa.Tests.Integration.Mcp.SandboxFixture.Command, TimeSpan.FromMinutes(1));
         var outcome = await tools.SearchAsync(
             "async () => { const seen = new Set(); let refs = 0; const walk = (x) => { if (x === null || typeof x !== 'object' || seen.has(x)) return; seen.add(x); if ('$ref' in x) refs++; for (const k in x) walk(x[k]); }; walk(spec); return { nodes: seen.size, refs, paths: Object.keys(spec.paths).length }; }",
             Ct);

@@ -16,6 +16,7 @@
     <ProjectReference Include="../Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <ProjectReference Include="../Paduraksa.Vault/Paduraksa.Vault.csproj" />
     <ProjectReference Include="../Paduraksa.Admin/Paduraksa.Admin.csproj" />
+    <ProjectReference Include="../Paduraksa.Mcp/Paduraksa.Mcp.csproj" />
     <ProjectReference Include="../Paduraksa.Dashboard/Paduraksa.Dashboard.csproj" />
   </ItemGroup>
   <ItemGroup>

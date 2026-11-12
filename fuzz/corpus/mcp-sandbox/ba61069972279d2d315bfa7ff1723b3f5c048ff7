@@ -1,1 +1,0 @@
-async () => paduraksa.request({ method: 'GET:', path: '/api/v1/tokens' })

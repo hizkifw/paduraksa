@@ -16,7 +16,8 @@ namespace Paduraksa.Admin.Mcp;
 /// The two tools of the MCP endpoint over the transport (PLAN §11.2): lists them, and runs a call as the caller authentication set on the request.
 /// A failure of any kind is a tool result with <c>isError</c>, never an exception into the MCP host.
 /// </summary>
-internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipeline pipeline, IServiceScopeFactory scopes, IHttpContextAccessor accessor, ILogger<McpToolkit> logger)
+internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipeline pipeline, IServiceScopeFactory scopes, IHttpContextAccessor accessor, ILogger<McpToolkit> logger, AdminMcpOptions options)
+    : IAsyncDisposable
 {
     private static readonly JsonElement CodeSchema = JsonDocument.Parse(
         $$$"""{"type":"object","properties":{"code":{"type":"string","description":"{{{ToolDescriptions.CodeDescription}}}"}},"required":["code"],"additionalProperties":false}""").RootElement.Clone();
@@ -119,12 +120,27 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
     private async Task<CodeModeTools> BuildAsync()
     {
         var openApi = await document.GetAsync(CancellationToken.None).ConfigureAwait(false);
-        return CodeModeTools.Create(openApi, unexpected: ex => LogSandboxFailed(logger, ex));
+        return CodeModeTools.Create(openApi, options.ChildCommand, options.IdleTimeout, log: message => LogSandbox(logger, message));
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The MCP tool {Tool} failed.")]
     private static partial void LogToolFailed(ILogger logger, Exception exception, string? tool);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "The MCP sandbox failed on a script (the caller was told only that it failed).")]
-    private static partial void LogSandboxFailed(ILogger logger, Exception exception);
+    [LoggerMessage(Level = LogLevel.Information, Message = "MCP sandbox: {Event}")]
+    private static partial void LogSandbox(ILogger logger, string @event);
+
+    /// <summary>Stopping the app kills every child: none outlives the server.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        Task<CodeModeTools>? tools;
+        lock (_gate)
+        {
+            tools = _tools;
+        }
+
+        if (tools is { IsCompletedSuccessfully: true })
+        {
+            await tools.Result.DisposeAsync().ConfigureAwait(false);
+        }
+    }
 }

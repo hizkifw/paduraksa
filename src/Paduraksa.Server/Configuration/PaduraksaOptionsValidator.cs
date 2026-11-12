@@ -110,6 +110,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         ValidateLogs(options.Logs, failures);
         ValidateMetrics(options.Metrics, failures);
         ValidateNotifications(options.Notifications, failures);
+        ValidateMcp(options.Mcp, failures);
         ValidateAccessLog(options, failures);
 
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
@@ -348,6 +349,15 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         Bound(metrics.Retention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:Retention", failures);
         Bound(metrics.WriteInterval, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:WriteInterval", failures);
+    }
+
+    private static void ValidateMcp(PaduraksaMcpOptions? mcp, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":Mcp";
+        if (mcp is not null && (mcp.IdleTimeout < TimeSpan.FromSeconds(10) || mcp.IdleTimeout > TimeSpan.FromHours(24)))
+        {
+            failures.Add($"{Key}:IdleTimeout must be between 10 seconds and 24 hours.");
+        }
     }
 
     private static void ValidateNotifications(PaduraksaNotificationOptions? notifications, List<string> failures)

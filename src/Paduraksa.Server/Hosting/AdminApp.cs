@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Paduraksa.Admin;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Identity;
+using Paduraksa.Admin.Mcp;
 using Paduraksa.Admin.Web;
 using Paduraksa.Application.Commands;
 using Paduraksa.Core.Hosting;
@@ -123,7 +124,9 @@ internal static partial class AdminApp
         builder.Services.AddSingleton(sources);
         builder.Services.AddPaduraksaAdminAuth(
             context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
-        builder.Services.AddPaduraksaAdminApi(context.Options.Mcp.Enabled);
+        builder.Services.AddPaduraksaAdminApi(context.Options.Mcp.Enabled
+            ? new AdminMcpOptions(Paduraksa.Mcp.SandboxChildCommand.ForThisServer(), context.Options.Mcp.IdleTimeout)
+            : null);
         builder.Services.AddPaduraksaAdminWeb(DashboardWeb);
         builder.Services.AddPaduraksaDashboard(new DashboardOptions
         {

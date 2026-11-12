@@ -53,7 +53,7 @@ public static class SolutionLayers
         [Layer.Server] =
         [
             Layer.Core, Layer.Contracts, Layer.Storage, Layer.Data, Layer.Vault, Layer.Acme, Layer.Notifications,
-            Layer.Proxy, Layer.Application, Layer.Admin, Layer.Dashboard,
+            Layer.Proxy, Layer.Application, Layer.Admin, Layer.Dashboard, Layer.Mcp,
         ],
     };
 

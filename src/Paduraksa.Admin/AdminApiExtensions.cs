@@ -14,18 +14,18 @@ public static class AdminApiExtensions
 {
     /// <summary>
     /// Registers what the API needs: the typed-ID route constraints, the JSON contract (inserted first in the host's resolver chain, so
-    /// it composes with other contexts) and the OpenAPI generator, and, with <paramref name="mcpEnabled"/>, the MCP server (off unless the operator opts in, PLAN §11.2). Add <see cref="UsePaduraksaAdminApi"/> as the first middleware. The services the endpoints call (config, certificates, issuance, simulator,
+    /// it composes with other contexts) and the OpenAPI generator, and, with <paramref name="mcp"/>, the MCP server (off unless the operator opts in, PLAN §11.2). Add <see cref="UsePaduraksaAdminApi"/> as the first middleware. The services the endpoints call (config, certificates, issuance, simulator,
     /// history, vault secrets) come from the host.
     /// </summary>
-    public static IServiceCollection AddPaduraksaAdminApi(this IServiceCollection services, bool mcpEnabled = false)
+    public static IServiceCollection AddPaduraksaAdminApi(this IServiceCollection services, AdminMcpOptions? mcp = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.Configure<RouteOptions>(TypedIdRouting.Register);
         services.ConfigureHttpJsonOptions(options => AdminJsonContext.AddTo(options.SerializerOptions));
         AdminOpenApi.AddServices(services);
-        if (mcpEnabled)
+        if (mcp is not null)
         {
-            services.AddPaduraksaAdminMcp();
+            services.AddPaduraksaAdminMcp(mcp);
         }
 
         return services;

@@ -1,1 +1,0 @@
-async () => { const p = paduraksa.request({ method: 'GET', path: '/api/v0/hosts' }); return [typeof p.then, await!p]; }

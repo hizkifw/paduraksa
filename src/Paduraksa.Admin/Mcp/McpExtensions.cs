@@ -8,6 +8,9 @@ using Paduraksa.Admin.Auth;
 
 namespace Paduraksa.Admin.Mcp;
 
+/// <summary>How the admin app runs the MCP sandbox (<c>Paduraksa:Mcp</c>): the child process to start and how long an idle one lives.</summary>
+public sealed record AdminMcpOptions(Paduraksa.Mcp.SandboxChildCommand ChildCommand, TimeSpan IdleTimeout);
+
 /// <summary>The MCP endpoint (<c>/mcp</c>, streamable HTTP, PLAN §11.2): two tools, <c>search</c> and <c>execute</c>, that run the model's JavaScript in a sandbox.</summary>
 public static class McpExtensions
 {
@@ -20,9 +23,11 @@ public static class McpExtensions
     private const int MaxMessageBytes = 192 * 1024;
 
     /// <summary>Registers the MCP server and what dispatches a script's requests. Stateless: every request is authenticated and answered on its own.</summary>
-    public static IServiceCollection AddPaduraksaAdminMcp(this IServiceCollection services)
+    public static IServiceCollection AddPaduraksaAdminMcp(this IServiceCollection services, AdminMcpOptions options)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        services.AddSingleton(options);
         services.AddHttpContextAccessor();
         services.AddSingleton<McpPipeline>();
         services.AddSingleton<McpToolkit>();

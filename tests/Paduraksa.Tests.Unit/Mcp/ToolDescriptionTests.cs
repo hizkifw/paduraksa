@@ -9,19 +9,19 @@ public sealed class ToolDescriptionTests
     {
         var limits = new SandboxLimits
         {
-            ScriptTime = TimeSpan.FromSeconds(2),
+            CpuTime = TimeSpan.FromSeconds(2),
+            ScriptTime = TimeSpan.FromSeconds(3),
             TotalTime = TimeSpan.FromSeconds(12),
-            MaxStatements = 1234,
-            MaxAllocatedBytes = 8L * 1024 * 1024,
+            ChildHeapBytes = 8L * 1024 * 1024,
             MaxRequests = 7,
             MaxOutputBytes = 16 * 1024,
         };
 
         foreach (var text in new[] { ToolDescriptions.Search(limits), ToolDescriptions.Execute(limits) })
         {
-            Assert.Contains("2 s of script time", text, StringComparison.Ordinal);
-            Assert.Contains("1,234 statements", text, StringComparison.Ordinal);
-            Assert.Contains("8 MiB allocated", text, StringComparison.Ordinal);
+            Assert.Contains("2 s of CPU", text, StringComparison.Ordinal);
+            Assert.Contains("3 s on the clock", text, StringComparison.Ordinal);
+            Assert.Contains("8 MiB of memory", text, StringComparison.Ordinal);
             Assert.Contains("16 KiB", text, StringComparison.Ordinal);
             Assert.Contains("Example: async () =>", text, StringComparison.Ordinal);
             Assert.InRange(text.Length, 700, 2600);
@@ -45,5 +45,6 @@ public sealed class ToolDescriptionTests
         Assert.Contains("`spec`", search, StringComparison.Ordinal);
         Assert.Contains("x-required-permission", search, StringComparison.Ordinal);
         Assert.Contains("x-recursive-ref", search, StringComparison.Ordinal);
+        Assert.Contains("is stopped", search, StringComparison.Ordinal);
     }
 }

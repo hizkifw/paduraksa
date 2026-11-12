@@ -1,1 +1,0 @@
-async () => (await paduraksa.request({ method: 'G=osts', query: { limit: 5 } })).body

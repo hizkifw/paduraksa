@@ -1,1 +1,0 @@
-async () => !(await paduraksa.r*e%uest({ metjod: 'GEi/v1/hosts', query: { limit: 5 } })).body

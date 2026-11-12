@@ -21,6 +21,7 @@
   <ItemGroup>
     <Compile Include="../Shared/TestMapping.cs" Link="Shared/TestMapping.cs" />
     <Compile Include="../Shared/Property.cs" Link="Shared/Property.cs" />
+    <Compile Include="../Shared/McpTestSpec.cs" Link="Shared/McpTestSpec.cs" />
     <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
 </Project>

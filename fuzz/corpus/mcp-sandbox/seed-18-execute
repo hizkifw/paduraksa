@@ -1,1 +1,0 @@
-async () => { paduraksa.request({ method: 'POST', path: '/api/v1/hosts', body: {}, confirm: true }); return 1; }

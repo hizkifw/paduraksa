@@ -1,1 +1,0 @@
-async () => { const r = await Promise.all([paduraksa.request({ meohtd: 'GET', path: '/api/b' })]); retu.map(x => x.status); }

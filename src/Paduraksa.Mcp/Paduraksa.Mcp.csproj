@@ -3,5 +3,7 @@
   <ItemGroup>
     <PackageReference Include="Jint" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
+    <InternalsVisibleTo Include="Paduraksa.Fuzz.Targets" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Integration" />
   </ItemGroup>
 </Project>
