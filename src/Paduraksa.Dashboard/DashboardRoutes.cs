@@ -36,6 +36,9 @@ public static class DashboardRoutes
 
     public const string LocalCa = Certificates + "/local-ca";
 
+    /// <summary>The admin app's MCP endpoint (not a page): shown on the API tokens page for a client to connect to. The admin app owns the path; a test holds the two equal.</summary>
+    public const string Mcp = "/mcp";
+
     public const string AcmeAccounts = Certificates + "/acme";
 
     public const string DnsProviders = Certificates + "/dns";

@@ -1,0 +1,81 @@
+@inject NavigationManager Navigation
+@inject DashboardBrowser Browser
+@inject ISnackbar Snackbar
+@inject DashboardOptions Options
+@* How to point an AI assistant at the MCP endpoint (PLAN §11.2). The snippets carry <token>, never a secret: the page does not hold one. *@
+@if (!Options.McpEnabled)
+{
+    <MudPaper Class="pdk-card pdk-mcp" Elevation="0" Outlined="true" data-section="mcp-off">
+        <div class="pdk-mcp-summary">
+            <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
+            <span class="pdk-list-title">MCP is off</span>
+            <MudText Typo="Typo.body2" Class="pdk-muted">Set <code>Paduraksa__Mcp__Enabled=true</code> and restart to let AI assistants connect (it runs their code inside this process; see install.md).</MudText>
+        </div>
+    </MudPaper>
+    return;
+}
+
+<MudPaper Class="pdk-card pdk-mcp" Elevation="0" Outlined="true" data-section="mcp">
+    <details class="pdk-mcp-details">
+        <summary class="pdk-mcp-summary">
+            <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
+            <span class="pdk-list-title">Connect an AI assistant</span>
+            <span class="pdk-mono pdk-muted pdk-mcp-url" data-field="mcp-url">@Endpoint</span>
+            <MudIcon Icon="@Icons.Material.Rounded.ExpandMore" Size="Size.Small" Class="pdk-mcp-chevron" />
+        </summary>
+        <div class="pdk-mcp-body">
+            @foreach (var (key, label, text) in Snippets)
+            {
+                <div class="pdk-secret" data-snippet="@key">
+                    <span class="pdk-secret-label">@label</span>
+                    <div class="pdk-secret-row">
+                        <pre class="pdk-code" tabindex="0" aria-label="@label">@text</pre>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="pdk-secret-copy" data-action="@($"copy-{key}")"
+                                   StartIcon="@(_copied == key ? Icons.Material.Rounded.Check : Icons.Material.Outlined.ContentCopy)" OnClick="() => CopyAsync(key, text)">@(_copied == key ? "Copied" : "Copy")</MudButton>
+                    </div>
+                </div>
+            }
+            <MudText Typo="Typo.body2" Class="pdk-muted" data-field="mcp-note">
+                Give it a token that can only read: with one it can look at everything its scopes allow and change nothing. A change it does make is a dry run first, then a second request that confirms it, and shows as MCP in
+                <MudLink Href="@DashboardRoutes.History">History</MudLink> and <MudLink Href="@DashboardRoutes.Audit">Audit</MudLink>.
+                The admin certificate is signed by Paduraksa's own CA: trust its <MudLink Href="@DashboardRoutes.LocalCa">root</MudLink> where the client runs (Node clients read <code>NODE_EXTRA_CA_CERTS</code>).
+            </MudText>
+        </div>
+    </details>
+</MudPaper>
+
+@code {
+    private string? _copied;
+
+    private string Endpoint => Navigation.ToAbsoluteUri(DashboardRoutes.Mcp).ToString();
+
+    private IEnumerable<(string Key, string Label, string Text)> Snippets =>
+    [
+        ("claude-code", "Claude Code", $"claude mcp add --transport http paduraksa {Endpoint} --header \"Authorization: Bearer <token>\""),
+        ("claude-desktop", "Claude Desktop", ClaudeDesktop(Endpoint)),
+    ];
+
+    private static string ClaudeDesktop(string endpoint) => $$"""
+        {
+          "mcpServers": {
+            "paduraksa": {
+              "command": "npx",
+              "args": ["-y", "mcp-remote", "{{endpoint}}", "--header", "Authorization:${PADURAKSA_TOKEN}"],
+              "env": { "PADURAKSA_TOKEN": "Bearer <token>" }
+            }
+          }
+        }
+        """;
+
+    private async Task CopyAsync(string key, string text)
+    {
+        if (await Browser.CopyAsync(text))
+        {
+            _copied = key;
+        }
+        else
+        {
+            Snackbar.Add("The browser didn't allow copying. Select the text and copy it yourself.", Severity.Warning);
+        }
+    }
+}

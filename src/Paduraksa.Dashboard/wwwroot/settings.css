@@ -67,6 +67,76 @@
     line-height: 1.9;
 }
 
+/* ---------- MCP connection (API tokens page) ---------- */
+
+.pdk-mcp.mud-paper {
+    margin-bottom: 16px;
+    padding: 0;
+}
+
+.pdk-mcp-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 20px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.pdk-mcp-chevron {
+    transition: transform 0.15s ease;
+}
+
+.pdk-mcp-details[open] .pdk-mcp-chevron {
+    transform: rotate(180deg);
+}
+
+.pdk-mcp-summary::-webkit-details-marker {
+    display: none;
+}
+
+.pdk-mcp-summary:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: -2px;
+    border-radius: var(--pdk-radius);
+}
+
+.pdk-mcp-url {
+    min-width: 0;
+    margin-inline-start: auto;
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-mcp-body {
+    display: grid;
+    gap: 14px;
+    padding: 0 20px 20px;
+}
+
+.pdk-code {
+    flex: 1 1 260px;
+    min-width: 0;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    background: var(--mud-palette-background-gray);
+    color: var(--mud-palette-text-primary);
+    font-family: var(--pdk-mono);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.pdk-code:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
 .pdk-once {
     display: flex;
     align-items: flex-start;

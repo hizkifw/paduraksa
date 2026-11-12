@@ -10,6 +10,7 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Pages;
 
@@ -21,6 +22,43 @@ namespace Paduraksa.Tests.Dashboard.Components;
 /// </summary>
 public sealed class SettingsPagesTests
 {
+    [Fact]
+    public async Task TheTokensPageShowsTheMcpEndpointAndSnippetsThatCarryAPlaceholderNeverASecret()
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddSingleton(new DashboardOptions { MinPasswordLength = 12, McpEnabled = true });
+        IdentityPages.SignIn(context, Role.Admin);
+        context.Render<MudPopoverProvider>();
+        var page = context.Render<ApiTokens>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-section=mcp]").Count == 1);
+
+        var endpoint = new Uri(context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().BaseUri + "mcp").ToString();
+        Assert.Equal(endpoint, page.Find("[data-field=mcp-url]").TextContent);
+        var code = page.Find("[data-snippet=claude-code] pre").TextContent;
+        Assert.Equal($"claude mcp add --transport http paduraksa {endpoint} --header \"Authorization: Bearer <token>\"", code);
+        var desktop = page.Find("[data-snippet=claude-desktop] pre").TextContent;
+        Assert.Contains(endpoint, desktop, StringComparison.Ordinal);
+        Assert.Contains("\"PADURAKSA_TOKEN\": \"Bearer <token>\"", desktop, StringComparison.Ordinal);
+        Assert.DoesNotContain("pdk_", page.Find("[data-section=mcp]").TextContent, StringComparison.Ordinal);
+
+        var note = page.Find("[data-field=mcp-note]");
+        Assert.Contains("can only read", note.TextContent, StringComparison.Ordinal);
+        Assert.Contains("everything its scopes allow", note.TextContent, StringComparison.Ordinal);
+        Assert.Contains(note.QuerySelectorAll("a").Select(a => a.GetAttribute("href")), href => href == DashboardRoutes.LocalCa);
+    }
+
+    [Fact]
+    public async Task WhileMcpIsOffTheTokensPageSaysHowToTurnItOnInsteadOfShowingSnippets()
+    {
+        await using DashboardTestContext context = new();
+        IdentityPages.SignIn(context, Role.Admin);
+        context.Render<MudPopoverProvider>();
+        var page = context.Render<ApiTokens>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-section=mcp-off]").Count == 1);
+        Assert.Empty(page.FindAll("[data-section=mcp]"));
+        Assert.Contains("Paduraksa__Mcp__Enabled=true", page.Find("[data-section=mcp-off]").TextContent, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ANewToken_ShowsItsSecretOnce_InItsDrawer_AndForgetsItWhenTheDrawerCloses()
     {

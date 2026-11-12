@@ -46,6 +46,9 @@ public sealed class McpEndpointTests(SharedAdminApi shared) : IClassFixture<Shar
     }
 
     [Fact]
+    public void TheDashboardShowsTheSamePathTheAdminAppServes() => Assert.Equal(Paduraksa.Admin.Mcp.McpExtensions.Path, Paduraksa.Dashboard.DashboardRoutes.Mcp);
+
+    [Fact]
     public async Task SearchReadsTheApiDescriptionWithCode()
     {
         await using var client = await McpTestClient.ConnectAsync(shared.Api, "viewer", cancellationToken: Ct);
