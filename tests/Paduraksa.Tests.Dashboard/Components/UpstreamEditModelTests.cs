@@ -77,6 +77,39 @@ public sealed class UpstreamEditModelTests
         Assert.Equal("nas.internal", model.ToConfig().HostHeader!.Value);
     }
 
+    [Fact]
+    public void BlankTimeoutsAreTheDefaultsAndStayOutOfTheDocument()
+    {
+        Assert.Null(UpstreamEditModel.From(Nas).ToConfig().Timeouts);
+        Assert.Null(UpstreamEditModel.From(Nas with { Timeouts = new UpstreamTimeoutsConfig() }).ToConfig().Timeouts);
+    }
+
+    [Theory]
+    [InlineData(0.1, 3600.0)]
+    [InlineData(2.5, 0.0)]
+    [InlineData(null, 90.0)]
+    [InlineData(30.0, null)]
+    public void TimeoutsRoundTripInSecondsWithoutChangingWhatWasStored(double? connect, double? idle)
+    {
+        UpstreamTimeoutsConfig stored = new(connect is { } c ? TimeSpan.FromSeconds(c) : null, idle is { } i ? TimeSpan.FromSeconds(i) : null);
+
+        var model = UpstreamEditModel.From(Nas with { Timeouts = stored });
+
+        Assert.Equal(connect, model.ConnectTimeoutSeconds);
+        Assert.Equal(idle, model.IdleTimeoutSeconds);
+        Assert.Equal(stored, model.ToConfig().Timeouts);
+    }
+
+    [Fact]
+    public void ClearingOneTimeoutKeepsTheOther()
+    {
+        var model = UpstreamEditModel.From(Nas with { Timeouts = new UpstreamTimeoutsConfig(TimeSpan.FromSeconds(3), TimeSpan.Zero) });
+
+        model.ConnectTimeoutSeconds = null;
+
+        Assert.Equal(new UpstreamTimeoutsConfig(null, TimeSpan.Zero), model.ToConfig().Timeouts);
+    }
+
     [Theory]
     [InlineData(UpstreamHostHeaderMode.Original, null, new[] { null, "app.example.com" })]
     [InlineData(UpstreamHostHeaderMode.Destination, null, new string?[] { null })]

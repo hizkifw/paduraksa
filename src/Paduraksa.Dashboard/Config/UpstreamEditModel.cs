@@ -48,6 +48,12 @@ public sealed class UpstreamEditModel
 
     public int? MaxConnectionsPerServer { get; set; }
 
+    /// <summary>Seconds, fractions kept (an API-set 500 ms must survive an edit that doesn't touch it); null: the default.</summary>
+    public double? ConnectTimeoutSeconds { get; set; }
+
+    /// <summary>Seconds; 0 is never; null: the default.</summary>
+    public double? IdleTimeoutSeconds { get; set; }
+
     public UpstreamTlsTrust TlsTrust { get; set; }
 
     /// <summary>One fingerprint per line, as pasted.</summary>
@@ -95,6 +101,8 @@ public sealed class UpstreamEditModel
         model.HealthIntervalSeconds = (int)(upstream.ActiveHealth?.Interval ?? ActiveHealthConfig.DefaultInterval).TotalSeconds;
         model.HealthTimeoutSeconds = (int)(upstream.ActiveHealth?.Timeout ?? ActiveHealthConfig.DefaultTimeout).TotalSeconds;
         model.MaxConnectionsPerServer = upstream.MaxConnectionsPerServer;
+        model.ConnectTimeoutSeconds = upstream.Timeouts?.Connect?.TotalSeconds;
+        model.IdleTimeoutSeconds = upstream.Timeouts?.Idle?.TotalSeconds;
         model.TlsTrust = upstream.Tls?.Trust ?? UpstreamTlsTrust.System;
         model.PinnedSha256 = string.Join('\n', upstream.Tls?.PinnedSha256 ?? []);
         model.HostHeaderMode = upstream.HostHeader?.Mode ?? UpstreamHostHeaderMode.Original;
@@ -124,7 +132,15 @@ public sealed class UpstreamEditModel
         MaxConnectionsPerServer,
         string.IsNullOrWhiteSpace(Notes) ? null : Notes,
         TlsConfig(),
-        HostHeaderConfig());
+        HostHeaderConfig(),
+        TimeoutsConfig());
+
+    // Both blank is the default, so it stays out of the document.
+    private UpstreamTimeoutsConfig? TimeoutsConfig() => ConnectTimeoutSeconds is null && IdleTimeoutSeconds is null
+        ? null
+        : new UpstreamTimeoutsConfig(
+            ConnectTimeoutSeconds is { } connect ? TimeSpan.FromSeconds(connect) : null,
+            IdleTimeoutSeconds is { } idle ? TimeSpan.FromSeconds(idle) : null);
 
     // The client's own Host is the default, so it stays out of the document.
     private UpstreamHostHeaderConfig? HostHeaderConfig() => HostHeaderMode switch
