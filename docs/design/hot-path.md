@@ -8,6 +8,7 @@ Contents:
 - [Response headers](#response-headers-built-in-m6)
 - [The connection stage](#the-connection-stage)
 - [The listeners' limits](#the-listeners-limits)
+- [Upstream timeouts](#upstream-timeouts)
 - [HTTP/3 strategy](#http3-strategy)
 - [Request simulator](#request-simulator-why-was-this-blocked)
 
@@ -326,7 +327,51 @@ Bench (`bench/run-baseline.sh`, Paduraksa only, two quiet runs each of this bran
 
 - HTTP/3 has no counterpart. Kestrel's stable API has no stream limit for it (the QUIC transport's is a preview API), so a QUIC connection keeps the transport's default of 100.
 - The rate limits are more forgiving than Kestrel's (a longer grace) because a person on a poor mobile link is the slow client worth keeping. The headers timeout is stricter because headers are tiny.
-- **Long-lived connections.** Kestrel stops enforcing the request-body rate on an upgraded connection, and times the response rate only while a write waits for the client. An idle WebSocket or an event stream is therefore not cut. `ServerLimitsKestrelTests` runs both with rates and graces far stricter than any default, together with a slowloris (headers never finished: 408), a byte-by-byte header dribble and a slow upload (both cut).
+- **Long-lived connections.** Kestrel stops enforcing the request-body rate on an upgraded connection, and times the response rate only while a write waits for the client. An idle WebSocket or an event stream is therefore not cut by Kestrel (the upstream's idle timeout is a different limit; see [Upstream timeouts](#upstream-timeouts)). `ServerLimitsKestrelTests` runs both with rates and graces far stricter than any default, together with a slowloris (headers never finished: 408), a byte-by-byte header dribble and a slow upload (both cut).
+
+## Upstream timeouts
+
+Built in the upstream-timeouts branch. The listeners' limits above judge the client; these judge the upstream, and each upstream has its own.
+
+**The bug it fixed.** Nothing set YARP's `ForwarderRequestConfig.ActivityTimeout` for a public cluster, so YARP's default of **100 s with no data in either direction** applied. It applies to an upgraded connection and to a streamed response too, so a Home Assistant dashboard, a chat app or an event stream with a quiet gap over 100 s was cut by the proxy. `ServerLimitsKestrelTests` could not see it: it only proves Kestrel's limits leave an idle stream alone. The connect timeout was also a fixed 10 s for every upstream.
+
+**The setting.** `UpstreamConfig.Timeouts` is `{connect, idle}`, optional, and each value falls back to its default on its own. Canonical JSON writes no block when both are unset, so stored revisions keep their bytes.
+
+| | Default | Range | Means |
+|---|---|---|---|
+| `connect` | 10 s (as before) | 100 ms to 5 min | TCP connect and TLS handshake to a destination. |
+| `idle` | 1 hour | 1 s to 24 h; `00:00:00` = never | No data in either direction on a request, a response stream or an upgraded connection, YARP's activity timeout. Any data in either direction, and the arrival of the response headers, starts it again. |
+
+Validator codes: `upstream.timeouts.connect.invalid` and `upstream.timeouts.idle.invalid`. The compiler checks the same ranges as a backstop.
+
+**The default idle timeout is 1 hour.** Decided:
+- **A quiet connection that is still wanted must not be cut.** The cut is a surprise to the person, since nothing on the page says why a terminal or a dashboard stopped. Apps that care ping every few seconds to a few minutes (Home Assistant, socket.io, ActionCable, ttyd, Jupyter), and a ping is data, so it resets the timer. What reaches the timeout is a connection with no heartbeat at all: a session someone left open, or a peer that vanished without a FIN.
+- **An hour is the cost of that choice.** A vanished peer holds one of the 2 000 upgrade slots (`MaxUpgradedConnections`) and some memory for up to an hour, until a write fails or the timer fires. Shorter would cut the idle terminal during a meeting; "never" would leave the dead peer to TCP alone. An operator who knows their traffic sets it per upstream.
+- **A request nobody answers also waits an hour.** One timeout covers a request, a stream and a tunnel, so the old 100 s that protected a stuck request is gone with the one that cut a WebSocket. A browser gives up on its own long before, and what the proxy holds meanwhile is one request. A time to first byte would separate the two; see "Left out".
+- **What others do.** nginx's `proxy_read_timeout` is 60 s between two reads, and it is the famous cut of idle WebSockets (the fix is a longer value or pings from the app). Caddy's `reverse_proxy` has no idle limit on a stream by default (`stream_timeout` is opt-in). Traefik has none on a response either (`forwardingTimeouts.responseHeaderTimeout` is 0, and its 180 s entry point `idleTimeout` is for keep-alive connections between requests); its dial timeout is 30 s. Paduraksa sits between: bounded, but long enough to cost nobody a live session.
+
+**Where it applies, at 0 B per request.**
+- The compiler gives every public cluster a `ForwarderRequestConfig` with `ActivityTimeout` set, the default included (leaving it out is the bug). `00:00:00` compiles to `Timeout.InfiniteTimeSpan`, which YARP accepts. The forwarder reads the cluster's config it already holds, so nothing is added to a request.
+- The connect timeout is a property of the HTTP client and `HttpClientConfig` has no field for it. A value other than the default rides in the cluster's metadata (`paduraksa.connect-timeout-ms`, beside the pins and the custom Host name), and `PaduraksaForwarderHttpClientFactory.ConfigureHandler` sets `SocketsHttpHandler.ConnectTimeout` from it. The default is no entry, so a cluster that sets neither has the metadata it always had.
+- `CanReuseOldClient` compares the connect timeout besides the client config and the pins. An edit that changes it builds a new client (a cluster change that drops the warm pool); an edit to anything else keeps the client, and so does a change to the idle timeout, which is the cluster's, not the client's.
+- A change applies to connections and requests made after it. One already running keeps the timeout it started with.
+- `SocketsHttpHandler.ConnectTimeout` also covers the TLS handshake (`ATlsHandshakeThatNeverCompletesFailsAtTheConnectTimeoutToo` pins it), so `connect` means what its name suggests.
+- A request cut by either timeout gets YARP's 504, with the gateway-timeout page.
+
+**Tests.**
+- `UpstreamTimeoutsTests` runs a real proxy (Kestrel, YARP, the Paduraksa client factory) in front of a real upstream, with a 2 s idle timeout standing in for the hour:
+  - an idle WebSocket is cut at about 2 s, on HTTP/1.1 and on h2c;
+  - one that keeps sending lives past it;
+  - one quiet for 4 s survives the default and the explicit "never";
+  - an event stream with an 8 s gap is cut at about 2 s and one with a 3 s gap under the default is not;
+  - a request the upstream never answers gets a 504 at about 2 s;
+  - a change published to the running proxy applies to the next connection.
+- Connect: a listener whose accept queue is full (so a connect hangs, like a blackholed address, without depending on the network) fails at the configured 1 s and not at 10 s; a silent TLS server does too; republishing 8 s as 1 s rebuilds the client.
+- `PaduraksaForwarderHttpClientFactoryTests`: reuse when nothing changed or only unrelated metadata did, rebuild when the connect timeout changed. `SnapshotCompilerTests`: what compiles onto the cluster, and the backstop errors. Unit: validator, canonical form, mapping, YAML.
+
+**Left out.**
+- **A time to the response headers (first byte).** YARP has no setting for it: the activity timeout also restarts at the headers, and a separate one would be a timer of our own on the forward path (a `CancellationTokenSource` per request), against the budget. Decided against for now.
+- **Separate idle times for a request and a tunnel.** The one value would need a per-route or per-protocol split YARP does not offer.
 
 ## HTTP/3 strategy
 

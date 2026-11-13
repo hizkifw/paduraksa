@@ -227,6 +227,20 @@ Paduraksa__Limits__RequestHeadersTimeout=00:00:10
 Paduraksa__Limits__MaxConnections=20000
 ```
 
+### WebSockets and event streams
+
+They work without any setting, and an idle one is not cut for an hour. Each upstream has two timeouts (the upstream's form, under
+Advanced; in YAML `timeouts:` with `connect` and `idle`):
+
+- **Connect timeout**: how long a connect (TCP and TLS) to a destination may take. Default 10 s.
+- **Idle timeout**: how long a request, an event stream or a WebSocket may go with no data in either direction before the proxy
+  closes it. Default 1 hour; `0` means never. A ping or a heartbeat from either side counts as data. Set it shorter to shed
+  connections whose peer has silently gone away (each holds one of the `MaxUpgradedConnections` slots), longer or `0` for a session
+  that is meant to sit silent for more than an hour.
+
+nginx's own `proxy_read_timeout` is 60 s, which cuts idle WebSockets, so a setup moved from nginx may still carry a ping that is no
+longer needed. A change applies to connections made after it.
+
 ### Where things live, and backup
 
 The named volume `paduraksa-data` holds everything:

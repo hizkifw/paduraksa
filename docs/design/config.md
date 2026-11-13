@@ -142,7 +142,7 @@ Certificates, ACME accounts and orders, DNS providers and the identity entities 
 - **SNI with Pinned.** SNI is the Host sent: the client's, unless the upstream's Host header mode says otherwise. An upstream with several names may present a certificate per name. The dashboard's fetch therefore asks each destination with its own name and with every name of the hosts that route to it, and offers to pin every distinct fingerprint. A refused handshake is logged with the fingerprint presented and the name asked for.
 - **Connection and DNS refresh.**
   - `PooledConnectionLifetime` defaults to 60 s, so a restarted container with a new IP is picked up quickly.
-  - `PooledConnectionIdleTimeout` and a connect timeout are also settable.
+  - The connect timeout (10 s) and the idle timeout (1 hour, "never" allowed) are per upstream settings, built; see "Upstream timeouts" in [hot-path.md](hot-path.md). `PooledConnectionIdleTimeout` is still planned.
   - A destination that fails to connect is passively marked unhealthy, which forces new connections (and so a fresh DNS lookup) on retry.
 
 ## Upstream Host header modes

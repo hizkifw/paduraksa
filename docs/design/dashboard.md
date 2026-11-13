@@ -152,7 +152,7 @@ Apply runs the same command with the version the form opened with.
   - under Advanced: the TLS minimum, TCP ALPN, HTTP/3, an IP allow list, tags and notes.
 
   The form keeps what it does not show (a route's own settings).
-- **Upstreams:** destinations (IDs kept, so YARP health survives), load balancing, active and passive health, a connection limit and notes. The hosts and routes that use it sit under the form. Deleting one in use is refused up front with the routes named.
+- **Upstreams:** destinations (IDs kept, so YARP health survives), load balancing, active and passive health, the connect and idle timeouts (in seconds, blank for the default, 0 for no idle limit) under Advanced, a connection limit and notes. The hosts and routes that use it sit under the form. Deleting one in use is refused up front with the routes named.
 - **Inline validation** is the real `ConfigValidator` over the current config with the edited object put last (as the command pipeline validates it). Errors show once a field is touched, all of them (with a summary) after a review attempt. Enter submits to review.
 
 **Lists.**
