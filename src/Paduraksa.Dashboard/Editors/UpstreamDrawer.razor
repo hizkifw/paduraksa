@@ -154,10 +154,10 @@
                                     <MudTextField T="string" Value="Model.HealthPath" ValueChanged="@(value => Set(() => Model.HealthPath = value, "/activeHealth/path"))" Label="Path"
                                                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="!MayWrite"
                                                   Error="@(E("/activeHealth/path") is not null)" ErrorText="@E("/activeHealth/path")" />
-                                    <MudNumericField T="int" Value="Model.HealthIntervalSeconds" ValueChanged="@(value => Set(() => Model.HealthIntervalSeconds = value, "/activeHealth/interval"))"
+                                    <MudNumericField HideSpinButtons="true" T="int" Value="Model.HealthIntervalSeconds" ValueChanged="@(value => Set(() => Model.HealthIntervalSeconds = value, "/activeHealth/interval"))"
                                                      Label="Every (seconds)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                                      Error="@(E("/activeHealth/interval") is not null)" ErrorText="@E("/activeHealth/interval")" />
-                                    <MudNumericField T="int" Value="Model.HealthTimeoutSeconds" ValueChanged="@(value => Set(() => Model.HealthTimeoutSeconds = value, "/activeHealth/timeout"))"
+                                    <MudNumericField HideSpinButtons="true" T="int" Value="Model.HealthTimeoutSeconds" ValueChanged="@(value => Set(() => Model.HealthTimeoutSeconds = value, "/activeHealth/timeout"))"
                                                      Label="Timeout (seconds)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                                      Error="@(E("/activeHealth/timeout") is not null)" ErrorText="@E("/activeHealth/timeout")" />
                                 </div>
@@ -170,7 +170,7 @@
                             }
                             @if (Model.PassiveHealth)
                             {
-                                <MudNumericField T="int?" Value="Model.ReactivationSeconds" ValueChanged="@(value => Set(() => Model.ReactivationSeconds = value, "/passiveHealth/reactivationPeriod"))"
+                                <MudNumericField HideSpinButtons="true" T="int?" Value="Model.ReactivationSeconds" ValueChanged="@(value => Set(() => Model.ReactivationSeconds = value, "/passiveHealth/reactivationPeriod"))"
                                                  Label="Back in rotation after (seconds)" Placeholder="YARP's default" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                                  Error="@(E("/passiveHealth/reactivationPeriod") is not null)" ErrorText="@E("/passiveHealth/reactivationPeriod")" />
                             }
@@ -258,14 +258,14 @@
                                                   Class="pdk-span-2 pdk-mono-input" data-field="host-header-value"
                                                   Error="@(E("/hostHeader/value") is not null)" ErrorText="@E("/hostHeader/value")" />
                                 }
-                                <MudNumericField T="double?" Value="Model.ConnectTimeoutSeconds" ValueChanged="@(value => Set(() => Model.ConnectTimeoutSeconds = value, "/timeouts/connect"))"
+                                <MudNumericField HideSpinButtons="true" T="double?" Value="Model.ConnectTimeoutSeconds" ValueChanged="@(value => Set(() => Model.ConnectTimeoutSeconds = value, "/timeouts/connect"))"
                                                  Label="Connect timeout (seconds)" Placeholder="10" Min="0.1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" data-field="connect-timeout"
                                                  Error="@(E("/timeouts/connect") is not null)" ErrorText="@E("/timeouts/connect")" />
-                                <MudNumericField T="double?" Value="Model.IdleTimeoutSeconds" ValueChanged="@(value => Set(() => Model.IdleTimeoutSeconds = value, "/timeouts/idle"))"
+                                <MudNumericField HideSpinButtons="true" T="double?" Value="Model.IdleTimeoutSeconds" ValueChanged="@(value => Set(() => Model.IdleTimeoutSeconds = value, "/timeouts/idle"))"
                                                  Label="Idle timeout (seconds)" Placeholder="3600" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" data-field="idle-timeout"
                                                  HelperText="No data either way for this long closes a request, event stream or WebSocket. 0 = never"
                                                  Error="@(E("/timeouts/idle") is not null)" ErrorText="@E("/timeouts/idle")" />
-                                <MudNumericField T="int?" Value="Model.MaxConnectionsPerServer" ValueChanged="@(value => Set(() => Model.MaxConnectionsPerServer = value, "/maxConnectionsPerServer"))"
+                                <MudNumericField HideSpinButtons="true" T="int?" Value="Model.MaxConnectionsPerServer" ValueChanged="@(value => Set(() => Model.MaxConnectionsPerServer = value, "/maxConnectionsPerServer"))"
                                                  Label="Connections per destination" Placeholder="No limit" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                                  Error="@(E("/maxConnectionsPerServer") is not null)" ErrorText="@E("/maxConnectionsPerServer")" />
                                 <MudTextField T="string" Value="Model.Notes" ValueChanged="@(value => Set(() => Model.Notes = value, "/notes"))" Label="Notes" Lines="2" Sizing="InputSizing.Auto"

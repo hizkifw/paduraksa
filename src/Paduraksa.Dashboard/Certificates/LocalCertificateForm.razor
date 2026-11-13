@@ -10,7 +10,7 @@
     <div class="pdk-field-pair">
         <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
                       HelperText="Optional" Disabled="_busy" />
-        <MudNumericField T="int" @bind-Value="_days" Label="Valid for (days)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="@MaxDays"
+        <MudNumericField HideSpinButtons="true" T="int" @bind-Value="_days" Label="Valid for (days)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="@MaxDays"
                          HelperText="@($"Default {DefaultDays}; at most {MaxDays}")" Disabled="_busy" />
     </div>
     <MudSelect T="KeySpec" @bind-Value="_keySpec" Label="Key" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_busy" Dense="true">

@@ -100,11 +100,11 @@
                 <FormSection Title="Answers" Name="answers"
                              Description="A 2xx lets the request through. A 401, 403 or redirect goes to the client as the provider sent it. Anything else, an unreachable endpoint or a timeout refuses the request.">
                     <div class="pdk-field-grid">
-                        <MudNumericField T="int?" Value="Model.TimeoutSeconds" ValueChanged="@(value => Set(() => Model.TimeoutSeconds = value, "/forwardAuth/timeoutSeconds"))"
+                        <MudNumericField HideSpinButtons="true" T="int?" Value="Model.TimeoutSeconds" ValueChanged="@(value => Set(() => Model.TimeoutSeconds = value, "/forwardAuth/timeoutSeconds"))"
                                          Label="Wait for an answer (s)" Min="1" Max="ForwardAuthLimits.MaxTimeoutSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                          HelperText="@($"Empty: {resolved.Timeout.TotalSeconds:0}. A timeout is a 504.")"
                                          Error="@(E("/forwardAuth/timeoutSeconds") is not null)" ErrorText="@E("/forwardAuth/timeoutSeconds")" data-field="timeout" />
-                        <MudNumericField T="int?" Value="Model.CacheSeconds" ValueChanged="@(value => Set(() => Model.CacheSeconds = value, "/forwardAuth/cacheSeconds"))"
+                        <MudNumericField HideSpinButtons="true" T="int?" Value="Model.CacheSeconds" ValueChanged="@(value => Set(() => Model.CacheSeconds = value, "/forwardAuth/cacheSeconds"))"
                                          Label="Remember an allow (s)" Min="0" Max="ForwardAuthLimits.MaxCacheSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                          HelperText="@($"Empty: {resolved.CacheTtl.TotalSeconds:0}; 0: never. A revoked session works this long.")"
                                          Error="@(E("/forwardAuth/cacheSeconds") is not null)" ErrorText="@E("/forwardAuth/cacheSeconds")" data-field="cache-seconds" />

@@ -80,7 +80,7 @@
 
                 <FormSection Title="Allowance" Name="allowance">
                     <div class="pdk-request-row">
-                        <MudNumericField T="int" Value="Model.Requests" ValueChanged="@(value => Set(() => Model.Requests = value, "/requests"))"
+                        <MudNumericField HideSpinButtons="true" T="int" Value="Model.Requests" ValueChanged="@(value => Set(() => Model.Requests = value, "/requests"))"
                                          Label="Requests" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                          Error="@(E("/requests") is not null)" ErrorText="@E("/requests")" data-field="requests" />
                         <MudSelect T="RateLimitPeriod" Value="Model.Per" ValueChanged="@(value => Set(() => Model.Per = value, "/per"))"
@@ -92,7 +92,7 @@
                         </MudSelect>
                     </div>
 
-                    <MudNumericField T="int" Value="Model.Burst" ValueChanged="@(value => Set(() => Model.Burst = value, "/burst"))"
+                    <MudNumericField HideSpinButtons="true" T="int" Value="Model.Burst" ValueChanged="@(value => Set(() => Model.Burst = value, "/burst"))"
                                      Label="Burst" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                      HelperText="How many requests may arrive at once before the rate has to earn more."
                                      Error="@(E("/burst") is not null)" ErrorText="@E("/burst")" data-field="burst" />
