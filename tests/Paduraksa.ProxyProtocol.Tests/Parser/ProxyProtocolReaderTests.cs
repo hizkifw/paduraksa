@@ -102,4 +102,24 @@ public sealed class ProxyProtocolReaderTests
 
         Assert.Equal(ProxyProtocolReadStatus.Closed, result.Status);
     }
+
+    /// <summary>The timer exists only when the header isn't buffered, so a bad timeout must be refused before either path is taken.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ATimeoutOutOfRangeIsRefusedWhetherOrNotTheHeaderIsBuffered(bool buffered)
+    {
+        var pipe = buffered ? await PipeWithAsync(V1("PROXY TCP4 203.0.113.7 192.0.2.1 50123 443\r\n")) : new Pipe();
+        TimeSpan[] bad = [TimeSpan.Zero, TimeSpan.FromSeconds(-5), System.Threading.Timeout.InfiniteTimeSpan, ProxyProtocolReader.MaxTimeout + TimeSpan.FromTicks(1)];
+
+        foreach (var timeout in bad)
+        {
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await ProxyProtocolReader.ReadAsync(pipe.Reader, timeout));
+        }
+
+        if (buffered)
+        {
+            Assert.Equal(ProxyProtocolReadStatus.Success, (await ProxyProtocolReader.ReadAsync(pipe.Reader, ProxyProtocolReader.MaxTimeout)).Status);
+        }
+    }
 }

@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
-    # A version tag publishes the image under its version too (see the publish job).
-    tags: ["v*"]
+    # A version tag publishes the image under its version too (see the publish job). A `proxyprotocol-v*` tag is the NuGet packages'
+    # own release (see the publish-nuget job): they ship when they change, not with every release of the app.
+    tags: ["v*", "proxyprotocol-v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -97,6 +98,8 @@ jobs:
   # the two.
   image:
     name: Container image
+    # A package tag releases no image.
+    if: ${{ !startsWith(github.ref, 'refs/tags/proxyprotocol-v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -147,7 +150,7 @@ jobs:
   publish:
     name: Publish image
     needs: [build-test, image]
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/proxyprotocol-v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -191,8 +194,8 @@ jobs:
           sbom: true
 
   # Packs Paduraksa.ProxyProtocol and Paduraksa.ProxyProtocol.AspNetCore (src/Packaging.props) on every run, so a change that breaks packing or the
-  # package validation fails here and not at the tag. A `v*` tag packs them at the tag's version (v0.1.0 -> 0.1.0); any other run packs the
-  # version in Packaging.props. The packages are uploaded as an artifact either way.
+  # package validation fails here and not at the tag. A `proxyprotocol-v*` tag packs them at the tag's version (proxyprotocol-v0.1.0 -> 0.1.0); any
+  # other run packs the version in Packaging.props. The packages are uploaded as an artifact either way.
   pack:
     name: Pack NuGet packages
     runs-on: ubuntu-latest
@@ -215,8 +218,8 @@ jobs:
       - name: Pack
         run: |
           version_args=()
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            version_args=("-p:Version=${GITHUB_REF_NAME#v}")
+          if [[ "$GITHUB_REF" == refs/tags/proxyprotocol-v* ]]; then
+            version_args=("-p:Version=${GITHUB_REF_NAME#proxyprotocol-v}")
           fi
           for project in Paduraksa.ProxyProtocol Paduraksa.ProxyProtocol.AspNetCore; do
             dotnet pack "src/$project" -c Release -warnaserror -o artifacts/nupkg "${version_args[@]}"
@@ -230,34 +233,44 @@ jobs:
           path: artifacts/nupkg/*
           if-no-files-found: error
 
-  # Pushes the packs to nuget.org for a `v*` tag once the tests pass. It does nothing until the repository has a NUGET_API_KEY secret:
-  # without it the push step is skipped and the job says so. The runner's own .NET SDK does the push. A package version that is already on nuget.org is skipped, so re-running a tag is safe.
+  # Pushes the packs to nuget.org for a `proxyprotocol-v*` tag once the tests pass (the app's own `v*` tags publish no package).
+  # No API key is stored: nuget.org's trusted publishing exchanges this job's GitHub OIDC token for a key that lives one hour, under the policy that
+  # names this repository and this workflow file (docs/development.md, Publishing the NuGet packages). It does nothing until the repository has a
+  # NUGET_USER variable (the nuget.org profile name that owns the policy): without it the push is skipped and the job says so.
+  # A package version that is already on nuget.org is skipped, so re-running a tag is safe.
   publish-nuget:
     name: Publish NuGet packages
     needs: [build-test, pack]
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/proxyprotocol-v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    permissions:
+      contents: read
+      # The OIDC token nuget.org checks against the policy. Only this job can ask for one.
+      id-token: write
     steps:
       - name: Download the packages
-        if: ${{ env.NUGET_API_KEY != '' }}
+        if: ${{ vars.NUGET_USER != '' }}
         uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: artifacts/nupkg
 
-      # nuget.org takes the symbols as a package of their own: the .snupkg is pushed explicitly, after the .nupkg it belongs to
-      # (the "*.nupkg" glob does not match ".snupkg").
-      - name: Push the packages to nuget.org
-        if: ${{ env.NUGET_API_KEY != '' }}
+      # Right before the push: the key it returns is valid for one hour, and an OIDC token buys one key.
+      - name: NuGet login (OIDC for a temporary API key)
+        if: ${{ vars.NUGET_USER != '' }}
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # One push: for each .nupkg, `dotnet nuget push` also pushes the .snupkg lying beside it (--no-symbols is what turns that off).
+      - name: Push the packages and their symbols to nuget.org
+        if: ${{ vars.NUGET_USER != '' }}
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: dotnet nuget push "artifacts/nupkg/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
-      - name: Push the symbol packages to nuget.org
-        if: ${{ env.NUGET_API_KEY != '' }}
-        run: dotnet nuget push "artifacts/nupkg/*.snupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-
-      - name: Skipped, no NUGET_API_KEY
-        if: ${{ env.NUGET_API_KEY == '' }}
-        run: echo "::notice::The NUGET_API_KEY secret is not set, so nothing was pushed to nuget.org (docs/development.md, Publishing the NuGet packages)."
+      - name: Skipped, no NUGET_USER
+        if: ${{ vars.NUGET_USER == '' }}
+        run: echo "::notice::The NUGET_USER variable is not set, so nothing was pushed to nuget.org (docs/development.md, Publishing the NuGet packages)."

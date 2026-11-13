@@ -8,9 +8,11 @@ Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.HeaderTimeout.get -> Sys
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.HeaderTimeout.set -> void
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.MaxV2Length.get -> int
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.MaxV2Length.set -> void
-Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.OnOutcome.get -> System.Action<Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome>?
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.OnOutcome.get -> System.Action<Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome, Microsoft.AspNetCore.Connections.ConnectionContext!>?
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.OnOutcome.set -> void
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.ProxyProtocolOptions() -> void
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.TrustUnixSockets.get -> bool
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.TrustUnixSockets.set -> void
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.Required.get -> bool
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.Required.set -> void
 Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.TrustedProxies.get -> System.Collections.Generic.IList<System.Net.IPNetwork>!

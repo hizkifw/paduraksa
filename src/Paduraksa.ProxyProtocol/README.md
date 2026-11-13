@@ -41,14 +41,14 @@ if (result.Status == ProxyProtocolReadStatus.Success)
 ```
 
 The reader consumes the header and leaves every byte after it in the pipe. It never throws for what the peer sends or does: malformed bytes, a slow
-drip, a close or a reset each map to a status.
+drip, a close or a reset each map to a status. The timeout is required and must be greater than zero.
 
 ## What it accepts
 
 - **v1:** `PROXY TCP4|TCP6 src dst sport dport\r\n` with single spaces, strictly valid addresses, decimal ports without leading zeros, and at most 107 bytes; or `PROXY UNKNOWN...\r\n`.
 - **v2:** the 12-byte signature, version 2, command `LOCAL` or `PROXY`, a known family and transport, an address block long enough for the family, and a total length within `maxV2Length` (default 4096).
 - **Not validated:** TLVs are skipped, and the optional CRC32C is not checked. `DGRAM` is rejected: this is for stream listeners.
-- **Garbage is rejected at the first byte that can't start a header**, without waiting for more data.
+- **Input that can't begin a header is rejected at once:** a byte that breaks the v1 prefix `PROXY ` or the v2 signature is `Invalid` without waiting for more data. Past the prefix, a v1 line is judged when its line feed arrives or 107 bytes have; until then it is `Incomplete`, so bound the wait with a timeout (the reader does).
 
 A header without addresses (`LOCAL`, `UNSPEC`, `UNIX`, `UNKNOWN`) parses as a success with `HasAddresses == false`: use the socket's own endpoints then.
 

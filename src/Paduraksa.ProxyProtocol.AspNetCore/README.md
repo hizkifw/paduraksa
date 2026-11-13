@@ -5,7 +5,6 @@ local endpoints the client's, so `HttpContext.Connection.RemoteIpAddress` and ev
 The parsing is [Paduraksa.ProxyProtocol](https://www.nuget.org/packages/Paduraksa.ProxyProtocol): strict, fuzzed and allocation-free.
 
 ```csharp
-using System.Net;
 using Paduraksa.ProxyProtocol.AspNetCore;
 
 builder.WebHost.ConfigureKestrel(kestrel =>
@@ -14,23 +13,26 @@ builder.WebHost.ConfigureKestrel(kestrel =>
     {
         listen.UseProxyProtocol(options =>
         {
-            options.TrustedProxies = [IPNetwork.Parse("10.0.0.0/8")]; // your load balancers
+            // System.Net.IPNetwork in full: Microsoft.AspNetCore.HttpOverrides has an IPNetwork too.
+            options.TrustedProxies = [System.Net.IPNetwork.Parse("10.0.0.0/8")]; // your load balancers
             options.HeaderTimeout = TimeSpan.FromSeconds(3);
-            options.OnOutcome = outcome => metrics.Count(outcome);    // optional, for counters; an exception it throws is swallowed
+            // Optional, for counters and logs; an exception it throws is swallowed.
+            options.OnOutcome = (outcome, connection) => metrics.Count(outcome);
         });
         listen.UseHttps(certificate); // after UseProxyProtocol: the header comes before the TLS handshake
     });
 });
 ```
 
-> [!WARNING]
-> **Call `UseProxyProtocol` before `UseHttps`.** The load balancer's header comes first on the wire, so it has to be read before the TLS handshake. In the other order every HTTPS connection
+> **Warning: call `UseProxyProtocol` before `UseHttps`.** The load balancer's header comes first on the wire, so it has to be read before the TLS handshake. In the other order every HTTPS connection
 > through the load balancer is closed during the TLS handshake and the app never sees a request: it looks like the proxy refusing everyone, health checks included. Kestrel doesn't let the
 > middleware see whether `UseHttps` already ran, so this isn't detected for you. If every connection from the load balancer fails, check the order first.
 
 ## Behaviour
 
-- **Secure by default.** `TrustedProxies` is empty, which refuses every connection until you add your load balancers. A connection from anywhere else is aborted without reading a byte.
+- **Secure by default.** `TrustedProxies` is empty, which refuses every connection until you add your load balancers; a warning in the log says so at startup. A connection from anywhere else is aborted without reading a byte.
+- **Unix sockets** have no peer address to match, so a `ListenUnixSocket` listener refuses every connection until you set `TrustUnixSockets = true`. The socket's file permissions are then the whole check: let only your proxy connect.
+- **Refusals are not logged one by one.** `OnOutcome` gets the outcome and the connection (for a refused one, `connection.RemoteEndPoint` is the peer that was refused), so count or log them there.
 - **Required by default.** A trusted peer that sends no valid header within `HeaderTimeout` (default 3 s), or whose header is malformed or over `MaxV2Length` (default 4096), is aborted.
 - **`Required = false`** makes the header optional: a trusted peer whose first bytes don't begin a header goes on unchanged, with the socket's endpoints. Untrusted peers go on unchanged too, and a header they send is *not* honoured. A header that begins correctly and then breaks still aborts.
 - **On success** the connection's `RemoteEndPoint` and `LocalEndPoint` become the header's source and destination (when it carries addresses; `LOCAL` and `UNKNOWN` keep the socket's), and `IProxyProtocolFeature` exposes the parsed header and the proxy's own endpoint.

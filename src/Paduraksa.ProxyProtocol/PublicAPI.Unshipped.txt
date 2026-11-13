@@ -91,6 +91,7 @@ static Paduraksa.ProxyProtocol.ProxyProtocolParser.TryParse(in System.Buffers.Re
 static Paduraksa.ProxyProtocol.ProxyProtocolParser.TryParse(System.ReadOnlySpan<byte> buffer, out Paduraksa.ProxyProtocol.ProxyProtocolHeader header, out int consumed) -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
 static Paduraksa.ProxyProtocol.ProxyProtocolParser.TryParse(System.ReadOnlySpan<byte> buffer, out Paduraksa.ProxyProtocol.ProxyProtocolHeader header, out int consumed, int maxV2Length) -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
 static Paduraksa.ProxyProtocol.ProxyProtocolReader.ReadAsync(System.IO.Pipelines.PipeReader! input, System.TimeSpan timeout, int maxV2Length = 4096, bool headerOptional = false) -> System.Threading.Tasks.ValueTask<Paduraksa.ProxyProtocol.ProxyProtocolReadResult>
+static readonly Paduraksa.ProxyProtocol.ProxyProtocolReader.MaxTimeout -> System.TimeSpan
 static Paduraksa.ProxyProtocol.ProxyProtocolReadResult.operator !=(Paduraksa.ProxyProtocol.ProxyProtocolReadResult left, Paduraksa.ProxyProtocol.ProxyProtocolReadResult right) -> bool
 static Paduraksa.ProxyProtocol.ProxyProtocolReadResult.operator ==(Paduraksa.ProxyProtocol.ProxyProtocolReadResult left, Paduraksa.ProxyProtocol.ProxyProtocolReadResult right) -> bool
 ~override Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Equals(object obj) -> bool
