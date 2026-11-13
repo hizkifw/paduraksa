@@ -927,6 +927,10 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - A tiny share is at least 3 px of fill from the track's start.
 - Counts and percentages are tabular and right-aligned.
 
+**Number fields commit when focus leaves them**, as text fields do: a number typed and tabbed out is in the form's model without Enter or the submit button (`NumberFieldCommitTests`, `NumberFieldsEndToEndTests`). A numeric field is never `Immediate`: with a `Min` (a status code from 200) MudBlazor would clamp the first digit typed.
+
+**A switch that is off says what that means.** A health switch's off state has one `pdk-muted` caption under it: what happens to a destination that is down (`UpstreamDrawer`).
+
 **Units.** A compact control writes units short ("1 h", "24 h", "7 d", "30 d", "1 y"), with the long form as its tooltip. Prose writes them out ("7 days").
 
 **Making a change.** Every control that changes the config goes through one path, so the choices, labels, order and styling are the same everywhere.

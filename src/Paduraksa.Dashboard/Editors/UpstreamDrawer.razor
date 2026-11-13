@@ -144,6 +144,10 @@
                                        Label="Sticky sessions (cookie)" Disabled="!MayWrite" />
                             <MudSwitch T="bool" Value="Model.ActiveHealth" ValueChanged="@(value => Set(() => Model.ActiveHealth = value, "/activeHealth"))" Color="Color.Primary"
                                        Label="Active health checks (probe each destination on a schedule)" Disabled="!MayWrite" data-field="active-health" />
+                            @if (!Model.ActiveHealth)
+                            {
+                                <MudText Typo="Typo.caption" Class="pdk-muted" data-hint="active-health">Off: a destination that is down is only noticed when a request to it fails.</MudText>
+                            }
                             @if (Model.ActiveHealth)
                             {
                                 <div class="pdk-field-grid pdk-field-grid-3">
@@ -159,7 +163,11 @@
                                 </div>
                             }
                             <MudSwitch T="bool" Value="Model.PassiveHealth" ValueChanged="@(value => Set(() => Model.PassiveHealth = value, "/passiveHealth"))" Color="Color.Primary"
-                                       Label="Passive health checks (take a destination out after failed requests)" Disabled="!MayWrite" />
+                                       Label="Passive health checks (take a destination out after failed requests)" Disabled="!MayWrite" data-field="passive-health" />
+                            @if (!Model.PassiveHealth)
+                            {
+                                <MudText Typo="Typo.caption" Class="pdk-muted" data-hint="passive-health">Off: a destination that fails requests stays in rotation, and every request sent to it fails.</MudText>
+                            }
                             @if (Model.PassiveHealth)
                             {
                                 <MudNumericField T="int?" Value="Model.ReactivationSeconds" ValueChanged="@(value => Set(() => Model.ReactivationSeconds = value, "/passiveHealth/reactivationPeriod"))"
