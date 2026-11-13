@@ -13,4 +13,7 @@
     <ProjectReference Include="../../src/Paduraksa.Mcp/Paduraksa.Mcp.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Paduraksa.Tests.Fuzz" />
+  </ItemGroup>
 </Project>

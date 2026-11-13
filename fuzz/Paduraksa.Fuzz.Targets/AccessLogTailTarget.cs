@@ -273,24 +273,38 @@ internal static class AccessLogTailTarget
             }
         }
 
-        if (!options.LogQueryString && entry.Query is { Length: > 0 } query)
+        if (!options.LogQueryString
+            && LeakedQueryValue(entry.Query, [entry.Host, entry.Method, entry.Path, entry.Protocol, entry.UpstreamAddress, entry.RequestId, entry.CloudflareRay, entry.Referer, entry.UserAgent], outputs) is { } leaked)
         {
-            // No value of the query: each parameter's value (past its '=') is searched for in what was written, when it is long enough to be told from the rest of the line.
-            foreach (var parameter in query.TrimStart('?').Split('&'))
-            {
-                var value = parameter.Contains('=') ? parameter[(parameter.IndexOf('=') + 1)..] : string.Empty;
-                if (value.Length >= 12 && value.All(static c => c is >= '0' and <= '9' or >= 'a' and <= 'z' or >= 'A' and <= 'Z') && !PartOfOtherField(entry, value))
-                {
-                    Checks.That(outputs.All(o => !o.Contains(value, StringComparison.Ordinal)), "a value of the query reached an output with the query string off");
-                }
-            }
+            throw new PropertyViolationException($"a value of the query reached an output with the query string off: '{leaked}'");
         }
     }
 
-    // A long alphanumeric value of the query that another field of the same entry repeats is not a leak.
-    private static bool PartOfOtherField(in AccessLogEntry entry, string value) =>
-        new[] { entry.Host, entry.Method, entry.Path, entry.Protocol, entry.UpstreamAddress, entry.RequestId, entry.CloudflareRay, entry.Referer, entry.UserAgent }
-            .Any(field => field is not null && field.Contains(value, StringComparison.Ordinal));
+    // No value of the query: each parameter's value (past its '=') is searched for in what was written, when it is long enough to be told from the rest of the line. A value that
+    // another field of the entry carries is not a leak, and "carries" is read on the escaped text, which is what an output holds: an escape's own characters (the "7" of "\x07")
+    // can join the plain text next to it into a value the field never held.
+    internal static string? LeakedQueryValue(string? query, IEnumerable<string?> otherFields, IReadOnlyList<string> outputs)
+    {
+        if (query is not { Length: > 0 })
+        {
+            return null;
+        }
+
+        string[] escapedFields = [.. otherFields.Select(Escape)];
+        foreach (var parameter in query.TrimStart('?').Split('&'))
+        {
+            var value = parameter.Contains('=') ? parameter[(parameter.IndexOf('=') + 1)..] : string.Empty;
+            if (value.Length >= 12
+                && value.All(static c => c is >= '0' and <= '9' or >= 'a' and <= 'z' or >= 'A' and <= 'Z')
+                && !escapedFields.Any(field => field.Contains(value, StringComparison.Ordinal))
+                && outputs.Any(o => o.Contains(value, StringComparison.Ordinal)))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
 
     private static IEnumerable<string> Texts(AccessLogTailEntry tail) =>
         new[] { tail.ClientAddress, tail.Host, tail.Method, tail.Path, tail.Query, tail.Protocol, tail.UpstreamAddress, tail.RequestId, tail.CloudflareRay, tail.Referer, tail.UserAgent }.OfType<string>();
