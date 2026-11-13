@@ -46,8 +46,12 @@ public sealed class AccessLogMiddlewareTests : IDisposable
         AccessLogRing ring = new(8);
         var context = Request("app.test", "/a/b?x=1", "Mozilla/5.0");
         _gate.Decide(context);
+        context.Features.Get<IGateFeature>()!.State.CountBody(context);
         context.Response.StatusCode = (int)HttpStatusCode.Created;
+        // The declared length is not what is counted: the body written is.
         context.Response.ContentLength = 512;
+        context.Response.Body.Write(new byte[300]);
+        _ = context.Request.Body.Read(new byte[16]);
 
         AccessLogMiddleware.Record(context, ring, Stopwatch.GetTimestamp() - Stopwatch.Frequency / 1000);
 
@@ -59,7 +63,8 @@ public sealed class AccessLogMiddlewareTests : IDisposable
         Assert.Equal("?x=1", entry.Query);
         Assert.Equal("HTTP/1.1", entry.Protocol);
         Assert.Equal(201, entry.StatusCode);
-        Assert.Equal(512, entry.ResponseBytes);
+        Assert.Equal(300, entry.ResponseBytes);
+        Assert.Equal(0, entry.RequestBytes);
         Assert.Equal("Mozilla/5.0", entry.UserAgent);
         Assert.True(entry.TotalTicks >= TimeSpan.FromMilliseconds(1).Ticks, $"total was {entry.TotalTicks} ticks");
         Assert.Equal(AccessLogEntry.Unknown, entry.UpstreamTicks);
@@ -67,6 +72,25 @@ public sealed class AccessLogMiddlewareTests : IDisposable
         Assert.False(string.IsNullOrEmpty(entry.RequestId));
         Assert.Null(entry.CloudflareRay);
         Assert.InRange(DateTime.UtcNow.Ticks - entry.TimestampUtcTicks, 0, TimeSpan.FromMinutes(1).Ticks);
+    }
+
+    [Fact]
+    public void BytesThatCouldNotBeCountedAreUnknownNotZero()
+    {
+        AccessLogRing ring = new(8);
+        var context = Request("app.test", "/a", "Mozilla/5.0");
+        _gate.Decide(context);
+        context.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(null);
+        context.Features.Get<IGateFeature>()!.State.CountBody(context);
+
+        AccessLogMiddleware.Record(context, ring, Stopwatch.GetTimestamp());
+
+        Assert.True(ring.TryRead(out var entry));
+        Assert.Equal(AccessLogEntry.Unknown, entry.ResponseBytes);
+        Assert.Equal(AccessLogEntry.Unknown, entry.RequestBytes);
+        var line = new char[8192];
+        var length = AccessLogFormatter.Format(entry, AccessLogFormatOptions.Default, line);
+        Assert.Contains(" 200 - ", new string(line, 0, length), StringComparison.Ordinal);
     }
 
     [Fact]

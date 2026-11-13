@@ -88,7 +88,7 @@ public sealed class MetricsEndToEndTests(TestUpstream upstream) : IClassFixture<
         Assert.Equal(3, host[RequestMetric.Outcome + (int)GateOutcome.Forwarded]);
         Assert.Equal(1, host[RequestMetric.Outcome + (int)GateOutcome.RefusedOther]);
         Assert.Equal(1, host[RequestMetric.Outcome + (int)GateOutcome.NoRoute]);
-        Assert.True(host[RequestMetric.BytesOut] > 0, "the upstream's Content-Length-less body adds no bytes, a gate answer's does");
+        Assert.True(host[RequestMetric.BytesOut] > 0, "the bodies written are counted");
         Assert.True(host[RequestMetric.TotalMicros] > 0);
 
         await WaitForAsync(() => Counters(registry, MetricSubject.Host, MetricsRegistry.UnmatchedHost)[RequestMetric.Status + 3] >= 1, "the unmatched host's request is counted");

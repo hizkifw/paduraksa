@@ -137,7 +137,25 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                     }
 
                     // The public pipeline, in its order: the access log wraps everything, the gate decides.
-                    app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
+                    var accessLog = app.ApplicationServices.GetRequiredService<AccessLogMiddleware>();
+                    if (stats is not null && !options.WithoutGate)
+                    {
+                        // Measured too, and added to the gate's bytes: the pooled state, the body counter and the completion
+                        // registration are per-request work of the public pipeline.
+                        app.Use((context, next) =>
+                        {
+                            var before = GC.GetAllocatedBytesForCurrentThread();
+                            accessLog.Begin(context);
+                            var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+                            context.Items[GateStats.BeginKey] = bytes;
+                            return next(context);
+                        });
+                    }
+                    else
+                    {
+                        app.Use(accessLog.InvokeAsync);
+                    }
+
                     var gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                     if (!options.WithoutGate)
                     {
@@ -150,9 +168,10 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                             app.Use((context, next) =>
                             {
                                 var fresh = context.Items[GateStats.FreshKey] is true;
+                                var begin = context.Items[GateStats.BeginKey] is long counted ? counted : 0;
                                 var before = GC.GetAllocatedBytesForCurrentThread();
                                 var decision = gate.Decide(context);
-                                stats.Record(GC.GetAllocatedBytesForCurrentThread() - before, fresh);
+                                stats.Record(GC.GetAllocatedBytesForCurrentThread() - before + begin, fresh);
                                 return decision.Action == GateAction.AwaitPolicy
                                     ? gate.CompleteDeferredAsync(context, next)
                                     : GateMiddleware.CompleteAsync(context, decision, next);
@@ -266,13 +285,16 @@ internal sealed record ProxyTestServerOptions
 }
 
 /// <summary>
-/// Per-request allocation of the gate's decision, summed across threads. Requests that had to create the pooled
+/// Per-request allocation of the gate's decision and the access log's start, summed across threads. Requests that had to create the pooled
 /// per-connection/per-stream state are counted in <see cref="FreshState"/> and excluded from the byte totals.
 /// </summary>
 internal sealed class GateStats
 {
     /// <summary>The request item the measure-mode middleware sets before the access log acquires the pooled state.</summary>
     internal static readonly object FreshKey = new();
+
+    /// <summary>The request item holding what the access log's <see cref="AccessLogMiddleware.Begin"/> allocated, added to the gate's.</summary>
+    internal static readonly object BeginKey = new();
 
     private long _requests;
     private long _fresh;

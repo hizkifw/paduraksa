@@ -24,9 +24,9 @@ namespace Paduraksa.Proxy.Logging;
 /// Kestrel creates its per-connection callback stack once and reuses it. The ring and the start timestamp ride on the
 /// gate's pooled state (<see cref="GateRequestState"/>). A request whose host turned the access log off costs a few reads
 /// and nothing else, apart from the request counters, which every request feeds (<see cref="RequestMetricsRecorder"/>).</para>
-/// <para><b>Bytes.</b> Kestrel doesn't expose the bytes it wrote; without wrapping the response body there is no 0 B way to
-/// count them. So the entry carries the response's <c>Content-Length</c> when it declares one, and -1 (written as
-/// <c>-</c>) otherwise: a chunked or streamed response shows <c>-</c>, not a number nobody can read cheaply.</para>
+/// <para><b>Bytes</b> are the body bytes the request really moved, counted by the pooled <see cref="Http.BodyCounter"/> that
+/// <see cref="Begin"/> stands in for the body features before anything else runs: a chunked, streamed or compressed response
+/// counts what went to the client, and an upload what was read from it.</para>
 /// <para><b>Durations.</b> The total is <see cref="Stopwatch"/> from the top of the public pipeline to the end of the
 /// response (Kestrel runs the completion callback after the response finished, before it disposes the context). The
 /// upstream leg is measured by YARP's own transforms (<see cref="Yarp.AccessLogTransform"/>), which is the cheapest source
@@ -61,12 +61,22 @@ public sealed class AccessLogMiddleware
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
 
+        Begin(context);
+        return next(context);
+    }
+
+    /// <summary>
+    /// Everything this middleware does before the rest of the pipeline runs: the pooled state, the start timestamp, the body
+    /// counter and the completion callback. Internal so the allocation tests can measure it on a real Kestrel request.
+    /// </summary>
+    internal void Begin(HttpContext context)
+    {
         var state = GateMiddleware.BeginRequest(context);
         state.AccessLogRing = _ring;
         state.Metrics = _metrics;
         state.RequestStartedTimestamp = Stopwatch.GetTimestamp();
+        state.CountBody(context);
         RegisterCompletion(context);
-        return next(context);
     }
 
     /// <summary>
@@ -151,7 +161,8 @@ public sealed class AccessLogMiddleware
             Query = request.QueryString.Value,
             Protocol = request.Protocol,
             StatusCode = state is { Aborted: true } ? AccessLogEntry.NoResponse : response.StatusCode,
-            ResponseBytes = response.ContentLength ?? AccessLogEntry.Unknown,
+            ResponseBytes = state?.CountedBody?.ResponseBytes ?? AccessLogEntry.Unknown,
+            RequestBytes = state?.CountedBody?.RequestBytes ?? AccessLogEntry.Unknown,
             TotalTicks = Stopwatch.GetElapsedTime(started).Ticks,
             UpstreamTicks = upstreamTicks,
             UpstreamAddress = upstreamAddress,

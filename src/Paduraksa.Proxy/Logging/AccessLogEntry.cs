@@ -13,7 +13,7 @@ namespace Paduraksa.Proxy.Logging;
 /// </summary>
 public readonly record struct AccessLogEntry
 {
-    /// <summary>"Not known": the response declared no <c>Content-Length</c>, or the request wasn't forwarded.</summary>
+    /// <summary>"Not known": the request wasn't forwarded, or its body bytes weren't counted (it never passed the access log's middleware).</summary>
     public const long Unknown = -1;
 
     /// <summary>
@@ -49,8 +49,12 @@ public readonly record struct AccessLogEntry
 
     /// <summary>The status sent to the client, or <see cref="NoResponse"/> when nothing was.</summary>
     public int StatusCode { get; init; }
-    /// <summary>The response's <c>Content-Length</c> in bytes, or <see cref="Unknown"/>.</summary>
+
+    /// <summary>Response body bytes written to the client (<see cref="Http.BodyCounter"/>), or <see cref="Unknown"/>.</summary>
     public long ResponseBytes { get; init; } = Unknown;
+
+    /// <summary>Request body bytes read from the client, or <see cref="Unknown"/>.</summary>
+    public long RequestBytes { get; init; } = Unknown;
 
     /// <summary>Request start to end, in <see cref="TimeSpan"/> ticks (0 is a valid, very fast answer).</summary>
     public long TotalTicks { get; init; }

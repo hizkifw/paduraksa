@@ -16,7 +16,7 @@ public static class RequestMetric
 
     public const int Outcomes = 15;
 
-    /// <summary>Bytes of response bodies whose <c>Content-Length</c> is known; a chunked or streamed body adds nothing (the proxy can't see its size for free).</summary>
+    /// <summary>Response body bytes written to clients, counted as they went out (<see cref="Http.BodyCounter"/>): an upstream's compression counts as the compressed bytes.</summary>
     public const int BytesOut = Outcome + Outcomes;
 
     /// <summary>Sum of total request durations in microseconds, for the histogram's <c>_sum</c>.</summary>
@@ -24,6 +24,9 @@ public static class RequestMetric
 
     /// <summary>Sum of upstream durations in microseconds, over the requests that were timed upstream (their count is the upstream histogram's).</summary>
     public const int UpstreamMicros = TotalMicros + 1;
+
+    /// <summary>Request body bytes read from clients. After the older counters, so their offsets stay where they were.</summary>
+    public const int BytesIn = UpstreamMicros + 1;
 
     /// <summary>Longs per slot and stripe: a multiple of 8.</summary>
     public const int Stride = 32;
@@ -51,7 +54,13 @@ public static class UpstreamMetric
 
     public const int UpstreamMicros = Errors + ErrorKinds + 1;
 
-    public const int Stride = 24;
+    /// <summary>Response body bytes of the requests forwarded to this upstream, as they went to the client.</summary>
+    public const int BytesOut = UpstreamMicros + 1;
+
+    /// <summary>Request body bytes of the requests forwarded to this upstream, as they were read from the client.</summary>
+    public const int BytesIn = BytesOut + 1;
+
+    public const int Stride = 32;
 
     /// <summary>The upstream-time histogram is the whole latency slot.</summary>
     public const int LatencyStride = LatencyBuckets.Stride;

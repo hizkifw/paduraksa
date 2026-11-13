@@ -48,7 +48,7 @@ public sealed class AccessLogTailEntry
     /// <summary>The status sent, or <see cref="AccessLogEntry.NoResponse"/> when the gate dropped the request.</summary>
     public int StatusCode { get; private init; }
 
-    /// <summary>The response's <c>Content-Length</c>, or <see cref="AccessLogEntry.Unknown"/>.</summary>
+    /// <summary>Response body bytes written to the client, or <see cref="AccessLogEntry.Unknown"/>.</summary>
     public long ResponseBytes { get; private init; }
 
     /// <summary>In <see cref="TimeSpan"/> ticks.</summary>

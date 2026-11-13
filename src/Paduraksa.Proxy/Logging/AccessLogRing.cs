@@ -146,7 +146,7 @@ public sealed class AccessLogRing
         public long Sequence;
         public AccessLogEntry Entry;
 
-        // 56 bytes of padding: 8 + 128 (the entry's fields) + 56 = 192, three 64-byte lines, so a slot begins on a line
+        // 48 bytes of padding: 8 + 136 (the entry's fields) + 48 = 192, three 64-byte lines, so a slot begins on a line
         // boundary and owns every line it covers. RingTests pins the total; a bigger entry means adjusting this.
         private readonly long _padding0;
         private readonly long _padding1;
@@ -154,6 +154,5 @@ public sealed class AccessLogRing
         private readonly long _padding3;
         private readonly long _padding4;
         private readonly long _padding5;
-        private readonly long _padding6;
     }
 }

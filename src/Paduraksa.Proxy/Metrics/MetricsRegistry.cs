@@ -17,8 +17,11 @@ public readonly struct RequestMetrics
 
     public GateOutcome Outcome { get; init; }
 
-    /// <summary>The response's declared <c>Content-Length</c>, or -1.</summary>
+    /// <summary>Response body bytes written to the client, or -1 when they weren't counted.</summary>
     public long ResponseBytes { get; init; } = -1;
+
+    /// <summary>Request body bytes read from the client, or -1 when they weren't counted.</summary>
+    public long RequestBytes { get; init; } = -1;
 
     /// <summary>The whole request, in whole microseconds.</summary>
     public long TotalMicros { get; init; }
@@ -45,8 +48,8 @@ public readonly struct RequestMetrics
 /// retires what the snapshot no longer has. A deleted object's slot is rented to another only after the grace period (one
 /// rollup interval), and its counters are cleared first (the registry's <c>prepare</c> step).</para>
 /// <para><b>What a request costs.</b> One <see cref="RecordRequest"/> is about ten to fifteen <see cref="Interlocked"/>
-/// operations on cache lines this core owns (a host's status class, gate outcome, bytes, duration sum and two histogram
-/// buckets; the route's three; the upstream's and destination's), no lock, no allocation. The tables are read only by the
+/// operations on cache lines this core owns (a host's status class, gate outcome, bytes out and in, duration sum and two histogram
+/// buckets; the route's four; the upstream's and destination's; a byte count only when the body had bytes), no lock, no allocation. The tables are read only by the
 /// sampler and the exporters, a second apart or more.</para>
 /// <para><b>Unmatched requests</b> (no host for the name) count on the reserved host slot <see cref="UnmatchedHost"/>, so a scanner
 /// shows up as traffic that belongs to nobody.</para>
@@ -159,10 +162,8 @@ public sealed class MetricsRegistry
             var host = request.Host.Index;
             HostCounters.Increment(stripe, host, RequestMetric.Status + statusClass);
             HostCounters.Increment(stripe, host, RequestMetric.Outcome + outcome);
-            if (request.ResponseBytes > 0)
-            {
-                HostCounters.Add(stripe, host, RequestMetric.BytesOut, request.ResponseBytes);
-            }
+            AddBytes(HostCounters, stripe, host, RequestMetric.BytesOut, request.ResponseBytes);
+            AddBytes(HostCounters, stripe, host, RequestMetric.BytesIn, request.RequestBytes);
 
             HostCounters.Add(stripe, host, RequestMetric.TotalMicros, request.TotalMicros);
             HostLatency.Increment(stripe, host, LatencyBuckets.IndexOf(request.TotalMicros));
@@ -178,16 +179,16 @@ public sealed class MetricsRegistry
             var route = request.Route.Index;
             RouteCounters.Increment(stripe, route, RequestMetric.Status + statusClass);
             RouteCounters.Increment(stripe, route, RequestMetric.Outcome + outcome);
-            if (request.ResponseBytes > 0)
-            {
-                RouteCounters.Add(stripe, route, RequestMetric.BytesOut, request.ResponseBytes);
-            }
+            AddBytes(RouteCounters, stripe, route, RequestMetric.BytesOut, request.ResponseBytes);
+            AddBytes(RouteCounters, stripe, route, RequestMetric.BytesIn, request.RequestBytes);
         }
 
         if (!request.Upstream.IsNone && Upstreams.IsCurrent(request.Upstream.Index, request.Upstream.Version))
         {
             var upstream = request.Upstream.Index;
             UpstreamCounters.Increment(stripe, upstream, UpstreamMetric.Requests);
+            AddBytes(UpstreamCounters, stripe, upstream, UpstreamMetric.BytesOut, request.ResponseBytes);
+            AddBytes(UpstreamCounters, stripe, upstream, UpstreamMetric.BytesIn, request.RequestBytes);
             if (request.ForwarderError > 0)
             {
                 UpstreamCounters.Increment(stripe, upstream, UpstreamMetric.Errors + ForwarderErrors.Clamp(request.ForwarderError));
@@ -247,6 +248,15 @@ public sealed class MetricsRegistry
 
     // Divided first: a monotonic timestamp is in nanoseconds on Linux, and a year of uptime times 1000 would overflow a long.
     private long NowMs => (long)(_time.GetTimestamp() / (double)_time.TimestampFrequency * 1000);
+
+    // Most requests move no body one way (a GET's upload, a 304's download): no atomic for those.
+    private static void AddBytes(MetricTable table, int stripe, int slot, int metric, long bytes)
+    {
+        if (bytes > 0)
+        {
+            table.Add(stripe, slot, metric, bytes);
+        }
+    }
 
     private static void Prepare(int slot, bool reused, params ReadOnlySpan<MetricTable> tables)
     {

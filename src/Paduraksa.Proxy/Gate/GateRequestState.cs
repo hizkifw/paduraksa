@@ -137,6 +137,20 @@ public sealed class GateRequestState : IGateFeature
     /// <summary>YARP's key of the destination the forward chose, for the destination's counters; null when nothing was forwarded.</summary>
     internal string? UpstreamDestinationKey { get; set; }
 
+    private Http.BodyCounter? _bodyCounter;
+
+    /// <summary>The counter of this request's body bytes once the access log put it on the request; null before that (a request
+    /// the access log didn't wrap: a test app, the simulator), when the bytes are not known.</summary>
+    internal Http.BodyCounter? CountedBody { get; private set; }
+
+    /// <summary>Stands the pooled body counter in for the request's body features (<see cref="Http.BodyCounter.Begin"/>). It is
+    /// created with the state, once per connection or pooled stream.</summary>
+    internal void CountBody(HttpContext context)
+    {
+        var counter = _bodyCounter ??= new Http.BodyCounter();
+        CountedBody = counter.Begin(context) ? counter : null;
+    }
+
     /// <summary>Clears every field at the start of a request.</summary>
     internal void Reset()
     {
@@ -148,6 +162,7 @@ public sealed class GateRequestState : IGateFeature
         Outcome = GateOutcome.Unset;
         Metrics = null;
         UpstreamDestinationKey = null;
+        CountedBody = null;
         Snapshot = null;
         Host = null;
         Route = null;
