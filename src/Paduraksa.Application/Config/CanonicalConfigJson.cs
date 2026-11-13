@@ -512,6 +512,7 @@ public static class CanonicalConfigJson
             ErrorPages = DropIfNothingSet(settings.ErrorPages),
             Maintenance = DropIfNothingSet(settings.Maintenance),
             Headers = Canonical(settings.Headers),
+            Compression = DropIfNothingSet(settings.Compression),
         };
     }
 

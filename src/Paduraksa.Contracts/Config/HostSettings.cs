@@ -7,7 +7,7 @@ namespace Paduraksa.Contracts.Config;
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
-/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>, <see cref="RuleSet"/>, <see cref="AuthProvider"/>, <see cref="ErrorPages"/>, <see cref="Maintenance"/>, <see cref="Headers"/>) merge field by field.
+/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>, <see cref="RuleSet"/>, <see cref="AuthProvider"/>, <see cref="ErrorPages"/>, <see cref="Maintenance"/>, <see cref="Headers"/>, <see cref="Compression"/>) merge field by field.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
 public sealed record HostSettings
@@ -70,6 +70,9 @@ public sealed record HostSettings
 
     /// <summary>Merged rule by rule (keyed on the header name) with the layers below. Built-in default: none.</summary>
     public HeadersSettings? Headers { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: off.</summary>
+    public CompressionSettings? Compression { get; init; }
 }
 
 /// <summary>
@@ -123,6 +126,26 @@ public sealed record RouteSettings
 
     /// <summary>Rule by rule over the host's resolved rules: a route's rule for a header name replaces the host's for it.</summary>
     public HeadersSettings? Headers { get; init; }
+}
+
+/// <summary>
+/// Compressing the upstream's responses with Brotli or gzip, for a client whose <c>Accept-Encoding</c> takes one. Only a
+/// text-like content type (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly) over <see cref="MinimumSize"/>, and
+/// never a response the upstream already encoded, a range, an event stream or the proxy's own answers. Each field inherits on
+/// its own.
+/// </summary>
+public sealed record CompressionSettings : ISettingsLayer
+{
+    /// <summary>Compress. Built-in default: off: a response that carries a secret next to input an attacker controls leaks the
+    /// secret through its compressed size (BREACH), and the proxy can't tell which responses do.</summary>
+    public bool? Enabled { get; init; }
+
+    /// <summary>The smallest declared body that is compressed, in bytes, 0 to 1 MiB; a body without a declared length is always
+    /// compressed. Built-in default: 1 KiB, below which the framing outweighs the saving.</summary>
+    public int? MinimumSize { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => Enabled is null && MinimumSize is null;
 }
 
 /// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>

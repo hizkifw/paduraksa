@@ -63,3 +63,13 @@ public static class RequestLimitBounds
     /// <summary>One header field on HTTP/2 and HTTP/3 (name and value): as large as all the headers together, so one big cookie the host admits gets through.</summary>
     public const int OuterHeaderFieldBytes = OuterHeadersBytes;
 }
+
+/// <summary>The bounds and built-in values of response compression, shared by the validator, the compiler and the dashboard.</summary>
+public static class CompressionBounds
+{
+    /// <summary>The built-in smallest body compressed: 1 KiB.</summary>
+    public const int DefaultMinimumSize = 1024;
+
+    /// <summary>The largest minimum a host may set: 1 MiB.</summary>
+    public const int MaxMinimumSize = 1024 * 1024;
+}

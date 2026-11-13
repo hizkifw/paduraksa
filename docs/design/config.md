@@ -208,11 +208,11 @@ One merge owns the layers for every consumer: `HostSettingsLayers` in `Paduraksa
 
 The dashboard shows where each value comes from ("inherited from Global" or "from profile *LAN only*"), with a one-click "override here" or "reset to inherited". It goes through the same merge, so a form cannot promise a value the proxy would not apply.
 
-**Nested records** merge field by field. They are `Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`, `RuleSet` and `Headers`. `Headers` merges rule by rule, keyed on the header name (see "Custom headers" in [hot-path.md](hot-path.md)).
+**Nested records** merge field by field. They are `Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`, `RuleSet`, `Headers` and `Compression`. `Headers` merges rule by rule, keyed on the header name (see "Custom headers" in [hot-path.md](hot-path.md)).
 - A layer lifts an inherited rate limit, access list or rule set with `enabled: false`. Everything else is a plain override.
 - A nested record that sets none of its fields is no record at all. Canonical JSON writes no key for it, so a stored revision keeps its bytes (and its hash). `ISettingsLayer.SetsNothing`, which each record states, is the one rule that decides it.
 
-The `HostSettings` fields are: force HTTPS, TLS (minimum version, TCP protocols, HTTP/3), HSTS, access log, request ID propagation, the `Server` header, proof of work, rate limit, `robots.txt`, Cloudflare (origin lockdown, Authenticated Origin Pulls), access list, request limits, rule set, auth provider, error pages and maintenance mode. Custom request and response headers, path rewriting and compression are not host settings in v0.1; `X-Forwarded-*` is not a setting either, the proxy always writes it (see [hot-path.md](hot-path.md#e-yarp)).
+The `HostSettings` fields are: force HTTPS, TLS (minimum version, TCP protocols, HTTP/3), HSTS, access log, request ID propagation, the `Server` header, proof of work, rate limit, `robots.txt`, Cloudflare (origin lockdown, Authenticated Origin Pulls), access list, request limits, rule set, auth provider, error pages, maintenance mode, custom request and response headers, and compression. Path rewriting (strip and add a prefix) is a route's own, `RouteConfig.Rewrite`, not a layered setting (see "Path rewrite" in [hot-path.md](hot-path.md)); `X-Forwarded-*` is not a setting either, the proxy always writes it (see [hot-path.md](hot-path.md#e-yarp)).
 
 ### Adding a host setting
 

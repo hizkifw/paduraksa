@@ -194,6 +194,7 @@ public static partial class SnapshotCompiler
                 RequestIdPropagation = spec.RequestIdPropagation,
                 ResponseHeaders = responseHeaders,
                 Headers = hostHeaders,
+                Compression = CompileCompression(spec, where, Errors),
                 ProofOfWork = spec.ProofOfWork,
                 RequestLimits = spec.RequestLimits,
                 ServesProofOfWork = servesProofOfWork,
@@ -487,6 +488,19 @@ public static partial class SnapshotCompiler
         }
 
         return routes;
+    }
+
+    /// <summary>The host's compression, its minimum checked again; null when off, and for an admin host, whose app answers for its
+    /// own responses.</summary>
+    private static CompressionPolicy? CompileCompression(HostSpec spec, CompileErrorSource where, List<CompileError> errors)
+    {
+        var compression = spec.Compression;
+        if (compression.MinimumSize is < 0 or > CompressionBounds.MaxMinimumSize)
+        {
+            errors.Add(new(where, $"the compression minimum must be 0-{CompressionBounds.MaxMinimumSize} bytes, got {compression.MinimumSize}"));
+        }
+
+        return compression.Enabled && spec.Kind == HostKind.Proxy ? new CompressionPolicy(compression.MinimumSize) : null;
     }
 
     /// <summary>The route's rewrite, checked again (the validator's backstop); null when it does nothing.</summary>

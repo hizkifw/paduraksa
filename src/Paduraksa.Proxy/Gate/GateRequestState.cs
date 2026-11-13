@@ -78,6 +78,10 @@ public sealed class GateRequestState : IGateFeature
     /// </summary>
     public bool Aborted { get; internal set; }
 
+    /// <summary>True once the proxy writes a page of its own (<see cref="ResponseWriter"/>), also inside a forward (a replaced upstream
+    /// error, YARP's 502): such a page is never compressed.</summary>
+    internal bool ProxyAnswered { get; set; }
+
     GateRequestState IGateFeature.State => this;
 
     // The request ID: the adopted header value, or (when null) the counter a generated one is formatted from.
@@ -169,6 +173,7 @@ public sealed class GateRequestState : IGateFeature
         ClientIp = default;
         IsHttps = false;
         Aborted = false;
+        ProxyAnswered = false;
         HasRequestId = false;
         _requestId = null;
         _requestIdFromClient = false;

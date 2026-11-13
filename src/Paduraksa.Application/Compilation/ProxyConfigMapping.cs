@@ -363,6 +363,7 @@ public static class ProxyConfigMapping
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
             Headers = effective.Headers,
+            Compression = effective.Compression,
             ErrorPages = ErrorPagesOf(host, effective.ErrorPages, where, warnings),
             Maintenance = maintenance,
             Routes = routes,

@@ -184,6 +184,8 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                         app.Use(options.AfterGate);
                     }
 
+                    // As the public app: after the gate, inside the access log.
+                    app.Use(next => new Paduraksa.Proxy.Http.ResponseCompressionStage(next, app.ApplicationServices).InvokeAsync);
                     app.UseRouting();
                     app.UseEndpoints(static endpoints => endpoints.MapPaduraksaProxy());
                 }))

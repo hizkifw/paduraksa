@@ -285,6 +285,26 @@ Severity labels refer to the numbered gaps in section 8.
   a handshake that fails after its callback). There is **no limit on the rate of new connections**, and the **admin listener keeps
   Kestrel's own limits** (it has `AdminAllowedSources`). Volumetric DDoS is a non-goal (5.4).
 
+**Compression side channels (BREACH).**
+- *Built:* response compression is **off by default** at every layer and opt-in per host; it never touches a response the
+  upstream already encoded, a range, an event stream or the proxy's own answers. The dashboard field says why it is off.
+- *Residual:* on a host where it is turned on, a response that carries a secret next to attacker-reflected input (a CSRF token
+  beside an echoed search term) leaks the secret through its compressed length to an attacker who can make the victim's browser
+  send many requests and watch the sizes (BREACH). The proxy can't tell which responses do that; the remedies are the app's
+  (masking tokens per response, not reflecting input next to secrets) or leaving compression to the app. There is no
+  per-route switch yet to exempt one path.
+
+**Custom headers and path rewrites.**
+- *Built:* a header rule can't name a framing, hop-by-hop, forwarding, request-ID or Cloudflare header, nor (a compile error) an
+  identity header an auth provider of the host vouches for, so configuration can't forge what the upstream trusts; values are
+  bounded visible ASCII, so a value can't start another header line (`CustomHeadersValidationTests`, the compiler's backstop).
+  A rewritten route (strip, add or both) answers 404 to a path it can't rewrite without a guess: a spelling of the prefix that
+  isn't the route's own, or a dot segment in any spelling (`%2e%2e`, `.%2E`, `..;`, literal `..`). Kestrel resolves those before
+  matching, but the raw path is forwarded, so `/app/%2e%2e/app/x` would otherwise reach the upstream as `/api/%2e%2e/app/x` and
+  resolve outside the prefix the route forwards under (found in review; `PathRewriteTests`, `PathRewriteEndToEndTests`).
+- *Residual:* a rule can still set anything else, `Authorization` and `Cookie` to the upstream included: that is the point of
+  the feature, and an admin who can edit host settings can already point the host anywhere.
+
 **Header and body abuse, request smuggling, path tricks.**
 - *Built:* Kestrel and YARP do HTTP framing; the proxy never forwards `Forwarded` or a client's `X-Forwarded-*`; the gate and
   the simulator share one canonical **matching path** (`RoutePath`: backslash, `%2F`, `%5C`, dot segments, case rules) so

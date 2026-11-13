@@ -96,6 +96,7 @@ public static class ConfigErrorCodes
     public const string RouteRewriteStripRoot = "route.rewrite.stripPrefix.root";
     public const string RouteRewriteAddPrefixInvalid = "route.rewrite.addPrefix.invalid";
     public const string RouteRewriteLocationUnused = "route.rewrite.rewriteLocation.unused";
+    public const string CompressionMinimumSizeInvalid = "compression.minimumSize.invalid";
     public const string HeadersTooMany = "headers.tooMany";
     public const string HeadersNameInvalid = "headers.name.invalid";
     public const string HeadersNameReserved = "headers.name.reserved";

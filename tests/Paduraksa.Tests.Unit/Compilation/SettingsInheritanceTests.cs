@@ -343,6 +343,22 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: "from-the-first",
             Second: "from-the-second"),
+        new(
+            "compression.enabled",
+            static s => s.Compression?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { Compression = new CompressionSettings { Enabled = bool.Parse(v) } },
+            static h => h.Compression.Enabled ? "true" : "false",
+            BuiltIn: "false",
+            First: "true",
+            Second: "false"),
+        new(
+            "compression.minimumSize",
+            static s => s.Compression?.MinimumSize?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { Compression = new CompressionSettings { MinimumSize = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.Compression.MinimumSize.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "1024",
+            First: "0",
+            Second: "4096"),
     ];
 
     /// <summary>One row per page: a message whose heading is the sample, so each status's layer shows in what the host carries.</summary>
@@ -623,6 +639,7 @@ public sealed class SettingsInheritanceTests
             Host: ["errorPages.badGateway", "errorPages.serviceUnavailable", "errorPages.gatewayTimeout", "errorPages.maintenance"]),
         new("maintenance", Defaults: ["maintenance.enabled"], Profile: ["maintenance.status", "maintenance.retryAfterSeconds"], Host: ["maintenance.bypassAccessListId"]),
         new("headers", Defaults: ["headers.request"], Profile: [], Host: ["headers.response"]),
+        new("compression", Defaults: ["compression.enabled"], Profile: [], Host: ["compression.minimumSize"]),
     ];
 
     /// <summary>

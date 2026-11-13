@@ -424,6 +424,9 @@ public sealed record HostSpec
     /// <summary>The host's custom request and response headers; each route carries its own resolved set.</summary>
     public HostHeadersSpec Headers { get; init; } = HostHeadersSpec.None;
 
+    /// <summary>Response compression.</summary>
+    public HostCompressionSpec Compression { get; init; } = HostCompressionSpec.Off;
+
     /// <summary>Proxy hosts only; listed in the order the host evaluates them: exact first, then the longest prefix,
     /// then <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];
@@ -436,6 +439,18 @@ public sealed record HostSpec
 
     /// <summary>Required for <see cref="HostKind.Respond"/>.</summary>
     public RespondSpec? Respond { get; init; }
+}
+
+/// <summary>Response compression as it resolved across the layers.</summary>
+public sealed record HostCompressionSpec
+{
+    /// <summary>Off, the built-in default.</summary>
+    public static HostCompressionSpec Off { get; } = new();
+
+    public bool Enabled { get; init; }
+
+    /// <summary>The smallest declared body compressed, in bytes.</summary>
+    public int MinimumSize { get; init; } = CompressionBounds.DefaultMinimumSize;
 }
 
 /// <summary>One custom header rule as the compiler takes it; the compiler checks the name and value again.</summary>

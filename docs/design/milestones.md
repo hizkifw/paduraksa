@@ -210,6 +210,7 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
   - the PROXY protocol parser as two NuGet packages (`Paduraksa.ProxyProtocol`, `Paduraksa.ProxyProtocol.AspNetCore`; **built** on `proxyprotocol-package`: packed on every CI run, pushed to nuget.org by a `proxyprotocol-v*` tag through trusted publishing once a `NUGET_USER` variable exists, see [../development.md](../development.md#publishing-the-nuget-packages));
   - per-upstream connect and idle timeouts (**done** on `upstream-timeouts`: YARP's 100 s activity timeout was cutting quiet WebSockets and event streams; see "Upstream timeouts" in [hot-path.md](hot-path.md));
   - the REST API made consistent (**done** on `api-consistency`: kebab-case paths, one status per verb, `{ items, nextCursor }` on every collection, `GET /api/v1/version`, every query parameter and response in the OpenAPI document, kept by a test; see "Conventions for a new endpoint" in [admin-surfaces.md](admin-surfaces.md#conventions-for-a-new-endpoint));
+  - custom request and response headers per host and route, strip-prefix and add-prefix per route, and response compression per host (**built** on `route-transforms`; see "Custom headers", "Path rewrite" and "Response compression" in [hot-path.md](hot-path.md)). Left out: regex rewrites, header placeholders, zstd (not in .NET 10) and a per-route compression switch;
   - a time-boxed run of every fuzz harness (`scripts/fuzz.sh --time 3600 --merge`; the harnesses and property tests are built, YAML and ACME harnesses with M10);
   - load tests.
 - **Done when:** a tagged release.
@@ -225,3 +226,5 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
 - Geo and a country map, protection-over-time series and top client IPs for the analytics.
 - A plugin model for policies.
 - An out-of-process vault.
+- A `pass` operation for custom header rules, to un-inherit a rule a lower layer sets without replacing it.
+- Cookie `Path` mapping for rewritten routes (an upstream's `Set-Cookie; Path=/` under a stripped prefix).

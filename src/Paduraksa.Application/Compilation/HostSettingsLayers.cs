@@ -54,6 +54,8 @@ public static class HostSettingsLayers
     private const bool BuiltInMaintenanceEnabled = false;
     private const int BuiltInMaintenanceStatus = ErrorPageStatuses.DefaultMaintenanceStatus;
     private const int BuiltInMaintenanceRetryAfterSeconds = 0;
+    private const bool BuiltInCompressionEnabled = false;
+    private const int BuiltInCompressionMinimumSize = CompressionBounds.DefaultMinimumSize;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -90,6 +92,7 @@ public static class HostSettingsLayers
             Status = BuiltInMaintenanceStatus,
             RetryAfterSeconds = BuiltInMaintenanceRetryAfterSeconds,
         },
+        Compression = new CompressionSettings { Enabled = BuiltInCompressionEnabled, MinimumSize = BuiltInCompressionMinimumSize },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -124,6 +127,7 @@ public static class HostSettingsLayers
             ErrorPages = Merge(lower.ErrorPages, upper.ErrorPages),
             Maintenance = Merge(lower.Maintenance, upper.Maintenance),
             Headers = Merge(lower.Headers, upper.Headers),
+            Compression = Merge(lower.Compression, upper.Compression),
         };
     }
 
@@ -384,6 +388,24 @@ public static class HostSettingsLayers
         return merged.SetsNothing ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static CompressionSettings? Merge(CompressionSettings? lower, CompressionSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        CompressionSettings merged = new()
+        {
+            Enabled = upper.Enabled ?? lower?.Enabled,
+            MinimumSize = upper.MinimumSize ?? lower?.MinimumSize,
+        };
+
+        return merged.SetsNothing ? null : merged;
+    }
+
     /// <summary>
     /// <paramref name="lower"/>'s rules with <paramref name="upper"/>'s over them, per direction and keyed on the header name
     /// (ignoring case): an upper rule replaces the lower rule for its name in place, a new name is added after the inherited
@@ -584,6 +606,7 @@ public static class HostSettingsLayers
         var errorPages = settings.ErrorPages ?? new ErrorPagesSettings();
         var maintenance = settings.Maintenance ?? new MaintenanceSettings();
         var headers = HeadersSpec(settings.Headers);
+        var compression = settings.Compression ?? new CompressionSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -665,7 +688,12 @@ public static class HostSettingsLayers
                 RetryAfterSeconds = maintenance.RetryAfterSeconds ?? BuiltInMaintenanceRetryAfterSeconds,
                 BypassAccessListId = maintenance.BypassAccessListId ?? AccessListId.Empty,
             },
-            headers);
+            headers,
+            new HostCompressionSpec
+            {
+                Enabled = compression.Enabled ?? BuiltInCompressionEnabled,
+                MinimumSize = compression.MinimumSize ?? BuiltInCompressionMinimumSize,
+            });
     }
 
     // No built-in rule: the built-in headers (Server, HSTS, Alt-Svc, the request ID) are settings of their own.
@@ -762,6 +790,7 @@ public enum SettingsLayer
 /// <param name="ErrorPages">The pages the layers set, and whether an upstream's error bodies are replaced.</param>
 /// <param name="Maintenance">Maintenance mode as it resolved.</param>
 /// <param name="Headers">The custom request and response header rules.</param>
+/// <param name="Compression">Response compression as it resolved.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -779,4 +808,5 @@ internal sealed record EffectiveHostSettings(
     HostAuthProviderSpec AuthProvider,
     HostErrorPagesSpec ErrorPages,
     HostMaintenanceSpec Maintenance,
-    HostHeadersSpec Headers);
+    HostHeadersSpec Headers,
+    HostCompressionSpec Compression);

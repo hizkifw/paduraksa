@@ -16460,6 +16460,30 @@
         "additionalProperties": false,
         "description": "Keeping the host reachable through Cloudflare only. Both fields do nothing unless the global trusted-proxy mode is\n`CloudflareProxy` or `CloudflareTunnel` (the config warns when they are set without it). Each field inherits on\nits own."
       },
+      "CompressionSettings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ],
+            "description": "Compress. Built-in default: off: a response that carries a secret next to input an attacker controls leaks the\n            secret through its compressed size (BREACH), and the proxy can't tell which responses do."
+          },
+          "minimumSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "description": "The smallest declared body that is compressed, in bytes, 0 to 1 MiB; a body without a declared length is always\n            compressed. Built-in default: 1 KiB, below which the framing outweighs the saving.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Compressing the upstream's responses with Brotli or gzip, for a client whose `Accept-Encoding` takes one. Only a\ntext-like content type (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly) over int? CompressionSettings.MinimumSize, and\nnever a response the upstream already encoded, a range, an event stream or the proxy's own answers. Each field inherits on\nits own."
+      },
       "ConfigChange": {
         "required": [
           "object"
@@ -19499,10 +19523,21 @@
                 "$ref": "#/components/schemas/HeadersSettings"
               }
             ]
+          },
+          "compression": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Merged field by field with the layers below. Built-in default: off.",
+                "$ref": "#/components/schemas/CompressionSettings"
+              }
+            ]
           }
         },
         "additionalProperties": false,
-        "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means\n<i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings\n(TlsSettings? HostSettings.Tls, HstsSettings? HostSettings.Hsts, ServerHeaderSettings? HostSettings.ServerHeader, ProofOfWorkSettings? HostSettings.ProofOfWork, RateLimitSettings? HostSettings.RateLimit,\nRobotsSettings? HostSettings.Robots, CloudflareSettings? HostSettings.Cloudflare, AccessListSettings? HostSettings.AccessList, RequestLimitsSettings? HostSettings.RequestLimits, RuleSetSettings? HostSettings.RuleSet, AuthProviderSettings? HostSettings.AuthProvider, ErrorPagesSettings? HostSettings.ErrorPages, MaintenanceSettings? HostSettings.Maintenance, HeadersSettings? HostSettings.Headers) merge field by field."
+        "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means\n<i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings\n(TlsSettings? HostSettings.Tls, HstsSettings? HostSettings.Hsts, ServerHeaderSettings? HostSettings.ServerHeader, ProofOfWorkSettings? HostSettings.ProofOfWork, RateLimitSettings? HostSettings.RateLimit,\nRobotsSettings? HostSettings.Robots, CloudflareSettings? HostSettings.Cloudflare, AccessListSettings? HostSettings.AccessList, RequestLimitsSettings? HostSettings.RequestLimits, RuleSetSettings? HostSettings.RuleSet, AuthProviderSettings? HostSettings.AuthProvider, ErrorPagesSettings? HostSettings.ErrorPages, MaintenanceSettings? HostSettings.Maintenance, HeadersSettings? HostSettings.Headers, CompressionSettings? HostSettings.Compression) merge field by field."
       },
       "HostTraffic": {
         "required": [

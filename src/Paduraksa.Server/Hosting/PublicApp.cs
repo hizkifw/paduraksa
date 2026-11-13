@@ -1,5 +1,6 @@
 using Paduraksa.Proxy;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
@@ -100,6 +101,8 @@ internal static partial class PublicApp
                         app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
                         var gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                         app.Use(gate.InvokeAsync);
+                        // After the gate (forwarded requests only), inside the access log (so its byte count is what was sent).
+                        app.Use(next => new ResponseCompressionStage(next, app.ApplicationServices).InvokeAsync);
                         app.UseRouting();
                         app.UseEndpoints(static endpoints => endpoints.MapPaduraksaProxy());
                     }),

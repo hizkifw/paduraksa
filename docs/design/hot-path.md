@@ -8,6 +8,7 @@ Contents:
 - [Response headers](#response-headers-built-in-m6)
 - [Custom headers](#custom-headers-built-in-route-transforms)
 - [Path rewrite](#path-rewrite-built-in-route-transforms)
+- [Response compression](#response-compression-built-in-route-transforms)
 - [The connection stage](#the-connection-stage)
 - [The listeners' limits](#the-listeners-limits)
 - [Upstream timeouts](#upstream-timeouts)
@@ -253,6 +254,35 @@ The response `X-Request-Id` is the one header the decision leaves to the answer,
   - **The mapping guesses, and says how.** A path-absolute `Location` from a stripped upstream is ambiguous: `/login` is the upstream's own path (the client needs `/app/login`), but `/oauth2/sign_in` may be another route of the same host (oauth2-proxy beside the app), which the mapping would put under this one and 404. And an app that reads `X-Forwarded-Prefix` already answers `/app/login`, which mapped again would be `/app/app/login`. So a `Location` that already starts with the client's prefix (at a segment boundary, ignoring case) is left alone, and `rewriteLocation: false` turns the mapping off for a route whose upstream redirects to its siblings. On is the default because an app that knows nothing of the prefix is the common case behind a strip.
   - **The upstream's own address.** An absolute `Location` on the name the upstream was sent (a custom Host header, or the destination's address in Destination mode) is the upstream talking about itself: it gets the client's scheme and host, so an internal address never reaches the client, and its path is mapped as above. A `Location` elsewhere (another host or port, `//cdn/...`, `/\cdn/...`, which a browser also reads as protocol-relative, `/apiary`) is left alone; scheme and host compare ignoring case. Only a stripping route rewrites it: an add-only route forwards the client's whole path under its prefix, so taking the prefix off would point outside the route. It costs nothing without a rewrite or a `Location`, and one string for a redirect it rewrites. `RouteTransformsKestrelAllocationTests` pins these on a real Kestrel, over HTTP/1.1 and h2c: the gate's decision for a rewriting route, and the response transform's custom rules with no `Location`, at 0 B; a mapped `Location` at its one string.
 - **Simulator.** The upstream step has a `forwardedPath` fact and, for a strip, the `X-Forwarded-Prefix` it sends.
+
+## Response compression (built in route-transforms)
+
+**The setting.** `HostSettings.Compression` is `{enabled, minimumSize}`, layered field by field. Built-in default: **off**, and 1 KiB once on. Validator code `compression.minimumSize.invalid` (0 to 1 MiB); the compiler checks it again. An admin host never compresses.
+
+**What is compressed.** A forwarded response, when the client's `Accept-Encoding` takes Brotli or gzip, whose:
+- content type is text-like (`text/*` except `text/event-stream`, JSON and `+json`, JavaScript, XML and `+xml`, SVG, WebAssembly, TTF/OTF/EOT fonts);
+- status has a body (not 1xx, 204, 206 or 304), and it has no `Content-Range`;
+- `Content-Encoding` is absent: an upstream that compressed passes through untouched;
+- no `Cache-Control: no-transform` (the upstream asked intermediaries to leave the body alone), and no later middleware set `IHttpsCompressionFeature` to `DoNotCompress` (honoured on HTTP too);
+- declared `Content-Length` is at least the minimum. A body without a declared length (chunked) is compressed: its size isn't known when the decision is made.
+- Once an encoding is chosen (not for a client that takes only `identity` or `deflate`), the response is a different representation and its headers say so: a strong `ETag` is made weak (`W/"..."`), so a cache or a range request doesn't treat the bytes as the upstream's while `If-None-Match` still revalidates (a weak comparison); `Accept-Ranges`, `Content-Digest`, `Digest` and `Repr-Digest` go, and the middleware drops `Content-Length` and `Content-MD5`. The choice is made in `ShouldCompressResponse`, when the upstream's headers are in: the middleware's own question for the encoding comes earlier on a forward (YARP's `DisableBuffering` asks before the headers are copied).
+- A `HEAD`, any `CONNECT`, an HTTP/2 or HTTP/3 extended CONNECT (a WebSocket there has no `Upgrade` header) and an HTTP/1.1 upgrade are never touched, nor are the gate's own answers (error pages, redirects, robots.txt, maintenance): they are small, precomputed and written before the stage.
+- Brotli is preferred over gzip at equal q-value, both at `CompressionLevel.Fastest`. .NET 10 has no zstd built in, so there is none.
+
+**ASP.NET's middleware, gated.** Decided: `ResponseCompressionMiddleware` fits, with a stage in front of it (`ResponseCompressionStage`) and a provider whose `ShouldCompressResponse` is the host's (`CompressionPolicy`). The built-in part does what is easy to get wrong:
+- the encoding from `Accept-Encoding`'s q-values;
+- `Vary: Accept-Encoding` on a compressed response, and `Content-Length` and `Content-MD5` dropped;
+- streaming: the encoder is flushed when YARP flushes the response, and finished at the end;
+- `IHttpsCompressionFeature` is honoured (`EnableForHttps` is on; the host setting is the switch).
+- **Where it sits.** After the gate, so it sees forwarded requests only, and inside the access log's body counter, so the counted and logged bytes are the compressed ones (`CompressionEndToEndTests`).
+- The proxy's own pages written inside a forward (a replaced upstream error, YARP's 502/504 page) are never compressed either: `ResponseWriter` marks the request, and the provider declines it. The first version compressed them, contrary to this page (found in review).
+
+**Cost.**
+- Off for the host, no `Accept-Encoding`, or a `HEAD`: the stage tests a field and calls the next middleware, 0 B (`TheStageCostsNothingWhenItDoesNothing`).
+- On, with an `Accept-Encoding` the client sent: the middleware's body wrapper and its async state, **per request**, whether the response then turns out to be compressed or not (the decision needs the response's headers, so the wrapper has to be there first). Per compressed response, on top: the encoder stream and its native state, and the weakened ETag's string when the upstream sent a strong one. The built-in middleware pools nothing. Measured below.
+- **Measured** (bench `compressed`, quick profile, not recorded, 2026-11-13, i5-13600K, proxy on 4 CPUs): a 16 KiB HTML page, `Accept-Encoding: gzip`, 64 connections. Paduraksa served 33,117 req/s at **61.7 us of proxy CPU per request**, against 28.6 us for the plain `h1` request in the same run: about 33 us per response is the compression. Same run: HAProxy 49.4 us, Traefik 127.9 us, nginx 155.4 us, Caddy 158.8 us. The levels are each proxy's fastest or closest (nginx `gzip_comp_level 1`), so the output sizes differ and the row compares cost, not ratio.
+
+**BREACH.** A response that carries a secret next to input an attacker controls leaks the secret through its compressed size. The proxy can't tell which responses do, so compression is opt-in per host and the dashboard field says why; see the threat model, 4.1.
 
 ## The connection stage
 

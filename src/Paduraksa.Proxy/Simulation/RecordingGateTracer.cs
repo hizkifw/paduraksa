@@ -608,6 +608,15 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             }
         }
 
+        if (context.Features.Get<IGateFeature>()?.State.Host?.Compression is { } compression)
+        {
+            // Decided when the response starts, from its own type and length, which a simulation doesn't have: the rule is what it can say.
+            var accepts = context.Request.Headers.AcceptEncoding;
+            facts.Add(new("compression", accepts.Count == 0
+                ? "on, but the client sent no Accept-Encoding: not compressed"
+                : $"Brotli or gzip, as Accept-Encoding: {accepts} allows, for a text response of {compression.MinimumSize.ToString(System.Globalization.CultureInfo.InvariantCulture)} bytes or more that the upstream didn't encode"));
+        }
+
         AddCustomHeaderFacts(facts, route.Headers.Request, "request");
         AddCustomHeaderFacts(facts, route.Headers.Response, "response");
         steps.Add(new GateStep(

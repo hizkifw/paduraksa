@@ -86,6 +86,10 @@ internal static class ResponseWriter
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(response);
+        if (context.Features.Get<IGateFeature>()?.State is { } state)
+        {
+            state.ProxyAnswered = true;
+        }
 
         if ((response.HtmlPage is not null || response.CustomPage is not null) && MediaTypes.AcceptsHtml(context.Request.Headers.Accept))
         {

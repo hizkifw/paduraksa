@@ -842,6 +842,11 @@ public static class ConfigValidator
             {
                 CheckHeaders(headers, $"{path}/headers");
             }
+
+            if (settings.Compression?.MinimumSize is { } smallest && smallest is < 0 or > CompressionBounds.MaxMinimumSize)
+            {
+                Add($"{path}/compression/minimumSize", CompressionMinimumSizeInvalid, $"the minimum size is 0 to {CompressionBounds.MaxMinimumSize} bytes (1 MiB), got {smallest}");
+            }
         }
 
         /// <summary>

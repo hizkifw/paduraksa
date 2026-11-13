@@ -58,6 +58,9 @@ public sealed class CompiledHost
     /// </summary>
     public ResponseHeaderOperation[] ResponseHeaders { get; init; } = [];
 
+    /// <summary>Which forwarded responses are compressed; null: none (off, the built-in default).</summary>
+    public Http.CompressionPolicy? Compression { get; init; }
+
     /// <summary>The host's custom headers; a route that sets none of its own forwards with these.</summary>
     public CompiledHeaders Headers { get; init; } = CompiledHeaders.None;
 
