@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+       orry</p>
+      contentType: te00000000000000000000000000000002\22222v.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb2\22222222Apppppppppppppppppp000000000000tml

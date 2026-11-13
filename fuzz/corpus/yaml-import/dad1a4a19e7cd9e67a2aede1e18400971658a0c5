@@ -1,0 +1,27 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offe
+    # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credeIIIIIIIIIIIIIIIIIIIIIIIIIIIKIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIItttttttt000000I
+  - name: Mttttt'IIIIIIIIII0000IIIIIIIIIIIIIIIIItttttt~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'IIIIIIIIIIIIII&III
+  - name: Mttttt'tttttre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # crt6r- name: MEDUIA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbb`bb\22222=222200292l5f4Al8rNFlB

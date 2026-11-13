@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDI"h444A
+hosts:
+  - names: [tv.eom]
+ 
+    routes:
+      - upstream: jellyfin
+   

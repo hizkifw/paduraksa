@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [---com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: #  respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no388888888888888888kqa.   contentTy/e: text/[hs:* []jec.sys:    contentTy/e: text/[html

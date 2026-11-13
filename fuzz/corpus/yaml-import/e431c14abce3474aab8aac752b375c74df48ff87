@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offce
+    ip: {allow: [11,...........,..o::.......,...,..../..........,....,.....,..../......,....,...,......,.o::....,..........1.0.0/8],}
+    basicAuth:
+ 

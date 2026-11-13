@@ -1,0 +1,45 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+        a.no777777777u/s:[]e *bjetos.sys: Co*siuo77777777os.jec.sject:os.sys: Co*siu/s:[]e *b)v1apa&e *bject:os.sys: >o*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.comMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777777777777777777kqa..dev/v1apa&e *bject:os.stosuos:* []e ts:
+  - names: [aҙxample.comMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777777777777777777kqa.dev/v01Apa&e *bject:os.jec.sject:os.sys: Co*siuct:os.jec.sject:*bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.comMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777777777777777777kqa.dev/v01Apa&e *bject:os.jec.sos.sys: Co*siu/s:[]e *tbjeos.sys: Co*siuo77777777777kqa.dev/v1ap:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888888888888888kqa.no7777777777777777777kqa.dev/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjeto/vsuos:*`[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 101
+      body: |
+        <p>no77777777777e/[hs:* []jec.sys:/v1ap:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <88888888888888887777kqa.   contentTy/e: Text/[hs:* []jec.sys:    contentTy/e: text/[html

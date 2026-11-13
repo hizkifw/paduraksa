@@ -1,0 +1,19 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offe
+    # creden 2OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credentialId:cessLists:
+  - name: office
+    # credentialId: pwc_01ip: {allow: [10.0.0credentialId:cessLists:
+  - name: offi ce
+        # crredent8r- name: MEDIA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbb`bb00000000K""855183l5f4Al8rNFlB

@@ -1,0 +1,38 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: Mttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIJIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttEDI0000III
+  - name: Mttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttEDI00N000wttIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttt000?ttttt't|tttttttt'ttttttttttttttttIIIIIII
+  - name: Mttttt'ttttttttttttt?ttttt'ttttttttttttttttIIIIIII0000?IIIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttttttttttttttttt?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: Mttttt'tttttttttttttttttttGDI000000?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttEDI000000?IIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttttttttttttII?ttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'I
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttt00wttIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttEDI000000wttIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttt000?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: Mttttt'ttttttttttttt?ttttt'ttttttttttttttttIIIIIII0000?IIIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttttttttttttttttt?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: Mttttt'tttttttttttttttttttGDI000000?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttEDI000000?IIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttttttttttttII?ttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'I
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttIIIIIIIIaIII
+upstreams:
+  - name: jel&~yfin
+    destinations:
+      - address: http:/./12IIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttttttttttttttttttttttttttttttttttttttttttt'ttttttttttttttttIIIIIIII?ttttt'tttttt'tttttttttt0000tttttttttttttttttEDI0000III
+  - name: Mttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttttt000?ttttt'tttttttttt'ttttttttttttttttIIIIIII
+  - name: Mttttt'ttttttttttttt?ttttt'ttttttttttttttttIII000

@@ -1,0 +1,41 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+  - id: prof_02wndAAHBC90f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst_02wndAAHBC95f4Al8rNFlB
+        address: http://127.0.0.1:8
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_04nABdCwHA94f4Al8rNFlB
+    name: apIIIIIII MttttIIIIIIIII&III
+  - name: Mttttt'ttttttttttttt@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttttt@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@IIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII|	IIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttttt@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII x, x, x, x, , 'a, *a, *a, *a, *a, *a], , x, x, , *a*a( *a *a, *a], , x, II|	IIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttIIIIIIIIII0000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIHItIIIIIIIttttttt@@'t	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIx, , *a, *a, a, *a, *a, *a, *e, *a], , *a,, x, x, , *a, *a, *a, IIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttttt@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@, *h, *a< [IIIIIIIIIIIIIIIIIIII
+  - name: MtttIII@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII|	IIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIII

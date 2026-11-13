@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 96e
+hosts:
+  - names: [jellfin.]
+    
+    routes:
+      - upstream: jellyfin

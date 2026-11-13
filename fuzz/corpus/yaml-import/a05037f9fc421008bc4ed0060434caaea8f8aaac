@@ -1,0 +1,27 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 0IIa
+upstreams:
+  - name: jel&~yfin
+    destinations:
+      - address: http:/./1270.IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIItttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIz95lrAF8Nf4lB
+    hosts:
+  - id: host_02wnpppppppppppppppppnd
+    respond: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8Nf4lB
+    hosts:
+  - id: hosn00000?ttttt'ttttttttttttttttIIIIIIIIIIIIIIII=IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIInd
+    respond: {statusCode: 457}
+  - ihosts:
+  - id: host_02wndAAH[nd
+    respond: {statusCode: 457}
+  - id: jost_0nd
+    respogd: {statusCode: 457}
+  - id: jost_02w.dAAHBC95lrAF8IIIIIIIIIIIIIIIIIIIIIIIIIIIIIttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: MttttIIIIIIIIIIttttttttttttttEDIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtt000000

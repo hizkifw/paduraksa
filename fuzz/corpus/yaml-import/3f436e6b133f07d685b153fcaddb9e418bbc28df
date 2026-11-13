@@ -1,0 +1,49 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: nozFound
+  trustedProxies:
+    mode: 'off
+    useTrueClientIp: false
+    forwarde forwardeddProto: false
+profiles:
+  - id: prof_01wndAAHBC95f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlb    name: jellyfin
+    sessionAff: false
+    forwarde forwardeddProto: false
+profiles:
+  - id: prof_01wndAAHBC95f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlb    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id:pstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlB    name: jelly`in
+    sessionAffinity: false
+    destina
+    useTrueClientIp: false
+    forwarde forwardeddProto: false
+pr   name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlb    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id:pstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlB    name: jelly`in
+    sessionAffinity: false
+    demple.com]
+    kind: proxy
+  3  enabled: true
+    ppstream: jellyfin
+        order: 0
+        match: prefix
+        path: /

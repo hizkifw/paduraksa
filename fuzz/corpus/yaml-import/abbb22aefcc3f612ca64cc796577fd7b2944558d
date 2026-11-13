@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [om]
+    kind: respond
+    respond:
+      statusCode: 405
+      body: |
+        <pooooooooooo)/ooo'?																
+      contentType: t	""&CCׇӟx~
