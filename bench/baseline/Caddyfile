@@ -71,6 +71,45 @@ http://compressed.test:18083 {
 	import proxied
 }
 
+# headers: header_up and header_down on the proxy handler. `header_up Name value` replaces, `+Name` appends and `-Name`
+# removes, the same for header_down on the response.
+http://headers.test:18083 {
+	reverse_proxy 127.0.0.1:18080 {
+		header_up X-Bench-Replace replaced
+		header_up X-Bench-Tenant acme
+		header_up +X-Bench-Added one
+		header_up -X-Bench-Drop
+		header_down X-Frame-Options DENY
+		header_down X-Bench-Policy max-age=31536000
+		header_down -X-Powered-By
+		transport http {
+			keepalive_idle_conns_per_host 256
+		}
+	}
+}
+
+# rewrite: strip /app (handle_path) and put /api in front, keeping the query ({uri} is the path and query).
+http://rewrite.test:18083 {
+	handle_path /app/* {
+		rewrite * /api{uri}
+		import proxied
+	}
+}
+
+# rewrite-redirect: the same, and header_down maps a Location starting with /api/ back to /app/ (a regular-expression
+# replacement on the header's value; Caddy has no automatic mapping).
+http://rewrite-redirect.test:18083 {
+	handle_path /app/* {
+		rewrite * /api{uri}
+		reverse_proxy 127.0.0.1:18080 {
+			header_down Location ^/api/ /app/
+			transport http {
+				keepalive_idle_conns_per_host 256
+			}
+		}
+	}
+}
+
 # error-page: a closed port; handle_errors serves the page from a file with the status kept at 502.
 http://error-page.test:18083 {
 	reverse_proxy 127.0.0.1:18079

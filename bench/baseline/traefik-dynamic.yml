@@ -32,6 +32,26 @@ http:
     compress:
       compress:
         minResponseBodyBytes: 1024
+    # headers: customRequestHeaders and customResponseHeaders set a header; an empty value removes it. There is no append,
+    # so the "added" request header is a set of one the client never sends.
+    bench-headers:
+      headers:
+        customRequestHeaders:
+          X-Bench-Replace: replaced
+          X-Bench-Tenant: acme
+          X-Bench-Added: one
+          X-Bench-Drop: ""
+        customResponseHeaders:
+          X-Frame-Options: DENY
+          X-Bench-Policy: max-age=31536000
+          X-Powered-By: ""
+    # rewrite: stripPrefix then addPrefix. The chain runs in the listed order; the query is kept.
+    bench-strip-app:
+      stripPrefix:
+        prefixes: ["/app"]
+    bench-add-api:
+      addPrefix:
+        prefix: /api
     error-502:
       errors:
         status: ["502"]
@@ -69,6 +89,16 @@ http:
       rule: Host(`rate-limited.test`)
       entryPoints: [web]
       middlewares: [rate-refused]
+      service: bench
+    headers:
+      rule: Host(`headers.test`)
+      entryPoints: [web]
+      middlewares: [bench-headers]
+      service: bench
+    rewrite:
+      rule: Host(`rewrite.test`) && PathPrefix(`/app/`)
+      entryPoints: [web]
+      middlewares: [bench-strip-app, bench-add-api]
       service: bench
     error-page:
       rule: Host(`error-page.test`)

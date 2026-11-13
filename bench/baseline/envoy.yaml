@@ -44,6 +44,26 @@ static_resources:
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
                       stat_prefix: http_local_rate_limiter
+                  # compressed: the filter is in the shared chain but switched off there (its runtime flag defaults to off); the
+                  # compressed.test route turns it on with a per-route override. Other hosts pay a flag check.
+                  - name: envoy.filters.http.compressor
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.compressor.v3.Compressor
+                      response_direction_config:
+                        common_config:
+                          enabled: { default_value: false, runtime_key: compressor_enabled }
+                          min_content_length: 1024
+                          content_type_matcher:
+                            - { exact: "text/html" }
+                            - { exact: "text/plain" }
+                            - { exact: "text/css" }
+                            - { exact: "application/json" }
+                            - { exact: "application/javascript" }
+                      compressor_library:
+                        name: gzip
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.compression.gzip.compressor.v3.Gzip
+                          compression_level: BEST_SPEED
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -113,6 +133,52 @@ static_resources:
                             - header: { key: x-forwarded-host, value: "%REQ(:authority)%" }
                               append_action: OVERWRITE_IF_EXISTS_OR_ADD
                           route: { cluster: closed, timeout: 120s }
+                    # compressed: gzip on for this route only.
+                    - name: compressed
+                      domains: ["compressed.test", "compressed.test:*"]
+                      routes:
+                        - match: { prefix: "/" }
+                          request_headers_to_add:
+                            - header: { key: x-forwarded-host, value: "%REQ(:authority)%" }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                          route: { cluster: upstream, timeout: 120s }
+                          typed_per_filter_config:
+                            envoy.filters.http.compressor:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.compressor.v3.CompressorPerRoute
+                              overrides:
+                                response_direction_config: {}
+                    # headers: the route's own header lists. OVERWRITE_IF_EXISTS_OR_ADD is a set, APPEND_IF_EXISTS_OR_ADD an add;
+                    # the removal lists are applied after the additions.
+                    - name: headers
+                      domains: ["headers.test", "headers.test:*"]
+                      routes:
+                        - match: { prefix: "/" }
+                          request_headers_to_add:
+                            - header: { key: x-forwarded-host, value: "%REQ(:authority)%" }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                            - header: { key: x-bench-replace, value: replaced }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                            - header: { key: x-bench-tenant, value: acme }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                            - header: { key: x-bench-added, value: one }
+                              append_action: APPEND_IF_EXISTS_OR_ADD
+                          request_headers_to_remove: ["x-bench-drop"]
+                          response_headers_to_add:
+                            - header: { key: x-frame-options, value: DENY }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                            - header: { key: x-bench-policy, value: max-age=31536000 }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                          response_headers_to_remove: ["x-powered-by"]
+                          route: { cluster: upstream, timeout: 120s }
+                    # rewrite: prefix_rewrite swaps the matched prefix and keeps the query.
+                    - name: rewrite
+                      domains: ["rewrite.test", "rewrite.test:*"]
+                      routes:
+                        - match: { prefix: "/app/" }
+                          request_headers_to_add:
+                            - header: { key: x-forwarded-host, value: "%REQ(:authority)%" }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                          route: { cluster: upstream, timeout: 120s, prefix_rewrite: "/api/" }
                     # cf: only meaningful in the variant the harness starts for the scenario, where the original-IP
                     # detection below (envoy-cf.yml) replaces use_remote_address and the downstream address is
                     # CF-Connecting-IP. Envoy then no longer writes X-Forwarded-For itself, so the route does.
