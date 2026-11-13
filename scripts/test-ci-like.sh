@@ -30,4 +30,5 @@ cpus="0-$((cores - 1))"
 cd "$(dirname "$0")/.."
 echo "dotnet $(dotnet --version), $cores cores (CPUs $cpus), Release"
 taskset -c "$cpus" dotnet build -c Release -warnaserror -nologo -v quiet
-taskset -c "$cpus" dotnet test --no-build -c Release "$@"
+# As CI: two test apps at a time (see the Test step in .github/workflows/ci.yml).
+taskset -c "$cpus" dotnet test --no-build -c Release --max-parallel-test-modules 2 "$@"

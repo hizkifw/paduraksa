@@ -57,9 +57,12 @@ jobs:
       # global.json opts into Microsoft.Testing.Platform, so this runs each xUnit v3 test
       # app directly and exits non-zero on any failure.
       # A project that runs zero tests exits 8 and fails the step on purpose.
+      # Two test apps at a time: all nine at once on the runner's four cores starved the bUnit renderer and the integration
+      # hosts into timeouts (waits past 30 s in tests that take 2 s alone); Integration's own length sets the step's time anyway.
       - name: Test
         run: >-
           dotnet test --no-build -c Release
+          --max-parallel-test-modules 2
           --results-directory "$TEST_RESULTS"
           --report-xunit-trx
           --report-xunit-markdown
