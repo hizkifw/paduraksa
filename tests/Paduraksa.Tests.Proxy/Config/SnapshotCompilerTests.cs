@@ -228,6 +228,28 @@ public sealed class SnapshotCompilerTests
         Assert.Contains(UpstreamCertificatePins.MetadataKey, metadata.Keys); // beside the pins, not instead of them
     }
 
+    [Fact]
+    public void AnUpstreamsTimeoutsCompileOntoItsClusterAndNeverLeaveYarpsHundredSeconds()
+    {
+        var snapshot = Compile(new ProxyConfigModel
+        {
+            Upstreams =
+            [
+                Upstream("plain", "http://10.0.0.1:80/"),
+                Upstream("tuned", "http://10.0.0.2:80/") with { ConnectTimeout = TimeSpan.FromSeconds(3), IdleTimeout = TimeSpan.FromMinutes(5) },
+                Upstream("forever", "http://10.0.0.3:80/") with { IdleTimeout = UpstreamTimeouts.None },
+            ],
+            Hosts = [ProxyHost("app", "app.test", Route("r-plain", "plain", "/p"), Route("r-tuned", "tuned", "/t"), Route("r-forever", "forever", "/f"))],
+        });
+
+        ClusterConfig Cluster(string label) => snapshot.Yarp.Clusters.Single(c => c.ClusterId == TestIds.Upstream(label).ToString());
+        Assert.Equal(TimeSpan.FromHours(1), Cluster("plain").HttpRequest!.ActivityTimeout);
+        Assert.Null(Cluster("plain").Metadata); // the default connect timeout is no entry, so nothing else about the cluster changes
+        Assert.Equal(TimeSpan.FromMinutes(5), Cluster("tuned").HttpRequest!.ActivityTimeout);
+        Assert.Equal("3000", Cluster("tuned").Metadata![UpstreamTimeouts.ConnectMetadataKey]);
+        Assert.Equal(Timeout.InfiniteTimeSpan, Cluster("forever").HttpRequest!.ActivityTimeout);
+    }
+
     [Theory]
     [InlineData("http://app:80/", "app")]
     [InlineData("http://app:8080/base", "app:8080")]
@@ -432,6 +454,11 @@ public sealed class SnapshotCompilerTests
         { "custom Host header with a path", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { HostHeader = UpstreamHostHeaderMode.Custom, HostHeaderValue = "a/b" }] }, "a custom Host header needs a name" },
         { "custom Host header with a line break", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { HostHeader = UpstreamHostHeaderMode.Custom, HostHeaderValue = "a\r\nX: y" }] }, "a custom Host header needs a name" },
         { "unknown Host header mode", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { HostHeader = (UpstreamHostHeaderMode)9 }] }, "unknown Host header mode 9" },
+        { "connect timeout too short", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ConnectTimeout = TimeSpan.FromMilliseconds(99) }] }, "the connect timeout must be between 100 ms and 5 minutes" },
+        { "connect timeout too long", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ConnectTimeout = TimeSpan.FromMinutes(6) }] }, "the connect timeout must be between 100 ms and 5 minutes" },
+        { "idle timeout under a second", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { IdleTimeout = TimeSpan.FromMilliseconds(500) }] }, "the idle timeout must be between 1 second and 24 hours, or zero for none" },
+        { "idle timeout negative", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { IdleTimeout = TimeSpan.FromSeconds(-1) }] }, "the idle timeout must be between 1 second and 24 hours, or zero for none" },
+        { "idle timeout over a day", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { IdleTimeout = TimeSpan.FromHours(25) }] }, "the idle timeout must be between 1 second and 24 hours, or zero for none" },
         { "active health path", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Path = "health" } }] }, "active health check needs a path" },
         { "active health interval", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Interval = TimeSpan.Zero } }] }, "active health check needs" },
         { "deny 205 with body", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(205)] }), "a 205 deny response can't have a body" },

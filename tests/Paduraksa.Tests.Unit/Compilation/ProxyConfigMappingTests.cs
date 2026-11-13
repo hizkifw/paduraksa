@@ -6,6 +6,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Yarp;
 
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
@@ -668,6 +669,41 @@ public sealed class ProxyConfigMappingTests
         Assert.Equal((UpstreamHostHeaderMode.Original, null), (upstreams[Id<UpstreamId>(1)].HostHeader, upstreams[Id<UpstreamId>(1)].HostHeaderValue));
         Assert.Equal((UpstreamHostHeaderMode.Destination, null), (upstreams[Id<UpstreamId>(2)].HostHeader, upstreams[Id<UpstreamId>(2)].HostHeaderValue));
         Assert.Equal((UpstreamHostHeaderMode.Custom, "api.internal:8443"), (upstreams[Id<UpstreamId>(3)].HostHeader, upstreams[Id<UpstreamId>(3)].HostHeaderValue));
+    }
+
+    [Fact]
+    public void AnUpstreamsTimeoutsReachTheModelWithTheDefaultsFilledIn()
+    {
+        static UpstreamConfig Upstream(int id, UpstreamTimeoutsConfig? timeouts) =>
+            new(Id<UpstreamId>(id), $"u{id}", Destinations: [new DestinationConfig(Id<DestinationId>(id), $"http://u{id}")], Timeouts: timeouts);
+        ConfigDocument document = new(Upstreams:
+        [
+            Upstream(1, null),
+            Upstream(2, new UpstreamTimeoutsConfig(Connect: TimeSpan.FromSeconds(2))),
+            Upstream(3, new UpstreamTimeoutsConfig(Idle: TimeSpan.Zero)),
+            Upstream(4, new UpstreamTimeoutsConfig(TimeSpan.FromSeconds(3), TimeSpan.FromMinutes(20))),
+        ]);
+
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
+
+        var upstreams = mapped.Model.Upstreams.ToDictionary(u => u.Id);
+        Assert.Equal((TimeSpan.FromSeconds(10), TimeSpan.FromHours(1)), (upstreams[Id<UpstreamId>(1)].ConnectTimeout, upstreams[Id<UpstreamId>(1)].IdleTimeout));
+        Assert.Equal((TimeSpan.FromSeconds(2), TimeSpan.FromHours(1)), (upstreams[Id<UpstreamId>(2)].ConnectTimeout, upstreams[Id<UpstreamId>(2)].IdleTimeout));
+        Assert.Equal((TimeSpan.FromSeconds(10), TimeSpan.Zero), (upstreams[Id<UpstreamId>(3)].ConnectTimeout, upstreams[Id<UpstreamId>(3)].IdleTimeout));
+        Assert.Equal((TimeSpan.FromSeconds(3), TimeSpan.FromMinutes(20)), (upstreams[Id<UpstreamId>(4)].ConnectTimeout, upstreams[Id<UpstreamId>(4)].IdleTimeout));
+    }
+
+    [Fact]
+    public void TheContractsDefaultTimeoutsAreTheProxysOwn()
+    {
+        Assert.Equal(UpstreamTimeoutsConfig.DefaultConnect, UpstreamTimeouts.DefaultConnect);
+        Assert.Equal(UpstreamTimeoutsConfig.DefaultIdle, UpstreamTimeouts.DefaultIdle);
+        Assert.True(UpstreamTimeouts.IsValidConnect(UpstreamTimeoutsConfig.MinConnect) && UpstreamTimeouts.IsValidConnect(UpstreamTimeoutsConfig.MaxConnect));
+        Assert.False(UpstreamTimeouts.IsValidConnect(UpstreamTimeoutsConfig.MinConnect - TimeSpan.FromMilliseconds(1)));
+        Assert.False(UpstreamTimeouts.IsValidConnect(UpstreamTimeoutsConfig.MaxConnect + TimeSpan.FromMilliseconds(1)));
+        Assert.True(UpstreamTimeouts.IsValidIdle(UpstreamTimeoutsConfig.MinIdle) && UpstreamTimeouts.IsValidIdle(UpstreamTimeoutsConfig.MaxIdle) && UpstreamTimeouts.IsValidIdle(TimeSpan.Zero));
+        Assert.False(UpstreamTimeouts.IsValidIdle(UpstreamTimeoutsConfig.MinIdle - TimeSpan.FromMilliseconds(1)));
+        Assert.False(UpstreamTimeouts.IsValidIdle(UpstreamTimeoutsConfig.MaxIdle + TimeSpan.FromMilliseconds(1)));
     }
 
     [Fact]

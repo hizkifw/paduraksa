@@ -15,7 +15,7 @@ namespace Paduraksa.Proxy.Yarp;
 /// and it drops the warm connection pool; so an edit that doesn't touch the client config must not create one.
 /// Base YARP does the same comparison; it's restated here because the reuse is a requirement, not a default.</para>
 /// <para><b>Handler defaults:</b> pooled connections are recycled after <see cref="PooledConnectionLifetime"/> so a
-/// restarted upstream container with a new IP is picked up quickly, and connects time out.</para>
+/// restarted upstream container with a new IP is picked up quickly. The connect timeout is the upstream's (<see cref="UpstreamTimeouts"/>).</para>
 /// <para><b>The admin cluster</b> (<see cref="YarpConfig.AdminClusterId"/>) connects through
 /// <see cref="AdminInternalListener"/> instead of resolving its symbolic destination: a Unix socket, or the
 /// loopback fallback's port.</para>
@@ -35,17 +35,16 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
     /// <summary>The default; per-upstream values come from the upstream settings.</summary>
     public static TimeSpan PooledConnectionLifetime { get; } = TimeSpan.FromSeconds(60);
 
-    public static TimeSpan ConnectTimeout { get; } = TimeSpan.FromSeconds(10);
-
-    // TODO: per-upstream PooledConnectionLifetime, connect timeout and the mTLS client certificate become upstream
-    // settings. They must then be part of this comparison (e.g. carried in HttpClientConfig or cluster metadata), or a
-    // change to them would silently keep the old client.
+    // TODO: per-upstream PooledConnectionLifetime and the mTLS client certificate become upstream settings like the connect
+    // timeout. They must then be part of this comparison (carried in cluster metadata, as the connect timeout is), or a change to
+    // them would silently keep the old client.
     protected override bool CanReuseOldClient(ForwarderHttpClientContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         return context.OldClient is not null
             && context.OldConfig == context.NewConfig
-            && UpstreamCertificatePins.SamePins(context.OldMetadata, context.NewMetadata);
+            && UpstreamCertificatePins.SamePins(context.OldMetadata, context.NewMetadata)
+            && UpstreamTimeouts.ConnectOf(context.OldMetadata) == UpstreamTimeouts.ConnectOf(context.NewMetadata);
     }
 
     protected override void ConfigureHandler(ForwarderHttpClientContext context, SocketsHttpHandler handler)
@@ -54,6 +53,7 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
         ArgumentNullException.ThrowIfNull(handler);
         base.ConfigureHandler(context, handler);
         ApplyDefaults(handler);
+        handler.ConnectTimeout = UpstreamTimeouts.ConnectOf(context.NewMetadata);
 
         if (UpstreamCertificatePins.FromMetadata(context.NewMetadata) is { } pins)
         {
@@ -85,7 +85,7 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
     internal static void ApplyDefaults(SocketsHttpHandler handler)
     {
         handler.PooledConnectionLifetime = PooledConnectionLifetime;
-        handler.ConnectTimeout = ConnectTimeout;
+        handler.ConnectTimeout = UpstreamTimeouts.DefaultConnect;
         // No propagator means no DiagnosticsHandler: without it every forward would start an Activity and rewrite
         // traceparent, ~7% of plain-HTTP throughput (bench h1) for tracing nothing here reads. A client's own
         // traceparent still reaches the upstream unchanged, as any other header.

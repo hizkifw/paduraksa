@@ -87,6 +87,62 @@ public sealed class PaduraksaForwarderHttpClientFactoryTests
         Assert.NotSame(first, unpinned);
     }
 
+    [Fact]
+    public void AChangedConnectTimeoutBuildsANewClientAndAnUnchangedOneKeepsTheOld()
+    {
+        PaduraksaForwarderHttpClientFactory factory = new(NullLogger<ForwarderHttpClientFactory>.Instance, admin: null);
+        HttpClientConfig config = new();
+        Dictionary<string, string> threeSeconds = new() { [UpstreamTimeouts.ConnectMetadataKey] = "3000" };
+        using var first = factory.CreateClient(new ForwarderHttpClientContext { ClusterId = "c", NewConfig = config, NewMetadata = threeSeconds });
+
+        ForwarderHttpClientContext Next(IReadOnlyDictionary<string, string>? now) => new()
+        {
+            ClusterId = "c",
+            OldClient = first,
+            OldConfig = config,
+            OldMetadata = threeSeconds,
+            NewConfig = config,
+            NewMetadata = now,
+        };
+
+        var same = factory.CreateClient(Next(new Dictionary<string, string>(threeSeconds)));
+        using var longer = factory.CreateClient(Next(new Dictionary<string, string> { [UpstreamTimeouts.ConnectMetadataKey] = "4000" }));
+        using var backToDefault = factory.CreateClient(Next(null));
+
+        Assert.Same(first, same);
+        Assert.NotSame(first, longer);
+        Assert.NotSame(first, backToDefault);
+    }
+
+    [Fact]
+    public void AnUnrelatedMetadataEntryDoesNotRebuildTheClient()
+    {
+        // The custom Host name rides in the same metadata; changing it changes the health probe, not the connection.
+        PaduraksaForwarderHttpClientFactory factory = new(NullLogger<ForwarderHttpClientFactory>.Instance, admin: null);
+        HttpClientConfig config = new();
+        using var first = factory.CreateClient(new ForwarderHttpClientContext { ClusterId = "c", NewConfig = config });
+
+        var same = factory.CreateClient(new ForwarderHttpClientContext
+        {
+            ClusterId = "c",
+            OldClient = first,
+            OldConfig = config,
+            NewConfig = config,
+            NewMetadata = new Dictionary<string, string> { [UpstreamHost.MetadataKey] = "app.internal" },
+        });
+
+        Assert.Same(first, same);
+    }
+
+    [Fact]
+    public void TheConnectTimeoutIsReadFromTheMetadataAndFallsBackToTheDefault()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(10), UpstreamTimeouts.ConnectOf(null));
+        Assert.Equal(TimeSpan.FromMilliseconds(2500), UpstreamTimeouts.ConnectOf(new Dictionary<string, string> { [UpstreamTimeouts.ConnectMetadataKey] = "2500" }));
+        Assert.Equal(TimeSpan.FromSeconds(10), UpstreamTimeouts.ConnectOf(new Dictionary<string, string> { [UpstreamTimeouts.ConnectMetadataKey] = "-5" }));
+        Assert.Equal(TimeSpan.FromSeconds(10), UpstreamTimeouts.ConnectOf(new Dictionary<string, string> { [UpstreamTimeouts.ConnectMetadataKey] = "soon" }));
+    }
+
     [Theory]
     [InlineData("AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89", true)]
     [InlineData("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", true)]

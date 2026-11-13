@@ -11,6 +11,7 @@ using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Forwarder;
 using Yarp.ReverseProxy.Health;
 
 namespace Paduraksa.Proxy.Config;
@@ -113,6 +114,16 @@ public static partial class SnapshotCompiler
                 hosts[spec.Id] = host;
             }
 
+            if (!UpstreamTimeouts.IsValidConnect(spec.ConnectTimeout))
+            {
+                errors.Add(new(where, "the connect timeout must be between 100 ms and 5 minutes"));
+            }
+
+            if (!UpstreamTimeouts.IsValidIdle(spec.IdleTimeout))
+            {
+                errors.Add(new(where, "the idle timeout must be between 1 second and 24 hours, or zero for none"));
+            }
+
             if (spec.ActiveHealth is { } active
                 && (active.Path is not ['/', ..] || active.Path.Contains('?', StringComparison.Ordinal) || active.Interval <= TimeSpan.Zero || active.Timeout <= TimeSpan.Zero))
             {
@@ -163,6 +174,7 @@ public static partial class SnapshotCompiler
                         DangerousAcceptAnyServerCertificate = spec.TlsTrust == UpstreamTlsTrust.Any ? true : null,
                     }
                     : null,
+                HttpRequest = IdleRequestConfig(spec.IdleTimeout),
                 Metadata = ClusterMetadata(spec, host),
             };
         }
@@ -170,16 +182,28 @@ public static partial class SnapshotCompiler
         return clusters;
     }
 
+    // Always set, even for the default, because YARP's own is 100 s and would cut a quiet WebSocket or event stream.
+    private static ForwarderRequestConfig IdleRequestConfig(TimeSpan idle) => new()
+    {
+        ActivityTimeout = idle == UpstreamTimeouts.None ? Timeout.InfiniteTimeSpan : idle,
+    };
+
     private static Dictionary<string, string>? ClusterMetadata(UpstreamSpec spec, UpstreamHost? host)
     {
         var pinned = spec.TlsTrust == UpstreamTlsTrust.Pinned;
         var custom = host is { Mode: UpstreamHostHeaderMode.Custom };
-        if (!pinned && !custom)
+        var connect = UpstreamTimeouts.ConnectMetadata(spec.ConnectTimeout);
+        if (!pinned && !custom && connect is null)
         {
             return null;
         }
 
         Dictionary<string, string> metadata = [];
+        if (connect is not null)
+        {
+            metadata[UpstreamTimeouts.ConnectMetadataKey] = connect;
+        }
+
         if (pinned)
         {
             metadata[UpstreamCertificatePins.MetadataKey] = string.Join(',', spec.PinnedSha256);

@@ -545,6 +545,13 @@ public sealed record UpstreamSpec
 
     /// <summary>With <see cref="UpstreamHostHeaderMode.Custom"/>: the exact name sent.</summary>
     public string? HostHeaderValue { get; init; }
+
+    /// <summary>TCP and TLS connect to a destination. Part of the HTTP client: changing it creates a new client for this upstream.</summary>
+    public TimeSpan ConnectTimeout { get; init; } = Yarp.UpstreamTimeouts.DefaultConnect;
+
+    /// <summary>No data in either direction for this long closes a request, a response stream or an upgraded connection;
+    /// <see cref="TimeSpan.Zero"/> never does.</summary>
+    public TimeSpan IdleTimeout { get; init; } = Yarp.UpstreamTimeouts.DefaultIdle;
 }
 
 /// <summary>
