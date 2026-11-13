@@ -294,7 +294,7 @@ public sealed class ConfigTransferApiTests
         await api.Host.Shared.PasswordCredentials.SetAsync(credential, "hunter2-never-exported".AsMemory(), Ct);
         using var created = await api.SendAsync(
             HttpMethod.Post,
-            "/api/v1/accessLists",
+            "/api/v1/access-lists",
             content: AdminApiHarness.JsonBody($$$"""{"id":"{{{AccessListId.New()}}}","name":"staff","basicAuth":{"users":[{"username":"alice","credentialId":"{{{credential}}}"}]}}"""));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 

@@ -69,7 +69,7 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a route still uses it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
-        var rateLimits = api.MapGroup("/rateLimitPolicies").WithTags("Rate limits");
+        var rateLimits = api.MapGroup("/rate-limit-policies").WithTags("Rate limits");
         rateLimits.MapGet("/", ListRateLimitPoliciesAsync).WithName("ListRateLimitPolicies").WithSummary("List rate-limit policies")
             .Produces<IReadOnlyList<RateLimitPolicyConfig>>().RequirePermission(Permission.ConfigRead);
         rateLimits.MapGet("/{id:RateLimitPolicyId}", GetRateLimitPolicyAsync).WithName("GetRateLimitPolicy").WithSummary("Get a rate-limit policy")
@@ -84,7 +84,7 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a host or route still names it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
-        var accessLists = api.MapGroup("/accessLists").WithTags("Access lists");
+        var accessLists = api.MapGroup("/access-lists").WithTags("Access lists");
         accessLists.MapGet("/", ListAccessListsAsync).WithName("ListAccessLists").WithSummary("List access lists")
             .WithDescription("Users carry 'credentialId', the vault's handle on their password. No read returns a password or a hash.")
             .Produces<IReadOnlyList<AccessListConfig>>().RequirePermission(Permission.ConfigRead);
@@ -102,9 +102,9 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a host, profile, global default or route still names it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
-        var ruleSets = api.MapGroup("/ruleSets").WithTags("Rule sets");
+        var ruleSets = api.MapGroup("/rule-sets").WithTags("Rule sets");
         ruleSets.MapGet("/", ListRuleSetsAsync).WithName("ListRuleSets").WithSummary("List rule sets")
-            .WithDescription("The document's own sets. The built-in presets are at /ruleSets/presets and are named in a setting like any other set.")
+            .WithDescription("The document's own sets. The built-in presets are at /rule-sets/presets and are named in a setting like any other set.")
             .Produces<IReadOnlyList<RuleSetConfig>>().RequirePermission(Permission.ConfigRead);
         ruleSets.MapGet("/presets", ListRuleSetPresetsAsync).WithName("ListRuleSetPresets").WithSummary("List the built-in rule-set presets")
             .WithDescription("Read-only, refreshed with each release. Copy one into a set of your own to change it.")
@@ -122,7 +122,7 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
-        var authProviders = api.MapGroup("/authProviders").WithTags("Auth providers");
+        var authProviders = api.MapGroup("/auth-providers").WithTags("Auth providers");
         authProviders.MapGet("/", ListAuthProvidersAsync).WithName("ListAuthProviders").WithSummary("List auth providers")
             .Produces<IReadOnlyList<AuthProviderConfig>>().RequirePermission(Permission.ConfigRead);
         authProviders.MapGet("/{id:AuthProviderId}", GetAuthProviderAsync).WithName("GetAuthProvider").WithSummary("Get an auth provider")
@@ -355,7 +355,7 @@ internal static class ConfigEndpoints
     private static Task<IResult> CreateRateLimitPolicyAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.RateLimitPolicyConfig,
             (policy, _, _) => (policy with { Version = 0 }, null), (policy, dry, message) => new UpsertRateLimitPolicyCommand(policy) { DryRun = dry, Message = message },
-            policy => EndpointSupport.Path("rateLimitPolicies", policy.Id), ct);
+            policy => EndpointSupport.Path("rate-limit-policies", policy.Id), ct);
 
     private static Task<IResult> ReplaceRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.RateLimitPolicyConfig,
@@ -387,7 +387,7 @@ internal static class ConfigEndpoints
     private static Task<IResult> CreateAccessListAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.AccessListConfig,
             (list, _, _) => (list with { Version = 0 }, null), (list, dry, message) => new UpsertAccessListCommand(list) { DryRun = dry, Message = message },
-            list => EndpointSupport.Path("accessLists", list.Id), ct);
+            list => EndpointSupport.Path("access-lists", list.Id), ct);
 
     private static Task<IResult> ReplaceAccessListAsync(HttpContext http, AccessListId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.AccessListConfig,
@@ -427,7 +427,7 @@ internal static class ConfigEndpoints
     private static Task<IResult> CreateRuleSetAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.RuleSetConfig,
             (set, _, _) => (set with { Version = 0 }, null), (set, dry, message) => new UpsertRuleSetCommand(set) { DryRun = dry, Message = message },
-            set => EndpointSupport.Path("ruleSets", set.Id), ct);
+            set => EndpointSupport.Path("rule-sets", set.Id), ct);
 
     private static Task<IResult> ReplaceRuleSetAsync(HttpContext http, RuleSetId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.RuleSetConfig,
@@ -459,7 +459,7 @@ internal static class ConfigEndpoints
     private static Task<IResult> CreateAuthProviderAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.AuthProviderConfig,
             (provider, _, _) => (provider with { Version = 0 }, null), (provider, dry, message) => new UpsertAuthProviderCommand(provider) { DryRun = dry, Message = message },
-            provider => EndpointSupport.Path("authProviders", provider.Id), ct);
+            provider => EndpointSupport.Path("auth-providers", provider.Id), ct);
 
     private static Task<IResult> ReplaceAuthProviderAsync(HttpContext http, AuthProviderId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.AuthProviderConfig,

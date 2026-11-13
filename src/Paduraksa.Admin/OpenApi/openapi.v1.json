@@ -3390,7 +3390,7 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/rateLimitPolicies": {
+    "/api/v1/rate-limit-policies": {
       "get": {
         "tags": [
           "Rate limits"
@@ -3567,7 +3567,7 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/rateLimitPolicies/{id}": {
+    "/api/v1/rate-limit-policies/{id}": {
       "get": {
         "tags": [
           "Rate limits"
@@ -3921,7 +3921,7 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/accessLists": {
+    "/api/v1/access-lists": {
       "get": {
         "tags": [
           "Access lists"
@@ -4098,7 +4098,7 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/accessLists/{id}": {
+    "/api/v1/access-lists/{id}": {
       "get": {
         "tags": [
           "Access lists"
@@ -4452,13 +4452,13 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/ruleSets": {
+    "/api/v1/rule-sets": {
       "get": {
         "tags": [
           "Rule sets"
         ],
         "summary": "List rule sets",
-        "description": "The document's own sets. The built-in presets are at /ruleSets/presets and are named in a setting like any other set.\n\nRequires the `config:read` permission.",
+        "description": "The document's own sets. The built-in presets are at /rule-sets/presets and are named in a setting like any other set.\n\nRequires the `config:read` permission.",
         "operationId": "ListRuleSets",
         "responses": {
           "200": {
@@ -4629,7 +4629,7 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/ruleSets/presets": {
+    "/api/v1/rule-sets/presets": {
       "get": {
         "tags": [
           "Rule sets"
@@ -4690,7 +4690,7 @@
         "x-required-permission": "config:read"
       }
     },
-    "/api/v1/ruleSets/{id}": {
+    "/api/v1/rule-sets/{id}": {
       "get": {
         "tags": [
           "Rule sets"
@@ -5044,7 +5044,7 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/authProviders": {
+    "/api/v1/auth-providers": {
       "get": {
         "tags": [
           "Auth providers"
@@ -5221,7 +5221,7 @@
         "x-required-permission": "config:write"
       }
     },
-    "/api/v1/authProviders/{id}": {
+    "/api/v1/auth-providers/{id}": {
       "get": {
         "tags": [
           "Auth providers"

@@ -256,27 +256,27 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("GET /api/v1/upstreams/{id:UpstreamId}", Permission.ConfigRead),
             ("PUT /api/v1/upstreams/{id:UpstreamId}", Permission.ConfigWrite),
             ("DELETE /api/v1/upstreams/{id:UpstreamId}", Permission.ConfigWrite),
-            ("GET /api/v1/rateLimitPolicies", Permission.ConfigRead),
-            ("POST /api/v1/rateLimitPolicies", Permission.ConfigWrite),
-            ("GET /api/v1/rateLimitPolicies/{id:RateLimitPolicyId}", Permission.ConfigRead),
-            ("PUT /api/v1/rateLimitPolicies/{id:RateLimitPolicyId}", Permission.ConfigWrite),
-            ("DELETE /api/v1/rateLimitPolicies/{id:RateLimitPolicyId}", Permission.ConfigWrite),
-            ("GET /api/v1/accessLists", Permission.ConfigRead),
-            ("POST /api/v1/accessLists", Permission.ConfigWrite),
-            ("GET /api/v1/accessLists/{id:AccessListId}", Permission.ConfigRead),
-            ("PUT /api/v1/accessLists/{id:AccessListId}", Permission.ConfigWrite),
-            ("DELETE /api/v1/accessLists/{id:AccessListId}", Permission.ConfigWrite),
-            ("GET /api/v1/ruleSets", Permission.ConfigRead),
-            ("GET /api/v1/ruleSets/presets", Permission.ConfigRead),
-            ("POST /api/v1/ruleSets", Permission.ConfigWrite),
-            ("GET /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigRead),
-            ("PUT /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigWrite),
-            ("DELETE /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigWrite),
-            ("GET /api/v1/authProviders", Permission.ConfigRead),
-            ("POST /api/v1/authProviders", Permission.ConfigWrite),
-            ("GET /api/v1/authProviders/{id:AuthProviderId}", Permission.ConfigRead),
-            ("PUT /api/v1/authProviders/{id:AuthProviderId}", Permission.ConfigWrite),
-            ("DELETE /api/v1/authProviders/{id:AuthProviderId}", Permission.ConfigWrite),
+            ("GET /api/v1/rate-limit-policies", Permission.ConfigRead),
+            ("POST /api/v1/rate-limit-policies", Permission.ConfigWrite),
+            ("GET /api/v1/rate-limit-policies/{id:RateLimitPolicyId}", Permission.ConfigRead),
+            ("PUT /api/v1/rate-limit-policies/{id:RateLimitPolicyId}", Permission.ConfigWrite),
+            ("DELETE /api/v1/rate-limit-policies/{id:RateLimitPolicyId}", Permission.ConfigWrite),
+            ("GET /api/v1/access-lists", Permission.ConfigRead),
+            ("POST /api/v1/access-lists", Permission.ConfigWrite),
+            ("GET /api/v1/access-lists/{id:AccessListId}", Permission.ConfigRead),
+            ("PUT /api/v1/access-lists/{id:AccessListId}", Permission.ConfigWrite),
+            ("DELETE /api/v1/access-lists/{id:AccessListId}", Permission.ConfigWrite),
+            ("GET /api/v1/rule-sets", Permission.ConfigRead),
+            ("GET /api/v1/rule-sets/presets", Permission.ConfigRead),
+            ("POST /api/v1/rule-sets", Permission.ConfigWrite),
+            ("GET /api/v1/rule-sets/{id:RuleSetId}", Permission.ConfigRead),
+            ("PUT /api/v1/rule-sets/{id:RuleSetId}", Permission.ConfigWrite),
+            ("DELETE /api/v1/rule-sets/{id:RuleSetId}", Permission.ConfigWrite),
+            ("GET /api/v1/auth-providers", Permission.ConfigRead),
+            ("POST /api/v1/auth-providers", Permission.ConfigWrite),
+            ("GET /api/v1/auth-providers/{id:AuthProviderId}", Permission.ConfigRead),
+            ("PUT /api/v1/auth-providers/{id:AuthProviderId}", Permission.ConfigWrite),
+            ("DELETE /api/v1/auth-providers/{id:AuthProviderId}", Permission.ConfigWrite),
             ("GET /api/v1/profiles", Permission.ConfigRead),
             ("POST /api/v1/profiles", Permission.ConfigWrite),
             ("GET /api/v1/profiles/{id:ProfileId}", Permission.ConfigRead),
@@ -361,7 +361,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     {
         // The endpoints name their permission literally and the services enforce OperationPermissions on their own; this keeps the two
         // from drifting apart. Config resources run config commands, the certificate routes run certificate operations.
-        string[] configResources = ["config", "hosts", "upstreams", "rateLimitPolicies", "accessLists", "ruleSets", "authProviders", "profiles", "settings", "revisions"];
+        string[] configResources = ["config", "hosts", "upstreams", "rate-limit-policies", "access-lists", "rule-sets", "auth-providers", "profiles", "settings", "revisions"];
         var mutating = ApiEndpoints(shared.Api)
             .SelectMany(e => (e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? [])
                 .Where(method => method is "POST" or "PUT" or "DELETE")
@@ -492,8 +492,8 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
         var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
         var paths = document["paths"]!.AsObject();
 
-        Assert.Contains("/api/v1/authProviders", paths.Select(p => p.Key));
-        var operation = paths["/api/v1/authProviders/{id}"]!["delete"]!;
+        Assert.Contains("/api/v1/auth-providers", paths.Select(p => p.Key));
+        var operation = paths["/api/v1/auth-providers/{id}"]!["delete"]!;
         Assert.Contains("Refused", operation["description"]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.Equal("config:write", operation["x-required-permission"]!.GetValue<string>());
         var schemas = document["components"]!["schemas"]!.AsObject();

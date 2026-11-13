@@ -231,7 +231,7 @@ A user is *written* with a plain `password` (create and update through the API a
 - Each distinct content (the sorted, canonical addresses and the drop flag) becomes one access list. It is named after the first place that used it in document order (`global-defaults`, `profile-lan-only`, `host-example-com`, `route-example-com-admin`, with `-2`, `-3` for a clash).
 - Its ID is taken from a hash of the content, so converting a document twice gives the same bytes. Its version is 1.
 - At startup, when the live revision needed converting, one revision with the converted document is written: actor System, a message naming the lists, audit action `config.upgrade`, every host, profile and list counted as touched so their versions move. If it cannot be stored, it runs as converted and the next change stores it.
-- A write that sends `ipAllowList` is refused. The API answers 400 with a sentence that names access lists and `POST /api/v1/accessLists`.
+- A write that sends `ipAllowList` is refused. The API answers 400 with a sentence that names access lists and `POST /api/v1/access-lists`.
 - `LegacyAccessListUpgradeTests` run old documents through the real gate and compare outcomes with the old semantics, drop included.
 
 **Passwords in the document.** A stored document whose users still carry `passwordHash` (written by the build before passwords moved into the vault) is converted the same way (`LegacyPasswordUpgrade`).
@@ -343,7 +343,7 @@ A simulation neither reads nor refreshes the cache, moves no counter, and takes 
 
 ### API and dashboard
 
-- `/api/v1/accessLists` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects. Deleting a list a host, profile, default or route names is refused by validation. Audit actions are `config.access_list.*`.
+- `/api/v1/access-lists` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects. Deleting a list a host, profile, default or route names is refused by validation. Audit actions are `config.access_list.*`.
 - `CommandErrors` also learned the rate-limit and access-list lists, which an invalid object command needs to point its errors.
 - The dashboard has Security > Access lists: a list of rules and users of each, where one in use offers no delete. The editor drawer has:
   - the allowed and denied addresses, one per line, with an entry count;
@@ -534,7 +534,7 @@ A **regex** is the one thing that may not be.
 
 ### API and dashboard
 
-- `/api/v1/ruleSets` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.rule_set.*` audit actions. `GET /ruleSets/presets` lists the presets, and `GET /ruleSets/{id}` also reads one. A delete of a set a host still resolves to is refused.
+- `/api/v1/rule-sets` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.rule_set.*` audit actions. `GET /rule-sets/presets` lists the presets, and `GET /rule-sets/{id}` also reads one. A delete of a set a host still resolves to is refused.
 - The dashboard has Security > **Rules**: the sets with what their rules do and who applies them, and the presets read-only under them with "Copy to edit" (`/rules/new?copy=...`).
 - The drawer's rules read "When [path] [methods] [user agent] then [action]", with add, move and remove, and the real validator's messages at the fields (a regex's parse error, a rule with no condition).
 - The settings of a host, profile, the defaults and a route pick a set by name in the Access section: inherit, none, a set, a preset, or a staged "New rule set..." that goes in with the host in one revision.
@@ -722,7 +722,7 @@ Until v0.25 the standard hints and the scheme were left out, on the reasoning th
 
 ### API, overview and dashboard
 
-- `/api/v1/authProviders` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.auth_provider.*` audit actions and an OpenAPI entry that says what a preset fills in. A delete of a provider a host still resolves to is refused.
+- `/api/v1/auth-providers` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.auth_provider.*` audit actions and an OpenAPI entry that says what a preset fills in. A delete of a provider a host still resolves to is refused.
 - The security overview adds a **Sign-in** column: the provider a host asks, what it has let through and refused, its failed calls once there are some, and the routes that ask another provider or none. It also adds a card of the providers' summed counters.
 - The dashboard has Security > **Sign-in**: the providers with their endpoint and who asks them, and a drawer. The drawer's preset says what it fills in, and its empty fields say what they will use: the wait, the time an allow is remembered, the resolved endpoint, and the preset's headers (which the person's own list can replace, even an empty one).
 - The settings of a host, profile, the defaults and a route pick a provider by name in the Access section: inherit, none, a provider, or a staged "New auth provider..." that goes in with the host in one revision.

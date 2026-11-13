@@ -93,7 +93,7 @@ public static class EndpointRules
     public static IReadOnlyList<EndpointRule> Reviewed { get; } =
     [
         new("GET", "/api/v1/auth/me", false, "says who the token is and what it may do; no secret"),
-        new("*", "/api/v1/authProviders", true, "forward-auth providers name an endpoint and the headers to relay; a credential in one is a vault reference, never a value"),
+        new("*", "/api/v1/auth-providers", true, "forward-auth providers name an endpoint and the headers to relay; a credential in one is a vault reference, never a value"),
         new("GET", "/api/v1/dns-providers", true, "providers are listed without their credentials: no response type carries a secret"),
         new("DELETE", "/api/v1/dns-providers/{id}", false, "removes a provider and its stored credential; carries no secret and needs confirm"),
         new("POST", "/api/v1/dns-providers/{id}/test", false, "tests the stored credential and reports a verdict only; needs confirm"),

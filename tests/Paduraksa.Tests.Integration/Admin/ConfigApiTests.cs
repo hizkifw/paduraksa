@@ -190,20 +190,20 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(HttpStatusCode.Created, createdUpstream.StatusCode);
 
         RateLimitPolicyConfig policy = new(RateLimitPolicyId.New(), "api-budget", Requests: 30, Per: RateLimitPeriod.Second, Burst: 60);
-        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/rateLimitPolicies", policy, AdminJsonContext.Default.RateLimitPolicyConfig);
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/rate-limit-policies", policy, AdminJsonContext.Default.RateLimitPolicyConfig);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        Assert.Equal($"/api/v1/rateLimitPolicies/{policy.Id}", created.Headers.Location!.ToString());
+        Assert.Equal($"/api/v1/rate-limit-policies/{policy.Id}", created.Headers.Location!.ToString());
         var version = AdminApiHarness.ETag(created)!;
 
-        using var read = await api.GetAsync($"/api/v1/rateLimitPolicies/{policy.Id}");
+        using var read = await api.GetAsync($"/api/v1/rate-limit-policies/{policy.Id}");
         var stored = await AdminApiHarness.ReadAsync(read, AdminJsonContext.Default.RateLimitPolicyConfig, Ct);
         Assert.Equal(30, stored.Requests);
         Assert.Equal(version, AdminApiHarness.ETag(read));
-        using var list = await api.GetAsync("/api/v1/rateLimitPolicies");
+        using var list = await api.GetAsync("/api/v1/rate-limit-policies");
         Assert.Contains(await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListRateLimitPolicyConfig, Ct), p => p.Id == policy.Id);
 
         using var replaced = await api.SendJsonAsync(
-            HttpMethod.Put, $"/api/v1/rateLimitPolicies/{policy.Id}", stored with { Burst = 10 }, AdminJsonContext.Default.RateLimitPolicyConfig, ifMatch: version);
+            HttpMethod.Put, $"/api/v1/rate-limit-policies/{policy.Id}", stored with { Burst = 10 }, AdminJsonContext.Default.RateLimitPolicyConfig, ifMatch: version);
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
         var latest = AdminApiHarness.ETag(replaced)!;
 
@@ -214,16 +214,16 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         using var hostCreated = await PostHostAsync(api, host);
         Assert.Equal(HttpStatusCode.Created, hostCreated.StatusCode);
 
-        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rateLimitPolicies/{policy.Id}", ifMatch: latest);
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rate-limit-policies/{policy.Id}", ifMatch: latest);
         var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
         Assert.NotEmpty(problem.RelatedErrors!);
 
         using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
         Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
-        using var policyGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rateLimitPolicies/{policy.Id}", ifMatch: latest);
+        using var policyGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rate-limit-policies/{policy.Id}", ifMatch: latest);
         Assert.Equal(HttpStatusCode.NoContent, policyGone.StatusCode);
-        using var gone = await api.GetAsync($"/api/v1/rateLimitPolicies/{policy.Id}");
+        using var gone = await api.GetAsync($"/api/v1/rate-limit-policies/{policy.Id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
 
         using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
@@ -243,15 +243,15 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
             "office",
             Ip: new AccessListIp(["10.0.0.0/8"]),
             BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Password: "correct horse battery staple")]));
-        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/accessLists", list, AdminJsonContext.Default.AccessListConfig);
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/access-lists", list, AdminJsonContext.Default.AccessListConfig);
         var createdBody = await created.Content.ReadAsStringAsync(Ct);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        Assert.Equal($"/api/v1/accessLists/{list.Id}", created.Headers.Location!.ToString());
+        Assert.Equal($"/api/v1/access-lists/{list.Id}", created.Headers.Location!.ToString());
         Assert.DoesNotContain("correct horse", createdBody, StringComparison.Ordinal);
         var version = AdminApiHarness.ETag(created)!;
 
         // What comes back names the vault's credential: no password, no hash, and not even a "password" member.
-        using var read = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        using var read = await api.GetAsync($"/api/v1/access-lists/{list.Id}");
         var readBody = await read.Content.ReadAsStringAsync(Ct);
         Assert.DoesNotContain("correct horse", readBody, StringComparison.Ordinal);
         Assert.DoesNotContain("\"password\"", readBody, StringComparison.Ordinal);
@@ -261,15 +261,15 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(version, AdminApiHarness.ETag(read));
         var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.AccessListConfig)!;
         var credential = Assert.Single(stored.BasicAuth!.Users).CredentialId;
-        using var all = await api.GetAsync("/api/v1/accessLists");
+        using var all = await api.GetAsync("/api/v1/access-lists");
         Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListAccessListConfig, Ct), l => l.Id == list.Id);
 
         // An edit that names the user without a password keeps the credential.
         var edit = stored with { BasicAuth = new AccessListBasicAuth(Users: [new AccessListUserConfig("alice")]), Ip = new AccessListIp(["10.0.0.0/8", "192.168.0.0/16"]) };
-        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/accessLists/{list.Id}", edit, AdminJsonContext.Default.AccessListConfig, ifMatch: version);
+        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/access-lists/{list.Id}", edit, AdminJsonContext.Default.AccessListConfig, ifMatch: version);
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
         var latest = AdminApiHarness.ETag(replaced)!;
-        using var reread = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        using var reread = await api.GetAsync($"/api/v1/access-lists/{list.Id}");
         Assert.Equal(credential, Assert.Single((await AdminApiHarness.ReadAsync(reread, AdminJsonContext.Default.AccessListConfig, Ct)).BasicAuth!.Users).CredentialId);
 
         HostConfig host = ConfigTestSupport.ProxyHost("h-lists", "h-lists.test", "u-lists") with
@@ -279,16 +279,16 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         using var hostCreated = await PostHostAsync(api, host);
         Assert.Equal(HttpStatusCode.Created, hostCreated.StatusCode);
 
-        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/accessLists/{list.Id}", ifMatch: latest);
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/access-lists/{list.Id}", ifMatch: latest);
         var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
         Assert.Contains(problem.RelatedErrors!, e => e.Code == "host.accessList.unknown");
 
         using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
         Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
-        using var listGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/accessLists/{list.Id}", ifMatch: latest);
+        using var listGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/access-lists/{list.Id}", ifMatch: latest);
         Assert.Equal(HttpStatusCode.NoContent, listGone.StatusCode);
-        using var gone = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        using var gone = await api.GetAsync($"/api/v1/access-lists/{list.Id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
 
         using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
@@ -311,42 +311,42 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
                 new RuleConfig(RuleAction.Allow, new RuleMatchConfig(new RulePathConfig(RulePathKind.Prefix, "/admin/public"))),
                 new RuleConfig(RuleAction.Deny, new RuleMatchConfig(new RulePathConfig(RulePathKind.Prefix, "/admin"), ["POST", "get"], new RuleUserAgentConfig(["sqlmap"], Empty: true))),
             ]);
-        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/ruleSets", set, AdminJsonContext.Default.RuleSetConfig);
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/rule-sets", set, AdminJsonContext.Default.RuleSetConfig);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        Assert.Equal($"/api/v1/ruleSets/{set.Id}", created.Headers.Location!.ToString());
+        Assert.Equal($"/api/v1/rule-sets/{set.Id}", created.Headers.Location!.ToString());
         var version = AdminApiHarness.ETag(created)!;
 
         // Read back canonically: the enums by name, the methods upper case and sorted.
-        using var read = await api.GetAsync($"/api/v1/ruleSets/{set.Id}");
+        using var read = await api.GetAsync($"/api/v1/rule-sets/{set.Id}");
         var readBody = await read.Content.ReadAsStringAsync(Ct);
         Assert.Contains("\"action\":\"deny\"", readBody, StringComparison.Ordinal);
         Assert.Contains("\"kind\":\"prefix\"", readBody, StringComparison.Ordinal);
         Assert.Contains("\"methods\":[\"GET\",\"POST\"]", readBody, StringComparison.Ordinal);
         Assert.Equal(version, AdminApiHarness.ETag(read));
         var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.RuleSetConfig)!;
-        using var all = await api.GetAsync("/api/v1/ruleSets");
+        using var all = await api.GetAsync("/api/v1/rule-sets");
         Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct), r => r.Id == set.Id);
 
         // The built-in presets are read-only: listed on their own, readable by ID, never written.
-        using var presets = await api.GetAsync("/api/v1/ruleSets/presets");
+        using var presets = await api.GetAsync("/api/v1/rule-sets/presets");
         var presetList = await AdminApiHarness.ReadAsync(presets, AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct);
         Assert.Equal(["Block AI crawlers", "Block known scanners", "Block empty user agent"], presetList.Select(p => p.Name));
-        Assert.DoesNotContain(await AdminApiHarness.ReadAsync(await api.GetAsync("/api/v1/ruleSets"), AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct), r => RuleSetPresets.IsPreset(r.Id));
-        using var presetRead = await api.GetAsync($"/api/v1/ruleSets/{RuleSetPresets.KnownScanners.Id}");
+        Assert.DoesNotContain(await AdminApiHarness.ReadAsync(await api.GetAsync("/api/v1/rule-sets"), AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct), r => RuleSetPresets.IsPreset(r.Id));
+        using var presetRead = await api.GetAsync($"/api/v1/rule-sets/{RuleSetPresets.KnownScanners.Id}");
         Assert.Equal(HttpStatusCode.OK, presetRead.StatusCode);
-        using var presetWrite = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/ruleSets", RuleSetPresets.AiCrawlers, AdminJsonContext.Default.RuleSetConfig);
+        using var presetWrite = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/rule-sets", RuleSetPresets.AiCrawlers, AdminJsonContext.Default.RuleSetConfig);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, presetWrite.StatusCode);
         Assert.Equal("ruleSet.id.reserved", Assert.Single((await AdminApiHarness.ProblemAsync(presetWrite, Ct)).Errors!).Code);
 
         // A regex that cannot be built is a 422 pointing at its field.
         RuleSetConfig broken = new(RuleSetId.New(), "broken", Rules: [new RuleConfig(RuleAction.Deny, new RuleMatchConfig(new RulePathConfig(RulePathKind.Regex, "(unclosed")))]);
-        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/ruleSets", broken, AdminJsonContext.Default.RuleSetConfig);
+        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/rule-sets", broken, AdminJsonContext.Default.RuleSetConfig);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
         var error = Assert.Single((await AdminApiHarness.ProblemAsync(rejected, Ct)).Errors!);
         Assert.Equal("/rules/0/match/path/pattern", error.Path);
         Assert.Equal("ruleSet.rule.path.regex.invalid", error.Code);
 
-        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/ruleSets/{set.Id}", stored with { Notes = "edited" }, AdminJsonContext.Default.RuleSetConfig, ifMatch: version);
+        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/rule-sets/{set.Id}", stored with { Notes = "edited" }, AdminJsonContext.Default.RuleSetConfig, ifMatch: version);
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
         var latest = AdminApiHarness.ETag(replaced)!;
 
@@ -358,16 +358,16 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         using var hostCreated = await PostHostAsync(api, host);
         Assert.Equal(HttpStatusCode.Created, hostCreated.StatusCode);
 
-        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/ruleSets/{set.Id}", ifMatch: latest);
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rule-sets/{set.Id}", ifMatch: latest);
         var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
         Assert.Contains(problem.RelatedErrors!, e => e.Code == "host.ruleSet.unknown");
 
         using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
         Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
-        using var setGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/ruleSets/{set.Id}", ifMatch: latest);
+        using var setGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rule-sets/{set.Id}", ifMatch: latest);
         Assert.Equal(HttpStatusCode.NoContent, setGone.StatusCode);
-        using var gone = await api.GetAsync($"/api/v1/ruleSets/{set.Id}");
+        using var gone = await api.GetAsync($"/api/v1/rule-sets/{set.Id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
 
         using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
@@ -380,11 +380,11 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         var api = shared.Api;
         AccessListConfig list = new(AccessListId.New(), "bad-passwords", BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Password: string.Empty)]));
 
-        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/accessLists", list, AdminJsonContext.Default.AccessListConfig);
+        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/access-lists", list, AdminJsonContext.Default.AccessListConfig);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
         Assert.Contains("accessList.user.password.empty", await rejected.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
-        using var gone = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        using var gone = await api.GetAsync($"/api/v1/access-lists/{list.Id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
 
@@ -405,30 +405,30 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
                 CacheSeconds: 30,
                 RequestHeaders: ["x-tenant", "X-Tenant"],
                 SignIn: new ForwardAuthSignInConfig("/outpost.goauthentik.io/start", "rd")));
-        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/authProviders", provider, AdminJsonContext.Default.AuthProviderConfig);
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/auth-providers", provider, AdminJsonContext.Default.AuthProviderConfig);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        Assert.Equal($"/api/v1/authProviders/{provider.Id}", created.Headers.Location!.ToString());
+        Assert.Equal($"/api/v1/auth-providers/{provider.Id}", created.Headers.Location!.ToString());
         var version = AdminApiHarness.ETag(created)!;
 
         // Read back canonically: the preset by name, the header list a set. No secret is part of it.
-        using var read = await api.GetAsync($"/api/v1/authProviders/{provider.Id}");
+        using var read = await api.GetAsync($"/api/v1/auth-providers/{provider.Id}");
         var readBody = await read.Content.ReadAsStringAsync(Ct);
         Assert.Contains("\"preset\":\"authentik\"", readBody, StringComparison.Ordinal);
         Assert.Contains("\"requestHeaders\":[\"x-tenant\"]", readBody, StringComparison.Ordinal);
         Assert.Equal(version, AdminApiHarness.ETag(read));
         var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.AuthProviderConfig)!;
-        using var all = await api.GetAsync("/api/v1/authProviders");
+        using var all = await api.GetAsync("/api/v1/auth-providers");
         Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListAuthProviderConfig, Ct), p => p.Id == provider.Id);
 
         // An endpoint with credentials and a header the proxy owns are 422s pointing at their fields.
         AuthProviderConfig broken = new(AuthProviderId.New(), "broken", ForwardAuth: new ForwardAuthConfig("http://user:pw@auth/", ResponseHeaders: ["X-Forwarded-For"]));
-        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/authProviders", broken, AdminJsonContext.Default.AuthProviderConfig);
+        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/auth-providers", broken, AdminJsonContext.Default.AuthProviderConfig);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
         Assert.Equal(
             [("/forwardAuth/url", "authProvider.url.invalid"), ("/forwardAuth/responseHeaders/0", "authProvider.header.invalid")],
             (await AdminApiHarness.ProblemAsync(rejected, Ct)).Errors!.Select(e => (e.Path, e.Code)));
 
-        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/authProviders/{provider.Id}", stored with { Notes = "edited" }, AdminJsonContext.Default.AuthProviderConfig, ifMatch: version);
+        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/auth-providers/{provider.Id}", stored with { Notes = "edited" }, AdminJsonContext.Default.AuthProviderConfig, ifMatch: version);
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
         var latest = AdminApiHarness.ETag(replaced)!;
 
@@ -445,16 +445,16 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, unknown.StatusCode);
 
-        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/authProviders/{provider.Id}", ifMatch: latest);
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/auth-providers/{provider.Id}", ifMatch: latest);
         var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
         Assert.Contains(problem.RelatedErrors!, e => e.Code == "host.authProvider.unknown");
 
         using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
         Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
-        using var providerGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/authProviders/{provider.Id}", ifMatch: latest);
+        using var providerGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/auth-providers/{provider.Id}", ifMatch: latest);
         Assert.Equal(HttpStatusCode.NoContent, providerGone.StatusCode);
-        using var gone = await api.GetAsync($"/api/v1/authProviders/{provider.Id}");
+        using var gone = await api.GetAsync($"/api/v1/auth-providers/{provider.Id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
 
         using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
@@ -475,7 +475,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await AdminApiHarness.ProblemAsync(response, Ct);
         Assert.Contains("access lists replaced", problem.Detail, StringComparison.Ordinal);
-        Assert.Contains("/api/v1/accessLists", problem.Detail, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/access-lists", problem.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -485,14 +485,14 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         var id = AccessListId.New();
         var json = $$$"""{"id":"{{{id}}}","name":"inline-hash","version":0,"basicAuth":{"users":[{"username":"alice","passwordHash":"$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE"}]}}""";
 
-        using var response = await api.SendAsync(HttpMethod.Post, "/api/v1/accessLists", content: AdminApiHarness.JsonBody(json));
+        using var response = await api.SendAsync(HttpMethod.Post, "/api/v1/access-lists", content: AdminApiHarness.JsonBody(json));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await AdminApiHarness.ProblemAsync(response, Ct);
         Assert.Contains("'passwordHash'", problem.Detail, StringComparison.Ordinal);
         Assert.Contains("vault", problem.Detail, StringComparison.Ordinal);
         Assert.DoesNotContain("pbkdf2", problem.Detail, StringComparison.Ordinal);
-        using var gone = await api.GetAsync($"/api/v1/accessLists/{id}");
+        using var gone = await api.GetAsync($"/api/v1/access-lists/{id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
 

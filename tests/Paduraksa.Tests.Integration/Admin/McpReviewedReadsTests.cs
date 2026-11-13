@@ -39,7 +39,7 @@ public sealed class McpReviewedReadsTests
         foreach (var path in new[]
         {
             "/api/v1/config", "/api/v1/dns-providers", "/api/v1/notification-channels", "/api/v1/acme-accounts", "/api/v1/acme-orders", "/api/v1/certificates", "/api/v1/ca",
-            "/api/v1/auth/me", "/api/v1/authProviders", "/api/v1/metrics/overview",
+            "/api/v1/auth/me", "/api/v1/auth-providers", "/api/v1/metrics/overview",
         })
         {
             var reply = await client.CallAsync("execute", $"async () => JSON.stringify(await paduraksa.request({{ method: 'GET', path: '{path}' }}))", Ct);
