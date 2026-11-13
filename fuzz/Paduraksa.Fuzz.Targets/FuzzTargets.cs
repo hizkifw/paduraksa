@@ -17,6 +17,11 @@ public static class FuzzTargets
         AccessLogTailTarget.Target,
         YamlImportTarget.Target,
         McpSandboxTarget.Target,
+        IpNetworkTarget.Target,
+        GlobPatternTarget.Target,
+        CloudflareRangesTarget.Target,
+        BackupArchiveTarget.Target,
+        CertificateImportTarget.Target,
     ];
 
     public static FuzzTarget Get(string name) =>

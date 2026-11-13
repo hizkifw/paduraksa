@@ -70,8 +70,8 @@ dotnet publish fuzz/Paduraksa.Fuzz -c Release -o "$bin" -nologo -v quiet
 rm -rf "$out/child"
 dotnet publish fuzz/Paduraksa.Fuzz -c Release -o "$out/child" -nologo -v quiet
 export PADURAKSA_FUZZ_CHILD="$out/child/Paduraksa.Fuzz.dll"
-# The MCP sandbox's parent side (frames, request bridge, policy) is instrumented; the child runs from an uninstrumented copy.
-for assembly in Paduraksa.Proxy.dll Paduraksa.ProxyProtocol.dll Paduraksa.Core.dll Paduraksa.Application.dll Paduraksa.Contracts.dll YamlDotNet.dll Paduraksa.Mcp.dll; do
+# The MCP sandbox's parent side (frames, request bridge, policy) is instrumented, and so is the vault (the backup archive reader and the certificate import); the child runs from an uninstrumented copy.
+for assembly in Paduraksa.Proxy.dll Paduraksa.ProxyProtocol.dll Paduraksa.Core.dll Paduraksa.Application.dll Paduraksa.Contracts.dll YamlDotNet.dll Paduraksa.Mcp.dll Paduraksa.Vault.dll; do
     dotnet sharpfuzz "$bin/$assembly" >/dev/null
 done
 

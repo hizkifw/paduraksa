@@ -15,6 +15,11 @@ Coverage-guided fuzzing of the byte-level parsers that read raw attacker input (
 | `access-log-tail` | a request's path, query, host, request ID, referer and user agent through the access-log file line and the live tail's entry, which must say the same thing |
 | `yaml-import` | the config YAML an import reads: the guarded reader (caps on size, depth, nodes with aliases expanded, scalars, anchors), the mapping onto the document, merge and replace, and that an accepted document exports and reads back to the same canonical bytes |
 | `mcp-sandbox` | a model's JavaScript through the MCP sandbox (`search` over a spec, `execute` against a recording stub): it returns within the limits and never throws, the output stays under its cap, nothing outside the globals is reachable, and what reaches the stub is what the request policy allows |
+| `ip-network` | a CIDR block: the strict parser's verdict against an independent reading of its three rules, the block's extent and its canonical text |
+| `glob-pattern` | a rule set's path glob and a path: when a pattern compiles, and a match against a memoised recursion over the same rules; case-blind; 0 B; linear on a long path |
+| `cloudflare-ranges` | Cloudflare's edge list as the refresh job fetches it (the JSON answer, the two text ones, the size cap): the list is accepted only when an independent reading of the list rules accepts it, whole, and a refusal is short and printable |
+| `backup-archive` | a backup archive up to the passphrase check: the header table, the cost caps, the chunk framing and authentication against an independent AES-GCM reading, a bounded allocation; and the manifest, which a backup's author can write as they like |
+| `certificate-import` | an uploaded PEM or PKCS#12 certificate and key through the vault's import on a real vault: only its own exception, bounded time and memory, the same verdict twice, the leaf one of the PEM's certificates, no key in what comes back |
 
 Properties checked on every input: no exception; the same verdict for the same bytes; 0 B where the path promises it; and, per target, a differential
 against an independent reading of the same bytes (see each target's remarks).

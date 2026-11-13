@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The backup-archive and certificate-import targets check the vault against a second reading of its formats (AES-GCM chunks, certificate hashes) and build their seed
+         certificates and archives, which takes the key-material APIs that BannedSymbols.KeyMaterial.txt bans outside the vault and its tests. No other target uses them. -->
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
@@ -6,5 +11,6 @@
     <ProjectReference Include="../../src/Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Mcp/Paduraksa.Mcp.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
   </ItemGroup>
 </Project>
