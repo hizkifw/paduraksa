@@ -78,16 +78,63 @@ Every problem `code` and every `errors[].code` is dotted segments in lowerCamelC
 **The list (as of M4 to M6).** Later milestones add codes beside their validators (for example the `accessList.*`, `ruleSet.*`, `authProvider.*` and `errorPages.*` families in [waf.md](waf.md)).
 
 *Problems:*
-`auth.required`, `auth.invalidToken`, `auth.invalidSession`, `auth.invalidAuthorization`, `auth.ambiguousCredentials`, `auth.invalidCredentials`, `auth.invalidCode`, `auth.sessionExpired`, `auth.sessionRequired`, `auth.permissionRequired`, `auth.rateLimited`, `auth.busy`, `setup.required`, `setup.unavailable`, `setup.complete`, `setup.invalidToken`, `setup.viaProxy`, `csrf.refused`, `admin.internalHop`, `admin.sourceDenied`, `ca.notFound`, `config.publishFailed`, `identity.conflict`, `identity.lastOwner`, `identity.refused`, `identity.password.wrong`.
+```
+auth.required, auth.invalidToken, auth.invalidSession, auth.invalidAuthorization, auth.ambiguousCredentials,
+auth.invalidCredentials, auth.invalidCode, auth.sessionExpired, auth.sessionRequired,
+auth.permissionRequired, auth.rateLimited, auth.busy, setup.required, setup.unavailable, setup.complete,
+setup.invalidToken, setup.viaProxy, csrf.refused, admin.internalHop, admin.sourceDenied, ca.notFound,
+config.publishFailed, identity.conflict, identity.lastOwner, identity.refused, identity.password.wrong
+```
 
 *Config (validator and compiler):*
-`compile.failed`, `apiVersion.unsupported`, `id.empty`, `id.duplicate`, `version.negative`, `enum.undefined`, `name.required`, `name.tooLong`, `name.duplicate`, `name.invalid`, `notes.tooLong`, `value.null`, `address.invalid`, `ipAllowList.dropDenied.withoutAddresses`, `rateLimit.requests.invalid`, `rateLimit.burst.invalid`, `rateLimit.rate.invalid`, `rateLimit.header.required`, `rateLimit.header.unexpected`, `rateLimit.header.invalid`, `robots.customText.required`, `robots.customText.unexpected`, `robots.customText.tooLong`, `robots.customText.invalid`, `hsts.maxAge.invalid`, `hsts.preload.needsIncludeSubDomains`, `hsts.preload.maxAgeTooShort`, `serverHeader.value.required`, `serverHeader.value.invalid`, `trustedProxies.proxies.required`, `trustedProxies.proxies.unexpected`, `trustedProxies.header.invalid`, `trustedProxies.option.unexpected`, `upstream.destinations.required`, `upstream.destinations.noneEnabled`, `upstream.maxConnectionsPerServer.invalid`, `upstream.passiveHealth.reactivationPeriod.invalid`, `upstream.activeHealth.path.invalid`, `upstream.activeHealth.interval.invalid`, `upstream.activeHealth.timeout.invalid`, `destination.address.invalid`, `destination.address.credentials`, `destination.address.queryOrFragment`, `host.names.required`, `host.name.invalid`, `host.name.duplicate`, `host.profile.unknown`, `host.rateLimit.unknown`, `host.certificate.idRequired`, `host.certificate.idUnexpected`, `host.certificate.noneWithForceHttps`, `host.certificate.unusable`, `settings.defaultCertificate.unusable`, `host.routes.required`, `host.routes.unexpected`, `host.admin.duplicate`, `host.admin.httpsRequired`, `host.admin.lockout`, `host.redirect.required`, `host.redirect.unexpected`, `host.respond.required`, `host.respond.unexpected`, `host.tag.invalid`, `redirect.target.invalid`, `redirect.target.credentials`, `redirect.target.queryWithPreservePath`, `redirect.statusCode.invalid`, `respond.statusCode.invalid`, `respond.body.forbidden`, `respond.body.tooLong`, `respond.contentType.invalid`, `route.path.invalid`, `route.path.encoded`, `route.path.notCanonical`, `route.path.duplicate`, `route.upstream.required`, `route.upstream.unknown`, `route.rateLimit.unknown`, `command.message.invalid`, `config.store.unavailable`, `revision.corrupt`, `json.invalid`.
+```
+compile.failed, apiVersion.unsupported, id.empty, id.duplicate, version.negative, enum.undefined,
+name.required, name.tooLong, name.duplicate, name.invalid, notes.tooLong, value.null, address.invalid,
+ipAllowList.dropDenied.withoutAddresses, rateLimit.requests.invalid, rateLimit.burst.invalid,
+rateLimit.rate.invalid, rateLimit.header.required, rateLimit.header.unexpected, rateLimit.header.invalid,
+robots.customText.required, robots.customText.unexpected, robots.customText.tooLong,
+robots.customText.invalid, hsts.maxAge.invalid, hsts.preload.needsIncludeSubDomains,
+hsts.preload.maxAgeTooShort, serverHeader.value.required, serverHeader.value.invalid,
+trustedProxies.proxies.required, trustedProxies.proxies.unexpected, trustedProxies.header.invalid,
+trustedProxies.option.unexpected, upstream.destinations.required, upstream.destinations.noneEnabled,
+upstream.maxConnectionsPerServer.invalid, upstream.passiveHealth.reactivationPeriod.invalid,
+upstream.activeHealth.path.invalid, upstream.activeHealth.interval.invalid,
+upstream.activeHealth.timeout.invalid, destination.address.invalid, destination.address.credentials,
+destination.address.queryOrFragment, host.names.required, host.name.invalid, host.name.duplicate,
+host.profile.unknown, host.rateLimit.unknown, host.certificate.idRequired, host.certificate.idUnexpected,
+host.certificate.noneWithForceHttps, host.certificate.unusable, settings.defaultCertificate.unusable,
+host.routes.required, host.routes.unexpected, host.admin.duplicate, host.admin.httpsRequired,
+host.admin.lockout, host.redirect.required, host.redirect.unexpected, host.respond.required,
+host.respond.unexpected, host.tag.invalid, redirect.target.invalid, redirect.target.credentials,
+redirect.target.queryWithPreservePath, redirect.statusCode.invalid, respond.statusCode.invalid,
+respond.body.forbidden, respond.body.tooLong, respond.contentType.invalid, route.path.invalid,
+route.path.encoded, route.path.notCanonical, route.path.duplicate, route.upstream.required,
+route.upstream.unknown, route.rateLimit.unknown, command.message.invalid, config.store.unavailable,
+revision.corrupt, json.invalid
+```
 
 *Certificates:*
-`certificate.delete.inUse`, `certificate.names.required`, `certificate.name.invalid`, `certificate.chain.required`, `certificate.validity.invalid`, `certificate.fingerprint.required`, `certificate.exists`, `certificate.builtIn`, `certificate.text.tooLong`, `certificate.managed`, `certificate.replace.notAllowed`, `certificate.reissue.notAllowed`, `certificate.issue.refused`, `certificate.localCa.missing`, `certificate.localCa.inUse`, `certificate.adminCoverage`, `certificate.vault.keyNotDeleted`, `certificate.import.tooLarge`, `certificate.import.unreadable`, `certificate.import.wrongPassword`, `certificate.import.unsupportedKeyFormat`, `certificate.import.noMatchingKey`, `certificate.import.noUsableName`, `certificate.import.weakKey`, `certificate.import.caCertificate`.
+```
+certificate.delete.inUse, certificate.names.required, certificate.name.invalid, certificate.chain.required,
+certificate.validity.invalid, certificate.fingerprint.required, certificate.exists, certificate.builtIn,
+certificate.text.tooLong, certificate.managed, certificate.replace.notAllowed,
+certificate.reissue.notAllowed, certificate.issue.refused, certificate.localCa.missing,
+certificate.localCa.inUse, certificate.adminCoverage, certificate.vault.keyNotDeleted,
+certificate.import.tooLarge, certificate.import.unreadable, certificate.import.wrongPassword,
+certificate.import.unsupportedKeyFormat, certificate.import.noMatchingKey, certificate.import.noUsableName,
+certificate.import.weakKey, certificate.import.caCertificate
+```
 
 *Issuance:*
-`acme.account.directory.invalid`, `acme.account.contact.invalid`, `acme.account.eab.incomplete`, `acme.account.eab.secretMissing`, `acme.account.algorithm.undefined`, `acme.account.inUse`, `acme.account.inactive`, `acme.account.unknown`, `acme.text.tooLong`, `acme.dnsProvider.label.required`, `acme.dnsProvider.kind.undefined`, `acme.dnsProvider.credential.missing`, `acme.dnsProvider.inUse`, `acme.dnsProvider.unknown`, `acme.order.dnsProvider.required`, `acme.order.dnsProvider.notAllowed`, `acme.order.names.required`, `acme.order.name.invalid`, `acme.order.names.tooMany`, `acme.order.name.wildcardNeedsDns01`, `acme.order.name.ipNeedsHttp01`, `acme.order.challenge.undefined`, `acme.order.keySpec.undefined`.
+```
+acme.account.directory.invalid, acme.account.contact.invalid, acme.account.eab.incomplete,
+acme.account.eab.secretMissing, acme.account.algorithm.undefined, acme.account.inUse, acme.account.inactive,
+acme.account.unknown, acme.text.tooLong, acme.dnsProvider.label.required, acme.dnsProvider.kind.undefined,
+acme.dnsProvider.credential.missing, acme.dnsProvider.inUse, acme.dnsProvider.unknown,
+acme.order.dnsProvider.required, acme.order.dnsProvider.notAllowed, acme.order.names.required,
+acme.order.name.invalid, acme.order.names.tooMany, acme.order.name.wildcardNeedsDns01,
+acme.order.name.ipNeedsHttp01, acme.order.challenge.undefined, acme.order.keySpec.undefined
+```
 
 *Simulation:*
 `simulation.request.url`, `simulation.request.clientIp`, `simulation.request.peerIp`, `simulation.request.transportIp`, `simulation.request.method`, `simulation.request.headers`, `simulation.request.tls`, `simulation.request.tooLarge`, `simulation.request.conflicting`, `simulation.draft.rejected`, `simulation.revision.unreadable`, `simulation.busy`, `simulation.store.unreadable`.
