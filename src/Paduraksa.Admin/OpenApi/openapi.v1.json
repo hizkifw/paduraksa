@@ -12451,7 +12451,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (docs/design/observability.md \"Metrics (M9)\"). Computed from the\naccess-log drain, so a host with its access log off is absent. Visitors, the top tables and the per-path figures are approximate by design;\neach table row carries its own bound."
+        "description": "The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (docs/design/observability.md \"Traffic analytics\"). Computed from the\naccess-log drain, so a host with its access log off is absent. Visitors, the top tables and the per-path figures are approximate by design;\neach table row carries its own bound."
       },
       "AnalyticsPath": {
         "required": [
