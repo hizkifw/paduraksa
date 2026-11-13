@@ -39,7 +39,7 @@ Everything here is compiled per snapshot, so the gate does only lookups and arit
 **Table layout.**
 - The table is a power-of-two number of entries, 256 Ki by default (about 4 MiB). The class takes any power of two. `Paduraksa:RateLimiting:TableSize` is validated to 1024 to 16 Mi.
 - Each entry is two `long`s, held in two `long[]` arrays:
-  - a 64-bit **key fingerprint**, claimed with CAS. Linear probing covers at most 8 slots; if none is free, the oldest of those is evicted.
+  - a 64-bit **key fingerprint**, claimed with CAS. Linear probing covers at most 8 slots; if none is free, the oldest of those is evicted. The probe starts at the hash mixed with the policy slot: a client's hash is the same for every slot, and a slot is one policy on one host, so without the mix one client's buckets on more than 8 rate-limited hosts shared one window and evicted each other, and every eviction starts a full bucket (found by the soak test: a 20/s limit let through 88/s once 11 other rate-limited hosts were busy).
   - a packed **state**, updated with a CAS loop.
 - State layout:
   - **bits 63-24:** the last-refill time in ms since process start. 40 bits is about 34.8 years, so no wraparound handling is needed.

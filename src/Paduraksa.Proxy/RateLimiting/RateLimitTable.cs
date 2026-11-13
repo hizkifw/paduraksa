@@ -95,7 +95,7 @@ public sealed class RateLimitTable
 
         var hash = partitionHash & (ulong)PartitionMask;
         var key = ((long)slot << KeySlotShift) | (long)hash;
-        var start = (int)(hash & (ulong)_mask);
+        var start = StartOf(slot, hash);
 
         for (var attempt = 0; attempt < MaxProbeAttempts; attempt++)
         {
@@ -172,7 +172,7 @@ public sealed class RateLimitTable
 
         var hash = partitionHash & (ulong)PartitionMask;
         var key = ((long)slot << KeySlotShift) | (long)hash;
-        var start = (int)(hash & (ulong)_mask);
+        var start = StartOf(slot, hash);
 
         for (var i = 0; i < ProbeLength; i++)
         {
@@ -265,6 +265,13 @@ public sealed class RateLimitTable
             throw new ArgumentException("The parameters are default: look the slot's parameters up first.", nameof(parameters));
         }
     }
+
+    /// <summary>
+    /// The first entry a key probes. A client's partition hash is the same for every policy slot (it is the address, hashed), and a slot is one policy on one host, so a client
+    /// that meets more than <see cref="ProbeLength"/> rate-limited hosts would put all its buckets in one window of entries and evict them from each other, and every eviction
+    /// starts a full bucket: the limit would stop limiting. Mixing the slot in spreads one client's buckets over the table.
+    /// </summary>
+    private int StartOf(ushort slot, ulong hash) => (int)((hash ^ (((ulong)slot * 0x9E37_79B9_7F4A_7C15UL) >> 32)) & (ulong)_mask);
 
     private bool TryTake(int index, in RateLimitParameters parameters, long nowMs, out int retryAfterSeconds)
     {

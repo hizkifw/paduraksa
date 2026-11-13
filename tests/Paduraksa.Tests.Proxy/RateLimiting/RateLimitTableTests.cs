@@ -121,6 +121,24 @@ public sealed class RateLimitTableTests
     }
 
     [Fact]
+    public void OneClientsBucketsOnManyHostsDoNotEvictEachOther()
+    {
+        // One policy on a host is one slot, and the client's partition hash is the same in every slot. More slots than a probe window holds, all for one client, used to
+        // share one window: the busiest buckets pushed the others out, and every eviction started a full bucket, so the limit on a slot that was touched least never held.
+        RateLimitTable table = new(RateLimitTable.DefaultCapacity);
+        RateLimitParameters onePerHour = new(1d / 3600, 1);
+        const int Slots = RateLimitTable.ProbeLength * 4;
+        for (var round = 0; round < 3; round++)
+        {
+            for (ushort slot = 1; slot <= Slots; slot++)
+            {
+                var allowed = table.TryAcquire(slot, Hash, onePerHour, nowMs: 1_000 + round, out _);
+                Assert.Equal(round == 0, allowed);
+            }
+        }
+    }
+
+    [Fact]
     public void SlotZeroIsNotABucket()
     {
         RateLimitTable table = new(64);
