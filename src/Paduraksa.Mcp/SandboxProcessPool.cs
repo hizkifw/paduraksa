@@ -156,7 +156,7 @@ public sealed class SandboxProcessPool : IAsyncDisposable
         }
 
         var started = await ChildProcess.StartAsync(_command, _limits, _specJson, _spawner!, _cgroup, _log, _time, cancellationToken).ConfigureAwait(false);
-        foreach (var line in started.Hardening.Where(l => l.Contains("not ", StringComparison.Ordinal)))
+        foreach (var line in started.Hardening.Where(l => l.Contains("not ", StringComparison.Ordinal) || l.StartsWith(ProcessHardening.InheritedClosedPrefix, StringComparison.Ordinal)))
         {
             _log($"Sandbox child hardening: {line}.");
         }

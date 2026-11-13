@@ -36,8 +36,11 @@ public static class SandboxChild
     {
         try
         {
+            // First, before the limits (RLIMIT_NOFILE) and the filters: nothing the server left open is to outlive the first line of the child.
+            var inherited = ProcessHardening.CloseInheritedDescriptors();
             var cpu = int.TryParse(Environment.GetEnvironmentVariable(CpuSecondsVariable), out var seconds) ? seconds : 300;
             var report = ProcessHardening.Apply(cpu);
+            report.Add(inherited);
 
             // Everything the engine will load or JIT is touched now, because the file system is closed in a moment.
             Execute("execute", "async () => JSON.stringify({ a: [1, 'x'] }) + (await paduraksa.request({ method: 'GET', path: '/api/v1/warm' })).status + /a+/.test('aa')", SandboxLimits.Default, null, (_, _) => Warm);

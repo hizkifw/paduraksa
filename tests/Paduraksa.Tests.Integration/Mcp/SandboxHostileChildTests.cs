@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 using Paduraksa.Mcp;
 using Paduraksa.Tests.Shared;
@@ -183,6 +186,61 @@ public sealed class SandboxHostileChildTests
             File.Delete(file);
         }
     }
+
+    /// <summary>
+    /// .NET opens its descriptors with close-on-exec, so the test above proves nothing about a descriptor that a native library, or another test in this process, opened without it (the syscall filter's
+    /// probes did, six sockets that lasted the run, and the test above failed whenever one of those tests had run before it). This one leaks on purpose, a listener, both ends of a connection and a file,
+    /// and asks that the child close them before it reads anything.
+    /// </summary>
+    [Fact]
+    public async Task ADescriptorTheServerLeaksAcrossExecIsClosedByTheChildBeforeItReadsAnything()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "reads /proc");
+        using TcpListener listener = new(IPAddress.Loopback, 0);
+        listener.Start();
+        var file = Path.GetTempFileName();
+        try
+        {
+            using var held = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+            using var client = new TcpClient();
+            await client.ConnectAsync((IPEndPoint)listener.LocalEndpoint, Ct);
+            using var accepted = await listener.AcceptTcpClientAsync(Ct);
+
+            var leaked = new SafeHandle[] { held.SafeFileHandle, listener.Server.SafeHandle, client.Client.SafeHandle, accepted.Client.SafeHandle }
+                .Select(handle => (int)handle.DangerousGetHandle())
+                .ToList();
+            var targets = leaked.Select(fd => new FileInfo($"/proc/self/fd/{fd}").LinkTarget!).ToList();
+            foreach (var fd in leaked)
+            {
+                Assert.Equal(0, Fcntl(fd, FSetFd, 0));
+            }
+
+            List<string> log = [];
+            await using var tools = SandboxFixture.Create(log: log.Add);
+            Assert.Equal("1", (await tools.SearchAsync("async () => 1", Ct)).Text);
+            var pid = Assert.Single(tools.Pool.ChildProcessIds);
+
+            var theirs = Links(pid);
+            foreach (var target in targets)
+            {
+                Assert.DoesNotContain(target, theirs);
+            }
+
+            // The child says so, and the pool logs it as the server's fault: an operator sees that something leaks.
+            var closed = Assert.Single(log, l => l.StartsWith("Sandbox child hardening: Inherited descriptors: closed", StringComparison.Ordinal));
+            var count = int.Parse(Regex.Match(closed, @"closed (\d+)").Groups[1].Value, CultureInfo.InvariantCulture);
+            Assert.True(count >= leaked.Count, closed);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    private const int FSetFd = 2;
+
+    [DllImport("libc", EntryPoint = "fcntl")]
+    private static extern int Fcntl(int fd, int command, int argument);
 
     [Fact]
     public void LandlockDeniesFileAccessToTheThreadThatAppliedIt()

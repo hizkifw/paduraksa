@@ -326,6 +326,7 @@ It holds **no token, no configuration, no data directory and no network use**, a
 
 | Measure | Value |
 |---|---|
+| Inherited descriptors | every descriptor above stderr that has no close-on-exec is closed, before anything else |
 | `RLIMIT_CPU` | 300 s of CPU for its whole life |
 | `RLIMIT_NOFILE` | 256 |
 | `RLIMIT_CORE` | 0 |
@@ -333,6 +334,7 @@ It holds **no token, no configuration, no data directory and no network use**, a
 | `PR_SET_PDEATHSIG` | SIGKILL when its parent dies |
 | **Landlock** | denies all file system access (every thread where the kernel has `LANDLOCK_RESTRICT_SELF_TSYNC`, else the script thread and its descendants) |
 
+- **Inherited descriptors.** A descriptor survives `exec` only if it has no close-on-exec, so the ones the child holds without it are exactly what it inherited: the runtime opens its own with it, and a child with nothing leaked reports `Inherited descriptors: none`. .NET opens the server's descriptors with close-on-exec, but native code does not always (OpenSSL reads the CA bundle with `fopen`, and a child started in that moment inherits the file), and Landlock and seccomp never touch a descriptor that is already open: a leaked listener, client connection or database file would stay usable from inside the interpreter. So the child closes them first, before `RLIMIT_NOFILE` and the filters, and says how many it closed. The parent logs a non-zero count as a leak in the server. This is the child's side of the boundary and does not depend on the parent being careful; `close_range` would be shorter, but it would take the runtime's own descriptors too.
 - A warm-up script and a preload of every referenced assembly run first, because the runtime loads assemblies lazily and a closed file system would otherwise kill the child at its first use of one.
 - `RLIMIT_NPROC` is not set. It counts every process of the user, so a low value would stop the child creating its own threads.
 - Each outcome is a line of the `ready` frame. The parent logs the ones that did not apply, once per child, and the whole report once per server run.
@@ -522,7 +524,7 @@ The proof is that a misbehaving script costs only its child.
 - the child's environment (no master key), what it applied, and that it leaves when its stdin closes;
 - frames bound to their run: a fabricated result, a result with no or a wrong run id, a request queued before the code, a frame of an earlier run, a frame sent while idle;
 - a stderr flood, a caller who gives up while the child starts, an idle child that spins;
-- the descriptors a real child inherits (pipes only, none of the server's listeners or files), and Landlock denying a read to the thread that applied it.
+- the descriptors a real child inherits (pipes only, none of the server's listeners or files), a listener, both ends of a connection and a file that the test leaks without close-on-exec being closed by the child, and Landlock denying a read to the thread that applied it.
 
 **Admin** (`Admin/Mcp*`):
 - the official client over streamable HTTP lists the two tools, searches, and executes as the viewer, operator and owner (the actor is the token);

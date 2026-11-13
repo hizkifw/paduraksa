@@ -15,6 +15,12 @@ internal static class ProcessHardening
     private const int PrSetPdeathsig = 1;
     private const int PrSetNoNewPrivs = 38;
     private const int SigKill = 9;
+    /// <summary>The start of the report line when the child closed something: the pool logs it as the server leaking a descriptor.</summary>
+    internal const string InheritedClosedPrefix = "Inherited descriptors: closed";
+
+    private const int FGetFd = 1;
+    private const int FdCloexec = 1;
+    private const int MaxScannedDescriptors = 1 << 16;
     private const long SysLandlockCreateRuleset = 444;
     private const long SysLandlockRestrictSelf = 446;
     private const uint LandlockAccessFsAbi1 = (1u << 13) - 1;
@@ -26,6 +32,56 @@ internal static class ProcessHardening
     private const int LandlockNetworkAbi = 4;
     private const ulong LandlockAccessNetBindTcp = 1ul << 0;
     private const ulong LandlockAccessNetConnectTcp = 1ul << 1;
+
+    /// <summary>
+    /// Closes every descriptor the child inherited from the server, before anything else runs. A descriptor survives <c>exec</c> only if it lacks close-on-exec, so the ones the child holds without it are exactly
+    /// the inherited ones (the runtime opens its own with it, so none of its descriptors is caught here, and a child no descriptor leaked to closes nothing). Landlock and seccomp do not touch a descriptor that is already open,
+    /// so a listener, a client connection or a database file that leaked across <c>exec</c> would be usable by a script that got out of the interpreter. .NET opens its own descriptors with close-on-exec, but a native library
+    /// (OpenSSL reading the CA bundle with <c>fopen</c>) can hold one without it for a moment, and a child started at that moment inherits it. Stdin, stdout and stderr, the protocol, are kept.
+    /// </summary>
+    public static string CloseInheritedDescriptors()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return "Inherited descriptors: not Linux, none closed";
+        }
+
+        var closed = 0;
+        foreach (var fd in OpenDescriptors())
+        {
+            var flags = fcntl(fd, FGetFd, 0);
+            if (flags >= 0 && (flags & FdCloexec) == 0 && close(fd) == 0)
+            {
+                closed++;
+            }
+        }
+
+        return closed == 0 ? "Inherited descriptors: none" : $"{InheritedClosedPrefix} {closed}";
+    }
+
+    /// <summary>The descriptors above stderr: from <c>/proc/self/fd</c>, or every number up to the soft limit where there is no <c>/proc</c>.</summary>
+    private static List<int> OpenDescriptors()
+    {
+        List<int> descriptors = [];
+        try
+        {
+            foreach (var name in Directory.EnumerateFileSystemEntries("/proc/self/fd"))
+            {
+                if (int.TryParse(Path.GetFileName(name), out var fd) && fd > 2)
+                {
+                    descriptors.Add(fd);
+                }
+            }
+
+            return descriptors;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            var limit = new RLimit();
+            var upTo = getrlimit(RlimitNofile, ref limit) == 0 ? (int)Math.Min(limit.Current, MaxScannedDescriptors) : MaxScannedDescriptors;
+            return [.. Enumerable.Range(3, Math.Max(0, upTo - 3))];
+        }
+    }
 
     /// <summary>The limits and flags that cost nothing to apply early. Landlock waits for <see cref="RestrictFileSystem"/>, because the runtime still has assemblies to load.</summary>
     public static List<string> Apply(int cpuSeconds)
@@ -161,6 +217,12 @@ internal static class ProcessHardening
 
     [DllImport("libc", EntryPoint = "setrlimit", SetLastError = true)]
     private static extern int setrlimit(int resource, ref RLimit limit);
+
+    [DllImport("libc", EntryPoint = "getrlimit", SetLastError = true)]
+    private static extern int getrlimit(int resource, ref RLimit limit);
+
+    [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
+    private static extern int fcntl(int fd, int command, int argument);
 
     [DllImport("libc", EntryPoint = "prctl", SetLastError = true)]
     private static extern int prctl(int option, ulong arg2, ulong arg3, ulong arg4, ulong arg5);
