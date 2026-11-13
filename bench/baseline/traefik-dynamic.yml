@@ -15,6 +15,26 @@ http:
         responseHeaderTimeout: 0s
         idleConnTimeout: 120s
 
+  # The comparison scenarios' policies: rateLimit is a token bucket (golang.org/x/time/rate) per client address by
+  # default; errors fetches the 502 page from a service, here the shared upstream, which is one extra proxied request
+  # for every error.
+  middlewares:
+    rate-allowed:
+      rateLimit:
+        average: 1000000
+        period: 1s
+        burst: 1048575
+    rate-refused:
+      rateLimit:
+        average: 1
+        period: 1h
+        burst: 1
+    error-502:
+      errors:
+        status: ["502"]
+        service: error-pages
+        query: /error-502.html
+
   routers:
     bench-web:
       rule: Host(`bench.test`)
@@ -26,6 +46,28 @@ http:
       service: bench
       tls: {}
 
+    # The comparison scenarios' hosts, on the plain entry point only. access-log needs no router of its own: the access
+    # log is static configuration (traefik-accesslog.yml), so the harness restarts Traefik with it for that scenario.
+    access-log:
+      rule: Host(`access-log.test`)
+      entryPoints: [web]
+      service: bench
+    rate-limit:
+      rule: Host(`rate-limit.test`)
+      entryPoints: [web]
+      middlewares: [rate-allowed]
+      service: bench
+    rate-limited:
+      rule: Host(`rate-limited.test`)
+      entryPoints: [web]
+      middlewares: [rate-refused]
+      service: bench
+    error-page:
+      rule: Host(`error-page.test`)
+      entryPoints: [web]
+      middlewares: [error-502]
+      service: closed
+
     # The `websocket` scenario's host: Traefik proxies WebSocket upgrades without configuration.
     websocket-web:
       rule: Host(`ws.test`)
@@ -33,6 +75,16 @@ http:
       service: websocket
 
   services:
+    closed:
+      loadBalancer:
+        serversTransport: bench
+        servers:
+          - url: http://127.0.0.1:18079
+    error-pages:
+      loadBalancer:
+        serversTransport: bench
+        servers:
+          - url: http://127.0.0.1:18080
     websocket:
       loadBalancer:
         serversTransport: bench
