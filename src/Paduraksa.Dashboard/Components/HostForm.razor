@@ -119,6 +119,30 @@
                                     }
                                 </div>
                                 <div class="pdk-route-settings-grid">
+                                <MudSelect T="bool" Value="route.StripPrefix" ValueChanged="@(value => SetAsync(() => route.StripPrefix = value, $"/routes/{index}/rewrite/stripPrefix"))"
+                                           Label="Path sent upstream" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly"
+                                           HelperText="@ForwardedExample(route)"
+                                           Error="@(E($"/routes/{index}/rewrite/stripPrefix") is not null)" ErrorText="@E($"/routes/{index}/rewrite/stripPrefix")"
+                                           data-field="@($"route-strip-prefix-{index}")">
+                                    <MudSelectItem T="bool" Value="false">As received</MudSelectItem>
+                                    <MudSelectItem T="bool" Value="true">Without the route's path</MudSelectItem>
+                                </MudSelect>
+                                <MudTextField T="string" Value="route.AddPrefix" ValueChanged="@(value => SetAsync(() => route.AddPrefix = value, $"/routes/{index}/rewrite/addPrefix"))"
+                                              Immediate="true" DebounceInterval="250" Label="Prefix to add" Placeholder="/api" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Class="pdk-mono-input" ReadOnly="ReadOnly" spellcheck="false" autocomplete="off"
+                                              Error="@(E($"/routes/{index}/rewrite/addPrefix") is not null)" ErrorText="@E($"/routes/{index}/rewrite/addPrefix")"
+                                              data-field="@($"route-add-prefix-{index}")" />
+                                @if (route.StripPrefix)
+                                {
+                                    <MudSelect T="bool" Value="@(route.RewriteLocation ?? true)" ValueChanged="@(value => SetAsync(() => route.RewriteLocation = value ? null : false, $"/routes/{index}/rewrite/rewriteLocation"))"
+                                               Label="Redirects from the upstream" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly"
+                                               HelperText="@(route.RewriteLocation == false ? null : "Turn off if the upstream redirects to other routes of this host.")"
+                                               Error="@(E($"/routes/{index}/rewrite/rewriteLocation") is not null)" ErrorText="@E($"/routes/{index}/rewrite/rewriteLocation")"
+                                               data-field="@($"route-rewrite-location-{index}")">
+                                        <MudSelectItem T="bool" Value="true">Put the route's path back</MudSelectItem>
+                                        <MudSelectItem T="bool" Value="false">As the upstream sends them</MudSelectItem>
+                                    </MudSelect>
+                                }
                                 <MudSelect T="bool?" Value="route.ProofOfWorkEnabled" ValueChanged="@(value => SetAsync(() => route.ProofOfWorkEnabled = value, $"/routes/{index}/settings/proofOfWork/enabled"))"
                                            Label="Browser check on this route" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly"
                                            Error="@(E($"/routes/{index}/settings/proofOfWork/enabled") is not null)" ErrorText="@E($"/routes/{index}/settings/proofOfWork/enabled")"
@@ -422,6 +446,20 @@
     private AccessListSettings HostAccessList =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).AccessList ?? new AccessListSettings();
 
+    /// <summary>What a request under the route is forwarded as, with the route's own path as the example.</summary>
+    private static string? ForwardedExample(RouteEntry route)
+    {
+        if (route.Rewrite is null)
+        {
+            return null;
+        }
+
+        var path = string.IsNullOrWhiteSpace(route.Path) ? "/" : route.Path.Trim().TrimEnd('/');
+        var example = path + "/page";
+        var rest = route.StripPrefix && path.Length > 0 ? "/page" : example;
+        return $"{example} is sent as {(route.AddPrefix?.Trim() ?? string.Empty)}{rest}";
+    }
+
     private HeadersSettings? HostHeaders => HostSettingsLayers.MergeAll(Defaults, Profile?.Settings, Model.Settings).Headers;
 
     private long HostMaxBodySize =>
@@ -575,5 +613,6 @@
         || route.RuleSet is not null
         || route.AuthProvider is not null
         || route.Settings.Headers is not null
+        || route.Rewrite is not null
         || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }

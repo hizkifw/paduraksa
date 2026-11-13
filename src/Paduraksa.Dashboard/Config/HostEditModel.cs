@@ -97,6 +97,9 @@ public sealed class HostEditModel
             Match = route.Match,
             UpstreamId = route.UpstreamId,
             Order = route.Order,
+            StripPrefix = route.Rewrite?.StripPrefix ?? false,
+            AddPrefix = route.Rewrite?.AddPrefix,
+            RewriteLocation = route.Rewrite?.RewriteLocation,
         }));
         if (host.Redirect is { } redirect)
         {
@@ -255,5 +258,20 @@ public sealed class RouteEntry(RouteId id, RouteSettings? settings = null)
 
     /// <summary>The route as the command sends it. A route without an upstream is sent with an empty one, which validation reports.</summary>
     public RouteConfig ToConfig() =>
-        new(Id, UpstreamId ?? default, Order, Match, string.IsNullOrWhiteSpace(Path) ? "/" : Path.Trim(), Settings);
+        new(Id, UpstreamId ?? default, Order, Match, string.IsNullOrWhiteSpace(Path) ? "/" : Path.Trim(), Settings, Rewrite);
+
+    /// <summary>Take the route's path off the front of what is forwarded.</summary>
+    public bool StripPrefix { get; set; }
+
+    /// <summary>Put in front of what is forwarded; null or blank for none.</summary>
+    public string? AddPrefix { get; set; }
+
+    /// <summary>Null maps an upstream's <c>Location</c> (the default); false leaves it as sent. Only with a strip.</summary>
+    public bool? RewriteLocation { get; set; }
+
+    /// <summary>The rewrite as the command sends it; null when it does nothing. The Location switch goes only with a strip.</summary>
+    public PathRewriteConfig? Rewrite =>
+        !StripPrefix && string.IsNullOrWhiteSpace(AddPrefix)
+            ? null
+            : new PathRewriteConfig(StripPrefix, string.IsNullOrWhiteSpace(AddPrefix) ? null : AddPrefix.Trim(), StripPrefix ? RewriteLocation : null);
 }

@@ -396,6 +396,33 @@ public sealed class HostFormTests
         Assert.Contains("replaced below", form.Find("[data-field='route-headers-response-0']").TextContent, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TheRouteRewrite_StripsAndAddsAPrefix_AndSaysWhatIsSent()
+    {
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(RouteId.New(), App.Id, Path: "/app")]));
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        var form = Render(context, model);
+        await form.Find("[data-action='route-menu-0'] button").ClickAsync(new());
+        await popovers.Find("[data-action='route-settings']").ClickAsync(new());
+
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<bool>>().Single(s => s.Instance.Label == "Path sent upstream").Instance.ValueChanged.InvokeAsync(true));
+        await form.InvokeAsync(() => form.FindComponents<MudTextField<string>>().Single(t => t.Instance.Label == "Prefix to add").Instance.ValueChanged.InvokeAsync("/api"));
+
+        Assert.Equal(new PathRewriteConfig(StripPrefix: true, AddPrefix: "/api"), model.ToConfig().Routes[0].Rewrite);
+
+        // A strip offers the Location switch; off is stored, on is the default and stores nothing.
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<bool>>().Single(s => s.Instance.Label == "Redirects from the upstream").Instance.ValueChanged.InvokeAsync(false));
+        Assert.Equal(new PathRewriteConfig(StripPrefix: true, AddPrefix: "/api", RewriteLocation: false), model.ToConfig().Routes[0].Rewrite);
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<bool>>().Single(s => s.Instance.Label == "Redirects from the upstream").Instance.ValueChanged.InvokeAsync(true));
+        Assert.Equal(new PathRewriteConfig(StripPrefix: true, AddPrefix: "/api"), model.ToConfig().Routes[0].Rewrite);
+        Assert.Contains("/app/page is sent as /api/page", form.Find("[data-section='route-settings-0']").TextContent, StringComparison.Ordinal);
+
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<bool>>().Single(s => s.Instance.Label == "Path sent upstream").Instance.ValueChanged.InvokeAsync(false));
+        await form.InvokeAsync(() => form.FindComponents<MudTextField<string>>().Single(t => t.Instance.Label == "Prefix to add").Instance.ValueChanged.InvokeAsync(string.Empty));
+        Assert.Null(model.ToConfig().Routes[0].Rewrite);
+    }
+
     private static Task ChooseBodySize(IRenderedComponent<HostForm> form, string key) =>
         form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
             .Single(select => select.Instance.Label == "Body size on this route")
