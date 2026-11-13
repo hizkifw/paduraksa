@@ -6,6 +6,7 @@
 #   bench/run-baseline.sh                                    # full profile, all proxies and scenarios
 #   PROXIES=paduraksa SCENARIOS=h1 RATES=30000 bench/run-baseline.sh
 #   SCENARIOS="access-log rate-limit rate-limited browser-check error-page cf" bench/run-baseline.sh
+#   SCENARIOS="compressed headers rewrite rewrite-redirect" bench/run-baseline.sh
 #   RATES="" bench/run-baseline.sh                           # no fixed-rate runs
 #   REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh
 #   RECORD=1 bench/run-baseline.sh                           # append to the history and regenerate RESULTS.md
@@ -85,10 +86,10 @@ RATE_WARMUP=${RATE_WARMUP:-$WARMUP}
 REPEATS=${REPEATS:-$profile_repeats}
 # The scenarios from `access-log` on run against every proxy that has a stock equivalent (`unsupported` lists the
 # skips, bench/README.md the reasons), each on an extra host of the proxy's one instance: access-log.test,
-# rate-limit.test, rate-limited.test, error-page.test, and for `cf` cf.test (Paduraksa: bench.test on a second
-# process, as it always was). A setting that can't be scoped to a host is run on a second instance started for that
+# rate-limit.test, rate-limited.test, error-page.test, compressed.test, headers.test, rewrite.test,
+# rewrite-redirect.test, and for `cf` cf.test (Paduraksa: bench.test on a second process, as it always was). A setting that can't be scoped to a host is run on a second instance started for that
 # scenario only (`variant_of`), so the other scenarios' configuration is the one they always had.
-SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page compressed cf}
+SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page compressed headers rewrite rewrite-redirect cf}
 PROXIES=${PROXIES:-paduraksa nginx caddy haproxy traefik envoy yarp}
 # Set to a directory to also keep oha's per-request SQLite database for every fixed-rate run (large; not committed).
 OHA_DB_DIR=${OHA_DB_DIR:-}
@@ -211,7 +212,7 @@ answers_locally() { [[ "$1" != traefik ]]; }
 unsupported() {
     [[ "$2" == browser-check && "$1" != paduraksa ]] && return 0
     case "$1:$2" in
-        traefik:cf|caddy:rate-limit|caddy:rate-limited|envoy:compressed|yarp:compressed) return 0 ;;
+        traefik:cf|caddy:rate-limit|caddy:rate-limited|traefik:rewrite-redirect|envoy:rewrite-redirect|yarp:rewrite-redirect) return 0 ;;
     esac
     return 1
 }
@@ -225,7 +226,7 @@ variant_of() {
 }
 
 # The extra-host scenarios, in run order.
-HOST_SCENARIOS="access-log rate-limit rate-limited browser-check error-page compressed cf"
+HOST_SCENARIOS="access-log rate-limit rate-limited browser-check error-page compressed headers rewrite rewrite-redirect cf"
 
 # Does the proxy's one base instance run this scenario on an extra host?
 runs_in_base() { wants "$2" && ! unsupported "$1" "$2" && ! variant_of "$1" "$2"; }
@@ -280,8 +281,8 @@ preflight() {
 
     for scenario in $SCENARIOS; do
         case "$scenario" in
-            h1|h1-tls|h2-tls|browser|body-64k|upload-64k|handshake|websocket|answered|access-log|rate-limit|rate-limited|browser-check|error-page|compressed|cf) ;;
-            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page compressed cf)" >&2
+            h1|h1-tls|h2-tls|browser|body-64k|upload-64k|handshake|websocket|answered|access-log|rate-limit|rate-limited|browser-check|error-page|compressed|headers|rewrite|rewrite-redirect|cf) ;;
+            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page compressed headers rewrite rewrite-redirect cf)" >&2
                return 1 ;;
         esac
     done
@@ -445,9 +446,59 @@ check_scenario_hosts() {
         encoding=$(curl -s -o /dev/null -w '%header{content-encoding}' -H "Host: compressed.test" -H "Accept-Encoding: gzip" "http://127.0.0.1:$http/text")
         [[ "$encoding" == "gzip" ]] || { echo "compressed.test: the page came back with Content-Encoding '$encoding', not gzip" >&2; return 1; }
     fi
+    if runs_in_base "$proxy" headers; then
+        check_headers "$http"
+    fi
+    if runs_in_base "$proxy" rewrite; then
+        check_rewrite "$http"
+    fi
+    if runs_in_base "$proxy" rewrite-redirect; then
+        check_rewrite_redirect "$http"
+    fi
     if runs_in_base "$proxy" cf; then
         check_cf "$http" "$(scenario_host "$proxy" cf)"
     fi
+}
+
+# The values of one header in a response's header block (a line each), for the probes below.
+header_values() { { grep -i "^$2:" <<<"$1" || true; } | sed 's/^[^:]*: *//'; }
+
+# $1 = what the probe saw, $2 = what it should be, $3 = how to say so on failure.
+expect_equal() { [[ "$1" == "$2" ]] || { echo "$3: got '$1', expected '$2'" >&2; return 1; }; }
+
+# The request rules must reach the upstream and the response rules the client. The probe sends one header the
+# rules replace, one they remove and one they never mention; the upstream's /hdr echoes (in X-Seen-*) what it received,
+# a removed header as "(absent)", and sends X-Powered-By and a SAMEORIGIN X-Frame-Options that the response rules must
+# take off and replace. A proxy that appended instead of replacing shows two values, and one that forgot a rule shows
+# the client's own.
+check_headers() {
+    local http=$1 out
+    out=$(curl -sf -D - -o /dev/null -H "Host: headers.test" -H "X-Bench-Probe: 1" -H "X-Bench-Replace: client" \
+        -H "X-Bench-Drop: secret" "http://127.0.0.1:$http/hdr" | tr -d '\r')
+    expect_equal "$(header_values "$out" x-seen-replace)" "replaced" "headers.test: the upstream's X-Bench-Replace (set over the client's)"
+    expect_equal "$(header_values "$out" x-seen-tenant)" "acme" "headers.test: the upstream's X-Bench-Tenant (set)"
+    expect_equal "$(header_values "$out" x-seen-added)" "one" "headers.test: the upstream's X-Bench-Added (added)"
+    expect_equal "$(header_values "$out" x-seen-drop)" "(absent)" "headers.test: the upstream's X-Bench-Drop (removed)"
+    expect_equal "$(header_values "$out" x-frame-options)" "DENY" "headers.test: the client's X-Frame-Options (set over the upstream's SAMEORIGIN)"
+    expect_equal "$(header_values "$out" x-bench-policy)" "max-age=31536000" "headers.test: the client's X-Bench-Policy (set)"
+    expect_equal "$(header_values "$out" x-powered-by)" "" "headers.test: the client's X-Powered-By (removed)"
+}
+
+# The upstream must see /api/... for the client's /app/..., query included. It answers 404 for the paths a missing
+# strip or add leaves behind, and echoes the URI it received for a probe.
+check_rewrite() {
+    local http=$1 out
+    out=$(curl -sf -D - -o /dev/null -H "Host: rewrite.test" -H "X-Bench-Probe: 1" "http://127.0.0.1:$http/app/users/abcdef/123?x=1" | tr -d '\r')
+    expect_equal "$(header_values "$out" x-seen-uri)" "/api/users/abcdef/123?x=1" "rewrite.test: the URI the upstream received"
+}
+
+# The upstream answers 302 with Location: /api/login; the proxy must give the client /app/login. curl doesn't follow it.
+check_rewrite_redirect() {
+    local http=$1 out
+    out=$(curl -s -D - -o /dev/null -H "Host: rewrite-redirect.test" -H "X-Bench-Probe: 1" "http://127.0.0.1:$http/app/redirect/abcdef?x=1" | tr -d '\r')
+    expect_equal "$(awk 'NR == 1 { print $2 }' <<<"$out")" "302" "rewrite-redirect.test: the status"
+    expect_equal "$(header_values "$out" x-seen-uri)" "/api/redirect/abcdef?x=1" "rewrite-redirect.test: the URI the upstream received"
+    expect_equal "$(header_values "$out" location)" "/app/login" "rewrite-redirect.test: the Location the client got"
 }
 
 # The proxy must forward the client address it resolved from CF-Connecting-IP as X-Forwarded-For; the upstream's /xff
@@ -664,7 +715,7 @@ CF_HEADERS=(-H "CF-Connecting-IP: 2001:db8:85a3::8a2e:370:7334" -H 'CF-Visitor: 
 
 # One plain HTTP/1.1 scenario on the extra host that carries it. $1 = proxy, $2 = HTTP port, $3 = scenario, $4 = warm-up.
 run_host_scenario() {
-    local proxy=$1 http=$2 scenario=$3 warmup=$4 host what extra=() path=/
+    local proxy=$1 http=$2 scenario=$3 warmup=$4 host what extra=() path=/ url_args
     host=$(scenario_host "$proxy" "$scenario")
     case "$scenario" in
         access-log) what="the access log on" ;;
@@ -680,13 +731,27 @@ run_host_scenario() {
             ;;
         error-page) what="a closed upstream, the proxy's 502 page"; extra=(-H 'Accept: text/html') ;;
         compressed) what="a 16 KiB HTML page compressed with gzip"; extra=(-H 'Accept-Encoding: gzip'); path=/text ;;
+        headers)
+            what="three request and three response header rules"
+            # The headers the request rules replace and remove; the response rules act on what /hdr sends.
+            extra=(-H 'X-Bench-Replace: client' -H 'X-Bench-Drop: secret')
+            path=/hdr
+            ;;
+        rewrite) what="/app/... forwarded as /api/..." ;;
+        rewrite-redirect) what="/app/... forwarded as /api/..., the upstream's 302 Location mapped back" ;;
         cf) what="a trusted Cloudflare Tunnel's headers"; extra=("${CF_HEADERS[@]}") ;;
     esac
     log "$proxy: $scenario (plain HTTP/1.1, $what, c=$CONNS, $warmup warm-up)"
-    local url="http://$host:$http$path"
+    # The rewrite scenarios vary the path (oha's regex URLs, as `browser` does) under the prefix the route strips.
+    # oha's default is not to follow redirects, which rewrite-redirect needs: one answer per request, not two.
+    case "$scenario" in
+        rewrite) url_args=(--rand-regex-url "http://$host:$http/app/(users|items|orders)/[a-z]{6}/[0-9]{3}\?x=[0-9]") ;;
+        rewrite-redirect) url_args=(--redirect 0 --rand-regex-url "http://$host:$http/app/redirect/[a-z]{6}\?x=[0-9]") ;;
+        *) url_args=("http://$host:$http$path") ;;
+    esac
     local args=(--connect-to "$host:$http:127.0.0.1:$http" -c "$CONNS" "${extra[@]}")
-    oha "" -z "$warmup" "${args[@]}" "$url"
-    measure "$proxy" "$proxy.$scenario" -z "$DURATION" "${args[@]}" "$url"
+    oha "" -z "$warmup" "${args[@]}" "${url_args[@]}"
+    measure "$proxy" "$proxy.$scenario" -z "$DURATION" "${args[@]}" "${url_args[@]}"
 }
 
 # $1 = log name (default paduraksa), rest = extra runner arguments.

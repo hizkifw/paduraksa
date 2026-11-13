@@ -33,8 +33,11 @@ NAMES = {
 PROXY_ORDER = ["paduraksa", "nginx", "caddy", "haproxy", "traefik", "envoy", "yarp"]
 SCENARIO_ORDER = [
     "h1", "h1-tls", "h2-tls", "browser", "body-64k", "upload-64k", "handshake", "websocket", "answered",
-    "access-log", "rate-limit", "rate-limited", "browser-check", "error-page", "cf",
+    "access-log", "rate-limit", "rate-limited", "browser-check", "error-page", "compressed", "headers", "rewrite",
+    "rewrite-redirect", "cf",
 ]
+# Scenarios whose throughput counts every response, not only 2xx (summarize.py's ALL_STATUSES).
+ALL_STATUS_SCENARIOS = {"rate-limited", "error-page", "rewrite-redirect"}
 MAIN_SCENARIOS = ["h1", "h2-tls"]
 MISSING = "-"
 
@@ -127,9 +130,9 @@ def latest_tables(lines: list[str], entry: dict) -> None:
             cells.append(f"{mine['rps'] / theirs['rps']:.2f}"
                          if mine and theirs and theirs["rps"] else MISSING)
         lines.append(f"| {scenario} | " + " | ".join(cells) + " |")
-    if any(scenario in {"rate-limited", "error-page"} for scenario in scenarios):
+    if any(scenario in ALL_STATUS_SCENARIOS for scenario in scenarios):
         lines.append("")
-        lines.append("`rate-limited` and `error-page` count every response (429 and 502), not only 2xx: for those rows"
+        lines.append("`rate-limited`, `error-page` and `rewrite-redirect` count every response (429, 502 and 302), not only 2xx: for those rows"
                      " the number is what the proxy refused or failed, and their `errors` column is the same count.")
     if "websocket" in scenarios:
         lines.append("")
@@ -456,8 +459,8 @@ def trend_svg(entries: list[dict]) -> str:
         subtitles.append("Each panel starts at 0; a hollow diamond marks a run from a different machine.")
     else:
         subtitles.append("Each panel starts at 0.")
-    if any(panel["title"] in {"rate-limited", "error-page"} for panel in panels):
-        subtitles.append("rate-limited and error-page count every response (429 and 502), not only 2xx.")
+    if any(panel["title"] in ALL_STATUS_SCENARIOS for panel in panels):
+        subtitles.append("rate-limited, error-page and rewrite-redirect count every response (429, 502 and 302), not only 2xx.")
     row_height = PANEL_HEAD + TREND_PLOT_HEIGHT + 22
     top = 46 + 14 * len(subtitles) + 10
     height = top + row_height * math.ceil(len(panels) / CHART_COLUMNS) + CHART_GAP * (math.ceil(len(panels) / CHART_COLUMNS) - 1) + CHART_MARGIN
@@ -500,8 +503,8 @@ def throughput_svg(latest: dict) -> str:
     ]
     if any(len(panel["bars"]) == 1 for panel in panels):
         subtitles.append("A panel with a single bar is a scenario only that proxy runs (browser-check, or one the others skip).")
-    if any(panel["key"] in {"rate-limited", "error-page"} for panel in panels):
-        subtitles.append("rate-limited and error-page count every response (429 and 502), not only 2xx.")
+    if any(panel["key"] in ALL_STATUS_SCENARIOS for panel in panels):
+        subtitles.append("rate-limited, error-page and rewrite-redirect count every response (429, 502 and 302), not only 2xx.")
     if any(panel["key"] == "websocket" for panel in panels):
         subtitles.append("websocket counts echo round trips (a message each way) per second.")
     return bar_chart(

@@ -39,6 +39,9 @@ SCENARIOS = [
     ("browser-check", "HTTP/1.1 plain, valid proof-of-work cookie, proxied"),
     ("error-page", "HTTP/1.1 plain, closed upstream, the proxy's 502 page"),
     ("compressed", "HTTP/1.1 plain, a 16 KiB HTML page compressed with gzip, proxied"),
+    ("headers", "HTTP/1.1 plain, request and response header rules, proxied"),
+    ("rewrite", "HTTP/1.1 plain, /app stripped and /api added, proxied"),
+    ("rewrite-redirect", "HTTP/1.1 plain, the same route, the upstream's 302 Location mapped back"),
     ("cf", "HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers"),
 ]
 LABELS = dict(SCENARIOS)
@@ -49,17 +52,18 @@ UNAVAILABLE = {
     ("caddy", "rate-limit"),
     ("caddy", "rate-limited"),
     ("traefik", "cf"),
-    ("envoy", "compressed"),
-    ("yarp", "compressed"),
+    ("traefik", "rewrite-redirect"),
+    ("envoy", "rewrite-redirect"),
+    ("yarp", "rewrite-redirect"),
     *((proxy, "browser-check") for proxy in PROXIES if proxy != "paduraksa"),
 }
-# These two measure what the proxy answers when it doesn't answer 2xx: the refusal and the failure path. Their
-# throughput is every response, 429s and 502s included, so that the table says how much abuse or failure the proxy
-# absorbed instead of printing zero.
-ALL_STATUSES = {"rate-limited", "error-page"}
+# These three measure what the proxy answers when it doesn't answer 2xx: the refusal, the failure path and the redirect.
+# Their throughput is every response, 429s, 502s and 302s included, so that the table says how much abuse, failure or
+# redirecting the proxy absorbed instead of printing zero.
+ALL_STATUSES = {"rate-limited", "error-page", "rewrite-redirect"}
 # These are always listed in the status breakdown, even when every answer is 200: "no 429s" is the rate-limit
 # scenario's result, not a missing row, and a request-body or WebSocket run that isn't all 2xx or 101 is wrong.
-STATUS_SCENARIOS = {"upload-64k", "websocket", "access-log", "rate-limit", "rate-limited", "browser-check", "error-page", "cf"}
+STATUS_SCENARIOS = {"upload-64k", "websocket", "access-log", "rate-limit", "rate-limited", "browser-check", "error-page", "headers", "rewrite", "rewrite-redirect", "cf"}
 RATE_RUN = re.compile(r"^(?P<proxy>[a-z]+)\.(?P<scenario>[a-z0-9-]+)\.q(?P<rate>\d+)\.r(?P<repeat>\d+)$")
 METRICS = re.compile(r"^METRICS (.*)$")
 
@@ -324,8 +328,8 @@ def main() -> None:
         if measured:
             emit("")
             emit("For " + " and ".join(f"`{key}`" for key in measured)
-                 + ", the number is every response, 429s or 502s included: those scenarios measure what the proxy")
-            emit("answers when it refuses or fails, so counting only 2xx would report zero.")
+                 + ", the number is every response, 429s, 502s or 302s included: those scenarios measure what the proxy")
+            emit("answers when it refuses, fails or redirects, so counting only 2xx would report zero.")
 
         emit("")
         emit("### Proxy CPU per request (µs of user + system CPU; in brackets, CPUs busy on average out of 4)")
