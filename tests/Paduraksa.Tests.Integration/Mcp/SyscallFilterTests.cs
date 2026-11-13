@@ -129,21 +129,21 @@ public sealed class SyscallFilterTests
         var ioUringSetup = Denied.Single(d => d.Name == "io_uring_setup").Number.For(architecture);
 
         // Unfiltered first, on a thread of its own: these are calls that work on any kernel, so a refusal below is the filter's.
-        var baseline = RunOnThread(filtered: false, () => (Probe(socket, 2, 1, 0), ProbePair(socketpair)));
+        var baseline = RunOnThread(filtered: false, () => (ProbeSocket(socket, 2, 1, 0), ProbePair(socketpair)));
         Assert.True(baseline.Value.Item1 >= 0 && baseline.Value.Item2 >= 0, "this kernel refuses sockets anyway");
 
         var result = RunOnThread(filtered: true, () => new[]
         {
-            Probe(socket, 2, 1, 0),
-            Probe(socket, 10, 1, 0),
-            Probe(socket, 2, 2, 0),
+            ProbeSocket(socket, 2, 1, 0),
+            ProbeSocket(socket, 10, 1, 0),
+            ProbeSocket(socket, 2, 2, 0),
             Probe(socketpair, 2, 1, 0),
             ProbeIoUring(ioUringSetup),
         });
         Assert.SkipWhen(result.Status is null || !result.Status.Contains("only AF_UNIX", StringComparison.Ordinal), "no seccomp filter here: " + result.Status);
         Assert.All(result.Value, errno => Assert.Equal(-Eperm, errno));
 
-        var local = RunOnThread(filtered: true, () => (Probe(socket, 1, 1, 0), ProbePair(socketpair)));
+        var local = RunOnThread(filtered: true, () => (ProbeSocket(socket, 1, 1, 0), ProbePair(socketpair)));
         Assert.True(local.Value.Item1 >= 0, "AF_UNIX socket was refused");
         Assert.True(local.Value.Item2 >= 0, "AF_UNIX socketpair was refused");
     }
@@ -261,10 +261,31 @@ public sealed class SyscallFilterTests
         return result < 0 ? -Marshal.GetLastPInvokeError() : result;
     }
 
+    /// <summary>
+    /// A socket the probe got is closed again. Nothing here wants it, and without close-on-exec (a raw call sets none) it would stay open for the rest of the run in a process that starts children: six
+    /// sockets that showed up in every child the sandbox tests started.
+    /// </summary>
+    private static long ProbeSocket(long number, long domain, long type, long protocol)
+    {
+        var result = Probe(number, domain, type, protocol);
+        if (result >= 0)
+        {
+            _ = Close((int)result);
+        }
+
+        return result;
+    }
+
     private static long ProbePair(long number)
     {
         var pair = new int[2];
         var result = SyscallPair(number, 1, 1, 0, pair);
+        if (result >= 0)
+        {
+            _ = Close(pair[0]);
+            _ = Close(pair[1]);
+        }
+
         return result < 0 ? -Marshal.GetLastPInvokeError() : result;
     }
 
@@ -273,6 +294,9 @@ public sealed class SyscallFilterTests
         var result = Syscall(number, 1, 0, 0, 0, 0);
         return result < 0 ? -Marshal.GetLastPInvokeError() : result;
     }
+
+    [DllImport("libc", EntryPoint = "close")]
+    private static extern int Close(int fd);
 
     [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
     private static extern long Syscall(long number, long a, long b, long c, long d, long e);
