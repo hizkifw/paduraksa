@@ -30,7 +30,8 @@ jobs:
   build-test:
     name: Build, test, format
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A run took about 10 minutes before the browser and QUIC tests ran too; they and their installs add several.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -55,12 +56,48 @@ jobs:
         id: build
         run: dotnet build --no-restore -c Release
 
+      # The Playwright tests need a Chromium and the QUIC tests need libmsquic. Without them they skip, which once let CI run
+      # with 19 browser and 19 QUIC tests silently off, so the Test step also sets PADURAKSA_REQUIRE (tests/Shared/Requirements.cs):
+      # a missing one fails its tests instead.
+      #
+      # Chromium: the build Playwright pins for the package version, with the system libraries it links. Ubuntu's own chromium
+      # package is a snap, which a headless test run can't rely on. The browser download is cached by Playwright's version; the
+      # libraries come from apt every run.
+      - name: Cache Playwright's Chromium
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('Directory.Packages.props') }}
+
+      - name: Install Chromium
+        run: pwsh tests/Paduraksa.Tests.Dashboard/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      # libmsquic: the version the Dockerfile ships, from Microsoft's package feed for this Ubuntu, so the QUIC tests run against
+      # the library production uses.
+      - name: Install libmsquic
+        run: |
+          version="$(sed -n 's/^ARG LIBMSQUIC_VERSION=//p' Dockerfile)"
+          test -n "$version"
+          sudo apt-get update
+          # The runner image may already have Microsoft's feed configured; add it only when it doesn't offer the version.
+          if ! apt-cache madison libmsquic | grep -F " $version " > /dev/null; then
+            . /etc/os-release
+            curl -fsSL -o "$RUNNER_TEMP/packages-microsoft-prod.deb" "https://packages.microsoft.com/config/${ID}/${VERSION_ID}/packages-microsoft-prod.deb"
+            sudo dpkg -i "$RUNNER_TEMP/packages-microsoft-prod.deb"
+            sudo apt-get update
+          fi
+          sudo apt-get install -y --no-install-recommends "libmsquic=${version}"
+          ldconfig -p | grep 'libmsquic\.so'
+
       # global.json opts into Microsoft.Testing.Platform, so this runs each xUnit v3 test
       # app directly and exits non-zero on any failure.
       # A project that runs zero tests exits 8 and fails the step on purpose.
       # Two test apps at a time: all nine at once on the runner's four cores starved the bUnit renderer and the integration
       # hosts into timeouts (waits past 30 s in tests that take 2 s alone); Integration's own length sets the step's time anyway.
+      # The Pebble tests use the runner's Docker and pull their image from ghcr.io.
       - name: Test
+        env:
+          PADURAKSA_REQUIRE: playwright,quic,pebble
         run: >-
           dotnet test --no-build -c Release
           --max-parallel-test-modules 2

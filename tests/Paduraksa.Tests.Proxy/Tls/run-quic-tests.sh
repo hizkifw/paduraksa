@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Runs the QUIC / HTTP/3 tests (trait Transport=Quic) in Docker, where libmsquic is installed: the Kestrel TLS tests
 # of Paduraksa.Tests.Proxy and the end-to-end HTTP/3 tests through PaduraksaHost in Paduraksa.Tests.Integration.
-# Normal `dotnet test` runs skip them (no libmsquic on dev machines or CI); this script is separate and changes
-# nothing about that run. Same approach as spikes/S1-http3-sni: pinned SDK image + pinned libmsquic from
-# packages.microsoft.com. PADURAKSA_REQUIRE_QUIC=1 turns a missing QUIC stack into a failure, so a green run here
-# can't be all skips.
+# Normal `dotnet test` runs skip them on a machine without libmsquic (CI installs it, so CI runs them with the rest);
+# this script is the way to run them locally without installing it. Same approach as spikes/S1-http3-sni: pinned SDK
+# image + pinned libmsquic from packages.microsoft.com. PADURAKSA_REQUIRE=quic turns a missing QUIC stack into a
+# failure, so a green run here can't be all skips.
 #
 # The repository is mounted read-only and copied (without bin/obj) into the container, so nothing on the host is
 # written. NuGet packages are cached in the Docker volume "paduraksa-quic-tests-nuget".
@@ -43,7 +43,7 @@ DOCKERFILE
 docker run --rm \
   -v "$repo:/src:ro" \
   -v paduraksa-quic-tests-nuget:/root/.nuget/packages \
-  -e PADURAKSA_REQUIRE_QUIC=1 \
+  -e PADURAKSA_REQUIRE=quic \
   -e "QUIC_TESTS_ALL=${QUIC_TESTS_ALL:-0}" \
   -e "QUIC_TEST_PROJECTS=${QUIC_TEST_PROJECTS:-Paduraksa.Tests.Proxy Paduraksa.Tests.Integration}" \
   "$image" bash -euo pipefail -c '
