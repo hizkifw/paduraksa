@@ -185,7 +185,7 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
             if (group.Any(c => c.Add) && await ExistsAsync(api, group.Key.Domain, group.Key.Subname, "CNAME", cancellationToken).ConfigureAwait(false))
             {
                 throw new DnsProviderException(
-                    $"{group.First().Name} is a CNAME in deSEC; delegating the challenge to another zone is not supported yet.",
+                    $"{group.First().Name} is a CNAME in deSEC. Paduraksa publishes the record at the CNAME's target, so it could not read the CNAME (DNS propagation check off, or no resolver answered); a TXT record cannot sit beside a CNAME.",
                     isTransient: false);
             }
 

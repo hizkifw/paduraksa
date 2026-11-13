@@ -341,7 +341,7 @@ public sealed class DesecDnsProviderTests : IDisposable
 
         Assert.False(ex.IsTransient);
         Assert.Contains("CNAME", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("not supported yet", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("publishes the record at the CNAME's target", ex.Message, StringComparison.Ordinal);
         Assert.Equal(0, _desec.Writes);
     }
 

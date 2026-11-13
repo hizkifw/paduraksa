@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -125,40 +124,7 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
 
     private static bool Usable(DnsResponse response) => response.ResponseCode is 0 or 3;
 
-    private IReadOnlyList<IPEndPoint> Resolvers()
-    {
-        if (_options.Resolvers.Count > 0)
-        {
-            return _options.Resolvers;
-        }
-
-        List<IPEndPoint> system = [];
-        try
-        {
-            foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
-            {
-                if (network.OperationalStatus != OperationalStatus.Up)
-                {
-                    continue;
-                }
-
-                foreach (var address in network.GetIPProperties().DnsAddresses)
-                {
-                    // fec0::/10 site-local addresses are a Windows placeholder for "no IPv6 resolver", not a server.
-                    if (!address.IsIPv6SiteLocal && !system.Any(e => e.Address.Equals(address)))
-                    {
-                        system.Add(new IPEndPoint(address, 53));
-                    }
-                }
-            }
-        }
-        catch (NetworkInformationException)
-        {
-            // No list of interfaces: the fallback below.
-        }
-
-        return system.Count > 0 ? system : _options.FallbackResolvers;
-    }
+    private IReadOnlyList<IPEndPoint> Resolvers() => DnsResolvers.For(_options);
 
     /// <summary>The first resolver that gives a usable answer to a recursive query, or null when none does.</summary>
     private async Task<DnsResponse?> AskResolversAsync(IReadOnlyList<IPEndPoint> resolvers, string name, DnsRecordType type, CancellationToken cancellationToken)

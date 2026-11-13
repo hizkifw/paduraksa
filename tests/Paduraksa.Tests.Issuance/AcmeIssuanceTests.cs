@@ -145,6 +145,41 @@ public sealed partial class AcmeIssuanceTests
     }
 
     [Fact]
+    public async Task ACnameAtTheChallengeNameSendsTheRecordTheCheckAndTheCleanupToItsTarget()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var check = new FakePropagationCheck();
+        h.Propagation = check;
+        h.ChallengeNames = new FakeChallengeNames(new() { ["_acme-challenge.example.com"] = "example.com.acme.delegated.test" });
+        var issuance = h.NewIssuance();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+
+        var result = await issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com", "*.example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Issued, result.Outcome);
+        Assert.All(h.Dns.Provider.Calls, call => Assert.Contains("example.com.acme.delegated.test", call, StringComparison.Ordinal));
+        Assert.Equal(["create", "create", "delete", "delete"], h.Dns.Provider.Calls.Select(c => c.Split(' ')[0]));
+        Assert.All(Assert.Single(check.Asked), r => Assert.Equal("example.com.acme.delegated.test", r.Name));
+        Assert.Empty(h.Dns.Provider.Records);
+    }
+
+    [Fact]
+    public async Task ACnameLoopFailsPermanentlyBeforeAnythingIsPublished()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        h.ChallengeNames = new FakeChallengeNames([]) { Failure = new DnsProviderException("The CNAME chain loops.", isTransient: false) };
+        var issuance = h.NewIssuance();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+
+        var result = await issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com"), Admin, Ct);
+
+        Assert.NotEqual(IssuanceOutcome.Issued, result.Outcome);
+        Assert.Empty(h.Dns.Provider.Calls);
+    }
+
+    [Fact]
     public async Task ATimeoutWithNoServerHoldingTheRecordFailsTransientAndCleansUpInsteadOfAskingTheCa()
     {
         await using var h = await IssuanceHarness.CreateAsync();
@@ -885,6 +920,7 @@ public sealed partial class AcmeIssuanceTests
             h.Permissions,
             h.Vault,
             h.Propagation,
+            null,
             () => 0.5,
             null);
         h.Time.Now += TimeSpan.FromDays(80);

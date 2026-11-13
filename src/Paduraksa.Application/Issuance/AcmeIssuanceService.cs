@@ -73,6 +73,7 @@ public sealed partial class AcmeIssuanceService
     private readonly IAcmeChallengeStore _challenges;
     private readonly IDnsProviderFactory? _dns;
     private readonly IDnsPropagationCheck? _propagation;
+    private readonly IDnsChallengeNames? _challengeNames;
     private readonly AcmeIssuanceOptions _options;
     private readonly TimeProvider _time;
     private readonly Func<double> _random;
@@ -95,6 +96,7 @@ public sealed partial class AcmeIssuanceService
         IPermissionEvaluator permissions,
         ICertificateCatalog catalog,
         IDnsPropagationCheck? propagation,
+        IDnsChallengeNames? challengeNames,
         Func<double> random,
         INotificationEvents? notifications)
     {
@@ -119,6 +121,7 @@ public sealed partial class AcmeIssuanceService
         _challenges = challenges;
         _dns = dns;
         _propagation = propagation;
+        _challengeNames = challengeNames;
         _options = options;
         _time = time;
         _random = random;

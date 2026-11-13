@@ -202,6 +202,7 @@ public sealed partial class AcmeIssuanceService
         var dns = row.ChallengeType == AcmeChallengeType.Dns01 && pending.Count > 0 ? await OpenDnsProviderAsync(row, cancellationToken).ConfigureAwait(false) : null;
         List<string> tokens = [];
         List<(string Name, string Value)> records = [];
+        List<string> delegated = [];
         try
         {
             foreach (var (authorization, challenge, keyAuthorization) in pending)
@@ -222,7 +223,14 @@ public sealed partial class AcmeIssuanceService
                 }
                 else
                 {
-                    records.Add((AcmeChallenges.Dns01RecordName(authorization.Identifier), AcmeChallenges.Dns01TxtValue(keyAuthorization)));
+                    var name = AcmeChallenges.Dns01RecordName(authorization.Identifier);
+                    var target = _challengeNames is null ? name : await _challengeNames.ResolveAsync(name, cancellationToken).ConfigureAwait(false);
+                    if (!string.Equals(target, name, StringComparison.Ordinal))
+                    {
+                        delegated.Add(name);
+                    }
+
+                    records.Add((target, AcmeChallenges.Dns01TxtValue(keyAuthorization)));
                 }
             }
 
@@ -238,7 +246,8 @@ public sealed partial class AcmeIssuanceService
                     attempt,
                     AcmeProgressStage.ChallengePublished,
                     records.Count > 0
-                        ? $"{Plural(records.Count, "TXT record", "TXT records")} at {string.Join(", ", records.Select(r => r.Name).Distinct(StringComparer.Ordinal))}."
+                        ? $"{Plural(records.Count, "TXT record", "TXT records")} at {string.Join(", ", records.Select(r => r.Name).Distinct(StringComparer.Ordinal))}"
+                          + (delegated.Count > 0 ? $" (followed the CNAME of {string.Join(", ", delegated.Distinct(StringComparer.Ordinal))})." : ".")
                         : $"{Plural(tokens.Count, "HTTP-01 answer", "HTTP-01 answers")} served under /.well-known/acme-challenge/.");
             }
 

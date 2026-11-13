@@ -12,7 +12,7 @@ public static class DnsProviderServiceCollectionExtensions
     /// <summary>Registers the built-in DNS-01 providers (Cloudflare, deSEC) as the <see cref="IDnsProviderFactory"/>
     /// that <see cref="IssuanceServiceCollectionExtensions.AddPaduraksaIssuance"/> and <see
     /// cref="DnsProviderService"/> use, and (unless turned off) the authoritative name-server <see
-    /// cref="IDnsPropagationCheck"/> that replaces the fixed wait. Needs the vault's <see
+    /// cref="IDnsPropagationCheck"/> that replaces the fixed wait, with <see cref="IDnsChallengeNames"/> following a CNAME at <c>_acme-challenge</c>. Needs the vault's <see
     /// cref="ISecretHttpHandlerFactory"/>: a provider is given a secret ID and that factory, never a token.</summary>
     /// <param name="services">The collection.</param>
     /// <param name="propagation">
@@ -38,6 +38,9 @@ public static class DnsProviderServiceCollectionExtensions
                 sp.GetRequiredService<DnsPropagationOptions>(),
                 sp.GetRequiredService<TimeProvider>(),
                 sp.GetService<ILogger<AuthoritativeDnsPropagationCheck>>()));
+            services.TryAddSingleton<IDnsChallengeNames>(sp => new CnameDelegation(
+                sp.GetRequiredService<DnsPropagationOptions>(),
+                sp.GetService<ILogger<CnameDelegation>>()));
         }
 
         return services;

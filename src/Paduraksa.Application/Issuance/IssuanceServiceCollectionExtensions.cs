@@ -69,6 +69,7 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<IPermissionEvaluator>(),
             sp.GetRequiredService<ICertificateCatalog>(),
             sp.GetService<IDnsPropagationCheck>(),
+            sp.GetService<IDnsChallengeNames>(),
             Random.Shared.NextDouble,
             sp.GetService<INotificationEvents>()));
         services.AddSingleton(sp => new AcmeRenewalScheduler(

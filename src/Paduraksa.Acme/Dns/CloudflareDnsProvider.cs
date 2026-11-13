@@ -66,7 +66,7 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
         {
             // Cloudflare would refuse a TXT beside a CNAME, and the CA follows the CNAME: the challenge belongs in the target's zone.
             throw new DnsProviderException(
-                $"{name} is a CNAME to {DnsApiClient.Clean(alias.Content)}; delegating the challenge to another zone is not supported yet.",
+                $"{name} is a CNAME to {DnsApiClient.Clean(alias.Content)}. Paduraksa publishes the record at the CNAME's target, so it could not read the CNAME (DNS propagation check off, or no resolver answered); a TXT record cannot sit beside a CNAME.",
                 isTransient: false);
         }
 

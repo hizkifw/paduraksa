@@ -48,6 +48,15 @@ internal sealed class FakePropagationCheck(DnsPropagationOutcome outcome = DnsPr
     }
 }
 
+/// <summary>Challenge names that follow fixed CNAMEs: a name in the table goes to its target, any other stays.</summary>
+internal sealed class FakeChallengeNames(Dictionary<string, string> cnames) : IDnsChallengeNames
+{
+    public Exception? Failure { get; set; }
+
+    public ValueTask<string> ResolveAsync(string recordName, CancellationToken cancellationToken) =>
+        Failure is { } failure ? throw failure : ValueTask.FromResult(cnames.GetValueOrDefault(recordName, recordName));
+}
+
 /// <summary>A DNS provider that keeps its records in memory and can be told to fail.</summary>
 internal sealed class FakeDnsProvider : IDnsProvider
 {

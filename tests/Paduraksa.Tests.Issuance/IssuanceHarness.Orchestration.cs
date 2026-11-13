@@ -27,6 +27,9 @@ internal sealed partial class IssuanceHarness
     /// <summary>The propagation check the orchestrator is given; none (the fixed delay) by default.</summary>
     public Paduraksa.Acme.Dns.IDnsPropagationCheck? Propagation { get; set; }
 
+    /// <summary>Where the orchestrator is told a challenge record goes (a CNAME's end); none (the name itself) by default.</summary>
+    public Paduraksa.Acme.Dns.IDnsChallengeNames? ChallengeNames { get; set; }
+
     public AcmeIssuanceOptions Options { get; set; } = new() { DnsPropagationDelay = TimeSpan.FromSeconds(30) };
 
     /// <summary>What the services' random shares are (0.5: the middle of a window, half the jitter).</summary>
@@ -52,6 +55,7 @@ internal sealed partial class IssuanceHarness
         Permissions,
         Vault,
         Propagation,
+        ChallengeNames,
         () => Random,
         Events);
 

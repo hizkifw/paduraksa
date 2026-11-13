@@ -63,6 +63,27 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     }
 
     [Fact]
+    public async Task ADelegatedChallengeIsCheckedInTheZoneItWasDelegatedTo()
+    {
+        // _acme-challenge.example.com is a CNAME into another zone, whose own servers hold the record.
+        const string Delegated = "token.acme.delegated.test";
+        _resolver.Add(Challenge, 5, DnsMessages.Name(Delegated));
+        _resolver.AddNs("delegated.test", "ns.delegated.test");
+        _resolver.AddA("ns.delegated.test", _servers[0].EndPoint.Address);
+        _servers[0].AddTxt(Delegated, "v1");
+        var options = Fast();
+
+        var name = await new CnameDelegation(options).ResolveAsync(Challenge, Token);
+        var result = await new AuthoritativeDnsPropagationCheck(options).WaitAsync([new DnsChallengeRecord(name, "v1")], Token);
+
+        Assert.Equal(Delegated, name);
+        Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
+        Assert.Contains("1 name server(s)", result.Detail, StringComparison.Ordinal);
+        Assert.Equal(Delegated, Assert.Single(_servers[0].Queries).Name);
+        Assert.Empty(_servers[1].Queries);
+    }
+
+    [Fact]
     public async Task ALaggingServerIsWaitedForUntilItHasTheValue()
     {
         _servers[0].AddTxt(Challenge, "v1");

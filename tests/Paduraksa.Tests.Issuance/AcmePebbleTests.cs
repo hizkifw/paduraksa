@@ -119,6 +119,7 @@ public sealed class AcmePebbleTests(PebbleFixture pebble) : IClassFixture<Pebble
                 TestPermissions.AllowAll,
                 new TestConfigServices.NoCertificates(),
                 null,
+                null,
                 Random.Shared.NextDouble,
                 null);
         }

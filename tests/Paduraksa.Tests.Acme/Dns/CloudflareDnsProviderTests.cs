@@ -332,7 +332,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
 
         Assert.False(ex.IsTransient);
         Assert.Contains("CNAME to validation.other.org", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("not supported yet", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("publishes the record at the CNAME's target", ex.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(_handlers.Calls, c => c.Method == HttpMethod.Post);
     }
 
