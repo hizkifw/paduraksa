@@ -1,0 +1,389 @@
+/* Pages, badges, tags and links. Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* ---------- Pages ---------- */
+
+.pdk-page-header {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 24px;
+}
+
+/* The title and the actions share a centre line, 40 px tall whether or not there are actions, so a title never moves between pages. */
+.pdk-page-header-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    min-height: 40px;
+}
+
+.pdk-page-header h1:focus {
+    outline: none;
+}
+
+.pdk-page-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.pdk-card.mud-paper {
+    padding: 20px;
+    border-radius: var(--pdk-radius-lg);
+    background: var(--mud-palette-surface);
+}
+
+.pdk-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pdk-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.pdk-stat.mud-paper {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 152px;
+}
+
+.pdk-stat-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.pdk-stat-icon, .pdk-list-icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-stat-value {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.75rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.pdk-stat-link.mud-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: auto;
+    padding-top: 6px;
+    font-weight: 600;
+}
+
+.pdk-status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--pdk-tone);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--pdk-tone) 20%, transparent);
+}
+
+.pdk-home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.pdk-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-list-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-list-row:first-child {
+    border-top: 0;
+}
+
+.pdk-list-main {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pdk-list-title {
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-list-title > :is(.pdk-chip, .pdk-badge) {
+    margin-left: 8px;
+    vertical-align: 1px;
+}
+
+/* Keeps its place in the layout while hidden (a "Clear filters" that shows only when something is filtered). */
+.pdk-hidden {
+    visibility: hidden;
+}
+
+.pdk-list-sub {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-row-skeleton {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.pdk-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 40px 16px;
+    text-align: center;
+}
+
+.pdk-empty-compact {
+    padding: 20px 12px;
+}
+
+.pdk-empty-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 10px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
+    color: var(--mud-palette-primary);
+}
+
+.pdk-empty-compact .pdk-empty-icon {
+    width: 44px;
+    height: 44px;
+}
+
+.pdk-empty-text {
+    max-width: 46ch;
+}
+
+.pdk-empty-action {
+    margin-top: 14px;
+}
+
+@media (max-width: 600px) {
+    .pdk-page.mud-container {
+        padding-top: 20px;
+    }
+
+    .pdk-user-name, .pdk-brand-name {
+        display: none;
+    }
+
+    .pdk-home-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* The overview's counts two by two, so what needs the person and the hosts stay near the top. */
+    .pdk-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .pdk-stat.mud-paper {
+        min-height: 0;
+        padding: 14px;
+    }
+
+    .pdk-stat-value {
+        font-size: 1.375rem;
+    }
+
+    .pdk-stat-detail {
+        display: none;
+    }
+}
+
+/* The overview: what needs the person, the hosts and the latest changes. */
+.pdk-attention.mud-paper {
+    margin-bottom: 16px;
+}
+
+.pdk-attention .pdk-card-head {
+    margin-bottom: 6px;
+}
+
+.pdk-attention-list, .pdk-home-lines {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-attention-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-attention-item:first-child {
+    border-top: 0;
+}
+
+.pdk-attention-item .pdk-list-main {
+    flex: 1 1 280px;
+}
+
+.pdk-attention-title {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-card-head-padded {
+    padding: 18px 20px 6px;
+}
+
+.pdk-home-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+    color: inherit;
+    text-decoration: none;
+}
+
+.pdk-home-lines li:first-child .pdk-home-line {
+    border-top: 0;
+}
+
+.pdk-home-line:hover, .pdk-home-line:focus-visible {
+    background: var(--mud-palette-table-hover);
+    outline: none;
+}
+
+.pdk-home-line .pdk-list-main {
+    min-width: 0;
+}
+
+.pdk-home-line .pdk-list-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Badges, tags, links ---------- */
+
+.pdk-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.pdk-badge .mud-icon-root {
+    font-size: 0.875rem;
+}
+
+.pdk-badge + .pdk-badge {
+    margin-left: 4px;
+}
+
+.pdk-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.pdk-tag {
+    padding: 0 7px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 6px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.6875rem;
+    line-height: 1.7;
+    text-decoration: none;
+}
+
+a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
+    border-color: var(--mud-palette-primary);
+    color: var(--mud-palette-primary);
+    outline: none;
+}
+
+.pdk-row-link {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.pdk-row-link:hover {
+    color: var(--mud-palette-primary);
+}
+
+.pdk-row-link:focus-visible {
+    border-radius: 4px;
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-plain-list {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
+
+.pdk-field-error {
+    margin: 2px 0 0 2px;
+    color: var(--mud-palette-error);
+    font-size: 0.75rem;
+}
+
+.pdk-mono-input input, .pdk-mono-input textarea {
+    font-family: var(--pdk-mono);
+    font-size: 0.8125rem;
+}

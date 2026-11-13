@@ -1,0 +1,260 @@
+/* Sign-in and setup: plain HTML, so these pages read the --pdk-* palette. Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* ---------- Sign-in and setup (plain HTML) ---------- */
+
+.pdk-auth {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 40px 16px;
+    background:
+        radial-gradient(900px 520px at 50% -12%, color-mix(in srgb, var(--pdk-accent) 16%, transparent), transparent 62%),
+        radial-gradient(700px 420px at 110% 110%, color-mix(in srgb, var(--pdk-accent) 7%, transparent), transparent 60%),
+        var(--pdk-bg);
+    color: var(--pdk-text);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+}
+
+.pdk-auth-card {
+    width: min(100%, 420px);
+    box-sizing: border-box;
+    padding: 32px;
+    border: 1px solid var(--pdk-line);
+    border-radius: 18px;
+    background: var(--pdk-surface);
+    box-shadow: var(--pdk-shadow);
+}
+
+.pdk-auth-card:has(.pdk-setup) {
+    width: min(100%, 540px);
+}
+
+.pdk-auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.pdk-auth-mark {
+    color: var(--pdk-accent);
+}
+
+.pdk-auth-product {
+    font-size: 1.0625rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.pdk-auth-title {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+}
+
+.pdk-auth-lead {
+    margin: 0 0 24px;
+    color: var(--pdk-muted);
+}
+
+.pdk-auth-card .pdk-form {
+    display: grid;
+    gap: 16px;
+}
+
+.pdk-field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.pdk-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.pdk-optional {
+    margin-left: 4px;
+    color: var(--pdk-muted);
+    font-weight: 400;
+}
+
+.pdk-input {
+    width: 100%;
+    height: 42px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border: 1px solid var(--pdk-line-strong);
+    border-radius: var(--pdk-radius);
+    background: var(--pdk-surface-2);
+    color: var(--pdk-text);
+    font: inherit;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.pdk-input:hover {
+    border-color: color-mix(in srgb, var(--pdk-accent) 45%, var(--pdk-line-strong));
+}
+
+.pdk-input:focus {
+    border-color: var(--pdk-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-accent) 28%, transparent);
+}
+
+.pdk-input-code {
+    font-family: var(--pdk-mono);
+    font-size: 1.125rem;
+    letter-spacing: 0.18em;
+    text-align: center;
+}
+
+.pdk-hint {
+    color: var(--pdk-muted);
+    font-size: 0.75rem;
+}
+
+.pdk-button {
+    height: 44px;
+    margin-top: 4px;
+    border: 0;
+    border-radius: var(--pdk-radius);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 120ms ease, transform 60ms ease;
+}
+
+.pdk-button:active {
+    transform: translateY(1px);
+}
+
+.pdk-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-accent) 40%, transparent);
+}
+
+.pdk-button-primary {
+    background: var(--pdk-accent);
+    color: var(--pdk-accent-contrast);
+}
+
+.pdk-button-primary:hover {
+    filter: brightness(1.07);
+}
+
+.pdk-callout {
+    margin: 0 0 18px;
+    padding: 10px 14px;
+    border: 1px solid;
+    border-radius: var(--pdk-radius);
+    font-size: 0.875rem;
+}
+
+.pdk-callout-error {
+    border-color: color-mix(in srgb, var(--pdk-error) 45%, transparent);
+    background: color-mix(in srgb, var(--pdk-error) 11%, transparent);
+}
+
+.pdk-callout-info {
+    border-color: color-mix(in srgb, var(--pdk-info) 40%, transparent);
+    background: color-mix(in srgb, var(--pdk-info) 10%, transparent);
+}
+
+.pdk-auth-note {
+    display: grid;
+    gap: 8px;
+    margin: 22px 0 0;
+    color: var(--pdk-muted);
+    font-size: 0.8125rem;
+}
+
+.pdk-auth-note p {
+    margin: 0;
+}
+
+/* A CopyableCode on these pages reads the MudBlazor palette, which only the interactive pages define. */
+.pdk-auth {
+    --mud-palette-lines-default: var(--pdk-line);
+    --mud-palette-background-gray: var(--pdk-surface-2);
+    --mud-palette-text-primary: var(--pdk-text);
+    --mud-palette-text-secondary: var(--pdk-muted);
+    --mud-palette-primary: var(--pdk-accent);
+}
+
+.pdk-auth-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    font-size: 0.875rem;
+}
+
+.pdk-auth a {
+    color: var(--pdk-accent);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.pdk-auth a:hover {
+    text-decoration: underline;
+}
+
+.pdk-step {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.pdk-divider {
+    width: 100%;
+    height: 1px;
+    margin: 4px 0;
+    border: 0;
+    background: var(--pdk-line);
+}
+
+.pdk-step legend {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 0;
+    font-weight: 600;
+}
+
+.pdk-step-number {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--pdk-accent) 16%, transparent);
+    color: var(--pdk-accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.pdk-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 520px) {
+    .pdk-auth-card {
+        padding: 24px 20px;
+    }
+
+    .pdk-field-row {
+        grid-template-columns: 1fr;
+    }
+}

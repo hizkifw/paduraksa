@@ -1,0 +1,189 @@
+/* Analytics, share lists and the filter card. Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* Analytics page: the host picker beside the range switch, bar lists with shares, and the approximation note. */
+/* A heading between groups of cards on a long page (Analytics): one size and rhythm wherever a page has them. */
+.pdk-section-heading {
+    margin: 24px 0 12px;
+}
+
+.pdk-analytics-host.mud-input-control {
+    min-width: 200px;
+    max-width: 260px;
+}
+
+/* MudBlazor's dense margin pushes the field's box below the controls beside it; in a header row it sits level with them. */
+.pdk-page-header-actions .mud-input-control.pdk-analytics-host,
+.pdk-page-header-actions .mud-input-control.pdk-analytics-host > .mud-input-control-input-container {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.pdk-analytics-approx-text {
+    display: block;
+    max-width: 340px;
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.pdk-analytics-tables {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+}
+
+.pdk-analytics-agents th:first-child {
+    max-width: 360px;
+}
+
+/* One grid for the whole list and a subgrid for each row, so the label, bar, count and percentage columns are as wide as the widest
+   row needs and every bar starts and ends at the same x. */
+.pdk-share {
+    display: grid;
+    grid-template-columns: minmax(104px, 1.3fr) minmax(48px, 1.2fr) minmax(3ch, auto) minmax(4ch, auto);
+    column-gap: 10px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-share + .pdk-share {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-share-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-height: 30px;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-share-label {
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-share-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--pdk-surface-2);
+    overflow: hidden;
+}
+
+/* A tiny share is a few pixels of fill from the track's start, never a floating dot: the track rounds the left end, the fill only the right. */
+.pdk-share-fill {
+    display: block;
+    height: 100%;
+    min-width: 3px;
+    border-radius: 0 4px 4px 0;
+    background: var(--mud-palette-info, var(--pdk-info));
+}
+
+.pdk-share-fill.pdk-share-ok { background: var(--mud-palette-success, #5DBB8A); }
+.pdk-share-fill.pdk-share-info { background: var(--mud-palette-info, var(--pdk-info)); }
+.pdk-share-fill.pdk-share-warn { background: var(--mud-palette-warning, #D9A957); }
+.pdk-share-fill.pdk-share-bad { background: var(--mud-palette-error, var(--pdk-error)); }
+.pdk-share-fill.pdk-share-none { background: var(--pdk-muted); }
+
+.pdk-share-count {
+    text-align: right;
+}
+
+.pdk-share-pct {
+    color: var(--pdk-muted);
+    text-align: right;
+}
+
+@media (max-width: 600px) {
+    .pdk-analytics-host.mud-input-control {
+        max-width: none;
+        flex: 1 1 100%;
+    }
+
+    .pdk-share {
+        grid-template-columns: minmax(64px, 1fr) minmax(40px, 1fr) minmax(3ch, auto) minmax(4ch, auto);
+        column-gap: 8px;
+    }
+
+    .pdk-analytics-agents th:first-child {
+        max-width: 200px;
+    }
+}
+
+.pdk-card-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px 8px;
+}
+
+.pdk-traffic .pdk-card-head {
+    align-items: center;
+}
+
+/* A control row above a table card (a segmented filter). */
+.pdk-toolbar-row {
+    margin-bottom: 12px;
+}
+
+/* A filter card (Audit, Live tail): an optional bar with a segmented control and "Clear filters", then the fields in a wrapping grid. */
+.pdk-card.pdk-filters.mud-paper {
+    padding: 16px 20px 8px;
+}
+
+.pdk-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.pdk-filter-clear {
+    margin-left: auto;
+}
+
+.pdk-filter-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 4px 12px;
+    align-items: start;
+}
+
+@media (max-width: 600px) {
+    /* On a phone the segments fill the width, wrapping to further rows that fill it too. */
+    .pdk-seg {
+        display: flex;
+        width: 100%;
+    }
+
+    .pdk-seg-option {
+        flex: 1 1 auto;
+        padding: 0 8px;
+    }
+
+    .pdk-filter-bar .pdk-hidden {
+        display: none;
+    }
+
+    /* The overview's traffic header: the title and the Analytics link on one row, the range under them. */
+    .pdk-traffic .pdk-card-head-actions {
+        display: contents;
+    }
+
+    .pdk-traffic .pdk-card-head-actions > .pdk-seg {
+        order: 3;
+    }
+
+    .pdk-traffic .pdk-card-head-actions > a {
+        order: 2;
+        margin-left: auto;
+    }
+}

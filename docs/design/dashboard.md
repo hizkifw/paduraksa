@@ -877,6 +877,11 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - A choice whose options need a sentence each is not a segment: it is `ChoiceCards` (below).
 - A segment with a zero count is muted, or left out when it is a filter.
 
+**Stylesheets.** `app.css` was one file of 4,100 lines. It is now sliced by area at its own section headings, and `App.razor` loads the slices in the order they had, then the older area files (`certificates.css`, `setup.css`, `settings.css`).
+- The order is the cascade: a rule moves only together with everything between it and its new place. A slice is a contiguous run of the old file, so the split changed no rule's position relative to another.
+- `app.css` holds the palette, shared pieces, the shell, the open draft and the user menu. Then `pages.css`, `lists.css`, `forms.css`, `drawers.css`, `history.css` (diff, History, simulator), `feedback.css` (toasts, errors, narrow screens), `auth.css`, `reconnect.css`, `rule-sets.css`, `controls.css` (traffic, segmented control) and `analytics.css`.
+- A new rule goes in the file of the area it styles, and a rule that several areas share in `app.css`.
+
 **Page header.** The title (h1) and the actions share one centre line in a row at least 40 px tall, so a title sits at the same height on every page. A lead, only where it says something the page does not, sits under the row.
 
 **Headings.**

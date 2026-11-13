@@ -1,0 +1,406 @@
+/* The diff, History and the simulator. Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* ---------- Diff ---------- */
+
+.pdk-diff {
+    display: grid;
+    gap: 12px;
+}
+
+.pdk-diff-group {
+    overflow: hidden;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    background: var(--mud-palette-surface);
+}
+
+.pdk-diff-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+}
+
+.pdk-diff-head .pdk-list-icon {
+    width: 26px;
+    height: 26px;
+}
+
+.pdk-diff-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.pdk-diff-fields {
+    display: grid;
+    margin: 0;
+    padding: 0 14px 10px 50px;
+}
+
+.pdk-diff-field {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.32fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 5px 0;
+    border-top: 1px dashed var(--mud-palette-lines-default);
+    font-size: 0.8125rem;
+}
+
+.pdk-diff-field dt {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-diff-field dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    min-width: 0;
+}
+
+.pdk-diff-old, .pdk-diff-new {
+    padding: 0 6px;
+    border-radius: 5px;
+    font-family: var(--pdk-mono);
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-diff-old {
+    background: color-mix(in srgb, var(--mud-palette-error) 13%, transparent);
+    color: color-mix(in srgb, var(--mud-palette-error) 70%, var(--mud-palette-text-primary));
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--mud-palette-error) 60%, transparent);
+}
+
+.pdk-diff-new {
+    background: color-mix(in srgb, var(--mud-palette-success) 14%, transparent);
+    color: color-mix(in srgb, var(--mud-palette-success) 65%, var(--mud-palette-text-primary));
+}
+
+.pdk-diff-removed .pdk-diff-old {
+    text-decoration: none;
+}
+
+.pdk-diff-arrow {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-diff-note {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
+.pdk-diff-child {
+    margin: 0 10px 10px 36px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 8px;
+    background: var(--mud-palette-background-gray);
+}
+
+.pdk-diff-child .pdk-diff-fields {
+    padding-left: 14px;
+}
+
+/* ---------- History ---------- */
+
+.pdk-history {
+    display: grid;
+    grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+}
+
+.pdk-timeline-card.mud-paper {
+    padding: 8px;
+}
+
+.pdk-timeline {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-timeline-item + .pdk-timeline-item {
+    margin-top: 2px;
+}
+
+.pdk-timeline-link {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 120ms ease;
+}
+
+.pdk-timeline-link:hover {
+    background: var(--mud-palette-action-default-hover);
+}
+
+.pdk-timeline-link:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: -2px;
+}
+
+.pdk-selected .pdk-timeline-link {
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
+}
+
+.pdk-seq {
+    flex: 0 0 auto;
+    min-width: 42px;
+    padding: 2px 0;
+    border-radius: 8px;
+    background: var(--mud-palette-background-gray);
+    color: var(--mud-palette-text-secondary);
+    font-family: var(--pdk-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.pdk-selected .pdk-seq {
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+}
+
+.pdk-timeline-text {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-timeline-title {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.pdk-timeline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-diff-card-head {
+    flex-wrap: wrap;
+}
+
+.pdk-revision-message {
+    margin-top: 6px !important;
+}
+
+.pdk-compare {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.pdk-compare-select {
+    flex: 0 1 320px;
+}
+
+/* ---------- Simulator ---------- */
+
+.pdk-simulator {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
+    align-items: start;
+    gap: 16px;
+}
+
+.pdk-sim-form {
+    display: grid;
+    gap: 6px;
+}
+
+.pdk-headers {
+    display: grid;
+    gap: 2px;
+    margin: 10px 0 4px;
+}
+
+.pdk-outcome {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    border: 1px solid color-mix(in srgb, var(--pdk-tone) 40%, transparent);
+    border-radius: var(--pdk-radius-lg);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--pdk-tone) 16%, transparent), color-mix(in srgb, var(--pdk-tone) 4%, transparent));
+}
+
+.pdk-outcome-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--pdk-tone) 20%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-outcome-text {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-outcome-title {
+    font-size: 1.125rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.pdk-outcome-summary {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-outcome-detail {
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-outcome-status {
+    padding: 2px 10px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--pdk-tone) 18%, transparent);
+    color: var(--pdk-tone);
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.pdk-sim-upstream {
+    margin-top: 16px;
+}
+
+.pdk-sim-notes {
+    display: grid;
+    gap: 4px;
+    margin: 14px 0 0;
+    padding: 0;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    list-style: none;
+}
+
+.pdk-sim-notes li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.pdk-sim-notes .pdk-tone-warning {
+    color: var(--mud-palette-warning);
+}
+
+.pdk-trace {
+    position: relative;
+    display: grid;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-trace-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 12px;
+    padding-bottom: 14px;
+}
+
+.pdk-trace-step::before {
+    content: "";
+    position: absolute;
+    top: 26px;
+    bottom: 0;
+    left: 13px;
+    width: 2px;
+    background: var(--mud-palette-lines-default);
+}
+
+.pdk-trace-step:last-child::before {
+    display: none;
+}
+
+.pdk-trace-marker {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--pdk-tone) 16%, var(--mud-palette-surface));
+    color: var(--pdk-tone);
+}
+
+.pdk-trace-stopped .pdk-trace-marker {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--pdk-tone) 18%, transparent);
+}
+
+.pdk-trace-skipped {
+    opacity: 0.7;
+}
+
+.pdk-trace-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+}
+
+.pdk-trace-title {
+    font-weight: 600;
+}
+
+.pdk-trace-summary {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.875rem;
+}
+
+.pdk-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 0;
+}
+
+.pdk-fact {
+    display: inline-flex;
+    max-width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 6px;
+    font-size: 0.75rem;
+}
+
+.pdk-fact dt {
+    padding: 1px 7px;
+    background: var(--mud-palette-background-gray);
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-fact dd {
+    margin: 0;
+    padding: 1px 7px;
+    overflow-wrap: anywhere;
+}

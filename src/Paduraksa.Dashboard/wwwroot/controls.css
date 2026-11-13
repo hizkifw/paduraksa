@@ -1,0 +1,242 @@
+/* The traffic overview and the segmented control. Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* Traffic overview (home page): range switch, charts, tables. */
+.pdk-traffic {
+    margin-bottom: 16px;
+}
+
+/* The segmented control (SegmentedControl): one 40 px row beside a dense outlined field, the chosen segment raised. When the segments
+   don't fit (a phone) they wrap onto further rows instead of hiding behind a scroll. */
+.pdk-seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-height: 40px;
+    padding: 3px;
+    border: 1px solid var(--pdk-line);
+    border-radius: 8px;
+    background: var(--pdk-surface-2);
+    justify-self: start;
+}
+
+.pdk-seg-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 44px;
+    height: 32px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--pdk-muted);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.pdk-seg-option:hover:not(:disabled) {
+    color: var(--pdk-text);
+}
+
+.pdk-seg-option[aria-checked="true"] {
+    background: var(--pdk-surface);
+    color: var(--pdk-text);
+    box-shadow: 0 0 0 1px var(--pdk-line-strong);
+}
+
+.pdk-seg-option:focus-visible {
+    outline: 2px solid var(--mud-palette-primary, var(--pdk-accent));
+    outline-offset: 1px;
+}
+
+.pdk-seg-dot {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--pdk-tone);
+}
+
+.pdk-seg-count {
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-seg-zero {
+    opacity: 0.6;
+}
+
+.pdk-seg-option:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.pdk-chart {
+    margin: 12px 0 0;
+}
+
+.pdk-chart-body {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+}
+
+.pdk-chart-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    color: var(--pdk-muted);
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-align: right;
+}
+
+.pdk-chart-plot {
+    width: 100%;
+    height: 140px;
+    overflow: visible;
+}
+
+.pdk-chart-grid {
+    stroke: var(--pdk-line);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.pdk-chart-line {
+    fill: none;
+    stroke-width: 1.75;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.pdk-chart-area {
+    stroke: none;
+    opacity: 0.16;
+}
+
+.pdk-chart-gap {
+    fill: color-mix(in srgb, var(--pdk-text) 6%, transparent);
+}
+
+.pdk-chart-hit {
+    fill: transparent;
+}
+
+.pdk-chart-hit:hover {
+    fill: color-mix(in srgb, var(--pdk-text) 7%, transparent);
+}
+
+.pdk-chart-x {
+    display: flex;
+    justify-content: space-between;
+    margin-left: 44px;
+    color: var(--pdk-muted);
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-top: 8px;
+    color: var(--pdk-muted);
+    font-size: 0.75rem;
+}
+
+.pdk-chart-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pdk-chart-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--pdk-series);
+}
+
+.pdk-chart-a { --pdk-series: var(--mud-palette-info, var(--pdk-info)); }
+.pdk-chart-b { --pdk-series: var(--mud-palette-success, #5DBB8A); }
+.pdk-chart-c { --pdk-series: var(--mud-palette-warning, #D9A957); }
+.pdk-chart-err { --pdk-series: var(--mud-palette-error, var(--pdk-error)); }
+.pdk-chart-up { --pdk-series: var(--pdk-muted); stroke-dasharray: 5 4; }
+.pdk-chart-line { stroke: var(--pdk-series); }
+.pdk-chart-area { fill: var(--pdk-series); }
+.pdk-chart-swatch.pdk-chart-up { background: repeating-linear-gradient(90deg, var(--pdk-series) 0 5px, transparent 5px 8px); }
+
+.pdk-traffic-scroll {
+    overflow-x: auto;
+}
+
+.pdk-traffic-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-traffic-table th,
+.pdk-traffic-table td {
+    padding: 8px 20px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.pdk-traffic-table thead th {
+    border-top: 0;
+    color: var(--pdk-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.pdk-traffic-table th:first-child {
+    max-width: 240px;
+    overflow: hidden;
+    font-weight: 600;
+    text-align: left;
+    text-overflow: ellipsis;
+}
+
+.pdk-traffic-table a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.pdk-traffic-table a:hover {
+    text-decoration: underline;
+}
+
+.pdk-traffic-bad {
+    color: var(--pdk-error);
+}
+
+@media (max-width: 600px) {
+    .pdk-traffic .pdk-card-head {
+        flex-wrap: wrap;
+    }
+
+    .pdk-chart-x {
+        margin-left: 36px;
+    }
+
+    .pdk-traffic-table th,
+    .pdk-traffic-table td {
+        padding: 8px 10px;
+    }
+
+    .pdk-traffic-table th:first-child {
+        max-width: 120px;
+    }
+}

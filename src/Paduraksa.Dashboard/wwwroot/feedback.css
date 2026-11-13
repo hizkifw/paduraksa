@@ -1,0 +1,203 @@
+/* Toasts, errors and the narrow-screen rules of the shell. Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* ---------- Toasts ---------- */
+
+/* Bottom-right, never wider than a column of the page, with room around them; the review drawer and dialogs sit above them. */
+.mud-snackbar-location-bottom-right {
+    right: 20px;
+    bottom: 20px;
+    left: auto;
+    max-width: min(420px, calc(100vw - 40px));
+}
+
+.mud-snackbar-location-bottom-right .mud-snackbar {
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 10px;
+}
+
+.mud-snackbar .mud-snackbar-content-message {
+    overflow-wrap: anywhere;
+}
+
+/* A toast is one of the dashboard's cards: the surface, a hairline border and the card radius. Only its icon says how it
+   went, so a stack of them doesn't shout. (Two classes, to win over MudBlazor's per-severity outline colours.) */
+.mud-snackbar-location-bottom-right .mud-snackbar {
+    /* Icon top left, actions top right, text between them growing downwards: a long message never pulls either corner
+       towards the middle. The icon and the close button are the same 32px box, 8px from their corners. */
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 8px;
+    padding: 8px;
+    color: var(--mud-palette-text-primary);
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    box-shadow: 0 14px 36px -16px rgba(0, 0, 0, 0.55);
+}
+
+.mud-snackbar.mud-alert-outlined-success .mud-snackbar-icon { color: var(--mud-palette-success); }
+.mud-snackbar.mud-alert-outlined-info .mud-snackbar-icon { color: var(--mud-palette-info); }
+.mud-snackbar.mud-alert-outlined-warning .mud-snackbar-icon { color: var(--mud-palette-warning); }
+.mud-snackbar.mud-alert-outlined-error .mud-snackbar-icon { color: var(--mud-palette-error); }
+.mud-snackbar.mud-alert-outlined-normal .mud-snackbar-icon { color: var(--mud-palette-text-secondary); }
+
+.mud-snackbar-location-bottom-right .mud-snackbar-icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+}
+
+.mud-snackbar-location-bottom-right .mud-snackbar-icon .mud-icon-root,
+.mud-snackbar-location-bottom-right .mud-snackbar-close-button .mud-icon-root {
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+}
+
+/* (32px - one 20px line) / 2: the first line sits on the icons' centre line. */
+.mud-snackbar-location-bottom-right .mud-snackbar .mud-snackbar-content-message {
+    padding: 6px 0;
+}
+
+.mud-snackbar-location-bottom-right .mud-snackbar .mud-snackbar-content-action {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+}
+
+.mud-snackbar .mud-snackbar-content-action .mud-snackbar-action-button {
+    height: 32px;
+    min-width: 0;
+    padding: 0 10px;
+    font-weight: 600;
+}
+
+/* MudBlazor puts a utility margin (!important) on the close button; the action group's gap spaces it instead. */
+.mud-snackbar .mud-snackbar-content-action .mud-snackbar-close-button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin: 0 !important;
+    padding: 0;
+    color: var(--mud-palette-text-secondary);
+}
+
+@media (max-width: 600px) {
+    .mud-snackbar-location-bottom-right {
+        right: 8px;
+        bottom: 8px;
+        left: 8px;
+        max-width: none;
+    }
+}
+
+/* An editor's sticky Cancel / Review bar is pinned to the bottom of the window (and ends the page): the toasts sit above it. */
+body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bottom-right {
+    bottom: 92px;
+}
+
+/* ---------- Errors ---------- */
+
+.pdk-error-card.mud-paper {
+    max-width: 640px;
+}
+
+#blazor-error-ui {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    max-width: calc(100vw - 32px);
+    padding: 12px 16px;
+    border: 1px solid color-mix(in srgb, var(--pdk-error) 45%, transparent);
+    border-radius: var(--pdk-radius);
+    background: var(--pdk-surface);
+    box-shadow: var(--pdk-shadow);
+    color: var(--pdk-text);
+    font-family: var(--pdk-font);
+    font-size: 0.875rem;
+}
+
+#blazor-error-ui a {
+    color: var(--pdk-accent);
+    font-weight: 600;
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 960px) {
+    .pdk-history, .pdk-simulator {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .pdk-field-grid, .pdk-field-grid-3 {
+        grid-template-columns: minmax(0, 1fr);
+        margin-left: 0;
+    }
+
+    .pdk-route-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        grid-auto-flow: row;
+        padding: 8px 0;
+        border-bottom: 1px dashed var(--mud-palette-lines-default);
+    }
+
+    /* The path and the route's menu share the first line; match and upstream the second. */
+    .pdk-route-row > :nth-child(2) {
+        grid-column: 1 / 3;
+        grid-row: 1;
+    }
+
+    .pdk-route-row > .mud-menu {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    .pdk-route-row > :nth-child(3) {
+        grid-column: 2 / 4;
+    }
+
+
+    .pdk-review-simulate-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pdk-diff-fields {
+        padding-left: 14px;
+    }
+
+    .pdk-diff-field {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .pdk-diff-child {
+        margin-left: 10px;
+    }
+
+    .pdk-drawer-head, .pdk-drawer-banner, .pdk-drawer-body, .pdk-drawer-foot {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .pdk-toolbar {
+        padding: 12px;
+    }
+
+    .pdk-search {
+        flex-basis: 100%;
+    }
+}

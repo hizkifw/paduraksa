@@ -1,0 +1,77 @@
+/* A rule set's rules. Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* A rule set's rules: each a card that reads "When [path] [methods] [user agent] then [action]", the word in a narrow column beside its fields. */
+.pdk-rule-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pdk-rule-row {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 8px;
+}
+
+.pdk-rule-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pdk-rule-number {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pdk-rule-tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.pdk-rule-body {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+}
+
+.pdk-rule-word {
+    padding-top: 12px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.pdk-rule-fields {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.pdk-rule-path {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .pdk-rule-body {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .pdk-rule-word {
+        padding-top: 0;
+    }
+}

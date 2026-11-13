@@ -1,0 +1,154 @@
+/* The connection-lost card (App.razor, #components-reconnect-modal). Loaded in order after app.css (App.razor): the order is the cascade. */
+
+/* ---------- Connection lost (App.razor, #components-reconnect-modal) ---------- */
+/* A card at the bottom over a light scrim that keeps clicks off a page that can't answer. It fades in after a moment, so a blip that
+   reconnects at once never shows. */
+/* MudBlazor styles this id for Blazor's own dialog (an opaque page, uppercase buttons with 40px margins, all !important): the id and
+   !important here take that back. */
+#components-reconnect-modal.pdk-reconnect {
+    position: fixed;
+    inset: 0;
+    z-index: 3000 !important;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 24px;
+    background-color: color-mix(in srgb, var(--mud-palette-background) 45%, transparent) !important;
+}
+
+#components-reconnect-modal.pdk-reconnect:is(.components-reconnect-show, .components-reconnect-failed, .components-reconnect-rejected,
+    .components-reconnect-paused, .components-reconnect-resume-failed) {
+    display: flex;
+    animation: pdk-reconnect-fade 200ms var(--pdk-ease-out) 400ms both;
+}
+
+.pdk-reconnect-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(560px, 100%);
+    padding: 12px 12px 12px 18px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 12px;
+    background: var(--mud-palette-surface);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+    color: var(--mud-palette-text-primary);
+    font-size: 0.875rem;
+    animation: pdk-reconnect-rise 320ms var(--pdk-ease-out) 400ms both;
+}
+
+.pdk-reconnect-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pdk-reconnect-text p {
+    display: none;
+    margin: 0;
+}
+
+.pdk-reconnect-text strong {
+    font-weight: 600;
+}
+
+.pdk-reconnect-spinner, .pdk-reconnect-alert {
+    display: none;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+}
+
+.pdk-reconnect-spinner {
+    border: 2px solid var(--mud-palette-lines-default);
+    border-top-color: var(--mud-palette-text-primary);
+    animation: pdk-reconnect-spin 800ms linear infinite;
+}
+
+.pdk-reconnect-alert {
+    place-items: center;
+    background: color-mix(in srgb, var(--mud-palette-warning) 18%, transparent);
+    color: var(--mud-palette-warning);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+#components-reconnect-modal .pdk-reconnect-action {
+    display: none;
+    flex: 0 0 auto;
+    min-width: 0;
+    margin: 0 !important;
+    padding: 7px 14px;
+    border: 0;
+    border-radius: 8px;
+    background-color: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+    font: inherit;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: normal;
+    text-transform: none;
+    cursor: pointer;
+}
+
+#components-reconnect-modal .pdk-reconnect-action:hover {
+    background-color: color-mix(in srgb, var(--mud-palette-primary) 85%, var(--mud-palette-background));
+}
+
+.pdk-reconnect-action:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+/* Which line, mark and button each state shows. "Retrying" comes on top of "show" once the first attempt failed. */
+.components-reconnect-show:not(.components-reconnect-retrying) .pdk-reconnect-when-show,
+.components-reconnect-retrying .pdk-reconnect-when-retrying,
+.components-reconnect-failed .pdk-reconnect-when-failed,
+.components-reconnect-rejected .pdk-reconnect-when-rejected,
+.components-reconnect-paused .pdk-reconnect-when-paused,
+.components-reconnect-resume-failed .pdk-reconnect-when-resume-failed {
+    display: block;
+}
+
+.components-reconnect-show .pdk-reconnect-spinner {
+    display: block;
+}
+
+:is(.components-reconnect-failed, .components-reconnect-rejected, .components-reconnect-paused, .components-reconnect-resume-failed) .pdk-reconnect-alert {
+    display: grid;
+}
+
+#components-reconnect-modal:is(.components-reconnect-retrying, .components-reconnect-failed) .pdk-reconnect-when-retry,
+#components-reconnect-modal.components-reconnect-paused .pdk-reconnect-when-resume,
+#components-reconnect-modal:is(.components-reconnect-rejected, .components-reconnect-resume-failed) .pdk-reconnect-when-reload {
+    display: block;
+}
+
+@keyframes pdk-reconnect-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes pdk-reconnect-rise {
+    from {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+}
+
+@keyframes pdk-reconnect-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #components-reconnect-modal.pdk-reconnect, .pdk-reconnect-card {
+        animation-duration: 1ms;
+    }
+
+    .pdk-reconnect-spinner {
+        animation-duration: 2400ms;
+    }
+}
