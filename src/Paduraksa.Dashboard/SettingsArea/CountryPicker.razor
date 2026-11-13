@@ -3,7 +3,7 @@
    Tor exit nodes and the unknown country come first. A country the other side already holds isn't offered. *@
 <div class="pdk-country-picker" data-field="@Field">
     <MudAutocomplete T="string" @ref="_search" Value="null" ValueChanged="AddAsync" SearchFunc="SearchAsync" ToStringFunc="Display" Label="@Label"
-                     Placeholder="Search by name or code" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly" Disabled="@Disabled"
+                     Placeholder="Search by name or code" AdornmentAriaLabel="@($"Show {Label}")" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly" Disabled="@Disabled"
                      MinCharacters="0" OpenOnFocus="true" MaxItems="@OptionCount" ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="false"
                      Error="@(Error is not null)" ErrorText="@Error" data-input="@Field" />
     @if (Selected.Count > 0)

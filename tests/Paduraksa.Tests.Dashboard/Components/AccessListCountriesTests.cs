@@ -43,6 +43,17 @@ public sealed class AccessListCountriesTests
         return (context, config, drawers);
     }
 
+    [Fact]
+    public async Task EachPickersDropdownArrowIsNamedAfterIt()
+    {
+        var (context, _, drawers) = await OpenAsync(Document(TrustedProxyMode.Generic, Geo), Geo.Id.ToString());
+        await using var _ = context;
+
+        var arrows = drawers.FindAll($"{Drawer} [data-section=countries] .mud-input-adornment-icon-button");
+
+        Assert.Equal(["Show Allowed countries", "Show Denied countries"], arrows.Select(arrow => arrow.GetAttribute("aria-label")));
+    }
+
     private static MudAutocomplete<string> Picker(IRenderedComponent<DrawerHost> drawers, string label) =>
         drawers.FindComponents<MudAutocomplete<string>>().Single(picker => picker.Instance.Label == label).Instance;
 
