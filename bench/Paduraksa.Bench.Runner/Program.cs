@@ -12,6 +12,9 @@
 //   browser-check.test  like bench.test, behind the proof-of-work gate at 8 bits
 //   error-page.test     like bench.test, but its upstream is a closed loopback port, so forwarding fails
 //   compressed.test     like bench.test, with response compression on (Brotli or gzip, as the client asks)
+//   headers.test        like bench.test, with custom header rules: request set x2, add, remove; response set x2, remove
+//   rewrite.test        one route, /app stripped and /api put in front (Location mapping at its default, on)
+//   rewrite-redirect.test  the same route, for an upstream that redirects into /api/
 //   ws.test             like bench.test, but its upstream is the WebSocket echo server (--websocket-upstream)
 //
 // Configuration and logging are production's: the shipped appsettings.json (copied from Paduraksa.Server) plus the
@@ -124,6 +127,34 @@ ConfigDocument document = new(
             HostId.New(), ["compressed.test"], Certificate: placeholderCertificate,
             Settings: new HostSettings { Compression = new CompressionSettings { Enabled = true } },
             Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["headers.test"], Certificate: placeholderCertificate,
+            Settings: new HostSettings
+            {
+                Headers = new HeadersSettings
+                {
+                    Request =
+                    [
+                        new HeaderRuleConfig("X-Bench-Replace", HeaderOperation.Set, "replaced"),
+                        new HeaderRuleConfig("X-Bench-Tenant", HeaderOperation.Set, "acme"),
+                        new HeaderRuleConfig("X-Bench-Added", HeaderOperation.Add, "one"),
+                        new HeaderRuleConfig("X-Bench-Drop", HeaderOperation.Remove),
+                    ],
+                    Response =
+                    [
+                        new HeaderRuleConfig("X-Frame-Options", HeaderOperation.Set, "DENY"),
+                        new HeaderRuleConfig("X-Bench-Policy", HeaderOperation.Set, "max-age=31536000"),
+                        new HeaderRuleConfig("X-Powered-By", HeaderOperation.Remove),
+                    ],
+                },
+            },
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["rewrite.test"], Certificate: placeholderCertificate,
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId, Path: "/app", Rewrite: new PathRewriteConfig(StripPrefix: true, AddPrefix: "/api"))]),
+        new HostConfig(
+            HostId.New(), ["rewrite-redirect.test"], Certificate: placeholderCertificate,
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId, Path: "/app", Rewrite: new PathRewriteConfig(StripPrefix: true, AddPrefix: "/api"))]),
         new HostConfig(HostId.New(), ["ws.test"], Certificate: placeholderCertificate, Routes: [new RouteConfig(RouteId.New(), echoUpstreamId)]),
     ]);
 

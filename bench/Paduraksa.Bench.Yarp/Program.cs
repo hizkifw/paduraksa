@@ -10,16 +10,22 @@
 // ASP.NET Core's token bucket limiter (429 on refusal, partitioned by client address), error-page.test to a closed port
 // with a 502 page from --error-page, and cf.test, where --cloudflare-tunnel true makes the forwarded-headers middleware
 // read the client address from CF-Connecting-IP.
+// compressed.test runs ASP.NET Core's response compression (gzip at its fastest level, Brotli for a client that asks) in a
+// branch for that host, as Paduraksa's per-host gate fronts the same middleware. headers.test, rewrite.test and the
+// transform scenarios' route are YARP's own transforms (RequestHeader, ResponseHeader, PathRemovePrefix, PathPrefix); YARP
+// has no Location mapping, so there is no rewrite-redirect.test route.
 // ws.test is a catch-all route to the WebSocket echo server (YARP forwards HTTP/1.1 upgrades on its own).
 // respond.test is a minimal endpoint answering 200 "ok\n". HTTPS uses the script's throwaway ECDSA certificate with
 // HTTP/1.1 and HTTP/2 (ALPN). The process runs outside Docker, under taskset, like Paduraksa.
 using System.Globalization;
+using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 using Yarp.ReverseProxy.Configuration;
@@ -76,6 +82,15 @@ builder.Services.AddRateLimiter(limiter =>
             QueueLimit = 0,
         }));
 });
+builder.Services.AddResponseCompression(compression =>
+{
+    // The same ASP.NET middleware Paduraksa gates per host, at the same level. It has no minimum size of its own.
+    compression.EnableForHttps = true;
+    compression.Providers.Add<BrotliCompressionProvider>();
+    compression.Providers.Add<GzipCompressionProvider>();
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 builder.Services.AddW3CLogging(logging =>
 {
     logging.LoggingFields = W3CLoggingFields.Date | W3CLoggingFields.Time | W3CLoggingFields.ClientIpAddress
@@ -103,6 +118,35 @@ builder.Services.AddReverseProxy().LoadFromMemory(
         new RouteConfig { RouteId = "rate-limit", ClusterId = "upstream", Match = HostMatch("rate-limit.test"), RateLimiterPolicy = "allowed" },
         new RouteConfig { RouteId = "rate-limited", ClusterId = "upstream", Match = HostMatch("rate-limited.test"), RateLimiterPolicy = "refused" },
         new RouteConfig { RouteId = "error-page", ClusterId = "closed", Match = HostMatch("error-page.test") },
+        new RouteConfig { RouteId = "compressed", ClusterId = "upstream", Match = HostMatch("compressed.test") },
+        new RouteConfig
+        {
+            RouteId = "headers",
+            ClusterId = "upstream",
+            Match = HostMatch("headers.test"),
+            Transforms =
+            [
+                Transform("RequestHeader", "X-Bench-Replace", "Set", "replaced"),
+                Transform("RequestHeader", "X-Bench-Tenant", "Set", "acme"),
+                Transform("RequestHeader", "X-Bench-Added", "Append", "one"),
+                // YARP's own copy of a request header goes unless a transform keeps it; this one removes it on the way.
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["RequestHeaderRemove"] = "X-Bench-Drop" },
+                Transform("ResponseHeader", "X-Frame-Options", "Set", "DENY", always: true),
+                Transform("ResponseHeader", "X-Bench-Policy", "Set", "max-age=31536000", always: true),
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["ResponseHeaderRemove"] = "X-Powered-By", ["When"] = "Always" },
+            ],
+        },
+        new RouteConfig
+        {
+            RouteId = "rewrite",
+            ClusterId = "upstream",
+            Match = new RouteMatch { Hosts = ["rewrite.test"], Path = "/app/{**rest}" },
+            Transforms =
+            [
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["PathRemovePrefix"] = "/app" },
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["PathPrefix"] = "/api" },
+            ],
+        },
         new RouteConfig { RouteId = "cf", ClusterId = "upstream", Match = HostMatch("cf.test") },
         new RouteConfig
         {
@@ -181,11 +225,25 @@ app.Use(async (context, next) =>
 app.UseWhen(
     context => context.Request.Host.Value?.StartsWith("access-log.test", StringComparison.Ordinal) == true,
     branch => branch.UseW3CLogging());
+app.UseWhen(
+    context => context.Request.Host.Value?.StartsWith("compressed.test", StringComparison.Ordinal) == true,
+    branch => branch.UseResponseCompression());
 app.UseRateLimiter();
 app.MapReverseProxy();
 app.MapGet("/", () => Results.Text("ok\n")).RequireHost("respond.test");
 await app.RunAsync();
 return 0;
+
+static IReadOnlyDictionary<string, string> Transform(string kind, string header, string operation, string value, bool always = false)
+{
+    Dictionary<string, string> transform = new(StringComparer.Ordinal) { [kind] = header, [operation] = value };
+    if (always)
+    {
+        transform["When"] = "Always";
+    }
+
+    return transform;
+}
 
 static RouteMatch HostMatch(string host) => new() { Hosts = [host], Path = "/{**catch-all}" };
 
