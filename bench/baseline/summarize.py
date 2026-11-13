@@ -29,7 +29,9 @@ SCENARIOS = [
     ("h2-tls", "HTTPS HTTP/2, proxied"),
     ("browser", "HTTPS HTTP/2, browser-like headers, proxied"),
     ("body-64k", "HTTP/1.1 plain, 64 KiB body, proxied"),
+    ("upload-64k", "HTTP/1.1 plain, POST with a 64 KiB request body, proxied"),
     ("handshake", "HTTPS HTTP/1.1, new connection per request (TLS handshake), proxied"),
+    ("websocket", "WebSocket echo, proxied (echo round trips)"),
     ("answered", "HTTP/1.1 plain, answered by the proxy"),
     ("access-log", "HTTP/1.1 plain, access log on, proxied"),
     ("rate-limit", "HTTP/1.1 plain, rate-limit take, proxied (no 429s expected)"),
@@ -39,15 +41,22 @@ SCENARIOS = [
     ("cf", "HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers"),
 ]
 LABELS = dict(SCENARIOS)
-# A proxy that has no built-in static response can't run `answered`; it's a declared skip, not missing data.
-UNAVAILABLE = {("traefik", "answered")}
+# A proxy with no fair stock equivalent skips the scenario; it's a declared skip, not missing data (bench/README.md
+# says why for each). browser-check is Paduraksa's own gate, and nobody else ships one.
+UNAVAILABLE = {
+    ("traefik", "answered"),
+    ("caddy", "rate-limit"),
+    ("caddy", "rate-limited"),
+    ("traefik", "cf"),
+    *((proxy, "browser-check") for proxy in PROXIES if proxy != "paduraksa"),
+}
 # These two measure what the proxy answers when it doesn't answer 2xx: the refusal and the failure path. Their
 # throughput is every response, 429s and 502s included, so that the table says how much abuse or failure the proxy
 # absorbed instead of printing zero.
 ALL_STATUSES = {"rate-limited", "error-page"}
-# The Paduraksa-only paths are always listed in the status breakdown, even when every answer is 200: "no 429s" is
-# the rate-limit scenario's result, not a missing row.
-STATUS_SCENARIOS = {"access-log", "rate-limit", "rate-limited", "browser-check", "error-page"}
+# These are always listed in the status breakdown, even when every answer is 200: "no 429s" is the rate-limit
+# scenario's result, not a missing row, and a request-body or WebSocket run that isn't all 2xx or 101 is wrong.
+STATUS_SCENARIOS = {"upload-64k", "websocket", "access-log", "rate-limit", "rate-limited", "browser-check", "error-page", "cf"}
 RATE_RUN = re.compile(r"^(?P<proxy>[a-z]+)\.(?P<scenario>[a-z0-9-]+)\.q(?P<rate>\d+)\.r(?P<repeat>\d+)$")
 METRICS = re.compile(r"^METRICS (.*)$")
 
@@ -68,6 +77,10 @@ def load(raw: Path, name: str):
     ok = sum(n for code, n in statuses.items() if code.startswith("2"))
     bad = sum(n for code, n in statuses.items() if not code.startswith("2"))
     errors = sum(n for kind, n in data.get("errorDistribution", {}).items() if kind != "aborted due to deadline")
+    if "echoes" in data:
+        # The WebSocket tool (bench/Paduraksa.Bench.WebSocket): one 101 per upgraded connection, and the throughput is
+        # the echo round trips (a message each way) that completed; a connection that failed is in `errors`.
+        ok, bad = data["echoes"], 0
     seconds = data["summary"]["total"]
     pct = data.get("latencyPercentiles") or {}
     result = {
@@ -295,6 +308,15 @@ def main() -> None:
         if upstream is not None:
             emit("")
             emit(f"Upstream alone (HTTP/1.1, same concurrency): {num(upstream['rps'])} requests/s.")
+        echo = load(raw, "upstream.websocket")
+        if echo is not None:
+            emit("")
+            emit(f"WebSocket echo server alone (same connections and message size): {num(echo['rps'])} echo round trips/s.")
+        if any(key == "websocket" for key, _ in scenarios):
+            emit("")
+            emit("For `websocket`, a request is one echo round trip (a message each way on one of the open connections), so the")
+            emit("throughput is echoes/s and the CPU per request is per echo; the status breakdown counts the upgrades (101), one per")
+            emit("connection.")
         measured = [key for key, _ in scenarios if key in ALL_STATUSES]
         if measured:
             emit("")
@@ -362,16 +384,16 @@ def main() -> None:
             for key, label, p, r in status_rows:
                 cells = [f"{r['statuses'].get(code, 0):,}" for code in order]
                 emit(f"| {label} | {NAMES[p]} | " + " | ".join(cells) + " |")
-            limit = runs.get(("paduraksa", "rate-limit"))
-            if limit is not None:
-                refused = limit["statuses"].get(429, 0)
+            limits = [(p, runs[(p, "rate-limit")]) for p in proxies if runs.get((p, "rate-limit"))]
+            if limits:
                 emit("")
-                if refused:
-                    emit(f"`rate-limit` answered {refused:,} 429s: the policy's rate or burst is below the load, so it no")
-                    emit("longer measures the token take alone.")
+                refusing = [f"{NAMES[p]} ({r['statuses'].get(429, 0):,})" for p, r in limits if r["statuses"].get(429, 0)]
+                if refusing:
+                    emit("`rate-limit` answered 429s for " + ", ".join(refusing) + ": the policy's rate or burst is below the")
+                    emit("load there, so that run no longer measures the token take alone.")
                 else:
-                    emit("`rate-limit` answered no 429s: the policy stayed inside its budget, so the run measures the")
-                    emit("token take on one hot bucket, as intended.")
+                    emit("`rate-limit` answered no 429s anywhere: every policy stayed inside its budget, so the runs measure")
+                    emit("the cost of the check on one hot client, as intended.")
 
     rate_runs = {}
     for path in sorted(raw.glob("*.json")):

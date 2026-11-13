@@ -26,7 +26,18 @@ http:
       service: bench
       tls: {}
 
+    # The `websocket` scenario's host: Traefik proxies WebSocket upgrades without configuration.
+    websocket-web:
+      rule: Host(`ws.test`)
+      entryPoints: [web]
+      service: websocket
+
   services:
+    websocket:
+      loadBalancer:
+        serversTransport: bench
+        servers:
+          - url: http://127.0.0.1:18090
     bench:
       loadBalancer:
         serversTransport: bench

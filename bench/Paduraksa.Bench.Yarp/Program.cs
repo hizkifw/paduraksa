@@ -5,6 +5,7 @@
 //       --upstream http://127.0.0.1:18080 --cert cert.pem --key key.pem [--http 18087] [--https 18449]
 //
 // bench.test is a catch-all YARP route to --upstream (YARP's default transforms add X-Forwarded-For/-Proto/-Host).
+// ws.test is a catch-all route to the WebSocket echo server (YARP forwards HTTP/1.1 upgrades on its own).
 // respond.test is a minimal endpoint answering 200 "ok\n". HTTPS uses the script's throwaway ECDSA certificate with
 // HTTP/1.1 and HTTP/2 (ALPN). The process runs outside Docker, under taskset, like Paduraksa.
 using System.Globalization;
@@ -19,7 +20,7 @@ var options = ParseArgs(args);
 if (!options.TryGetValue("upstream", out var upstream) || !Uri.TryCreate(upstream, UriKind.Absolute, out _))
 {
     await Console.Error.WriteLineAsync(
-        "usage: Paduraksa.Bench.Yarp --upstream http://host:port --cert cert.pem --key key.pem [--http 18087] [--https 18449]");
+        "usage: Paduraksa.Bench.Yarp --upstream http://host:port --cert cert.pem --key key.pem [--http 18087] [--https 18449] [--websocket-upstream http://127.0.0.1:18090]");
     return 2;
 }
 
@@ -53,6 +54,16 @@ builder.Services.AddReverseProxy().LoadFromMemory(
     [
         new RouteConfig
         {
+            RouteId = "websocket",
+            ClusterId = "echo",
+            Match = new RouteMatch
+            {
+                Hosts = ["ws.test"],
+                Path = "/{**catch-all}",
+            },
+        },
+        new RouteConfig
+        {
             RouteId = "bench",
             ClusterId = "upstream",
             Match = new RouteMatch
@@ -70,6 +81,14 @@ builder.Services.AddReverseProxy().LoadFromMemory(
             Destinations = new Dictionary<string, DestinationConfig>(StringComparer.Ordinal)
             {
                 ["upstream"] = new DestinationConfig { Address = upstream },
+            },
+        },
+        new ClusterConfig
+        {
+            ClusterId = "echo",
+            Destinations = new Dictionary<string, DestinationConfig>(StringComparer.Ordinal)
+            {
+                ["echo"] = new DestinationConfig { Address = Get("websocket-upstream", "http://127.0.0.1:18090") },
             },
         },
     ]);

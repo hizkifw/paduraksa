@@ -15,6 +15,8 @@ static_resources:
                 stat_prefix: public_plain
                 use_remote_address: true
                 access_log: []
+                upgrade_configs:
+                  - upgrade_type: websocket
                 http_filters:
                   - name: envoy.filters.http.router
                     typed_config:
@@ -34,6 +36,15 @@ static_resources:
                           route:
                             cluster: upstream
                             timeout: 120s
+                    # The `websocket` scenario's host: the HCM's upgrade_configs lets the upgrade through.
+                    - name: websocket
+                      domains: ["ws.test", "ws.test:*"]
+                      routes:
+                        - match: { prefix: "/" }
+                          route:
+                            cluster: echo
+                            timeout: 0s
+                            idle_timeout: 120s
                     - name: respond
                       domains: ["respond.test", "respond.test:*"]
                       routes:
@@ -58,6 +69,17 @@ static_resources:
                 alpn_protocols: ["h2", "http/1.1"]
 
   clusters:
+    - name: echo
+      connect_timeout: 60s
+      type: STATIC
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: echo
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: 127.0.0.1, port_value: 18090 }
     - name: upstream
       connect_timeout: 60s
       type: STATIC

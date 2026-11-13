@@ -21,6 +21,11 @@
 	}
 }
 
+# The `websocket` scenario's host. reverse_proxy upgrades WebSocket connections on its own.
+(websocket) {
+	reverse_proxy 127.0.0.1:18090
+}
+
 (answered) {
 	header Content-Type "text/plain; charset=utf-8"
 	respond "ok
@@ -34,6 +39,10 @@ http://bench.test:18083 {
 https://bench.test:18445 {
 	tls /certs/cert.pem /certs/key.pem
 	import proxied
+}
+
+http://ws.test:18083 {
+	import websocket
 }
 
 http://respond.test:18083 {

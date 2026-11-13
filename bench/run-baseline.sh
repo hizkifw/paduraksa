@@ -17,6 +17,7 @@
 #   raw/<run>.meta.json  the run's time window, the proxy's CPU time, and upstream TCP states at its end
 #   paduraksa*.log       the runner's logs (one per runner process), with their per-second METRICS lines
 #   yarp.log             the bare YARP reference app's log
+#   echo.log             the WebSocket echo upstream's log
 #   env.txt              machine, versions, image digests, CPU sets, git state, TLS parameters
 #   summary.md           the tables (bench/baseline/summarize.py)
 #   summary.json         the same numbers for bench/history.py
@@ -71,6 +72,9 @@ CONNS=${CONNS:-64}
 # HTTP/2: connections x streams per connection = CONNS in flight.
 H2_CONNS=${H2_CONNS:-16}
 H2_STREAMS=${H2_STREAMS:-4}
+# `websocket`: connections x message size (each connection has one message in flight, echoed back).
+WS_CONNS=${WS_CONNS:-$CONNS}
+WS_MESSAGE=${WS_MESSAGE:-1024}
 # Every handshake request is a TLS handshake, which costs far more than a request on a warm connection; 64 in flight
 # would mostly measure the load generator's own handshake work on the shared box.
 HANDSHAKE_CONNS=${HANDSHAKE_CONNS:-$profile_handshake_conns}
@@ -81,7 +85,7 @@ RATE_WARMUP=${RATE_WARMUP:-$WARMUP}
 REPEATS=${REPEATS:-$profile_repeats}
 # `cf` is Paduraksa only: a second runner process with loopback as a trusted Cloudflare Tunnel. The five scenarios
 # between `answered` and `cf` run only on Paduraksa too: they use extra hosts in the one runner process.
-SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k handshake answered access-log rate-limit rate-limited browser-check error-page cf}
+SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page cf}
 PROXIES=${PROXIES:-paduraksa nginx caddy haproxy traefik envoy yarp}
 # Set to a directory to also keep oha's per-request SQLite database for every fixed-rate run (large; not committed).
 OHA_DB_DIR=${OHA_DB_DIR:-}
@@ -104,6 +108,8 @@ ENVOY_IMAGE=${ENVOY_IMAGE:-envoyproxy/envoy:v1.40.2@sha256:8de97e654644827d62afd
 OHA_IMAGE=${OHA_IMAGE:-ghcr.io/hatoo/oha:1.16.0@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f}
 
 UPSTREAM_PORT=18080
+# The WebSocket echo server `websocket` runs against; it is the upstream for ws.test on every proxy.
+ECHO_PORT=18090
 ADMIN_PORT=18943
 OUT=${OUT:-$ROOT/bench/results/$(date +%Y-%m-%d-%H%M)-baseline}
 RAW="$OUT/raw"
@@ -111,12 +117,14 @@ PREFIX=paduraksa-bench
 WORK=$(mktemp -d)
 RUNNER_PID=""
 YARP_PID=""
+ECHO_PID=""
+WS_DLL="$ROOT/bench/Paduraksa.Bench.WebSocket/bin/Release/net10.0/Paduraksa.Bench.WebSocket.dll"
 # The solved proof-of-work cookie the browser-check scenario sends; set by start_paduraksa from the runner's output.
 POW_COOKIE=""
 
 cleanup() {
     local status=$? pid
-    for pid in "$RUNNER_PID" "$YARP_PID"; do
+    for pid in "$RUNNER_PID" "$YARP_PID" "$ECHO_PID"; do
         if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
             kill -TERM "$pid" 2>/dev/null || true
             wait "$pid" 2>/dev/null || true
@@ -229,8 +237,8 @@ preflight() {
 
     for scenario in $SCENARIOS; do
         case "$scenario" in
-            h1|h1-tls|h2-tls|browser|body-64k|handshake|answered|access-log|rate-limit|rate-limited|browser-check|error-page|cf) ;;
-            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k handshake answered access-log rate-limit rate-limited browser-check error-page cf)" >&2
+            h1|h1-tls|h2-tls|browser|body-64k|upload-64k|handshake|websocket|answered|access-log|rate-limit|rate-limited|browser-check|error-page|cf) ;;
+            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page cf)" >&2
                return 1 ;;
         esac
     done
@@ -240,6 +248,9 @@ preflight() {
     check_cpu_set UPSTREAM_CPUS "$UPSTREAM_CPUS"
 
     ports=("$UPSTREAM_PORT")
+    if wants websocket; then
+        ports+=("$ECHO_PORT")
+    fi
     for proxy in $PROXIES; do
         read -r http https < <(ports_for "$proxy")
         ports+=("$http" "$https")
@@ -274,6 +285,7 @@ estimate_seconds() {
     if [[ "${UPSTREAM_DIRECT:-1}" != 0 ]]; then
         total=$((total + base))
         calls=$((calls + 2))
+        if wants websocket; then total=$((total + base)); calls=$((calls + 2)); fi
     fi
     for proxy in $PROXIES; do
         total=$((total + 2 * $(duration_seconds "$PROXY_WARMUP")))
@@ -289,6 +301,8 @@ estimate_seconds() {
         if wants h1-tls; then total=$((total + base)); calls=$((calls + 2)); fi
         if wants browser; then total=$((total + base)); calls=$((calls + 2)); fi
         if wants body-64k; then total=$((total + base)); calls=$((calls + 2)); fi
+        if wants upload-64k; then total=$((total + base)); calls=$((calls + 2)); fi
+        if wants websocket; then total=$((total + base)); calls=$((calls + 2)); fi
         if wants handshake; then total=$((total + base)); calls=$((calls + 2)); fi
         if answers_locally "$proxy" && wants answered; then total=$((total + base)); calls=$((calls + 2)); fi
         if [[ "$proxy" == paduraksa ]]; then
@@ -394,6 +408,15 @@ check_proxy() {
         size=$(curl -sf -H "Host: bench.test" "http://127.0.0.1:$http/64k" | wc -c)
         ((size == 65536)) || { echo "expected a 64 KiB body, got $size bytes" >&2; return 1; }
     fi
+    if wants upload-64k; then
+        body=$(curl -sf -H "Host: bench.test" -H 'Content-Type: application/octet-stream' --data-binary "@$WORK/64k.txt" "http://127.0.0.1:$http/upload")
+        [[ "$body" == "upstream ok" ]] || { echo "upload-64k: unexpected body '$body'" >&2; return 1; }
+    fi
+    if wants websocket; then
+        # One connection for a second: the upgrade passed through, and the echo came back whole.
+        wsload "" --url "ws://ws.test:$http/" --connect 127.0.0.1 --connections 1 --size 64 --duration 1 \
+            || { echo "websocket: no echo through $proxy" >&2; return 1; }
+    fi
     if [[ "$proxy" == paduraksa ]]; then
         check_paduraksa_hosts "$http"
     fi
@@ -408,7 +431,7 @@ check_proxy() {
 oha() {
     local name=$1
     shift
-    local output=(--output-format quiet) mounts=(-v "$RAW:/out")
+    local output=(--output-format quiet) mounts=(-v "$RAW:/out" -v "$WORK/64k.txt:/body/64k.txt:ro")
     if [[ -n "$name" ]]; then
         output=(--output-format json -o "/out/$name.json")
     fi
@@ -421,20 +444,35 @@ oha() {
         "${mounts[@]}" "$OHA_IMAGE" --no-tui --worker-threads "$LOAD_THREADS" "${output[@]}" "$@" >/dev/null
 }
 
-# A measured run: oha plus the proxy's CPU time and the time window (for the runner's METRICS lines).
-measure() {
-    local proxy=$1 name=$2
-    shift 2
+# The WebSocket load generator, natively on the load CPUs. $1 = output name ("" = warm-up or check, discarded), rest =
+# its arguments. It exits non-zero when a connection failed or nothing was echoed, which stops the run.
+wsload() {
+    local name=$1
+    shift
+    local output=()
+    if [[ -n "$name" ]]; then
+        output=(--out "$RAW/$name.json")
+    fi
+    taskset -c "$LOAD_CPUS" dotnet "$WS_DLL" load "${output[@]}" "$@" >/dev/null
+}
+
+# A measured run: the load tool ($1: oha or wsload) plus the proxy's CPU time and the time window (for the runner's
+# METRICS lines).
+measure_with() {
+    local tool=$1 proxy=$2 name=$3
+    shift 3
     local start_ms end_ms cpu_before cpu_after
     cpu_before=$(proxy_cpu_us "$proxy")
     start_ms=$(now_ms)
-    oha "$name" "$@"
+    "$tool" "$name" "$@"
     end_ms=$(now_ms)
     cpu_after=$(proxy_cpu_us "$proxy")
     printf '{"proxy":"%s","start_ms":%s,"end_ms":%s,"cpu_us":%s,"upstream_time_wait":%s,"upstream_established":%s}\n' \
         "$proxy" "$start_ms" "$end_ms" "$((cpu_after - cpu_before))" "$(upstream_time_wait)" "$(upstream_established)" \
         >"$RAW/$name.meta.json"
 }
+
+measure() { measure_with oha "$@"; }
 
 # Fixed-rate runs for one scenario: per rate, a warm-up at that rate, then REPEATS measured runs.
 measure_rates() {
@@ -519,11 +557,26 @@ run_scenarios() {
         measure "$proxy" "$proxy.body-64k" -z "$DURATION" "${h1[@]}" "$body_url"
     fi
 
+    if wants upload-64k; then
+        log "$proxy: upload-64k (plain HTTP/1.1, POST with a 64 KiB request body, c=$CONNS)"
+        local upload_url="http://bench.test:$http/upload"
+        local upload=("${h1[@]}" -m POST -T application/octet-stream -D /body/64k.txt)
+        oha "" -z "$WARMUP" "${upload[@]}" "$upload_url"
+        measure "$proxy" "$proxy.upload-64k" -z "$DURATION" "${upload[@]}" "$upload_url"
+    fi
+
     if wants handshake; then
         log "$proxy: handshake (HTTPS HTTP/1.1, a new connection per request, c=$HANDSHAKE_CONNS)"
         local handshake=("${tls[@]}" --http-version 1.1 --disable-keepalive -c "$HANDSHAKE_CONNS")
         oha "" -z "$WARMUP" "${handshake[@]}" "$tls_url"
         measure "$proxy" "$proxy.handshake" -z "$DURATION" "${handshake[@]}" "$tls_url"
+    fi
+
+    if wants websocket; then
+        log "$proxy: websocket (plain WebSocket echo, $WS_CONNS connections, $WS_MESSAGE-byte messages)"
+        local ws=(--url "ws://ws.test:$http/" --connect 127.0.0.1 --connections "$WS_CONNS" --size "$WS_MESSAGE")
+        wsload "" "${ws[@]}" --duration "$(duration_seconds "$WARMUP")"
+        measure_with wsload "$proxy" "$proxy.websocket" "${ws[@]}" --duration "$(duration_seconds "$DURATION")"
     fi
 
     if wants answered && answers_locally "$proxy"; then
@@ -593,7 +646,8 @@ start_paduraksa() {
     read -r http https < <(ports_for paduraksa)
     # DOTNET_* GC settings in the environment (DOTNET_GCDynamicAdaptationMode, DOTNET_GCHeapCount, ...) pass through.
     taskset -c "$PROXY_CPUS" dotnet "$ROOT/bench/Paduraksa.Bench.Runner/bin/Release/net10.0/Paduraksa.Bench.Runner.dll" \
-        --upstream "http://127.0.0.1:$UPSTREAM_PORT" --http "$http" --https "$https" --admin "$ADMIN_PORT" "$@" \
+        --upstream "http://127.0.0.1:$UPSTREAM_PORT" --websocket-upstream "http://127.0.0.1:$ECHO_PORT" \
+        --http "$http" --https "$https" --admin "$ADMIN_PORT" "$@" \
         >"$WORK/$RUNNER_LOG.log" 2>&1 &
     RUNNER_PID=$!
     wait_ready bench.test "$http"
@@ -640,7 +694,7 @@ start_yarp() {
     read -r http https < <(ports_for yarp)
     taskset -c "$PROXY_CPUS" dotnet "$ROOT/bench/Paduraksa.Bench.Yarp/bin/Release/net10.0/Paduraksa.Bench.Yarp.dll" \
         --upstream "http://127.0.0.1:$UPSTREAM_PORT" --cert "$WORK/certs/cert.pem" --key "$WORK/certs/key.pem" \
-        --http "$http" --https "$https" >"$WORK/yarp.log" 2>&1 &
+        --websocket-upstream "http://127.0.0.1:$ECHO_PORT" --http "$http" --https "$https" >"$WORK/yarp.log" 2>&1 &
     YARP_PID=$!
     wait_ready bench.test "$http"
 }
@@ -743,7 +797,7 @@ record_environment() {
         echo "yarp: Yarp.ReverseProxy $(sed -n 's/.*"Yarp.ReverseProxy" Version="\([^"]*\)".*/\1/p' "$ROOT/Directory.Packages.props")"
         echo "oha: $OHA_IMAGE ($(docker run --rm "$OHA_IMAGE" --version))"
         echo "cpu sets: proxy=$PROXY_CPUS upstream=$UPSTREAM_CPUS load=$LOAD_CPUS (oha worker threads: $LOAD_THREADS)"
-        echo "runs: $DURATION (warm-up: $PROXY_WARMUP per proxy, $WARMUP per scenario), c=$CONNS (h1, body-64k and the Paduraksa-only paths), ${H2_CONNS}x$H2_STREAMS (h2), c=$HANDSHAKE_CONNS (handshake)"
+        echo "runs: $DURATION (warm-up: $PROXY_WARMUP per proxy, $WARMUP per scenario), c=$CONNS (h1, body-64k, upload-64k and the Paduraksa-only paths), ${H2_CONNS}x$H2_STREAMS (h2), c=$HANDSHAKE_CONNS (handshake), $WS_CONNS connections x $WS_MESSAGE B (websocket)"
         echo "fixed rates: ${RATES:-none} (${REPEATS}x $RATE_DURATION each, $RATE_WARMUP warm-up per rate)"
         echo "scenarios: $SCENARIOS; proxies: $PROXIES"
     } >"$OUT/env.txt"
@@ -759,9 +813,10 @@ main() {
         docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null
     done
 
-    log "Building the Paduraksa runner and the bare YARP reference (Release)"
+    log "Building the Paduraksa runner, the bare YARP reference and the WebSocket tool (Release)"
     dotnet build "$ROOT/bench/Paduraksa.Bench.Runner" -c Release -nologo -v quiet >&2
     dotnet build "$ROOT/bench/Paduraksa.Bench.Yarp" -c Release -nologo -v quiet >&2
+    dotnet build "$ROOT/bench/Paduraksa.Bench.WebSocket" -c Release -nologo -v quiet >&2
 
     # One throwaway ECDSA P-256 certificate for every proxy that isn't Paduraksa (Paduraksa serves its own P-256
     # placeholder).
@@ -771,7 +826,7 @@ main() {
         -keyout "$WORK/certs/key.pem" -out "$WORK/certs/cert.pem" 2>/dev/null
     chmod 644 "$WORK/certs/key.pem"
     cat "$WORK/certs/cert.pem" "$WORK/certs/key.pem" >"$WORK/certs/haproxy.pem"
-    # The 64 KiB body body-64k streams. The upstream config mounts it read-only.
+    # The 64 KiB body body-64k streams and upload-64k sends. The upstream config mounts it read-only.
     python3 -I -c 'import sys; sys.stdout.write("x" * 65536)' >"$WORK/64k.txt"
 
     record_environment
@@ -783,12 +838,24 @@ main() {
         "$NGINX_IMAGE" >/dev/null
     wait_ready upstream "$UPSTREAM_PORT"
 
+    if wants websocket; then
+        log "Starting the WebSocket echo upstream (CPUs $UPSTREAM_CPUS)"
+        taskset -c "$UPSTREAM_CPUS" dotnet "$WS_DLL" echo --port "$ECHO_PORT" >"$WORK/echo.log" 2>&1 &
+        ECHO_PID=$!
+        wait_ready ws.test "$ECHO_PORT"
+    fi
+
     # The upstream alone, for the ceiling the proxies are measured against (UPSTREAM_DIRECT=0 skips it).
     if [[ "${UPSTREAM_DIRECT:-1}" != 0 ]]; then
         log "upstream direct (h1, c=$CONNS)"
         local direct=(--connect-to "bench.test:$UPSTREAM_PORT:127.0.0.1:$UPSTREAM_PORT" -c "$CONNS")
         oha "" -z "$WARMUP" "${direct[@]}" "http://bench.test:$UPSTREAM_PORT/"
         oha "upstream.h1" -z "$DURATION" "${direct[@]}" "http://bench.test:$UPSTREAM_PORT/"
+        if wants websocket; then
+            local direct_ws=(--url "ws://ws.test:$ECHO_PORT/" --connect 127.0.0.1 --connections "$WS_CONNS" --size "$WS_MESSAGE")
+            wsload "" "${direct_ws[@]}" --duration "$(duration_seconds "$WARMUP")"
+            wsload "upstream.websocket" "${direct_ws[@]}" --duration "$(duration_seconds "$DURATION")"
+        fi
     fi
 
     local http https

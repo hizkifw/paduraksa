@@ -1,7 +1,7 @@
 // End-to-end benchmark runner: the real PaduraksaHost (core + public + admin), configured through its config service.
 //
 //   dotnet run -c Release --project bench/Paduraksa.Bench.Runner -- \
-//       --upstream http://127.0.0.1:18080 [--http 18081] [--https 18443] [--admin 18943] [--cloudflare-tunnel true]
+//       --upstream http://127.0.0.1:18080 [--http 18081] [--https 18443] [--admin 18943] [--cloudflare-tunnel true] [--websocket-upstream http://127.0.0.1:18090]
 //
 // Hosts:
 //   bench.test          proxy host, one catch-all route to --upstream (YARP)
@@ -11,6 +11,7 @@
 //   rate-limited.test   like bench.test, under 1 request per hour with a burst of 1: every request is refused
 //   browser-check.test  like bench.test, behind the proof-of-work gate at 8 bits
 //   error-page.test     like bench.test, but its upstream is a closed loopback port, so forwarding fails
+//   ws.test             like bench.test, but its upstream is the WebSocket echo server (--websocket-upstream)
 //
 // Configuration and logging are production's: the shipped appsettings.json (copied from Paduraksa.Server) plus the
 // listener ports, a throwaway data directory (deleted on exit) and HTTP/3 off (the scenarios are TCP only; an H3
@@ -53,12 +54,13 @@ const int BrowserCheckDifficulty = 8;
 var options = ParseArgs(args);
 if (!options.TryGetValue("upstream", out var upstream) || !Uri.TryCreate(upstream, UriKind.Absolute, out _))
 {
-    await Console.Error.WriteLineAsync("usage: Paduraksa.Bench.Runner --upstream http://host:port [--http 18081] [--https 18443] [--admin 18943] [--cloudflare-tunnel true]");
+    await Console.Error.WriteLineAsync("usage: Paduraksa.Bench.Runner --upstream http://host:port [--http 18081] [--https 18443] [--admin 18943] [--cloudflare-tunnel true] [--websocket-upstream http://127.0.0.1:18090]");
     return 2;
 }
 
 var benchUpstreamId = UpstreamId.New();
 var errorUpstreamId = UpstreamId.New();
+var echoUpstreamId = UpstreamId.New();
 var allowedPolicyId = RateLimitPolicyId.New();
 var refusedPolicyId = RateLimitPolicyId.New();
 CertificateBinding placeholderCertificate = new() { Mode = CertificateBindingMode.Specific, CertificateId = PlaceholderCertificates.Id };
@@ -76,6 +78,8 @@ ConfigDocument document = new(
         new UpstreamConfig(benchUpstreamId, "bench", Destinations: [new DestinationConfig(DestinationId.New(), upstream)]),
         // Nothing listens here, so every forward is a refused loopback connect: that is the error-page scenario.
         new UpstreamConfig(errorUpstreamId, "closed", Destinations: [new DestinationConfig(DestinationId.New(), $"http://127.0.0.1:{ClosedUpstreamPort}")]),
+        new UpstreamConfig(
+            echoUpstreamId, "echo", Destinations: [new DestinationConfig(DestinationId.New(), Get("websocket-upstream", "http://127.0.0.1:18090"))]),
     ],
     RateLimitPolicies:
     [
@@ -115,6 +119,7 @@ ConfigDocument document = new(
         new HostConfig(
             HostId.New(), ["error-page.test"], Certificate: placeholderCertificate,
             Routes: [new RouteConfig(RouteId.New(), errorUpstreamId)]),
+        new HostConfig(HostId.New(), ["ws.test"], Certificate: placeholderCertificate, Routes: [new RouteConfig(RouteId.New(), echoUpstreamId)]),
     ]);
 
 var dataDirectory = Path.Combine(Path.GetTempPath(), "paduraksa-bench-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
