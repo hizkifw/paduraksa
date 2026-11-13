@@ -2,23 +2,22 @@
 @using Paduraksa.Application.Identity
 @* Two-step sign-in (TOTP), shared by the first-run wizard and My account: confirm the password, scan the QR code (drawn
    here; the secret goes nowhere else), enter a code, keep the recovery codes. The password is dropped as it is sent, the
-   secret once the code is confirmed, the codes once they are acknowledged. *@
+   secret once the code is confirmed, the codes once they are acknowledged. It is the form stack itself, with each phase's
+   buttons last in it, so a drawer pins them to its foot like every other form's. *@
 @implements IDisposable
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller
 @inject Microsoft.Extensions.Logging.ILogger<TwoStepEnrollment> Logger
 
-<div class="pdk-two-step" data-phase="@_phase.ToString().ToLowerInvariant()">
+<div class="pdk-two-step pdk-form-stack" data-phase="@_phase.ToString().ToLowerInvariant()">
 @switch (_phase)
 {
     case Phase.Password:
-        <div class="pdk-form-stack">
-            <MudText Typo="Typo.body2">Confirm your password to add an authenticator app (Aegis, 1Password, Google Authenticator, ...).</MudText>
-            <MudTextField T="string" @bind-Value="_password" Label="Your password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
-                          autocomplete="current-password" Error="_error is not null" ErrorText="@_error" Disabled="_busy" Class="pdk-totp-password" />
-            <div class="pdk-form-actions">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="BeginAsync" Disabled="_busy" Class="pdk-totp-begin">Continue</MudButton>
-            </div>
+        <MudText Typo="Typo.body2">Confirm your password to add an authenticator app (Aegis, 1Password, Google Authenticator, ...).</MudText>
+        <MudTextField T="string" @bind-Value="_password" Label="Your password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      autocomplete="current-password" Error="_error is not null" ErrorText="@_error" Disabled="_busy" Class="pdk-totp-password" />
+        <div class="pdk-form-actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="BeginAsync" Disabled="_busy" Class="pdk-totp-begin">Continue</MudButton>
         </div>
         break;
 
@@ -34,25 +33,23 @@
                 </details>
                 <MudTextField T="string" @bind-Value="_code" Label="Code" Variant="Variant.Outlined" Margin="Margin.Dense" autocomplete="one-time-code"
                               InputMode="InputMode.numeric" MaxLength="8" Error="_error is not null" ErrorText="@_error" Disabled="_busy" Class="pdk-totp-code" />
-                <div class="pdk-form-actions">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmAsync" Disabled="_busy" Class="pdk-totp-confirm">Turn it on</MudButton>
-                </div>
             </div>
+        </div>
+        <div class="pdk-form-actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmAsync" Disabled="_busy" Class="pdk-totp-confirm">Turn it on</MudButton>
         </div>
         break;
 
     case Phase.Codes:
-        <div class="pdk-form-stack">
-            <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">Two-step sign-in is on.</MudAlert>
-            <MudText Typo="Typo.body2">
-                Keep these recovery codes somewhere safe, away from this device. Each signs you in once if you lose the authenticator.
-                <strong>They are shown only now.</strong>
-            </MudText>
-            <RecoveryCodesView Codes="_codes" Username="@_username" />
-            <MudCheckBox T="bool" @bind-Value="_saved" Color="Color.Primary" Class="pdk-totp-saved">I have saved the recovery codes</MudCheckBox>
-            <div class="pdk-form-actions">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="FinishAsync" Disabled="!_saved" Class="pdk-totp-finish">Continue</MudButton>
-            </div>
+        <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">Two-step sign-in is on.</MudAlert>
+        <MudText Typo="Typo.body2">
+            Keep these recovery codes somewhere safe, away from this device. Each signs you in once if you lose the authenticator.
+            <strong>They are shown only now.</strong>
+        </MudText>
+        <RecoveryCodesView Codes="_codes" Username="@_username" />
+        <MudCheckBox T="bool" @bind-Value="_saved" Color="Color.Primary" Class="pdk-totp-saved">I have saved the recovery codes</MudCheckBox>
+        <div class="pdk-form-actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="FinishAsync" Disabled="!_saved" Class="pdk-totp-finish">Continue</MudButton>
         </div>
         break;
 
