@@ -4,6 +4,7 @@
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
+@inject DraftState Drafts
 @inject DrawerStack Drawers
 @inject NavigationManager Navigation
 @inject TimeProvider Time
@@ -95,6 +96,7 @@ else
                             <span class="pdk-status-dot pdk-tone-@dotTone" title="@dotText" role="img" aria-label="@dotText" data-health="@(checkedLive ? live!.State.ToString().ToLowerInvariant() : null)"></span>
                             <div class="pdk-dt-titles">
                                 <a class="pdk-row-link" href="@DashboardRoutes.Upstream(upstream.Id)" @onclick:stopPropagation="true">@upstream.Name</a>
+                                <DraftChip Target="@DraftTargets.Upstream(upstream.Id)" />
                                 <span class="pdk-dt-note">@Describe(upstream)</span>
                                 @if (live?.LastChange is { } change)
                                 {
@@ -203,6 +205,7 @@ else
 
     private async Task LoadAsync()
     {
+        await Drafts.EnsureLoadedAsync();
         _failed = false;
         var user = await Caller.CheckAsync();
         if (user is null)
@@ -219,7 +222,7 @@ else
         _mayWrite = user.Has(Permission.ConfigWrite);
         try
         {
-            _document = (await Config.GetCurrentAsync()).Document;
+            _document = (await Config.GetWorkingAsync()).Document;
         }
         catch (Exception ex) when (StoreFailures.Survivable(ex))
         {

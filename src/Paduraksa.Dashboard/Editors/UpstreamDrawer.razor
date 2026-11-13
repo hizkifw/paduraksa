@@ -295,9 +295,7 @@
                 }
                 else
                 {
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
-                        Review changes
-                    </MudButton>
+                    <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
                 }
             }
             else
@@ -455,7 +453,7 @@
 
     protected override void OnReset() => _probes.Clear();
 
-    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetCurrentAsync()).Document;
+    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetWorkingAsync()).Document;
 
     protected override bool LoadModel(ConfigDocument document)
     {
@@ -498,7 +496,7 @@
     protected override bool IsChangedElsewhere(ConfigCommitted committed) =>
         !Model!.IsNew && committed.Changes.Any(c => (c is UpstreamChange u && u.UpstreamId == Model.Id) || (c is DestinationChange d && d.UpstreamId == Model.Id));
 
-    protected override async Task RefreshAsync() => Document = (await Config.GetCurrentAsync()).Document;
+    protected override async Task RefreshAsync() => Document = (await Config.GetWorkingAsync()).Document;
 
     private string? FirstUnder(string prefix, bool exact) =>
         Attempted || Touched.Contains(prefix)
@@ -546,7 +544,7 @@
         _ => probe.Message ?? "The address can't be checked.",
     };
 
-    private async Task SubmitAsync()
+    protected override async Task SubmitAsync()
     {
         if (!CanSubmit())
         {
@@ -560,7 +558,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New upstream {upstream.Name}" : $"Edit {upstream.Name}", new UpsertUpstreamCommand(upstream))
+        await SubmitRequestAsync(new ReviewRequest(Model!.IsNew ? $"New upstream {upstream.Name}" : $"Edit {upstream.Name}", new UpsertUpstreamCommand(upstream))
         {
             SuccessMessage = Model.IsNew ? $"Created {upstream.Name}" : $"Saved {upstream.Name}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
@@ -582,7 +580,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest($"Delete {StoredName}", new DeleteUpstreamCommand(Model.Id, Model.Version))
+        await DeleteRequestAsync(new ReviewRequest($"Delete {StoredName}", new DeleteUpstreamCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
             Destructive = true,

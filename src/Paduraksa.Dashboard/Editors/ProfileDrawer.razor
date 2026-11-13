@@ -134,9 +134,7 @@
                 }
                 else
                 {
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
-                        Review changes
-                    </MudButton>
+                    <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
                 }
             }
             else
@@ -165,7 +163,7 @@
 
     protected override string RefreshFailureMessage => "Couldn't refresh a profile's usage.";
 
-    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetCurrentAsync()).Document;
+    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetWorkingAsync()).Document;
 
     protected override void OnDocumentLoaded() =>
         _inherited = HostSettingsLayers.Merge(HostSettingsLayers.BuiltIn, Document!.Settings.Defaults);
@@ -208,7 +206,7 @@
 
     protected override async Task RefreshAsync()
     {
-        Document = (await Config.GetCurrentAsync()).Document;
+        Document = (await Config.GetWorkingAsync()).Document;
         OnDocumentLoaded();
     }
 
@@ -240,7 +238,7 @@
         return _countedSet;
     }
 
-    private async Task SubmitAsync()
+    protected override async Task SubmitAsync()
     {
         if (!CanSubmit())
         {
@@ -254,7 +252,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New profile {profile.Name}" : $"Edit profile {profile.Name}", new UpsertProfileCommand(profile))
+        await SubmitRequestAsync(new ReviewRequest(Model!.IsNew ? $"New profile {profile.Name}" : $"Edit profile {profile.Name}", new UpsertProfileCommand(profile))
         {
             SuccessMessage = Model.IsNew ? $"Created the profile {profile.Name}" : $"Saved the profile {profile.Name}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
@@ -275,7 +273,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest($"Delete profile {StoredName}", new DeleteProfileCommand(Model.Id, Model.Version))
+        await DeleteRequestAsync(new ReviewRequest($"Delete profile {StoredName}", new DeleteProfileCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
             Destructive = true,

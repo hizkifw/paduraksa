@@ -89,6 +89,7 @@
                                             {
                                                 <span class="pdk-chip pdk-tone-primary">New</span>
                                             }
+                                            <DraftChip Target="@DraftTargets.Upstream(upstream.Id)" />
                                             <span class="pdk-picker-hint pdk-mono">@HostOverview.AddressOf(upstream)</span>
                                         </span>
                                     </MudSelectItem>
@@ -263,6 +264,7 @@
                                 {
                                     <span class="pdk-chip pdk-tone-primary">New</span>
                                 }
+                                <DraftChip Target="@DraftTargets.Profile(profile.Id)" />
                             </span>
                         </MudSelectItem>
                     }

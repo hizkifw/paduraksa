@@ -29,6 +29,7 @@
                 {
                     <span class="pdk-chip pdk-tone-primary">New</span>
                 }
+                <DraftChip Target="@DraftTargets.RateLimit(policy.Id)" />
                 <span class="pdk-picker-hint">@RateLimitText.Summary(policy)</span>
             </span>
         </MudSelectItem>

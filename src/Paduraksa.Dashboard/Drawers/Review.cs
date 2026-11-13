@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Components;
 
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Drafts;
+using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Drawers;
@@ -30,6 +32,19 @@ public sealed record ReviewRequest(string Title, ConfigCommand Command)
 
     /// <summary>For a whole-document command: the dry run's errors (document paths), for the form below to place at its objects' fields.</summary>
     public EventCallback<IReadOnlyList<ConfigError>> OnInvalidDocument { get; init; }
+
+    /// <summary>
+    /// What "Add to draft" adds, in order, when it is not just <see cref="Command"/>: a host form's staged objects and then the host (the form's
+    /// one whole-document command is how it applies them at once; a draft keeps each as its own entry).
+    /// </summary>
+    public IReadOnlyList<ConfigCommand>? DraftCommands { get; init; }
+
+    /// <summary>
+    /// Reviews and applies this open draft instead of <see cref="Command"/> (which then only stands for the set: the draft's document as a
+    /// whole-document command, for the diff and the simulator): the dry run and the apply go through the draft, which replays its entries on the latest
+    /// config, leaves out the ones changed elsewhere, and commits the rest as one revision.
+    /// </summary>
+    public DraftId? Draft { get; init; }
 }
 
 /// <summary>How a review ended: applied (live, or stored but not live), or the person asked to reload after a conflict.</summary>

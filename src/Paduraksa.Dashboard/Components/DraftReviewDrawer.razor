@@ -1,0 +1,204 @@
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@inject DraftState Draft
+@inject IDashboardConfig Config
+@inject DrawerStack Drawers
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject NavigationManager Navigation
+@inject ILogger<DraftReviewDrawer> Logger
+@* The draft's entries, one per object, in the order they were added: each can be taken out on its own, and one whose object changed elsewhere says so and can be
+   reloaded (taken out, and its form opened on the object as it is now). "Review changes" shows the whole set as one change. *@
+
+<DrawerShell Title="Draft" Icon="@Icons.Material.Outlined.EditNote" Name="draft">
+    <ChildContent>
+        @if (_head is null)
+        {
+            <div class="pdk-form" aria-busy="true">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" Class="mt-2" />
+            </div>
+        }
+        else if (Entries.Count == 0)
+        {
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.EditNote" Title="No changes in the draft"
+                        Description="Use Add to draft on a form to collect changes from any page, then apply them together." />
+        }
+        else
+        {
+            <ul class="pdk-list pdk-draft-entries" data-section="draft-entries">
+                @foreach (var entry in Entries)
+                {
+                    var blocked = entry.State == DraftEntryState.ChangedElsewhere;
+                    <li class="pdk-list-row pdk-draft-entry" data-entry="@entry.Number" data-state="@(blocked ? "changed-elsewhere" : "ready")">
+                        <span class="pdk-list-icon pdk-tone-@(blocked ? "warning" : Tone(entry))"><MudIcon Icon="@IconOf(entry)" Size="Size.Small" /></span>
+                        <span class="pdk-list-main">
+                            <span class="pdk-list-title">
+                                @Capital(DraftText.Title(entry, _head))
+                                @if (blocked)
+                                {
+                                    <span class="pdk-chip pdk-tone-warning" data-chip="changed-elsewhere">Changed elsewhere</span>
+                                }
+                            </span>
+                            @if (blocked)
+                            {
+                                <span class="pdk-list-sub">@entry.Reason Reload or remove it before applying.</span>
+                            }
+                        </span>
+                        @if (blocked)
+                        {
+                            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="() => ReloadAsync(entry)" data-action="reload-entry">Reload</MudButton>
+                        }
+                        <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="() => RemoveAsync(entry)" aria-label="@($"Remove {DraftText.Title(entry, _head)} from the draft")"
+                                       data-action="remove-entry" />
+                    </li>
+                }
+            </ul>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="pdk-drawer-actions">
+            <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DiscardAsync" data-action="discard-draft"
+                       Class="pdk-drawer-actions-start">Discard draft</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="Close" data-action="cancel">Close</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" OnClick="ReviewAsync"
+                       Disabled="@(_head is null || ReadyCount == 0)" data-action="review-changes">Review changes</MudButton>
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    private ConfigDocument? _head;
+    private bool _busy;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    private IReadOnlyList<DraftEntry> Entries => Draft.Current?.Entries ?? [];
+
+    private int ReadyCount => Entries.Count(static e => e.State == DraftEntryState.Ready);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Draft.Changed += OnChanged;
+        await Draft.EnsureLoadedAsync();
+        try
+        {
+            _head = (await Config.GetCurrentAsync()).Document;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't read the config for the draft's list.");
+            _head = new ConfigDocument();
+        }
+    }
+
+    public void Dispose()
+    {
+        Draft.Changed -= OnChanged;
+        GC.SuppressFinalize(this);
+    }
+
+    private void OnChanged()
+    {
+        // The draft went (applied or discarded elsewhere): there is nothing left to list.
+        _ = InvokeAsync(() =>
+        {
+            if (!Draft.IsOpen)
+            {
+                Level?.Cancel();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private void Close() => Level?.RequestClose();
+
+    private async Task RemoveAsync(DraftEntry entry)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Logger.TryAsync(Snackbar, "The change couldn't be taken out of the draft.", async () => await Draft.RemoveAsync(entry.Number));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>The entry goes, and the object's form opens on the config as it is now, to be edited and added again.</summary>
+    private async Task ReloadAsync(DraftEntry entry)
+    {
+        var route = DraftRoutes.Of(entry);
+        await RemoveAsync(entry);
+        Level?.Cancel();
+        Navigation.NavigateTo(route);
+    }
+
+    private async Task DiscardAsync()
+    {
+        var count = Entries.Count;
+        var what = count == 1 ? "The 1 change in it is dropped." : $"The {count} changes in it are dropped.";
+        if (_busy || !await ConfirmActionDialog.AskAsync(Dialogs, "Discard the draft?", what, "Discard", "Nothing in a draft is live, so nothing is undone."))
+        {
+            return;
+        }
+
+        await Logger.TryAsync(Snackbar, "The draft couldn't be discarded.", async () =>
+        {
+            await Draft.DiscardAsync();
+            Snackbar.Add("Draft discarded.", Severity.Success);
+            Level?.Cancel();
+        });
+    }
+
+    private async Task ReviewAsync()
+    {
+        if (Draft.Current is not { } draft || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var outcome = await Drawers.ReviewAsync(new ReviewRequest("Apply the draft", new ReplaceConfigCommand(new ConfigDocument(), null))
+            {
+                Draft = draft.Id,
+                ApplyLabel = "Apply draft",
+                SuccessMessage = "Draft applied",
+            });
+            if (outcome.Applied is not null)
+            {
+                Level?.Cancel();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string Capital(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
+    private static string Tone(DraftEntry entry) => entry.Action switch
+    {
+        DraftEntryAction.Create => "success",
+        DraftEntryAction.Delete => "error",
+        _ => "primary",
+    };
+
+    private static string IconOf(DraftEntry entry) => entry.Action switch
+    {
+        DraftEntryAction.Create => Icons.Material.Outlined.AddCircleOutline,
+        DraftEntryAction.Delete => Icons.Material.Outlined.RemoveCircleOutline,
+        _ => Icons.Material.Outlined.Edit,
+    };
+}

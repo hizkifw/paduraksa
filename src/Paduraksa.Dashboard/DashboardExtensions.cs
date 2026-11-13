@@ -61,6 +61,7 @@ public static class DashboardExtensions
         services.AddScoped<DashboardBrowser>();
         services.TryAddScoped<IDashboardConfig, DashboardConfig>();
         services.AddScoped<ConfigUndo>();
+        services.AddScoped<DraftState>();
         services.AddScoped<ReviewedDraft>();
         services.AddScoped<Drawers.DrawerStack>();
         services.AddScoped<Providers.ProviderActions>();

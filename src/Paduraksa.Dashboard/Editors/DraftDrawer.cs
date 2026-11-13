@@ -1,14 +1,15 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
-
 using MudBlazor;
-
+using Paduraksa.Application.Drafts;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Drafts;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Auth;
 using Paduraksa.Dashboard.Config;
 using Paduraksa.Dashboard.Drawers;
+using Paduraksa.Dashboard.Identity;
 
 namespace Paduraksa.Dashboard.Editors;
 
@@ -40,6 +41,9 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
 
     [Inject]
     protected ILoggerFactory Loggers { get; set; } = default!;
+
+    [Inject]
+    protected DraftState Drafts { get; set; } = default!;
 
     [CascadingParameter]
     protected DrawerLevel? Level { get; set; }
@@ -254,6 +258,112 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
         Attempted = true;
     }
 
+    /// <summary>What the form's submit does with its change: the default depends on whether a draft is open.</summary>
+    private enum SubmitMode
+    {
+        Default,
+        ApplyNow,
+        AddToDraft,
+    }
+
+    private SubmitMode _mode;
+
+    /// <summary>
+    /// The form's change goes where the person asked: Enter and the primary button add it to the open draft, or review it when there is none;
+    /// "Review and apply now" and "Add to a new draft" are the secondary ways (<see cref="ApplyNowAsync"/>, <see cref="AddToNewDraftAsync"/>).
+    /// </summary>
+    protected Task SubmitRequestAsync(ReviewRequest request, Func<Task>? onReload = null) =>
+        _mode == SubmitMode.AddToDraft || (_mode == SubmitMode.Default && Drafts.IsOpen) ? AddToDraftAsync(request) : RunReviewAsync(request, onReload);
+
+    /// <summary>A delete follows an open draft too: it becomes an entry (the object goes when the draft is applied), where a review would delete it now.</summary>
+    protected Task DeleteRequestAsync(ReviewRequest request) => Drafts.IsOpen ? AddToDraftAsync(request) : RunReviewAsync(request);
+
+    /// <summary>The form's own submit (validate, build the request, <see cref="SubmitRequestAsync"/>).</summary>
+    protected abstract Task SubmitAsync();
+
+    /// <summary>The secondary button of a form with a draft open: review this change on its own and apply it now.</summary>
+    protected Task ApplyNowAsync() => SubmitAsAsync(SubmitMode.ApplyNow);
+
+    /// <summary>The secondary button of a form with no draft open: start one with this change.</summary>
+    protected Task AddToNewDraftAsync() => SubmitAsAsync(SubmitMode.AddToDraft);
+
+    private async Task SubmitAsAsync(SubmitMode mode)
+    {
+        _mode = mode;
+        try
+        {
+            await SubmitAsync();
+        }
+        finally
+        {
+            _mode = SubmitMode.Default;
+        }
+    }
+
+    /// <summary>
+    /// Adds the change to the draft (opening one when there is none), checked on the way in as a review would check it: a refusal is shown at
+    /// the form's fields, a changed object as "changed elsewhere", and nothing is committed or audited until the draft is applied.
+    /// </summary>
+    protected async Task AddToDraftAsync(ReviewRequest request)
+    {
+        Reviewing = true;
+        DraftResult result;
+        try
+        {
+            result = await Drafts.AddAsync(request.DraftCommands ?? [request.Command]);
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Log.LogStoreFailure(ex, "Couldn't add a change to the draft.");
+            Snackbar.Add(StoreFailures.Message("The change couldn't be added to the draft."), Severity.Error);
+            return;
+        }
+        finally
+        {
+            Reviewing = false;
+        }
+
+        switch (result.Status)
+        {
+            case DraftStatus.Succeeded:
+                Snackbar.Add($"Added to the draft: {request.Title}.", Severity.Success);
+                Level?.Close(result.Draft);
+                return;
+            case DraftStatus.Denied:
+                Snackbar.Add(IdentityText.CantChangeConfig, Severity.Warning);
+                return;
+            default:
+                await ShowRefusalAsync(request, result);
+                return;
+        }
+    }
+
+    private async Task ShowRefusalAsync(ReviewRequest request, DraftResult result)
+    {
+        var command = result.Command;
+        var commands = request.DraftCommands ?? [request.Command];
+        switch (command?.Status)
+        {
+            case ConfigCommandStatus.Invalid when result.FailedCommand is null || result.FailedCommand == commands.Count - 1:
+                await request.OnInvalid.InvokeAsync(command.Errors);
+                Attempted = true;
+                break;
+            case ConfigCommandStatus.Invalid:
+                Snackbar.Add($"Something made for this form needs a fix first: {(command.Errors.Count > 0 ? command.Errors[0].Message : null)}", Severity.Warning);
+                break;
+            case ConfigCommandStatus.Conflict:
+                ChangedElsewhere = command.Conflict?.CurrentRevision ?? ChangedElsewhere;
+                Snackbar.Add("This was changed elsewhere since you opened it. Reload to start from the new version.", Severity.Warning);
+                break;
+            case ConfigCommandStatus.NotFound:
+                Snackbar.Add("It no longer exists, so there is nothing to change. Reload to see what is there now.", Severity.Warning);
+                break;
+            default:
+                Snackbar.Add(command is { Errors.Count: > 0 } ? command.Errors[0].Message : "The change couldn't be added to the draft.", Severity.Error);
+                break;
+        }
+    }
+
     protected async Task RunReviewAsync(ReviewRequest request, Func<Task>? onReload = null)
     {
         Reviewing = true;
@@ -269,11 +379,29 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
 
         if (outcome.Applied is { } applied)
         {
+            await DropAppliedEntriesAsync(request);
             Level?.Close(applied);
         }
         else if (outcome.Reload)
         {
             await (onReload ?? ReloadAsync)();
+        }
+    }
+
+    // What the draft held for an object that was just applied on its own is stale (its version moved): it goes, the commit having taken its place.
+    private async Task DropAppliedEntriesAsync(ReviewRequest request)
+    {
+        if (Drafts.Current is not { } draft || request.Draft is not null)
+        {
+            return;
+        }
+
+        foreach (var command in request.DraftCommands ?? [request.Command])
+        {
+            if (DraftTargets.Of(command) is { } described && draft.Entries.FirstOrDefault(e => e.Target == described.Target) is { } entry)
+            {
+                await Drafts.RemoveAsync(entry.Number);
+            }
         }
     }
 

@@ -239,9 +239,7 @@
                 }
                 else
                 {
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
-                        Review changes
-                    </MudButton>
+                    <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
                 }
             }
             else
@@ -270,7 +268,7 @@
 
     protected override string RefreshFailureMessage => "Couldn't refresh a rule set's usage.";
 
-    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetCurrentAsync()).Document;
+    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetWorkingAsync()).Document;
 
     protected override bool LoadModel(ConfigDocument document)
     {
@@ -313,7 +311,7 @@
 
     protected override async Task RefreshAsync()
     {
-        Document = (await Config.GetCurrentAsync()).Document;
+        Document = (await Config.GetWorkingAsync()).Document;
     }
 
     // An error is shown once its field was touched, or the form was submitted. Several fields can share a path prefix (a rule's
@@ -399,7 +397,7 @@
         Changed();
     }
 
-    private async Task SubmitAsync()
+    protected override async Task SubmitAsync()
     {
         if (!CanSubmit())
         {
@@ -413,7 +411,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New rule set {set.Name}" : $"Edit rule set {set.Name}", new UpsertRuleSetCommand(set))
+        await SubmitRequestAsync(new ReviewRequest(Model!.IsNew ? $"New rule set {set.Name}" : $"Edit rule set {set.Name}", new UpsertRuleSetCommand(set))
         {
             SuccessMessage = Model.IsNew ? $"Created the rule set {set.Name}" : $"Saved the rule set {set.Name}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
@@ -435,7 +433,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest($"Delete rule set {StoredName}", new DeleteRuleSetCommand(Model.Id, Model.Version))
+        await DeleteRequestAsync(new ReviewRequest($"Delete rule set {StoredName}", new DeleteRuleSetCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
             Destructive = true,

@@ -5,6 +5,7 @@
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
+@inject DraftState Drafts
 @inject DrawerStack Drawers
 @inject TimeProvider Time
 @inject NavigationManager Navigation
@@ -93,6 +94,7 @@ else
                             <span class="pdk-status-dot pdk-tone-@row.Health.Css()" title="@HealthText(row)" aria-hidden="true"></span>
                             <div class="pdk-dt-titles">
                                 <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)" @onclick:stopPropagation="true">@Primary(host)</a>
+                                <DraftChip Target="@DraftTargets.Host(host.Id)" />
                                 @if (UpstreamProblem(row) is { } problem)
                                 {
                                     <span class="pdk-dt-chips">
@@ -230,6 +232,7 @@ else
 
     private async Task LoadAsync()
     {
+        await Drafts.EnsureLoadedAsync();
         _failed = false;
         var user = await Caller.CheckAsync();
         if (user is null)
@@ -247,9 +250,10 @@ else
         _mayReadCertificates = user.Has(Permission.CertificatesRead);
         try
         {
-            var current = await Config.GetCurrentAsync();
+            var current = await Config.GetWorkingAsync();
             var certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
-            _rows = HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, Time.GetUtcNow());
+            // The live warnings index the live document: with a draft open the page reads another one.
+            _rows = HostOverview.Rows(current.Document, certificates, Drafts.IsOpen ? [] : Config.LiveWarnings, Time.GetUtcNow());
             _upstreamNames = current.Document.Upstreams.ToDictionary(upstream => upstream.Id, upstream => upstream.Name);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

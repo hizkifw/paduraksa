@@ -250,6 +250,78 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     background: color-mix(in srgb, var(--mud-palette-warning) 10%, transparent);
 }
 
+/* ---------- The open draft ---------- */
+
+/* Under the app bar and above the page, for as long as the draft is open; below the drawers (1600) and the app bar. */
+.pdk-draftbar {
+    position: sticky;
+    top: var(--mud-appbar-height, 64px);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 6px 24px;
+    border-bottom: 1px solid color-mix(in srgb, var(--mud-palette-info) 35%, transparent);
+    background: color-mix(in srgb, var(--mud-palette-info) 10%, var(--mud-palette-background));
+}
+
+.pdk-draftbar-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--pdk-tone);
+}
+
+.pdk-draftbar-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    min-width: 0;
+}
+
+.pdk-draftbar-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+}
+
+/* A blocked entry in the review: what it is and why, with its Reload beside it. */
+.pdk-review-blocked {
+    margin: 8px 0 0;
+}
+
+.pdk-review-blocked li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pdk-review-blocked .mud-button-root {
+    flex: none;
+}
+
+/* An entry says what it does in words that may be long, and its chip must not be the part that is cut off. */
+.pdk-draft-entry .pdk-list-title {
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.pdk-draft-entry > .mud-button-root,
+.pdk-draft-entry > .mud-icon-button {
+    flex: none;
+}
+
+@media (max-width: 599px) {
+    .pdk-draftbar {
+        padding-inline: 16px;
+    }
+}
+
 /* ---------- User menu and theme toggle ---------- */
 
 .pdk-user-chip {
@@ -3874,6 +3946,12 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     margin-bottom: 0;
 }
 
+.pdk-analytics-approx-text {
+    display: block;
+    max-width: 340px;
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
 
 .pdk-analytics-tables {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));

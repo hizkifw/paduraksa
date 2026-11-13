@@ -140,10 +140,10 @@ public sealed class DraftReplayTests
         var head = Head();
         var upstream = head.Upstreams[0];
 
-        Assert.Equal("delete upstream app", DraftEntries.Title(Entry(1, new DeleteUpstreamCommand(upstream.Id, upstream.Version)), head));
-        Assert.Equal("add upstream brand new", DraftEntries.Title(Entry(2, new UpsertUpstreamCommand(upstream with { Id = UpstreamId.New(), Name = "brand new", Version = 0 })), head));
-        Assert.Equal("change host app.example.com", DraftEntries.Title(Entry(3, new UpsertHostCommand(head.Hosts[0])), head));
-        Assert.Equal("change global settings", DraftEntries.Title(Entry(4, new UpdateSettingsCommand(head.Settings)), head));
+        Assert.Equal("delete upstream app", DraftText.Title(Entry(1, new DeleteUpstreamCommand(upstream.Id, upstream.Version)), head));
+        Assert.Equal("add upstream brand new", DraftText.Title(Entry(2, new UpsertUpstreamCommand(upstream with { Id = UpstreamId.New(), Name = "brand new", Version = 0 })), head));
+        Assert.Equal("change host app.example.com", DraftText.Title(Entry(3, new UpsertHostCommand(head.Hosts[0])), head));
+        Assert.Equal("change global settings", DraftText.Title(Entry(4, new UpdateSettingsCommand(head.Settings)), head));
     }
 
     [Fact]

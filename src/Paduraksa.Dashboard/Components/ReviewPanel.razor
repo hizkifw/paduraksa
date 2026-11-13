@@ -5,6 +5,8 @@
 @inject DashboardCaller Caller
 @inject ConfigUndo Undo
 @inject ReviewedDraft Draft
+@inject NavigationManager Navigation
+@inject DraftState Drafts
 @inject ISnackbar Snackbar
 @inject ILogger<ReviewPanel> Logger
 @* "Review changes", a level of the drawer stack: every edit is run as a dry run first and shown as a diff with its
@@ -64,6 +66,29 @@
                     </MudAlert>
                     break;
 
+                case Phase.DraftGone:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="draft-gone">
+                        <strong>The draft is gone.</strong> It was applied or discarded elsewhere, so there is nothing to apply here.
+                    </MudAlert>
+                    break;
+
+                case Phase.Blocked:
+                    @if (_changedSinceReview)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="changed-since-review">
+                            The config changed since this review.
+                        </MudAlert>
+                    }
+
+                    @BlockedAlert
+                    break;
+
+                case Phase.NothingToApply:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="nothing-to-apply">
+                        <strong>The draft has no changes.</strong> Add some from a form, or discard it.
+                    </MudAlert>
+                    break;
+
                 case Phase.Failed:
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="failed">
                         Something went wrong while talking to the config store. The details are in the server log.
@@ -94,6 +119,18 @@
                     break;
 
                 default:
+                    @if (_changedSinceReview)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="changed-since-review">
+                            The config changed since this review. This is the review as it is now: check it, then apply.
+                        </MudAlert>
+                    }
+
+                    @if (_blockedEntries.Count > 0)
+                    {
+                        @BlockedAlert
+                    }
+
                     @if (_errors.Count > 0)
                     {
                         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="invalid">
@@ -157,6 +194,11 @@
                     <MudButton Variant="Variant.Text" OnClick="Close">Keep editing</MudButton>
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="Reload">Reload</MudButton>
                     break;
+                case Phase.DraftGone:
+                case Phase.Blocked:
+                case Phase.NothingToApply:
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Back to the draft</MudButton>
+                    break;
                 case Phase.PublishFailed:
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Close</MudButton>
                     break;
@@ -164,7 +206,7 @@
                 case Phase.Applying:
                     <MudButton Variant="Variant.Text" OnClick="Close" Disabled="_phase == Phase.Applying">Cancel</MudButton>
                     <MudButton Variant="Variant.Filled" Color="@(Request.Destructive ? Color.Error : Color.Primary)" OnClick="ApplyAsync"
-                               Disabled="_phase == Phase.Applying" data-review="apply">
+                               Disabled="@(_phase == Phase.Applying || _blockedEntries.Count > 0 || (Request.Draft is not null && _reviewToken is null))" data-review="apply">
                         @if (_phase == Phase.Applying)
                         {
                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
@@ -181,6 +223,25 @@
 </DrawerShell>
 
 @code {
+    private RenderFragment BlockedAlert => __builder =>
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="blocked">
+            <strong>@(_blockedEntries.Count == 1 ? "1 change is" : $"{_blockedEntries.Count} changes are") changed elsewhere, so nothing can be applied.</strong>
+            A draft goes in whole or not at all: reload or remove these, then review again.
+            <ul class="pdk-plain-list pdk-review-blocked">
+                @foreach (var entry in _blockedEntries)
+                {
+                    <li data-entry="@entry.Number">
+                        <span>@Capital(DraftText.Title(entry, _before)). @entry.Reason</span>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="() => ReloadEntryAsync(entry)" data-action="reload-entry">Reload</MudButton>
+                    </li>
+                }
+            </ul>
+        </MudAlert>
+    };
+
+    private static string Capital(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
     private enum Phase
     {
         Loading,
@@ -195,6 +256,9 @@
         Failed,
         Applying,
         PublishFailed,
+        DraftGone,
+        Blocked,
+        NothingToApply,
     }
 
     private Phase _phase;
@@ -214,6 +278,12 @@
     private bool _simulationRunning;
     private SimulationForm _simulation = new();
     private SimulationResult? _simulationResult;
+
+    // A draft's review: the version of the draft it showed (apply names it, so a change to the draft since is refused), and what the apply leaves out.
+    private string? _reviewToken;
+    private List<DraftEntry> _blockedEntries = [];
+    private bool _changedSinceReview;
+    private ConfigCommand? _draftSet;
 
     [CascadingParameter]
     private DrawerLevel? Level { get; set; }
@@ -243,6 +313,10 @@
         _committed = null;
         _publishErrors = [];
         _message = null;
+        _draftSet = null;
+        _reviewToken = null;
+        _blockedEntries = [];
+        _changedSinceReview = false;
         _simulating = false;
         _simulationResult = null;
         _simulation = new SimulationForm { Url = Request.SampleHost is null ? "https://" : $"https://{Request.SampleHost}/" };
@@ -261,6 +335,12 @@
         {
             var current = await Config.GetCurrentAsync();
             _before = current.Document;
+            if (Request.Draft is { } draft)
+            {
+                await ReviewDraftAsync(draft, current);
+                return;
+            }
+
             _after = Request.AfterDocument ?? ChangeView.Apply(current.Document, command) ?? current.Document;
             var result = await Config.ExecuteAsync(command with { DryRun = true }, user.Session.OriginFor(Channel.Dashboard));
             await ShowAsync(result, command);
@@ -274,6 +354,49 @@
             Logger.LogWarning(ex, "Couldn't review a config change.");
             _phase = Phase.Failed;
         }
+    }
+
+    /// <summary>
+    /// The draft as one change: replayed on the latest config by the draft service. What is shown is what an apply would commit, as the dry run of one
+    /// whole-document command (the command here only stands for it: the diff, the simulator), with the token the apply must send back. A draft with a
+    /// blocked entry shows the rest and which are blocked, and cannot be applied. <paramref name="reviewed"/> is a review the apply handed back in place
+    /// of this one's own (the config changed since the person confirmed).
+    /// </summary>
+    private async Task ReviewDraftAsync(DraftId draft, CurrentConfig head, DraftResult? reviewed = null)
+    {
+        reviewed ??= await Config.ReviewDraftAsync(draft);
+        _blockedEntries = [.. reviewed.Draft?.Entries.Where(static e => e.State == DraftEntryState.ChangedElsewhere) ?? []];
+        if (reviewed.Command is null)
+        {
+            _phase = reviewed.Status switch
+            {
+                DraftStatus.Blocked => Phase.Blocked,
+                DraftStatus.NoDraft => Phase.DraftGone,
+                DraftStatus.NothingToApply => Phase.NothingToApply,
+                DraftStatus.Denied => Phase.Denied,
+                _ => Phase.Failed,
+            };
+            return;
+        }
+
+        _reviewToken = reviewed.ReviewToken;
+        var working = await Config.GetWorkingAsync();
+        _after = working.Document;
+        var set = new ReplaceConfigCommand(_after, head.Revision?.Id);
+        _draftSet = set;
+        await ShowAsync(reviewed.Command, set);
+        if (_phase == Phase.Ready)
+        {
+            Draft.Set(set, Request.Title, Request.SampleHost);
+        }
+    }
+
+    /// <summary>The entry goes, and the object's form opens on the config as it is now, to be edited and added again.</summary>
+    private async Task ReloadEntryAsync(DraftEntry entry)
+    {
+        await Drafts.RemoveAsync(entry.Number);
+        Level?.Cancel();
+        Navigation.NavigateTo(DraftRoutes.Of(entry));
     }
 
     private async Task ShowAsync(ConfigCommandResult result, ConfigCommand command)
@@ -334,7 +457,41 @@
         ConfigCommandResult result;
         try
         {
-            result = await Config.ExecuteAsync(command with { DryRun = false, Message = string.IsNullOrWhiteSpace(_message) ? command.Message : _message.Trim() }, origin);
+            if (Request.Draft is { } draft)
+            {
+                var applied = await Config.ApplyDraftAsync(draft, _reviewToken, string.IsNullOrWhiteSpace(_message) ? null : _message.Trim());
+                if (applied.Status is DraftStatus.ChangedSinceReview or DraftStatus.Blocked)
+                {
+                    // Nothing was committed. The review as it is now takes this one's place, and applying it needs a new confirmation.
+                    var head = await Config.GetCurrentAsync();
+                    _before = head.Document;
+                    _changedSinceReview = true;
+                    _message = null;
+                    await ReviewDraftAsync(draft, head, applied.Status == DraftStatus.Blocked ? await Config.ReviewDraftAsync(draft) : applied);
+                    await Drafts.RefreshAsync();
+                    return;
+                }
+
+                if (applied.Command is null)
+                {
+                    _phase = applied.Status switch
+                    {
+                        DraftStatus.NoDraft => Phase.DraftGone,
+                        DraftStatus.NothingToApply => Phase.NothingToApply,
+                        DraftStatus.Denied => Phase.Denied,
+                        _ => Phase.Failed,
+                    };
+                    await Drafts.RefreshAsync();
+                    return;
+                }
+
+                result = applied.Command;
+                Drafts.Applied(applied.Draft);
+            }
+            else
+            {
+                result = await Config.ExecuteAsync(command with { DryRun = false, Message = string.IsNullOrWhiteSpace(_message) ? command.Message : _message.Trim() }, origin);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -404,7 +561,7 @@
 
     private async Task SimulateAsync()
     {
-        if (_reviewed is not { } command || await Caller.OriginAsync() is not { } origin)
+        if ((_draftSet ?? _reviewed) is not { } command || await Caller.OriginAsync() is not { } origin)
         {
             return;
         }

@@ -1,8 +1,10 @@
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Drafts;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Contracts.Simulation;
@@ -30,7 +32,39 @@ public interface IDashboardConfig
     /// <summary>The list of Cloudflare's edge ranges the proxy trusts in <c>CloudflareProxy</c> mode, and how its refresh is going.</summary>
     CloudflareRangeStatus CloudflareRanges { get; }
 
+    /// <summary>The latest revision as it is live, with its revision: what the overview, the history and the simulator read.</summary>
     Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The config the config pages and their pickers read (PLAN §12, drafts): the latest revision with the caller's open draft applied, so a form
+    /// sees an upstream the draft adds; the latest revision itself when there is no draft. <see cref="CurrentConfig.Revision"/> is the latest
+    /// revision either way. Versions are the latest revision's, so a form's command is the version the entry will be checked against.
+    /// </summary>
+    Task<CurrentConfig> GetWorkingAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>The caller's open draft, each entry marked against the latest revision (<see cref="DraftStatus.NoDraft"/> when there is none).</summary>
+    Task<DraftResult> GetDraftAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Adds <paramref name="commands"/> to the caller's draft, opening one first when there is none; a refused add leaves no empty draft behind.</summary>
+    Task<DraftResult> AddToDraftAsync(IReadOnlyList<ConfigCommand> commands, CancellationToken cancellationToken = default);
+
+    /// <summary>Takes entry <paramref name="number"/> out of the draft.</summary>
+    Task<DraftResult> RemoveDraftEntryAsync(DraftId draft, int number, CancellationToken cancellationToken = default);
+
+    /// <summary>The draft as a dry run: the diff, warnings and errors of the whole set.</summary>
+    Task<DraftResult> ReviewDraftAsync(DraftId draft, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Commits the whole draft as one revision, or nothing: <paramref name="reviewToken"/> is the token of the review the person confirmed, and an apply of
+    /// anything else (or of a draft with a blocked entry) commits nothing and says so.
+    /// </summary>
+    Task<DraftResult> ApplyDraftAsync(DraftId draft, string? reviewToken, string? message, CancellationToken cancellationToken = default);
+
+    /// <summary>Drops the draft and what the vault holds for it.</summary>
+    Task<DraftResult> DiscardDraftAsync(DraftId draft, CancellationToken cancellationToken = default);
+
+    /// <summary>The notices of the caller's drafts that were dropped for being untouched, once.</summary>
+    Task<IReadOnlyList<DraftNotice>> TakeDraftNoticesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Runs a command (a dry run when it says so) for <paramref name="origin"/>.</summary>
     Task<ConfigCommandResult> ExecuteAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken = default);
@@ -58,8 +92,9 @@ public interface IDashboardConfig
 
     /// <summary>
     /// Calls <paramref name="onCommitted"/> for every revision committed from now on (by anyone: this page, another admin, the API, the CLI
-    /// in this process), in commit order, until the returned handle is disposed. The callback runs off the renderer's thread: a component
-    /// hands it to <c>InvokeAsync</c>.
+    /// in this process), in commit order, until the returned handle is disposed; also, with a revision of the latest and no changes, whenever the
+    /// caller's draft changes (in this tab or another), since what a page reads through <see cref="GetWorkingAsync"/> changed. The callback runs off
+    /// the renderer's thread: a component hands it to <c>InvokeAsync</c>.
     /// </summary>
     IDisposable Watch(Func<ConfigCommitted, Task> onCommitted);
 }

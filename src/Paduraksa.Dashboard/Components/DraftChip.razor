@@ -1,0 +1,24 @@
+@inject DraftState Draft
+@implements IDisposable
+@* "Draft" beside an object in a picker or a list that the open draft creates or changes. *@
+
+@if (Draft.IsDrafted(Target))
+{
+    <span class="pdk-chip pdk-tone-info" data-chip="draft">Draft</span>
+}
+
+@code {
+    /// <summary>The object, as <c>DraftTargets</c> names it.</summary>
+    [Parameter, EditorRequired]
+    public string Target { get; set; } = string.Empty;
+
+    protected override void OnInitialized() => Draft.Changed += OnChanged;
+
+    public void Dispose()
+    {
+        Draft.Changed -= OnChanged;
+        GC.SuppressFinalize(this);
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+}

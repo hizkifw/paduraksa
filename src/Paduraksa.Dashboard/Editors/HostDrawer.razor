@@ -243,9 +243,7 @@
             @if (MayWrite && Model is not null)
             {
                 <MudButton Variant="Variant.Text" OnClick="Cancel" data-action="cancel">Cancel</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
-                    Review changes
-                </MudButton>
+                <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
             }
             else
             {
@@ -346,7 +344,7 @@
 
     protected override async Task<ConfigDocument> LoadSourceAsync()
     {
-        _current = await Config.GetCurrentAsync();
+        _current = await Config.GetWorkingAsync();
         _certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
         return _current.Document;
     }
@@ -412,7 +410,7 @@
 
     protected override async Task RefreshAsync()
     {
-        _current = await Config.GetCurrentAsync();
+        _current = await Config.GetWorkingAsync();
         Validate();
     }
 
@@ -586,6 +584,8 @@
         Changed();
     }
 
+    protected override Task SubmitAsync() => ReviewAsync();
+
     private async Task ReviewAsync()
     {
         if (!CanSubmit())
@@ -646,6 +646,17 @@
             {
                 AfterDocument = after,
                 OnInvalidDocument = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalidDocument),
+                // A draft keeps each object as an entry of its own, the ones the host uses first.
+                DraftCommands =
+                [
+                    .. upstreams.Select(u => (ConfigCommand)new UpsertUpstreamCommand(u)),
+                    .. profiles.Select(p => new UpsertProfileCommand(p)),
+                    .. rateLimits.Select(p => new UpsertRateLimitPolicyCommand(p)),
+                    .. accessLists.Select(l => new UpsertAccessListCommand(l)),
+                    .. ruleSets.Select(r => new UpsertRuleSetCommand(r)),
+                    .. authProviders.Select(p => new UpsertAuthProviderCommand(p)),
+                    new UpsertHostCommand(host),
+                ],
             };
         }
 
@@ -655,7 +666,7 @@
             SampleHost = SampleHost,
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         };
-        await RunReviewAsync(final, final.Command is ReplaceConfigCommand ? ReviewAsync : null);
+        await SubmitRequestAsync(final, final.Command is ReplaceConfigCommand ? ReviewAsync : null);
     }
 
     private async Task ReviewDeleteAsync()
@@ -666,7 +677,7 @@
         }
 
         var name = ChangeView.HostTitle(_stored);
-        await RunReviewAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(Model.Id, Model.Version))
+        await DeleteRequestAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
             Destructive = true,

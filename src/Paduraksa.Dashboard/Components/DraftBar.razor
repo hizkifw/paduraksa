@@ -1,0 +1,98 @@
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@inject DraftState Draft
+@inject IDashboardConfig Config
+@inject DrawerStack Drawers
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject ILogger<DraftBar> Logger
+@* The open draft, across the dashboard: how many changes it holds, and the two things to do with it. It shows only while a draft is open, and reads the
+   draft once its circuit is live. *@
+
+@if (Draft.IsOpen)
+{
+    <div class="pdk-draftbar" role="region" aria-label="Draft" data-draft-bar>
+        <span class="pdk-draftbar-icon pdk-tone-info"><MudIcon Icon="@Icons.Material.Outlined.EditNote" Size="Size.Small" /></span>
+        <span class="pdk-draftbar-text">
+            <strong>Draft</strong>
+            <span data-draft-count>@Summary</span>
+        </span>
+        <span class="pdk-draftbar-actions">
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="DiscardAsync" data-action="discard-draft">Discard</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="Review" data-action="review-draft">Review</MudButton>
+        </span>
+    </div>
+}
+
+@code {
+    private string Summary
+    {
+        get
+        {
+            var count = Draft.Count;
+            var text = count switch
+            {
+                0 => "No changes yet",
+                1 => "1 change",
+                _ => $"{count} changes",
+            };
+            return Draft.BlockedCount > 0 ? $"{text}, {Draft.BlockedCount} changed elsewhere" : text;
+        }
+    }
+
+    protected override void OnInitialized() => Draft.Changed += OnChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        await Draft.EnsureLoadedAsync();
+        try
+        {
+            foreach (var notice in await Config.TakeDraftNoticesAsync())
+            {
+                var changes = notice.Entries == 1 ? "1 change" : $"{notice.Entries} changes";
+                Snackbar.Add($"Your draft with {changes} was dropped after {(int)DraftService.Lifetime.TotalDays} days untouched.", Severity.Info, options => options.RequireInteraction = true);
+            }
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't read the notices of dropped drafts.");
+        }
+    }
+
+    public void Dispose()
+    {
+        Draft.Changed -= OnChanged;
+        GC.SuppressFinalize(this);
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void Review() => Drawers.Push<DraftReviewDrawer>(width: DrawerWidth.Medium);
+
+    private async Task DiscardAsync()
+    {
+        var count = Draft.Count;
+        var what = count switch
+        {
+            0 => "The draft holds no changes.",
+            1 => "The 1 change in it is dropped.",
+            _ => $"The {count} changes in it are dropped.",
+        };
+        if (!await ConfirmActionDialog.AskAsync(Dialogs, "Discard the draft?", what, "Discard", "Nothing in a draft is live, so nothing is undone."))
+        {
+            return;
+        }
+
+        await Logger.TryAsync(Snackbar, "The draft couldn't be discarded.", async () =>
+        {
+            var result = await Draft.DiscardAsync();
+            Snackbar.Add(result.Status is DraftStatus.Succeeded or DraftStatus.NoDraft ? "Draft discarded." : "The draft couldn't be discarded.",
+                result.Status is DraftStatus.Succeeded or DraftStatus.NoDraft ? Severity.Success : Severity.Error);
+        });
+    }
+}

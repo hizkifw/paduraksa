@@ -5,6 +5,8 @@
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
 @inject TimeProvider Time
+@inject DraftState Drafts
+@inject ISnackbar Snackbar
 @* Settings: the global defaults: the bottom layer of host settings, what a request for an unknown name gets, the default
    certificate and the trusted proxies, applied through the review drawer. *@
 
@@ -40,7 +42,7 @@ else
         </MudAlert>
     }
 
-    <form class="pdk-editor" @onsubmit="Review" @onsubmit:preventDefault="true" novalidate data-form="defaults">
+    <form class="pdk-editor" @onsubmit="() => SubmitAsync(null)" @onsubmit:preventDefault="true" novalidate data-form="defaults">
         @if (_attempted && _errors.Count > 0)
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
@@ -197,7 +199,7 @@ else
                 {
                     <MudButton Variant="Variant.Text" OnClick="ReloadAsync" data-action="discard">Discard changes</MudButton>
                 }
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">Review changes</MudButton>
+                <DraftActions OnApplyNow="() => SubmitAsync(false)" OnAddToNewDraft="() => SubmitAsync(true)" />
             </div>
         }
         else
@@ -254,6 +256,7 @@ else
 
     private async Task LoadAsync()
     {
+        await Drafts.EnsureLoadedAsync();
         _changedElsewhere = null;
         _attempted = false;
         _touched.Clear();
@@ -270,7 +273,7 @@ else
         }
 
         _mayWrite = user.Has(Permission.ConfigWrite);
-        _document = (await Config.GetCurrentAsync()).Document;
+        _document = (await Config.GetWorkingAsync()).Document;
         _certificates = user.Has(Permission.CertificatesRead) ? await Config.ListCertificatesAsync() : null;
         _model = GlobalSettingsEditModel.From(_document.Settings);
         Validate();
@@ -321,7 +324,10 @@ else
             : $"{(string.IsNullOrWhiteSpace(certificate.Label) ? string.Join(", ", certificate.Names.Take(2)) : certificate.Label)}{(HostOverview.IsUsable(certificate) ? string.Empty : " (not usable)")}";
     }
 
-    private void Review()
+    /// <summary>
+    /// Reviews the change, or adds it to the draft: <paramref name="toDraft"/> says which, and null follows the primary button (the draft when one is open).
+    /// </summary>
+    private async Task SubmitAsync(bool? toDraft)
     {
         if (_model is null || !_mayWrite)
         {
@@ -335,8 +341,41 @@ else
             return;
         }
 
-        _command = new UpdateSettingsCommand(_model.ToSettings());
-        _reviewing = true;
+        var command = new UpdateSettingsCommand(_model.ToSettings());
+        if (!(toDraft ?? Drafts.IsOpen))
+        {
+            _command = command;
+            _reviewing = true;
+            return;
+        }
+
+        var result = await Drafts.AddAsync([command]);
+        switch (result.Status)
+        {
+            case DraftStatus.Succeeded:
+                Snackbar.Add("Added to the draft: global defaults.", Severity.Success);
+                await ReloadAsync();
+                break;
+            case DraftStatus.Denied:
+                Snackbar.Add(IdentityText.CantChangeConfig, Severity.Warning);
+                break;
+            default:
+                if (result.Command is { Status: ConfigCommandStatus.Invalid } invalid)
+                {
+                    OnInvalid(invalid.Errors);
+                }
+                else if (result.Command is { Status: ConfigCommandStatus.Conflict } conflict)
+                {
+                    _changedElsewhere = conflict.Conflict?.CurrentRevision;
+                    Snackbar.Add("The defaults were changed elsewhere since you opened this page. Reload to start from the new version.", Severity.Warning);
+                }
+                else
+                {
+                    Snackbar.Add(result.Command is { Errors.Count: > 0 } failed ? failed.Errors[0].Message : "The change couldn't be added to the draft.", Severity.Error);
+                }
+
+                break;
+        }
     }
 
     private void OnInvalid(IReadOnlyList<ConfigError> errors)

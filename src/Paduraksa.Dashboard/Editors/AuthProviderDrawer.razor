@@ -224,9 +224,7 @@
                 }
                 else
                 {
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
-                        Review changes
-                    </MudButton>
+                    <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
                 }
             }
             else
@@ -251,7 +249,7 @@
 
     protected override string RefreshFailureMessage => "Couldn't refresh an auth provider's usage.";
 
-    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetCurrentAsync()).Document;
+    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetWorkingAsync()).Document;
 
     protected override bool LoadModel(ConfigDocument document)
     {
@@ -292,7 +290,7 @@
 
     protected override async Task RefreshAsync()
     {
-        Document = (await Config.GetCurrentAsync()).Document;
+        Document = (await Config.GetWorkingAsync()).Document;
     }
 
     // An error is shown once its field was touched, or the form was submitted. A header list's errors sit at the lines' indexes, so a touch of the list counts.
@@ -306,7 +304,7 @@
     private static string SignInHelp(ResolvedForwardAuth resolved) =>
         resolved.SignInUrl is { } url ? $"Empty: {url}, with {resolved.SignInReturnParameter}= the original address. A path is on the protected host." : "Empty: the provider's 401 or redirect is relayed as it is.";
 
-    private async Task SubmitAsync()
+    protected override async Task SubmitAsync()
     {
         if (!CanSubmit())
         {
@@ -320,7 +318,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New auth provider {provider.Name}" : $"Edit auth provider {provider.Name}", new UpsertAuthProviderCommand(provider))
+        await SubmitRequestAsync(new ReviewRequest(Model!.IsNew ? $"New auth provider {provider.Name}" : $"Edit auth provider {provider.Name}", new UpsertAuthProviderCommand(provider))
         {
             SuccessMessage = Model.IsNew ? $"Created the auth provider {provider.Name}" : $"Saved the auth provider {provider.Name}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
@@ -342,7 +340,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest($"Delete auth provider {StoredName}", new DeleteAuthProviderCommand(Model.Id, Model.Version))
+        await DeleteRequestAsync(new ReviewRequest($"Delete auth provider {StoredName}", new DeleteAuthProviderCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
             Destructive = true,

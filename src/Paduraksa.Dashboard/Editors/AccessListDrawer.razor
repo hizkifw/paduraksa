@@ -227,9 +227,7 @@
                 }
                 else
                 {
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
-                        Review changes
-                    </MudButton>
+                    <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
                 }
             }
             else
@@ -260,7 +258,7 @@
 
     protected override string RefreshFailureMessage => "Couldn't refresh an access list's usage.";
 
-    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetCurrentAsync()).Document;
+    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetWorkingAsync()).Document;
 
     protected override bool LoadModel(ConfigDocument document)
     {
@@ -302,7 +300,7 @@
 
     protected override async Task RefreshAsync()
     {
-        Document = (await Config.GetCurrentAsync()).Document;
+        Document = (await Config.GetWorkingAsync()).Document;
     }
 
     // The live config's warnings point at the user's own entry (/accessLists/N/basicAuth/users/M), the order the form was filled in.
@@ -363,7 +361,7 @@
             user.Revealed = true;
         }, $"/basicAuth/users/{index}/password");
 
-    private async Task SubmitAsync()
+    protected override async Task SubmitAsync()
     {
         if (!CanSubmit())
         {
@@ -377,7 +375,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New access list {list.Name}" : $"Edit access list {list.Name}", new UpsertAccessListCommand(list))
+        await SubmitRequestAsync(new ReviewRequest(Model!.IsNew ? $"New access list {list.Name}" : $"Edit access list {list.Name}", new UpsertAccessListCommand(list))
         {
             SuccessMessage = Model.IsNew ? $"Created the access list {list.Name}" : $"Saved the access list {list.Name}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
@@ -399,7 +397,7 @@
             return;
         }
 
-        await RunReviewAsync(new ReviewRequest($"Delete access list {StoredName}", new DeleteAccessListCommand(Model.Id, Model.Version))
+        await DeleteRequestAsync(new ReviewRequest($"Delete access list {StoredName}", new DeleteAccessListCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
             Destructive = true,

@@ -4,6 +4,7 @@
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
+@inject DraftState Drafts
 @inject DrawerStack Drawers
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -80,6 +81,7 @@ else
                             <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Rule" Size="Size.Small" /></span>
                             <div class="pdk-dt-titles">
                                 <a class="pdk-row-link" href="@DashboardRoutes.RuleSet(set.Id)" @onclick:stopPropagation="true">@set.Name</a>
+                                <DraftChip Target="@DraftTargets.RuleSet(set.Id)" />
                                 @if (!string.IsNullOrWhiteSpace(set.Notes))
                                 {
                                     <span class="pdk-dt-note">@set.Notes</span>
@@ -197,6 +199,7 @@ else
 
     private async Task LoadAsync()
     {
+        await Drafts.EnsureLoadedAsync();
         _failed = false;
         var user = await Caller.CheckAsync();
         if (user is null)
@@ -213,7 +216,7 @@ else
         _mayWrite = user.Has(Permission.ConfigWrite);
         try
         {
-            _document = (await Config.GetCurrentAsync()).Document;
+            _document = (await Config.GetWorkingAsync()).Document;
         }
         catch (Exception ex) when (StoreFailures.Survivable(ex))
         {
