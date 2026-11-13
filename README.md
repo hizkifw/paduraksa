@@ -49,6 +49,9 @@ users from a web dashboard or a REST API, with every change versioned and revers
   recorded as MCP in the audit log. See [docs/install.md](docs/install.md#mcp-ai-assistants).
 - **Secrets stay encrypted:** certificate keys, DNS credentials and TOTP secrets live in an encrypted vault.
 
+The PROXY protocol parser is also published on its own, for other .NET projects: [`Paduraksa.ProxyProtocol`](src/Paduraksa.ProxyProtocol/README.md) (BCL only) and
+[`Paduraksa.ProxyProtocol.AspNetCore`](src/Paduraksa.ProxyProtocol.AspNetCore/README.md) (a Kestrel `UseProxyProtocol`).
+
 See the [roadmap](docs/PLAN.md#14-milestones) for what is next.
 
 ## Quick start

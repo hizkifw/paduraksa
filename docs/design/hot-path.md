@@ -61,6 +61,7 @@ TCP uses Kestrel `ListenOptions.Use`. QUIC has no such hook, so the same checks 
   - Only from configured trusted source CIDRs. A header from anyone else drops the connection.
   - The header must arrive within a short timeout.
   - When enabled on a listener it is mandatory, never optional.
+  - The parser is a package of its own, `Paduraksa.ProxyProtocol` (with `IpKey` and `IpParser`, which it needs and the whole proxy uses), because the same fuzzed, allocation-free parser is useful to any .NET project that sits behind a load balancer. It is BCL only, so Paduraksa uses it as it is: one namespace change and no conversion layer, so the hot path is the same code at the same 0 B. `Paduraksa.ProxyProtocol.AspNetCore` is a generic Kestrel `UseProxyProtocol` over it, for other projects; Paduraksa keeps its own `ClientInfoMiddleware` (client info, lockdown, its counters) on the same `ProxyProtocolReader`. Both ship on nuget.org with the release tag ([development.md](../development.md#publishing-the-nuget-packages)).
 - **Global IP deny** (a CIDR trie over `UInt128`) aborts before TLS. IPv4-mapped IPv6 is normalised first: on a dual-mode `[::]` listener TCP reports `::ffff:a.b.c.d` while QUIC reports `a.b.c.d`.
 - **Per-IP concurrent-connection cap** (fixed-size table, CAS). See [The connection stage](#the-connection-stage).
 - **`ClientInfo`** is computed once per connection (address, source) and stored as a connection feature. The country is per request (see "Country rules" in [waf.md](waf.md)).
@@ -69,6 +70,11 @@ As built in M1:
 - `UseClientInfo` runs on both TCP listeners. On HTTPS it goes through `PublicHttpsListenerOptions.ConfigureTcpConnection`, before `UseHttps`.
 - On QUIC, `QuicClientInfoGate` attaches `ClientInfo.FromEndPoint` to the connection in the handshake callback, and H3 requests see it (verified end to end in Docker).
 - `IpKey` stores IPv4 and IPv4-mapped alike, so TCP and QUIC agree.
+- The parser, the reader, `IpKey` and `IpParser` live in `src/Paduraksa.ProxyProtocol` (namespace `Paduraksa.ProxyProtocol`), and their tests, the fuzz target and the benchmark follow the same project. The package's public API is listed in its `PublicAPI.Unshipped.txt`.
+- **Choices in the package split.**
+  - One namespace for the parser and the address types, so a user needs one `using`; two assemblies, not three, because a `Paduraksa.Net.Primitives` assembly would hold two types and add a package to install.
+  - The package's middleware has its own options type (`System.Net.IPNetwork` for the trusted proxies, a callback for counters) rather than Paduraksa's `CidrSet`-based one: no shared code to share where the config glue differs, and no behaviour change for Paduraksa.
+  - TLVs are skipped, not exposed: the reader consumes the header, and keeping the bytes would allocate for every connection.
 - The global IP deny and the per-IP cap are built (see [The connection stage](#the-connection-stage)).
 - The QUIC `ConnectionClosed` gap (no close signal for a handshake that fails past the callback) is why QUIC counts established connections only.
 

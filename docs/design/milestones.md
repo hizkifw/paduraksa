@@ -207,6 +207,7 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
   - multi-arch image publishing;
   - the docs site;
   - the threat model doc (**done**: [../threat-model.md](../threat-model.md), with its gaps list). The small gaps G2, G3, G4, G5, G7, G9 and G13 are closed on `security-gaps`; G12 waits for the fuzz run;
+  - the PROXY protocol parser as two NuGet packages (`Paduraksa.ProxyProtocol`, `Paduraksa.ProxyProtocol.AspNetCore`; **built** on `proxyprotocol-package`: packed on every CI run, pushed to nuget.org by the tag once a `NUGET_API_KEY` secret exists, see [../development.md](../development.md#publishing-the-nuget-packages));
   - a time-boxed run of every fuzz harness (`scripts/fuzz.sh --time 3600 --merge`; the harnesses and property tests are built, YAML and ACME harnesses with M10);
   - load tests.
 - **Done when:** a tagged release.

@@ -43,9 +43,42 @@ scripts/fuzz.sh --time 600                               # every target, ten min
 scripts/fuzz.sh --target proxy-protocol --time 3600 --merge   # one target, an hour, then keep what it found
 ```
 
-It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemblies there with the pinned `sharpfuzz` tool and runs the pinned release of
+It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemblies (the parser's among them) there with the pinned `sharpfuzz` tool and runs the pinned release of
 `libfuzzer-dotnet` (downloaded once into `~/.cache/paduraksa`). A crash is a file in `artifacts/fuzz/crashes/<target>/`. To keep it: copy it to
 `fuzz/regressions/<target>/`, fix the bug and add a unit test next to the code. `Paduraksa.Fuzz seed` writes a target's well-formed starting inputs (`fuzz/corpus/<target>/seed-*`).
+
+## Publishing the NuGet packages
+
+`Paduraksa.ProxyProtocol` (the PROXY protocol parser, BCL only) and `Paduraksa.ProxyProtocol.AspNetCore` (a Kestrel `UseProxyProtocol` over it) are the solution's only packable projects.
+`src/Packaging.props` holds what they share, and each has its own README, which is the package readme.
+
+- **Every CI run** packs both (`pack` job in `.github/workflows/ci.yml`), with warnings as errors and package validation on, and uploads the `.nupkg` and `.snupkg` files as the `nuget-packages` artifact. Locally:
+  `dotnet pack src/Paduraksa.ProxyProtocol -c Release -o artifacts/nupkg`, then the same for `src/Paduraksa.ProxyProtocol.AspNetCore`.
+- **The version** is the `Version` property in `Packaging.props` (0.1.0). A `v*` tag packs at the tag's version instead (`v0.1.0` gives `0.1.0`, `v0.2.0-rc.1` gives `0.2.0-rc.1`), so the tag decides.
+- **The tag publishes.** For a `v*` tag, once `build-test` and `pack` pass, the `publish-nuget` job pushes the `.nupkg` files and then the `.snupkg` symbol packages to nuget.org (two `dotnet nuget push --skip-duplicate` steps: the `*.nupkg` glob doesn't match a `.snupkg`), so re-running a tag is safe.
+  It does nothing until the repository has a secret named `NUGET_API_KEY`: without it the push step is skipped and the job says so.
+- **To enable it,** create an API key on nuget.org (API keys, scoped to push, with the glob `Paduraksa.*`; the first push creates the package IDs under the key's owner) and add it as a repository secret:
+  `gh secret set NUGET_API_KEY` (or Settings, Secrets and variables, Actions). The next `v*` tag then publishes. Don't give a key more scope than that glob, and let it expire.
+- **After the first release** move the lines of each `PublicAPI.Unshipped.txt` to `PublicAPI.Shipped.txt`. From then on a change to the public API shows as an added line in `Unshipped`, and a removed or changed member is a build error until the shipped file says so; set `PackageValidationBaselineVersion` in `Packaging.props` to the last version so a breaking change fails the pack.
+- **The icon** is `src/icon.png`, 128x128 and 762 bytes, made from the dashboard's `src/Paduraksa.Dashboard/wwwroot/favicon.svg` (NuGet takes no SVG). The PNG is committed; nothing in the build makes it.
+  To regenerate it after the favicon changes, render the SVG, reduce it to a 48-colour palette (it can't be told from the full render: at most 3/255 per channel on white or black) and recompress it with zopfli.
+  The snippet needs `rsvg-convert`, and Pillow built with libimagequant (the PyPI wheels aren't; a distro's usually is) and the `zopfli` package:
+
+  ```sh
+  rsvg-convert -w 128 -h 128 src/Paduraksa.Dashboard/wwwroot/favicon.svg -o /tmp/icon-full.png
+  python3 - <<'EOF'
+  import io
+  from PIL import Image
+  from zopfli.png import optimize
+
+  full = Image.open("/tmp/icon-full.png").convert("RGBA")
+  palette = full.quantize(colors=48, method=Image.Quantize.LIBIMAGEQUANT, dither=Image.Dither.NONE)
+  raw = io.BytesIO()
+  palette.save(raw, "PNG")
+  open("src/icon.png", "wb").write(optimize(raw.getvalue(), filter_strategies="0", num_iterations=200, num_iterations_large=200))
+  EOF
+  ```
+- **Targets** are `net10.0` and `net8.0`. Only `net10.0` runs the tests; the `net8.0` build is compiled (with the API analyzer and package validation) but not executed.
 
 ## Writing tests that don't flake
 
@@ -137,9 +170,9 @@ no backup-specific step.
 
 ## Repository layout
 
-- `src/`: the product projects (layering in [PLAN section 1](PLAN.md#1-solution-layout)).
+- `src/`: the product projects (layering in [PLAN section 1](PLAN.md#1-solution-layout)), among them the two NuGet packages `Paduraksa.ProxyProtocol` and `Paduraksa.ProxyProtocol.AspNetCore`.
 - `tests/`: unit (`Paduraksa.Tests.Unit`), data (`Paduraksa.Tests.Data`), proxy hot path and end-to-end
-  (`Paduraksa.Tests.Proxy`), integration (`Paduraksa.Tests.Integration`), architecture (`Paduraksa.Tests.Architecture`)
+  (`Paduraksa.Tests.Proxy`), the NuGet packages' parser and Kestrel middleware (`Paduraksa.ProxyProtocol.Tests`), integration (`Paduraksa.Tests.Integration`), architecture (`Paduraksa.Tests.Architecture`)
   and vault (`Paduraksa.Tests.Vault`, a key-material boundary project like the vault itself) tests.
 - `bench/`: BenchmarkDotNet micro-benchmarks, the end-to-end runner and the nginx/Caddy baseline
   ([bench/README.md](../bench/README.md)).
