@@ -51,6 +51,9 @@ public sealed class AccessLogTailEntry
     /// <summary>Response body bytes written to the client, or <see cref="AccessLogEntry.Unknown"/>.</summary>
     public long ResponseBytes { get; private init; }
 
+    /// <summary>Request body bytes read from the client, or <see cref="AccessLogEntry.Unknown"/>.</summary>
+    public long RequestBytes { get; private init; }
+
     /// <summary>In <see cref="TimeSpan"/> ticks.</summary>
     public long TotalTicks { get; private init; }
 
@@ -122,6 +125,7 @@ public sealed class AccessLogTailEntry
         Protocol = Visible(entry.Protocol, AccessLogFormatter.MaxProtocolLength),
         StatusCode = entry.StatusCode,
         ResponseBytes = entry.ResponseBytes,
+        RequestBytes = entry.RequestBytes,
         TotalTicks = entry.TotalTicks,
         UpstreamTicks = entry.UpstreamTicks,
         UpstreamAddress = Visible(entry.UpstreamAddress, AccessLogFormatter.MaxUpstreamLength),

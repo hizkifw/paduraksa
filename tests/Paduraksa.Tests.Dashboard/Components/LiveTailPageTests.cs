@@ -311,7 +311,7 @@ public sealed class LiveTailPageTests
         var (hub, context, _) = SignIn(Role.Owner);
         await using (context)
         {
-            hub.Offer(Entry("/shop/cart", 201, host: "app.test:8443", method: "POST") with { Query = "?item=7&token=hunter2", UserAgent = "agent/1.0" });
+            hub.Offer(Entry("/shop/cart", 201, host: "app.test:8443", method: "POST") with { Query = "?item=7&token=hunter2", UserAgent = "agent/1.0", ResponseBytes = 2_048, RequestBytes = 1_234_567 });
             var drawers = context.Render<DrawerHost>();
             var page = Render(context);
 
@@ -324,6 +324,8 @@ public sealed class LiveTailPageTests
             Assert.Contains("POST /shop/cart?item=7&token=REDACTED HTTP/2", shown, StringComparison.Ordinal);
             Assert.DoesNotContain("hunter2", drawers.Markup, StringComparison.Ordinal);
             Assert.Contains("agent/1.0", shown, StringComparison.Ordinal);
+            Assert.Contains("Response size2,048 bytes", shown, StringComparison.Ordinal);
+            Assert.Contains("Request size1,234,567 bytes", shown, StringComparison.Ordinal);
             var link = drawers.Find("[data-action=simulate]").GetAttribute("href")!;
             Assert.StartsWith("/simulator?", link, StringComparison.Ordinal);
             Assert.Contains("url=" + Uri.EscapeDataString("https://app.test:8443/shop/cart?item=7&token=REDACTED"), link, StringComparison.Ordinal);

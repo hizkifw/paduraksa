@@ -132,6 +132,7 @@ public sealed class LogTailFeed : IDisposable
         Protocol: entry.Protocol,
         Status: entry.StatusCode > AccessLogEntry.NoResponse ? entry.StatusCode : null,
         ResponseBytes: entry.ResponseBytes >= 0 ? entry.ResponseBytes : null,
+        RequestBytes: entry.RequestBytes >= 0 ? entry.RequestBytes : null,
         UpstreamMs: entry.UpstreamTicks >= 0 ? entry.UpstreamTicks / (double)TimeSpan.TicksPerMillisecond : null,
         Upstream: entry.UpstreamAddress,
         RequestIdentifier: entry.RequestId,

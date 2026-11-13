@@ -17211,7 +17211,17 @@
               "integer",
               "string"
             ],
-            "description": "The response's declared `Content-Length`, or absent when it declared none.",
+            "description": "Response body bytes written to the client.",
+            "format": "int64"
+          },
+          "requestBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "description": "Request body bytes read from the client.",
             "format": "int64"
           },
           "upstreamMs": {

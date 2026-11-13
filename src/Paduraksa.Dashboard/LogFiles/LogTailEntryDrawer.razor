@@ -33,6 +33,10 @@
                 {
                     <dt>Response size</dt><dd class="pdk-mono">@bytes.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) bytes</dd>
                 }
+                @if (Entry.RequestBytes is > 0 and var uploaded)
+                {
+                    <dt>Request size</dt><dd class="pdk-mono">@uploaded.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) bytes</dd>
+                }
                 @if (Entry.CloudflareRay is { } ray)
                 {
                     <dt>CF-Ray</dt><dd class="pdk-mono">@ray</dd>

@@ -17,7 +17,8 @@ namespace Paduraksa.Contracts.Logging;
 /// <param name="Query">The query, <c>?</c> included, with sensitive parameters as <c>name=REDACTED</c>; absent when there is none or the file leaves it out.</param>
 /// <param name="Protocol"><c>HTTP/1.1</c>, <c>HTTP/2</c> or <c>HTTP/3</c>.</param>
 /// <param name="Status">The status sent, or absent when the gate dropped the connection without answering.</param>
-/// <param name="ResponseBytes">The response's declared <c>Content-Length</c>, or absent when it declared none.</param>
+/// <param name="ResponseBytes">Response body bytes written to the client.</param>
+/// <param name="RequestBytes">Request body bytes read from the client.</param>
 /// <param name="TotalMs">Request start to the end of the response, in milliseconds.</param>
 /// <param name="UpstreamMs">The forward to the upstream, in milliseconds; absent when nothing was forwarded.</param>
 /// <param name="Upstream">The destination the forwarder chose.</param>
@@ -38,6 +39,7 @@ public sealed record LogTailEntry(
     string? Protocol = null,
     int? Status = null,
     long? ResponseBytes = null,
+    long? RequestBytes = null,
     double? UpstreamMs = null,
     string? Upstream = null,
     string? RequestIdentifier = null,
