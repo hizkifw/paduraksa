@@ -192,6 +192,22 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
     }
 
     [Fact]
+    public async Task InvalidUtf8InAJsonStringFallsThroughToTheTextEndpointsLikeAnyOtherBadAnswer()
+    {
+        // Found by the cloudflare-ranges fuzz target: the string is transcoded when it is read, and its exception ended the whole fetch with the text endpoints never asked.
+        byte[] body = [.. "{\"success\":true,\"result\":{\"ipv4_cidrs\":[\"1.2.3.0/24"u8, 0xF4, 0xF4, .. "\"],\"ipv6_cidrs\":[]}}"u8];
+        _cloudflare.ServeBytes(Api, body);
+        _cloudflare.Serve(V4, string.Join('\n', ListV4));
+        _cloudflare.Serve(V6, string.Join('\n', ListV6));
+        using var refresher = Refresher();
+
+        Assert.Equal(RangeRefreshResult.Replaced, await refresher.RefreshOnceAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal([Api, V4, V6], _cloudflare.Requests);
+        Assert.Equal(0, _source.ConsecutiveFailures);
+    }
+
+    [Fact]
     public async Task ASuspiciousJsonListFallsThroughToTheTextEndpoints()
     {
         _cloudflare.Serve(Api, """{"success":true,"result":{"ipv4_cidrs":["0.0.0.0/0","1.0.0.0/8","2.0.0.0/8"],"ipv6_cidrs":["2400:cb00::/32","2606:4700::/32","2803:f800::/32"]}}""");
@@ -517,6 +533,9 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
 
                 return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8) };
             });
+
+        public void ServeBytes(string url, byte[] body) =>
+            Set(url, _ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) }));
 
         /// <summary>A 200 whose body never ends and carries no Content-Length.</summary>
         public void ServeUnbounded(string url) =>

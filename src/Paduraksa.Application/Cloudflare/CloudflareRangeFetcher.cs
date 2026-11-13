@@ -76,11 +76,25 @@ internal sealed class CloudflareRangeFetcher(HttpClient http, CloudflareRangeRef
 
             foreach (var entry in array.EnumerateArray())
             {
-                blocks.Add(entry.ValueKind == JsonValueKind.String ? entry.GetString()! : string.Empty);
+                blocks.Add(entry.ValueKind == JsonValueKind.String ? Text(entry) : string.Empty);
             }
         }
 
         return Checked(blocks, Where(options.ApiUrl));
+    }
+
+    // The document is parsed as UTF-8 bytes and a string is only transcoded here, where invalid UTF-8 surfaces as an InvalidOperationException: a bad answer like
+    // any other, which must not end the fetch before the text endpoints have had their turn.
+    private string Text(JsonElement element)
+    {
+        try
+        {
+            return element.GetString()!;
+        }
+        catch (InvalidOperationException)
+        {
+            throw new RangeFetchException($"{Where(options.ApiUrl)} has text that is not valid UTF-8");
+        }
     }
 
     private async Task<EdgeRangeList> FromTextAsync(CancellationToken cancellationToken)
