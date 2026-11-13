@@ -37,7 +37,7 @@ SCENARIOS = [
     ("rate-limit", "HTTP/1.1 plain, rate-limit take, proxied (no 429s expected)"),
     ("rate-limited", "HTTP/1.1 plain, every request refused (429)"),
     ("browser-check", "HTTP/1.1 plain, valid proof-of-work cookie, proxied"),
-    ("error-page", "HTTP/1.1 plain, closed upstream, the built-in 502 page"),
+    ("error-page", "HTTP/1.1 plain, closed upstream, the proxy's 502 page"),
     ("cf", "HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers"),
 ]
 LABELS = dict(SCENARIOS)
