@@ -374,8 +374,9 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
 
         // A refused body over HTTP/2 leaves the stream with unread data, and Kestrel resets rather than pools such a stream,
-        // so a fresh one now and then is the protocol's doing, not a leak; CI's few cores saw 12 in 3000.
-        var freshAllowed = h2c && kind == "body" ? 100 : 10;
+        // so a fresh one now and then is the protocol's doing, not a leak. How many depends on timing: 3 in 3000 here, 12 and
+        // once 113 on CI. The bound only keeps the measurement from being mostly fresh streams, where allocation is expected.
+        var freshAllowed = h2c && kind == "body" ? Measured / 10 : 10;
         Assert.True(server.GateStats.FreshState <= freshAllowed, $"too many fresh connections/streams: {server.GateStats}");
     }
 
