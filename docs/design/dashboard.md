@@ -784,7 +784,7 @@ Someone else's draft is a 404.
 
 **Making a change.** Every draftable change takes one path (see "Making a change" under the dashboard conventions):
 - A form (host, upstream, profile, rate limit, access list, rule set, sign-in provider, global defaults) has one primary button, **Review changes**. It has no draft button of its own, whether or not a draft is open.
-- The **review sheet** it opens (`ReviewPanel`: diff, warnings, lock-out guard, Simulate) is where the person chooses **Apply now** or **Add to draft**. The buttons keep one order, Cancel, Add to draft, Apply now. With a draft open Add to draft is the filled one and Apply now the outlined one; with none, the other way round.
+- The **review sheet** it opens (`ReviewPanel`: diff, warnings, lock-out guard, Simulate) is where the person chooses **Apply now** or **Add to draft**. The buttons keep one order and one look, Cancel, Add to draft (outlined), Apply now (filled), whether a draft is open or not. Decided by the owner: a button that changed style with the draft's state read as inconsistent.
 - Add to draft opens a draft when there is none. The toast says which ("Added to the draft: ..." or "Started a draft: ...").
 - A delete, a host's switch or wrench in the list, a row's delete: the same sheet. Putting a host in maintenance from the list asks first for the mode's options (`MaintenanceDrawer`: status, Retry-After, who is let through, the page, prefilled from what the host inherits), then opens the sheet.
 - Applying now a change the draft also holds drops the draft's stale entry. The sheet says so in one line when the draft holds one ("Applying now drops this object's entry from the draft.").
@@ -929,7 +929,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 **Making a change.** Every control that changes the config goes through one path, so the choices, labels, order and styling are the same everywhere.
 - **Draftable changes** (everything that is a config command on one object or the global settings): a form, a toggle, a row's delete or a menu item builds a `ReviewRequest` and opens the **review sheet**. Nothing applies or drafts silently.
 - **The form:** one primary, **Review changes**, then Cancel and Delete (danger, at the start) where they apply. No "Add to draft" in a form.
-- **The sheet:** Cancel, **Add to draft**, **Apply now**, in that order. Add to draft is the filled button while a draft is open, Apply now otherwise; Apply now is red when the change removes something.
+- **The sheet:** Cancel, **Add to draft**, **Apply now**, in that order. Apply now is always the filled button and Add to draft the outlined one; Apply now is red when the change removes something.
 - **Quick toggles** (a host's switch or wrench, a destination's switch in its form) open the same sheet. Maintenance from the list asks for its options in a small drawer first.
 - **Acts at once by design** (certificates, ACME accounts, DNS providers, users, tokens, notification channels, backup): their own confirm where destructive, no review sheet, no draft choice. Their drawers use the same footer (`DrawerActions`), so Cancel and the primary button sit where they do in a config form.
 - **Whole-document changes** (rollback, undo, YAML import): their own review, no draft choice, and the draft-open notice while a draft is open.

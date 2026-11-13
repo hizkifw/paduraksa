@@ -50,7 +50,7 @@ public sealed class DraftsEndToEndTests
         await FillAsync(page, "name", "app");
         await FillAsync(page, "destination-0", "http://127.0.0.1:18080");
         await Expect(page.Locator(".pdk-sheet[data-top] button[type=submit]")).ToHaveTextAsync("Review changes");
-        await AddToDraftFromFormAsync(page, primaryIsApply: true);
+        await AddToDraftFromFormAsync(page);
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
         var bar = page.Locator("[data-draft-bar]");
         await Expect(bar).ToBeVisibleAsync();
@@ -72,7 +72,7 @@ public sealed class DraftsEndToEndTests
 
         // The form has one primary, whether or not a draft is open; the review sheet it opens makes Add to draft the primary and Apply now the secondary.
         await PlaywrightBrowser.ScreenshotAsync(page, "draft-host-form", fullPage: false);
-        await AddToDraftFromFormAsync(page, primaryIsApply: false);
+        await AddToDraftFromFormAsync(page);
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
         await Expect(bar.Locator("[data-draft-count]")).ToHaveTextAsync("2 changes");
         await Expect(page.Locator($"[data-host='{HostName}'] [data-chip=draft]")).ToBeVisibleAsync();
@@ -148,7 +148,7 @@ public sealed class DraftsEndToEndTests
         await Expect(page.Locator(".pdk-sheet [data-drawer=upstream]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await FillAsync(page, "name", "phone");
         await FillAsync(page, "destination-0", "http://127.0.0.1:18081");
-        await AddToDraftFromFormAsync(page, primaryIsApply: true);
+        await AddToDraftFromFormAsync(page);
         await Expect(page.Locator("[data-draft-bar]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
 
         var barBox = (await page.Locator("[data-draft-bar]").BoundingBoxAsync())!;
@@ -192,7 +192,7 @@ public sealed class DraftsEndToEndTests
 
         await page.GotoAsync($"/upstreams/{web.Id}");
         await FillAsync(page, "name", "web renamed");
-        await AddToDraftFromFormAsync(page, primaryIsApply: true);
+        await AddToDraftFromFormAsync(page);
         await Expect(page.Locator("[data-draft-bar] [data-draft-count]")).ToHaveTextAsync("1 change", new() { Timeout = 15_000 });
         await page.Locator("[data-draft-bar] [data-action=review-draft]").ClickAsync();
         var apply = page.Locator(".pdk-sheet[data-top] [data-action=apply-draft]");
@@ -215,7 +215,7 @@ public sealed class DraftsEndToEndTests
     }
 
     /// <summary>The form's one primary (Review changes) opens the review sheet; Add to draft there is the primary when a draft is open and the secondary when none is.</summary>
-    private static async Task AddToDraftFromFormAsync(IPage page, bool primaryIsApply)
+    private static async Task AddToDraftFromFormAsync(IPage page)
     {
         await page.Locator(".pdk-sheet[data-top] button[type=submit]").ClickAsync();
         var sheet = page.Locator(".pdk-sheet[data-top]");
@@ -223,7 +223,7 @@ public sealed class DraftsEndToEndTests
         await Expect(add).ToBeEnabledAsync(new() { Timeout = 15_000 });
         await Expect(add).ToContainTextAsync("Add to draft");
         await Expect(sheet.Locator("[data-review=apply]")).ToContainTextAsync("Apply now");
-        await Expect(primaryIsApply ? sheet.Locator("[data-review=apply].mud-button-filled") : add.Locator("xpath=self::*[contains(@class,'mud-button-filled')]")).ToHaveCountAsync(1);
+        await Expect(sheet.Locator("[data-review=apply].mud-button-filled")).ToHaveCountAsync(1);
         await add.ClickAsync();
     }
 

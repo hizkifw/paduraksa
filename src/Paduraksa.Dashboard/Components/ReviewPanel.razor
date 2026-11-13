@@ -141,10 +141,10 @@
                 <DrawerActions OnCancel="Close" Busy="@(_phase == Phase.Applying || _drafting)">
                     @if (Draftable)
                     {
-                        <MudButton Variant="@(DraftsOpen ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddToDraftAsync"
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddToDraftAsync"
                                    Disabled="@(_phase == Phase.Applying || _drafting)" data-action="add-to-draft">Add to draft</MudButton>
                     }
-                    <MudButton Variant="@(Draftable && DraftsOpen ? Variant.Outlined : Variant.Filled)" Color="@(Request.Destructive ? Color.Error : Color.Primary)" OnClick="ApplyAsync"
+                    <MudButton Variant="Variant.Filled" Color="@(Request.Destructive ? Color.Error : Color.Primary)" OnClick="ApplyAsync"
                                Disabled="@(_phase != Phase.Ready)" data-review="apply">
                         @if (_phase == Phase.Applying)
                         {
@@ -207,7 +207,6 @@
     /// <summary>An object change can be collected into a draft; a whole-document one (rollback, import) cannot.</summary>
     private bool Draftable => Request.DraftCommands is not null || DraftTargets.Of(Request.Command) is not null;
 
-    private bool DraftsOpen => Drafts.IsOpen;
 
     /// <summary>A draftable change reviewed while a draft is open: its dry run is of this change alone on the live config, and Add to draft is checked on the draft's.</summary>
     private bool DraftsHere => Draftable && Drafts.IsOpen;

@@ -1473,6 +1473,8 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    /* As wide as its text even as a grid or column item (a list row's title column stretches its children). */
+    width: fit-content;
     max-width: 100%;
     padding: 1px 9px;
     border-radius: 999px;

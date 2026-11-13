@@ -62,7 +62,7 @@ public sealed class ChangeActionsTests
 
     [Theory]
     [InlineData(false, "apply")]
-    [InlineData(true, "add-to-draft")]
+    [InlineData(true, "apply")]
     public async Task TheHostListSwitch_OpensTheSheet_AndNeverAppliesOrDraftsSilently(bool draftOpen, string primary)
     {
         await using DashboardTestContext context = new();
@@ -117,7 +117,7 @@ public sealed class ChangeActionsTests
 
         var reviewed = Assert.IsType<UpsertHostCommand>(Assert.Single(config.Executed));
         Assert.Equal(true, reviewed.Host.Settings.Maintenance?.Enabled);
-        Assert.Equal(draftOpen ? "add-to-draft" : "apply", Primary(drawers));
+        Assert.Equal("apply", Primary(drawers));
         if (draftOpen)
         {
             await drawers.Find("[data-drawer=review] [data-action=add-to-draft]").ClickAsync(new());

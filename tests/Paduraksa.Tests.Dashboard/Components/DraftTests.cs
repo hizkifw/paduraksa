@@ -430,8 +430,9 @@ public sealed class DraftTests
 
         var add = drawers.Find("[data-drawer=review] [data-action=add-to-draft]");
         var apply = drawers.Find("[data-drawer=review] [data-review=apply]");
-        Assert.Contains("mud-button-filled", add.ClassName, StringComparison.Ordinal);
-        Assert.Contains("mud-button-outlined", apply.ClassName, StringComparison.Ordinal);
+        // The same look with or without a draft open (the owner's call): Apply now filled, Add to draft outlined beside it.
+        Assert.Contains("mud-button-outlined", add.ClassName, StringComparison.Ordinal);
+        Assert.Contains("mud-button-filled", apply.ClassName, StringComparison.Ordinal);
         Assert.Equal("Add to draft", add.TextContent.Trim());
         Assert.Equal("Apply now", apply.TextContent.Trim());
         await add.ClickAsync(new());
