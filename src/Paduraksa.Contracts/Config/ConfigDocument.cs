@@ -88,7 +88,7 @@ public sealed record GlobalSettings(
 }
 
 /// <summary>
-/// What the proxy does with a connection before the TLS handshake (PLAN §7.2 A). Global only: a connection has no host yet.
+/// What the proxy does with a connection before the TLS handshake (docs/design/hot-path.md "A. Connection"). Global only: a connection has no host yet.
 /// A visitor behind a trusted proxy (Cloudflare, a load balancer) shares the proxy's address here, so the proxy is exempt from
 /// the cap and its visitors are judged by their real addresses later, at the gate.
 /// </summary>

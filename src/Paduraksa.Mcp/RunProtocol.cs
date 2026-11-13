@@ -65,7 +65,7 @@ internal sealed class RunClock
 }
 
 /// <summary>
-/// The parent's half of one run over a pair of streams (PLAN §11.2): read the child's frames, answer its requests through the <see cref="RequestBridge"/>,
+/// The parent's half of one run over a pair of streams (docs/design/admin-surfaces.md "MCP in code mode (M10)"): read the child's frames, answer its requests through the <see cref="RequestBridge"/>,
 /// and end with its result. Everything the child sends is checked here; the child is not trusted to be a child. It is a function of streams so that a
 /// hostile peer can be fed to it directly (the fuzz target does).
 /// </summary>

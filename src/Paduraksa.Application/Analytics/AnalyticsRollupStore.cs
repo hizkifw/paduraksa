@@ -8,7 +8,7 @@ using Paduraksa.Proxy.Analytics;
 namespace Paduraksa.Application.Analytics;
 
 /// <summary>
-/// The analytics' rollups in the config database (PLAN §7.4): five-minute rows written from the drain's backlog, hourly rows made from them
+/// The analytics' rollups in the config database (docs/design/observability.md "Traffic analytics"): five-minute rows written from the drain's backlog, hourly rows made from them
 /// once an hour has passed, and the reads the dashboard and the API make. Keyed by the host's typed ID and the stretch's start, never by
 /// the in-memory slot.
 /// </summary>

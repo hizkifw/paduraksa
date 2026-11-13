@@ -27,8 +27,8 @@ internal sealed record ConfigClientOptions(
     Uri? Url = null, string? TokenFile = null, PaduraksaHostOptions? HostOptions = null, Func<string, string?>? Environment = null, bool AllowInsecureHttp = false);
 
 /// <summary>
-/// <c>paduraksa config export</c> and <c>paduraksa config import</c> (PLAN §11.4, §11.5). They are clients of the running instance's admin API, like any script:
-/// the config database has one writer, the server (PLAN §6.4), so the CLI never opens it to write, and everything an import does (validation, the lock-out guard,
+/// <c>paduraksa config export</c> and <c>paduraksa config import</c> (docs/design/admin-surfaces.md "CLI", docs/design/admin-surfaces.md "YAML import and export"). They are clients of the running instance's admin API, like any script:
+/// the config database has one writer, the server (docs/design/config.md "Build decisions (M2)"), so the CLI never opens it to write, and everything an import does (validation, the lock-out guard,
 /// the audit event with the token as actor, the single revision) is the pipeline's. Nothing here reads the data directory, so an instance that can't start has no
 /// <c>config export</c>; its <c>last-good.json</c> and its backups hold the document.
 /// </summary>

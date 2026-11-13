@@ -8,7 +8,7 @@
     <ProjectReference Include="../Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- The YAML import and export (PLAN §11.5): the parser and emitter only; no reflection-based (de)serialisation of input. -->
+    <!-- The YAML import and export (docs/design/admin-surfaces.md "YAML import and export"): the parser and emitter only; no reflection-based (de)serialisation of input. -->
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>
   <ItemGroup>

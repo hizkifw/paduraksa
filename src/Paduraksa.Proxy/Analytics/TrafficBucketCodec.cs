@@ -8,7 +8,7 @@ namespace Paduraksa.Proxy.Analytics;
 public sealed record EncodedTrafficBucket(byte[] Visitors, byte[] Data);
 
 /// <summary>
-/// The stored form of a <see cref="TrafficBucket"/> (PLAN §7.4, analytics): little-endian varints and length-prefixed UTF-8 text,
+/// The stored form of a <see cref="TrafficBucket"/> (docs/design/observability.md "Traffic analytics"): little-endian varints and length-prefixed UTF-8 text,
 /// Brotli-compressed, with a format byte up front so a later release can read an older row. Decoding is bounded and total: a blob
 /// that is cut, corrupt or lies about its sizes yields <see langword="null"/>, never an exception or an allocation the blob chose.
 /// </summary>

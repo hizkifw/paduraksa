@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# S7 baseline (PLAN §13): Paduraksa vs nginx, Caddy, HAProxy, Traefik, Envoy and a bare YARP app as reverse proxies in
+# S7 baseline (docs/design/milestones.md "Risks and spikes"): Paduraksa vs nginx, Caddy, HAProxy, Traefik, Envoy and a bare YARP app as reverse proxies in
 # front of the same upstream, on one box. See bench/README.md for the method and caveats.
 #
 #   PROFILE=quick bench/run-baseline.sh                      # short harness iteration, never recorded

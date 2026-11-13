@@ -10,7 +10,7 @@ namespace Paduraksa.Proxy.Http;
 /// <summary>
 /// Counts the body bytes a request really moved: what was written to the client's response body and read from its request
 /// body, after any transformation (an upstream's gzip counts as the compressed bytes), on HTTP/1.1, HTTP/2 and HTTP/3
-/// alike (PLAN §7.4, "As built: counted body bytes"). It stands in for the request's <see cref="IHttpResponseBodyFeature"/>,
+/// alike (docs/design/observability.md "Counted body bytes"). It stands in for the request's <see cref="IHttpResponseBodyFeature"/>,
 /// its request body stream and, on a request that can be upgraded, its upgrade feature, and passes every call through.
 /// </summary>
 /// <remarks>

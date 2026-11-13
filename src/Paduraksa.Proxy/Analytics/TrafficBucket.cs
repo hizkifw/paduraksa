@@ -6,7 +6,7 @@ namespace Paduraksa.Proxy.Analytics;
 
 /// <summary>
 /// One host's traffic over one stretch of time (a five-minute bucket as it is filled, an hour, or a whole range as it is read): the
-/// counts, the distinct visitors, the top paths, referers, agents and largest responses, and who the clients were (PLAN §7.4,
+/// counts, the distinct visitors, the top paths, referers, agents and largest responses, and who the clients were (docs/design/observability.md "Traffic analytics",
 /// analytics). Fixed memory by construction: every table has a cap, and the overflow is counted together, never grown. Built and
 /// read on one thread (the drain's, or a reader's own copy); <see cref="MergeFrom"/> is what makes a range out of its buckets.
 /// </summary>

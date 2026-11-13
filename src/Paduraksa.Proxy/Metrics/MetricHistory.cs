@@ -3,7 +3,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
-/// The minutes of the hour before the process started, read from the rollups at startup (PLAN §7.4): what lets the one-hour view
+/// The minutes of the hour before the process started, read from the rollups at startup (docs/design/observability.md "Metrics (M9)"): what lets the one-hour view
 /// and its tables reach back past the boot. It is a snapshot taken before the first tick, never reread, so the minute the process
 /// booted in is not counted twice when the rollup job later merges the live half into its row.
 /// </summary>

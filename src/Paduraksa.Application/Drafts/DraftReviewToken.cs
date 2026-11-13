@@ -9,7 +9,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Drafts;
 
 /// <summary>
-/// What a review shows, as a token the apply must send back: apply commits exactly what the person confirmed, or nothing (PLAN §12). It is
+/// What a review shows, as a token the apply must send back: apply commits exactly what the person confirmed, or nothing (docs/design/dashboard.md "Drafts (M10)"). It is
 /// <c>{draft version}.{hash}</c>, and the hash covers what the draft would do, stated without anything that moves for reasons of its own:
 /// <list type="bullet">
 /// <item>the draft's ID and version, so any change to the draft itself (an entry added, replaced or removed) refuses an apply of an older review;</item>

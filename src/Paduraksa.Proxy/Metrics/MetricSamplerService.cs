@@ -5,7 +5,7 @@ namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
 /// Runs <see cref="MetricSampler.Tick"/> on every whole second of the clock for the life of the core host, and takes a last reading
-/// and flushes the sampler's open minute when it stops (PLAN §7.4).
+/// and flushes the sampler's open minute when it stops (docs/design/observability.md "Metrics (M9)").
 /// </summary>
 public sealed partial class MetricSamplerService(MetricSampler sampler, TimeProvider time, ILogger<MetricSamplerService> logger) : BackgroundService
 {

@@ -7,7 +7,7 @@ using Paduraksa.Tests.Integration.Config;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// A change through MCP is two steps and is the caller's (PLAN §11.2): without <c>confirm</c> it is a dry run (or a 428 where the operation has none),
+/// A change through MCP is two steps and is the caller's (docs/design/admin-surfaces.md "MCP in code mode (M10)"): without <c>confirm</c> it is a dry run (or a 428 where the operation has none),
 /// with it the change is made, as the token and on the <c>mcp</c> channel, with exactly the permissions the token has over HTTP. Each test has its own
 /// host because it counts what a refused or previewed change leaves behind.
 /// </summary>

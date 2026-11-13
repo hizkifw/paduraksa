@@ -7,7 +7,7 @@ namespace Paduraksa.Proxy.Analytics;
 
 /// <summary>
 /// Reads a <c>User-Agent</c> into a browser, an operating system, a device and, for an automated client, what kind of bot it is
-/// (PLAN §7.4, analytics). <b>Our own rule tables rather than a library:</b> the questions are few, the answers are a handful of
+/// (docs/design/observability.md "Traffic analytics"). <b>Our own rule tables rather than a library:</b> the questions are few, the answers are a handful of
 /// families, and every rule sits in the one list below where it can be audited and extended in a line. A parsing library
 /// would bring thousands of regexes (the very thing the rest of the proxy avoids), a dependency to track, and device models nobody
 /// here asks about. The bot list is the part that goes stale, and like <see cref="RobotsText.AiCrawlers"/> it moves with a release.

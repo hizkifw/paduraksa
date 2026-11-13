@@ -8,7 +8,7 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Integration.Mcp;
 
 /// <summary>
-/// A child that is not what it should be (PLAN §11.2): frames that are not answers to the run in progress, a flood on stderr, a caller who gives up while the
+/// A child that is not what it should be (docs/design/admin-surfaces.md "MCP in code mode (M10)"): frames that are not answers to the run in progress, a flood on stderr, a caller who gives up while the
 /// child starts, a child that burns CPU in the pool, and what a real child inherits. A shell script plays the child where a frame has to be forged.
 /// </summary>
 public sealed class SandboxHostileChildTests

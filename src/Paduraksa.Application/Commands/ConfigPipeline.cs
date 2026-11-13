@@ -85,7 +85,7 @@ internal sealed partial class ConfigPipeline
     }
 
     /// <summary>
-    /// What a draft changes about an attempt (PLAN §12). <paramref name="Base"/> stands in for the head's document as the config the command is
+    /// What a draft changes about an attempt (docs/design/dashboard.md "Drafts (M10)"). <paramref name="Base"/> stands in for the head's document as the config the command is
     /// planned on (the head with the draft's other entries applied: an entry is validated in the context it will be applied in); the head is
     /// still the latest revision. <paramref name="AuditDetails"/> adds to the commit's audit details, and <paramref name="InCommit"/> runs in the
     /// commit's transaction (the draft's rows change with the revision or not at all). <paramref name="Gate"/> is asked once everything has passed

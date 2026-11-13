@@ -1,6 +1,6 @@
 @inject NavigationManager Navigation
 @inject DashboardOptions Options
-@* How to point an AI assistant at the MCP endpoint (PLAN §11.2). The snippets carry <token>, never a secret, unless the caller hands over the
+@* How to point an AI assistant at the MCP endpoint (docs/design/admin-surfaces.md "MCP in code mode (M10)"). The snippets carry <token>, never a secret, unless the caller hands over the
    token it has just issued (the token drawer's one-time view): then they are filled in, open, and the token lives only in that parameter and
    the markup built from it; nothing here keeps or logs it. *@
 @if (!Options.McpEnabled)

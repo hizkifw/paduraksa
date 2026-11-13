@@ -1,6 +1,6 @@
 namespace Paduraksa.Proxy.Metrics;
 
-/// <summary>The kinds of object that own a metric slot (PLAN §6.3, §7.4): one slot registry and one set of counter tables each.</summary>
+/// <summary>The kinds of object that own a metric slot (docs/design/config.md "State that survives a publish", docs/design/observability.md "Metrics (M9)"): one slot registry and one set of counter tables each.</summary>
 public enum MetricSubject
 {
     Host = 0,

@@ -27,7 +27,7 @@ public enum AnalyticsTier
 }
 
 /// <summary>
-/// One closed stretch of one host's traffic, ready to be stored (PLAN §7.4, analytics): the figures a chart needs as plain numbers and
+/// One closed stretch of one host's traffic, ready to be stored (docs/design/observability.md "Traffic analytics"): the figures a chart needs as plain numbers and
 /// the rest as <see cref="EncodedTrafficBucket"/>. A <see cref="AnalyticsSubject.Coverage"/> row has no bucket and says only how many
 /// seconds the process watched.
 /// </summary>

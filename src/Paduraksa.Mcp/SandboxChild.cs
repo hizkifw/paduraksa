@@ -11,7 +11,7 @@ using Jint.Runtime.Interop;
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// The sandbox's child process (<c>paduraksa mcp-sandbox</c>, PLAN §11.2): a Jint engine with stock behaviour that runs one script at a time, and a pipe to the
+/// The sandbox's child process (<c>paduraksa mcp-sandbox</c>, docs/design/admin-surfaces.md "MCP in code mode (M10)"): a Jint engine with stock behaviour that runs one script at a time, and a pipe to the
 /// parent. It holds no token, no configuration, no data directory and uses no network: <c>paduraksa.request</c> sends a frame and waits for the parent's
 /// answer, and the parent applies the request policy. What a script can do in here is not trusted to be little; the parent bounds the process and kills it.
 /// </summary>

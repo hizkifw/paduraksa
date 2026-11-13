@@ -6,7 +6,7 @@ using Paduraksa.Data.Identity;
 namespace Paduraksa.Data.Drafts;
 
 /// <summary>
-/// A user's open draft (PLAN §12, "As built (M10): drafts"). One per user. <b>No secret here:</b> a password typed into a drafted access list is a
+/// A user's open draft (docs/design/dashboard.md "Drafts (M10)"). One per user. <b>No secret here:</b> a password typed into a drafted access list is a
 /// vault value (a credential no config names yet) and the entries carry only its ID.
 /// </summary>
 internal sealed class DraftRow

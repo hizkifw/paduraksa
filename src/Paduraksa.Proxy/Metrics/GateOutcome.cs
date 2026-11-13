@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
-/// What the gate did with a request, counted per host and per route next to the status class (PLAN §7.4). The refusals are
+/// What the gate did with a request, counted per host and per route next to the status class (docs/design/observability.md "Metrics (M9)"). The refusals are
 /// the policy kinds the security page already tells apart; the rest say why a request got an answer from the gate itself.
 /// </summary>
 public enum GateOutcome : byte

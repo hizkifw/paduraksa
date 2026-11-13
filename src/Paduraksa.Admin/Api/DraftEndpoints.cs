@@ -13,7 +13,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Admin.Api;
 
 /// <summary>
-/// Drafts: a user's change set across pages, applied as one revision (PLAN §12). One open draft per user (a token acts on its owner's), kept until
+/// Drafts: a user's change set across pages, applied as one revision (docs/design/dashboard.md "Drafts (M10)"). One open draft per user (a token acts on its owner's), kept until
 /// it is applied or discarded or goes 30 days untouched. Every endpoint needs <c>config:write</c>. A read carries the draft's version as
 /// <c>ETag</c>, and apply must send it back as <c>If-Match</c> (428 without, 412 when the draft changed since). Nothing in a draft is committed,
 /// audited or live until apply, which is one revision and one audit event.

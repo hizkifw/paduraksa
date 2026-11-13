@@ -6,7 +6,7 @@ using Jint.Native;
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// The API description as the <c>spec</c> a search script reads (PLAN §11.2): every <c>$ref</c> replaced by what it points to, built as script values
+/// The API description as the <c>spec</c> a search script reads (docs/design/admin-surfaces.md "MCP in code mode (M10)"): every <c>$ref</c> replaced by what it points to, built as script values
 /// in the call's own engine. A target is built once and every use shares it, so the graph costs the size of the document and not the size of its
 /// expansion (resolved to text, the generated description grows from half a megabyte to twelve). A schema that refers back to one being expanded
 /// (a recursive type) is cut there as <c>{ "x-recursive-ref": "Name" }</c>, so what a script walks is a finite tree.

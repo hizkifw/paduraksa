@@ -15,7 +15,7 @@ namespace Paduraksa.Proxy.RuleSets;
 /// A rule set in a host's or a route's chain: the first rule the request matches decides (deny answers 403, drop aborts, allow
 /// ends the set and lets the chain go on), and a request no rule matches goes on too. It sits before the access list that asks
 /// for passwords (the whole policy, so on a route whose list has users that list's address checks follow the set; the host chain's
-/// address-only check precedes it) and before the rate limit, so a refusal is one span scan, long before a PBKDF2 or a bucket (PLAN §7.2 D).
+/// address-only check precedes it) and before the rate limit, so a refusal is one span scan, long before a PBKDF2 or a bucket (docs/design/hot-path.md "D. Policy chains").
 /// </summary>
 /// <remarks>
 /// <para><b>Path.</b> The rules read the canonical matching path routes match on, so <c>//admin</c>, <c>/admin;x</c> and

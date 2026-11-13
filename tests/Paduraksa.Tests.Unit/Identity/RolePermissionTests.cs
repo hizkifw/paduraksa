@@ -15,7 +15,7 @@ public sealed class RolePermissionTests
     [Fact]
     public void OnlyOwnerManagesUsersTheVaultAndOtherPeoplesTokensAndSessionsAndMakesBackups()
     {
-        // A backup holds every key the vault does, so it is the Owner's alone (PLAN §8, As built (M10)).
+        // A backup holds every key the vault does, so it is the Owner's alone (docs/design/vault-and-certificates.md "Backup and restore (M10)").
         Permission[] ownerOnly = [Permission.UsersWrite, Permission.VaultManage, Permission.TokensAll, Permission.SessionsAll, Permission.BackupCreate];
 
         foreach (var role in Enum.GetValues<Role>().Where(r => r != Role.Owner))

@@ -1,7 +1,7 @@
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// The children a server keeps (PLAN §11.2). Lazy: none until the first call, which pays a cold start once. Warm while in use: a child that finished a run waits
+/// The children a server keeps (docs/design/admin-surfaces.md "MCP in code mode (M10)"). Lazy: none until the first call, which pays a cold start once. Warm while in use: a child that finished a run waits
 /// for the next. At most <see cref="SandboxLimits.MaxChildren"/> at once, spawned on demand, one run at a time in each. A child is despawned after
 /// <c>idleTimeout</c> without a run, and replaced after a kill or after <see cref="SandboxLimits.MaxRunsPerChild"/> runs. Disposing the pool kills every child.
 /// </summary>

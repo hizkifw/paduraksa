@@ -101,7 +101,7 @@ public sealed class RuntimeSnapshot
     /// </summary>
     public bool LockdownAtConnection { get; init; }
 
-    /// <summary>The per-IP connection cap and the connection deny list, applied before TLS (PLAN §7.2 A). Only this limit and
+    /// <summary>The per-IP connection cap and the connection deny list, applied before TLS (docs/design/hot-path.md "A. Connection"). Only this limit and
     /// this list come from the snapshot: what is counted lives in <see cref="Net.ConnectionRuntime"/>.</summary>
     public Net.ConnectionPolicy Connections { get; init; } = Net.ConnectionPolicy.Off;
 

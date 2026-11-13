@@ -13,7 +13,7 @@ using Paduraksa.Data.Notifications;
 namespace Paduraksa.Application.Notifications;
 
 /// <summary>
-/// The notification history (PLAN §7.4 "As built: durable delivery and history"): events newest first with what happened to each on every channel, and the
+/// The notification history (docs/design/observability.md "Durable delivery and history (notify-outbox)"): events newest first with what happened to each on every channel, and the
 /// manual retry of a failed or expired delivery. Reads need <c>providers:read</c> and a retry <c>providers:write</c>, the permissions of the channels,
 /// checked by the caller for reads and here for the retry, which is audited with who asked and which delivery.
 /// </summary>

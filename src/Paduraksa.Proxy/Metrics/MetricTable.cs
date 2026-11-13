@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
-/// Counters for one subject, <c>long[]</c> indexed by <c>slot * stride + metric</c> inside a per-core stripe (PLAN §7.4). A
+/// Counters for one subject, <c>long[]</c> indexed by <c>slot * stride + metric</c> inside a per-core stripe (docs/design/observability.md "Metrics (M9)"). A
 /// request adds to the stripe of the core it runs on, so cores don't fight over a cache line; a reader sums the stripes.
 /// </summary>
 /// <remarks>

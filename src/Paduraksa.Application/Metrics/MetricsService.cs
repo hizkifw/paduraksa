@@ -9,7 +9,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Application.Metrics;
 
 /// <summary>
-/// The read side of the metrics (PLAN §7.4) that the admin API and the dashboard share: the Prometheus text for the scrape, and the
+/// The read side of the metrics (docs/design/observability.md "Metrics (M9)") that the admin API and the dashboard share: the Prometheus text for the scrape, and the
 /// overview with its chart, busiest hosts and upstream errors. Reads the registry, the sampler's rings and the rollup store; never
 /// changes anything.
 /// </summary>

@@ -14,7 +14,7 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 namespace Paduraksa.Tests.Data.Drafts;
 
 /// <summary>
-/// Drafts as a user sees them (PLAN §12): one open draft each, entries checked as they are added and replaced by a later edit of the same object, the
+/// Drafts as a user sees them (docs/design/dashboard.md "Drafts (M10)"): one open draft each, entries checked as they are added and replaced by a later edit of the same object, the
 /// head with the draft applied, a review that commits nothing, an apply that is one revision with one audit event, and an entry whose object
 /// changed elsewhere blocking only itself.
 /// </summary>

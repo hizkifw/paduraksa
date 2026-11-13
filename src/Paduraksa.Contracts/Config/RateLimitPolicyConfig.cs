@@ -5,7 +5,7 @@ namespace Paduraksa.Contracts.Config;
 /// <summary>
 /// A named token bucket that hosts and routes apply: <see cref="Requests"/> per <see cref="Per"/> seconds, with a
 /// bucket of <see cref="Burst"/> tokens, keyed the way <see cref="Key"/> says. It is a top-level object, so two hosts
-/// can name one policy and still keep their own buckets (PLAN §6.3).
+/// can name one policy and still keep their own buckets (docs/design/config.md "State that survives a publish").
 /// </summary>
 /// <param name="Id">Identity; the first half of a bucket's stable slot identity.</param>
 /// <param name="Name">Human label, unique ignoring case.</param>

@@ -36,7 +36,7 @@ public interface IDashboardConfig
     Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The config the config pages and their pickers read (PLAN §12, drafts): the latest revision with the caller's open draft applied, so a form
+    /// The config the config pages and their pickers read (docs/design/dashboard.md "Drafts (M10)", drafts): the latest revision with the caller's open draft applied, so a form
     /// sees an upstream the draft adds; the latest revision itself when there is no draft. <see cref="CurrentConfig.Revision"/> is the latest
     /// revision either way. Versions are the latest revision's, so a form's command is the version the entry will be checked against.
     /// </summary>

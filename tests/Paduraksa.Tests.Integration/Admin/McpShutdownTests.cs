@@ -6,7 +6,7 @@ using Paduraksa.Server.Hosting;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// A sandbox child never outlives the server: stopping the host kills it (PLAN section 11.2). Test classes run in parallel in one
+/// A sandbox child never outlives the server: stopping the host kills it (docs/design/admin-surfaces.md "MCP in code mode (M10)"). Test classes run in parallel in one
 /// process, and other MCP tests have pools of their own, so each test asks its own server which children it started rather than
 /// scanning every sandbox child of the process.
 /// </summary>

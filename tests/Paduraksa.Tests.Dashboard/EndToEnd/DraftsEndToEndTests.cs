@@ -12,7 +12,7 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// Drafts end to end in a real browser (PLAN §12): an upstream added to a new draft on one page, a host that uses it made on another (the picker offers the
+/// Drafts end to end in a real browser (docs/design/dashboard.md "Drafts (M10)"): an upstream added to a new draft on one page, a host that uses it made on another (the picker offers the
 /// upstream marked "Draft"), the bar following the person across pages and a reload, then the whole set reviewed and applied as one revision. Skipped when no
 /// Chromium is installed (see <see cref="PlaywrightBrowser"/>); screenshots are kept when <see cref="PlaywrightBrowser.ScreenshotVariable"/> names a directory.
 /// </summary>

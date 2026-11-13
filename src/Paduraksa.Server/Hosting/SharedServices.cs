@@ -195,7 +195,7 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The rate-limit engine's table, slots and counters; the compiler, the publisher and the public app share it.</summary>
     public RateLimitRuntime RateLimits { get; }
 
-    /// <summary>The request counters and latency histograms (PLAN §7.4); the compiler, the publisher and the public app share it, and the sampler and the exporters read it.</summary>
+    /// <summary>The request counters and latency histograms (docs/design/observability.md "Metrics (M9)"); the compiler, the publisher and the public app share it, and the sampler and the exporters read it.</summary>
     public MetricsRegistry Metrics { get; }
 
     /// <summary>The access lists' verification line and counters, shared by every compile (the cache lives in the vault).</summary>

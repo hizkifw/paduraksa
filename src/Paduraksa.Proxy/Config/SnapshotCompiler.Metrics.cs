@@ -3,7 +3,7 @@ using Paduraksa.Proxy.Metrics;
 
 namespace Paduraksa.Proxy.Config;
 
-/// <summary>The metric slots of the compiled hosts, routes, upstreams and destinations (PLAN §6.3, §7.4).</summary>
+/// <summary>The metric slots of the compiled hosts, routes, upstreams and destinations (docs/design/config.md "State that survives a publish", docs/design/observability.md "Metrics (M9)").</summary>
 public static partial class SnapshotCompiler
 {
     internal sealed partial class CompileContext

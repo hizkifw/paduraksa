@@ -7,7 +7,7 @@ namespace Paduraksa.Application.Metrics;
 
 /// <summary>
 /// Persists the sampler's finished minutes to <see cref="MetricRollupStore"/> every <see cref="MetricRollupOptions.WriteInterval"/>
-/// and deletes what is past <see cref="MetricRollupOptions.Retention"/> every <see cref="MetricRollupOptions.PruneInterval"/> (PLAN §7.4).
+/// and deletes what is past <see cref="MetricRollupOptions.Retention"/> every <see cref="MetricRollupOptions.PruneInterval"/> (docs/design/observability.md "Metrics (M9)").
 /// A hosted service of the core host. A write that fails puts the minutes back and tries again at the next interval; the
 /// queue is bounded, so a database that stays down loses the oldest minutes, not memory. Before it starts it seeds the sampler with
 /// the last hour of rollups, and it is registered before the sampler's service so that it stops after it: the minute the sampler

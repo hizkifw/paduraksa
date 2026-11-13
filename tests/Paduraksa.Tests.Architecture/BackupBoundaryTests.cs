@@ -1,7 +1,7 @@
 namespace Paduraksa.Tests.Architecture;
 
 /// <summary>
-/// The passphrase of a backup and the key it derives never leave the vault (PLAN §8, As built (M10)): the Argon2id library is
+/// The passphrase of a backup and the key it derives never leave the vault (docs/design/vault-and-certificates.md "Backup and restore (M10)"): the Argon2id library is
 /// referenced by <c>Paduraksa.Vault</c> alone, so no other project can derive a key from a passphrase on its own.
 /// </summary>
 public sealed class BackupBoundaryTests

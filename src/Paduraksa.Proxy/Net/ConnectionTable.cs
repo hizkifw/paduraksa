@@ -18,7 +18,7 @@ public enum ConnectionSlot : byte
 
 /// <summary>
 /// The open connections per client address: a fixed-size, open-addressed, lock-free table of counters, one word per entry,
-/// so a call allocates nothing and never blocks (PLAN §6.3, §7.2 A). It is process state and not snapshot state: a publish
+/// so a call allocates nothing and never blocks (docs/design/config.md "State that survives a publish", docs/design/hot-path.md "Request pipeline" A). It is process state and not snapshot state: a publish
 /// changes the cap a connection is judged against and nothing else.
 /// </summary>
 /// <remarks>

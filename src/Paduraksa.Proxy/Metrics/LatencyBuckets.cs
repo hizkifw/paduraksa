@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
-/// The latency histogram's fixed log-linear bucket scheme (PLAN §7.4), in whole microseconds: 0 to 3 µs get a bucket each,
+/// The latency histogram's fixed log-linear bucket scheme (docs/design/observability.md "Metrics (M9)"), in whole microseconds: 0 to 3 µs get a bucket each,
 /// then every power of two is split into four equal steps (so a bucket is at most 25 % wide), up to 2^26 µs (67 s); anything
 /// longer is the overflow bucket. 101 buckets cover 1 µs to 60 s and beyond; a histogram's stride is rounded up to a whole
 /// number of cache lines.

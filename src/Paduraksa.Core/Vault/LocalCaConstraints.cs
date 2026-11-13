@@ -1,8 +1,7 @@
 namespace Paduraksa.Core.Vault;
 
 /// <summary>
-/// The names a local CA root may issue for, written into the root as an X.509 name-constraints extension (PLAN §9.2 "As built:
-/// local CA name constraints"): a client that trusts the root accepts a certificate from it only for these names, so a leaked
+/// The names a local CA root may issue for, written into the root as an X.509 name-constraints extension (docs/design/vault-and-certificates.md "Local CA name constraints and root rotation"): a client that trusts the root accepts a certificate from it only for these names, so a leaked
 /// root key can't be used to impersonate a public site to a device that trusts it.
 /// </summary>
 /// <param name="Domains">DNS domains: a name is permitted when it is one of them or under one (<c>home.arpa</c> permits

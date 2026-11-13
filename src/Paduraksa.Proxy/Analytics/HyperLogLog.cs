@@ -4,7 +4,7 @@ using System.Numerics;
 namespace Paduraksa.Proxy.Analytics;
 
 /// <summary>
-/// A HyperLogLog sketch of how many distinct values were added (PLAN §7.4, analytics): 4 096 one-byte registers, so a standard
+/// A HyperLogLog sketch of how many distinct values were added (docs/design/observability.md "Traffic analytics"): 4 096 one-byte registers, so a standard
 /// error of 1.04 / sqrt(4096), about 1.6 %, and 4 KiB while a bucket is being filled. It keeps no value, only the longest run of
 /// leading zeros each register has seen, so what it stores can't be turned back into the addresses that were added.
 /// </summary>

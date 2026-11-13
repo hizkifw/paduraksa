@@ -10,7 +10,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Proxy.Analytics;
 
 /// <summary>
-/// The traffic analytics (PLAN §7.4, analytics): the third consumer of the access-log drain, beside the file and the live tail. The
+/// The traffic analytics (docs/design/observability.md "Traffic analytics"): the third consumer of the access-log drain, beside the file and the live tail. The
 /// request path knows nothing of it. The drain offers each entry here after the file has its line, in a <c>try</c> of its own, so a
 /// failure here never costs the file a line; an entry of a host whose access log is off never reached the ring, so it is in neither.
 /// </summary>

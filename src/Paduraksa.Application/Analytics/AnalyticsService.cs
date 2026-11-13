@@ -7,7 +7,7 @@ using Paduraksa.Proxy.Metrics;
 namespace Paduraksa.Application.Analytics;
 
 /// <summary>
-/// The read side of the traffic analytics (PLAN §7.4) that the admin API and the dashboard share: the stored rows of a range, the closed
+/// The read side of the traffic analytics (docs/design/observability.md "Traffic analytics") that the admin API and the dashboard share: the stored rows of a range, the closed
 /// buckets still waiting to be written and the buckets that are open now, merged into one overview. Reads only; never changes anything.
 /// </summary>
 /// <remarks>

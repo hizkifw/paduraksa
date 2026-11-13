@@ -3,7 +3,7 @@ using System.Text;
 namespace Paduraksa.Proxy.Analytics;
 
 /// <summary>
-/// A host's <c>robots.txt</c> read back into rules, to tell a crawler that ignores it from one that doesn't (PLAN §7.4, analytics). The
+/// A host's <c>robots.txt</c> read back into rules, to tell a crawler that ignores it from one that doesn't (docs/design/observability.md "Traffic analytics"). The
 /// proxy serves these bytes itself, so the rules the analytics judge by are the ones the crawler was shown. RFC 9309: a group names
 /// one or more agents; the group whose agent name is the longest match inside the crawler's <c>User-Agent</c> applies, else
 /// <c>*</c>; inside it the longest matching rule wins and <c>Allow</c> beats <c>Disallow</c> on a tie; <c>*</c> and a trailing

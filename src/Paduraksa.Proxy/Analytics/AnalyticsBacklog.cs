@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Analytics;
 
 /// <summary>
-/// The closed buckets waiting to be written to the database, between the drain that closes them and the job that persists them (PLAN §7.4,
+/// The closed buckets waiting to be written to the database, between the drain that closes them and the job that persists them (docs/design/observability.md "Traffic analytics",
 /// analytics). Bounded, so a database that stays down loses the oldest buckets and never memory. A bucket the job has taken stays
 /// visible to readers until the write is confirmed, so a chart never has a hole between "closed" and "stored".
 /// </summary>

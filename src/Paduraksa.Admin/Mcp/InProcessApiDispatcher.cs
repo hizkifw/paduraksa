@@ -11,7 +11,7 @@ using Paduraksa.Mcp;
 namespace Paduraksa.Admin.Mcp;
 
 /// <summary>
-/// Sends a script's request through the admin app's pipeline as the caller of the MCP request (PLAN §11.2): a synthetic <see cref="HttpContext"/> that
+/// Sends a script's request through the admin app's pipeline as the caller of the MCP request (docs/design/admin-surfaces.md "MCP in code mode (M10)"): a synthetic <see cref="HttpContext"/> that
 /// carries the caller's identity, scopes and channel the way authentication set them, never the bearer token, which the code cannot see because it is
 /// not in the request. What the caller may do is decided where it is for a REST request: the endpoint's permission filter and the services.
 /// </summary>

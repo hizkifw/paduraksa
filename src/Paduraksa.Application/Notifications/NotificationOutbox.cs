@@ -21,7 +21,7 @@ internal readonly record struct BufferedEvent(NotificationEventId Id, Notificati
 internal sealed record DeliveryGroup(IReadOnlyList<NotificationDeliveryId> Rows, NotificationEvent Message, string EventId, int Attempts);
 
 /// <summary>
-/// The outbox's database operations (PLAN §7.4 "As built: durable delivery and history"): the flusher stores events with their deliveries, a
+/// The outbox's database operations (docs/design/observability.md "Durable delivery and history (notify-outbox)"): the flusher stores events with their deliveries, a
 /// channel's worker takes what is due and records how it went, and the process start, a deleted channel and retention clean up. One statement or one
 /// small transaction each, never the config writer's lock: the notification tables are not config.
 /// </summary>

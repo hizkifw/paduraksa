@@ -19,7 +19,7 @@ using Paduraksa.Dashboard.SettingsArea;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// Drafts in the dashboard (PLAN §12): the bar across the pages, "Add to draft" on the forms and what it sends, the draft's list with its remove and
+/// Drafts in the dashboard (docs/design/dashboard.md "Drafts (M10)"): the bar across the pages, "Add to draft" on the forms and what it sends, the draft's list with its remove and
 /// changed-elsewhere states, "Draft" marks on the lists and in the pickers, and the review that applies the whole set through the draft.
 /// </summary>
 public sealed class DraftTests

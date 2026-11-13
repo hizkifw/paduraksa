@@ -9,7 +9,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// The local CA's life after its creation (PLAN §9.2 "As built: local CA name constraints and root rotation"): what the root is limited to,
+/// The local CA's life after its creation (docs/design/vault-and-certificates.md "Local CA name constraints and root rotation"): what the root is limited to,
 /// its rotation, and the roots a rotation leaves behind.
 /// </summary>
 public sealed partial class CertificateOperations

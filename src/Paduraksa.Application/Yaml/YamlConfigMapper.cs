@@ -26,7 +26,7 @@ internal sealed record YamlMapResult(MappedYaml? Mapped, IReadOnlyList<ConfigErr
 }
 
 /// <summary>
-/// Maps a YAML document onto the canonical <see cref="ConfigDocument"/> (PLAN §11.5). It reads the tree against <see cref="ConfigYamlSchema"/> (unknown keys, wrong shapes and
+/// Maps a YAML document onto the canonical <see cref="ConfigDocument"/> (docs/design/admin-surfaces.md "YAML import and export"). It reads the tree against <see cref="ConfigYamlSchema"/> (unknown keys, wrong shapes and
 /// missing keys are errors with a pointer and a line), gives every object that has no <c>id</c> the ID of the stored object it names (so importing the same file twice is
 /// no change) or a new one, resolves each reference by name to that object's ID, and hands the JSON it built to the document's own strict reader for the values themselves
 /// (enum names, ID prefixes, time spans, number ranges). Nothing is ignored: what the YAML says is what the document gets.

@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
-/// One subject's append-only <c>typed ID → slot</c> map (PLAN §6.3). The compiler asks it for each object's slot, so an
+/// One subject's append-only <c>typed ID → slot</c> map (docs/design/config.md "State that survives a publish"). The compiler asks it for each object's slot, so an
 /// object keeps its counters across every publish; slots of deleted objects are handed out again only after a grace period
 /// of one rollup interval.
 /// </summary>

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// The public listeners' slow-client and connection limits, stated once and set on Kestrel explicitly (PLAN §7.2 A, G8 of the
+/// The public listeners' slow-client and connection limits, stated once and set on Kestrel explicitly (docs/design/hot-path.md "A. Connection", G8 of the
 /// threat model). They are process settings, not config: Kestrel reads its limits when the listeners bind. <c>0</c> turns a
 /// connection cap off. <see cref="Validate"/> is the one place that says what is allowed; the server's options validator calls it.
 /// </summary>

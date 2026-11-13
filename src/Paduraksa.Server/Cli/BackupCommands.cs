@@ -22,7 +22,7 @@ using Paduraksa.Vault;
 namespace Paduraksa.Server.Cli;
 
 /// <summary>
-/// <c>paduraksa backup --out &lt;file&gt;</c> and <c>paduraksa restore &lt;file&gt;</c>: the full backup of PLAN §8 (As built (M10)). Both
+/// <c>paduraksa backup --out &lt;file&gt;</c> and <c>paduraksa restore &lt;file&gt;</c>: the full backup of docs/design/vault-and-certificates.md "Backup and restore (M10)". Both
 /// work on the data directory directly, so they run in the container as <c>docker exec paduraksa paduraksa backup ...</c> and, with the
 /// service stopped, <c>docker compose run --rm paduraksa restore ...</c>.
 /// </summary>
@@ -325,7 +325,7 @@ internal static class BackupCommands
                 await output.WriteLineAsync($"Restored. Config: {revision}{(pending > 0 ? $" ({pending.ToString(System.Globalization.CultureInfo.InvariantCulture)} schema update(s) applied)" : string.Empty)}. The vault is under this machine's master key ({Source(status.KekSource)}).").ConfigureAwait(false);
                 if (!hadMasterKey && status.KekSource == KekSourceKind.GeneratedFile)
                 {
-                    await output.WriteLineAsync($"This machine had no master key, so {masterKeyPath} was generated: keep a copy of it apart from the data (PLAN §8); the backup does not hold it.").ConfigureAwait(false);
+                    await output.WriteLineAsync($"This machine had no master key, so {masterKeyPath} was generated: keep a copy of it apart from the data (docs/design/vault-and-certificates.md, Backup and restore (M10)); the backup does not hold it.").ConfigureAwait(false);
                 }
 
                 if (moved.Count > 0)

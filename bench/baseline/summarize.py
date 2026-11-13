@@ -435,7 +435,7 @@ def main() -> None:
         emit("### Paduraksa runtime counters per run (whole process, from the runner's per-second samples)")
         emit("")
         emit("Allocated bytes are the median per-second rate of `GC.GetTotalAllocatedBytes(precise: true)` ÷ the request rate: Kestrel, routing,")
-        emit("YARP and the gate together (PLAN §7.1 tracks these here; the gate's own share is asserted 0 B in tests).")
+        emit("YARP and the gate together (docs/design/hot-path.md, Budget and rules, tracks these here; the gate's own share is asserted 0 B in tests).")
         if dropped:
             emit(f"{dropped} non-monotonic allocation sample(s) were dropped.")
         emit("")

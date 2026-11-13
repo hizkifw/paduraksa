@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Data.Analytics;
 
 /// <summary>
-/// One stretch of one host's traffic, as the analytics keep it (PLAN §7.4): five minutes as the drain closes them, or an hour of them merged
+/// One stretch of one host's traffic, as the analytics keep it (docs/design/observability.md "Traffic analytics"): five minutes as the drain closes them, or an hour of them merged
 /// (the <see cref="Tier"/>). Keyed by the host's typed ID and the start of the stretch, never by the in-memory slot, so history stays with
 /// the host. The figures a chart needs are columns; the sketches and tables are two blobs the proxy's codec reads. A
 /// <see cref="Subject"/> of coverage has no blobs: it is the record that the process watched the stretch, so a stretch without one is a gap.

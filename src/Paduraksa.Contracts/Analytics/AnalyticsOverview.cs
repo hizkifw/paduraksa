@@ -56,7 +56,7 @@ public sealed record AnalyticsStep(DateTimeOffset Start, int WidthSeconds, int C
 public sealed record AnalyticsTotals(long Requests, long BytesOut, long BytesIn, long Visitors, long ServerErrors, double ErrorRate, long BotRequests, long CoveredSeconds);
 
 /// <summary>
-/// The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (PLAN §7.4). Computed from the
+/// The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (docs/design/observability.md "Traffic analytics"). Computed from the
 /// access-log drain, so a host with its access log off is absent. Visitors, the top tables and the per-path figures are approximate by design;
 /// each table row carries its own bound.
 /// </summary>

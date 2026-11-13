@@ -62,7 +62,7 @@ public enum DraftStatus
 public sealed record DraftResult(DraftStatus Status, ConfigDraft? Draft = null, ConfigCommandResult? Command = null, int? FailedCommand = null, string? ReviewToken = null);
 
 /// <summary>
-/// Drafts (PLAN §12, "As built (M10): drafts"): a user's change set across pages, kept in the config database until it is applied as one
+/// Drafts (docs/design/dashboard.md "Drafts (M10)"): a user's change set across pages, kept in the config database until it is applied as one
 /// revision. Nothing in a draft is live, committed or audited. An entry is an object command with the version it was made against; every
 /// read replays the entries on the current head (<see cref="DraftReplay"/>), so what a draft shows is always the head with the draft applied
 /// and a concurrent change by someone else is seen as it happens (an entry whose object moved is blocked, never overwritten).

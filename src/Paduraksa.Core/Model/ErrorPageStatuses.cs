@@ -3,7 +3,7 @@ namespace Paduraksa.Core.Model;
 /// <summary>
 /// The statuses an operator can give a page of their own, and the maintenance page. A page is looked up by its key: the
 /// status itself, or <see cref="MaintenanceKey"/>. The list is what the gate and the upstream can answer with a built-in page
-/// (PLAN §7.3), so every key has one to fall back to.
+/// (docs/design/waf.md "Error pages"), so every key has one to fall back to.
 /// </summary>
 public static class ErrorPageStatuses
 {

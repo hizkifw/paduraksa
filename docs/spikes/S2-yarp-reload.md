@@ -24,13 +24,13 @@ Base setup (Q1-Q5):
 - A "gate" middleware placed before `UseRouting()` captures the current snapshot once.
 - Fleet: N hosts. Each host has 1 route (`Hosts=[hN.test]`, `Path=/{**catch-all}`) pointing at its own cluster, which has 1 or 2 destinations. The upstream is a tiny Kestrel app in the same process.
 
-## Exit criteria (PLAN §13, S2)
+## Exit criteria ([milestones.md, Risks and spikes](design/milestones.md#risks-and-spikes), S2)
 
 | Criterion | Result |
 |---|---|
 | Publish < 50 ms at 500 hosts | **Met idle, all the way to the maximum.** In the host-matched layout a route-changing publish takes 15-23 ms median and ≤ 27 ms max. **Under load it is met only at the median:** 9-11 ms median, but up to 99-124 ms max (`results/load.txt`). With the recommended gate design: 1.9 ms median and ≤ 9 ms max idle; 4.6 ms median and ≤ 35 ms max under churn load. |
 | No request errors during swaps under load | **Met.** 0 connection errors and 0 non-2xx across ~42 M requests (host-matched) plus ~5 M (gate design), with publishes every 100 ms at 500 and 2000 hosts. |
-| Typed metadata on every endpoint matches its generation | **Not as PLAN §6.2 assumes.** Unchanged routes keep their old endpoint and old metadata. Solved exactly by the recommended gate design (below), which needs no generation metadata at all. |
+| Typed metadata on every endpoint matches its generation | **Not as [config.md, The runtime snapshot](design/config.md#the-runtime-snapshot) assumes.** Unchanged routes keep their old endpoint and old metadata. Solved exactly by the recommended gate design (below), which needs no generation metadata at all. |
 
 ---
 
@@ -71,7 +71,7 @@ YARP does **not** rebuild the endpoint for:
 2. **The gate-snapshot vs routed-endpoint window.**
    - **Mechanism.** In the base setup, the gate's snapshot is swapped *before* `Cancel()`. That spike ordering makes the window the **whole YARP reload**: requests that read the new snapshot and are then routed against the old endpoints.
    - **Rate.** A request disagrees only if it targets a route that changed in that publish. With publishes every *T* ms, each taking *R* ms, the expected mismatch rate is **≈ (share of traffic on changed routes) x min(1, R/T)**.
-   - **PLAN §7.2 makes it longer.** The host policy chain, including forward-auth I/O, runs before routing, so the window grows by the policy-chain time as well.
+   - **[hot-path.md, Request pipeline](design/hot-path.md#request-pipeline) makes it longer.** The host policy chain, including forward-auth I/O, runs before routing, so the window grows by the policy-chain time as well.
    - **Measured counts follow the model, not a property of YARP.** At 500 hosts: 0.44 % of requests, with 5 % churn and R/T ≈ 0.1. At 2000 hosts: 4.8 %, because the publisher was saturated (R ≈ 103 ms against T = 100 ms), so the rate is simply the 5 % churn fraction.
    - **"0 mismatches" rows are zero by construction.** In the identical-content and 1-route phases, the only changed route was the probe host, which receives no load.
    - **Generation-encoded route IDs don't remove the window.** The endpoint is internally consistent, but it still disagrees with the gate's snapshot during the window.
@@ -207,7 +207,7 @@ Results, from `results/gate.txt`. Every probe request was `GET /x`, which matche
    - YARP route ID = `RouteId`. Each Paduraksa route becomes one YARP route.
    - YARP cluster ID = `UpstreamId`.
    - Destination key: see item 7.
-   - Drop `{generation}:{hostIndex}:{routeIndex}` and the route-ID parsing fallback from §6.2.
+   - Drop `{generation}:{hostIndex}:{routeIndex}` and the route-ID parsing fallback from [config.md, The runtime snapshot](design/config.md#the-runtime-snapshot).
 2. **YARP routes carry no Host match.** Use path-only, never-requested internal paths, e.g. `/.paduraksa/r/{routeSlot}/{**rest}`, or one catch-all route per cluster. They exist only so YARP builds endpoints and pipeline state, and the gate never lets a request reach the matcher. Path-based routing inside a host, such as `/api` going to upstream A and `/` to upstream B, moves into the gate: `CompiledHost` holds an ordered route list matched in the gate from precompiled prefixes.
 3. **`RuntimeSnapshot` gets `Endpoint[] YarpEndpointBySlot`.** Policies (the flattened global → profile → host → route chain) and the endpoint come from the **same** snapshot that the gate read once. This is exact by construction, with no version checks or snapshot ring. It holds even when the policy chain runs long (forward-auth I/O), because nothing is looked up again after the gate.
 4. **Gate:** host lookup, then route match, then `ctx.SetEndpoint(S.YarpEndpointBySlot[slot])`. All gate decisions happen before `UseRouting`, and an unknown host is answered in the gate. Endpoint metadata isn't needed for policy resolution. Optionally attach a stable `RouteSlot` object for diagnostics; never attach per-generation objects.
@@ -215,7 +215,7 @@ Results, from `results/gate.txt`. Every probe request was `GET /x`, which matche
    1. compile and run YARP's `IConfigValidator` on the candidate;
    2. commit;
    3. provider swap + `Cancel()`;
-   4. **await `ConfigurationApplied` or `ConfigurationApplyingFailed` for the candidate's `RevisionId`** through an `IConfigChangeListener`, with a timeout that triggers the §6.1 alert;
+   4. **await `ConfigurationApplied` or `ConfigurationApplyingFailed` for the candidate's `RevisionId`** through an `IConfigChangeListener`, with a timeout that triggers the [config.md, Write path](design/config.md#write-path) alert;
    5. build the slot → `Endpoint` table from `EndpointDataSource` by `RouteModel.Config.RouteId`;
    6. `SnapshotStore` swap.
 

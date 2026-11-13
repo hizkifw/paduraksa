@@ -25,7 +25,7 @@ internal static class BackupEntries
 
 /// <summary>
 /// The manifest's JSON, written and read by hand: a format that outlives this build's serializer settings, with every field
-/// checked on the way in. See PLAN §8, As built (M10), for the example.
+/// checked on the way in. See docs/design/vault-and-certificates.md "Backup and restore (M10)", for the example.
 /// </summary>
 internal static class BackupManifestFormat
 {

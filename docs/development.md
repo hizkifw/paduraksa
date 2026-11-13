@@ -20,7 +20,7 @@ arrows, `§`). `./scripts/check-confusables.sh` is the same check as one grep.
 
 ## Property tests and fuzzing
 
-Two kinds of test go beyond examples (docs/PLAN.md §15).
+Two kinds of test go beyond examples ([testing.md, Property tests](design/testing.md#property-tests)).
 
 **Property tests** (CsCheck) sit in `Paduraksa.Tests.Proxy` and `Paduraksa.Tests.Unit` next to what they test (`*PropertyTests`) and run in `dotnet test`. A property
 checks the code against a slow, obvious model on generated input. Every case's seed is derived from a fixed base, so a run is the same every time, and a failure
@@ -137,7 +137,7 @@ no backup-specific step.
 
 ## Repository layout
 
-- `src/`: the product projects (layering in [PLAN.md](PLAN.md) §1).
+- `src/`: the product projects (layering in [PLAN section 1](PLAN.md#1-solution-layout)).
 - `tests/`: unit (`Paduraksa.Tests.Unit`), data (`Paduraksa.Tests.Data`), proxy hot path and end-to-end
   (`Paduraksa.Tests.Proxy`), integration (`Paduraksa.Tests.Integration`), architecture (`Paduraksa.Tests.Architecture`)
   and vault (`Paduraksa.Tests.Vault`, a key-material boundary project like the vault itself) tests.

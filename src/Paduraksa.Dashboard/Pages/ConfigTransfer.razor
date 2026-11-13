@@ -9,7 +9,7 @@
 @inject DashboardBrowser Browser
 @inject ISnackbar Snackbar
 @inject ILogger<ConfigTransfer> Logger
-@* Settings: the config as YAML (PLAN §11.5). Export downloads the live config; import reads pasted text or a file, maps it onto the
+@* Settings: the config as YAML (docs/design/admin-surfaces.md "YAML import and export"). Export downloads the live config; import reads pasted text or a file, maps it onto the
    document, and hands the command to the review drawer, whose dry run is the diff and whose Apply is one revision. *@
 
 <PageTitle>Export and import · Settings · Paduraksa</PageTitle>

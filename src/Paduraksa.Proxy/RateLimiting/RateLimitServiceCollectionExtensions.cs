@@ -9,7 +9,7 @@ namespace Paduraksa.Proxy.RateLimiting;
 
 /// <summary>
 /// Registers the rate-limit engine's process-lifetime state: the bucket table, the policy slot registry, the counters and
-/// the sweeper (PLAN §6.3). The gate's rate-limit policies take tokens from the same table the compiler assigned slots
+/// the sweeper (docs/design/config.md "State that survives a publish"). The gate's rate-limit policies take tokens from the same table the compiler assigned slots
 /// in.
 /// </summary>
 public static class RateLimitServiceCollectionExtensions

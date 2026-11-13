@@ -37,7 +37,7 @@ public sealed record EndpointRule(string Method, string Path, bool Prefix, strin
 }
 
 /// <summary>
-/// The one list of what a script cannot call through <c>paduraksa.request</c>, whatever the token could do over HTTP (PLAN §11.2), and the list of
+/// The one list of what a script cannot call through <c>paduraksa.request</c>, whatever the token could do over HTTP (docs/design/admin-surfaces.md "MCP in code mode (M10)"), and the list of
 /// what looks sensitive and was looked at and allowed. The test <c>McpRequestPolicyApiTests</c> walks the generated API description and fails for an
 /// operation whose path matches <see cref="SensitivePath"/> and is on neither list, so a new endpoint that carries a secret, changes who may sign in,
 /// or hands out a backup has to be classified when it is added.

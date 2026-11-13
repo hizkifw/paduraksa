@@ -4,7 +4,7 @@ namespace Paduraksa.Proxy.Net;
 
 /// <summary>
 /// What the connection stage applies, compiled once per snapshot: the per-IP cap and the connection deny list (a named
-/// access list's <c>deny</c> addresses, the same <see cref="CidrSet"/> the host chains use). PLAN §7.2 A.
+/// access list's <c>deny</c> addresses, the same <see cref="CidrSet"/> the host chains use). docs/design/hot-path.md "A. Connection".
 /// </summary>
 public sealed class ConnectionPolicy
 {

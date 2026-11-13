@@ -18,7 +18,7 @@ public sealed record HeavyHitter(string Key, long Count, long Error, long Reques
 
 /// <summary>
 /// A Space-Saving heavy-hitters sketch (Metwally, Agrawal and El Abbadi): the most frequent keys of a stream in fixed memory,
-/// <see cref="Capacity"/> keys at most (PLAN §7.4, analytics). A key that is tracked carries a count and an error: its weight is
+/// <see cref="Capacity"/> keys at most (docs/design/observability.md "Traffic analytics"). A key that is tracked carries a count and an error: its weight is
 /// between <c>Count - Error</c> and <c>Count</c>. A key that isn't tracked weighs at most <see cref="Floor"/>, so a key heavier than
 /// the floor is always in the sketch.
 /// </summary>

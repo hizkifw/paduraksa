@@ -5,7 +5,7 @@ public sealed class DataDirectoryInUseException(string message) : Exception(mess
 
 /// <summary>
 /// The server's claim on its data directory: an exclusive lock on <c>&lt;data dir&gt;/run/server.lock</c>, held for the process's life.
-/// One data directory serves one server (PLAN §6.4), so a second server fails to start, and <c>paduraksa restore</c>, which replaces
+/// One data directory serves one server (docs/design/vault-and-certificates.md "One server per data directory"), so a second server fails to start, and <c>paduraksa restore</c>, which replaces
 /// the databases, refuses to run while one is up.
 /// </summary>
 /// <remarks>

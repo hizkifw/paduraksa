@@ -6,7 +6,7 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Notifications;
 
 /// <summary>
-/// Something worth telling a person, recorded once (PLAN §7.4 "As built: durable delivery and history"): the notification history's backbone and
+/// Something worth telling a person, recorded once (docs/design/observability.md "Durable delivery and history (notify-outbox)"): the notification history's backbone and
 /// everything a sender needs to build the message again after a restart. Written by the flusher together with its deliveries, so an event with no
 /// subscribed channel is still here, with none. Int64Ordered ID: admin-only, append-only, and creation order is the history's order.
 /// </summary>

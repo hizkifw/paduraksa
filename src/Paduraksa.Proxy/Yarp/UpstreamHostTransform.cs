@@ -8,7 +8,7 @@ using Yarp.ReverseProxy.Transforms;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// Sets the <c>Host</c> the upstream receives from the route's compiled <see cref="UpstreamHost"/> (PLAN §5.1): the client's own
+/// Sets the <c>Host</c> the upstream receives from the route's compiled <see cref="UpstreamHost"/> (docs/design/config.md "Upstream Host header modes"): the client's own
 /// (<c>Original</c>), none, so the HTTP client sends the destination's address (<c>Destination</c>), or a fixed name (<c>Custom</c>).
 /// The forwarder's HTTP client takes the TLS server name from the same header, so SNI follows it with nothing more to do.
 /// </summary>

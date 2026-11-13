@@ -5,7 +5,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// The <c>Host</c> an upstream receives, decided at compile time so the request transform only reads it (PLAN §5.1). SNI needs
+/// The <c>Host</c> an upstream receives, decided at compile time so the request transform only reads it (docs/design/config.md "Upstream Host header modes"). SNI needs
 /// no setting of its own: the forwarder's HTTP client takes the name for the TLS handshake, and the certificate check, from the
 /// request's <c>Host</c>, so they follow whatever this sends.
 /// </summary>

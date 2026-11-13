@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// The parent's side of <c>paduraksa.request</c> (PLAN §11.2): the child sends the script's options as JSON, and this validates every field by name,
+/// The parent's side of <c>paduraksa.request</c> (docs/design/admin-surfaces.md "MCP in code mode (M10)"): the child sends the script's options as JSON, and this validates every field by name,
 /// applies <see cref="RequestPolicy"/> (the refused list, the dry run or the 428 for a write without <c>confirm</c>) and dispatches as the token's caller.
 /// What comes back is a response frame, or an error the child raises in the script. The child is not trusted: nothing it sends is used before it is checked
 /// here, and nothing here depends on the child having checked.

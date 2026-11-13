@@ -1251,7 +1251,7 @@
           "Config"
         ],
         "summary": "The config as YAML",
-        "description": "The latest revision's document in the YAML format of PLAN section 11.5, or the revision in ?revision= (an ID). The ETag is the revision exported. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.\n\nRequires the `config:read` permission.",
+        "description": "The latest revision's document in the YAML format of docs/design/admin-surfaces.md, YAML import and export, or the revision in ?revision= (an ID). The ETag is the revision exported. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.\n\nRequires the `config:read` permission.",
         "operationId": "ExportConfig",
         "responses": {
           "200": {
@@ -6262,7 +6262,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
             }
           }
         ],
@@ -6343,7 +6343,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
             }
           }
         ],
@@ -6419,7 +6419,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
             }
           }
         ],
@@ -6502,7 +6502,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
             }
           }
         ],
@@ -6645,7 +6645,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
             }
           },
           {
@@ -6738,7 +6738,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
             }
           }
         ],
@@ -6851,7 +6851,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
             }
           },
           {
@@ -12451,7 +12451,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (PLAN §7.4). Computed from the\naccess-log drain, so a host with its access log off is absent. Visitors, the top tables and the per-path figures are approximate by design;\neach table row carries its own bound."
+        "description": "The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (docs/design/observability.md \"Metrics (M9)\"). Computed from the\naccess-log drain, so a host with its access log off is absent. Visitors, the top tables and the per-path figures are approximate by design;\neach table row carries its own bound."
       },
       "AnalyticsPath": {
         "required": [
@@ -15315,7 +15315,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "What the proxy does with a connection before the TLS handshake (PLAN §7.2 A). Global only: a connection has no host yet.\nA visitor behind a trusted proxy (Cloudflare, a load balancer) shares the proxy's address here, so the proxy is exempt from\nthe cap and its visitors are judged by their real addresses later, at the gate."
+        "description": "What the proxy does with a connection before the TLS handshake (docs/design/hot-path.md \"A. Connection\"). Global only: a connection has no host yet.\nA visitor behind a trusted proxy (Cloudflare, a load balancer) shares the proxy's address here, so the proxy is exempt from\nthe cap and its visitors are judged by their real addresses later, at the gate."
       },
       "CreateAcmeAccountBody": {
         "required": [
@@ -15712,7 +15712,7 @@
         ],
         "pattern": "^drf_[0-9A-Za-z]{22}$",
         "type": "string",
-        "description": "A draft: one user's open change set across pages, applied as one revision (PLAN §12)."
+        "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
       },
       "DraftOutcome": {
         "required": [
@@ -18574,7 +18574,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A named token bucket that hosts and routes apply: int RateLimitPolicyConfig.Requests per RateLimitPeriod RateLimitPolicyConfig.Per seconds, with a\nbucket of int RateLimitPolicyConfig.Burst tokens, keyed the way RateLimitKey RateLimitPolicyConfig.Key says. It is a top-level object, so two hosts\ncan name one policy and still keep their own buckets (PLAN §6.3)."
+        "description": "A named token bucket that hosts and routes apply: int RateLimitPolicyConfig.Requests per RateLimitPeriod RateLimitPolicyConfig.Per seconds, with a\nbucket of int RateLimitPolicyConfig.Burst tokens, keyed the way RateLimitKey RateLimitPolicyConfig.Key says. It is a top-level object, so two hosts\ncan name one policy and still keep their own buckets (docs/design/config.md \"State that survives a publish\")."
       },
       "RateLimitPolicyId": {
         "examples": [

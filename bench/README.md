@@ -3,8 +3,8 @@
 Two kinds of measurement live here:
 
 - **Micro-benchmarks** (`Paduraksa.Benchmarks`, BenchmarkDotNet): the hot-path building blocks, in ns and bytes per
-  operation. They back the PLAN §7.1 rule that Paduraksa's own per-request code allocates 0 B.
-- **End-to-end baseline** (`run-baseline.sh`, spike S7 in PLAN §13): Paduraksa vs nginx, Caddy, HAProxy, Traefik,
+  operation. They back the [hot-path.md, Budget and rules](../docs/design/hot-path.md#budget-and-rules) rule that Paduraksa's own per-request code allocates 0 B.
+- **End-to-end baseline** (`run-baseline.sh`, spike S7 in [milestones.md, Risks and spikes](../docs/design/milestones.md#risks-and-spikes)): Paduraksa vs nginx, Caddy, HAProxy, Traefik,
   Envoy and a bare Kestrel + YARP reference as reverse proxies in front of the same upstream on the same machine,
   measured with `oha`. For Paduraksa it also tracks the whole process's allocated bytes per request (Kestrel, routing
   and YARP included), GC activity and thread-pool state.
@@ -44,7 +44,7 @@ and refuses to start under Server GC:
 
 - In-process means the benchmarks run under this project's own runtimeconfig. BenchmarkDotNet doesn't generate and
   build a separate project, which would also inherit the repo's warnings-as-errors and analyzers.
-- BenchmarkDotNet's `Allocated` column is wrong under Server GC with the in-process toolchain (spike S3, PLAN §7.1).
+- BenchmarkDotNet's `Allocated` column is wrong under Server GC with the in-process toolchain (spike S3, [hot-path.md, Budget and rules](../docs/design/hot-path.md#budget-and-rules)).
   Workstation GC gives correct per-operation bytes.
 - Non-concurrent GC keeps the background GC thread out of the timings.
 

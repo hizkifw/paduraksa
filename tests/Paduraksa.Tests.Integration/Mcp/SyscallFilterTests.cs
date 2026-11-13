@@ -8,7 +8,7 @@ using static Paduraksa.Mcp.SyscallFilter;
 namespace Paduraksa.Tests.Integration.Mcp;
 
 /// <summary>
-/// The child's seccomp filter (PLAN §11.2, threat model G2). The program is checked in two ways: by a small interpreter of classic BPF over every architecture's
+/// The child's seccomp filter (docs/design/admin-surfaces.md "MCP in code mode (M10)", threat model G2). The program is checked in two ways: by a small interpreter of classic BPF over every architecture's
 /// numbers, against a reference table kept here on purpose (a typo in the filter's own table fails a test instead of agreeing with itself), and, on this kernel, by
 /// installing it on a thread of its own and making the calls.
 /// </summary>

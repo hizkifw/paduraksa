@@ -7,7 +7,7 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// The QUIC side of the connection stage (PLAN §7.2 A). QUIC has no connection middleware before the handshake, so the
+/// The QUIC side of the connection stage (docs/design/hot-path.md "A. Connection"). QUIC has no connection middleware before the handshake, so the
 /// work is split where the transport allows it.
 /// </summary>
 /// <remarks>

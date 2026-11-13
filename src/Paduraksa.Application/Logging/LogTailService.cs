@@ -4,7 +4,7 @@ using Paduraksa.Proxy.Logging;
 namespace Paduraksa.Application.Logging;
 
 /// <summary>
-/// The live access-log tail (PLAN §7.4) for the dashboard and the API: opens a bounded subscription on the hub the access-log
+/// The live access-log tail (docs/design/observability.md "The live tail (M9)") for the dashboard and the API: opens a bounded subscription on the hub the access-log
 /// drain feeds, with a backlog of the newest matching requests, and maps what it holds to the contract's entries. Never changes
 /// anything, and holds nothing of the request path.
 /// </summary>

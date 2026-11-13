@@ -6,7 +6,7 @@ using Paduraksa.Contracts.Config;
 namespace Paduraksa.Application.Yaml;
 
 /// <summary>
-/// Writes a config document as YAML that <see cref="ConfigYamlMapper"/> reads back to the same document, IDs included (PLAN §11.5: export is the current revision as YAML).
+/// Writes a config document as YAML that <see cref="ConfigYamlMapper"/> reads back to the same document, IDs included (docs/design/admin-surfaces.md "YAML import and export": export is the current revision as YAML).
 /// The YAML is the document's own canonical JSON with the three differences of <see cref="ConfigYamlSchema"/>, so a new field of the document is exported with no change here;
 /// secrets are not in the document, and a user's password has no key (<see cref="ConfigYamlSchema.IsPassword"/>), so none can be exported.
 /// </summary>

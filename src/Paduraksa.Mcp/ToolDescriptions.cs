@@ -1,7 +1,7 @@
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// The two tools' names and descriptions, which are all the model knows of them (PLAN §11.2). The numbers are the limits in force, so the text
+/// The two tools' names and descriptions, which are all the model knows of them (docs/design/admin-surfaces.md "MCP in code mode (M10)"). The numbers are the limits in force, so the text
 /// cannot say one thing while the sandbox does another.
 /// </summary>
 public static class ToolDescriptions

@@ -9,7 +9,7 @@ namespace Paduraksa.Bench.Runner;
 
 /// <summary>
 /// Solves the proof-of-work challenge the way the browser page does, so the runner can hand the harness a valid
-/// <c>paduraksa_pow</c> cookie before the browser-check run. The protocol is the gate's (PLAN §7.2): GET the page with
+/// <c>paduraksa_pow</c> cookie before the browser-check run. The protocol is the gate's (docs/design/hot-path.md "Request pipeline"): GET the page with
 /// <c>Accept: text/html</c>, read the challenge out of it, find a decimal counter whose SHA-256 digest has enough leading
 /// zero bits, POST it to the verify endpoint, and take the cookie from the 303's <c>Set-Cookie</c>.
 /// </summary>

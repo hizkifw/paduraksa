@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.28
 
-# Paduraksa v0.1, single node (PLAN §16).
+# Paduraksa v0.1, single node (docs/design/deployment.md "Overview").
 #
 # Build:  docker build -t paduraksa .
 # Run:    docker run -d --name paduraksa --stop-timeout 35 -p 80:80 -p 443:443 -p 443:443/udp -p 9443:9443 -v paduraksa-data:/data paduraksa
@@ -11,7 +11,7 @@
 # so start-up is a little cheaper; turn it off with --build-arg PADURAKSA_READYTORUN=false.
 #
 # The image listens on 80/443 (tcp and udp) and 9443 *directly*, never on a remapped in-container port: Alt-Svc and the
-# HTTP->HTTPS redirect advertise 443 because that is the port clients reach (PLAN §3, §16). Docker 20.10+ sets
+# HTTP->HTTPS redirect advertise 443 because that is the port clients reach (docs/design/hosting.md "Host mechanics", docs/design/deployment.md "Overview"). Docker 20.10+ sets
 # net.ipv4.ip_unprivileged_port_start=0 in the container's network namespace, so the non-root user can bind them;
 # for runtimes that do not (network_mode: host, Kubernetes without the sysctl), the apphost carries
 # cap_net_bind_service (setcap below).
@@ -86,14 +86,14 @@ RUN set -eux; \
     apt-get purge -y --auto-remove curl gnupg; \
     rm -rf /var/lib/apt/lists/*
 
-# The one volume (PLAN §16). /data is created with the image's owner so a fresh named volume inherits it; a bind mount
+# The one volume (docs/design/deployment.md "Overview"). /data is created with the image's owner so a fresh named volume inherits it; a bind mount
 # must be chowned to 10001:10001 by the operator (docs/install.md, deploy/compose.yaml).
 RUN groupadd --system --gid 10001 paduraksa \
     && useradd --system --uid 10001 --gid paduraksa --home-dir /data --shell /usr/sbin/nologin paduraksa \
     && install -d -o paduraksa -g paduraksa -m 0750 /data
 
 # The app stays root-owned, so the process can't rewrite its own binaries. The apphost carries cap_net_bind_service (set
-# in the build stage) to bind 80/443 without root where the runtime does not lift the unprivileged-port floor (PLAN §16).
+# in the build stage) to bind 80/443 without root where the runtime does not lift the unprivileged-port floor (docs/design/deployment.md "Overview").
 # File capabilities are ignored under no-new-privileges; Docker's sysctl then makes them unnecessary. A runtime that drops
 # capabilities (compose `cap_drop: [ALL]`, Kubernetes "restricted") must add NET_BIND_SERVICE back, or exec of this file
 # fails with EPERM.
@@ -101,7 +101,7 @@ WORKDIR /app
 COPY --from=build /app /app
 
 # The listeners come only from Paduraksa:Listen; blank the generic web-host knobs so an inherited env var cannot move one
-# (PLAN §3, HostSetup.PinListenerConfiguration also pins them, this keeps it obvious in `docker inspect`).
+# (docs/design/hosting.md "Host mechanics", HostSetup.PinListenerConfiguration also pins them, this keeps it obvious in `docker inspect`).
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_HTTP_PORTS= \
     ASPNETCORE_URLS= \
@@ -112,7 +112,7 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_TieredPGO=1 \
     DOTNET_EnableDiagnostics=0
 
-# No curl/wget in the image: the healthcheck is the app's own short-lived process (PLAN §16).
+# No curl/wget in the image: the healthcheck is the app's own short-lived process (docs/design/deployment.md "Overview").
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD ["/app/paduraksa", "doctor", "--liveness"]
 
@@ -122,7 +122,7 @@ EXPOSE 443/udp
 EXPOSE 9443/tcp
 
 # Kestrel drains with a shared 30 s budget; give Docker at least 35 s (`--stop-timeout 35`,
-# `stop_grace_period: 35s` in compose; PLAN §3, §16).
+# `stop_grace_period: 35s` in compose; docs/design/hosting.md "Host mechanics", docs/design/deployment.md "Overview").
 STOPSIGNAL SIGTERM
 
 LABEL org.opencontainers.image.title="Paduraksa" \

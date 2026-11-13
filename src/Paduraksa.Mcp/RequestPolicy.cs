@@ -24,7 +24,7 @@ public enum RequestKind
 public sealed record RequestDecision(RequestKind Kind, string Reason = "", bool SupportsDryRun = false);
 
 /// <summary>
-/// Decides what a script's request may do (PLAN §11.2), from the resolved API description and <see cref="EndpointRules"/>: only paths that match an
+/// Decides what a script's request may do (docs/design/admin-surfaces.md "MCP in code mode (M10)"), from the resolved API description and <see cref="EndpointRules"/>: only paths that match an
 /// operation of the description are dispatched, those on the refused list never are, and a write is dispatched only with <c>confirm: true</c>. This is
 /// a second check on top of the API's own permission for the token, which still applies to everything that is dispatched.
 /// </summary>

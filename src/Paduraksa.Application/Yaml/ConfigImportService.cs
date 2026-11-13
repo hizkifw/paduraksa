@@ -31,7 +31,7 @@ public sealed record ConfigImportPreparation(ReplaceConfigCommand? Command, IRea
 public sealed record ConfigExport(string Yaml, RevisionRef? Revision);
 
 /// <summary>
-/// YAML import and export on the config pipeline (PLAN §11.5): what the API, the CLI and the dashboard call. An import reads the YAML under the <see cref="YamlLimits"/>, maps it onto the
+/// YAML import and export on the config pipeline (docs/design/admin-surfaces.md "YAML import and export"): what the API, the CLI and the dashboard call. An import reads the YAML under the <see cref="YamlLimits"/>, maps it onto the
 /// document (<see cref="ConfigYamlMapper"/>), builds what the config would be (<see cref="ConfigImportMerge"/>) and sends it through <see cref="ConfigService"/> as one
 /// <see cref="ReplaceConfigCommand"/>, so validation, compilation, the lock-out guard, the diff, the audit and the single revision are the pipeline's; this class adds only what the
 /// pipeline can't know about YAML.

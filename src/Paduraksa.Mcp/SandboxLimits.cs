@@ -1,7 +1,7 @@
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// What bounds one tool call (PLAN §11.2). The boundary is the child process: the parent enforces these from outside and kills the child on any breach.
+/// What bounds one tool call (docs/design/admin-surfaces.md "MCP in code mode (M10)"). The boundary is the child process: the parent enforces these from outside and kills the child on any breach.
 /// The <c>Engine*</c> values only turn the ordinary runaway into a clean error inside the child; they are not what the security rests on.
 /// </summary>
 public sealed record SandboxLimits

@@ -7,7 +7,7 @@ namespace Paduraksa.Application.Analytics;
 
 /// <summary>
 /// Persists the analytics' closed buckets every <see cref="AnalyticsOptions.WriteInterval"/>, rolls finished hours up, and deletes what is
-/// past <see cref="AnalyticsOptions.Retention"/> every <see cref="AnalyticsOptions.PruneInterval"/> (PLAN §7.4). A hosted service of the core
+/// past <see cref="AnalyticsOptions.Retention"/> every <see cref="AnalyticsOptions.PruneInterval"/> (docs/design/observability.md "Traffic analytics"). A hosted service of the core
 /// host, registered before the access-log drain so it stops after it: the bucket the drain closes as it stops is in the backlog when the
 /// job's last write runs. A write that fails puts the batch back and tries again; the backlog is bounded, so a database that stays down loses
 /// the oldest buckets and never memory.

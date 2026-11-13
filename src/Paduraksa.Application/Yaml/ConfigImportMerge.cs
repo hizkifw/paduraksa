@@ -31,7 +31,7 @@ internal sealed record ImportPlan(ConfigDocument Document, IReadOnlyDictionary<s
     }
 }
 
-/// <summary>What importing does to the stored config, as a document (PLAN §11.5): replace is the YAML, merge is the stored config with the YAML's objects added or updated.</summary>
+/// <summary>What importing does to the stored config, as a document (docs/design/admin-surfaces.md "YAML import and export"): replace is the YAML, merge is the stored config with the YAML's objects added or updated.</summary>
 internal static class ConfigImportMerge
 {
     /// <summary>The config becomes the YAML: global settings it doesn't write are the defaults, a list it doesn't write is empty, so the stored objects it doesn't name are deleted.</summary>

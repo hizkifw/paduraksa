@@ -15,13 +15,13 @@ namespace Paduraksa.Proxy.Gate;
 /// <summary>
 /// One (policy, host) rate limit in a route's chain: takes a token from the bucket the request's partition key selects,
 /// or answers 429 with the wait in <c>Retry-After</c>. It runs after the route's access policies and before the
-/// proof-of-work gate, so a client that is over its budget gets the 429 rather than a challenge page (PLAN §7.2 D).
+/// proof-of-work gate, so a client that is over its budget gets the 429 rather than a challenge page (docs/design/hot-path.md "D. Policy chains").
 /// </summary>
 /// <remarks>
 /// <para><b>Bucket scope.</b> The slot is the (policy ID, host ID) pair's, fixed at compile time, so two hosts that
 /// name one policy don't share a client's budget, while every route of one host that resolves to the same policy does
 /// share it. The policy's rate and burst are precomputed too, so an edit applies on the next touch without moving a
-/// bucket (PLAN §6.3). A pair with slot 0 exists only in a candidate that is never published (a draft, a dry run or a
+/// bucket (docs/design/config.md "State that survives a publish"). A pair with slot 0 exists only in a candidate that is never published (a draft, a dry run or a
 /// simulation): there is no bucket to touch, and the simulator reports the fresh one it would get.</para>
 /// <para><b>Partition.</b> <see cref="RateLimitKey.ClientIp"/> keys the resolved client address (IPv6 by /64);
 /// <see cref="RateLimitKey.ClientIpAndPath"/> adds the canonical matching path, the same view the route matched on;

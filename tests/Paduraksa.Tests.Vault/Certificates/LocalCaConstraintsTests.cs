@@ -7,7 +7,7 @@ using Paduraksa.Tests.Vault.Testing;
 
 namespace Paduraksa.Tests.Vault.Certificates;
 
-/// <summary>The local CA's name constraints (PLAN 9.2) and its rotation.</summary>
+/// <summary>The local CA's name constraints (docs/design/vault-and-certificates.md "Local CA name constraints and root rotation") and its rotation.</summary>
 public sealed class LocalCaConstraintsTests : IDisposable
 {
     private readonly VaultHarness _vault = new();

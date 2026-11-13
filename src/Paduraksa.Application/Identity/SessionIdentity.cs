@@ -7,8 +7,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
-/// The identity of a request authenticated by a full session cookie, as the admin app's authentication established it (PLAN
-/// §10.1). The dashboard reads it from the request that opens a page or a circuit, so the circuit acts for the same user, from
+/// The identity of a request authenticated by a full session cookie, as the admin app's authentication established it (docs/design/identity.md "Admin auth"). The dashboard reads it from the request that opens a page or a circuit, so the circuit acts for the same user, from
 /// the same client, as the request that authenticated it; it carries no credential (the cookie value stays with the request).
 /// </summary>
 /// <remarks>

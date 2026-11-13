@@ -11,7 +11,7 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>The MCP endpoint end to end with the official client over streamable HTTP (PLAN §11.2): the tools, what they run as, and who may connect.</summary>
+/// <summary>The MCP endpoint end to end with the official client over streamable HTTP (docs/design/admin-surfaces.md "MCP in code mode (M10)"): the tools, what they run as, and who may connect.</summary>
 public sealed class McpEndpointTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

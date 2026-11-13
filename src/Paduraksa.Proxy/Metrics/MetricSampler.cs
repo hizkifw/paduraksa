@@ -5,7 +5,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
-/// Samples the registry once a second into in-memory rings and finished minutes (PLAN §7.4). Each tick reads every host's and
+/// Samples the registry once a second into in-memory rings and finished minutes (docs/design/observability.md "Metrics (M9)"). Each tick reads every host's and
 /// upstream's cumulative counters and histograms, takes what each gained since the tick before, and files it in the ten-second
 /// buckets and the minute the interval since the last tick belongs to (cut in proportion where it crosses a boundary); a finished
 /// bucket goes into the series' ring (an hour of them), a finished minute into the <see cref="MetricRollupBacklog"/> for the

@@ -32,7 +32,7 @@ public sealed class RateLimitCompilationTests
         Assert.NotEqual(one.Slot, two.Slot);
         Assert.NotEqual(one.Slot, own.Slot);
 
-        // An edit to the numbers reuses the pair's slot: its buckets survive (PLAN §6.3).
+        // An edit to the numbers reuses the pair's slot: its buckets survive (docs/design/config.md "State that survives a publish").
         var second = Compile(runtime, Model(new RateLimitParameters(1, 3), new RateLimitParameters(2, 4)));
         var edited = Assert.Single(second.RateLimitRegistrations, r => r.Identity == one.Identity);
         Assert.Equal(one.Slot, edited.Slot);

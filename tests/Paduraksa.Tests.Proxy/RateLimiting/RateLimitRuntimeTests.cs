@@ -5,7 +5,7 @@ namespace Paduraksa.Tests.Proxy.RateLimiting;
 /// <summary>
 /// The process runtime: slots stay put for one (policy, host) identity, a publish swaps the live parameters and retires
 /// the pairs the new snapshot drops so their buckets can be cleared, and a pair retired then re-added never reads stale
-/// tokens (PLAN §6.3).
+/// tokens (docs/design/config.md "State that survives a publish").
 /// </summary>
 public sealed class RateLimitRuntimeTests
 {

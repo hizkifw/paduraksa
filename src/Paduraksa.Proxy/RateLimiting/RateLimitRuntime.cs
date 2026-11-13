@@ -20,7 +20,7 @@ public readonly record struct RateLimitRegistration(ushort Slot, RateLimitParame
 /// goes live publishes its slots' parameters and retires the pairs it no longer has; a dry run or a draft therefore
 /// leaves the live set alone.</para>
 /// <para><b>Retire and reuse.</b> A retired pair's slot is not reusable until the registry's grace period has passed,
-/// and the buckets of the slot are cleared before it is handed out again (PLAN §6.3).</para>
+/// and the buckets of the slot are cleared before it is handed out again (docs/design/config.md "State that survives a publish").</para>
 /// </remarks>
 public sealed class RateLimitRuntime
 {

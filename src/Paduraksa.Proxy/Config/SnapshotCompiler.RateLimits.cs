@@ -44,7 +44,7 @@ public static partial class SnapshotCompiler
         }
 
         // Stable identities only: the policy's ID and the host's, never an array position, so a pair keeps its buckets
-        // across every publish (PLAN §6.3).
+        // across every publish (docs/design/config.md "State that survives a publish").
         var identity = policyId.ToString() + "/" + host.Id.ToString();
         ushort slot;
         if (context.Options.WillBePublished)

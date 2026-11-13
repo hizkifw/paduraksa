@@ -6,7 +6,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// Stage-A connection middleware: the connection deny list and the per-IP connection cap (PLAN §7.2 A), before TLS. A
+/// Stage-A connection middleware: the connection deny list and the per-IP connection cap (docs/design/hot-path.md "A. Connection"), before TLS. A
 /// refused connection is aborted unread, so a scanner on the deny list never gets as far as a handshake. Install it after
 /// <see cref="ClientInfoMiddleware"/> (the address is the PROXY protocol source when there is one) and
 /// <see cref="OriginLockdownMiddleware"/>, and before <c>UseHttps</c>.

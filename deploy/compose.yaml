@@ -1,4 +1,4 @@
-# Paduraksa v0.1, single node (PLAN §16). Put this file in a directory of its own, create the master key file next to
+# Paduraksa v0.1, single node (docs/design/deployment.md "Overview"). Put this file in a directory of its own, create the master key file next to
 # it (the commands are under "Master key" below), and run:
 #
 #   docker compose up -d
@@ -54,7 +54,7 @@ services:
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
 
-    # Master key (PLAN §8.3). It is a Docker secret, so the key never sits in the data directory: a copy of the volume is
+    # Master key (docs/design/vault-and-certificates.md "At-rest encryption"). It is a Docker secret, so the key never sits in the data directory: a copy of the volume is
     # not a copy of all your keys. Create the file BEFORE the first `docker compose up` (the container runs as uid 10001
     # and non-swarm Compose mounts a file secret as a bind mount that keeps the *host's* owner and mode):
     #   head -c 32 /dev/urandom | base64 | sudo install -m 400 -o 10001 -g 10001 /dev/stdin master.key

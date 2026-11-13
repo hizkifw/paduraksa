@@ -8,7 +8,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Tests.Unit.Drafts;
 
 /// <summary>
-/// What a review's token covers (PLAN §12): the draft, what it writes, what it refers to and the warnings it changes; and what it leaves out, so that a commit
+/// What a review's token covers (docs/design/dashboard.md "Drafts (M10)"): the draft, what it writes, what it refers to and the warnings it changes; and what it leaves out, so that a commit
 /// that doesn't touch any of that (another host, a shifted position in the document) doesn't make a review stale.
 /// </summary>
 public sealed class DraftReviewTokenTests

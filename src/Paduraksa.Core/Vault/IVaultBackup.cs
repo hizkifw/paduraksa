@@ -70,7 +70,7 @@ public sealed class BackupException(BackupFailure reason, string message) : Exce
 
 /// <summary>
 /// Full backup and restore: one passphrase-encrypted archive of the config database, the vault database and the last-known-good
-/// file (PLAN §8, As built (M10)). The vault owns the encryption, so the passphrase and every key stay inside it; the archive
+/// file (docs/design/vault-and-certificates.md "Backup and restore (M10)"). The vault owns the encryption, so the passphrase and every key stay inside it; the archive
 /// holds the vault's keys re-wrapped under a backup-only key and never this machine's master key.
 /// </summary>
 public interface IVaultBackup

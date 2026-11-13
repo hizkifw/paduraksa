@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// One child process as the parent holds it (PLAN §11.2): the pipes, the watchdog of a run, and the kill. The parent is the guard: any breach of a limit, any
+/// One child process as the parent holds it (docs/design/admin-surfaces.md "MCP in code mode (M10)"): the pipes, the watchdog of a run, and the kill. The parent is the guard: any breach of a limit, any
 /// frame that is not what the protocol says, the child exiting or closing its pipe ends the run with a fixed message, kills the process tree, and takes this
 /// child out of use. What the child printed on stderr is kept as a short tail for the log and never given to a caller.
 /// </summary>

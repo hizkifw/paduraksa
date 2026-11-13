@@ -10,7 +10,7 @@ using Paduraksa.Proxy.Metrics;
 namespace Paduraksa.Application.Metrics;
 
 /// <summary>
-/// The one-minute rollups in the config database (PLAN §6.3): written by the rollup job, read by the overview for ranges the
+/// The one-minute rollups in the config database (docs/design/config.md "State that survives a publish"): written by the rollup job, read by the overview for ranges the
 /// sampler's memory doesn't reach. Rows are keyed by the object's typed ID and the minute; the in-memory slot never appears.
 /// </summary>
 public sealed class MetricRollupStore

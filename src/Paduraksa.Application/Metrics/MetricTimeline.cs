@@ -4,7 +4,7 @@ namespace Paduraksa.Application.Metrics;
 
 /// <summary>
 /// Lays a chart's buckets out in time so that a stretch the process wasn't there for is a bucket of its own with no coverage, never a
-/// jump from one point to the next (PLAN §7.4). The series runs from the first bucket the process observed to the last; what lies
+/// jump from one point to the next (docs/design/observability.md "Metrics (M9)"). The series runs from the first bucket the process observed to the last; what lies
 /// outside it (the part of the range before there was any data, the minute the rollups haven't been written for yet) is not a gap.
 /// </summary>
 internal static class MetricTimeline

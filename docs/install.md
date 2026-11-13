@@ -1,7 +1,7 @@
 # Installing Paduraksa
 
 Paduraksa v0.1 is a single-node deployment: one process, one data directory, three listeners. This page is the practical
-install guide; the design is in [PLAN.md](PLAN.md) §3, §8 and §16.
+install guide; the design is in [hosting.md, Host mechanics](design/hosting.md#host-mechanics), [vault-and-certificates.md, What the vault holds](design/vault-and-certificates.md#what-the-vault-holds) and [deployment.md, Overview](design/deployment.md#overview).
 
 - **Ports:** 80/tcp (HTTP, ACME HTTP-01, redirects), 443/tcp (HTTP/1.1 and HTTP/2) and **443/udp** (HTTP/3), and
   9443/tcp (the admin app).
@@ -10,7 +10,7 @@ install guide; the design is in [PLAN.md](PLAN.md) §3, §8 and §16.
   the logs under `logs/` and, unless you supply the master key another way, `master.key`.
 - **Master key:** the one key that opens `vault.db`. Keep a copy somewhere other than the data volume; losing it loses
   every certificate key, DNS credential, TOTP secret and the Data Protection key ring. Admin sessions do **not** depend on
-  it: the admin session cookie is Paduraksa's own random value, stored hashed in `paduraksa.db`. See PLAN §8.3.
+  it: the admin session cookie is Paduraksa's own random value, stored hashed in `paduraksa.db`. See [vault-and-certificates.md, At-rest encryption](design/vault-and-certificates.md#at-rest-encryption).
 - **List settings** (`AdminAllowedSources`, `CertificateNames`, the PROXY protocol `TrustedSources`, ACME
   `DnsPropagation:Resolvers`, the access log's `SensitiveQueryKeys`) take **either** one comma-separated value or indexed
   keys; both bind, both are documented below.
@@ -130,7 +130,7 @@ so an unqualified `9443:9443` would answer on every interface the host has.
 From the safest to the most open:
 
 1. **Loopback and an SSH tunnel** (the default): `ssh -L 9443:127.0.0.1:9443 you@server`, then `https://localhost:9443/`.
-2. **The admin as a host behind the proxy**, with its own name, certificate and an access list in front (`Hosts`, kind Admin; PLAN §3.1).
+2. **The admin as a host behind the proxy**, with its own name, certificate and an access list in front (`Hosts`, kind Admin; [hosting.md, Exposing the admin through the proxy](design/hosting.md#exposing-the-admin-through-the-proxy)).
    It reaches the admin over a socket inside the process, so the port itself stays on loopback. Put an IP access list on that host, and
    never forward a public name to `127.0.0.1:9443` yourself: every client would look like loopback, share one throttle and pass an allowlist
    that lists loopback.
@@ -402,7 +402,7 @@ shows what `access.log` would, redacted and capped the same way, and a host with
 newest `Paduraksa__AccessLog__TailSize` requests in memory; see the API description for the filters and the events.
 
 The first-run setup token's banner is logged at Warning, so on a fresh instance it is also written to `error.log` (the one
-exception documented in PLAN §2). Until an Owner exists it can therefore be found in the logs, rotated `.gz` files
+exception documented in [PLAN section 2](PLAN.md#2-development-rules-and-how-they-are-enforced)). Until an Owner exists it can therefore be found in the logs, rotated `.gz` files
 included; it is single-use and worthless once an Owner exists, and the process deletes the token file when setup completes.
 
 | Setting | Default | What |
@@ -613,7 +613,7 @@ docker compose run --rm -v "$PWD:/keys:ro" paduraksa vault rotate-kek --new-key-
 docker compose up -d
 ```
 
-Read PLAN §8.3 before rotating: the order (new key stored first, then rotate, then retire the old one) is what makes a
+Read [vault-and-certificates.md, At-rest encryption](design/vault-and-certificates.md#at-rest-encryption) before rotating: the order (new key stored first, then rotate, then retire the old one) is what makes a
 crash safe.
 
 ### HTTPS upstreams
@@ -644,7 +644,7 @@ docker inspect --format '{{.State.Health.Status}}' paduraksa
 
 For external monitors use the admin endpoints directly: `/healthz` (process alive, a snapshot loaded) and `/readyz`
 (serving traffic; `200 degraded` means the last-known-good config is live because the config database is unavailable;
-still ready, worth an alert). See PLAN §11.3.
+still ready, worth an alert). See [admin-surfaces.md, Health endpoints](design/admin-surfaces.md#health-endpoints).
 
 ### Access log and request IDs
 
@@ -687,7 +687,7 @@ counting sketch (HyperLogLog) and is gone, so what is stored can't be turned bac
 database. The price of a salt that dies with the process is that a visitor active across a restart is counted once on each side of it.
 Query strings are never counted (paths are counted without them), a referer is reduced to its scheme and host, and the user
 agents are the raw strings the clients sent. Visitors and the tables are approximate by design (the page says so): about 1.6 % for
-visitors, and every top-table figure has a documented bound (PLAN section 7.4).
+visitors, and every top-table figure has a documented bound ([observability.md, Overview](design/observability.md#overview)).
 
 Closed five-minute buckets are written to the config database every 15 seconds; an hour that has passed is rolled up into one row
 per host for the day and week ranges, and a day that has passed into one row per host for the month. The five-minute rows are kept two days once rolled up, the hourly rows for the retention.

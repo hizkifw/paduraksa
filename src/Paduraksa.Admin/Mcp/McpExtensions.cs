@@ -11,7 +11,7 @@ namespace Paduraksa.Admin.Mcp;
 /// <summary>How the admin app runs the MCP sandbox (<c>Paduraksa:Mcp</c>): the child process to start and how long an idle one lives.</summary>
 public sealed record AdminMcpOptions(Paduraksa.Mcp.SandboxChildCommand ChildCommand, TimeSpan IdleTimeout);
 
-/// <summary>The MCP endpoint (<c>/mcp</c>, streamable HTTP, PLAN §11.2): two tools, <c>search</c> and <c>execute</c>, that run the model's JavaScript in a sandbox.</summary>
+/// <summary>The MCP endpoint (<c>/mcp</c>, streamable HTTP, docs/design/admin-surfaces.md "MCP in code mode (M10)"): two tools, <c>search</c> and <c>execute</c>, that run the model's JavaScript in a sandbox.</summary>
 public static class McpExtensions
 {
     public const string Path = "/mcp";

@@ -11,7 +11,7 @@ namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
 /// Counts a finished request into the <see cref="MetricsRegistry"/> from the access-log completion callback, which runs for
-/// every request whether or not its host logs it (PLAN §7.4). The durations come from the same two clocks the access log
+/// every request whether or not its host logs it (docs/design/observability.md "Metrics (M9)"). The durations come from the same two clocks the access log
 /// reads: the request's start timestamp and YARP's request and response transforms.
 /// </summary>
 internal static class RequestMetricsRecorder

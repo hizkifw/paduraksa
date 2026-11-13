@@ -24,7 +24,7 @@ public enum ConnectionDecision : byte
 /// <summary>
 /// The process's connection-stage state: the per-address table and the counters, one per process like the rate-limit
 /// runtime and shared by the TCP middleware, the QUIC gate and the security overview. The snapshot holds only the
-/// <see cref="ConnectionPolicy"/> (the cap and the deny list); a publish never touches what is counted (PLAN §6.3).
+/// <see cref="ConnectionPolicy"/> (the cap and the deny list); a publish never touches what is counted (docs/design/config.md "State that survives a publish").
 /// </summary>
 /// <remarks>
 /// Refusals are counted for every connection and logged at most once per <see cref="LogInterval"/> and reason, with

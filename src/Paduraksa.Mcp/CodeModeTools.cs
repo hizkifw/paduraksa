@@ -3,7 +3,7 @@ using System.Text;
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// The two tools of the MCP server (PLAN §11.2), independent of the transport: <c>search</c> runs a script over the API description, <c>execute</c> runs one
+/// The two tools of the MCP server (docs/design/admin-surfaces.md "MCP in code mode (M10)"), independent of the transport: <c>search</c> runs a script over the API description, <c>execute</c> runs one
 /// against the API as the caller. Both run in a child process of the pool; the request policy is applied here, in the parent.
 /// </summary>
 public sealed class CodeModeTools : IAsyncDisposable

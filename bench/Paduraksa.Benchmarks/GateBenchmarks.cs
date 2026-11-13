@@ -107,7 +107,7 @@ public class GateBenchmarks
     [Benchmark]
     public int HttpsRedirect() => (int)_gate.Decide(_httpsRedirect).Action;
 
-    /// <summary>A proxy host with HSTS on, over HTTPS: the precomputed header is set (PLAN §14 M6).</summary>
+    /// <summary>A proxy host with HSTS on, over HTTPS: the precomputed header is set (docs/design/milestones.md "Milestones" M6).</summary>
     [Benchmark]
     public int ForwardWithHsts() => (int)_gate.Decide(_forwardWithHsts).Action;
 

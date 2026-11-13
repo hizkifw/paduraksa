@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// A seccomp filter for the child (PLAN §11.2): the child is the boundary, and this closes the routes out of it. It lets the child create only <c>AF_UNIX</c> sockets (it talks
+/// A seccomp filter for the child (docs/design/admin-surfaces.md "MCP in code mode (M10)"): the child is the boundary, and this closes the routes out of it. It lets the child create only <c>AF_UNIX</c> sockets (it talks
 /// over pipes and needs none), so it has no TCP, UDP, raw or netlink socket to send what it saw through, and it refuses the calls in <see cref="Denied"/>, which are the
 /// ways from a process to another process of the same user (the parent, with the vault, the tokens and the network) or around this filter. Every other system call is allowed:
 /// this is not a profile of the runtime's calls, which would break with every .NET release. A refused call fails with <c>EPERM</c>, not a kill, so a library that probes

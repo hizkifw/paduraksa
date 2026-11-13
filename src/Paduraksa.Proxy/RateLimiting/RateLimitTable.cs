@@ -2,7 +2,7 @@ namespace Paduraksa.Proxy.RateLimiting;
 
 /// <summary>
 /// The process's one rate-limit bucket table: a fixed-size, open-addressed, lock-free table of token buckets keyed by
-/// (policy slot, partition hash) - PLAN §7.3. A call allocates nothing and never blocks.
+/// (policy slot, partition hash) - docs/design/waf.md "Rate limiting". A call allocates nothing and never blocks.
 /// </summary>
 /// <remarks>
 /// <para><b>Entries.</b> Two <see cref="long"/> arrays of <see cref="Capacity"/> entries, the same index in each. An

@@ -73,7 +73,7 @@ public sealed record BackupLocations(string ConfigDatabasePath, string LastKnown
 }
 
 /// <summary>
-/// The full backup (PLAN §8, "As built (M10)"): checks <see cref="Permission.BackupCreate"/> (the Owner's alone; a token can carry it as a
+/// The full backup (docs/design/vault-and-certificates.md "Backup and restore (M10)"): checks <see cref="Permission.BackupCreate"/> (the Owner's alone; a token can carry it as a
 /// scope), checks the passphrase, has the vault write the encrypted archive and audits the outcome as <c>backup.create</c> with the actor,
 /// the time (the event's own) and the archive's size, never the passphrase.
 /// </summary>

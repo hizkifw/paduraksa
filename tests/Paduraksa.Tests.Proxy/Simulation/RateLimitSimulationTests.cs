@@ -15,7 +15,7 @@ namespace Paduraksa.Tests.Proxy.Simulation;
 
 /// <summary>
 /// The request simulator's rate-limit step: it reports what a request would get and leaves the bucket exactly as it found
-/// it (PLAN §7.7, "stateful policies must not mutate when simulated").
+/// it (docs/design/hot-path.md "Request simulator", "stateful policies must not mutate when simulated").
 /// </summary>
 public sealed class RateLimitSimulationTests
 {

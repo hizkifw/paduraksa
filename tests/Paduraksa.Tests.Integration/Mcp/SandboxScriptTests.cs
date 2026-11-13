@@ -3,7 +3,7 @@ using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Mcp;
 
-/// <summary>What a script gets from a real child process (PLAN §11.2): values, errors with their positions, the spec, and the request round trip through the parent.</summary>
+/// <summary>What a script gets from a real child process (docs/design/admin-surfaces.md "MCP in code mode (M10)"): values, errors with their positions, the spec, and the request round trip through the parent.</summary>
 public sealed class SandboxScriptTests(SandboxFixture fixture) : IClassFixture<SandboxFixture>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

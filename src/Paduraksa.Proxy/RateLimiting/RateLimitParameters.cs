@@ -6,7 +6,7 @@ namespace Paduraksa.Proxy.RateLimiting;
 /// </summary>
 /// <remarks>
 /// <para>The rate is quantized to 1/1024 of a 1/16 token per second (the field is <c>rate x 16 x 1024</c>), which keeps
-/// the refill in integer arithmetic: <c>elapsedMs x rateUnits x 16 / 1000</c> as PLAN §7.3 states, one division by a
+/// the refill in integer arithmetic: <c>elapsedMs x rateUnits x 16 / 1000</c> as docs/design/waf.md "Rate limiting" states, one division by a
 /// constant. Rates below 1/16384 token per second are refused, and so are rates above
 /// <see cref="MaxTokensPerSecond"/> and bursts above <see cref="MaxBurst"/>: those would overflow the 24-bit token field
 /// or the product the refill computes.</para>
@@ -92,7 +92,7 @@ public readonly struct RateLimitParameters : IEquatable<RateLimitParameters>
 
     /// <summary>
     /// The bucket after a refill: never above <paramref name="burstUnits"/>. A token count above the burst means the
-    /// burst was lowered since the entry was last touched, and that is where it gets clamped (PLAN §6.3).
+    /// burst was lowered since the entry was last touched, and that is where it gets clamped (docs/design/config.md "State that survives a publish").
     /// </summary>
     internal static long Clamp(long units, long refillUnits, long burstUnits) =>
         refillUnits >= burstUnits - units ? burstUnits : units + refillUnits;

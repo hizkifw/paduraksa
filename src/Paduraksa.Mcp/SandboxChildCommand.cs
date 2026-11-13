@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Paduraksa.Mcp;
 
-/// <summary>How the parent starts a child: the same binary, with the hidden subcommand <c>mcp-sandbox</c> (PLAN §11.2).</summary>
+/// <summary>How the parent starts a child: the same binary, with the hidden subcommand <c>mcp-sandbox</c> (docs/design/admin-surfaces.md "MCP in code mode (M10)").</summary>
 public sealed record SandboxChildCommand(string FileName, IReadOnlyList<string> Arguments)
 {
     public const string Subcommand = "mcp-sandbox";

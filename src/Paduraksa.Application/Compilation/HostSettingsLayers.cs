@@ -12,7 +12,7 @@ namespace Paduraksa.Application.Compilation;
 /// turns the result into the concrete values the compiler, the validator and the dashboard work with.
 /// </summary>
 /// <remarks>
-/// <para><b>Adding a setting</b> follows the checklist in PLAN §5.3: the property, its line in <c>Merge</c> (and in
+/// <para><b>Adding a setting</b> follows the checklist in docs/design/config.md "Adding a host setting": the property, its line in <c>Merge</c> (and in
 /// the nested record's own merge), its value in <see cref="Concrete"/> and its built-in default among the constants
 /// below, then its validator rules, its dashboard field and the tests.</para>
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in

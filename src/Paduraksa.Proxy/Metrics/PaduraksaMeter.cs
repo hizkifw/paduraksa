@@ -6,7 +6,7 @@ namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
 /// The registry's counters as <c>System.Diagnostics.Metrics</c> instruments, so OpenTelemetry (<c>AddMeter("Paduraksa")</c>) and
-/// <c>dotnet-counters</c> work with no exporter of ours (PLAN §7.4). Every instrument is observable: its callback reads the
+/// <c>dotnet-counters</c> work with no exporter of ours (docs/design/observability.md "Metrics (M9)"). Every instrument is observable: its callback reads the
 /// striped arrays when a listener asks, so the request path never touches the meter and costs the same with or without one.
 /// </summary>
 /// <remarks>

@@ -7,7 +7,7 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Integration.Mcp;
 
 /// <summary>
-/// The proof of the design (PLAN §11.2): a script that misbehaves costs only its child. The scripts that were once dangerous in-process run on a stock engine
+/// The proof of the design (docs/design/admin-surfaces.md "MCP in code mode (M10)"): a script that misbehaves costs only its child. The scripts that were once dangerous in-process run on a stock engine
 /// here, with the engine's own constraints on (a clean error) and off (the boundary alone), and the parent notices, kills the child, answers with a fixed
 /// message and serves the next call on a new one.
 /// </summary>

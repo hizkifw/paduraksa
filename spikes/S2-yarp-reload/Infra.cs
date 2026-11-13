@@ -220,7 +220,7 @@ public sealed class ProxyHost : IAsyncDisposable
         b.Services.Configure<TransportFailureRateHealthPolicyOptions>(o => { o.MinimalTotalCountThreshold = 5; o.DefaultFailureRateLimit = 0.3; });
         var app = b.Build();
 
-        // "Gate": captures the snapshot ONCE before routing (PLAN §7.2 C).
+        // "Gate": captures the snapshot ONCE before routing (docs/design/hot-path.md "C. Gate middleware").
         app.Use((ctx, next) =>
         {
             ctx.Features.Set(new GateFeature(provider.Current));

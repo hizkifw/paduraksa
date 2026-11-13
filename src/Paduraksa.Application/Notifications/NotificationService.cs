@@ -18,7 +18,7 @@ using Paduraksa.Notifications;
 namespace Paduraksa.Application.Notifications;
 
 /// <summary>
-/// Notification channels: add, replace, delete and test. An operational table like DNS providers (PLAN §5.1): a channel holds delivery state
+/// Notification channels: add, replace, delete and test. An operational table like DNS providers (docs/design/config.md "Data model"): a channel holds delivery state
 /// outside the config document and secrets that must never be in one, so it is not a revision, and each change is audited on its own
 /// (<c>notification.channel.*</c>). The webhook URL, token or password and a webhook's signing key go into the vault the moment they arrive; the
 /// row keeps only their IDs, and nothing here returns, logs or audits a value.

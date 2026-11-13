@@ -55,7 +55,7 @@ public readonly partial record struct CertificateId;
 [TypedId("rev")]
 public readonly partial record struct ConfigRevisionId;
 
-/// <summary>A draft: one user's open change set across pages, applied as one revision (PLAN §12).</summary>
+/// <summary>A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md "Drafts (M10)").</summary>
 [TypedId("drf")]
 public readonly partial record struct DraftId;
 

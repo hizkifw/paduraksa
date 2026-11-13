@@ -182,7 +182,7 @@ public sealed class NoConfusableCharactersTests
     /// <summary>The allowlist, pinned: characters that read as themselves must not be flagged.</summary>
     [Theory]
     [InlineData("\u00A7")] // SECTION SIGN: PLAN section references
-    [InlineData("\u2192")] // RIGHTWARDS ARROW: docs/PLAN.md flows
+    [InlineData("\u2192")] // RIGHTWARDS ARROW: the design pages' flows
     [InlineData("\u2194")] // LEFT RIGHT ARROW
     [InlineData("\u2500")] // BOX DRAWINGS LIGHT HORIZONTAL: the setup-token banner
     [InlineData("\u2554")] // BOX DRAWINGS DOUBLE DOWN AND RIGHT: the same banner
@@ -192,7 +192,7 @@ public sealed class NoConfusableCharactersTests
     [InlineData("\u2153")] // VULGAR FRACTION ONE THIRD
     [InlineData("\u00B0")] // DEGREE SIGN
     [InlineData("\u00F7")] // DIVISION SIGN
-    [InlineData("\u2705")] // WHITE HEAVY CHECK MARK: PLAN milestone tables
+    [InlineData("\u2705")] // WHITE HEAVY CHECK MARK: status tables
     [InlineData("\u00E9")] // LATIN SMALL LETTER E WITH ACUTE: prose and names
     public void CharactersThatReadAsThemselvesAreAllowed(string text) => Assert.Empty(Scan("allowed.md", text));
 

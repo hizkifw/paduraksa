@@ -57,7 +57,7 @@ public static class ArchRules
     public static IArchRule ProxyDoesNotUseLinq { get; } =
         Types().That().ResideInNamespaceMatching(NamespacePattern(Layer.Proxy))
             .Should().NotDependOnAny(Types(true).That().ResideInNamespaceMatching(@"^System\.Linq(\..+)?$"))
-            .Because("PLAN §15: the hot path avoids LINQ (allocations, delegate calls)")
+            .Because("docs/design/testing.md, Architecture tests: the hot path avoids LINQ (allocations, delegate calls)")
             .WithoutRequiringPositiveResults();
 
     /// <summary>
@@ -86,6 +86,6 @@ public static class ArchRules
         Types().That().ResideInNamespaceMatching(NamespacePattern(Layer.Vault)).And().ArePublic()
             .And().DoNotResideInNamespaceMatching(@"^Paduraksa\.Vault\.Migrations$")
             .Should().Be(Classes().That().AreAbstract().And().AreSealed().And().HaveNameEndingWith(VaultEntryPointSuffix))
-            .Because("PLAN §8: Vault types are internal; only its DI registration entry point is public")
+            .Because("docs/design/vault-and-certificates.md, What the vault holds: Vault types are internal; only its DI registration entry point is public")
             .WithoutRequiringPositiveResults();
 }

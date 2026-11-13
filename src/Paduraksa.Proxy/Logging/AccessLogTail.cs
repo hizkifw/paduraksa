@@ -5,7 +5,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// The live tail's hub (PLAN §7.4): the most recent access-log entries in a fixed-size buffer, and a bounded channel per
+/// The live tail's hub (docs/design/observability.md "The live tail (M9)"): the most recent access-log entries in a fixed-size buffer, and a bounded channel per
 /// subscriber. <see cref="AccessLogDrainService"/>, the ring's one reader, offers each entry here after it has written the
 /// file's line, so the request path doesn't know the tail exists: no new work per request, and the entries a host keeps out of
 /// the file (its access log is off) never get this far, so they are not in the tail either.

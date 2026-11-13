@@ -5,7 +5,7 @@ namespace Paduraksa.Proxy.RateLimiting;
 /// <summary>
 /// Walks <see cref="RateLimitTable"/> periodically and clears what no request will use again: the buckets of a retired
 /// policy's slot (at once) and those untouched for longer than their policy's full-refill window (burst / rate), where
-/// the bucket would be full again anyway (PLAN §7.3).
+/// the bucket would be full again anyway (docs/design/waf.md "Rate limiting").
 /// </summary>
 /// <remarks>
 /// <para>The sweeper reads the table without locking, like a request does, and clears an entry only if its state is still

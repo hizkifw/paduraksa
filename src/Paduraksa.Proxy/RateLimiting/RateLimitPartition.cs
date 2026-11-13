@@ -37,7 +37,7 @@ public sealed class RateLimitPartition
 
     /// <summary>
     /// The client's key. An IPv4 client is keyed by the whole address, an IPv6 client by its /64: one end site holds a
-    /// /64 as a matter of course, so per-address keys would be free to rotate (PLAN §7.3, <see cref="IpKey.MaskTo(int, int)"/>).
+    /// /64 as a matter of course, so per-address keys would be free to rotate (docs/design/waf.md "Rate limiting", <see cref="IpKey.MaskTo(int, int)"/>).
     /// </summary>
     public ulong ForIp(IpKey client) => Hash128(IpDomain, client.MaskTo(32, 64).Value);
 

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Paduraksa.Mcp;
 
 /// <summary>
-/// What the child applies to itself before it reads a script (PLAN §11.2), on Linux, each by a system call that can fail: the outcome of every one is a line
+/// What the child applies to itself before it reads a script (docs/design/admin-surfaces.md "MCP in code mode (M10)"), on Linux, each by a system call that can fail: the outcome of every one is a line
 /// in the startup frame, and the parent logs the ones that did not apply. Several are per thread, so they are applied on the thread that runs scripts. They narrow what a script that got out of the interpreter could do; the parent's
 /// limits and its kill are what hold regardless.
 /// </summary>

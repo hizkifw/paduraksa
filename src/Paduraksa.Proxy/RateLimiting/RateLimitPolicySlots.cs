@@ -2,7 +2,7 @@ namespace Paduraksa.Proxy.RateLimiting;
 
 /// <summary>
 /// Maps a rate-limit policy's stable identity to its 16-bit table slot: append-only, so a bucket survives every publish
-/// of a config that still has the policy (PLAN §6.3). Slot 0 is reserved for "no policy"; the other 65 535 are handed
+/// of a config that still has the policy (docs/design/config.md "State that survives a publish"). Slot 0 is reserved for "no policy"; the other 65 535 are handed
 /// out once and reused only after their policy has been gone for the grace period.
 /// </summary>
 /// <remarks>

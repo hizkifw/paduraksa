@@ -10,7 +10,7 @@ using Paduraksa.Tests.Integration.Config;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// Drafts through MCP (PLAN §11.2, §12): reading the draft and reviewing it are allowed; adding entries, opening, applying and discarding are writes that need
+/// Drafts through MCP (docs/design/admin-surfaces.md "MCP in code mode (M10)", docs/design/dashboard.md "Drafts (M10)"): reading the draft and reviewing it are allowed; adding entries, opening, applying and discarding are writes that need
 /// <c>confirm</c>, and an apply without it is the review. An agent proposes a set of changes into its token owner's draft, and the person applies it.
 /// </summary>
 public sealed class McpDraftTests

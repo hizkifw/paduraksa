@@ -6,7 +6,7 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Notifications;
 
 /// <summary>
-/// A notification channel (PLAN §5.1). An operational table, like DNS providers: it holds state outside the config document (when it last
+/// A notification channel (docs/design/config.md "Data model"). An operational table, like DNS providers: it holds state outside the config document (when it last
 /// sent, what failed) and secrets that must never be in one. <b>No secret here:</b> the URL, token or password is a vault secret.
 /// </summary>
 internal sealed class NotificationChannelRow

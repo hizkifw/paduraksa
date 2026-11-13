@@ -72,7 +72,7 @@ public sealed record DefaultsSpec
     public ConnectionsSpec Connections { get; init; } = ConnectionsSpec.Default;
 }
 
-/// <summary>The connection-stage settings, compiled into a <see cref="ConnectionPolicy"/> (PLAN §7.2 A).</summary>
+/// <summary>The connection-stage settings, compiled into a <see cref="ConnectionPolicy"/> (docs/design/hot-path.md "A. Connection").</summary>
 public sealed record ConnectionsSpec
 {
     /// <summary>The cap when the config sets none: far above what a household or a small office behind one address opens,

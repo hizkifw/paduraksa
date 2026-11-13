@@ -10,7 +10,7 @@ using Paduraksa.Tests.Integration.Hosting;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// The sandbox's limits seen through the real endpoint, and what hostile text in the data does (PLAN §11.2). The limits themselves are walked in
+/// The sandbox's limits seen through the real endpoint, and what hostile text in the data does (docs/design/admin-surfaces.md "MCP in code mode (M10)"). The limits themselves are walked in
 /// the unit tests; these show that each ends as a tool result a model can read, never as a protocol error or a hung connection, and that a prompt
 /// injection in what the proxy logged is only ever data.
 /// </summary>

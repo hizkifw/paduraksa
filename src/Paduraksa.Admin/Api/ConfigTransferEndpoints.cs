@@ -13,7 +13,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Admin.Api;
 
 /// <summary>
-/// The config as YAML (PLAN §11.5): <c>GET /config/export</c> writes the latest revision, or the one in <c>?revision=</c>, and <c>POST /config/import</c> reads a YAML body into the
+/// The config as YAML (docs/design/admin-surfaces.md "YAML import and export"): <c>GET /config/export</c> writes the latest revision, or the one in <c>?revision=</c>, and <c>POST /config/import</c> reads a YAML body into the
 /// config in <c>merge</c> or <c>replace</c> mode as one revision, or, with <c>?dryRun=true</c>, only says what it would change. The import is a whole-config command, so it
 /// answers like the others (<see cref="ConfigCommandResponses"/>), and its errors point into the YAML.
 /// </summary>
@@ -29,7 +29,7 @@ internal static class ConfigTransferEndpoints
     {
         api.MapGet("/config/export", ExportAsync)
             .WithName("ExportConfig").WithTags("Config").WithSummary("The config as YAML")
-            .WithDescription("The latest revision's document in the YAML format of PLAN section 11.5, or the revision in ?revision= (an ID). The ETag is the revision exported. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.")
+            .WithDescription("The latest revision's document in the YAML format of docs/design/admin-surfaces.md, YAML import and export, or the revision in ?revision= (an ID). The ETag is the revision exported. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.")
             .Produces<string>(200, "application/yaml").ProducesApiProblems(400, 404)
             .RequirePermission(Permission.ConfigRead);
 

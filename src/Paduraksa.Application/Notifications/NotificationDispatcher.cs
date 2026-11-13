@@ -18,7 +18,7 @@ internal interface IDeliveryWake
 }
 
 /// <summary>
-/// Delivers events to the channels subscribed to them, durably (PLAN §7.4 "As built: durable delivery and history"). Producers call
+/// Delivers events to the channels subscribed to them, durably (docs/design/observability.md "Durable delivery and history (notify-outbox)"). Producers call
 /// <see cref="Publish"/>, which only puts the event in a small in-memory buffer; the flusher writes the buffer to the database in batches, with one
 /// pending delivery per subscribed channel, and each channel's worker takes its due deliveries from there. What is in the database survives a stop
 /// or a crash and resumes at the next start.

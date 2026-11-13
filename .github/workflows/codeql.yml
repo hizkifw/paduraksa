@@ -1,6 +1,6 @@
 name: CodeQL
 
-# Static analysis of the C# product code (threat model G9, PLAN §15): on every push to main and pull request, and weekly, because the queries
+# Static analysis of the C# product code (threat model G9, docs/design/testing.md "Test levels"): on every push to main and pull request, and weekly, because the queries
 # improve between runs. Results show in the repository's Security tab (code scanning).
 on:
   push:

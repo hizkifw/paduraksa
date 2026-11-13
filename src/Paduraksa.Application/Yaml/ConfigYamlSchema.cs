@@ -160,7 +160,7 @@ internal static class ConfigYamlSchema
         return node;
     }
 
-    /// <summary>A user's plain password is a write-only field of the API; the YAML never carries a password, in either direction (PLAN §8).</summary>
+    /// <summary>A user's plain password is a write-only field of the API; the YAML never carries a password, in either direction (docs/design/vault-and-certificates.md "Password credentials (M7)").</summary>
     public static bool IsPassword(Type owner, string jsonName) =>
         owner == typeof(AccessListUserConfig) && string.Equals(jsonName, "password", StringComparison.Ordinal);
 

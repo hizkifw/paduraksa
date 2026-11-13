@@ -13,7 +13,7 @@ using Paduraksa.Mcp;
 namespace Paduraksa.Admin.Mcp;
 
 /// <summary>
-/// The two tools of the MCP endpoint over the transport (PLAN §11.2): lists them, and runs a call as the caller authentication set on the request.
+/// The two tools of the MCP endpoint over the transport (docs/design/admin-surfaces.md "MCP in code mode (M10)"): lists them, and runs a call as the caller authentication set on the request.
 /// A failure of any kind is a tool result with <c>isError</c>, never an exception into the MCP host.
 /// </summary>
 internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipeline pipeline, IServiceScopeFactory scopes, IHttpContextAccessor accessor, ILogger<McpToolkit> logger, AdminMcpOptions options)
