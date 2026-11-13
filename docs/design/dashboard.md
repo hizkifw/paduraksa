@@ -764,7 +764,7 @@ It is `{draft version}.{22 characters of base64url}`. The hash is SHA-256 over:
 | `GET {id}` | The draft's version as `ETag`. |
 | `GET {id}/config` | The head with the draft applied (one replay). Another user's ID is a 404. |
 | `POST {id}/entries` | Adds object commands (a list). Each is checked as above, with 422, 412 and 404 like the live command. An access-list password goes to the vault. |
-| `DELETE {id}/entries/{number}` | Removes an entry. |
+| `DELETE {id}/entries/{number}` | Removes an entry: 204, with the draft's new version as `ETag`. |
 | `POST {id}/review` | A dry run. The answer's `reviewToken`, also its `ETag`, is what apply must send. None when an entry is blocked, and 409 `draft.blocked` when all are. |
 | `POST {id}/apply` | `If-Match` is **the review token**. 428 without it, with the current review as the problem's `review`. 412 `draft.changedSinceReview` with the fresh review and its token, also as the `ETag`. 409 `draft.blocked`. 409 `draft.nothingToApply` for an empty draft. `?message=`, `?force=`. `?dryRun=true` is the review. The body is a `DraftOutcome`. |
 | `DELETE {id}` | Discards. |

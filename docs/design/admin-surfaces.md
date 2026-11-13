@@ -20,7 +20,27 @@ Contents:
   - `?force=true` for the admin host's lock-out guard (see [hosting.md](hosting.md));
   - RFC 9457 problem details;
   - cursor pagination (UUIDv7 and Int64Ordered IDs make cursors trivial).
+  - What a new endpoint must follow is in [Conventions for a new endpoint](#conventions-for-a-new-endpoint).
 - **Resources:** hosts, routes, upstreams, profiles, certificates, acme-accounts, dns-providers, access-lists, rule-sets, error-pages, settings, drafts (see [dashboard.md](dashboard.md)), revisions (with diff and rollback), audit, users, tokens, sessions, metrics, health, `config/export`, `config/import` and `simulate`.
+
+### Conventions for a new endpoint
+
+The API was made consistent before v0.1 (branch `api-consistency`), because after it a change breaks users. A new endpoint follows these, and `OpenApiCompletenessTests` and `ApiConventionTests` fail when it does not.
+
+- **Paths.** Kebab-case, plural collections: `/rate-limit-policies/{id}`. An action on an object is `POST /{collection}/{id}/{verb}` (`/certificates/{id}/renew`, `/dns-providers/{id}/credential`). A collection or object that is one thing in the config document keeps the document's name in JSON (`rateLimitPolicies` is a key of the document, not a path). No alias for an old path: the API is `v1` until a break, and a break is `v2`.
+- **JSON.** camelCase members; IDs are typed strings named `id` (or `<thing>Id` for a reference); times are ISO 8601 in UTC (`createdAt`, `expiresAt`); enums are strings; a unit is part of a name (`timeoutSeconds`, `p95Ms`). A nullable member of a response is written as `null`, not left out, where a client has to tell "none" from "not sent" (a page's `nextCursor`).
+- **Statuses.**
+  - A create is `POST` to the collection: **201** with `Location` and the created object, **409** when it exists.
+  - A change is `PUT` (replace) or `PATCH` (partial): **200** with the object. A `PUT` that creates what it names (a route) is 201.
+  - A delete is **204**. Two documented exceptions answer 200 with a body: a delete that is a dry run (the plan), and a certificate delete with warnings to report (the vault key could not be removed).
+  - An action that makes nothing addressable (`login`, `test`, `simulate`) is 200 with its result, or 204 when it has none. A verb with a body is a `POST`, never a `DELETE`.
+- **Errors.** Every failure is an `ApiProblem` (`application/problem+json`), and every operation declares the ones it can give: `ProducesApiProblems(...)`, with 401, 403 and 500 added by the description. 400 for a body, header or parameter that can't be read (it names the parameter), 404 for an object that isn't there, 409 for a clash (an existing ID), 412 and 428 for the preconditions below, 415 and 413 for a body, 422 with `errors` for a request that reads and can't be applied. `ApiStatusMapping` is the one table from a service's result to a status.
+- **Concurrency.** An object that carries a `version` is read with `ETag: "<version>"`, and a change or delete to it needs `If-Match` with that tag: missing is 428, stale 412, malformed 400. A whole-config change (`rollback`, `config/import`) pins the latest revision's ID the same way. Creates need none. **Exceptions, with the reason:** certificates, ACME accounts, DNS providers, notification channels, users, tokens and sessions carry no version, because each is changed by one operation that overwrites a field set (a credential, a settings block) and a lost update there costs a retry, not a config: their changes are last-write-wins and say so in their descriptions. A draft is its own case: entries carry the version of what they change, and apply needs the review's token.
+- **Pagination.** Every collection answers `{ items, nextCursor }` (`Page<T>`; `nextCursor` is always present, `null` on the last page) and takes `limit` (1 to 200, default 50) and `cursor` (what the previous page gave, opaque; an unusable one is 400). Config and provider collections are ascending by ID, so a cursor survives the deletion of the item it names; history (revisions, audit, notification history) is newest first. Exceptions: the log files (a directory listing), the recent access log (a bounded snapshot, `limit` up to 1000, no cursor) and the upstreams' live health (a state read as a whole). A new collection uses `Pagination.Respond` (or `TryPage`) and `.WithPage()`.
+- **Query parameters.** Declared once as a `QueryParameter` (type, range, enum, default, description), declared on the endpoint with `.WithQuery(...)` and read only through `Read(http)`. `HttpRequest.Query` is a banned symbol in the admin project, and reading a parameter the endpoint did not declare throws. A change that runs through the config pipeline is marked `.MayFailToPublish()`, which declares `dryRun`, `force` and `message`.
+- **The description.** Summary, description where the summary is not enough, a schema for every success (a file or stream gets the schema of its kind), `x-required-permission` or a sign-in requirement, and the request body with `Accepts`. Regenerate `openapi.v1.json` and read its diff ([development.md](../development.md#the-api-description)).
+- **MCP.** A path that matches `EndpointRules.SensitivePath` is classified in `EndpointRules` (refused, or reviewed with the reason), or `McpRequestPolicyApiTests` fails.
+- **`GET /api/v1/version`** names the product version, the API version (`v1`) and, when the build was given `SourceRevisionId`, the commit. The container build takes it from the `PADURAKSA_COMMIT` build argument.
 
 ### The identity endpoints (M4)
 
@@ -38,12 +58,12 @@ Route parameters carry the ID's route constraint (`users/{id:UserId}`, `sessions
 | `POST me/password` | |
 | `POST me/totp/enrollment` | Needs the password. Returns the otpauth URI once. |
 | `POST me/totp/enrollment/confirm` | Returns the recovery codes once. |
-| `DELETE me/totp` | Password in the body. |
+| `POST me/totp/disable` | Password in the body (a `DELETE` has no body to rely on), 204. |
 | `POST me/recovery-codes` | |
-| `GET sessions[?userId]`, `DELETE sessions/{id}` | |
+| `GET sessions[?userId]`, `DELETE sessions/{id}` | The list is a page like every collection; the delete is 204. |
 | `POST sessions/revoke-others` | Needs a session. A token caller is refused by that requirement first with 403 `auth.sessionRequired`, so there is no 422 branch. |
-| `GET tokens[?userId]`, `POST tokens`, `DELETE tokens/{id}` | `POST` is 201 with the secret once. |
-| `GET`/`POST users`, `GET`/`PATCH`/`DELETE users/{id}` | `PATCH` takes `displayName`, `roles` and `disabled`, applied by one `UserService.UpdateAsync` call in one transaction, the last-Owner guard included: it all applies or none of it does. |
+| `GET tokens[?userId]`, `POST tokens`, `DELETE tokens/{id}` | `POST` is 201 with the secret once; the list is a page. |
+| `GET`/`POST users`, `GET`/`PATCH`/`DELETE users/{id}` | The list is a page, `POST` is 201 with `Location`, `DELETE` is 204. `PATCH` takes `displayName`, `roles` and `disabled`, applied by one `UserService.UpdateAsync` call in one transaction, the last-Owner guard included: it all applies or none of it does. |
 
 **A token cannot manage tokens or sessions.** Every `tokens` and `sessions` endpoint answers a token caller with a 403 (`code: auth.sessionRequired`, "API tokens can't manage tokens or sessions; use a signed-in session"). A leaked token therefore cannot mint a longer life for itself or end the session that is watching it.
 
@@ -174,10 +194,10 @@ The security-headers middleware (auth) adds its headers when the response starts
 - A route is changed through its host: `If-Match` is the host's version.
 - `POST revisions/{id}/rollback` takes the latest revision's ID.
 - `?dryRun=true` runs the whole command and returns the plan without committing. `?message=` is the revision note.
-- Statuses: committed 200 or 201 (deletes 204, a PUT that creates a route 201 with `Location`), invalid 422 (the pipeline's errors verbatim), denied 403, store unavailable 503.
+- Statuses: committed 200 or 201 (deletes 204, a PUT that creates a route 201 with `Location`; the conventions above are the rule, this is the config pipeline's part), invalid 422 (the pipeline's errors verbatim), denied 403, store unavailable 503.
 - **A change that was stored but could not go live is a 500 problem with `code: config.publishFailed`**, the stored `revision` and the new `version` (also the `ETag` header). The client knows the change is stored and not live. Repeating the request with the old `If-Match` is a 412, not a duplicate. Nothing retries the publish.
 
-**Pagination.** `?limit=` (1 to 200, default 50) and `?cursor=` (opaque: the last item's typed ID) on revisions and audit, newest first. An invalid cursor is 400.
+**Pagination.** `?limit=` (1 to 200, default 50) and `?cursor=` (opaque: the last item's typed ID) on every collection (see the conventions above for the exceptions), answered as `{ items, nextCursor }`. Revisions, audit and notification history are newest first and their cursors are positions in the store; the others are cut from an in-memory list ascending by ID. An invalid cursor is 400.
 - Audit filters: `from` and `to` (strict ISO 8601 with a zone; `from` after `to` is 400), `actor` (system, cli, a user ID or a token ID: what changes made through a token record is the token), `action` (exact or `prefix*`), `target`, and `outcome` (`success`, `denied`, `invalid`, `conflict`, `failed`; added with the dashboard's audit page in M5).
 - A filter over 128 characters is 400.
 
@@ -185,7 +205,7 @@ The security-headers middleware (auth) adds its headers when the response starts
 
 **Secrets.**
 - Uploads are streamed from the multipart request into `ICertificateImport`: parts `password`, `label`, then `file`. A duplicate `password` or `label` is a 400, nothing after the file is read, and the password lives in a cleared `char[]`.
-- DNS credentials and EAB keys are stored by the services (`DnsProviderService.CreateWithCredentialAsync`, `RotateCredentialAsync`, `DeleteWithCredentialAsync`, and `AcmeAccountService.CreateWithEabAsync`). They authorize and validate before they store anything, and delete the secret again when the provider or account is not created. No response type can carry a secret.
+- DNS credentials and EAB keys are stored by the services (`DnsProviderService.CreateWithCredentialAsync`, `RotateCredentialAsync`, behind `POST /dns-providers/{id}/credential`, `DeleteWithCredentialAsync`, and `AcmeAccountService.CreateWithEabAsync`). They authorize and validate before they store anything, and delete the secret again when the provider or account is not created. No response type can carry a secret.
 - "Test credentials" (`DnsProviderService.TestAsync(id, origin)`) needs `providers:write` and is audited (`acme.dns_provider.test`, verdict only).
 - `RevisionQueryService` and `AuditQueryService` (Application) are the public, DTO-only readers over the internal revision store and audit chain.
 
@@ -198,7 +218,9 @@ The security-headers middleware (auth) adds its headers when the response starts
   - `OpenApiDocumentCache` generates and caches only when no copy is embedded.
 - Scalar at `/api/docs`: the script is embedded in the package and served locally, with no fonts, telemetry, agent or MCP hook.
 - CSP `default-src 'none'; script-src 'self' 'nonce-...'; style-src 'self' 'unsafe-inline'; ...; connect-src 'self'`. Scalar's bundle contains no `eval` or `new Function` (a test checks), so there is no `'unsafe-eval'`. Both are anonymous (`AllowAnonymousAdmin`).
-- Every operation, the identity ones included, has a summary and either `x-required-permission`, a sign-in requirement or `security: []`. The description names which resources take `If-Match`, the 428, 412 and 400 rules, and `config.publishFailed`.
+- Every operation, the identity ones included, has a summary and either `x-required-permission`, a sign-in requirement or `security: []`. The description names which resources take `If-Match`, the 428, 412 and 400 rules, `config.publishFailed`, the path, JSON, status and pagination conventions, and has a `servers` entry (the admin app's own origin).
+- **Every query parameter is declared with a type, a range or enum, a default and a description** (`ApiQuery.cs`; the audit filters, `range`, the log filters, `revision`, `mode`, `userId` and the rest were prose before). Every 2xx has a schema, and every operation lists the problems its shape implies (a body: 400 and 415; a path ID: 404; a query: 400; a versioned change: 412 and 428), each described by what it means here.
+- **`OpenApiCompletenessTests`** walks the generated description and the mapped endpoints: the declared and the listed query parameters are the same set, every success has a schema, the problem lists are complete and an operation answers a page exactly when it takes `limit` and `cursor`. `ApiQueryTests` covers the guard that throws on a parameter an endpoint reads and did not declare.
 - Integration tests check that every mapped `/api/*` endpoint carries `RequiredPermissionMetadata`, `AdminAuthenticatedMetadata` (`RequireAuthenticated`) or `AdminAnonymousMetadata`. A table checks the exact permission of every resource route and method.
 
 **Tests** use real authentication: users in every role from the identity services, an API token per role (scoped to the role) as the Bearer credential, and real cookie sessions for the CSRF tests.
