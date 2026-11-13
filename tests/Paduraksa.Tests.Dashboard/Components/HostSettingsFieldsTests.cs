@@ -787,6 +787,35 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/maintenance/bypassAccessListId",
             ShowsAtField = true,
         },
+
+        new(
+            "headers.request",
+            "headers-request",
+            "/headers/request/0/name",
+            new HostSettings { Headers = new HeadersSettings { Request = [new HeaderRuleConfig("X-Sample", HeaderOperation.Set, "one")] } },
+            (fields, _) => SetRuleName(fields, "headers-request", 0, "X-Changed"),
+            new HostSettings { Headers = new HeadersSettings { Request = [new HeaderRuleConfig("X-Changed", HeaderOperation.Set, "one")] } },
+            (fields, _) => RemoveRule(fields, "headers-request", 0),
+            new HostSettings(),
+            null)
+        {
+            ValidatorPath = "/headers/request/0/name",
+            ShowsAtField = true,
+        },
+        new(
+            "headers.response",
+            "headers-response",
+            "/headers/response/0/name",
+            new HostSettings { Headers = new HeadersSettings { Response = [new HeaderRuleConfig("X-Sample", HeaderOperation.Set, "one")] } },
+            (fields, _) => SetRuleName(fields, "headers-response", 0, "X-Changed"),
+            new HostSettings { Headers = new HeadersSettings { Response = [new HeaderRuleConfig("X-Changed", HeaderOperation.Set, "one")] } },
+            (fields, _) => RemoveRule(fields, "headers-response", 0),
+            new HostSettings(),
+            null)
+        {
+            ValidatorPath = "/headers/response/0/name",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -848,6 +877,48 @@ public sealed class HostSettingsFieldsTests
         {
             await AssertMaxAgePresetAsync(context, field);
         }
+    }
+
+    [Fact]
+    public async Task HeaderRules_ListWhatTheyInherit_MarkWhatALayerReplaces_AndAddARow()
+    {
+        await using DashboardTestContext context = new();
+        Holder holder = new() { Value = new HostSettings() };
+        HostSettings inherited = new() { Headers = new HeadersSettings { Response = [new HeaderRuleConfig("X-Frame-Options", HeaderOperation.Set, "DENY"), new HeaderRuleConfig("X-Powered-By", HeaderOperation.Remove)] } };
+        var fields = Render(context, holder, holder.Value, inherited);
+
+        var list = fields.Find("[data-field=headers-response]").TextContent;
+        Assert.Contains("X-Frame-Options: DENY", list, StringComparison.Ordinal);
+        Assert.Contains("X-Powered-By: removed", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("replaced below", list, StringComparison.Ordinal);
+
+        await fields.InvokeAsync(() => fields.Find("[data-action=headers-response-add]").Click());
+        await SetRuleName(fields, "headers-response", 0, "x-frame-options");
+
+        Assert.Equal("x-frame-options", Assert.Single(holder.Value.Headers!.Response!).Name);
+        Assert.Contains("replaced below", fields.Find("[data-field=headers-response]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HeaderRules_TwoBlankRowsAreTwoRows_AndAnEditKeepsTheRowsInputs()
+    {
+        // Two blank rows are equal records: keyed on the record, Blazor threw on the second click.
+        await using DashboardTestContext context = new();
+        Holder holder = new() { Value = new HostSettings() };
+        var fields = Render(context, holder, holder.Value);
+
+        await fields.InvokeAsync(() => fields.Find("[data-action=headers-request-add]").Click());
+        await fields.InvokeAsync(() => fields.Find("[data-action=headers-request-add]").Click());
+
+        Assert.Equal(2, holder.Value.Headers!.Request!.Count);
+        Assert.Single(fields.FindAll("[data-field=headers-request-name-1]"));
+        var second = fields.FindComponents<MudTextField<string>>().Single(text => text.Instance.UserAttributes.TryGetValue("data-field", out var value) && Equals(value, "headers-request-name-1"));
+
+        await SetRuleName(fields, "headers-request", 0, "X-One");
+
+        // The other row's input is the same component, not one recreated for a new key.
+        Assert.Same(second.Instance, fields.FindComponents<MudTextField<string>>().Single(text => text.Instance.UserAttributes.TryGetValue("data-field", out var value) && Equals(value, "headers-request-name-1")).Instance);
+        Assert.Equal(["X-One", string.Empty], holder.Value.Headers!.Request!.Select(rule => rule.Name));
     }
 
     [Fact]
@@ -1093,6 +1164,14 @@ public sealed class HostSettingsFieldsTests
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<T?>>()
             .Single(select => select.Instance.Label == label)
             .Instance.ValueChanged.InvokeAsync(value));
+
+    private static Task SetRuleName(IRenderedComponent<HostSettingsFields> fields, string field, int index, string name) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudTextField<string>>()
+            .Single(text => text.Instance.UserAttributes.TryGetValue("data-field", out var value) && Equals(value, $"{field}-name-{index}"))
+            .Instance.ValueChanged.InvokeAsync(name));
+
+    private static Task RemoveRule(IRenderedComponent<HostSettingsFields> fields, string field, int index) =>
+        fields.InvokeAsync(() => fields.Find($"[data-action={field}-remove-{index}]").Click());
 
     /// <summary>Chooses the picker's inherit, no-limit, or nth-policy item by its key.</summary>
     private static Task SetRateLimit(IRenderedComponent<HostSettingsFields> fields, string key) =>

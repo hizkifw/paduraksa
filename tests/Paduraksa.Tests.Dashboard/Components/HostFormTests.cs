@@ -371,6 +371,31 @@ public sealed class HostFormTests
         Assert.Null(model.ToConfig().Routes[0].Settings.RequestLimits);
     }
 
+    [Fact]
+    public async Task TheRouteHeaders_ListTheHostsRules_AndAddTheRoutesOwn()
+    {
+        var model = HostEditModel.From(new HostConfig(
+            HostId.New(),
+            ["app.example.com"],
+            Settings: new HostSettings { Headers = new HeadersSettings { Response = [new HeaderRuleConfig("X-Frame-Options", HeaderOperation.Set, "DENY")] } },
+            Routes: [new RouteConfig(RouteId.New(), App.Id)]));
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        var form = Render(context, model);
+
+        await form.Find("[data-action='route-menu-0'] button").ClickAsync(new());
+        await popovers.Find("[data-action='route-settings']").ClickAsync(new());
+
+        Assert.Contains("X-Frame-Options: DENY", form.Find("[data-field='route-headers-response-0']").TextContent, StringComparison.Ordinal);
+        await form.InvokeAsync(() => form.Find("[data-action='route-headers-response-0-add']").Click());
+        await form.InvokeAsync(() => form.FindComponents<MudTextField<string>>()
+            .Single(text => text.Instance.UserAttributes.TryGetValue("data-field", out var value) && Equals(value, "route-headers-response-0-name-0"))
+            .Instance.ValueChanged.InvokeAsync("X-Frame-Options"));
+
+        Assert.Equal([new HeaderRuleConfig("X-Frame-Options")], model.ToConfig().Routes[0].Settings.Headers!.Response!);
+        Assert.Contains("replaced below", form.Find("[data-field='route-headers-response-0']").TextContent, StringComparison.Ordinal);
+    }
+
     private static Task ChooseBodySize(IRenderedComponent<HostForm> form, string key) =>
         form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
             .Single(select => select.Instance.Label == "Body size on this route")

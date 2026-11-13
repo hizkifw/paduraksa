@@ -338,6 +338,14 @@
             <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
             <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
         </InheritSelect>
+
+        <HeaderRulesField Title="Request headers" Help="Sent to the upstream. A rule for an inherited header replaces it; forwarding and framing headers can't be set."
+                          Value="_current.Headers?.Request" ValueChanged="@(value => Update(WithHeaders(headers => headers with { Request = value }), "/headers/request"))"
+                          Inherited="@(Resolved.Headers?.Request ?? [])" Field="headers-request" Errors="@(suffix => E("/headers/request" + suffix))" ReadOnly="@ReadOnly" />
+
+        <HeaderRulesField Title="Response headers" Help="Sent to the client, on the upstream's responses and the proxy's own pages, after the Server header above."
+                          Value="_current.Headers?.Response" ValueChanged="@(value => Update(WithHeaders(headers => headers with { Response = value }), "/headers/response"))"
+                          Inherited="@(Resolved.Headers?.Response ?? [])" Field="headers-response" Errors="@(suffix => E("/headers/response" + suffix))" ReadOnly="@ReadOnly" />
     }
 </div>
 
@@ -512,6 +520,8 @@
     private HostSettings WithErrorPages(Func<ErrorPagesSettings, ErrorPagesSettings> change) => HostSettingsEdit.WithErrorPages(_current, change);
 
     private HostSettings WithMaintenance(Func<MaintenanceSettings, MaintenanceSettings> change) => HostSettingsEdit.WithMaintenance(_current, change);
+
+    private HostSettings WithHeaders(Func<HeadersSettings, HeadersSettings> change) => HostSettingsEdit.WithHeaders(_current, change);
 
     /// <summary>The statuses with a page, each with the one line that says what makes the gate or the upstream answer it.</summary>
     private static readonly (int Key, string Help)[] ErrorPageRows =

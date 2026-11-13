@@ -129,6 +129,14 @@ public static class HostSettingsEdit
         return settings with { Maintenance = changed.SetsNothing ? null : changed };
     }
 
+    public static HostSettings WithHeaders(HostSettings settings, Func<HeadersSettings, HeadersSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.Headers ?? new HeadersSettings());
+        return settings with { Headers = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
     /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
@@ -181,7 +189,14 @@ public static class SettingsSummary
         static (settings, document) => settings.AuthProvider is { } authProvider ? AuthProviderSummary(authProvider, document) : null,
         static (settings, _) => settings.ErrorPages is { } errorPages ? ErrorPagesText(errorPages) : null,
         static (settings, document) => settings.Maintenance is { } maintenance ? MaintenanceText(maintenance, document) : null,
+        static (settings, _) => settings.Headers is { } headers ? HeadersText(headers) : null,
     ];
+
+    private static string? HeadersText(HeadersSettings headers)
+    {
+        var count = (headers.Request?.Count ?? 0) + (headers.Response?.Count ?? 0);
+        return count == 0 ? null : count == 1 ? "1 header rule" : $"{count} header rules";
+    }
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
     /// <paramref name="document"/>, so the line names it rather than its ID.</summary>

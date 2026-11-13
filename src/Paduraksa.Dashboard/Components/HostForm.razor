@@ -156,6 +156,14 @@
                                                    Error="@(E($"/routes/{index}/settings/authProvider/authProviderId") ?? E($"/routes/{index}/settings/authProvider/enabled"))" ReadOnly="ReadOnly"
                                                    Field="@($"route-auth-provider-{index}")" />
                                 </div>
+                                <div class="pdk-setting-list">
+                                    <HeaderRulesField Title="Request headers" Value="route.RequestHeaders" ValueChanged="@(value => SetAsync(() => route.RequestHeaders = value, $"/routes/{index}/settings/headers/request"))"
+                                                      Inherited="@(HostHeaders?.Request ?? [])" Field="@($"route-headers-request-{index}")"
+                                                      Errors="@(suffix => E($"/routes/{index}/settings/headers/request" + suffix))" ReadOnly="ReadOnly" />
+                                    <HeaderRulesField Title="Response headers" Value="route.ResponseHeaders" ValueChanged="@(value => SetAsync(() => route.ResponseHeaders = value, $"/routes/{index}/settings/headers/response"))"
+                                                      Inherited="@(HostHeaders?.Response ?? [])" Field="@($"route-headers-response-{index}")"
+                                                      Errors="@(suffix => E($"/routes/{index}/settings/headers/response" + suffix))" ReadOnly="ReadOnly" />
+                                </div>
                             </div>
                         }
                     }
@@ -414,6 +422,8 @@
     private AccessListSettings HostAccessList =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).AccessList ?? new AccessListSettings();
 
+    private HeadersSettings? HostHeaders => HostSettingsLayers.MergeAll(Defaults, Profile?.Settings, Model.Settings).Headers;
+
     private long HostMaxBodySize =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).RequestLimits?.MaxBodySize ?? RequestLimitBounds.DefaultMaxBodySize;
 
@@ -564,5 +574,6 @@
         || route.MaxBodySize is not null
         || route.RuleSet is not null
         || route.AuthProvider is not null
+        || route.Settings.Headers is not null
         || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }

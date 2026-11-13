@@ -1,0 +1,154 @@
+@* One direction of custom header rules for one layer: the rules it inherits, read only, then its own as editable rows. A rule
+   here for an inherited name replaces that rule; the merge keys on the name, so the form says which inherited ones it overrides. *@
+<SettingRow Title="@Title" Help="@Help" Wide="true">
+    <div class="pdk-header-rules" data-field="@Field">
+        @if (Inherited.Count > 0)
+        {
+            <ul class="pdk-header-rules-inherited">
+                @foreach (var rule in Inherited)
+                {
+                    var overridden = Overrides(rule.Name);
+                    <li class="@(overridden ? "pdk-overridden" : null)">
+                        <code>@Describe(rule)</code>
+                        @if (overridden)
+                        {
+                            <span class="pdk-muted">replaced below</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+
+        @for (var i = 0; i < _rows.Count; i++)
+        {
+            var index = i;
+            var row = _rows[index];
+            var rule = row.Rule;
+            <div class="pdk-header-rule-row" @key="row">
+                <MudTextField T="string" Value="@rule.Name" ValueChanged="@(value => Change(index, rule with { Name = (value ?? string.Empty).Trim() }))"
+                              Label="Header" Placeholder="X-Frame-Options" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="@ReadOnly"
+                              Error="@(Error($"/{index}/name") is not null)" ErrorText="@Error($"/{index}/name")" data-field="@($"{Field}-name-{index}")"
+                              spellcheck="false" autocomplete="off" />
+                <MudSelect T="HeaderOperation" Value="@rule.Operation" ValueChanged="@(value => Change(index, rule with { Operation = value, Value = value == HeaderOperation.Remove ? null : rule.Value }))"
+                           Label="Action" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly" data-field="@($"{Field}-operation-{index}")">
+                    <MudSelectItem T="HeaderOperation" Value="HeaderOperation.Set">Set</MudSelectItem>
+                    <MudSelectItem T="HeaderOperation" Value="HeaderOperation.Add">Add</MudSelectItem>
+                    <MudSelectItem T="HeaderOperation" Value="HeaderOperation.Remove">Remove</MudSelectItem>
+                </MudSelect>
+                @if (rule.Operation == HeaderOperation.Remove)
+                {
+                    <span class="pdk-header-rule-none"></span>
+                }
+                else
+                {
+                    <MudTextField T="string" Value="@(rule.Value ?? string.Empty)" ValueChanged="@(value => Change(index, rule with { Value = string.IsNullOrEmpty(value) ? null : value }))"
+                                  Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="@ReadOnly" MaxLength="@CustomHeaderRules.MaxValueLength"
+                                  Error="@(Error($"/{index}/value") is not null)" ErrorText="@Error($"/{index}/value")" data-field="@($"{Field}-value-{index}")"
+                                  spellcheck="false" autocomplete="off" />
+                }
+                @if (!ReadOnly)
+                {
+                    <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="() => RemoveAt(index)" aria-label="@($"Remove the {rule.Name} rule")"
+                                   data-action="@($"{Field}-remove-{index}")" />
+                }
+            </div>
+        }
+
+        @if (Error(string.Empty) is { } listError)
+        {
+            <div class="pdk-field-error">@listError</div>
+        }
+
+        @if (!ReadOnly && _rows.Count < CustomHeaderRules.MaxRules)
+        {
+            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="Add" Class="pdk-add" data-action="@($"{Field}-add")">Add a rule</MudButton>
+        }
+    </div>
+</SettingRow>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Help { get; set; }
+
+    /// <summary>This layer's rules; null sets none.</summary>
+    [Parameter]
+    public IReadOnlyList<HeaderRuleConfig>? Value { get; set; }
+
+    /// <summary>The layer's rules as they now are; null when it has none left.</summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<HeaderRuleConfig>?> ValueChanged { get; set; }
+
+    /// <summary>What the layers below resolve to for this direction.</summary>
+    [Parameter]
+    public IReadOnlyList<HeaderRuleConfig> Inherited { get; set; } = [];
+
+    /// <summary>The <c>data-field</c> of the list; each row's controls take it as their prefix.</summary>
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+
+    /// <summary>The error at the list (empty suffix) or at a rule's field (<c>/0/name</c>), by its suffix.</summary>
+    [Parameter]
+    public Func<string, string?> Errors { get; set; } = static _ => null;
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    // Each row is an object of its own, so it keeps its identity (and its inputs) across edits: two blank rows are equal records,
+    // and a record as the key would make Blazor see one key twice.
+    private List<Row> _rows = [];
+    private IReadOnlyList<HeaderRuleConfig>? _seen;
+
+    protected override void OnParametersSet()
+    {
+        // Our own edits are already _rows; only a new record from the parent (a reload, an undo) replaces them.
+        if (!ReferenceEquals(Value, _seen))
+        {
+            _rows = [.. (Value ?? []).Select(static rule => new Row(rule))];
+            _seen = Value;
+        }
+    }
+
+    private sealed class Row(HeaderRuleConfig rule)
+    {
+        public HeaderRuleConfig Rule { get; set; } = rule;
+    }
+
+    private string? Error(string suffix) => Errors(suffix);
+
+    private bool Overrides(string name) => _rows.Any(row => string.Equals(row.Rule.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    private static string Describe(HeaderRuleConfig rule) => rule.Operation switch
+    {
+        HeaderOperation.Set => $"{rule.Name}: {rule.Value}",
+        HeaderOperation.Add => $"{rule.Name}: + {rule.Value}",
+        _ => $"{rule.Name}: removed",
+    };
+
+    private Task Add()
+    {
+        _rows.Add(new Row(new HeaderRuleConfig(string.Empty)));
+        return Publish();
+    }
+
+    private Task RemoveAt(int index)
+    {
+        _rows.RemoveAt(index);
+        return Publish();
+    }
+
+    private Task Change(int index, HeaderRuleConfig rule)
+    {
+        _rows[index].Rule = rule;
+        return Publish();
+    }
+
+    private Task Publish()
+    {
+        IReadOnlyList<HeaderRuleConfig>? next = _rows.Count == 0 ? null : [.. _rows.Select(static row => row.Rule)];
+        _seen = next;
+        return ValueChanged.InvokeAsync(next);
+    }
+}
