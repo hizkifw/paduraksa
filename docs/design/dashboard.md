@@ -891,7 +891,10 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 
 **Filter cards** (Audit, Live tail) are `.pdk-filters`: an optional bar (a segmented control, "Clear filters" at the end), then the fields in one wrapping grid. Every field is dense outlined and floats its label (give it a placeholder).
 
-**A drawer's subtitle** says something the title and the body don't (what a staged change waits for, which certificate names it covers). A line the body already says (the "Used by" section of a list drawer) isn't repeated up there.
+**A drawer's subtitle** says something the title and the body don't, or it is left out (the header keeps its 80 px and centres the title).
+- Kept: what a staged change waits for ("Not applied yet: it goes in with the host, in one revision."), what a certificate form does with the key, which names a certificate covers, and what uses the object ("Used by 2 hosts, 1 route" on a rate limit, rule set, access list, auth provider or profile, only while something does).
+- Left out: how every change works ("reviewed as a diff", "nothing changes until you apply"), a line the body or the alert in it already says (a new token's "shown once"), and a placeholder for a drawer that has nothing to add.
+- `DrawerSubtitleTests` holds the host drawer to none and the used-by line to its count.
 
 **Heights and sizes.**
 - Dense outlined fields and the segmented control are 40 px.

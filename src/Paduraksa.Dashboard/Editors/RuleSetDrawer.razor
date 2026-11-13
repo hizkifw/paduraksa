@@ -5,7 +5,7 @@
    never shown: a host or a route picks it by name. *@
 
 <DrawerShell Title="@Title"
-             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : null)"
+             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : Usage.IsEmpty ? null : $"Used by {Usage.CountText}")"
              Icon="@Icons.Material.Outlined.Rule" Name="rule-set" OnSubmit="SubmitAsync">
     <Banner>
         @if (ChangedElsewhere is { } elsewhere)

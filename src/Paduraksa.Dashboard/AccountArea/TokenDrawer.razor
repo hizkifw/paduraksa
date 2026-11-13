@@ -10,7 +10,7 @@
    shown once and the drawer then closes only through "I've copied it", which also takes the secret away. *@
 
 <DrawerShell Title="@(_issued is null ? "Create an API token" : "Your new token")"
-             Subtitle="@(_issued is null ? "A credential for the REST API that acts as you." : "Shown once. Copy it before you close this.")"
+             Subtitle="@(_issued is null ? "A credential for the REST API that acts as you." : null)"
              Icon="@Icons.Material.Outlined.Key" Name="token" OnSubmit="IssueAsync" Closable="_issued is null">
     <Banner>
         @if (_error is { } error)

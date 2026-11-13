@@ -9,7 +9,7 @@
    stack their own flows: the host and the config objects it needs are reviewed and applied as one revision, while a
    certificate (a vault object) is issued or uploaded at once. *@
 
-<DrawerShell Title="@Title" Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Language"
+<DrawerShell Title="@Title" Icon="@Icons.Material.Outlined.Language"
              Name="host" OnSubmit="ReviewAsync">
     <HeaderActions>
         @if (Model is { IsNew: false, Kind: not HostKind.Admin } && MayWrite)
@@ -275,10 +275,6 @@
     public HostId? Id { get; set; }
 
     private string Title => Missing ? "Host not found" : Model is null ? (Id is null ? "New host" : "Host") : Model.IsNew ? "New host" : ChangeView.HostTitle(_stored ?? Model.ToConfig());
-
-    private string Subtitle => Model is { IsNew: true } || Id is null
-        ? "Nothing changes until you review and apply."
-        : "Every change is reviewed as a diff before it goes live, and can be undone.";
 
     /// <summary>The config as the form sees it: what is stored, and what was made in this drawer.</summary>
     private ConfigDocument DraftDocument => StagedChange.Draft(_current?.Document ?? new ConfigDocument(), _staged, _stagedProfiles, _stagedRateLimits, _stagedAccessLists, _stagedRuleSets, _stagedAuthProviders);
