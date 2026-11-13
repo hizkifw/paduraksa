@@ -37,6 +37,20 @@ public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixt
     }
 
     [Fact]
+    public async Task AnExpiryGivenInAnotherOffsetIsAnsweredInUtcLikeEveryTimestamp()
+    {
+        var h = shared.Harness;
+
+        using var issued = await h.PostAsync("/api/v1/tokens", """{"name":"t","scopes":["config:read"],"expiresAt":"2031-01-01T02:00:00+02:00"}""", shared.OwnerCookie);
+
+        Assert.Equal(HttpStatusCode.Created, issued.Status);
+        var expiry = issued.Json.GetProperty("summary").GetProperty("expiresAt").GetDateTimeOffset();
+        Assert.Equal(TimeSpan.Zero, expiry.Offset);
+        Assert.Equal(new DateTimeOffset(2031, 1, 1, 0, 0, 0, TimeSpan.Zero), expiry);
+        Assert.EndsWith("+00:00", issued.Json.GetProperty("summary").GetProperty("expiresAt").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task TokensPageToo()
     {
         var h = shared.Harness;

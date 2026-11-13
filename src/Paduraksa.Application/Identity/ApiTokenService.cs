@@ -103,7 +103,7 @@ public sealed class ApiTokenService
             Name = name!,
             Scopes = IdentityMapping.FormatScopes(scopes),
             SecretHash = SHA256.HashData(secret),
-            ExpiresAt = request.ExpiresAt,
+            ExpiresAt = request.ExpiresAt?.ToUniversalTime(),
             CreatedAt = now,
         };
 
