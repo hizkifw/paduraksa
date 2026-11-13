@@ -72,12 +72,33 @@ public interface ICertificateIssuance
         CertificateId id, KeySpec spec, TimeSpan validity, CancellationToken cancellationToken);
 
     /// <summary>
+    /// <see cref="EnsureLocalCaAsync(CertificateId, KeySpec, TimeSpan, CancellationToken)"/> for a root that carries <paramref name="constraints"/> as
+    /// name constraints, which the vault also enforces on every leaf it signs (<see cref="LocalCaNameNotPermittedException"/>). An
+    /// existing root is returned as it is, constraints or none: constraints only apply to a root created by this call. The form without constraints makes a root that may issue for any name, as every root did before.
+    /// </summary>
+    ValueTask<CertificateInfo> EnsureLocalCaAsync(
+        CertificateId id, KeySpec spec, TimeSpan validity, LocalCaConstraints constraints, CancellationToken cancellationToken) =>
+        EnsureLocalCaAsync(id, spec, validity, cancellationToken);
+
+    /// <summary>
+    /// Replaces the local CA root with a new one created under <paramref name="newId"/> (limited to <paramref name="constraints"/>, or unlimited when null), in one transaction: the old root's key is
+    /// destroyed (nothing needs it again, and a rotation done because it leaked must not leave it) and the new key signs from then on.
+    /// The leaves the old root signed keep serving as they are until they are re-issued. Returns both roots' public facts, so the caller
+    /// can keep the old root's certificate for download while devices still trust only it.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">There is no local CA yet, or <paramref name="newId"/> is a certificate already.</exception>
+    ValueTask<LocalCaRotation> RotateLocalCaAsync(
+        CertificateId newId, KeySpec spec, TimeSpan validity, LocalCaConstraints? constraints, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("This vault can't rotate the local CA.");
+
+    /// <summary>
     /// Creates a key and a leaf certificate for <paramref name="names"/> signed by the local CA, valid for
     /// <paramref name="validity"/> from now (the vault caps it at the CA's own remaining validity, and at 825 days, the
     /// longest validity Apple's trust store accepts). On an existing
     /// <paramref name="id"/> it re-issues under a new key atomically (the one-click re-issue).
     /// </summary>
-    /// <exception cref="InvalidOperationException">There is no local CA yet (<see cref="EnsureLocalCaAsync"/>).</exception>
+    /// <exception cref="InvalidOperationException">There is no local CA yet (<see cref="EnsureLocalCaAsync(CertificateId, KeySpec, TimeSpan, CancellationToken)"/>).</exception>
+    /// <exception cref="LocalCaNameNotPermittedException">The root has name constraints and a name is outside them.</exception>
     ValueTask<CertificateInfo> IssueFromLocalCaAsync(
         CertificateId id, KeySpec spec, IReadOnlyList<string> names, TimeSpan validity, CancellationToken cancellationToken);
 

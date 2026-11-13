@@ -1,0 +1,82 @@
+@* The roots a rotation replaced: still trusted by devices that haven't installed the new one, so they stay downloadable until nothing
+   they signed is left and they are retired. *@
+
+<MudPaper Class="pdk-card pdk-retiring" Elevation="0" Outlined="true" data-section="retiring-roots">
+    <div class="pdk-card-head">
+        <div class="pdk-card-head-main">
+            <span class="pdk-stat-icon pdk-tone-warning"><MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Small" /></span>
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Replaced roots</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">Devices that haven't installed the new root still need these. Retire one when nothing it signed is left.</MudText>
+            </div>
+        </div>
+        @if (Roots.Sum(r => r.Leaves) > 0 && MayWrite)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="() => OnReissue.InvokeAsync()" Disabled="Busy" data-action="reissue-leaves">
+                Re-issue @Roots.Sum(r => r.Leaves) certificate@(Roots.Sum(r => r.Leaves) == 1 ? string.Empty : "s")
+            </MudButton>
+        }
+    </div>
+    <ul class="pdk-list">
+        @foreach (var retiring in Roots)
+        {
+            <li class="pdk-list-item" data-retiring-root="@retiring.Root.Id">
+                <div>
+                    <strong>@CertificateDisplay.CommonName(retiring.Root.Subject)</strong>
+                    <span class="pdk-muted"> &middot; valid until @CertificateDisplay.Date(retiring.Root.NotAfter) &middot; @(retiring.Leaves == 0 ? "nothing it signed is left" : $"{retiring.Leaves} certificate{(retiring.Leaves == 1 ? string.Empty : "s")} still signed by it")</span>
+                </div>
+                <div class="pdk-trust-actions">
+                    @if (Pem(retiring.Root.Id) is { } pem)
+                    {
+                        <MudButton Href="@DataUrl("application/x-pem-file", pem)" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Download"
+                                   UserAttributes="@Download("paduraksa-replaced-root.pem", "download-retiring-pem")">PEM</MudButton>
+                        <MudButton Href="@DataUrl("application/x-x509-ca-cert", Der(pem))" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Download"
+                                   UserAttributes="@Download("paduraksa-replaced-root.crt", "download-retiring-crt")">.crt</MudButton>
+                    }
+                    @if (MayWrite)
+                    {
+                        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => OnRetire.InvokeAsync(retiring)" Disabled="@(Busy || retiring.Leaves > 0)"
+                                   data-action="retire-root">Retire</MudButton>
+                    }
+                </div>
+            </li>
+        }
+    </ul>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<RetiringLocalCaRoot> Roots { get; set; } = [];
+
+    /// <summary>The public PEM of each replaced root, by ID.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<CertificateId, string> Pems { get; set; } = new Dictionary<CertificateId, string>();
+
+    [Parameter]
+    public bool MayWrite { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public EventCallback OnReissue { get; set; }
+
+    [Parameter]
+    public EventCallback<RetiringLocalCaRoot> OnRetire { get; set; }
+
+    private string? Pem(CertificateId id) => Pems.GetValueOrDefault(id);
+
+    // UserAttributes can't be set beside other captured attributes, so the data attribute goes in with the download name.
+    private static Dictionary<string, object> Download(string name, string action) => new() { ["download"] = name, ["data-action"] = action };
+
+    private static string DataUrl(string contentType, string text) => $"data:{contentType};base64,{Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(text))}";
+
+    private static string DataUrl(string contentType, byte[] bytes) => $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+
+    // The first certificate of the PEM as DER, which is what Android and iOS offer to install.
+    private static byte[] Der(string pem)
+    {
+        var fields = System.Security.Cryptography.PemEncoding.Find(pem);
+        return Convert.FromBase64String(pem[fields.Base64Data].Replace("\n", string.Empty, StringComparison.Ordinal).Replace("\r", string.Empty, StringComparison.Ordinal));
+    }
+}

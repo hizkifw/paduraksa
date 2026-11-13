@@ -54,6 +54,15 @@ internal static class CertificateEndpoints
             .WithDescription("There is one local CA: asking again returns the existing root. The body is optional.")
             .Accepts<LocalCaRequest>("application/json").Produces<CertificateOperationResult>(201).ProducesApiProblems(400, 415, 422)
             .RequirePermission(Permission.CertificatesWrite);
+        certificates.MapGet("/local-ca", LocalCaStatusAsync).WithName("GetLocalCa").WithSummary("The local CA: its root, what it is limited to, and the roots a rotation left")
+            .Produces<LocalCaStatus>().RequirePermission(Permission.CertificatesRead);
+        certificates.MapPost("/local-ca/rotate", RotateLocalCaAsync).WithName("RotateLocalCa").WithSummary("Replace the local CA root")
+            .WithDescription("Makes a new root (limited to the private-use domains, the private ranges and the names in the body) and destroys the old root's key in the same step. Devices must trust the new root before what it signs works for them; what the old root signed keeps working, and the old root stays downloadable, until it is retired (DELETE its certificate once nothing it signed is left). The admin listener's certificate is issued again at once. The body is optional.")
+            .Accepts<LocalCaRotateRequest>("application/json").Produces<CertificateOperationResult>().ProducesApiProblems(400, 415, 422)
+            .RequirePermission(Permission.CertificatesWrite);
+        certificates.MapPost("/local-ca/reissue", ReissueLocalCaLeavesAsync).WithName("ReissueLocalCaCertificates").WithSummary("Re-issue what a retiring local CA root signed")
+            .WithDescription("Issues every certificate a root replaced by a rotation signed again, from the current root, under the same IDs. Certificates whose names the new root does not permit are left alone and listed in failures.")
+            .Produces<LocalCaReissueResult>().RequirePermission(Permission.CertificatesWrite);
         certificates.MapPost("/local-ca/leaf", LocalCaLeafAsync).WithName("IssueLocalCaCertificate").WithSummary("Issue a certificate from the local CA")
             .Accepts<LocalCaLeafRequest>("application/json").Produces<CertificateOperationResult>(201).ProducesApiProblems(400, 415, 422)
             .RequirePermission(Permission.CertificatesWrite);
@@ -225,6 +234,29 @@ internal static class CertificateEndpoints
 
         return OperationResult(await operations.EnsureLocalCaAsync(request, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create);
     }
+
+    private static async Task<IResult> LocalCaStatusAsync(CertificateOperations operations, CancellationToken ct) =>
+        EndpointSupport.Json(await operations.GetLocalCaAsync(ct).ConfigureAwait(false), AdminJsonContext.Default.LocalCaStatus);
+
+    private static async Task<IResult> RotateLocalCaAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
+    {
+        LocalCaRotateRequest request = new();
+        if (HasBody(http))
+        {
+            var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaRotateRequest).ConfigureAwait(false);
+            if (!body.Ok)
+            {
+                return body.Problem!;
+            }
+
+            request = body.Value!;
+        }
+
+        return OperationResult(await operations.RotateLocalCaAsync(request, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
+    }
+
+    private static async Task<IResult> ReissueLocalCaLeavesAsync(AdminCaller caller, CertificateOperations operations, CancellationToken ct) =>
+        EndpointSupport.Json(await operations.ReissueLocalCaLeavesAsync(caller.Origin, ct).ConfigureAwait(false), AdminJsonContext.Default.LocalCaReissueResult);
 
     private static async Task<IResult> LocalCaLeafAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {

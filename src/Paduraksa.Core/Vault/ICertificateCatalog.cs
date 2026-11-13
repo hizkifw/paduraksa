@@ -7,7 +7,7 @@ namespace Paduraksa.Core.Vault;
 /// facts of its stored chain. Public data only; the key is not here and has no way to get here.
 /// </summary>
 /// <param name="Id">The ID the vault holds the key under (the certificate's row in the config database, when there is one).</param>
-/// <param name="IsLocalCaRoot">This is the local CA root (<see cref="ICertificateIssuance.EnsureLocalCaAsync"/>): its key signs and is never served.</param>
+/// <param name="IsLocalCaRoot">This is the local CA root (<see cref="ICertificateIssuance.EnsureLocalCaAsync(CertificateId, KeySpec, TimeSpan, CancellationToken)"/>): its key signs and is never served.</param>
 /// <param name="Info">The public facts, exactly as the vault would report them for this chain.</param>
 public sealed record VaultCertificate(CertificateId Id, bool IsLocalCaRoot, CertificateInfo Info);
 

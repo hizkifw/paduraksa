@@ -75,9 +75,9 @@ public sealed class VaultCertificatesEndToEndTests
         Assert.True(failure is AuthenticationException or IOException, failure?.ToString() ?? "the handshake succeeded");
     }
 
-    private static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
+    internal static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
 
-    private static async Task<(CertificateSummary Root, CertificateSummary Leaf, X509Certificate2 RootCertificate)> IssueLocalAsync(PaduraksaHost host, string name)
+    internal static async Task<(CertificateSummary Root, CertificateSummary Leaf, X509Certificate2 RootCertificate)> IssueLocalAsync(PaduraksaHost host, string name)
     {
         var operations = host.Shared.CertificateOperations;
         var root = await operations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct);

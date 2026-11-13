@@ -167,10 +167,16 @@ public sealed partial class CertificateOperations
         }
 
         var roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot), cancellationToken).ConfigureAwait(false);
-        var active = roots.FirstOrDefault(r => r.Status == CertificateStatus.Active);
+        var active = NewestActive(roots);
         if (active is not null)
         {
             return new CertificateOperationResult(CertificateOperationStatus.Unchanged, active);
+        }
+
+        // Unlimited unless the operator chose names to limit it to.
+        if (ConstraintsOf(request.PermittedDomains, request.PermittedAddresses, await DesiredAdminNamesAsync(cancellationToken).ConfigureAwait(false), out var constraints) is { } invalid)
+        {
+            return Invalid(invalid);
         }
 
         // A root row that is not active is what a crash (or a failed activation) left behind: it is completed under its own ID
@@ -183,7 +189,9 @@ public sealed partial class CertificateOperations
                 [],
                 request.Label,
                 origin,
-                (id, _, ct) => _issuance.EnsureLocalCaAsync(id, request.KeySpec, validity, ct),
+                (id, _, ct) => constraints is null
+                    ? _issuance.EnsureLocalCaAsync(id, request.KeySpec, validity, ct)
+                    : _issuance.EnsureLocalCaAsync(id, request.KeySpec, validity, constraints, ct),
                 cancellationToken,
                 existingPendingId: roots.Count > 0 ? roots[0].Id : null).ConfigureAwait(false);
         }
@@ -272,6 +280,10 @@ public sealed partial class CertificateOperations
                 info = await _issuance.IssueFromLocalCaAsync(id, spec, summary.Names, request?.Validity ?? DefaultLeafValidity, cancellationToken).ConfigureAwait(false);
             }
         }
+        catch (LocalCaNameNotPermittedException notPermitted)
+        {
+            return Invalid(new ConfigError("/names", CertificateErrorCodes.LocalCaNameNotPermitted, notPermitted.Message));
+        }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             LogIssuanceRefused(id, ex);
@@ -293,10 +305,14 @@ public sealed partial class CertificateOperations
         // The managed admin certificate is refused by the inventory (audited there, like the in-use refusal below), so no
         // check is needed here; the query below is what the local-CA-root refusal needs.
         var current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
-        if (current?.Summary.Source == CertificateSource.LocalCaRoot
-            && (await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCa), cancellationToken).ConfigureAwait(false)).Count > 0)
+        if (current?.Summary.Source == CertificateSource.LocalCaRoot)
         {
-            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.LocalCaInUse, "leaf certificates issued by the local CA still exist (the admin listener's own among them); the root can't be deleted while they do"));
+            var signed = (await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCa), cancellationToken).ConfigureAwait(false))
+                .Count(leaf => string.Equals(leaf.Issuer, current.Summary.Subject, StringComparison.Ordinal));
+            if (signed > 0)
+            {
+                return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.LocalCaInUse, $"{signed} certificate(s) issued by this root still exist (the admin listener's own among them); the root can't be deleted while they do"));
+            }
         }
 
         var change = await _certificates.DeleteAsync(id, origin, cancellationToken).ConfigureAwait(false);
@@ -373,6 +389,11 @@ public sealed partial class CertificateOperations
             if (ex is LocalCaExistsException)
             {
                 throw;
+            }
+
+            if (ex is LocalCaNameNotPermittedException notPermitted)
+            {
+                return Invalid(new ConfigError("/names", CertificateErrorCodes.LocalCaNameNotPermitted, notPermitted.Message));
             }
 
             if (ex is ArgumentException or InvalidOperationException)
@@ -492,7 +513,7 @@ public sealed partial class CertificateOperations
     private async Task<CertificateSummary?> FindLocalCaAsync(CancellationToken cancellationToken)
     {
         var roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot, Status: CertificateStatus.Active), cancellationToken).ConfigureAwait(false);
-        return roots.Count > 0 ? roots[0] : null;
+        return NewestActive(roots);
     }
 
     private async ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken)

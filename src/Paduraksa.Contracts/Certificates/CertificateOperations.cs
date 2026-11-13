@@ -27,7 +27,61 @@ public sealed record SelfSignedCertificateRequest(
 /// <param name="KeySpec">The kind of key the vault generates for the root.</param>
 /// <param name="Validity">How long the root is valid from now; null for the default (ten years).</param>
 /// <param name="Label">A display name.</param>
-public sealed record LocalCaRequest([property: JsonConverter(typeof(KeySpecNameConverter))] KeySpec KeySpec = KeySpec.EcdsaP256, TimeSpan? Validity = null, string? Label = null);
+/// <param name="PermittedDomains">DNS domains to limit the root to: a name equal to one or under it. A device that trusts the root then accepts nothing for any
+/// other name. With no domains and no addresses the root is unlimited, which is the default.</param>
+/// <param name="PermittedAddresses">IP addresses or CIDR networks to limit the root to.</param>
+public sealed record LocalCaRequest(
+    [property: JsonConverter(typeof(KeySpecNameConverter))] KeySpec KeySpec = KeySpec.EcdsaP256,
+    TimeSpan? Validity = null,
+    string? Label = null,
+    IReadOnlyList<string>? PermittedDomains = null,
+    IReadOnlyList<string>? PermittedAddresses = null);
+
+/// <summary>
+/// Replaces the local CA root with a new one. Devices must trust the new root before what it signs works for them; what the old root signed
+/// keeps working (and the old root stays downloadable) until it is retired.
+/// </summary>
+/// <param name="KeySpec">The kind of key the vault generates for the new root.</param>
+/// <param name="Validity">How long the new root is valid from now; null for the default (ten years).</param>
+/// <param name="PermittedDomains">As on <see cref="LocalCaRequest"/>; the new root's own list, so add every domain it should issue for. None (and no addresses) makes the new root unlimited.</param>
+/// <param name="PermittedAddresses">As on <see cref="LocalCaRequest"/>.</param>
+public sealed record LocalCaRotateRequest(
+    [property: JsonConverter(typeof(KeySpecNameConverter))] KeySpec KeySpec = KeySpec.EcdsaP256,
+    TimeSpan? Validity = null,
+    IReadOnlyList<string>? PermittedDomains = null,
+    IReadOnlyList<string>? PermittedAddresses = null);
+
+/// <summary>The local CA as it stands: the root that signs, what it is limited to, and the roots a rotation left behind.</summary>
+/// <param name="Root">The root that signs; null before there is one.</param>
+/// <param name="PermittedNames">What the root is limited to, as <c>DNS:domain</c> and <c>IP:network</c>; empty for an unlimited root, which may issue for any name.</param>
+/// <param name="Retiring">Roots a rotation replaced, newest first, still trusted by devices that haven't installed the new one.</param>
+/// <param name="SuggestedDomains">Domains worth limiting a new root to: the private-use ones, the admin certificate's names and the names of what the local CA has issued.</param>
+/// <param name="SuggestedAddresses">Networks and addresses worth limiting a new root to: the private ranges and the admin certificate's addresses.</param>
+public sealed record LocalCaStatus(
+    CertificateSummary? Root = null,
+    IReadOnlyList<string>? PermittedNames = null,
+    IReadOnlyList<RetiringLocalCaRoot>? Retiring = null,
+    IReadOnlyList<string>? SuggestedDomains = null,
+    IReadOnlyList<string>? SuggestedAddresses = null)
+{
+    public IReadOnlyList<string> PermittedNames { get; init; } = PermittedNames ?? [];
+
+    public IReadOnlyList<RetiringLocalCaRoot> Retiring { get; init; } = Retiring ?? [];
+
+    public IReadOnlyList<string> SuggestedDomains { get; init; } = SuggestedDomains ?? [];
+
+    public IReadOnlyList<string> SuggestedAddresses { get; init; } = SuggestedAddresses ?? [];
+}
+
+/// <summary>A root a rotation replaced.</summary>
+/// <param name="Root">The old root's certificate (still downloadable).</param>
+/// <param name="Leaves">How many certificates it signed that are still in use; the root can be retired when this is 0.</param>
+public sealed record RetiringLocalCaRoot(CertificateSummary Root, int Leaves);
+
+/// <summary>What re-issuing the certificates a retiring root signed did.</summary>
+/// <param name="Reissued">How many were issued again from the current root.</param>
+/// <param name="Failures">The ones that were not, with why (a name the new root's constraints don't permit, for one).</param>
+public sealed record LocalCaReissueResult(int Reissued, IReadOnlyList<ConfigError> Failures);
 
 /// <summary>A new leaf certificate signed by the local CA.</summary>
 /// <param name="Names">DNS names, <c>*.</c> wildcards and IP addresses; at least one.</param>
@@ -63,6 +117,9 @@ public enum CertificateOperation
 
     /// <summary>A leaf signed by the local CA.</summary>
     IssueFromLocalCa,
+
+    /// <summary>A new local CA root, or the re-issue of what the old one signed.</summary>
+    RotateLocalCa,
 
     /// <summary>A new key and chain under an existing ID.</summary>
     Reissue,

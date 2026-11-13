@@ -32,6 +32,9 @@ namespace Paduraksa.Core.Vault;
 /// first, the issuer of the last certificate (usually the root's name) last. It is what ACME's <c>preferred_chain</c>
 /// selection matches against, so the choice can be made and shown from stored metadata alone.
 /// </param>
+/// <param name="NameConstraints">
+/// The permitted subtrees of a CA certificate's name constraints as <c>DNS:domain</c> and <c>IP:network</c> entries; null when it has none.
+/// </param>
 /// <param name="PublicChainPem">
 /// The leaf first, then its intermediates, as concatenated PEM <c>CERTIFICATE</c> blocks. The root is left out, except
 /// for a self-signed certificate and the local CA root itself, which are their own root.
@@ -47,4 +50,5 @@ public sealed record CertificateInfo(
     string Sha256Fingerprint,
     string KeyAlgorithm,
     IReadOnlyList<string> ChainIssuers,
-    string PublicChainPem);
+    string PublicChainPem,
+    IReadOnlyList<string>? NameConstraints = null);

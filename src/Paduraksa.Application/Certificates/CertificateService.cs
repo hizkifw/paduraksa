@@ -190,6 +190,23 @@ public sealed partial class CertificateService
         return await _config.ApplyCertificateChangeAsync(origin, scope => UpdateDetailsCoreAsync(scope, id, label, notes, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Records in the audit trail that the local CA root <paramref name="retired"/> was replaced by <paramref name="root"/> (the rows are written by their own registrations).</summary>
+    internal async Task RecordLocalCaRotationAsync(CertificateId root, CertificateId retired, string permitted, CommandOrigin origin, CancellationToken cancellationToken)
+    {
+        var audit = Entry(origin, "certificate.local_ca.rotate", root, AuditOutcome.Success) with
+        {
+            Details = AuditDetails.Json(w =>
+            {
+                w.WriteString("retired", retired.ToString());
+                w.WriteString("permitted", permitted);
+            }),
+        };
+        _ = await _config.ApplyCertificateChangeAsync(
+            origin,
+            _ => Task.FromResult(new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged), audit, Republish: false)),
+            cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Deletes a certificate's metadata, unless the latest revision still binds to it (see the remarks).</summary>
     public async Task<CertificateChangeResult> DeleteAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
@@ -755,6 +772,10 @@ public static class CertificateErrorCodes
     public const string IssuanceRefused = "certificate.issue.refused";
     public const string LocalCaMissing = "certificate.localCa.missing";
     public const string LocalCaInUse = "certificate.localCa.inUse";
+    public const string LocalCaNameNotPermitted = "certificate.localCa.nameNotPermitted";
+    public const string LocalCaConstraintsInvalid = "certificate.localCa.constraints.invalid";
+    public const string LocalCaNotRetiring = "certificate.localCa.notRetiring";
+    public const string RotationNotRecorded = "certificate.localCa.rotationNotRecorded";
     public const string AdminCoverage = "certificate.adminCoverage";
     public const string KeyNotDeleted = "certificate.vault.keyNotDeleted";
     public const string ImportTooLarge = "certificate.import.tooLarge";

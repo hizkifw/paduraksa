@@ -97,6 +97,24 @@ internal sealed partial class AdminCertificateService : BackgroundService
 
         // Until the vault's certificate is ready the admin port answers with the in-memory placeholder, so it is always up.
         _serving = CreateOptions(placeholders.Placeholder.Context);
+
+        // A rotation issues the admin certificate again from the new root: serve it now, not at the next daily run.
+        _operations.AdminCertificateReissued += OnAdminCertificateReissued;
+        _operations.DesiredAdminNames = DesiredNames;
+    }
+
+    private void OnAdminCertificateReissued() => _ = ServeAfterRotationAsync();
+
+    private async Task ServeAfterRotationAsync()
+    {
+        try
+        {
+            await EnsureAsync(_stop.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+            // Stopping.
+        }
     }
 
     /// <summary>The TLS options the admin listener uses right now; never null. Read once per handshake.</summary>
@@ -367,6 +385,8 @@ internal sealed partial class AdminCertificateService : BackgroundService
     public override void Dispose()
     {
         base.Dispose();
+        _operations.AdminCertificateReissued -= OnAdminCertificateReissued;
+        _operations.DesiredAdminNames = null;
         _stop.Dispose();
         if (_running is null or { IsCompleted: true })
         {

@@ -107,7 +107,9 @@ public sealed partial class CertificateOperations
             return created;
         }
 
-        if (!AdminCertificatePolicy.ShouldReissue(current.Summary, wanted, _timeProvider.GetUtcNow()))
+        // A rotation made a new root: the leaf the old one signed is issued again, so the admin port stops depending on a retiring root.
+        if (!AdminCertificatePolicy.ShouldReissue(current.Summary, wanted, _timeProvider.GetUtcNow())
+            && string.Equals(current.Summary.Issuer, root.Certificate.Subject, StringComparison.Ordinal))
         {
             return await RepairLabelAsync(current.Summary, origin, cancellationToken).ConfigureAwait(false);
         }
@@ -119,6 +121,7 @@ public sealed partial class CertificateOperations
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
+            // A name outside the root's constraints is refused here too: the admin port keeps what it serves, and the log says why.
             LogIssuanceRefused(AdminCertificate.Id, ex);
             return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.IssuanceRefused, IssuanceRefusedMessage));
         }
@@ -145,13 +148,12 @@ public sealed partial class CertificateOperations
     /// operator: the row alone would otherwise look healthy forever, every re-issue would fail for want of a root, and every
     /// way out of it (deleting the root, deleting the admin certificate, re-issuing it by hand) is refused.
     /// </remarks>
-    // TODO: nothing renews the local CA root. The vault caps a leaf at the root's remaining validity, so in the root's
-    // last 90 days every re-issued admin leaf gets shorter until the root expires (then the placeholder serves and the
-    // download still offers an expired root). Rotating the root needs a plan for the leaves issued under the old one.
+    // Nothing rotates the local CA root by itself: the vault caps a leaf at the root's remaining validity, so in the root's last 90 days every re-issued
+    // admin leaf gets shorter until the root expires. Rotation is the operator's (RotateLocalCaAsync).
     private async Task<CertificateOperationResult> EnsureAdminRootAsync(CommandOrigin origin, CancellationToken cancellationToken)
     {
         var roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot), cancellationToken).ConfigureAwait(false);
-        if (roots.FirstOrDefault(static root => root.Status == CertificateStatus.Active) is { } active)
+        if (NewestActive(roots) is { } active)
         {
             if (await _catalog.DescribeAsync(active.Id, cancellationToken).ConfigureAwait(false) is { IsLocalCaRoot: true })
             {

@@ -26,6 +26,25 @@
             <dd>@CertificateDisplay.Date(Root.NotAfter)</dd>
             <dt>SHA-256</dt>
             <dd><CopyableCode Value="@CertificateDisplay.Fingerprint(Root.Sha256Fingerprint)" Block="true" CopyAction="copy-fingerprint" /></dd>
+            @if (PermittedNames is not null)
+            {
+                <dt>Issues for</dt>
+                <dd data-section="permitted-names">
+                    @if (PermittedNames.Count == 0)
+                    {
+                        <span class="pdk-muted">Any name. Rotate the root to limit it.</span>
+                    }
+                    else
+                    {
+                        <div class="pdk-name-chips">
+                            @foreach (var name in PermittedNames)
+                            {
+                                <span class="pdk-name-chip pdk-mono">@name[(name.IndexOf(':', StringComparison.Ordinal) + 1)..]</span>
+                            }
+                        </div>
+                    }
+                </dd>
+            }
         </dl>
         <div class="pdk-trust-actions">
             <MudButton Href="/api/v1/ca/root.crt" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Download"
@@ -52,6 +71,10 @@
     /// <summary>Show the install steps open (on the Local CA page, where they are what the person came for).</summary>
     [Parameter]
     public bool ExpandHowTo { get; set; }
+
+    /// <summary>What the root may issue for, as <c>DNS:domain</c> and <c>IP:network</c>; null when not known (nothing is shown), empty when it is unlimited.</summary>
+    [Parameter]
+    public IReadOnlyList<string>? PermittedNames { get; set; }
 
     /// <summary>The root as the inventory has it; null when there is none.</summary>
     [Parameter]

@@ -28,6 +28,58 @@ public sealed class CertificateOperationsTests
         return (operations, certificates, vault);
     }
 
+    [Fact]
+    public async Task ARotationIsRecordedInTheAuditTrailWithTheRootItReplacedAndWhatTheNewOneIsLimitedTo()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var (_, certificates, _) = Create(harness);
+        CertificateId newRoot = CertificateId.New();
+        CertificateId retired = CertificateId.New();
+
+        await certificates.RecordLocalCaRotationAsync(newRoot, retired, "DNS:home.arpa, IP:10.0.0.0/8", ConfigServiceHarness.Admin, Ct);
+
+        var row = (await harness.Db.QueryAsync("SELECT Action, Target, Outcome, Details FROM AuditEvents WHERE Action = 'certificate.local_ca.rotate'")).Single();
+        Assert.Equal(newRoot.ToString(), row[1]);
+        Assert.Contains(retired.ToString(), (string)row[3]!, StringComparison.Ordinal);
+        Assert.Contains("DNS:home.arpa", (string)row[3]!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARotationWhoseRegistrationFailsOnceIsRecordedByTheRetry()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        FlakyPermissions flaky = new();
+        var (operations, certificates, vault) = Create(harness, flaky);
+        var first = await operations.EnsureLocalCaAsync(new LocalCaRequest(), ConfigServiceHarness.Admin, Ct);
+        flaky.Arm(2); // 1 is the rotation's own check, 2 the registration of the new root
+
+        var rotated = await operations.RotateLocalCaAsync(new LocalCaRotateRequest(), ConfigServiceHarness.Admin, Ct);
+
+        Assert.Equal(CertificateOperationStatus.Completed, rotated.Status);
+        Assert.Empty(rotated.Warnings);
+        Assert.Equal(rotated.Certificate!.Id, (await operations.GetLocalCaAsync(Ct)).Root!.Id);
+        Assert.NotEqual(first.Certificate!.Id, rotated.Certificate.Id);
+        Assert.Contains("rotate", vault.Calls);
+    }
+
+    [Fact]
+    public async Task ARotationWhoseRegistrationFailsTwiceSaysSoAndLeavesTheVaultsRootAlone()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        FlakyPermissions flaky = new();
+        var (operations, _, vault) = Create(harness, flaky);
+        _ = await operations.EnsureLocalCaAsync(new LocalCaRequest(), ConfigServiceHarness.Admin, Ct);
+        flaky.Arm(2, 3);
+
+        var rotated = await operations.RotateLocalCaAsync(new LocalCaRotateRequest(), ConfigServiceHarness.Admin, Ct);
+
+        Assert.NotEqual(CertificateOperationStatus.Completed, rotated.Status);
+        var warning = Assert.Single(rotated.Warnings);
+        Assert.Equal(CertificateErrorCodes.RotationNotRecorded, warning.Code);
+        Assert.Contains("even after trying again", warning.Message, StringComparison.Ordinal);
+        Assert.Single(vault.RootIds); // the vault still holds exactly the new root; nothing was deleted
+    }
+
     private static MemoryStream Upload(string text = "upload") => new(Encoding.UTF8.GetBytes(text));
 
     [Fact]
@@ -605,6 +657,21 @@ public sealed class CertificateOperationsTests
         public ValueTask<CertificateInfo> IssueFromLocalCaAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> names, TimeSpan validity, CancellationToken cancellationToken) =>
             Create("LocalCa", id, spec, names, validity);
 
+        public ValueTask<LocalCaRotation> RotateLocalCaAsync(CertificateId newId, KeySpec spec, TimeSpan validity, LocalCaConstraints? constraints, CancellationToken cancellationToken)
+        {
+            Calls.Add("rotate");
+            var old = RootIds.Single();
+            var retired = Catalog[old];
+            Catalog.Remove(old);
+            RootIds.Remove(old);
+            Keys.Remove(old);
+            Keys.Add(newId);
+            var info = InfoFor([], validity, spec, "CN=Fake Local CA") with { Subject = "CN=Fake Local CA 2" };
+            Catalog[newId] = info;
+            RootIds.Add(newId);
+            return ValueTask.FromResult(new LocalCaRotation(info, old, retired));
+        }
+
         public async ValueTask<bool> DeleteAsync(CertificateId id, CancellationToken cancellationToken)
         {
             Calls.Add("delete");
@@ -665,7 +732,8 @@ public sealed class CertificateOperationsTests
                 throw StoreThenFail;
             }
 
-            var info = InfoFor(names, validity, spec);
+            // The local CA signs its leaves under its own name, which is what tells the leaves of one root from another's.
+            var info = InfoFor(names, validity, spec, kind is "LocalCaRoot" or "LocalCa" ? "CN=Fake Local CA" : "CN=Fake Issuer");
             Catalog[id] = info;
             if (kind == "LocalCaRoot")
             {
@@ -675,7 +743,7 @@ public sealed class CertificateOperationsTests
             return info;
         }
 
-        public CertificateInfo InfoFor(IReadOnlyList<string> names, TimeSpan? validity = null, KeySpec spec = KeySpec.EcdsaP256)
+        public CertificateInfo InfoFor(IReadOnlyList<string> names, TimeSpan? validity = null, KeySpec spec = KeySpec.EcdsaP256, string issuer = "CN=Fake Issuer")
         {
             var serial = Interlocked.Increment(ref _serial);
             CertificateInfo info = new(
@@ -683,15 +751,37 @@ public sealed class CertificateOperationsTests
                 names.Select(n => n.ToLowerInvariant()).ToList(),
                 Start,
                 Start + (validity ?? TimeSpan.FromDays(90)),
-                "CN=Fake Issuer",
+                issuer,
                 serial.ToString("X2", System.Globalization.CultureInfo.InvariantCulture),
                 null,
                 $"fp-{serial}",
                 spec.ToName() switch { "ecdsa-p384" => "ECDSA P-384", "rsa-2048" => "RSA 2048", _ => "ECDSA P-256" },
-                ["CN=Fake Issuer"],
+                [issuer],
                 "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
             return InfoOverride?.Invoke(info) ?? info;
         }
+    }
+
+    /// <summary>Allows everything except the permission checks a test lists by their number after <see cref="Arm"/> (1 is the next one).</summary>
+    private sealed class FlakyPermissions : Paduraksa.Application.Identity.IPermissionEvaluator
+    {
+        private int _calls;
+        private HashSet<int> _denied = [];
+
+        public void Arm(params int[] denied)
+        {
+            _calls = 0;
+            _denied = [.. denied];
+        }
+
+        public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(Actor actor, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlySet<Permission>>(
+                actor.Kind == ActorKind.System || !_denied.Contains(Interlocked.Increment(ref _calls))
+                    ? new HashSet<Permission> { Permission.CertificatesWrite }
+                    : new HashSet<Permission>());
+
+        public async ValueTask<bool> IsAllowedAsync(CommandOrigin origin, Permission permission, CancellationToken cancellationToken) =>
+            (await GetPermissionsAsync(origin.Actor, cancellationToken)).Contains(permission);
     }
 
     /// <summary>

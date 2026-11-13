@@ -64,7 +64,7 @@ internal sealed partial class CertificateStore(VaultRuntime runtime, ILogger<Cer
             }
             else if (row.IsLocalCaRoot != isLocalCaRoot)
             {
-                throw new InvalidOperationException($"{id} is the local CA root, which a replacement cannot touch; rotating it is not supported yet.");
+                throw new InvalidOperationException($"{id} is the local CA root, which a replacement cannot touch; rotate it instead.");
             }
             else
             {
@@ -87,6 +87,32 @@ internal sealed partial class CertificateStore(VaultRuntime runtime, ILogger<Cer
 
         _contexts.TryRemove(id, out _);
         LogStored(id, how, info.Sha256Fingerprint);
+        return info;
+    }
+
+    /// <summary>
+    /// Replaces the local CA root <paramref name="oldId"/> with <paramref name="chain"/> and <paramref name="pkcs8"/> under <paramref name="newId"/>,
+    /// the old row deleted in the same transaction. Call inside the gate, after <see cref="VaultRuntime.EnsureReadyAsync"/>.
+    /// </summary>
+    public async Task<CertificateInfo> ReplaceLocalCaAsync(
+        VaultDbContext context, CertificateId oldId, CertificateId newId, SecretBuffer pkcs8, CertificateChain chain, CancellationToken cancellationToken)
+    {
+        var info = CertificateFacts.InfoOf(chain);
+        var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
+        await using (transaction.ConfigureAwait(false))
+        {
+            var now = runtime.Time.GetUtcNow();
+            _ = await context.CertificateKeys.Where(k => k.Id == oldId && k.IsLocalCaRoot).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+            _ = await context.StagedKeys.Where(s => s.CertificateId == oldId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+            CertificateKeyRow row = new() { Id = newId, IsLocalCaRoot = true, Version = 1, CreatedAt = now, UpdatedAt = now, ChainPem = info.PublicChainPem };
+            row.Sealed = EnvelopeCipher.Seal(runtime.Kek, pkcs8.Span, CertificateSeal.ContextOf(newId, isLocalCaRoot: true, row.Version));
+            context.CertificateKeys.Add(row);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        _contexts.TryRemove(oldId, out _);
+        LogStored(newId, "local CA rotation", info.Sha256Fingerprint);
         return info;
     }
 

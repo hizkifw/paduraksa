@@ -1,0 +1,96 @@
+<MudDialog Class="pdk-dialog" ContentClass="pdk-dialog-content">
+    <TitleContent>
+        <div class="pdk-dialog-title">
+            <span class="pdk-dialog-icon pdk-tone-@(Warning ? "warning" : "primary")"><MudIcon Icon="@Icons.Material.Outlined.AccountTree" Size="Size.Small" /></span>
+            <MudText Typo="Typo.h6" HtmlTag="h2">@Title</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (Message is not null)
+        {
+            <MudAlert Severity="@(Warning ? Severity.Warning : Severity.Info)" Variant="Variant.Outlined" Dense="true" Class="mb-3" data-banner="local-ca-dialog">@Message</MudAlert>
+        }
+        <MudSwitch T="bool" @bind-Value="_limit" Color="Color.Primary" Label="Limit what this root may issue for" data-field="local-ca-limit" />
+        @if (_limit)
+        {
+            <MudTextField T="string" @bind-Value="_text" Label="Domains and networks, one per line" Lines="6" Sizing="InputSizing.Auto" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Class="pdk-mono-input" data-field="local-ca-names"
+                          HelperText="A device that trusts this root accepts nothing for any other name, and changing the list later means rotating again. The admin certificate's names are always kept." />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="@(Warning ? Color.Warning : Color.Primary)" OnClick="Confirm" Class="pdk-confirm">@ConfirmText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _limit;
+    private string _text = string.Empty;
+
+    [CascadingParameter]
+    private IMudDialogInstance? Dialog { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = "Local CA";
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public string ConfirmText { get; set; } = "Create";
+
+    [Parameter]
+    public bool Warning { get; set; }
+
+    /// <summary>What the list starts with when the person chooses to limit the root.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Suggestions { get; set; } = [];
+
+    /// <summary>Asks whether to limit the root and to what; null when cancelled. Not limiting gives no names, which is an unlimited root.</summary>
+    public static async Task<LocalCaNames?> AskAsync(IDialogService dialogs, string title, string confirmText, IReadOnlyList<string> suggestions, string? message = null, bool warning = false)
+    {
+        ArgumentNullException.ThrowIfNull(dialogs);
+        DialogParameters<LocalCaNamesDialog> parameters = new()
+        {
+            { d => d.Title, title },
+            { d => d.ConfirmText, confirmText },
+            { d => d.Message, message },
+            { d => d.Warning, warning },
+            { d => d.Suggestions, suggestions },
+        };
+        var reference = await dialogs.ShowAsync<LocalCaNamesDialog>(title, parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = false });
+        var result = await reference.Result;
+        return result is { Canceled: false, Data: LocalCaNames names } ? names : null;
+    }
+
+    /// <summary>The lines as domains and networks: a line that is an IP address or a CIDR is a network.</summary>
+    public static LocalCaNames Parse(string? text)
+    {
+        List<string> domains = [];
+        List<string> addresses = [];
+        foreach (var line in (text ?? string.Empty).Split(['\n', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            (System.Net.IPAddress.TryParse(line, out _) || System.Net.IPNetwork.TryParse(line, out _) ? addresses : domains).Add(line);
+        }
+
+        return new LocalCaNames(domains, addresses);
+    }
+
+    private void Cancel() => Dialog?.Cancel();
+
+    protected override void OnParametersSet()
+    {
+        if (_text.Length == 0)
+        {
+            _text = string.Join('\n', Suggestions);
+        }
+    }
+
+    private void Confirm() => Dialog?.Close(DialogResult.Ok(_limit ? Parse(_text) : new LocalCaNames([], [])));
+}
+
+@code {
+    /// <summary>What the person typed, split.</summary>
+    public sealed record LocalCaNames(IReadOnlyList<string> Domains, IReadOnlyList<string> Addresses);
+}

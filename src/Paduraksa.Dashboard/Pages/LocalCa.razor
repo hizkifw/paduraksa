@@ -16,6 +16,7 @@
 @inject ISnackbar Snackbar
 @inject TimeProvider Time
 @inject IServiceProvider Services
+@inject IDialogService Dialogs
 @inject ILogger<LocalCa> Logger
 @* The local CA: its root, to trust once on every device, and the admin certificate it issues and renews. The
    certificates it issues for hosts are in the certificates list. *@
@@ -29,6 +30,11 @@
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AccountTree" OnClick="CreateRootAsync"
                        data-action="create-local-ca">Create the local CA</MudButton>
         }
+        else if (_mayWrite && _view?.Root is not null)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Outlined.Autorenew" OnClick="RotateRootAsync" Disabled="_busy"
+                       data-action="rotate-local-ca">Rotate the root</MudButton>
+        }
     </Actions>
 </PageHeader>
 
@@ -41,12 +47,19 @@
 }
 
 <div class="pdk-home-grid pdk-cert-managed">
-    <TrustRootCard Root="_view?.Root?.Summary" ExpandHowTo="true" />
+    <TrustRootCard Root="_view?.Root?.Summary" PermittedNames="_status?.PermittedNames" ExpandHowTo="true" />
     <AdminCertificateCard Admin="_view?.Admin" Now="_now" OnOpen="row => Navigation.NavigateTo(DashboardRoutes.Certificate(row.Id))" />
 </div>
+@if (_status is { Retiring.Count: > 0 })
+{
+    <RetiringRootsCard Roots="_status.Retiring" Pems="_retiringPems" MayWrite="_mayWrite" Busy="_busy" OnReissue="ReissueAsync" OnRetire="RetireAsync" />
+}
 
 @code {
     private CertificateInventoryView? _view;
+    private LocalCaStatus? _status;
+    private Dictionary<CertificateId, string> _retiringPems = [];
+    private bool _busy;
     private bool _mayWrite;
     private bool _mayReadConfig;
     private bool _failed;
@@ -85,6 +98,15 @@
             _now = Time.GetUtcNow();
             _view = await CertificateInventoryView.LoadAsync(
                 CertificateInventory, Issuance, _mayReadConfig ? Config : null, Services.GetService(typeof(IBuiltInCertificates)) as IBuiltInCertificates, _now);
+            _status = await Operations.GetLocalCaAsync();
+            _retiringPems = [];
+            foreach (var retiring in _status.Retiring)
+            {
+                if (await CertificateInventory.GetAsync(retiring.Root.Id) is { } detail)
+                {
+                    _retiringPems[retiring.Root.Id] = detail.PublicChainPem;
+                }
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -102,24 +124,105 @@
 
     private async Task CreateRootAsync()
     {
+        var names = await LocalCaNamesDialog.AskAsync(
+            Dialogs, "Create the local CA", "Create", Suggestions(),
+            "By default the root may issue for any name. Limiting it means a device that trusts it accepts nothing outside the list, which also changes only by rotating.");
+        if (names is null)
+        {
+            return;
+        }
+
+        await RunAsync("Couldn't create the local CA.", async origin =>
+        {
+            var result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(PermittedDomains: names.Domains, PermittedAddresses: names.Addresses), origin);
+            Report(result, "The local CA is ready. Install its root to trust what it issues.");
+        });
+    }
+
+    private IReadOnlyList<string> Suggestions() => [.. (_status?.SuggestedDomains ?? []), .. (_status?.SuggestedAddresses ?? [])];
+
+    private async Task RotateRootAsync()
+    {
+        var names = await LocalCaNamesDialog.AskAsync(
+            Dialogs, "Rotate the local CA root", "Rotate", Suggestions(),
+            "A new root replaces this one, and this one's key is destroyed. Every device must trust the new root before what it signs works for them. What this root signed keeps working until you re-issue it, and it stays here to download until you retire it.",
+            warning: true);
+        if (names is null)
+        {
+            return;
+        }
+
+        await RunAsync("Couldn't rotate the local CA.", async origin =>
+        {
+            var result = await Operations.RotateLocalCaAsync(new LocalCaRotateRequest(PermittedDomains: names.Domains, PermittedAddresses: names.Addresses), origin);
+            Report(result, "The root is replaced. Install the new one on your devices, then re-issue the certificates the old one signed.");
+        });
+    }
+
+    private async Task ReissueAsync() =>
+        await RunAsync("Couldn't re-issue the certificates.", async origin =>
+        {
+            var result = await Operations.ReissueLocalCaLeavesAsync(origin);
+            if (result.Failures.Count == 0)
+            {
+                Snackbar.Add($"Re-issued {result.Reissued} certificate{(result.Reissued == 1 ? string.Empty : "s")} from the new root.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Re-issued {result.Reissued}; {result.Failures.Count} couldn't be: {string.Join(" ", result.Failures.Select(f => f.Message).Distinct())}", Severity.Warning);
+            }
+        });
+
+    private async Task RetireAsync(RetiringLocalCaRoot retiring)
+    {
+        if (!await ConfirmActionDialog.AskAsync(
+                Dialogs, "Retire the replaced root", $"{CertificateDisplay.CommonName(retiring.Root.Subject)} can't be downloaded again. Retire it once every device trusts the new root.",
+                "Retire", destructive: true))
+        {
+            return;
+        }
+
+        await RunAsync("Couldn't retire the root.", async origin =>
+        {
+            var result = await Operations.DeleteAsync(retiring.Root.Id, origin);
+            Report(result, "The replaced root is retired.");
+        });
+    }
+
+    private async Task RunAsync(string failure, Func<CommandOrigin, Task> work)
+    {
         var origin = await Caller.OriginAsync();
         if (origin is null)
         {
             return;
         }
 
-        await Logger.TryAsync(Snackbar, "Couldn't create the local CA.", async () =>
+        _busy = true;
+        try
         {
-            var result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
-            if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
-            {
-                Snackbar.Add("The local CA is ready. Install its root to trust what it issues.", Severity.Success);
-            }
-            else
-            {
-                Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
-            }
-        });
+            await Logger.TryAsync(Snackbar, failure, () => work(origin));
+        }
+        finally
+        {
+            _busy = false;
+        }
+
         await LoadAsync();
+    }
+
+    private void Report(CertificateOperationResult result, string success)
+    {
+        if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
+        {
+            Snackbar.Add(success, Severity.Success);
+            foreach (var warning in result.Warnings)
+            {
+                Snackbar.Add(warning.Message, Severity.Warning);
+            }
+        }
+        else
+        {
+            Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
+        }
     }
 }

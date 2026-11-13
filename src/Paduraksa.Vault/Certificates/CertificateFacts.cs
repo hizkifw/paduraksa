@@ -214,7 +214,8 @@ internal static class CertificateFacts
             Convert.ToHexStringLower(leaf.GetCertHash(HashAlgorithmName.SHA256)),
             KeyAlgorithmOf(leaf),
             [.. chain.Certificates.Select(c => c.IssuerName.Name)],
-            ToPem(chain.Certificates));
+            ToPem(chain.Certificates),
+            NameConstraintsExtension.Read(leaf) is { } constraints ? NameConstraintsExtension.Describe(constraints) : null);
     }
 
     /// <summary>DNS names (lowercase) and IP addresses of the SAN extension, in the order they appear in the certificate.</summary>

@@ -183,8 +183,17 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
         return await PutAsync(id, key, chain, isLocalCaRoot: false, "self-signed", cancellationToken).ConfigureAwait(false);
     }
 
-    public async ValueTask<CertificateInfo> EnsureLocalCaAsync(
-        CertificateId id, KeySpec spec, TimeSpan validity, CancellationToken cancellationToken)
+    public ValueTask<CertificateInfo> EnsureLocalCaAsync(
+        CertificateId id, KeySpec spec, TimeSpan validity, CancellationToken cancellationToken) =>
+        EnsureAsync(id, spec, validity, null, cancellationToken);
+
+    public ValueTask<CertificateInfo> EnsureLocalCaAsync(
+        CertificateId id, KeySpec spec, TimeSpan validity, LocalCaConstraints constraints, CancellationToken cancellationToken) =>
+        EnsureAsync(id, spec, validity, NameConstraintsExtension.Normalize(constraints), cancellationToken);
+
+    /// <summary>A root without constraints is what the four-argument form has always made: it may issue for any name.</summary>
+    private async ValueTask<CertificateInfo> EnsureAsync(
+        CertificateId id, KeySpec spec, TimeSpan validity, LocalCaConstraints? checkedConstraints, CancellationToken cancellationToken)
     {
         RequireId(id);
         RequireValidity(validity);
@@ -210,14 +219,41 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
             }
 
             var now = runtime.Time.GetUtcNow();
-            var name = $"CN=Paduraksa Local CA ({Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4))})";
-            var request = KeyPairs.NewRequest(new X500DistinguishedName(name), key);
-            request.CertificateExtensions.Add(new X509BasicConstraintsExtension(certificateAuthority: true, hasPathLengthConstraint: true, pathLengthConstraint: 0, critical: true));
-            request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, critical: true));
-            request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, critical: false));
-            using var rootChain = new CertificateChain([request.Create(request.SubjectName, KeyPairs.Generator(key), now - ClockSkew, now + validity, NewSerialNumber())]);
+            using var rootChain = new CertificateChain([NewRoot(key, now, validity, checkedConstraints)]);
             using var pkcs8 = KeyPairs.ExportPkcs8(key);
             return await store.PutAsync(context, id, pkcs8, rootChain, isLocalCaRoot: true, "local CA root", cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async ValueTask<LocalCaRotation> RotateLocalCaAsync(
+        CertificateId newId, KeySpec spec, TimeSpan validity, LocalCaConstraints? constraints, CancellationToken cancellationToken)
+    {
+        RequireId(newId);
+        RequireValidity(validity);
+        var checkedConstraints = constraints is null ? null : NameConstraintsExtension.Normalize(constraints);
+        await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
+
+        using var key = KeyPairs.Generate(spec);
+        using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
+        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            var old = await context.CertificateKeys.AsNoTracking().SingleOrDefaultAsync(k => k.IsLocalCaRoot, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("There is no local CA to rotate.");
+            if (old.Id == newId || await context.CertificateKeys.AnyAsync(k => k.Id == newId, cancellationToken).ConfigureAwait(false))
+            {
+                throw new InvalidOperationException($"{newId} is a certificate already and cannot become the new local CA root.");
+            }
+
+            using var oldChain = new CertificateChain(CertificateFacts.ParseCertificates(old.ChainPem));
+            var retired = CertificateFacts.InfoOf(oldChain);
+            var now = runtime.Time.GetUtcNow();
+            using var rootChain = new CertificateChain([NewRoot(key, now, validity, checkedConstraints)]);
+            using var pkcs8 = KeyPairs.ExportPkcs8(key);
+
+            // The old key goes and the new one comes in one transaction, so there is never no root and never two (the unique index would refuse).
+            var info = await store.ReplaceLocalCaAsync(context, old.Id, newId, pkcs8, rootChain, cancellationToken).ConfigureAwait(false);
+            return new LocalCaRotation(info, old.Id, retired);
         }
     }
 
@@ -244,6 +280,17 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
             var rootCertificates = CertificateFacts.ParseCertificates(rootRow.ChainPem);
             using var rootChain = new CertificateChain(rootCertificates);
             var root = rootChain.Leaf;
+            if (NameConstraintsExtension.Read(root) is { } permitted)
+            {
+                foreach (var name in checkedNames)
+                {
+                    if (!NameConstraintsExtension.Permits(permitted, name))
+                    {
+                        throw new LocalCaNameNotPermittedException(name, string.Join(", ", NameConstraintsExtension.Describe(permitted)));
+                    }
+                }
+            }
+
             using var rootKeyBytes = store.OpenKey(rootRow);
             using var rootKey = KeyPairs.Import(rootKeyBytes.Span, root);
 
@@ -283,6 +330,22 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
         {
             return await store.PutAsync(context, id, pkcs8, chain, isLocalCaRoot, how, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>A local CA root: a CA with path length 0 over a random name, limited to <paramref name="constraints"/> (already normalised) when there are any.</summary>
+    private static X509Certificate2 NewRoot(AsymmetricAlgorithm key, DateTimeOffset now, TimeSpan validity, LocalCaConstraints? constraints)
+    {
+        var name = $"CN=Paduraksa Local CA ({Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4))})";
+        var request = KeyPairs.NewRequest(new X500DistinguishedName(name), key);
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(certificateAuthority: true, hasPathLengthConstraint: true, pathLengthConstraint: 0, critical: true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, critical: true));
+        request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, critical: false));
+        if (constraints is not null)
+        {
+            request.CertificateExtensions.Add(NameConstraintsExtension.Build(constraints));
+        }
+
+        return request.Create(request.SubjectName, KeyPairs.Generator(key), now - ClockSkew, now + validity, NewSerialNumber());
     }
 
     /// <summary>A server certificate for <paramref name="names"/> over <paramref name="key"/>, signed with <paramref name="generator"/> as <paramref name="issuerName"/> (itself when null).</summary>
