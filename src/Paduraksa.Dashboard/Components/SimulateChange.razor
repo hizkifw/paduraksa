@@ -8,7 +8,7 @@
 
 <div class="pdk-review-simulate">
     <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Science"
-               OnClick="Toggle" aria-expanded="@(_open ? "true" : "false")">Simulate this change</MudButton>
+               OnClick="Toggle" aria-expanded="@(_open ? "true" : "false")">@Label</MudButton>
     @if (_open)
     {
         <div class="pdk-review-simulate-form">
@@ -33,6 +33,9 @@
     /// <summary>What to try the request against: the command the review is of, or the draft's set as one whole-document command.</summary>
     [Parameter, EditorRequired]
     public ConfigCommand Command { get; set; } = default!;
+
+    [Parameter]
+    public string Label { get; set; } = "Simulate this change";
 
     /// <summary>A host name the change is about, to pre-fill the URL.</summary>
     [Parameter]

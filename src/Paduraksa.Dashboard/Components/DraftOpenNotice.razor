@@ -4,8 +4,10 @@
 @if (Drafts.IsOpen)
 {
     <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="draft-open">
-        @DraftNotices.WholeDocument(Drafts.Count)
-        <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Warning" OnClick="OnReviewDraft" data-action="review-draft-first" Class="ml-2">Review the draft first</MudButton>
+        <div class="pdk-draft-open">
+            <span>@DraftNotices.WholeDocument(Drafts.Count)</span>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Warning" OnClick="OnReviewDraft" data-action="review-draft-first">Review the draft first</MudButton>
+        </div>
     </MudAlert>
 }
 

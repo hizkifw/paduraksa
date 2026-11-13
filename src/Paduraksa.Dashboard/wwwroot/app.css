@@ -2551,6 +2551,12 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     margin: 0;
 }
 
+.pdk-draft-open {
+    display: grid;
+    justify-items: start;
+    gap: 8px;
+}
+
 .pdk-review-drops {
     margin: 0;
     color: var(--mud-palette-text-secondary);
