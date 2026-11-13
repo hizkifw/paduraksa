@@ -36,9 +36,6 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     /// <summary>What needs the person, most serious first, each with where to fix it.</summary>
     public IReadOnlyList<AttentionItem> Attention { get; init; } = [];
 
-    /// <summary>Advice worth a line but not an alarm (a missing second factor): shown quietly under the attention card, never counted in it.</summary>
-    public IReadOnlyList<AttentionItem> Hints { get; init; } = [];
-
     /// <summary>The first hosts, those that need attention first.</summary>
     public IReadOnlyList<HostLine>? Lines { get; init; }
 
@@ -140,26 +137,6 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
         }
 
         return [.. items.OrderBy(i => i.Tone == Tone.Error ? 0 : 1)];
-    }
-
-    /// <summary>
-    /// The other Owners and Admins who can sign in with a password alone (only for someone who may read users), in one line. The
-    /// viewer's own account isn't named: the setup checklist covers it. Nothing forces a second factor, so this is advice, not an alarm.
-    /// </summary>
-    public static IReadOnlyList<AttentionItem> SecondFactorHintsOf(UserId? viewer, IReadOnlyList<UserSummary>? users)
-    {
-        List<AttentionItem> hints = [];
-        var open = (users ?? []).Where(u => !u.Disabled && !u.TwoFactorEnabled && u.Roles.Any(r => r is Role.Owner or Role.Admin)).ToList();
-        var others = open.Where(u => u.Id != viewer).ToList();
-        if (others.Count > 0)
-        {
-            var who = others.Count == 1
-                ? $"{others[0].DisplayName} has no second factor"
-                : $"{others.Count.ToString(CultureInfo.InvariantCulture)} other administrators have no second factor ({string.Join(", ", others.Take(3).Select(u => u.DisplayName))}{(others.Count > 3 ? " and more" : string.Empty)})";
-            hints.Add(new AttentionItem(Tone.Info, who, string.Empty, SettingsRoutes.Users, "Open users"));
-        }
-
-        return hints;
     }
 
     /// <summary>The hosts as the overview lists them: those that need attention first, then by name.</summary>

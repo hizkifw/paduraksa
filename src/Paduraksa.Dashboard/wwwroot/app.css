@@ -575,23 +575,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     margin-bottom: 6px;
 }
 
-.pdk-hints {
-    display: grid;
-    gap: 4px;
-    margin: 0 0 16px;
-    padding: 0;
-    list-style: none;
-}
-
-.pdk-hint {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.875rem;
-}
-
 .pdk-attention-list, .pdk-home-lines {
     display: grid;
     margin: 0;
@@ -3891,12 +3874,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     margin-bottom: 0;
 }
 
-.pdk-analytics-approx-text {
-    display: block;
-    max-width: 340px;
-    font-size: 0.75rem;
-    line-height: 1.45;
-}
 
 .pdk-analytics-tables {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));

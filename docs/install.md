@@ -137,7 +137,7 @@ From the safest to the most open:
 3. **The LAN address**: publish `"192.168.1.10:9443:9443"` and set `Paduraksa__Listen__AdminAllowedSources` to your management subnet
    (loopback is not implied, add `127.0.0.1/32` for the container healthcheck; try it from a machine that should be refused).
 4. A public address, only behind a firewall that you control (not Docker's own rules) and with a second factor for every Owner and Admin.
-   The overview names the other Owners and Admins who have none, and nothing forces one.
+   Users shows who has none, and nothing forces one.
 
 ### The master key
 

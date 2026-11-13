@@ -7,7 +7,6 @@
 @inject DashboardCaller Caller
 @inject IDashboardConfig Config
 @inject IVaultLifecycle VaultLifecycle
-@inject IDashboardIdentity Identity
 @inject TimeProvider Time
 @inject ILogger<Home> Logger
 @* The overview: first what needs the person and where to fix it, then the live traffic, the counts, the hosts with where
@@ -73,20 +72,6 @@
             }
         </ul>
     </MudPaper>
-}
-
-@if (Snapshot is { Hints.Count: > 0 })
-{
-    <ul class="pdk-hints" data-section="hints">
-        @foreach (var hint in Snapshot.Hints)
-        {
-            <li class="pdk-hint">
-                <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" Class="pdk-muted" />
-                <span class="pdk-hint-text">@hint.Title</span>
-                <MudLink Href="@hint.Href" Typo="Typo.body2" Underline="Underline.Hover">@hint.Action</MudLink>
-            </li>
-        }
-    </ul>
 }
 
 @if (_mayReadMetrics)
@@ -296,7 +281,6 @@
             }
 
             var vault = user.Has(Permission.VaultManage) ? await VaultLifecycle.InitializeAsync(default) : null;
-            var users = user.Has(Permission.UsersRead) ? (await Identity.ListUsersAsync(user.Session.OriginFor(Channel.Dashboard))).Users : null;
             Snapshot = new HomeSnapshot(
                 current?.Revision?.Seq,
                 current?.Document.Hosts.Count,
@@ -306,7 +290,6 @@
                 ExpiringInUse: current is not null)
             {
                 Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now, Config.CloudflareRanges, vault),
-                Hints = HomeSnapshot.SecondFactorHintsOf(user.UserId, users),
                 Lines = rows is null ? null : HomeSnapshot.LinesOf(rows),
                 Online = rows?.Count(r => r.Health != Tone.Default) ?? 0,
                 Off = rows?.Count(r => r.Health == Tone.Default) ?? 0,

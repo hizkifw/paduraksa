@@ -99,76 +99,12 @@ public sealed class OverviewAndNavigationTests
     [Theory]
     [InlineData(Role.Owner)]
     [InlineData(Role.Admin)]
-    public async Task TheOverview_LeavesTheViewersOwnSecondFactorToTheSetupChecklist(Role role)
-    {
-        await using DashboardTestContext context = new();
-        IdentityPages.SignIn(context, role).Config.Document = new ConfigDocument();
-        context.ComponentFactories.AddStub<SetupChecklist>();
-        context.ComponentFactories.AddStub<TrafficOverview>();
-
-        var page = context.Render<Home>();
-
-        await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
-        Assert.Empty(page.FindAll("[data-section=attention]"));
-        Assert.Empty(page.FindAll("[data-section=hints]"));
-    }
-
-    [Fact]
-    public async Task TheOverview_SaysNothingOnceTheViewerHasASecondFactor_AndNamesOtherAdministratorsWhoHaveNone()
-    {
-        await using DashboardTestContext context = new();
-        var (identity, _, config, _) = IdentityPages.SignIn(context, Role.Owner);
-        config.Document = new ConfigDocument();
-        identity.Users[0] = identity.Users[0] with { TwoFactorEnabled = true };
-        identity.Users.Add(FakeDashboardIdentity.User("grace", Role.Admin));
-        identity.Users.Add(FakeDashboardIdentity.User("linus", Role.Operator));
-        identity.Users.Add(FakeDashboardIdentity.User("ken", Role.Viewer));
-        identity.Users.Add(FakeDashboardIdentity.User("dennis", Role.Admin) with { Disabled = true });
-        identity.Users.Add(FakeDashboardIdentity.User("barbara", Role.Admin) with { TwoFactorEnabled = true });
-        context.ComponentFactories.AddStub<SetupChecklist>();
-        context.ComponentFactories.AddStub<TrafficOverview>();
-
-        var page = context.Render<Home>();
-
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-hint").Count == 1);
-        var item = page.Find(".pdk-hint");
-        Assert.Contains("grace has no second factor", item.TextContent, StringComparison.Ordinal);
-        Assert.DoesNotContain("linus", item.TextContent, StringComparison.Ordinal);
-        Assert.Equal(SettingsRoutes.Users, item.QuerySelector("a")!.GetAttribute("href"));
-    }
-
-    [Fact]
-    public async Task TheOverview_CountsSeveralAdministratorsWithoutASecondFactorInOneLine()
-    {
-        await using DashboardTestContext context = new();
-        var (identity, _, config, _) = IdentityPages.SignIn(context, Role.Owner);
-        config.Document = new ConfigDocument();
-        identity.Users[0] = identity.Users[0] with { TwoFactorEnabled = true };
-        foreach (var name in new[] { "grace", "linus", "ken", "dennis" })
-        {
-            identity.Users.Add(FakeDashboardIdentity.User(name, Role.Admin));
-        }
-
-        context.ComponentFactories.AddStub<SetupChecklist>();
-        context.ComponentFactories.AddStub<TrafficOverview>();
-
-        var page = context.Render<Home>();
-
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-hint").Count == 1);
-        var text = page.Find(".pdk-hint").TextContent;
-        Assert.Contains("4 other administrators have no second factor (grace, linus, ken and more)", text, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(Role.Operator)]
-    [InlineData(Role.Viewer)]
-    [InlineData(Role.Auditor)]
-    public async Task TheOverview_DoesNotTellARoleThatCannotReadUsersAboutSecondFactors(Role role)
+    public async Task TheOverview_SaysNothingAboutSecondFactors_TheChecklistAndTheUsersListDo(Role role)
     {
         await using DashboardTestContext context = new();
         var (identity, _, config, _) = IdentityPages.SignIn(context, role);
         config.Document = new ConfigDocument();
-        identity.Users.Add(FakeDashboardIdentity.User("grace", Role.Owner));
+        identity.Users.Add(FakeDashboardIdentity.User("grace", Role.Admin));
         context.ComponentFactories.AddStub<SetupChecklist>();
         context.ComponentFactories.AddStub<TrafficOverview>();
 
@@ -176,7 +112,7 @@ public sealed class OverviewAndNavigationTests
 
         await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
         Assert.Empty(page.FindAll("[data-section=attention]"));
-        Assert.Empty(page.FindAll("[data-section=hints]"));
+        Assert.DoesNotContain("second factor", page.Markup, StringComparison.Ordinal);
     }
 
     [Theory]

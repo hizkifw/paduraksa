@@ -30,16 +30,6 @@
                 <MudSelectItem T="string" Value="@NoHost">No host matched</MudSelectItem>
             </MudSelect>
             <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="_range" ValueChanged="ChooseRangeAsync" AriaLabel="Time range" DataField="range" />
-            <MudTooltip Placement="Placement.Bottom" Arrow="true">
-                <ChildContent>
-                    <MudIconButton Icon="@Icons.Material.Outlined.Info" Size="Size.Small" aria-label="How accurate these figures are" data-part="approx" />
-                </ChildContent>
-                <TooltipContent>
-                    <span class="pdk-analytics-approx-text">Unique visitors are counted in a sketch that is about 1.6% off, and a visitor who is active across a restart counts once on each side of it.
-                        A top table keeps a fixed number of rows: a count marked @AnalyticsFigures.Approximately may be higher than the truth by at most what its tooltip says, and a path's p95 covers the requests seen since it entered the table.
-                        Everything else is exact.</span>
-                </TooltipContent>
-            </MudTooltip>
         }
     </Actions>
 </PageHeader>
@@ -81,7 +71,7 @@ else
         <SecurityTile Name="requests" Label="Requests" Value="@AnalyticsFigures.Count(totals.Requests)"
                       Detail="@(totals.BotRequests > 0 ? $"{AnalyticsFigures.Share(totals.BotRequests, totals.Requests)} from bots" : null)" />
         <SecurityTile Name="bandwidth" Label="Bandwidth" Value="@AnalyticsFigures.Bytes(totals.BytesOut)" Detail="declared sizes only" />
-        <SecurityTile Name="visitors" Label="Unique visitors" Value="@($"{AnalyticsFigures.Approximately} {AnalyticsFigures.Count(totals.Visitors)}")" />
+        <SecurityTile Name="visitors" Label="Unique visitors" Value="@AnalyticsFigures.Count(totals.Visitors)" Detail="@AnalyticsFigures.VisitorsAccuracy" />
         <SecurityTile Name="errors" Label="Error rate" Value="@TrafficFigures.Percent(totals.ErrorRate)" Detail="5xx answers" />
     </div>
 
@@ -505,7 +495,7 @@ else
         [
             new("requests", "Requests", [new("Requests", "pdk-chart-a", Values(series, step => step.Requests), Area: true), new("5xx", "pdk-chart-err", Values(series, step => step.ServerErrors))], AnalyticsFigures.Compact),
             new("bandwidth", "Bandwidth", [new("Bytes sent", "pdk-chart-b", Values(series, step => step.BytesOut), Area: true)], AnalyticsFigures.Bytes),
-            new("visitors", "Unique visitors", [new($"Visitors {AnalyticsFigures.Approximately}", "pdk-chart-c", Values(series, step => step.Visitors), Area: true)], AnalyticsFigures.Compact),
+            new("visitors", "Unique visitors", [new("Visitors", "pdk-chart-c", Values(series, step => step.Visitors), Area: true)], AnalyticsFigures.Compact),
         ];
     }
 

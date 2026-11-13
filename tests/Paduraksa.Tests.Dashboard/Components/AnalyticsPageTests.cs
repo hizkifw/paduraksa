@@ -232,7 +232,8 @@ public sealed class AnalyticsPageTests
         Assert.Equal("30% from bots", page.Find("[data-tile=requests] [data-part=detail]").TextContent);
         Assert.Equal("11 GB", page.Find("[data-tile=bandwidth] [data-part=value]").TextContent);
         Assert.Equal("declared sizes only", page.Find("[data-tile=bandwidth] [data-part=detail]").TextContent);
-        Assert.StartsWith("≈ ", page.Find("[data-tile=visitors] [data-part=value]").TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("≈", page.Find("[data-tile=visitors] [data-part=value]").TextContent, StringComparison.Ordinal);
+        Assert.Equal("±1.6%", page.Find("[data-tile=visitors] [data-part=detail]").TextContent);
         // One 502 in ten.
         Assert.Equal("10%", page.Find("[data-tile=errors] [data-part=value]").TextContent);
     }
@@ -261,7 +262,7 @@ public sealed class AnalyticsPageTests
         Assert.NotEmpty(page.Find("[data-chart=requests] polyline.pdk-chart-a").GetAttribute("points")!);
         Assert.Contains("Requests", page.Find("[data-chart=requests] figcaption").TextContent, StringComparison.Ordinal);
         Assert.Contains("Bytes sent", page.Find("[data-chart=bandwidth] figcaption").TextContent, StringComparison.Ordinal);
-        Assert.Contains("≈", page.Find("[data-chart=visitors] figcaption").TextContent, StringComparison.Ordinal);
+        Assert.Contains("Visitors", page.Find("[data-chart=visitors] figcaption").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -427,21 +428,6 @@ public sealed class AnalyticsPageTests
         Assert.Contains("No bot fetched what a robots.txt disallows", card, StringComparison.Ordinal);
         Assert.Contains("Only hosts that serve a robots.txt", card, StringComparison.Ordinal);
         Assert.Contains("No bot made a request", page.Find("[data-section=bot-kinds]").TextContent, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task OneTooltipExplainsTheApproximations()
-    {
-        await using Rig rig = new();
-        await rig.UseDatabaseAsync();
-        await FillAsync(rig);
-        await using var context = rig.SignIn();
-
-        var page = Render(context);
-        await page.WaitForStateAsync(() => page.FindAll("[data-part=approx]").Count == 1);
-
-        Assert.Single(page.FindAll("[data-part=approx]"));
-        Assert.Equal("How accurate these figures are", page.Find("[data-part=approx]").GetAttribute("aria-label"));
     }
 
     [Fact]

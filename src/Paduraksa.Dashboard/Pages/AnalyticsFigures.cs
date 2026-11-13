@@ -8,8 +8,14 @@ namespace Paduraksa.Dashboard.Pages;
 /// <summary>How the analytics page writes its numbers: short, with the unit, and the same everywhere on the page.</summary>
 internal static class AnalyticsFigures
 {
-    /// <summary>The mark an approximate value carries (visitors, and a table row a sketch may have overcounted).</summary>
+    /// <summary>The mark a table row a sketch may have overcounted carries (its tooltip gives the range).</summary>
     public const string Approximately = "≈";
+
+    /// <summary>
+    /// The visitor sketch's error, under the count. It is the HyperLogLog's standard error for its register count; a visitor active
+    /// across a restart also counts once on each side of it.
+    /// </summary>
+    public const string VisitorsAccuracy = "±1.6%";
 
     /// <summary>"950", "1.2k", "34k", "5.6M": for an axis, where a full count would only crowd it.</summary>
     public static string Compact(double value) => value switch
