@@ -25,7 +25,7 @@ Everything here is compiled per snapshot, so the gate does only lookups and arit
 | Geo blocking | M7 has **`CF-IPCountry` only**, as country rules of an access list: a two-letter code from a trusted Cloudflare peer, compiled per list into a bitset (676 letter pairs plus Tor and unknown), one bit test per request. See [Country rules](#country-rules). A local country database is **not built**. |
 | Rate limiting | A fixed-size, open-addressed token-bucket table. Policies per host or route: requests per second, minute or hour plus a burst, keyed by IP, IP+path or header. Returns 429 with `Retry-After`. See [Rate limiting](#rate-limiting). |
 | Request size limits | `IHttpMaxRequestBodySizeFeature` per host or route. Header count and size and URL length are checked cheaply in the gate. Global Kestrel limits act as the outer bound. See [Request limits](#request-limits). |
-| Rule sets | A named object (`rset_`): an ordered list of rules with path, method and user-agent conditions and an action (deny, drop, allow). Presets are built in. See [Rule sets](#rule-sets). |
+| Rule sets | A named object (`rs_`): an ordered list of rules with path, method and user-agent conditions and an action (deny, drop, allow). Presets are built in. See [Rule sets](#rule-sets). |
 | Forward-auth | A named object (`authp_`): an endpoint that every request to a host or route naming it is checked against before it is forwarded. See [Forward-auth](#forward-auth). |
 | Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page, solved by pure-JS SHA-256 workers. The verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. See [Proof of work](#proof-of-work). |
 | Robots.txt | Per host: passthrough or managed (preset: disallow all, block AI crawlers, or custom text). Served from pre-encoded bytes. |
@@ -423,7 +423,7 @@ The country is part of the **address side**.
 
 ## Rule sets
 
-Built in M7. A `RuleSet` is a top-level named object like an access list: a typed `rs_` ID, a unique name, notes and `rules`, an ordered list.
+Built in M7. A `RuleSet` is a top-level named object like an access list: a typed `rs_` ID (TODO(check): the data-model table in config.md says `rset_`), a unique name, notes and `rules`, an ordered list.
 
 ### The model
 
