@@ -99,7 +99,7 @@ public sealed class OverviewAndNavigationTests
     [Theory]
     [InlineData(Role.Owner)]
     [InlineData(Role.Admin)]
-    public async Task TheOverview_WarnsAnOwnerOrAdminWhoseAccountHasNoSecondFactor_WithALinkToMyAccount(Role role)
+    public async Task TheOverview_LeavesTheViewersOwnSecondFactorToTheSetupChecklist(Role role)
     {
         await using DashboardTestContext context = new();
         IdentityPages.SignIn(context, role).Config.Document = new ConfigDocument();
@@ -108,13 +108,9 @@ public sealed class OverviewAndNavigationTests
 
         var page = context.Render<Home>();
 
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 1);
-        var item = page.Find(".pdk-attention-item");
-        Assert.Equal("warning", item.GetAttribute("data-tone"));
-        Assert.Contains("Your account has no second factor", item.TextContent, StringComparison.Ordinal);
-        Assert.Contains("only your password protects it", item.TextContent, StringComparison.Ordinal);
-        Assert.Equal(DashboardRoutes.Account, item.QuerySelector("a")!.GetAttribute("href"));
-        Assert.Null(item.QuerySelector("a")!.GetAttribute("target"));
+        await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
+        Assert.Empty(page.FindAll("[data-section=attention]"));
+        Assert.Empty(page.FindAll("[data-section=hints]"));
     }
 
     [Fact]
@@ -134,8 +130,8 @@ public sealed class OverviewAndNavigationTests
 
         var page = context.Render<Home>();
 
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 1);
-        var item = page.Find(".pdk-attention-item");
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-hint").Count == 1);
+        var item = page.Find(".pdk-hint");
         Assert.Contains("grace has no second factor", item.TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain("linus", item.TextContent, StringComparison.Ordinal);
         Assert.Equal(SettingsRoutes.Users, item.QuerySelector("a")!.GetAttribute("href"));
@@ -158,10 +154,9 @@ public sealed class OverviewAndNavigationTests
 
         var page = context.Render<Home>();
 
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 1);
-        var text = page.Find(".pdk-attention-item").TextContent;
-        Assert.Contains("4 other administrators have no second factor", text, StringComparison.Ordinal);
-        Assert.Contains("grace, linus, ken and more", text, StringComparison.Ordinal);
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-hint").Count == 1);
+        var text = page.Find(".pdk-hint").TextContent;
+        Assert.Contains("4 other administrators have no second factor (grace, linus, ken and more)", text, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -181,6 +176,7 @@ public sealed class OverviewAndNavigationTests
 
         await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
         Assert.Empty(page.FindAll("[data-section=attention]"));
+        Assert.Empty(page.FindAll("[data-section=hints]"));
     }
 
     [Theory]

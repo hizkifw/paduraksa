@@ -75,6 +75,20 @@
     </MudPaper>
 }
 
+@if (Snapshot is { Hints.Count: > 0 })
+{
+    <ul class="pdk-hints" data-section="hints">
+        @foreach (var hint in Snapshot.Hints)
+        {
+            <li class="pdk-hint">
+                <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" Class="pdk-muted" />
+                <span class="pdk-hint-text">@hint.Title</span>
+                <MudLink Href="@hint.Href" Typo="Typo.body2" Underline="Underline.Hover">@hint.Action</MudLink>
+            </li>
+        }
+    </ul>
+}
+
 @if (_mayReadMetrics)
 {
     <TrafficOverview />
@@ -291,7 +305,8 @@
                 expiring,
                 ExpiringInUse: current is not null)
             {
-                Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now, Config.CloudflareRanges, vault, user.UserId, users),
+                Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now, Config.CloudflareRanges, vault),
+                Hints = HomeSnapshot.SecondFactorHintsOf(user.UserId, users),
                 Lines = rows is null ? null : HomeSnapshot.LinesOf(rows),
                 Online = rows?.Count(r => r.Health != Tone.Default) ?? 0,
                 Off = rows?.Count(r => r.Health == Tone.Default) ?? 0,

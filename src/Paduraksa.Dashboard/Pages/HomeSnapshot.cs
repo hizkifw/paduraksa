@@ -36,6 +36,9 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     /// <summary>What needs the person, most serious first, each with where to fix it.</summary>
     public IReadOnlyList<AttentionItem> Attention { get; init; } = [];
 
+    /// <summary>Advice worth a line but not an alarm (a missing second factor): shown quietly under the attention card, never counted in it.</summary>
+    public IReadOnlyList<AttentionItem> Hints { get; init; } = [];
+
     /// <summary>The first hosts, those that need attention first.</summary>
     public IReadOnlyList<HostLine>? Lines { get; init; }
 
@@ -77,12 +80,11 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     /// What needs the person: hosts the live config warns about or whose
     /// certificate is a problem, upstreams a host uses with no destination switched on, certificates that failed, and certificates in use
     /// that end soon, a Cloudflare edge-range list that has gone stale, and a master key that sits beside the vault
-    /// (<paramref name="vault"/>, only for someone who may manage it), and Owners and Admins with no second factor (<paramref name="viewer"/> and
-    /// <paramref name="users"/>, only for someone who may read users). Each with the drawer that fixes it.
+    /// (<paramref name="vault"/>, only for someone who may manage it). Each with the drawer that fixes it.
     /// </summary>
     public static IReadOnlyList<AttentionItem> AttentionOf(
         ConfigDocument? document, IReadOnlyList<HostRow>? hosts, IReadOnlyList<CertificateSummary>? certificates, IReadOnlyList<ExpiringCertificate>? expiring, DateTimeOffset now,
-        CloudflareRangeStatus? cloudflareRanges = null, VaultStatus? vault = null, UserId? viewer = null, IReadOnlyList<UserSummary>? users = null)
+        CloudflareRangeStatus? cloudflareRanges = null, VaultStatus? vault = null)
     {
         List<AttentionItem> items = [];
         if (certificates is not null)
@@ -125,8 +127,6 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
                 $"{InstallGuide}#the-master-key", "How to move it"));
         }
 
-        items.AddRange(SecondFactorOf(viewer, users));
-
         if (document is not null)
         {
             foreach (var upstream in document.Upstreams)
@@ -143,28 +143,23 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     }
 
     /// <summary>
-    /// Owners and Admins who can sign in with a password alone: one line for the viewer's own account (the only one they can fix, in My
-    /// account), one for the others together (to be told, in Users). Nothing forces a second factor; this only says who has none.
+    /// The other Owners and Admins who can sign in with a password alone (only for someone who may read users), in one line. The
+    /// viewer's own account isn't named: the setup checklist covers it. Nothing forces a second factor, so this is advice, not an alarm.
     /// </summary>
-    private static IEnumerable<AttentionItem> SecondFactorOf(UserId? viewer, IReadOnlyList<UserSummary>? users)
+    public static IReadOnlyList<AttentionItem> SecondFactorHintsOf(UserId? viewer, IReadOnlyList<UserSummary>? users)
     {
+        List<AttentionItem> hints = [];
         var open = (users ?? []).Where(u => !u.Disabled && !u.TwoFactorEnabled && u.Roles.Any(r => r is Role.Owner or Role.Admin)).ToList();
-        if (open.Any(u => u.Id == viewer))
-        {
-            yield return new AttentionItem(Tone.Warning, "Your account has no second factor",
-                "Your role can change everything on this proxy, and only your password protects it. Add an authenticator app.", DashboardRoutes.Account, "Open My account");
-        }
-
         var others = open.Where(u => u.Id != viewer).ToList();
         if (others.Count > 0)
         {
-            yield return new AttentionItem(Tone.Warning,
-                others.Count == 1 ? $"{others[0].DisplayName} has no second factor" : $"{others.Count.ToString(CultureInfo.InvariantCulture)} other administrators have no second factor",
-                others.Count == 1
-                    ? "They can change everything on this proxy with a password alone. Ask them to add an authenticator app in My account."
-                    : $"{string.Join(", ", others.Take(3).Select(u => u.DisplayName))}{(others.Count > 3 ? " and more" : string.Empty)} can change everything on this proxy with a password alone. Ask them to add an authenticator app in My account.",
-                SettingsRoutes.Users, "Open users");
+            var who = others.Count == 1
+                ? $"{others[0].DisplayName} has no second factor"
+                : $"{others.Count.ToString(CultureInfo.InvariantCulture)} other administrators have no second factor ({string.Join(", ", others.Take(3).Select(u => u.DisplayName))}{(others.Count > 3 ? " and more" : string.Empty)})";
+            hints.Add(new AttentionItem(Tone.Info, who, string.Empty, SettingsRoutes.Users, "Open users"));
         }
+
+        return hints;
     }
 
     /// <summary>The hosts as the overview lists them: those that need attention first, then by name.</summary>
