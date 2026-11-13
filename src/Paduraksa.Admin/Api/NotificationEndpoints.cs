@@ -19,12 +19,16 @@ namespace Paduraksa.Admin.Api;
 /// </summary>
 internal static class NotificationEndpoints
 {
+    private static readonly QueryParameter Channel = QueryParameter.Id<NotificationChannelId>("channel", "Only events with a delivery to this channel (ntf_...).");
+    private static readonly QueryParameter Kind = QueryParameter.Choice("kind", "Only this kind of event.", Enum.GetValues<NotificationEventKind>().Select(k => k.ToName()));
+    private static readonly QueryParameter Outcome = QueryParameter.Choice("outcome", "Only events with a delivery in this state (to the channel, when one is given).", Enum.GetValues<NotificationDeliveryState>().Select(s => s.ToName()));
+
     public static void Map(RouteGroupBuilder api)
     {
         var channels = api.MapGroup("/notification-channels").WithTags("Notifications");
         channels.MapGet("/", ListAsync).WithName("ListNotificationChannels").WithSummary("List notification channels")
             .WithDescription("With each channel's last delivery: lastSentAt, and lastError (the last failure after its retries, cleared by the next delivery).")
-            .Produces<Page<NotificationChannelSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
+            .WithPage().Produces<Page<NotificationChannelSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         channels.MapGet("/{id:NotificationChannelId}", GetAsync).WithName("GetNotificationChannel").WithSummary("Get a notification channel")
             .Produces<NotificationChannelSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         channels.MapPost("/", CreateAsync).WithName("CreateNotificationChannel").WithSummary("Add a notification channel")
@@ -43,8 +47,9 @@ internal static class NotificationEndpoints
 
         var notifications = api.MapGroup("/notifications").WithTags("Notifications");
         notifications.MapGet("/history", HistoryAsync).WithName("QueryNotificationHistory").WithSummary("Query the notification history")
-            .WithDescription("Every event that was published, newest first, each with what happened on every channel it was addressed to (state, attempts, the next try of a pending one, the last error, when it was sent). An event no channel subscribes to is listed with no deliveries. Filters (all optional, all must match): channel (a channel ID: events with a delivery to it), kind (an event name such as upstream.down), outcome (pending, sent, failed, expired or dropped: events with a delivery in that state, to the channel when one is given), from (inclusive) and to (exclusive) as ISO 8601 times of publication. Pagination: limit (1 to 200) and cursor. History is kept for Paduraksa:Notifications:HistoryRetention.")
-            .Produces<Page<NotificationHistoryEvent>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
+            .WithDescription("Every event that was published, newest first, each with what happened on every channel it was addressed to (state, attempts, the next try of a pending one, the last error, when it was sent). An event no channel subscribes to is listed with no deliveries. The filters are all optional and all must match; from (inclusive) and to (exclusive) are the times of publication. History is kept for Paduraksa:Notifications:HistoryRetention.")
+            .WithQuery(Channel, Kind, Outcome, AuditEndpoints.From, AuditEndpoints.To)
+            .WithPage().Produces<Page<NotificationHistoryEvent>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         notifications.MapPost("/deliveries/{id:NotificationDeliveryId}/retry", RetryDeliveryAsync).WithName("RetryNotificationDelivery").WithSummary("Send a failed or expired delivery again")
             .WithDescription("Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not paused (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.")
             .Produces<NotificationRetryOutcome>().ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
@@ -115,7 +120,7 @@ internal static class NotificationEndpoints
             after = id;
         }
 
-        if (!AuditEndpoints.TryGetTime(http, "from", out var from) || !AuditEndpoints.TryGetTime(http, "to", out var to))
+        if (!AuditEndpoints.TryGetTime(http, AuditEndpoints.From, out var from) || !AuditEndpoints.TryGetTime(http, AuditEndpoints.To, out var to))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from and to must be ISO 8601 times with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
         }
@@ -126,7 +131,7 @@ internal static class NotificationEndpoints
         }
 
         NotificationChannelId? channel = null;
-        if (http.Request.Query["channel"].ToString() is { Length: > 0 } channelText)
+        if (Channel.Read(http).ToString() is { Length: > 0 } channelText)
         {
             if (!TypedIdRouting.TryParse(channelText, out NotificationChannelId parsed))
             {
@@ -137,7 +142,7 @@ internal static class NotificationEndpoints
         }
 
         NotificationEventKind? kind = null;
-        if (http.Request.Query["kind"].ToString() is { Length: > 0 } kindText)
+        if (Kind.Read(http).ToString() is { Length: > 0 } kindText)
         {
             if (!TryParse(kindText, ModelNames.ParseNotificationEventKind, out var parsedKind))
             {
@@ -148,7 +153,7 @@ internal static class NotificationEndpoints
         }
 
         NotificationDeliveryState? outcome = null;
-        if (http.Request.Query["outcome"].ToString() is { Length: > 0 } outcomeText)
+        if (Outcome.Read(http).ToString() is { Length: > 0 } outcomeText)
         {
             if (!TryParse(outcomeText, ModelNames.ParseNotificationDeliveryState, out var parsedOutcome))
             {

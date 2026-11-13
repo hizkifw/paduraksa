@@ -34,13 +34,16 @@ public static class ApiEndpointConventions
     /// <summary>The most an error page preview may be: a 64 KiB document, which JSON may escape to six bytes a character.</summary>
     public const long ErrorPagePreviewBodyLimit = 512 * 1024;
 
-    /// <summary>Marks an endpoint whose change can be stored and still fail to go live: 500, code <c>config.publishFailed</c> (documented in the API description).</summary>
+    /// <summary>
+    /// Marks an endpoint that runs a config command: its change can be stored and still fail to go live (500, code <c>config.publishFailed</c>), and it
+    /// reads <c>dryRun</c>, <c>force</c> and <c>message</c>, which the API description lists (and MCP's request policy reads <c>dryRun</c> from).
+    /// </summary>
     public static TBuilder MayFailToPublish<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.WithMetadata(PublishFailureMetadata.Instance);
-        return builder;
+        return builder.WithQuery(ApiQueries.DryRun, ApiQueries.Force, ApiQueries.Message);
     }
 
     /// <summary>Documents the problem answers an endpoint can give (<see cref="ApiProblem"/> bodies).</summary>
@@ -225,7 +228,7 @@ internal static class Preconditions
         ArgumentNullException.ThrowIfNull(http);
         dryRun = false;
         problem = null;
-        var values = http.Request.Query["dryRun"];
+        var values = ApiQueries.DryRun.Read(http);
         if (values.Count == 0)
         {
             return true;
@@ -249,7 +252,7 @@ internal static class Preconditions
         ArgumentNullException.ThrowIfNull(http);
         force = false;
         problem = null;
-        var values = http.Request.Query["force"];
+        var values = ApiQueries.Force.Read(http);
         if (values.Count == 0)
         {
             return true;
@@ -315,14 +318,14 @@ internal static class Pagination
         limit = DefaultLimit;
         cursor = null;
         problem = null;
-        var limits = http.Request.Query["limit"];
+        var limits = ApiQueries.Limit.Read(http);
         if (limits.Count > 0 && !(limits.Count == 1 && int.TryParse(limits[0], NumberStyles.None, CultureInfo.InvariantCulture, out limit) && limit is >= 1 and <= MaxLimit))
         {
             problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"limit must be a whole number from 1 to {MaxLimit}.");
             return false;
         }
 
-        var cursors = http.Request.Query["cursor"];
+        var cursors = ApiQueries.Cursor.Read(http);
         if (cursors.Count > 1)
         {
             problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "Give cursor once.");

@@ -27,7 +27,7 @@ internal static class ProviderEndpoints
     {
         var accounts = api.MapGroup("/acme-accounts").WithTags("ACME accounts");
         accounts.MapGet("/", ListAccountsAsync).WithName("ListAcmeAccounts").WithSummary("List ACME accounts")
-            .Produces<Page<AcmeAccountSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
+            .WithPage().Produces<Page<AcmeAccountSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         accounts.MapGet("/{id:AcmeAccountId}", GetAccountAsync).WithName("GetAcmeAccount").WithSummary("Get an ACME account")
             .Produces<AcmeAccountSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         accounts.MapPost("/", CreateAccountAsync).WithName("CreateAcmeAccount").WithSummary("Register an ACME account")
@@ -40,7 +40,7 @@ internal static class ProviderEndpoints
 
         var providers = api.MapGroup("/dns-providers").WithTags("DNS providers");
         providers.MapGet("/", ListProvidersAsync).WithName("ListDnsProviders").WithSummary("List DNS providers")
-            .Produces<Page<DnsProviderSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
+            .WithPage().Produces<Page<DnsProviderSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         providers.MapGet("/{id:DnsProviderId}", GetProviderAsync).WithName("GetDnsProvider").WithSummary("Get a DNS provider")
             .Produces<DnsProviderSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         providers.MapPost("/", CreateProviderAsync).WithName("CreateDnsProvider").WithSummary("Add a DNS provider")

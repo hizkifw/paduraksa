@@ -30,7 +30,7 @@ internal static class ConfigEndpoints
 
         var hosts = api.MapGroup("/hosts").WithTags("Hosts");
         hosts.MapGet("/", ListHostsAsync).WithName("ListHosts").WithSummary("List hosts")
-            .Produces<Page<HostConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<HostConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         hosts.MapGet("/{id:HostId}", GetHostAsync).WithName("GetHost").WithSummary("Get a host")
             .Produces<HostConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         hosts.MapPost("/", CreateHostAsync).WithName("CreateHost").WithSummary("Create a host")
@@ -42,10 +42,10 @@ internal static class ConfigEndpoints
             .Accepts<HostConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         hosts.MapDelete("/{id:HostId}", DeleteHostAsync).WithName("DeleteHost").WithSummary("Delete a host and its routes")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         hosts.MapGet("/{hostId:HostId}/routes", ListRoutesAsync).WithName("ListRoutes").WithSummary("List a host's routes")
-            .Produces<Page<RouteConfig>>().ProducesApiProblems(400, 404).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<RouteConfig>>().ProducesApiProblems(400, 404).RequirePermission(Permission.ConfigRead);
         hosts.MapGet("/{hostId:HostId}/routes/{routeId:RouteId}", GetRouteAsync).WithName("GetRoute").WithSummary("Get a route")
             .Produces<RouteConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         hosts.MapPut("/{hostId:HostId}/routes/{routeId:RouteId}", PutRouteAsync).WithName("PutRoute").WithSummary("Create or replace a route of a host")
@@ -53,11 +53,11 @@ internal static class ConfigEndpoints
             .Accepts<RouteConfig>("application/json").Produces<ConfigCommandResult>().Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         hosts.MapDelete("/{hostId:HostId}/routes/{routeId:RouteId}", DeleteRouteAsync).WithName("DeleteRoute").WithSummary("Delete a route of a host")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         var upstreams = api.MapGroup("/upstreams").WithTags("Upstreams");
         upstreams.MapGet("/", ListUpstreamsAsync).WithName("ListUpstreams").WithSummary("List upstreams")
-            .Produces<Page<UpstreamConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<UpstreamConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         upstreams.MapGet("/{id:UpstreamId}", GetUpstreamAsync).WithName("GetUpstream").WithSummary("Get an upstream")
             .Produces<UpstreamConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         upstreams.MapPost("/", CreateUpstreamAsync).WithName("CreateUpstream").WithSummary("Create an upstream")
@@ -68,11 +68,11 @@ internal static class ConfigEndpoints
             .RequirePermission(Permission.ConfigWrite);
         upstreams.MapDelete("/{id:UpstreamId}", DeleteUpstreamAsync).WithName("DeleteUpstream").WithSummary("Delete an upstream")
             .WithDescription("Refused (422, relatedErrors) while a route still uses it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         var rateLimits = api.MapGroup("/rate-limit-policies").WithTags("Rate limits");
         rateLimits.MapGet("/", ListRateLimitPoliciesAsync).WithName("ListRateLimitPolicies").WithSummary("List rate-limit policies")
-            .Produces<Page<RateLimitPolicyConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<RateLimitPolicyConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         rateLimits.MapGet("/{id:RateLimitPolicyId}", GetRateLimitPolicyAsync).WithName("GetRateLimitPolicy").WithSummary("Get a rate-limit policy")
             .Produces<RateLimitPolicyConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         rateLimits.MapPost("/", CreateRateLimitPolicyAsync).WithName("CreateRateLimitPolicy").WithSummary("Create a rate-limit policy")
@@ -83,12 +83,12 @@ internal static class ConfigEndpoints
             .RequirePermission(Permission.ConfigWrite);
         rateLimits.MapDelete("/{id:RateLimitPolicyId}", DeleteRateLimitPolicyAsync).WithName("DeleteRateLimitPolicy").WithSummary("Delete a rate-limit policy")
             .WithDescription("Refused (422, relatedErrors) while a host or route still names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         var accessLists = api.MapGroup("/access-lists").WithTags("Access lists");
         accessLists.MapGet("/", ListAccessListsAsync).WithName("ListAccessLists").WithSummary("List access lists")
             .WithDescription("Users carry 'credentialId', the vault's handle on their password. No read returns a password or a hash.")
-            .Produces<Page<AccessListConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<AccessListConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         accessLists.MapGet("/{id:AccessListId}", GetAccessListAsync).WithName("GetAccessList").WithSummary("Get an access list")
             .Produces<AccessListConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         accessLists.MapPost("/", CreateAccessListAsync).WithName("CreateAccessList").WithSummary("Create an access list")
@@ -101,15 +101,15 @@ internal static class ConfigEndpoints
             .RequirePermission(Permission.ConfigWrite);
         accessLists.MapDelete("/{id:AccessListId}", DeleteAccessListAsync).WithName("DeleteAccessList").WithSummary("Delete an access list")
             .WithDescription("Refused (422, relatedErrors) while a host, profile, global default or route still names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         var ruleSets = api.MapGroup("/rule-sets").WithTags("Rule sets");
         ruleSets.MapGet("/", ListRuleSetsAsync).WithName("ListRuleSets").WithSummary("List rule sets")
             .WithDescription("The document's own sets. The built-in presets are at /rule-sets/presets and are named in a setting like any other set.")
-            .Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         ruleSets.MapGet("/presets", ListRuleSetPresetsAsync).WithName("ListRuleSetPresets").WithSummary("List the built-in rule-set presets")
             .WithDescription("Read-only, refreshed with each release. Copy one into a set of your own to change it.")
-            .Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         ruleSets.MapGet("/{id:RuleSetId}", GetRuleSetAsync).WithName("GetRuleSet").WithSummary("Get a rule set")
             .Produces<RuleSetConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         ruleSets.MapPost("/", CreateRuleSetAsync).WithName("CreateRuleSet").WithSummary("Create a rule set")
@@ -121,11 +121,11 @@ internal static class ConfigEndpoints
             .RequirePermission(Permission.ConfigWrite);
         ruleSets.MapDelete("/{id:RuleSetId}", DeleteRuleSetAsync).WithName("DeleteRuleSet").WithSummary("Delete a rule set")
             .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         var authProviders = api.MapGroup("/auth-providers").WithTags("Auth providers");
         authProviders.MapGet("/", ListAuthProvidersAsync).WithName("ListAuthProviders").WithSummary("List auth providers")
-            .Produces<Page<AuthProviderConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<AuthProviderConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         authProviders.MapGet("/{id:AuthProviderId}", GetAuthProviderAsync).WithName("GetAuthProvider").WithSummary("Get an auth provider")
             .Produces<AuthProviderConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         authProviders.MapPost("/", CreateAuthProviderAsync).WithName("CreateAuthProvider").WithSummary("Create an auth provider")
@@ -140,11 +140,11 @@ internal static class ConfigEndpoints
             .RequirePermission(Permission.ConfigWrite);
         authProviders.MapDelete("/{id:AuthProviderId}", DeleteAuthProviderAsync).WithName("DeleteAuthProvider").WithSummary("Delete an auth provider")
             .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         var profiles = api.MapGroup("/profiles").WithTags("Profiles");
         profiles.MapGet("/", ListProfilesAsync).WithName("ListProfiles").WithSummary("List profiles")
-            .Produces<Page<ProfileConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithPage().Produces<Page<ProfileConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         profiles.MapGet("/{id:ProfileId}", GetProfileAsync).WithName("GetProfile").WithSummary("Get a profile")
             .Produces<ProfileConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         profiles.MapPost("/", CreateProfileAsync).WithName("CreateProfile").WithSummary("Create a profile")
@@ -155,7 +155,7 @@ internal static class ConfigEndpoints
             .RequirePermission(Permission.ConfigWrite);
         profiles.MapDelete("/{id:ProfileId}", DeleteProfileAsync).WithName("DeleteProfile").WithSummary("Delete a profile")
             .WithDescription("Refused (422, relatedErrors) while a host still uses it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         api.MapGet("/settings", GetSettingsAsync).WithName("GetSettings").WithTags("Settings").WithSummary("The global settings")
             .WithDescription("The ETag is the settings' version.")

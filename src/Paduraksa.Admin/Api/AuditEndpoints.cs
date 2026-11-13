@@ -18,12 +18,20 @@ internal static class AuditEndpoints
 {
     private const int MaxFilterLength = 128;
 
+    internal static readonly QueryParameter From = QueryParameter.Time("from", "Only events at or after this time (inclusive), ISO 8601 with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
+    internal static readonly QueryParameter To = QueryParameter.Time("to", "Only events before this time (exclusive), ISO 8601 with a zone.");
+
+    private static readonly QueryParameter Actor = QueryParameter.Text("actor", "Only events by this actor: 'system', 'cli', a user ID or an API token ID.", MaxFilterLength);
+    private static readonly QueryParameter Action = QueryParameter.Text("action", "Only this action (config.host.update), or every action under a prefix with one trailing '*' (config.*).", MaxFilterLength);
+    private static readonly QueryParameter Target = QueryParameter.Text("target", "Only events about this object: a typed ID such as host_...", MaxFilterLength);
+    private static readonly QueryParameter Outcome = QueryParameter.Choice("outcome", "Only events with this outcome.", Enum.GetValues<AuditOutcome>().Select(o => o.ToName()));
+
     public static void Map(RouteGroupBuilder api)
     {
         var audit = api.MapGroup("/audit").WithTags("Audit");
         audit.MapGet("/", QueryAsync).WithName("QueryAudit").WithSummary("Query the audit log")
-            .WithDescription("Newest first. Filters (all optional, all must match): from (inclusive) and to (exclusive) as ISO 8601 times, actor ('system', 'cli', a user ID or a token ID), action (exact, or a prefix ending in '*'), target (a typed ID), outcome (success, denied, invalid, conflict or failed). Pagination: limit (1 to 200) and cursor.")
-            .Produces<Page<AuditEventSummary>>().ProducesApiProblems(400).RequirePermission(Permission.AuditRead);
+            .WithDescription("Newest first. The filters are all optional and all must match.")
+            .WithQuery(From, To, Actor, Action, Target, Outcome).WithPage().Produces<Page<AuditEventSummary>>().ProducesApiProblems(400).RequirePermission(Permission.AuditRead);
         audit.MapGet("/verify", VerifyAsync).WithName("VerifyAudit").WithSummary("Check the audit log's hash chain")
             .WithDescription("Walks the whole chain and reports the first event that doesn't verify. Keep headHash somewhere else to detect the removal of the newest events.")
             .Produces<AuditVerification>().RequirePermission(Permission.AuditRead);
@@ -47,7 +55,7 @@ internal static class AuditEndpoints
             after = id;
         }
 
-        if (!TryGetTime(http, "from", out var from) || !TryGetTime(http, "to", out var to))
+        if (!TryGetTime(http, From, out var from) || !TryGetTime(http, To, out var to))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from and to must be ISO 8601 times with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
         }
@@ -57,7 +65,7 @@ internal static class AuditEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from must not be after to.");
         }
 
-        if (!TryGetFilter(http, "actor", out var actor) || !TryGetFilter(http, "action", out var action) || !TryGetFilter(http, "target", out var target))
+        if (!TryGetFilter(http, Actor, out var actor) || !TryGetFilter(http, Action, out var action) || !TryGetFilter(http, Target, out var target))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, $"actor, action and target are at most {MaxFilterLength} characters.");
         }
@@ -92,9 +100,9 @@ internal static class AuditEndpoints
         EndpointSupport.Json(await audit.VerifyAsync(ct).ConfigureAwait(false), AdminJsonContext.Default.AuditVerification);
 
     /// <summary>A filter value (null when absent); false when it is longer than a filter can be, which is an error, not a filter that quietly isn't applied.</summary>
-    private static bool TryGetFilter(HttpContext http, string name, out string? value)
+    private static bool TryGetFilter(HttpContext http, QueryParameter parameter, out string? value)
     {
-        var text = http.Request.Query[name].ToString();
+        var text = parameter.Read(http).ToString();
         value = text.Length == 0 ? null : text;
         return text.Length <= MaxFilterLength;
     }
@@ -103,7 +111,7 @@ internal static class AuditEndpoints
     private static bool TryGetOutcome(HttpContext http, out AuditOutcome? outcome)
     {
         outcome = null;
-        var text = http.Request.Query["outcome"].ToString();
+        var text = Outcome.Read(http).ToString();
         if (text.Length == 0)
         {
             return true;
@@ -133,10 +141,10 @@ internal static class AuditEndpoints
     private static readonly string[] TimeFormats = ["yyyy'-'MM'-'dd'T'HH':'mm':'ssK", "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'FFFFFFFK"];
 
     /// <summary>An ISO 8601 date and time with a zone (<c>Z</c> or an offset), in the round-trip shapes, and nothing looser.</summary>
-    internal static bool TryGetTime(HttpContext http, string name, out DateTimeOffset? value)
+    internal static bool TryGetTime(HttpContext http, QueryParameter parameter, out DateTimeOffset? value)
     {
         value = null;
-        var text = http.Request.Query[name].ToString();
+        var text = parameter.Read(http).ToString();
         if (text.Length == 0)
         {
             return true;

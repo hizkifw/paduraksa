@@ -8,6 +8,7 @@ using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Identity;
+using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Admin.Identity;
@@ -15,6 +16,8 @@ namespace Paduraksa.Admin.Identity;
 /// <summary>The caller's own account: password, second factor, sessions and API tokens. Every one needs a caller; the services decide what that caller may do.</summary>
 internal static class AccountEndpoints
 {
+    private static readonly QueryParameter OwnerFilter = QueryParameter.Id<UserId>("userId", "List this user's instead of the caller's (the service checks the caller may); 404 when it names no user.");
+
     public static void Map(IEndpointRouteBuilder api)
     {
         var me = api.MapGroup("me").RequireAuthenticated();
@@ -36,8 +39,8 @@ internal static class AccountEndpoints
 
         var sessions = api.MapGroup("sessions").RequireAuthenticated().RequireSessionCaller();
         sessions.MapGet(string.Empty, ListSessionsAsync).WithName("ListSessions").WithSummary("List sessions")
-            .WithDescription("The caller's own sessions, or another user's with ?userId= (the service checks the caller may). A signed-in session is required: a token caller gets 403 session.required.")
-            .Produces<Page<SessionSummary>>().ProducesApiProblems(400, 403, 404);
+            .WithDescription("A signed-in session is required: a token caller gets 403 auth.sessionRequired.")
+            .WithQuery(OwnerFilter).WithPage().Produces<Page<SessionSummary>>().ProducesApiProblems(400, 403, 404);
         sessions.MapPost("revoke-others", RevokeOtherSessionsAsync).WithName("RevokeOtherSessions").WithSummary("End every other session of the caller")
             .Produces(StatusCodes.Status204NoContent).ProducesApiProblems(403, 404);
         sessions.MapDelete("{id:SessionId}", RevokeSessionAsync).WithName("RevokeSession").WithSummary("End a session")
@@ -45,8 +48,8 @@ internal static class AccountEndpoints
 
         var tokens = api.MapGroup("tokens").RequireAuthenticated().RequireSessionCaller();
         tokens.MapGet(string.Empty, ListTokensAsync).WithName("ListTokens").WithSummary("List API tokens")
-            .WithDescription("The caller's own tokens, or another user's with ?userId= (the service checks the caller may). A signed-in session is required: a token caller gets 403 session.required.")
-            .Produces<Page<ApiTokenSummary>>().ProducesApiProblems(400, 403, 404);
+            .WithDescription("A signed-in session is required: a token caller gets 403 auth.sessionRequired.")
+            .WithQuery(OwnerFilter).WithPage().Produces<Page<ApiTokenSummary>>().ProducesApiProblems(400, 403, 404);
         tokens.MapPost(string.Empty, IssueTokenAsync).WithName("IssueToken").WithSummary("Issue an API token")
             .WithDescription("The token's secret is in the answer and nowhere else, ever again.")
             .Accepts<IssueApiTokenRequest>("application/json").Produces<IssuedApiToken>(StatusCodes.Status201Created).ProducesApiProblems(400, 403, 404, 415, 422);
@@ -101,8 +104,9 @@ internal static class AccountEndpoints
             return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Codes);
         });
 
-    private static async Task<IResult> ListSessionsAsync(AdminCaller caller, HttpContext http, SessionService sessions, string? userId = null)
+    private static async Task<IResult> ListSessionsAsync(AdminCaller caller, HttpContext http, SessionService sessions)
     {
+        var userId = OwnerFilter.Read(http).ToString() is { Length: > 0 } requested ? requested : null;
         if (!OwnerOf(caller, userId, out var owner))
         {
             return userId is null ? AdminProblems.Forbidden("Permission required", "This caller has no sessions of its own.") : AdminProblems.NotFound("user");
@@ -127,8 +131,9 @@ internal static class AccountEndpoints
         return AdminProblems.OfFailure(result.Status, "session", result.Problem) ?? Results.NoContent();
     }
 
-    private static async Task<IResult> ListTokensAsync(AdminCaller caller, HttpContext http, ApiTokenService tokens, string? userId = null)
+    private static async Task<IResult> ListTokensAsync(AdminCaller caller, HttpContext http, ApiTokenService tokens)
     {
+        var userId = OwnerFilter.Read(http).ToString() is { Length: > 0 } requested ? requested : null;
         UserId? owner = null;
         if (userId is not null)
         {

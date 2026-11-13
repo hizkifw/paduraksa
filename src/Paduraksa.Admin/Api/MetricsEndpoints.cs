@@ -20,6 +20,8 @@ internal static class MetricsEndpoints
     /// <summary>The scrape's path in the API; <c>/metrics</c> is answered by rewriting to it (see <see cref="ApiPipelineMiddleware"/>).</summary>
     public const string ScrapePath = "/api/v1/metrics";
 
+    private static readonly QueryParameter Range = QueryParameter.Choice("range", "How far back to look: hour is from memory and the last hour of rollups, the rest from the one-minute rollups.", ["hour", "day", "week", "month"], "hour");
+
     public static void Map(RouteGroupBuilder api)
     {
         var metrics = api.MapGroup("/metrics").WithTags("Metrics");
@@ -33,9 +35,9 @@ internal static class MetricsEndpoints
 
         metrics.MapGet("/overview", Overview)
             .WithName("GetMetricsOverview").WithSummary("Read the metrics overview")
-            .WithDescription("What the dashboard's overview draws: the pace over the last half minute, a chart, the busiest hosts and the upstreams' errors over ?range=hour (the default; from memory and the last hour of rollups, so it survives a restart), day, week or month (from the one-minute rollups). "
+            .WithDescription("What the dashboard's overview draws: the pace over the last half minute, a chart, the busiest hosts and the upstreams' errors over the range. "
                 + "The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server was not running, a gap, and not a zero.")
-            .Produces<MetricsOverview>().ProducesApiProblems(400)
+            .WithQuery(Range).Produces<MetricsOverview>().ProducesApiProblems(400)
             .RequirePermission(Permission.MetricsRead);
     }
 
@@ -48,7 +50,7 @@ internal static class MetricsEndpoints
 
     private static async Task<IResult> Overview(HttpContext http, MetricsService service)
     {
-        var text = http.Request.Query["range"].ToString();
+        var text = Range.Read(http).ToString();
         MetricsRange range;
         if (text.Length == 0)
         {

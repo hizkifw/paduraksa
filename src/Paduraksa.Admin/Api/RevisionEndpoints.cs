@@ -20,15 +20,18 @@ namespace Paduraksa.Admin.Api;
 /// </summary>
 internal static class RevisionEndpoints
 {
+    private static readonly QueryParameter From = QueryParameter.Id<ConfigRevisionId>("from", "The earlier revision (rev_...).");
+    private static readonly QueryParameter To = QueryParameter.Id<ConfigRevisionId>("to", "The later revision (rev_...).");
+
     public static void Map(RouteGroupBuilder api)
     {
         var revisions = api.MapGroup("/revisions").WithTags("Revisions");
         revisions.MapGet("/", ListAsync).WithName("ListRevisions").WithSummary("List revisions")
-            .WithDescription("Newest first. Pass the nextCursor of a page as cursor for the next one; limit is 1 to 200 (default 50).")
-            .Produces<Page<RevisionSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+            .WithDescription("Newest first.")
+            .WithPage().Produces<Page<RevisionSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         revisions.MapGet("/diff", DiffAsync).WithName("DiffRevisions").WithSummary("What changed between two revisions")
-            .WithDescription("Query: from and to, revision IDs. The structural diff of their documents, in the form dry runs report.")
-            .Produces<RevisionDiff>().ProducesApiProblems(400, 404).RequirePermission(Permission.ConfigRead);
+            .WithDescription("The structural diff of the two revisions' documents, in the form dry runs report.")
+            .WithQuery(From, To).Produces<RevisionDiff>().ProducesApiProblems(400, 404).RequirePermission(Permission.ConfigRead);
         revisions.MapGet("/{id:ConfigRevisionId}", GetAsync).WithName("GetRevision").WithSummary("Get a revision with its document")
             .Produces<RevisionDetail>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         revisions.MapPost("/{id:ConfigRevisionId}/rollback", RollbackAsync).WithName("RollbackToRevision").WithSummary("Restore an earlier revision as a new one")
@@ -67,7 +70,7 @@ internal static class RevisionEndpoints
 
     private static async Task<IResult> DiffAsync(HttpContext http, RevisionQueryService revisions, CancellationToken ct)
     {
-        if (!TryGetRevision(http, "from", out var from) || !TryGetRevision(http, "to", out var to))
+        if (!TryGetRevision(http, From, out var from) || !TryGetRevision(http, To, out var to))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "Give 'from' and 'to' as revision IDs.");
         }
@@ -91,10 +94,10 @@ internal static class RevisionEndpoints
         return ConfigCommandResponses.ToResult(http, result, MutationKind.Change);
     }
 
-    private static bool TryGetRevision(HttpContext http, string name, out ConfigRevisionId id)
+    private static bool TryGetRevision(HttpContext http, QueryParameter parameter, out ConfigRevisionId id)
     {
         id = default;
-        return http.Request.Query[name] is { Count: 1 } values && ConfigRevisionId.TryParse(values[0], null, out id);
+        return parameter.Read(http) is { Count: 1 } values && ConfigRevisionId.TryParse(values[0], null, out id);
     }
 
     private static IResult BadCursor() => ApiProblems.Problem(StatusCodes.Status400BadRequest, "The cursor is not one this API issued for revisions, or its revision no longer exists.");

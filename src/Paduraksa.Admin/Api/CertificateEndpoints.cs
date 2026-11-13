@@ -28,12 +28,17 @@ internal static class CertificateEndpoints
     private const int MaxPasswordBytes = 1024;
     private const int MaxLabelBytes = 4 * CertificateService.MaxLabelLength;
 
+    private static readonly QueryParameter Source = QueryParameter.Choice("source", "Only certificates from this source.", Enum.GetValues<CertificateSource>().Select(s => s.ToName()));
+    private static readonly QueryParameter Status = QueryParameter.Choice("status", "Only certificates in this status.", Enum.GetValues<CertificateStatus>().Select(s => s.ToName()));
+    private static readonly QueryParameter Name = QueryParameter.Text("name", "Only the certificates that cover this host name.");
+
     public static void Map(RouteGroupBuilder api)
     {
         var certificates = api.MapGroup("/certificates").WithTags("Certificates");
         certificates.MapGet("/", ListAsync).WithName("ListCertificates").WithSummary("List certificates")
-            .WithDescription("Public data only. Filters: source, status (their names) and name (the certificates covering a host name).")
-            .Produces<Page<CertificateSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
+            .WithDescription("Public data only. The filters are all optional and all must match.")
+            .WithQuery(Source, Status, Name)
+            .WithPage().Produces<Page<CertificateSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
         certificates.MapGet("/{id:CertificateId}", GetAsync).WithName("GetCertificate").WithSummary("Get a certificate with its public chain")
             .Produces<CertificateDetail>().ProducesApiProblems(404).RequirePermission(Permission.CertificatesRead);
 
@@ -85,7 +90,7 @@ internal static class CertificateEndpoints
         certificates.MapGet("/{id:CertificateId}/order", GetOrderAsync).WithName("GetCertificateOrder").WithSummary("The ACME order and renewal state of a certificate")
             .Produces<AcmeOrderSummary>().ProducesApiProblems(404).RequirePermission(Permission.CertificatesRead);
         api.MapGet("/acme-orders", ListOrdersAsync).WithName("ListAcmeOrders").WithTags("Certificates").WithSummary("The ACME order state of every ACME certificate")
-            .Produces<Page<AcmeOrderSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
+            .WithPage().Produces<Page<AcmeOrderSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
     }
 
     private static async Task<IResult> ListAsync(HttpContext http, CertificateService certificates, CancellationToken ct)
@@ -94,12 +99,12 @@ internal static class CertificateEndpoints
         CertificateStatus? status = null;
         try
         {
-            if (http.Request.Query["source"].ToString() is { Length: > 0 } sourceName)
+            if (Source.Read(http).ToString() is { Length: > 0 } sourceName)
             {
                 source = ModelNames.ParseCertificateSource(sourceName);
             }
 
-            if (http.Request.Query["status"].ToString() is { Length: > 0 } statusName)
+            if (Status.Read(http).ToString() is { Length: > 0 } statusName)
             {
                 status = ModelNames.ParseCertificateStatus(statusName);
             }
@@ -109,7 +114,7 @@ internal static class CertificateEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "source and status must be names the API uses, e.g. source=acme, status=active.");
         }
 
-        var name = http.Request.Query["name"].ToString() is { Length: > 0 } covers ? covers : null;
+        var name = Name.Read(http).ToString() is { Length: > 0 } covers ? covers : null;
         var list = await certificates.ListAsync(new CertificateQuery(source, status, name), ct).ConfigureAwait(false);
         return Pagination.Respond(http, list, c => c.Id, AdminJsonContext.Default.PageCertificateSummary);
     }

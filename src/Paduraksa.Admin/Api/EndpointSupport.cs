@@ -31,7 +31,7 @@ internal static class EndpointSupport
     public static string? MessageOf(HttpContext http)
     {
         ArgumentNullException.ThrowIfNull(http);
-        return http.Request.Query["message"].ToString() is { Length: > 0 } message ? message : null;
+        return ApiQueries.Message.Read(http).ToString() is { Length: > 0 } message ? message : null;
     }
 }
 

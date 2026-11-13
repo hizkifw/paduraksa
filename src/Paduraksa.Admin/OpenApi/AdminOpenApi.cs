@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,14 +93,19 @@ internal static class AdminOpenApi
             Title = "Paduraksa admin API",
             Version = "v1",
             Description = "The REST API of the Paduraksa admin app. Authenticate with an API token (Authorization: Bearer ...) or a signed-in session. "
+                + "Paths are kebab-case; JSON members are camelCase; IDs are typed strings (host_...); times are ISO 8601 in UTC; enums are strings. "
+                + "A create is POST to the collection: 201 with Location and the created object. A change is PUT or PATCH: 200 with the object. A delete is 204. "
+                + "Every collection takes limit and cursor and answers { items, nextCursor }. "
                 + "Every error is RFC 9457 problem details (application/problem+json) with a traceId. "
-                + "Config objects (hosts, routes, upstreams, profiles, the settings) and rollbacks take optimistic concurrency: a read carries an ETag (an object's version, or the latest revision's ID), "
+                + "Config objects (hosts, routes, upstreams, profiles, the settings, ...) and rollbacks take optimistic concurrency: a read carries an ETag (an object's version, or the latest revision's ID), "
                 + "and a change sends it back as one quoted tag in If-Match. Without it the answer is 428; a stale or weak tag is 412 (the problem's conflict says what is current); "
-                + "an unquoted tag, a list or '*' is 400. Creating with POST needs none. Changes to config objects also take ?dryRun=true, which returns the plan and commits nothing. "
+                + "an unquoted tag, a list or '*' is 400. Creating with POST needs none, and neither do the objects that carry no version (certificates, ACME accounts, DNS providers, notification channels, users). "
+                + "Changes to config objects also take ?dryRun=true, which returns the plan and commits nothing. "
                 + "A change that was stored but could not go live is 500 with code config.publishFailed, the stored revision and the new ETag. "
                 + "Each operation names the permission it needs (x-required-permission).",
         };
-        document.Servers = [];
+        // Paths in this document carry the /api/v1 prefix, so the server is the admin app's own origin.
+        document.Servers = [new OpenApiServer { Url = "/", Description = "The admin app that serves this document." }];
         document.Components ??= new OpenApiComponents();
         document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
         document.Components.SecuritySchemes[BearerScheme] = new OpenApiSecurityScheme
@@ -141,6 +147,8 @@ internal static class AdminOpenApi
     private static async Task DescribeOperationAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
     {
         await DescribeParametersAsync(operation, context, cancellationToken).ConfigureAwait(false);
+        await AddQueryParametersAsync(operation, context, cancellationToken).ConfigureAwait(false);
+        DescribeBodiesWithoutType(operation, context);
         var metadata = context.Description.ActionDescriptor.EndpointMetadata;
         var permission = metadata.OfType<RequiredPermissionMetadata>().FirstOrDefault();
         var anonymous = metadata.OfType<AdminAnonymousMetadata>().Any();
@@ -158,13 +166,6 @@ internal static class AdminOpenApi
             Describe(operation, $"Requires the `{name}` permission.");
             operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();
             operation.Extensions[PermissionExtension] = new JsonNodeExtension(JsonValue.Create(name)!);
-            if (metadata.OfType<PublishFailureMetadata>().Any())
-            {
-                // Every change that goes through the config pipeline reads ?dryRun= (Preconditions.TryGetDryRun); declaring it is what lets a client, MCP's
-                // request policy among them, know which operations have a dry run without a list of its own.
-                AddDryRun(operation);
-            }
-
             Secure(operation, context);
             AddProblem(operation, context, "401", "Authentication is required.");
             AddProblem(operation, context, "403", $"The caller lacks the `{name}` permission.");
@@ -187,20 +188,98 @@ internal static class AdminOpenApi
         {
             Describe(operation, "Anonymous: it needs no credentials.");
             operation.Security = [];
+            AddProblem(operation, context, "500", "An unexpected error; the trace ID in the problem finds it in the server log.");
+        }
+
+        DescribeProblems(operation);
+    }
+
+    /// <summary>
+    /// Every query parameter an endpoint reads is declared on it (<see cref="QueryParameter"/>, <c>WithQuery</c>), and this is where the description gets them.
+    /// MCP's request policy reads which operations have a dry run from the <c>dryRun</c> parameter.
+    /// </summary>
+    private static async Task AddQueryParametersAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
+    {
+        foreach (var declared in context.Description.ActionDescriptor.EndpointMetadata.OfType<QueryParameterMetadata>().Select(m => m.Parameter))
+        {
+            operation.Parameters ??= [];
+            if (operation.Parameters.Any(p => p.In == ParameterLocation.Query && p.Name == declared.Name))
+            {
+                continue;
+            }
+
+            operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = declared.Name,
+                In = ParameterLocation.Query,
+                Required = false,
+                Description = declared.Description,
+                Schema = await QuerySchemaAsync(declared, context, cancellationToken).ConfigureAwait(false),
+            });
         }
     }
 
-    private static void AddDryRun(OpenApiOperation operation)
+    private static async Task<IOpenApiSchema> QuerySchemaAsync(QueryParameter parameter, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
     {
-        operation.Parameters ??= [];
-        operation.Parameters.Add(new OpenApiParameter
+        if (parameter is { Type: QueryType.Id, IdType: { } idType })
         {
-            Name = "dryRun",
-            In = ParameterLocation.Query,
-            Required = false,
-            Description = "true validates and compiles the change and returns the plan without committing it.",
-            Schema = new OpenApiSchema { Type = JsonSchemaType.Boolean },
-        });
+            return await context.GetOrCreateSchemaAsync(idType, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        OpenApiSchema schema = parameter.Type switch
+        {
+            QueryType.Integer => new() { Type = JsonSchemaType.Integer, Minimum = parameter.Minimum?.ToString(CultureInfo.InvariantCulture), Maximum = parameter.Maximum?.ToString(CultureInfo.InvariantCulture) },
+            QueryType.Boolean => new() { Type = JsonSchemaType.Boolean },
+            QueryType.Time => new() { Type = JsonSchemaType.String, Format = "date-time" },
+            QueryType.Choice => new() { Type = JsonSchemaType.String, Enum = [.. parameter.Values!.Select(v => (JsonNode)JsonValue.Create(v)!)] },
+            _ => new() { Type = JsonSchemaType.String, MaxLength = parameter.MaxLength },
+        };
+        if (parameter.Default is { } value)
+        {
+            schema.Default = parameter.Type switch
+            {
+                QueryType.Integer => JsonValue.Create(int.Parse(value, CultureInfo.InvariantCulture)),
+                QueryType.Boolean => JsonValue.Create(bool.Parse(value)),
+                _ => JsonValue.Create(value),
+            };
+        }
+
+        return schema;
+    }
+
+    /// <summary>
+    /// A success that sends a file, a text or a stream has no type to describe it by, so ASP.NET lists its content type and no content. Its schema is the kind of body: text
+    /// for the text types, binary for the rest. Without one no operation could be said to describe its answer, and a test holds every success to having it.
+    /// </summary>
+    private static void DescribeBodiesWithoutType(OpenApiOperation operation, OpenApiOperationTransformerContext context)
+    {
+        if (string.Equals(context.Description.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        foreach (var declared in context.Description.ActionDescriptor.EndpointMetadata.OfType<IProducesResponseTypeMetadata>().Where(r => r.StatusCode is >= 200 and < 300 and not 204))
+        {
+            var key = declared.StatusCode.ToString(CultureInfo.InvariantCulture);
+            if (operation.Responses is null || !operation.Responses.TryGetValue(key, out var response) || response is not OpenApiResponse concrete)
+            {
+                continue;
+            }
+
+            foreach (var mediaType in declared.ContentTypes)
+            {
+                concrete.Content ??= new Dictionary<string, OpenApiMediaType>();
+                if (!concrete.Content.TryGetValue(mediaType, out var media))
+                {
+                    concrete.Content[mediaType] = media = new OpenApiMediaType();
+                }
+
+                var text = mediaType.StartsWith("text/", StringComparison.Ordinal) || mediaType.Contains("yaml", StringComparison.Ordinal) || mediaType.Contains("pem", StringComparison.Ordinal);
+                media.Schema ??= text
+                    ? new OpenApiSchema { Type = JsonSchemaType.String }
+                    : new OpenApiSchema { Type = JsonSchemaType.String, Format = "binary" };
+            }
+        }
     }
 
     private static void Describe(OpenApiOperation operation, string sentence) =>
@@ -212,6 +291,38 @@ internal static class AdminOpenApi
         {
             operation.Security ??= [];
             operation.Security.Add(new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference(BearerScheme, document)] = [] });
+        }
+    }
+
+    /// <summary>What each problem status means in this API, for the operations that declare it by status alone (<see cref="ApiEndpointConventions.ProducesApiProblems"/>).</summary>
+    private static readonly Dictionary<string, string> ProblemDescriptions = new()
+    {
+        ["400"] = "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+        ["403"] = "The caller may not do this.",
+        ["404"] = "There is no such object.",
+        ["409"] = "It clashes with what exists, or with something in progress.",
+        ["412"] = "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+        ["413"] = "The body is larger than this operation takes.",
+        ["415"] = "The body is not in a type this operation takes.",
+        ["422"] = "The request is well-formed but can't be applied; errors lists why, with a pointer into the body.",
+        ["428"] = "The change needs an If-Match header with the ETag of what you read.",
+        ["429"] = "Too many attempts; Retry-After says when to try again.",
+        ["502"] = "The CA refused or could not be reached; nothing here is wrong with the request.",
+        ["503"] = "The server can't do this right now; try again shortly.",
+    };
+
+    /// <summary>A problem response declared by status alone carries the status's reason phrase as its description; this says what it means here.</summary>
+    private static void DescribeProblems(OpenApiOperation operation)
+    {
+        foreach (var (status, response) in operation.Responses ?? [])
+        {
+            if (response is OpenApiResponse { Content: { } content } plain && content.ContainsKey(ApiProblems.ContentType)
+                && ProblemDescriptions.TryGetValue(status, out var meaning)
+                && int.TryParse(status, CultureInfo.InvariantCulture, out var code)
+                && string.Equals(plain.Description, Microsoft.AspNetCore.WebUtilities.ReasonPhrases.GetReasonPhrase(code), StringComparison.Ordinal))
+            {
+                plain.Description = meaning;
+            }
         }
     }
 

@@ -20,22 +20,25 @@ internal static class AnalyticsEndpoints
     /// <summary>The <c>host</c> value that selects the requests no host owns.</summary>
     public const string UnmatchedHost = "unmatched";
 
+    private static readonly QueryParameter Range = QueryParameter.Choice("range", "How far back to look.", ["hour", "day", "week", "month"], "hour");
+    private static readonly QueryParameter Host = QueryParameter.Text("host", $"Only this host: its ID (host_..., which may have been deleted since), or '{UnmatchedHost}' for the requests no host owns. Every host when absent.");
+
     public static void Map(RouteGroupBuilder api)
     {
         var analytics = api.MapGroup("/analytics").WithTags("Analytics");
 
         analytics.MapGet("/", Overview)
             .WithName("GetAnalytics").WithSummary("Read the traffic analytics")
-            .WithDescription("Visitors and content, and clients and bots, over ?range=hour (the default), day, week or month, for every host or for one: ?host=host_... (a host's ID, which may have been deleted since) or ?host=unmatched (the requests no host owns). "
+            .WithDescription("Visitors and content, and clients and bots, over a range, for every host or for one. "
                 + "Unique visitors, the top paths, referers and user agents, the slowest paths and the largest responses are approximate (sketches with a stated bound: each row carries its own error); the counts, the status classes and the distributions of agents are exact up to their table sizes. "
                 + "Computed from the access-log drain, so a host with its access log off is absent. The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server was not running, a gap, and not a zero.")
-            .Produces<AnalyticsOverview>().ProducesApiProblems(400)
+            .WithQuery(Range, Host).Produces<AnalyticsOverview>().ProducesApiProblems(400)
             .RequirePermission(Permission.MetricsRead);
     }
 
     private static async Task<IResult> Overview(HttpContext http, AnalyticsService service)
     {
-        var rangeText = http.Request.Query["range"].ToString();
+        var rangeText = Range.Read(http).ToString();
         MetricsRange range;
         if (rangeText.Length == 0)
         {
@@ -46,7 +49,7 @@ internal static class AnalyticsEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "range must be hour, day, week or month.");
         }
 
-        var hostText = http.Request.Query["host"].ToString();
+        var hostText = Host.Read(http).ToString();
         HostId? host = null;
         var unmatched = false;
         if (hostText == UnmatchedHost)

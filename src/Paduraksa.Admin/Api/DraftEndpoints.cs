@@ -25,7 +25,7 @@ internal static class DraftEndpoints
         var drafts = api.MapGroup("/drafts").WithTags("Drafts");
         drafts.MapGet("/", ListAsync).WithName("ListDrafts").WithSummary("The caller's open draft")
             .WithDescription("A list of at most one: the caller's open draft (a token's is its owner's), each entry marked Ready or ChangedElsewhere against the latest revision. Empty when there is none.")
-            .Produces<Page<ConfigDraft>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigWrite);
+            .WithPage().Produces<Page<ConfigDraft>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigWrite);
         drafts.MapPost("/", CreateAsync).WithName("CreateDraft").WithSummary("Open a draft")
             .WithDescription("Starts an empty draft on the latest revision. 409 when the caller has one open already (see Location).")
             .Produces<ConfigDraft>(201).ProducesApiProblems(403, 409, 503).RequirePermission(Permission.ConfigWrite);
@@ -48,13 +48,13 @@ internal static class DraftEndpoints
             .WithDescription("Replays the entries on the latest revision and dry-runs them as one change: the diff, the compiler's warnings, the admin lock-out guard (?force=true overrides it) and the errors of the whole set. "
                 + "The answer's reviewToken (also its ETag) is what apply must send back as If-Match to commit exactly this: it covers what the draft would do, so a change to the draft, to an object it writes or refers to, or to what the compiler says about it makes it stale, while an unrelated commit does not. "
                 + "A draft with entries that are changed elsewhere has no token (409 draft.blocked when every entry is); the answer shows the rest. Commits and audits nothing.")
-            .Produces<DraftOutcome>().ProducesApiProblems(404, 409, 422, 503).RequirePermission(Permission.ConfigWrite);
+            .WithQuery(ApiQueries.Force).Produces<DraftOutcome>().ProducesApiProblems(400, 404, 409, 422, 503).RequirePermission(Permission.ConfigWrite);
         drafts.MapPost("/{id:DraftId}/apply", ApplyAsync).WithName("ApplyDraft").WithSummary("Apply the draft as one revision")
             .WithDescription("Commits the whole draft as ONE revision, audited once with every entry listed, or nothing: what is confirmed is exactly what is applied. Needs If-Match with the review's token (428 without it, with the fresh review in the problem's review). "
                 + "Under the writer's lock the draft is replayed on the current head; unless that is what the review showed, 412 draft.changedSinceReview commits nothing and returns the fresh review (and its token) in the problem's review. "
                 + "Any entry that is changed elsewhere, or depends on one that is, refuses the whole draft (409 draft.blocked, errors naming each); remove or reload them and review again. "
                 + "?message= is the revision's note (it defaults to a summary of the entries). ?dryRun=true is the review. Undo of the revision undoes the whole draft.")
-            .Produces<DraftOutcome>().ProducesApiProblems(404, 409, 412, 422, 428, 503).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces<DraftOutcome>().ProducesApiProblems(400, 404, 409, 412, 422, 428, 503).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
         drafts.MapDelete("/{id:DraftId}", DiscardAsync).WithName("DiscardDraft").WithSummary("Discard the draft")
             .WithDescription("Drops the draft and the vault values bound to it. Nothing was committed, so nothing is undone.")
             .Produces(204).ProducesApiProblems(404).RequirePermission(Permission.ConfigWrite);

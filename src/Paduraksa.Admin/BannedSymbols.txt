@@ -1,0 +1,1 @@
+P:Microsoft.AspNetCore.Http.HttpRequest.Query;Read a query parameter through a declared QueryParameter (Api/ApiQuery.cs), so the API description lists it

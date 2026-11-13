@@ -30,6 +30,20 @@ internal static class LogEndpoints
     /// <summary>How many entries <c>/logs/recent</c> returns without <c>?limit=</c>.</summary>
     private const int DefaultRecent = 100;
 
+    private static readonly QueryParameter Host = QueryParameter.Text("host", "Only this configured host, by name.");
+    private static readonly QueryParameter Unmatched = QueryParameter.Flag("unmatched", "true for only the requests no host owned.");
+    private static readonly QueryParameter StatusClass = QueryParameter.Choice("statusClass", "Only responses of this class: 1 to 5, or 1xx to 5xx.", ["1", "2", "3", "4", "5", "1xx", "2xx", "3xx", "4xx", "5xx"]);
+    private static readonly QueryParameter Status = QueryParameter.Integer("status", "Only this response status.", 100, 599);
+    private static readonly QueryParameter Ip = QueryParameter.Text("ip", "Only this client address, or the addresses that start with it.");
+    private static readonly QueryParameter Method = QueryParameter.Text("method", "Only this request method.");
+    private static readonly QueryParameter Path = QueryParameter.Text("path", "Only requests whose path contains this text.");
+    private static readonly QueryParameter Backlog = QueryParameter.Integer("backlog", "How many of the newest matching entries the process still holds to send first.", 0, LogTailService.MaxBacklog, 0);
+    private static readonly QueryParameter RecentLimit = QueryParameter.Integer("limit", "How many entries to return, the newest that match.", 1, LogTailService.MaxBacklog, DefaultRecent);
+    private static readonly QueryParameter Lines = QueryParameter.Integer("lines", "How many lines to return.", 1, LogFileStore.MaxTailLines, LogFileStore.DefaultTailLines);
+    private static readonly QueryParameter Filter = QueryParameter.Text("filter", "Only the lines that contain this text (case-insensitive).", MaxFilterLength);
+
+    private static readonly QueryParameter[] EntryFilters = [Host, Unmatched, StatusClass, Status, Ip, Method, Path];
+
     private static readonly byte[] OpenComment = ": open\n\n"u8.ToArray();
     private static readonly byte[] HeartbeatComment = ": heartbeat\n\n"u8.ToArray();
 
@@ -47,24 +61,26 @@ internal static class LogEndpoints
             .WithName("StreamAccessLog").WithSummary("Stream the access log live")
             .WithDescription("Server-Sent Events (text/event-stream) of the requests as they end, newest last: each default event is one JSON entry (id: its sequence number), the entries as access.log would show them "
                 + "(same caps, control characters escaped, sensitive query parameters redacted); a host with its access log off never appears. "
-                + "Filters: host (a configured host's name), unmatched=true (requests no host owned), statusClass (1-5, or 2xx..5xx), status, ip (the client address or a leading part), method, path (contains). "
-                + "backlog (0-1000, default 0) first sends the newest matching entries that the process still holds. "
+                + "The filters pick which entries are sent; backlog first sends the newest matching entries that the process still holds. "
                 + "A reader that falls behind loses its oldest entries and is told with an event: skipped whose data is {\"count\":N}. A comment line (: heartbeat) every 15 seconds keeps the stream open. "
                 + "The stream ends when the client disconnects. Each stream holds a buffer of 2048 entries and the process serves 32 at once; the 33rd is refused with 503.")
+            .WithQuery(EntryFilters).WithQuery(Backlog)
             .Produces(StatusCodes.Status200OK, contentType: "text/event-stream").ProducesApiProblems(400, 503)
             .RequirePermission(Permission.LogsRead);
 
         logs.MapGet("/recent", Recent)
             .WithName("ListRecentAccessLog").WithSummary("Read the newest access-log entries")
-            .WithDescription("The newest requests the process still holds in memory (what the live tail replays as its backlog), oldest first, as one JSON array: the same entries and filters as the live tail "
-                + "(host, unmatched, statusClass, status, ip, method, path), without a stream. limit (1-1000, default 100) caps how many. A restart empties it; the log files are the record.")
+            .WithDescription("The newest requests the process still holds in memory (what the live tail replays as its backlog), oldest first, as one JSON array: the same entries and filters as the live tail, without a stream. "
+                + "A bounded snapshot, so it takes a limit of its own and no cursor. A restart empties it; the log files are the record.")
+            .WithQuery(EntryFilters).WithQuery(RecentLimit)
             .Produces<IReadOnlyList<LogTailEntry>>().ProducesApiProblems(400)
             .RequirePermission(Permission.LogsRead);
 
         logs.MapGet("/{name}/tail", Tail)
             .WithName("TailLogFile").WithSummary("Read the last lines of a log file")
             .WithDescription("At most 1000 lines (200 by default) out of the last 1 MiB of a plain file, or of the first 8 Mi characters a compressed one is decompressed from, each line cut at 4096 characters, oldest first. "
-                + "Optional filter (at most 128 characters, case-insensitive substring) keeps only the matching lines. A live file and a .gz are both readable.")
+                + "A live file and a .gz are both readable.")
+            .WithQuery(Lines, Filter)
             .Produces<LogFileTail>().ProducesApiProblems(400, 404)
             .RequirePermission(Permission.LogsRead);
 
@@ -97,7 +113,7 @@ internal static class LogEndpoints
             return problem!;
         }
 
-        var filter = http.Request.Query["filter"].ToString();
+        var filter = Filter.Read(http).ToString();
         if (filter.Length > MaxFilterLength)
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, $"filter is at most {MaxFilterLength} characters.");
@@ -129,7 +145,7 @@ internal static class LogEndpoints
     /// <summary>Streams the entries as they come, until the client goes away (see the endpoint's description).</summary>
     private static IResult Recent(HttpContext http, LogTailService service)
     {
-        if (!TryReadFilter(http.Request.Query, out var filter, out var limit, out var problem, "limit", DefaultRecent))
+        if (!TryReadFilter(http, out var filter, out var limit, out var problem, RecentLimit))
         {
             return problem!;
         }
@@ -139,7 +155,7 @@ internal static class LogEndpoints
 
     private static async Task<IResult> Stream(HttpContext http, LogTailService service)
     {
-        if (!TryReadFilter(http.Request.Query, out var filter, out var backlog, out var problem))
+        if (!TryReadFilter(http, out var filter, out var backlog, out var problem, Backlog))
         {
             return problem!;
         }
@@ -234,21 +250,21 @@ internal static class LogEndpoints
     }
 
     /// <summary>The tail's query parameters; every refusal is a 400 problem naming the parameter.</summary>
-    private static bool TryReadFilter(IQueryCollection query, out LogTailFilter filter, out int backlog, out IResult? problem, string countName = "backlog", int defaultCount = 0)
+    private static bool TryReadFilter(HttpContext http, out LogTailFilter filter, out int backlog, out IResult? problem, QueryParameter count)
     {
         filter = new LogTailFilter();
-        backlog = defaultCount;
+        backlog = int.Parse(count.Default!, CultureInfo.InvariantCulture);
         problem = null;
         int? statusClass = null;
         int? status = null;
         var unmatched = false;
-        if (query["unmatched"].ToString() is { Length: > 0 } flag && !bool.TryParse(flag, out unmatched))
+        if (Unmatched.Read(http).ToString() is { Length: > 0 } flag && !bool.TryParse(flag, out unmatched))
         {
             problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "unmatched must be true or false.");
             return false;
         }
 
-        if (query["statusClass"].ToString() is { Length: > 0 } classText)
+        if (StatusClass.Read(http).ToString() is { Length: > 0 } classText)
         {
             if (!LogTailFilter.TryParseStatus(classText, out statusClass, out _) || statusClass is null)
             {
@@ -257,7 +273,7 @@ internal static class LogEndpoints
             }
         }
 
-        if (query["status"].ToString() is { Length: > 0 } statusText)
+        if (Status.Read(http).ToString() is { Length: > 0 } statusText)
         {
             if (!LogTailFilter.TryParseStatus(statusText, out _, out status) || status is null)
             {
@@ -266,15 +282,15 @@ internal static class LogEndpoints
             }
         }
 
-        if (query[countName].ToString() is { Length: > 0 } backlogText
-            && (!int.TryParse(backlogText, NumberStyles.None, CultureInfo.InvariantCulture, out backlog) || backlog > LogTailService.MaxBacklog || (countName == "limit" && backlog == 0)))
+        if (count.Read(http).ToString() is { Length: > 0 } backlogText
+            && (!int.TryParse(backlogText, NumberStyles.None, CultureInfo.InvariantCulture, out backlog) || backlog < count.Minimum || backlog > count.Maximum))
         {
-            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"{countName} must be between {(countName == "limit" ? 1 : 0)} and {LogTailService.MaxBacklog}.");
+            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"{count.Name} must be between {count.Minimum} and {count.Maximum}.");
             return false;
         }
 
         filter = new LogTailFilter(
-            Text(query["host"]), unmatched, statusClass, status, Text(query["ip"]), Text(query["method"]), Text(query["path"]));
+            Text(Host.Read(http)), unmatched, statusClass, status, Text(Ip.Read(http)), Text(Method.Read(http)), Text(Path.Read(http)));
         if (filter.Problem() is { } wrong)
         {
             problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, wrong);
@@ -291,7 +307,7 @@ internal static class LogEndpoints
     {
         problem = null;
         lines = LogFileStore.DefaultTailLines;
-        var text = http.Request.Query["lines"].ToString();
+        var text = Lines.Read(http).ToString();
         if (text.Length == 0)
         {
             return true;

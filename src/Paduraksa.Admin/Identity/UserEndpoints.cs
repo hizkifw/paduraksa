@@ -18,7 +18,7 @@ internal static class UserEndpoints
     {
         var users = api.MapGroup("users");
         users.MapGet(string.Empty, ListAsync).RequirePermission(Permission.UsersRead).WithName("ListUsers").WithSummary("List users")
-            .Produces<Page<UserSummary>>().ProducesApiProblems(400, 403);
+            .WithPage().Produces<Page<UserSummary>>().ProducesApiProblems(400, 403);
         users.MapPost(string.Empty, CreateAsync).RequirePermission(Permission.UsersWrite).WithName("CreateUser").WithSummary("Create a user")
             .Accepts<CreateUserRequest>("application/json").Produces<UserSummary>(StatusCodes.Status201Created).ProducesApiProblems(400, 403, 409, 415, 422);
 
