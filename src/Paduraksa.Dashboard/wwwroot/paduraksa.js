@@ -34,14 +34,26 @@
     let activated = null;
     let activatedAt = 0;
     document.addEventListener("click", (event) => {
-        const control = event.target instanceof Element ? event.target.closest("button, a[href], [role=button], [role=menuitem]") : null;
-        if (control) {
-            activated = control;
-            activatedAt = Date.now();
+        // Any click replaces it, so a click on something else (a list's item) leaves nothing of an earlier one to be mistaken for the opener.
+        activated = event.target instanceof Element ? event.target.closest("button, a[href], [role=button], [role=menuitem]") : null;
+        activatedAt = Date.now();
+    }, { capture: true });
+    // A list in a drawer that opens another (a host's upstream picker, "New upstream..") loses focus as its menu closes: the field it was on is the opener.
+    let lastInSheet = null;
+    document.addEventListener("focusin", (event) => {
+        if (event.target instanceof Element && event.target.closest(".pdk-sheet[data-top]") && !event.target.closest(".mud-popover")) {
+            lastInSheet = event.target;
         }
     }, { capture: true });
-    const openerNow = () =>
-        activated && activated.isConnected && !activated.closest(".pdk-sheet") && Date.now() - activatedAt < 2000 ? activated : document.activeElement;
+    const openerNow = () => {
+        if (activated && activated.isConnected && !activated.closest(".pdk-sheet, .mud-popover") && Date.now() - activatedAt < 2000) {
+            return activated;
+        }
+
+        const now = document.activeElement;
+        const useful = now && now !== document.body && !now.closest(".mud-popover");
+        return !useful && lastInSheet?.isConnected ? lastInSheet : now;
+    };
 
     const drawers = Object.freeze({
         /** Hands Escape to the host while focus is in the top drawer, unless an open list or menu, or a dialog, takes it first. */

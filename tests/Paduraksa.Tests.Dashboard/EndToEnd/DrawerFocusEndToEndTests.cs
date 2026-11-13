@@ -52,7 +52,7 @@ public sealed class DrawerFocusEndToEndTests
         await page.Keyboard.PressAsync("Escape");
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(1);
         await Expect(page.Locator(".pdk-sheet[data-level='0']")).ToHaveAttributeAsync("data-top", "true");
-        Assert.True(await page.EvaluateAsync<bool>("() => !!document.activeElement.closest('.pdk-sheet[data-level=\"0\"]')"), "Focus left the drawer that is left.");
+        await Expect(upstream).ToBeFocusedAsync();
 
         // The last one: back to the control that opened it, though opening it navigated.
         await page.Keyboard.PressAsync("Escape");

@@ -334,7 +334,7 @@ The level's component gets the `DrawerLevel` as a cascading value:
 - Escape, the backdrop and the close or back button act on the top level only. `paduraksa.js` hands Escape over only while focus is in the top drawer and no list, menu or dialog is open.
 - When the level is dirty, they ask "Discard your changes?" in the drawer itself (Escape again keeps editing).
 - Leaving the page with a dirty drawer asks the same (`NavigationLock`).
-- Focus moves into a level as it opens (its first field when the form focuses one, else its title, which names the dialog) and back to what opened it as it closes.
+- Focus moves into a level as it opens (its first field when the form focuses one, else its title, which names the dialog) and back to what opened it as it closes. A drawer with an address opens by navigating, and the router then focuses the page's heading, so `paduraksa.js` remembers the control the person just activated and returns focus to it (`DrawerFocusEndToEndTests`).
 
 **Layering.** Dialogs (a confirmation asked from a drawer) sit above the stack. The theme raises MudBlazor's dialog z-index to 1700 (tooltips 1800). The stack is at 1600 and up, above the toasts. MudBlazor places a select's list above its field, so pickers work in any level.
 
@@ -914,6 +914,8 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - A radiogroup with the segmented control's keyboard behaviour. There is no MudRadio list in the dashboard.
 - The help sits on the option, so the setting's own help line does not say it again.
 - Tests find a card by `[data-field=...] [data-value=...]`.
+
+**A form section's head** (`FormSection`) wraps: the title and text take at least 14 rem, and a wide aside (the scope presets) drops under them on a phone instead of squeezing them.
 
 **Text a person copies** is `CopyableCode`: the text in one box with the copy control inside its top-right corner, so all such values share one left and right edge.
 - `SecretValue` (shown once) wraps it with a dashed, tinted box.
