@@ -8,6 +8,14 @@
 	default_bind 127.0.0.1
 	servers {
 		protocols h1 h2
+		# Empty, except for the `cf` scenario, where the harness sets it to the trusted_proxies and client_ip_headers
+		# lines: they are server-wide options, so Caddy is restarted with them for that scenario only.
+		{$CADDY_SERVER_EXTRA}
+	}
+	# Caddy logs every failed dial at error level on its default logger, which would put the log writer into the
+	# error-page scenario; nothing else logs at runtime.
+	log {
+		level PANIC
 	}
 }
 
@@ -43,6 +51,41 @@ https://bench.test:18445 {
 
 http://ws.test:18083 {
 	import websocket
+}
+
+# access-log: Caddy's own access log (JSON, one line per request) to a file. Unlike the others, a site's log is
+# configured on its site block, so only this host logs.
+http://access-log.test:18083 {
+	log {
+		output file /tmp/access.log
+	}
+	import proxied
+}
+
+# rate-limit and rate-limited: not configured. Caddy has no rate limiter in the stock image (the `rate_limit` handler
+# is the third-party caddy-ratelimit module), so both scenarios are skipped for it.
+
+# error-page: a closed port; handle_errors serves the page from a file with the status kept at 502.
+http://error-page.test:18083 {
+	reverse_proxy 127.0.0.1:18079
+	handle_errors {
+		root * /srv
+		rewrite * /error-502.html
+		file_server {
+			status {err.status_code}
+		}
+	}
+}
+
+# cf: X-Forwarded-For carries the resolved client address ({client_ip}, from CF-Connecting-IP when the peer is a trusted
+# proxy); without the trusted_proxies option it is the peer.
+http://cf.test:18083 {
+	reverse_proxy 127.0.0.1:18080 {
+		header_up X-Forwarded-For {client_ip}
+		transport http {
+			keepalive_idle_conns_per_host 256
+		}
+	}
 }
 
 http://respond.test:18083 {
