@@ -1,0 +1,82 @@
+name: Docs
+
+# The documentation site (mkdocs.yml, docs/). Its own workflow so that it builds on every push to any branch and every pull request:
+# the CI workflow runs for pushes to main only. docs/development.md ("The documentation site") says how to publish it.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+permissions:
+  contents: read
+
+env:
+  # Material for MkDocs prints a notice about its successor on every build; it is not a warning of this build.
+  NO_MKDOCS_2_WARNING: "1"
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install MkDocs
+        run: pip install -r docs/requirements.txt
+
+      # The pinned Scalar bundle of the API reference (scripts/docs/hooks.py): downloaded once, checked against its integrity hash, then cached.
+      - name: Cache the API reference bundle
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/paduraksa-docs
+          key: docs-scalar-${{ hashFiles('scripts/docs/hooks.py') }}
+
+      # --strict turns a broken link or anchor between pages, a missing page or any other warning into a failure.
+      - name: Build
+        run: mkdocs build --strict
+
+      # What Markdown never sees: raw HTML, the theme's links and the generated API reference.
+      - name: Check the links of the built site
+        run: python3 scripts/docs/check-site.py site
+
+      - name: Upload the site
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-site
+          path: site
+          retention-days: 14
+
+      # The artifact the deploy job publishes. Uploading it publishes nothing.
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  # Publishes to GitHub Pages. It never runs by itself: only a manual run of this workflow, and only while the repository variable
+  # DOCS_PUBLISH is `true` (Settings, Secrets and variables, Actions, Variables). Pages must be enabled with the source "GitHub Actions" too.
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' && vars.DOCS_PUBLISH == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
