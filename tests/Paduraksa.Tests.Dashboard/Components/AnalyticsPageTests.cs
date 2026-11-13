@@ -32,7 +32,7 @@ public sealed class AnalyticsPageTests
     private static readonly HostId App = HostId.New();
     private static readonly HostId Blog = HostId.New();
 
-    private static AccessLogEntry Entry(string path, int status = 200, string agent = Chrome, long bytes = 2_000, string protocol = "HTTP/2", string? referer = null, string method = "GET", long ms = 4) => new()
+    private static AccessLogEntry Entry(string path, int status = 200, string agent = Chrome, long bytes = 2_000, string protocol = "HTTP/2", string? referer = null, string method = "GET", long ms = 4, long bytesIn = -1) => new()
     {
         Host = "app.test",
         Path = path,
@@ -40,6 +40,7 @@ public sealed class AnalyticsPageTests
         Protocol = protocol,
         StatusCode = status,
         ResponseBytes = bytes,
+        RequestBytes = bytesIn,
         UserAgent = agent,
         Referer = referer,
         TotalTicks = ms * TimeSpan.TicksPerMillisecond,
@@ -188,7 +189,7 @@ public sealed class AnalyticsPageTests
                 at,
                 (Entry("/", referer: "https://www.google.com/search?q=x"), bucket * 10, false),
                 (Entry("/", agent: Safari), (bucket * 10) + 1, false),
-                (Entry("/api/items", 200, bytes: 500), (bucket * 10) + 2, false),
+                (Entry("/api/items", 200, bytes: 500, bytesIn: 250_000), (bucket * 10) + 2, false),
                 (Entry("/missing", 404), (bucket * 10) + 3, false),
                 (Entry("/broken", 502, ms: 800), (bucket * 10) + 4, false),
                 (Entry("/download/big.iso", bytes: 900_000_000, ms: 300), (bucket * 10) + 5, false),
@@ -232,7 +233,8 @@ public sealed class AnalyticsPageTests
         Assert.Equal("120", page.Find("[data-tile=requests] [data-part=value]").TextContent);
         Assert.Equal("30% from bots", page.Find("[data-tile=requests] [data-part=detail]").TextContent);
         Assert.Equal("11 GB", page.Find("[data-tile=bandwidth] [data-part=value]").TextContent);
-        Assert.Equal("declared sizes only", page.Find("[data-tile=bandwidth] [data-part=detail]").TextContent);
+        // Twelve uploads of 250 kB.
+        Assert.Equal("sent, 3.0 MB received", page.Find("[data-tile=bandwidth] [data-part=detail]").TextContent);
         Assert.DoesNotContain("≈", page.Find("[data-tile=visitors] [data-part=value]").TextContent, StringComparison.Ordinal);
         Assert.Equal("±1.6%", page.Find("[data-tile=visitors] [data-part=detail]").TextContent);
         // One 502 in ten.
@@ -263,6 +265,8 @@ public sealed class AnalyticsPageTests
         Assert.NotEmpty(page.Find("[data-chart=requests] polyline.pdk-chart-a").GetAttribute("points")!);
         Assert.Contains("Requests", page.Find("[data-chart=requests] figcaption").TextContent, StringComparison.Ordinal);
         Assert.Contains("Bytes sent", page.Find("[data-chart=bandwidth] figcaption").TextContent, StringComparison.Ordinal);
+        // Nothing was uploaded, so there is no line of zeros for it.
+        Assert.DoesNotContain("Bytes received", page.Find("[data-chart=bandwidth] figcaption").TextContent, StringComparison.Ordinal);
         Assert.Contains("Visitors", page.Find("[data-chart=visitors] figcaption").TextContent, StringComparison.Ordinal);
     }
 
@@ -294,6 +298,29 @@ public sealed class AnalyticsPageTests
         Assert.Equal(2, page.FindAll("[data-chart=requests] polyline.pdk-chart-a").Count);
         Assert.Single(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
         Assert.Contains(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"), title => title.TextContent.Contains("No data: Paduraksa was not running", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task UploadsAddABytesReceivedLineToTheBandwidthChart()
+    {
+        await using Rig rig = new();
+        await rig.UseDatabaseAsync();
+        List<AnalyticsRollup> rollups = [];
+        // Two hours, so the day's hourly steps make a line.
+        for (var minutes = -120; minutes < -5; minutes += 5)
+        {
+            rollups.Add(Coverage(Noon.AddMinutes(minutes)));
+            rollups.Add(Rollup(App, Noon.AddMinutes(minutes), (Entry("/upload", method: "POST", bytesIn: 40_000), minutes, false)));
+        }
+
+        await rig.StoreAsync([.. rollups]);
+        await using var context = rig.SignIn();
+
+        var page = Render(context);
+        await page.WaitForStateAsync(() => page.FindAll("[data-chart]").Count == 3);
+
+        Assert.Contains("Bytes received", page.Find("[data-chart=bandwidth] figcaption").TextContent, StringComparison.Ordinal);
+        Assert.NotEmpty(page.Find("[data-chart=bandwidth] polyline.pdk-chart-a").GetAttribute("points")!);
     }
 
     [Fact]

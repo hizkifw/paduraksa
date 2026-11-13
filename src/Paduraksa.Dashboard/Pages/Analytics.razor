@@ -70,7 +70,8 @@ else
     <div class="pdk-sec-tiles" data-part="tiles">
         <SecurityTile Name="requests" Label="Requests" Value="@AnalyticsFigures.Count(totals.Requests)"
                       Detail="@(totals.BotRequests > 0 ? $"{AnalyticsFigures.Share(totals.BotRequests, totals.Requests)} from bots" : null)" />
-        <SecurityTile Name="bandwidth" Label="Bandwidth" Value="@AnalyticsFigures.Bytes(totals.BytesOut)" Detail="declared sizes only" />
+        <SecurityTile Name="bandwidth" Label="Bandwidth" Value="@AnalyticsFigures.Bytes(totals.BytesOut)"
+                      Detail="@(totals.BytesIn > 0 ? $"sent, {AnalyticsFigures.Bytes(totals.BytesIn)} received" : "sent")" />
         <SecurityTile Name="visitors" Label="Unique visitors" Value="@AnalyticsFigures.Count(totals.Visitors)" Detail="@AnalyticsFigures.VisitorsAccuracy" />
         <SecurityTile Name="errors" Label="Error rate" Value="@TrafficFigures.Percent(totals.ErrorRate)" Detail="5xx answers" />
     </div>
@@ -494,9 +495,18 @@ else
         _charts =
         [
             new("requests", "Requests", [new("Requests", "pdk-chart-a", Values(series, step => step.Requests), Area: true), new("5xx", "pdk-chart-err", Values(series, step => step.ServerErrors))], AnalyticsFigures.Compact),
-            new("bandwidth", "Bandwidth", [new("Bytes sent", "pdk-chart-b", Values(series, step => step.BytesOut), Area: true)], AnalyticsFigures.Bytes),
+            new("bandwidth", "Bandwidth", Bandwidth(overview), AnalyticsFigures.Bytes),
             new("visitors", "Unique visitors", [new("Visitors", "pdk-chart-c", Values(series, step => step.Visitors), Area: true)], AnalyticsFigures.Compact),
         ];
+    }
+
+    // Received only when something was: a flat zero under every download says nothing.
+    private static TimeSeriesChart.ChartLine[] Bandwidth(AnalyticsOverview overview)
+    {
+        TimeSeriesChart.ChartLine sent = new("Bytes sent", "pdk-chart-b", Values(overview.Series, step => step.BytesOut), Area: true);
+        return overview.Totals.BytesIn > 0
+            ? [sent, new("Bytes received", "pdk-chart-a", Values(overview.Series, step => step.BytesIn))]
+            : [sent];
     }
 
     // A step nobody observed has no value and breaks the line; an observed step with nothing in it is a real zero.
