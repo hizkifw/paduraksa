@@ -1,0 +1,29 @@
+@* What a drawer shows in place of itself when it threw: the same frame, a compact message and Close, so the page and the levels
+   under it carry on. The log has the exception (the ErrorBoundary around the level writes it). *@
+<DrawerShell Title="This drawer couldn't be shown" Icon="@Icons.Material.Outlined.ReportGmailerrorred" IconTone="Tone.Error" Name="error">
+    <ChildContent>
+        <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ReportGmailerrorred" Title="Something went wrong"
+                    Description="Nothing you applied is lost. The details are in the server log." />
+    </ChildContent>
+    <Footer>
+        <DrawerActions PrimaryLabel="Close" PrimaryAction="close" OnPrimary="Close" />
+    </Footer>
+</DrawerShell>
+
+@code {
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>What the failed drawer held (unsaved changes, an apply in flight) went with it, so closing does not ask about it.</summary>
+    protected override void OnInitialized()
+    {
+        if (Level is not null)
+        {
+            Level.IsDirty = false;
+            Level.Busy = false;
+            Level.LeaveWarning = null;
+        }
+    }
+
+    private void Close() => Level?.Cancel();
+}

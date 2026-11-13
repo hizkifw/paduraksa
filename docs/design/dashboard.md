@@ -939,6 +939,8 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - **The footer is `DrawerActions`:** Delete or another leading action at the start, Cancel, extra choices, the primary last. A drawer does not lay out its own footer buttons.
 - **A guard** (`DashboardChangePathTests`) fails when a component calls the config's execute or add-to-draft methods outside the allowed types.
 
+**A drawer that throws.** Each level of the drawer stack has its own `ErrorBoundary` (`DrawerHost`). The failed level shows `DrawerError`: the drawer's frame, "This drawer couldn't be shown", a compact message and Close. The page and the levels below keep running, and closing it does not ask about what it held. The details are in the server log.
+
 **The connection snippets** of an AI assistant (`McpConnect`) take the token just issued and fill it into the commands. The token drawer shows them open, with the token only in that component's parameter and the markup built from it (it goes with the drawer, as the token's own box does), and says how to turn MCP on when it is off.
 
 ## First-run setup

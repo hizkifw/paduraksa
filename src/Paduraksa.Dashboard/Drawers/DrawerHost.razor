@@ -26,7 +26,10 @@
                 @* While the question is open, the drawer under it is inert, so Tab stays on the question's buttons. *@
                 <div class="pdk-sheet-content" inert="@asking">
                     <CascadingValue Value="level" IsFixed="true">
-                        <DynamicComponent Type="level.Component" Parameters="Parameters(level)" />
+                        <ErrorBoundary>
+                            <ChildContent><DynamicComponent Type="level.Component" Parameters="Parameters(level)" /></ChildContent>
+                            <ErrorContent><DrawerError /></ErrorContent>
+                        </ErrorBoundary>
                     </CascadingValue>
                 </div>
                 @if (asking)
