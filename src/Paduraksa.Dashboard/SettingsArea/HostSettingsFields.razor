@@ -346,6 +346,25 @@
         <HeaderRulesField Title="Response headers" Help="Sent to the client, on the upstream's responses and the proxy's own pages, after the Server header above."
                           Value="_current.Headers?.Response" ValueChanged="@(value => Update(WithHeaders(headers => headers with { Response = value }), "/headers/response"))"
                           Inherited="@(Resolved.Headers?.Response ?? [])" Field="headers-response" Errors="@(suffix => E("/headers/response" + suffix))" ReadOnly="@ReadOnly" />
+
+        <h4 class="pdk-setting-section">Compression</h4>
+
+        <InheritSelect T="bool" Value="_current.Compression?.Enabled" ValueChanged="@(value => Update(WithCompression(compression => compression with { Enabled = value }), "/compression/enabled"))"
+                       Inherited="@Resolved.Compression!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                       Title="Compress responses"
+                       Help="Brotli or gzip for text the upstream didn't compress. Leave it off for pages that show a secret next to something the request put there: their compressed size can leak it (BREACH)."
+                       Label="Compress responses" Field="compression-enabled" Error="@E("/compression/enabled")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </InheritSelect>
+
+        <div class="pdk-setting-children">
+            <SettingRow Title="Smallest body" Help="A smaller declared body goes as it is. A body without a declared length is compressed.">
+                <SizeField Value="_current.Compression?.MinimumSize" ValueChanged="@(value => Update(WithCompression(compression => compression with { MinimumSize = SizeText.ToInt(value) }), "/compression/minimumSize"))"
+                           Inherited="@Resolved.Compression!.MinimumSize!.Value" Presets="CompressionPresets" InheritWord="@InheritWord"
+                           Label="Smallest body" Field="compression-minimum-size" Error="@E("/compression/minimumSize")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+            </SettingRow>
+        </div>
     }
 </div>
 
@@ -521,6 +540,8 @@
 
     private HostSettings WithMaintenance(Func<MaintenanceSettings, MaintenanceSettings> change) => HostSettingsEdit.WithMaintenance(_current, change);
 
+    private HostSettings WithCompression(Func<CompressionSettings, CompressionSettings> change) => HostSettingsEdit.WithCompression(_current, change);
+
     private HostSettings WithHeaders(Func<HeadersSettings, HeadersSettings> change) => HostSettingsEdit.WithHeaders(_current, change);
 
     /// <summary>The statuses with a page, each with the one line that says what makes the gate or the upstream answer it.</summary>
@@ -558,6 +579,8 @@
     private static readonly IReadOnlyList<long> BodyPresets = RequestLimitPresets.Body;
 
     private static readonly IReadOnlyList<long> HeaderPresets = RequestLimitPresets.HeaderBytes;
+
+    private static readonly IReadOnlyList<long> CompressionPresets = [0, 512, 1024, 4096, 16384];
 
     private static readonly IReadOnlyList<long> UrlPresets = RequestLimitPresets.Url;
 

@@ -129,6 +129,14 @@ public static class HostSettingsEdit
         return settings with { Maintenance = changed.SetsNothing ? null : changed };
     }
 
+    public static HostSettings WithCompression(HostSettings settings, Func<CompressionSettings, CompressionSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.Compression ?? new CompressionSettings());
+        return settings with { Compression = changed.SetsNothing ? null : changed };
+    }
+
     public static HostSettings WithHeaders(HostSettings settings, Func<HeadersSettings, HeadersSettings> change)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -190,6 +198,7 @@ public static class SettingsSummary
         static (settings, _) => settings.ErrorPages is { } errorPages ? ErrorPagesText(errorPages) : null,
         static (settings, document) => settings.Maintenance is { } maintenance ? MaintenanceText(maintenance, document) : null,
         static (settings, _) => settings.Headers is { } headers ? HeadersText(headers) : null,
+        static (settings, _) => settings.Compression?.Enabled is { } compressed ? (compressed ? "Compression on" : "Compression off") : null,
     ];
 
     private static string? HeadersText(HeadersSettings headers)

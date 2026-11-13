@@ -816,6 +816,33 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/headers/response/0/name",
             ShowsAtField = true,
         },
+        new(
+            "compression.enabled",
+            "compression-enabled",
+            "/compression/enabled",
+            new HostSettings(),
+            (fields, _) => SetSelect<bool>(fields, "Compress responses", true),
+            new HostSettings { Compression = new CompressionSettings { Enabled = true } },
+            (fields, _) => SetSelect<bool>(fields, "Compress responses", null),
+            new HostSettings(),
+            "Inherit (off)")
+        {
+            GroupKey = true,
+        },
+        new(
+            "compression.minimumSize",
+            "compression-minimum-size",
+            "/compression/minimumSize",
+            new HostSettings(),
+            (fields, _) => SetSize(fields, "Smallest body", "p4096"),
+            new HostSettings { Compression = new CompressionSettings { MinimumSize = 4096 } },
+            (fields, _) => SetSize(fields, "Smallest body", "inherit"),
+            new HostSettings(),
+            "Inherit (1 KiB)")
+        {
+            ValidatorPath = "/compression/minimumSize",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
