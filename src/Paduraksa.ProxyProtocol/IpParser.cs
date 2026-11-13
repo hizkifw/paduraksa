@@ -22,8 +22,7 @@ namespace Paduraksa.ProxyProtocol;
 /// <para><b>Deprecated IPv4-compatible form</b> (<c>::a.b.c.d</c>, RFC 4291 §2.5.5.1): accepted, and it does
 /// <em>not</em> collapse to the IPv4 key for <c>a.b.c.d</c>. It is a distinct (never routed) IPv6 address, which
 /// is exactly what the BCL returns too. Only <c>a.b.c.d</c> and <c>::ffff:a.b.c.d</c> give an IPv4
-/// (<see cref="IpKey.IsIPv4"/>) key. IPv4 allow/deny rules therefore don't match <c>::a.b.c.d</c>; such a value
-/// can only reach us in a header written by a trusted proxy.</para>
+/// (<see cref="IpKey.IsIPv4"/>) key. IPv4 allow/deny rules therefore don't match <c>::a.b.c.d</c>.</para>
 /// </remarks>
 public static class IpParser
 {

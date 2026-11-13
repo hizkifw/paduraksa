@@ -5,12 +5,12 @@ using System.Net;
 namespace Paduraksa.ProxyProtocol;
 
 /// <summary>
-/// An IP address as a 128-bit key: the one client-IP representation used on the hot path.
+/// An IP address as a 128-bit value: one representation for both families that compares, hashes, masks and formats without allocating.
 /// </summary>
 /// <remarks>
 /// <para>IPv4 is stored IPv4-mapped (<c>::ffff:a.b.c.d</c>), so a plain IPv4 address and its mapped IPv6 form are
-/// the same key. That matters on a dual-mode <c>[::]</c> listener, where TCP reports <c>::ffff:a.b.c.d</c> and QUIC
-/// reports <c>a.b.c.d</c>.</para>
+/// the same key. That matters on a dual-mode <c>[::]</c> listener, which reports an IPv4 client as
+/// <c>::ffff:a.b.c.d</c>.</para>
 /// <para>The deprecated IPv4-compatible form <c>::a.b.c.d</c> is <em>not</em> folded into the IPv4 key: it is a
 /// different IPv6 address (and what the BCL and sockets say too). See <see cref="IpParser"/>.</para>
 /// <para>IPv6 scope IDs (zones) are not part of the key.</para>
@@ -101,7 +101,7 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
     /// <summary>Writes the 16-byte network-order form (IPv4 as <c>::ffff:a.b.c.d</c>).</summary>
     public void WriteBytes(Span<byte> destination) => BinaryPrimitives.WriteUInt128BigEndian(destination, _value);
 
-    /// <summary>An <see cref="IPAddress"/> (allocates; cold paths only). IPv4 keys become 4-byte addresses.</summary>
+    /// <summary>An <see cref="IPAddress"/> (allocates). IPv4 keys become 4-byte addresses.</summary>
     public IPAddress ToIPAddress()
     {
         if (IsIPv4)
@@ -127,8 +127,8 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
         return new IpKey(_value & PrefixMask(ipv4 ? 96 + prefixLength : prefixLength));
     }
 
-    /// <summary><see cref="MaskTo(int)"/> with a prefix per family, e.g. <c>MaskTo(32, 64)</c> for rate-limit keys
-    /// (whole IPv4 address, IPv6 /64).</summary>
+    /// <summary><see cref="MaskTo(int)"/> with a prefix per family, e.g. <c>MaskTo(32, 64)</c> to group clients
+    /// by whole IPv4 address and by IPv6 /64.</summary>
     public IpKey MaskTo(int ipv4PrefixLength, int ipv6PrefixLength) =>
         MaskTo(IsIPv4 ? ipv4PrefixLength : ipv6PrefixLength);
 

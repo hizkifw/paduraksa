@@ -115,7 +115,9 @@ public enum ProxyProtocolParseStatus : byte
 /// <c>LOCAL</c> or <c>PROXY</c>, a known family and transport, an address block long enough for the family, and a
 /// total length within the configured maximum. TLVs are skipped unvalidated (no CRC32C check). <c>DGRAM</c> is
 /// rejected: this parser serves TCP listeners.</para>
-/// <para>Garbage is rejected as soon as the first bytes can't start a header, without waiting for more data.</para>
+/// <para>Input that can't begin a header (a byte that breaks the v1 prefix <c>PROXY </c> or the v2 signature) is rejected at that byte, without
+/// waiting for more data. Past the prefix, a v1 line is judged only once its line feed arrives or 107 bytes have: until then it is
+/// <see cref="ProxyProtocolParseStatus.Incomplete"/>, so bound the wait with a timeout.</para>
 /// </remarks>
 public static class ProxyProtocolParser
 {

@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Connections;
 
 namespace Paduraksa.ProxyProtocol.AspNetCore;
 
@@ -14,7 +15,8 @@ public enum ProxyProtocolOutcome
     /// <summary>No header, and <see cref="ProxyProtocolOptions.Required"/> is false: the connection went on unchanged.</summary>
     NoHeader,
 
-    /// <summary>The socket peer isn't in <see cref="ProxyProtocolOptions.TrustedProxies"/>. With <see cref="ProxyProtocolOptions.Required"/> the
+    /// <summary>The socket peer isn't in <see cref="ProxyProtocolOptions.TrustedProxies"/> (or it is a Unix socket and
+    /// <see cref="ProxyProtocolOptions.TrustUnixSockets"/> is false). With <see cref="ProxyProtocolOptions.Required"/> the
     /// connection was aborted unread; without it, the connection went on unchanged and any header it sent was not honoured.</summary>
     UntrustedSource,
 
@@ -41,8 +43,16 @@ public sealed class ProxyProtocolOptions
     /// The socket peers allowed to send a header: your load balancers. <b>Empty by default, which refuses every connection</b>
     /// when <see cref="Required"/> is true (and honours no header when it is false): a PROXY header from anyone else would let
     /// them claim any client address. An IPv4-mapped IPv6 peer (<c>::ffff:10.0.0.1</c>) is matched as IPv4.
+    /// A Unix socket listener has no peer address: see <see cref="TrustUnixSockets"/>.
     /// </summary>
     public IList<IPNetwork> TrustedProxies { get; set; } = [];
+
+    /// <summary>
+    /// Whether a connection on a Unix domain socket listener may send a header. False by default, which refuses every such
+    /// connection when <see cref="Required"/> is true: a Unix socket peer has no address for <see cref="TrustedProxies"/> to
+    /// match. Set it when the socket's file permissions let only your proxy connect; they are the whole check.
+    /// </summary>
+    public bool TrustUnixSockets { get; set; }
 
     /// <summary>
     /// How long a trusted peer has to deliver the complete header; also how long it may stay silent when <see cref="Required"/> is
@@ -79,7 +89,9 @@ public sealed class ProxyProtocolOptions
     /// </summary>
     public bool Required { get; set; } = true;
 
-    /// <summary>Called once per connection with what was decided, for counters. Keep it fast and make it thread-safe. An exception it throws is swallowed
-    /// (and logged at debug level when the host has a logger): a counter doesn't decide the fate of a connection.</summary>
-    public Action<ProxyProtocolOutcome>? OnOutcome { get; set; }
+    /// <summary>Called once per connection with what was decided and the connection, for counters and logs. Keep it fast and make it thread-safe.
+    /// For a refused connection <c>RemoteEndPoint</c> is the socket peer that was refused; for an accepted one the endpoints are already the
+    /// header's, and <see cref="IProxyProtocolFeature.ProxyEndPoint"/> is the proxy. An exception it throws is swallowed (and logged at debug
+    /// level when the host has a logger): a counter doesn't decide the fate of a connection.</summary>
+    public Action<ProxyProtocolOutcome, ConnectionContext>? OnOutcome { get; set; }
 }

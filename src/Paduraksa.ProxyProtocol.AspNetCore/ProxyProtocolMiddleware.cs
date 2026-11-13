@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +15,8 @@ internal sealed class ProxyProtocolMiddleware
     private readonly TimeSpan _timeout;
     private readonly int _maxV2Length;
     private readonly bool _required;
-    private readonly Action<ProxyProtocolOutcome>? _onOutcome;
+    private readonly bool _trustUnixSockets;
+    private readonly Action<ProxyProtocolOutcome, ConnectionContext>? _onOutcome;
     private readonly ILogger? _logger;
 
     public ProxyProtocolMiddleware(ConnectionDelegate next, ProxyProtocolOptions options, ILogger? logger = null)
@@ -25,15 +27,16 @@ internal sealed class ProxyProtocolMiddleware
         _timeout = options.HeaderTimeout;
         _maxV2Length = options.MaxV2Length;
         _required = options.Required;
+        _trustUnixSockets = options.TrustUnixSockets;
         _onOutcome = options.OnOutcome;
     }
 
     public Task OnConnectionAsync(ConnectionContext connection)
     {
         var peer = connection.RemoteEndPoint;
-        if (!IsTrusted(peer))
+        if (!IsTrusted(connection))
         {
-            Report(ProxyProtocolOutcome.UntrustedSource);
+            Report(ProxyProtocolOutcome.UntrustedSource, connection);
             if (!_required)
             {
                 return _next(connection);
@@ -56,7 +59,6 @@ internal sealed class ProxyProtocolMiddleware
         {
             case ProxyProtocolReadStatus.Success:
                 var header = result.Header;
-                Report(header.HasAddresses ? ProxyProtocolOutcome.Accepted : ProxyProtocolOutcome.AcceptedWithoutAddress);
                 connection.Features.Set<IProxyProtocolFeature>(new ProxyProtocolFeature(header, peer));
                 if (header.HasAddresses)
                 {
@@ -64,10 +66,12 @@ internal sealed class ProxyProtocolMiddleware
                     connection.LocalEndPoint = header.DestinationEndPoint;
                 }
 
+                // After the endpoints: the callback sees the connection as the application will.
+                Report(header.HasAddresses ? ProxyProtocolOutcome.Accepted : ProxyProtocolOutcome.AcceptedWithoutAddress, connection);
                 break;
 
             case ProxyProtocolReadStatus.Absent:
-                Report(ProxyProtocolOutcome.NoHeader);
+                Report(ProxyProtocolOutcome.NoHeader, connection);
                 break;
 
             default:
@@ -77,7 +81,7 @@ internal sealed class ProxyProtocolMiddleware
                     ProxyProtocolReadStatus.TimedOut => (ProxyProtocolOutcome.TimedOut, "PROXY protocol: header timed out."),
                     _ => (ProxyProtocolOutcome.Closed, "PROXY protocol: closed before the header."),
                 };
-                Report(outcome);
+                Report(outcome, connection);
                 connection.Abort(new ConnectionAbortedException(reason));
                 return;
         }
@@ -86,7 +90,7 @@ internal sealed class ProxyProtocolMiddleware
     }
 
     // A counter is not worth a connection: whatever the callback throws, the decision it reports stands.
-    private void Report(ProxyProtocolOutcome outcome)
+    private void Report(ProxyProtocolOutcome outcome, ConnectionContext connection)
     {
         if (_onOutcome is null)
         {
@@ -95,7 +99,7 @@ internal sealed class ProxyProtocolMiddleware
 
         try
         {
-            _onOutcome(outcome);
+            _onOutcome(outcome, connection);
         }
 #pragma warning disable CA1031 // Any exception: the callback is the caller's code.
         catch (Exception exception)
@@ -108,9 +112,15 @@ internal sealed class ProxyProtocolMiddleware
         }
     }
 
-    private bool IsTrusted(EndPoint? peer)
+    private bool IsTrusted(ConnectionContext connection)
     {
-        if (peer is not IPEndPoint endPoint)
+        // A Unix socket has no peer address to match (an accepted one reports an unnamed endpoint), so the listener's own endpoint decides too.
+        if (connection.RemoteEndPoint is UnixDomainSocketEndPoint || connection.LocalEndPoint is UnixDomainSocketEndPoint)
+        {
+            return _trustUnixSockets;
+        }
+
+        if (connection.RemoteEndPoint is not IPEndPoint endPoint)
         {
             return false;
         }

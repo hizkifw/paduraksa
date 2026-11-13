@@ -28,6 +28,7 @@ public sealed class ProxyProtocolMiddlewareTests : IAsyncLifetime
     private X509Certificate2? _certificate;
     private readonly Dictionary<string, int> _ports = [];
     private readonly Dictionary<string, ConcurrentQueue<ProxyProtocolOutcome>> _outcomes = [];
+    private readonly ConcurrentQueue<(string Listener, ProxyProtocolOutcome Outcome, EndPoint? Remote, EndPoint? Proxy)> _reports = [];
     private IHost? _host;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -87,13 +88,17 @@ public sealed class ProxyProtocolMiddlewareTests : IAsyncLifetime
                             {
                                 configure(o);
                                 o.OnOutcome = name.StartsWith("throwing", StringComparison.Ordinal)
-                                    ? outcome =>
+                                    ? (outcome, _) =>
                                     {
                                         queue.Enqueue(outcome);
                                         Interlocked.Increment(ref _throwingCalls);
                                         throw new InvalidOperationException("a counter that fails");
                                     }
-                                : queue.Enqueue;
+                                : (outcome, connection) =>
+                                    {
+                                        _reports.Enqueue((name, outcome, connection.RemoteEndPoint, connection.Features.Get<IProxyProtocolFeature>()?.ProxyEndPoint));
+                                        queue.Enqueue(outcome);
+                                    };
                             });
                             if (tls)
                             {
@@ -493,6 +498,24 @@ public sealed class ProxyProtocolMiddlewareTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheOutcomeCallbackSeesWhoWasRefusedAndWhoWasAccepted()
+    {
+        await ExchangeAsync("untrusted", V1("PROXY TCP4 203.0.113.9 192.0.2.1 50123 443\r\n" + Get));
+        await ExchangeAsync("required", V1("PROXY TCP4 203.0.113.9 192.0.2.1 50123 443\r\n" + Get));
+        await AssertOutcomeAsync("untrusted", ProxyProtocolOutcome.UntrustedSource);
+        await AssertOutcomeAsync("required", ProxyProtocolOutcome.Accepted);
+
+        // Refused: the socket peer, so a log line can name it. (The enqueue of the report precedes the outcome the waits above saw.)
+        var refused = Assert.IsType<IPEndPoint>(_reports.First(r => r is { Listener: "untrusted", Outcome: ProxyProtocolOutcome.UntrustedSource }).Remote);
+        Assert.True(IPAddress.IsLoopback(refused.Address));
+
+        // Accepted: the connection as the application sees it, and the proxy on the feature.
+        var accepted = _reports.First(r => r is { Listener: "required", Outcome: ProxyProtocolOutcome.Accepted } && r.Remote is IPEndPoint { Port: 50123 });
+        Assert.Equal(IPAddress.Parse("203.0.113.9"), ((IPEndPoint)accepted.Remote!).Address);
+        Assert.True(IPAddress.IsLoopback(Assert.IsType<IPEndPoint>(accepted.Proxy).Address));
+    }
+
+    [Fact]
     public void TheOptionsRejectValuesTheParserCannotHonour()
     {
         var options = new ProxyProtocolOptions();
@@ -502,6 +525,7 @@ public sealed class ProxyProtocolMiddlewareTests : IAsyncLifetime
         Assert.Throws<ArgumentOutOfRangeException>(() => options.MaxV2Length = ProxyProtocolParser.V2MaxLengthWithoutTlvs - 1);
         Assert.Empty(options.TrustedProxies);
         Assert.True(options.Required);
+        Assert.False(options.TrustUnixSockets);
         Assert.Equal(TimeSpan.FromSeconds(3), options.HeaderTimeout);
         Assert.Equal(ProxyProtocolParser.DefaultMaxV2Length, options.MaxV2Length);
     }

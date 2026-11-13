@@ -28,18 +28,23 @@ public readonly record struct ProxyProtocolReadResult(ProxyProtocolReadStatus St
 /// after it in the pipe for TLS / HTTP.</summary>
 public static class ProxyProtocolReader
 {
+    /// <summary>Longest <c>timeout</c> of <see cref="ReadAsync"/>: what a timer takes (about 24.8 days).</summary>
+    public static readonly TimeSpan MaxTimeout = TimeSpan.FromMilliseconds(int.MaxValue);
+
     /// <summary>
     /// Reads and consumes the header, giving up after <paramref name="timeout"/>. Never throws for anything the
     /// peer sends or does (malformed bytes, slow drip, close, reset): those map to a non-success status.
     /// </summary>
     /// <param name="input">The connection's input; every byte after the header stays in it.</param>
-    /// <param name="timeout">How long the peer has to deliver the complete header.</param>
+    /// <param name="timeout">How long the peer has to deliver the complete header: greater than zero and at most <see cref="MaxTimeout"/>.
+    /// There is no "no timeout": a header read without a deadline holds a connection open for as long as the peer likes.</param>
     /// <param name="maxV2Length">Cap on a whole v2 header, TLVs included; at least <see cref="ProxyProtocolParser.V2MaxLengthWithoutTlvs"/>.</param>
     /// <param name="headerOptional">Treat bytes that don't begin a header as application data: the result is <see cref="ProxyProtocolReadStatus.Absent"/>
     /// and nothing is consumed. A header that begins correctly and then breaks is still <see cref="ProxyProtocolReadStatus.Invalid"/>.</param>
     /// <remarks>Allocation: nothing when the header is already buffered (the usual case: proxies send it in the
     /// first segment); otherwise one timer-backed <see cref="CancellationTokenSource"/> and the async state
     /// machine, once per connection.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeout"/> or <paramref name="maxV2Length"/> is out of range.</exception>
     public static async ValueTask<ProxyProtocolReadResult> ReadAsync(
         PipeReader input,
         TimeSpan timeout,
@@ -47,6 +52,10 @@ public static class ProxyProtocolReader
         bool headerOptional = false)
     {
         ArgumentNullException.ThrowIfNull(input);
+
+        // Checked here and not by the timer: the timer exists only when the header isn't buffered yet, so a bad value would throw on some calls and pass on others.
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(timeout, MaxTimeout);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxV2Length, ProxyProtocolParser.V2MaxLengthWithoutTlvs);
         CancellationTokenSource? timer = null;
         try
