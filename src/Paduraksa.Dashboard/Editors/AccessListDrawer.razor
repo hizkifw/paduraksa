@@ -5,7 +5,7 @@
    never shown: a host or a route picks it by name. A password is typed or generated here, sent once and never read back. *@
 
 <DrawerShell Title="@Title"
-             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : "Hosts and routes pick it in their Access settings.")"
+             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : null)"
              Icon="@Icons.Material.Outlined.Lock" Name="access-list" OnSubmit="SubmitAsync">
     <Banner>
         @if (ChangedElsewhere is { } elsewhere)

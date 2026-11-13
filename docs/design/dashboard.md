@@ -891,6 +891,8 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 
 **Filter cards** (Audit, Live tail) are `.pdk-filters`: an optional bar (a segmented control, "Clear filters" at the end), then the fields in one wrapping grid. Every field is dense outlined and floats its label (give it a placeholder).
 
+**A drawer's subtitle** says something the title and the body don't (what a staged change waits for, which certificate names it covers). A line the body already says (the "Used by" section of a list drawer) isn't repeated up there.
+
 **Heights and sizes.**
 - Dense outlined fields and the segmented control are 40 px.
 - Icon buttons are 36 px (`Size.Small`, never `Medium`) and carry a tooltip or `aria-label`.
@@ -931,6 +933,8 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - The label, bar, count and percentage columns are as wide as the widest row needs, so every bar starts and ends at the same x.
 - A tiny share is at least 3 px of fill from the track's start.
 - Counts and percentages are tabular and right-aligned.
+
+**Number fields hide their spin buttons**, whatever the field, so a number beside text fields has the same edges (`DashboardMarkupConventionTests` fails on one that doesn't). Nothing in the dashboard styles itself inline: a size or colour is a class in the stylesheets.
 
 **Number fields commit when focus leaves them**, as text fields do: a number typed and tabbed out is in the form's model without Enter or the submit button (`NumberFieldCommitTests`, `NumberFieldsEndToEndTests`). A numeric field is never `Immediate`: with a `Min` (a status code from 200) MudBlazor would clamp the first digit typed.
 
