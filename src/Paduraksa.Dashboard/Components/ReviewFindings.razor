@@ -1,7 +1,7 @@
 @* What a dry run found, above the diff: the errors that stop it from going live, and the compiler's warnings. One look for the review sheet and the draft. *@
 @if (Errors.Count > 0)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="invalid">
+    <MudAlert Severity="@(Soft ? Severity.Warning : Severity.Error)" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="invalid">
         <strong>@(Errors.Count == 1 ? "One thing to fix" : $"{Errors.Count} things to fix") @Consequence.</strong>
         <ul class="pdk-error-list">
             @foreach (var (where, message) in Errors)
@@ -28,6 +28,10 @@
 
     [Parameter, EditorRequired]
     public IReadOnlyList<string> Notices { get; set; } = [];
+
+    /// <summary>A refusal that is only of one way of applying (the live config's, with a draft open): a warning, not an error.</summary>
+    [Parameter]
+    public bool Soft { get; set; }
 
     /// <summary>What the errors stop: "before this can go live", "before this can be applied on its own".</summary>
     [Parameter]

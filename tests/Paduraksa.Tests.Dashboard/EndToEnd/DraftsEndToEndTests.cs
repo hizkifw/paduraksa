@@ -12,8 +12,9 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// Drafts end to end in a real browser (docs/design/dashboard.md "Drafts (M10)"): an upstream added to a new draft on one page, a host that uses it made on another (the picker offers the
-/// upstream marked "Draft"), the bar following the person across pages and a reload, then the whole set reviewed and applied as one revision. Skipped when no
+/// Drafts end to end in a real browser (docs/design/dashboard.md "Drafts (M10)", "Making a change"): an upstream added to a new draft from the review sheet on one page, a host that uses it
+/// made on another (the picker offers the upstream marked "Draft"), the bar following the person across pages and a reload, then the draft drawer, which is the review of the whole set,
+/// applied as one revision; and the host list's switch going through the same sheet. Skipped when no
 /// Chromium is installed (see <see cref="PlaywrightBrowser"/>); screenshots are kept when <see cref="PlaywrightBrowser.ScreenshotVariable"/> names a directory.
 /// </summary>
 [Collection(PlaywrightBrowser.CollectionName)]
@@ -48,8 +49,8 @@ public sealed class DraftsEndToEndTests
         await Expect(page.Locator(".pdk-sheet [data-drawer=upstream]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await FillAsync(page, "name", "app");
         await FillAsync(page, "destination-0", "http://127.0.0.1:18080");
-        await Expect(page.Locator(".pdk-sheet[data-top] [data-action=add-to-new-draft]")).ToHaveTextAsync("Add to a new draft");
-        await page.Locator(".pdk-sheet[data-top] [data-action=add-to-new-draft]").ClickAsync();
+        await Expect(page.Locator(".pdk-sheet[data-top] button[type=submit]")).ToHaveTextAsync("Review changes");
+        await AddToDraftFromFormAsync(page, primaryIsApply: true);
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
         var bar = page.Locator("[data-draft-bar]");
         await Expect(bar).ToBeVisibleAsync();
@@ -69,13 +70,9 @@ public sealed class DraftsEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "draft-picker", fullPage: false);
         await option.ClickAsync();
 
-        // With a draft open the form's primary action adds to it; reviewing and applying now is the secondary one.
-        var primary = page.Locator(".pdk-sheet[data-top] button[type=submit]");
-        await Expect(primary).ToHaveAttributeAsync("data-action", "add-to-draft");
-        await Expect(primary).ToContainTextAsync("Add to draft");
-        await Expect(page.Locator(".pdk-sheet[data-top] [data-action=review]")).ToContainTextAsync("Review and apply now");
+        // The form has one primary, whether or not a draft is open; the review sheet it opens makes Add to draft the primary and Apply now the secondary.
         await PlaywrightBrowser.ScreenshotAsync(page, "draft-host-form", fullPage: false);
-        await primary.ClickAsync();
+        await AddToDraftFromFormAsync(page, primaryIsApply: false);
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
         await Expect(bar.Locator("[data-draft-count]")).ToHaveTextAsync("2 changes");
         await Expect(page.Locator($"[data-host='{HostName}'] [data-chip=draft]")).ToBeVisibleAsync();
@@ -93,17 +90,15 @@ public sealed class DraftsEndToEndTests
         await OpenFromNavigationAsync(page, "History");
         await Expect(page.Locator(".pdk-timeline-item")).ToHaveCountAsync(0);
 
-        // Review: the draft's two entries, then the whole set as one change.
+        // Review opens the draft, which is the review: each entry with its diff, and Apply for the whole set.
         await page.Locator("[data-draft-bar] [data-action=review-draft]").ClickAsync();
         var list = page.Locator(".pdk-sheet [data-drawer=draft]");
         await Expect(list.Locator("[data-entry]")).ToHaveCountAsync(2, new() { Timeout = 15_000 });
         await Expect(list).ToContainTextAsync("Add upstream app");
         await Expect(list).ToContainTextAsync($"Add host {HostName}");
-        await PlaywrightBrowser.ScreenshotAsync(page, "draft-list", fullPage: false);
-        await list.Locator("[data-action=review-changes]").ClickAsync();
-        var apply = page.Locator(".pdk-sheet[data-top] [data-review=apply]");
+        var apply = list.Locator("[data-action=apply-draft]");
         await Expect(apply).ToBeEnabledAsync(new() { Timeout = 15_000 });
-        await Expect(page.Locator(".pdk-sheet[data-top] .pdk-diff-group")).ToHaveCountAsync(2);
+        await Expect(list.Locator("[data-entry] .pdk-diff-group")).ToHaveCountAsync(2);
         await PlaywrightBrowser.ScreenshotAsync(page, "draft-review", fullPage: false);
         await apply.ClickAsync();
 
@@ -115,6 +110,18 @@ public sealed class DraftsEndToEndTests
         await OpenFromNavigationAsync(page, "Hosts");
         await Expect(page.Locator($"[data-host='{HostName}']")).ToContainTextAsync("http://127.0.0.1:18080");
         await Expect(page.Locator($"[data-host='{HostName}'] [data-chip=draft]")).ToHaveCountAsync(0);
+
+        // A quick toggle goes through the same sheet: the host's switch asks, and Add to draft starts a new draft with the host switched off.
+        await page.Locator($"[data-host='{HostName}'] .pdk-dt-controls input[type=checkbox]").ClickAsync();
+        var sheet = page.Locator(".pdk-sheet[data-top]");
+        await Expect(sheet.Locator("[data-review=apply]")).ToBeEnabledAsync(new() { Timeout = 15_000 });
+        await Expect(sheet).ToContainTextAsync($"Switch off {HostName}");
+        await PlaywrightBrowser.ScreenshotAsync(page, "draft-toggle-sheet", fullPage: false);
+        await sheet.Locator("[data-action=add-to-draft]").ClickAsync();
+        await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
+        await Expect(page.Locator("[data-draft-bar] [data-draft-count]")).ToHaveTextAsync("1 change");
+        await Expect(page.Locator($"[data-host='{HostName}'] [data-chip=draft]")).ToBeVisibleAsync();
+        Assert.Equal(1L, (await host.Host.Shared.Config.GetCurrentAsync(Ct)).Revision!.Seq);
 
         Assert.Empty(problems);
     }
@@ -141,7 +148,7 @@ public sealed class DraftsEndToEndTests
         await Expect(page.Locator(".pdk-sheet [data-drawer=upstream]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await FillAsync(page, "name", "phone");
         await FillAsync(page, "destination-0", "http://127.0.0.1:18081");
-        await page.Locator(".pdk-sheet[data-top] [data-action=add-to-new-draft]").ClickAsync();
+        await AddToDraftFromFormAsync(page, primaryIsApply: true);
         await Expect(page.Locator("[data-draft-bar]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
 
         var barBox = (await page.Locator("[data-draft-bar]").BoundingBoxAsync())!;
@@ -154,7 +161,7 @@ public sealed class DraftsEndToEndTests
         await Expect(page.Locator(".pdk-sheet [data-drawer=draft] [data-entry]")).ToHaveCountAsync(1, new() { Timeout = 15_000 });
         await PlaywrightBrowser.ScreenshotAsync(page, "draft-list-phone", fullPage: false);
         await page.Locator(".pdk-sheet [data-entry] [data-action=remove-entry]").ClickAsync();
-        await Expect(page.Locator(".pdk-sheet [data-drawer=draft] .pdk-empty")).ToBeVisibleAsync();
+        await Expect(page.Locator(".pdk-sheet [data-drawer=draft]")).ToContainTextAsync("No changes in the draft");
 
         // The draft is still open, empty; discarding asks first.
         await page.Locator(".pdk-sheet [data-drawer=draft] [data-action=discard-draft]").ClickAsync();
@@ -164,7 +171,7 @@ public sealed class DraftsEndToEndTests
     }
 
     [Fact]
-    public async Task AnObjectChangedWhileTheReviewIsOpen_BlocksTheApply_AndTheSheetShowsItInPlace()
+    public async Task AnObjectChangedWhileTheDraftIsOpen_BlocksTheApply_AndTheDrawerShowsItInPlace()
     {
         var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
         using var ownedPlaywright = playwright;
@@ -185,27 +192,39 @@ public sealed class DraftsEndToEndTests
 
         await page.GotoAsync($"/upstreams/{web.Id}");
         await FillAsync(page, "name", "web renamed");
-        await page.Locator(".pdk-sheet[data-top] [data-action=add-to-new-draft]").ClickAsync();
+        await AddToDraftFromFormAsync(page, primaryIsApply: true);
         await Expect(page.Locator("[data-draft-bar] [data-draft-count]")).ToHaveTextAsync("1 change", new() { Timeout = 15_000 });
         await page.Locator("[data-draft-bar] [data-action=review-draft]").ClickAsync();
-        await page.Locator(".pdk-sheet [data-drawer=draft] [data-action=review-changes]").ClickAsync();
-        var apply = page.Locator(".pdk-sheet[data-top] [data-review=apply]");
+        var apply = page.Locator(".pdk-sheet[data-top] [data-action=apply-draft]");
         await Expect(apply).ToBeEnabledAsync(new() { Timeout = 15_000 });
 
-        // Someone else edits the same upstream while the sheet is open.
+        // Someone else edits the same upstream while the draft is open: the drawer follows the new head and reviews again, in place.
         var current = (await host.Host.Shared.Config.GetCurrentAsync(Ct)).Document.Upstreams.Single();
         await host.Host.Shared.Config.ExecuteAsync(new UpsertUpstreamCommand(current with { Name = "web theirs" }), CommandOrigin.Cli, Ct);
-        await apply.ClickAsync();
 
-        // Nothing is applied; the sheet stays, says which entry is blocked, and Apply is gone until it is resolved.
+        // Nothing is applied; the drawer stays, says which entry is blocked, and Apply is off until it is resolved.
         var blocked = page.Locator(".pdk-sheet[data-top] [data-review=blocked]");
         await Expect(blocked).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await Expect(blocked).ToContainTextAsync("nothing can be applied");
-        await Expect(blocked.Locator("[data-action=reload-entry]")).ToHaveCountAsync(1);
+        await Expect(page.Locator(".pdk-sheet[data-top] [data-entry] [data-action=reload-entry]")).ToHaveCountAsync(1);
+        await Expect(apply).ToBeDisabledAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "draft-blocked-review", fullPage: false);
         Assert.Equal("web theirs", (await host.Host.Shared.Config.GetCurrentAsync(Ct)).Document.Upstreams.Single().Name);
         Assert.Equal(2L, (await host.Host.Shared.Config.GetCurrentAsync(Ct)).Revision!.Seq);
         Assert.Empty(problems);
+    }
+
+    /// <summary>The form's one primary (Review changes) opens the review sheet; Add to draft there is the primary when a draft is open and the secondary when none is.</summary>
+    private static async Task AddToDraftFromFormAsync(IPage page, bool primaryIsApply)
+    {
+        await page.Locator(".pdk-sheet[data-top] button[type=submit]").ClickAsync();
+        var sheet = page.Locator(".pdk-sheet[data-top]");
+        var add = sheet.Locator("[data-action=add-to-draft]");
+        await Expect(add).ToBeEnabledAsync(new() { Timeout = 15_000 });
+        await Expect(add).ToContainTextAsync("Add to draft");
+        await Expect(sheet.Locator("[data-review=apply]")).ToContainTextAsync("Apply now");
+        await Expect(primaryIsApply ? sheet.Locator("[data-review=apply].mud-button-filled") : add.Locator("xpath=self::*[contains(@class,'mud-button-filled')]")).ToHaveCountAsync(1);
+        await add.ClickAsync();
     }
 
     private static async Task SetUpAsync(IPage page, DashboardHost host)

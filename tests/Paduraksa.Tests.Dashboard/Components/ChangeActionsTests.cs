@@ -128,6 +128,24 @@ public sealed class ChangeActionsTests
     }
 
     [Fact]
+    public async Task AChangeTheLiveConfigRefuses_StillOffersAddToDraftWhileADraftIsOpen_AndApplyNowIsOff()
+    {
+        await using DashboardTestContext context = new();
+        var config = Setup(context, draftOpen: true);
+        // The host names an upstream only the draft adds: the live config can't take it alone.
+        config.Results = command => new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [new ConfigError("/routes/0/upstreamId", "route.upstream.unknown", "no such upstream")]);
+        var (page, drawers) = await HostsAsync(context);
+
+        _ = page.Find("[data-host='app.example.com'] .pdk-dt-controls input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = false });
+        await WaitForSheetAsync(drawers);
+
+        Assert.Equal(["cancel", "add-to-draft", "apply"], drawers.FindAll("[data-drawer=review] .pdk-drawer-actions button").Select(b => b.GetAttribute("data-action") ?? b.GetAttribute("data-review")));
+        Assert.True(drawers.Find("[data-drawer=review] [data-review=apply]").HasAttribute("disabled"));
+        Assert.False(drawers.Find("[data-drawer=review] [data-action=add-to-draft]").HasAttribute("disabled"));
+        Assert.Contains("before this can be applied on its own", drawers.Find("[data-drawer=review] [data-review=invalid]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ADestinationsSwitchIsPartOfTheUpstreamFormAndLeavesThroughTheSameSheet()
     {
         await using DashboardTestContext context = new();

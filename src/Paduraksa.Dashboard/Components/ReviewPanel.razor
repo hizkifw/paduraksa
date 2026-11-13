@@ -1,4 +1,5 @@
 @using Paduraksa.Application.Commands
+@using Paduraksa.Application.Config
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
@@ -100,7 +101,7 @@
                         <DraftOpenNotice OnReviewDraft="ReviewDraftFirst" />
                     }
 
-                    <ReviewFindings Errors="_errors" Notices="_notices"
+                    <ReviewFindings Errors="_errors" Notices="_notices" Soft="@(DraftsHere && _phase == Phase.Invalid)"
                                     Consequence="@(DraftsHere && _phase == Phase.Invalid ? "before this can be applied on its own" : "before this can go live")" />
 
                     <MudText Typo="Typo.subtitle2" HtmlTag="h3" Class="pdk-review-section">@(_errors.Count > 0 ? "What it would change" : "What changes")</MudText>
@@ -135,6 +136,8 @@
                 break;
             case Phase.Ready:
             case Phase.Applying:
+            case Phase.Invalid when DraftsHere:
+                @* Invalid with a draft open: the live config can't take it alone (it may name what the draft adds), so Apply now is off and Add to draft checks it on the draft's. *@
                 <DrawerActions OnCancel="Close" Busy="@(_phase == Phase.Applying || _drafting)">
                     @if (Draftable)
                     {
@@ -142,7 +145,7 @@
                                    Disabled="@(_phase == Phase.Applying || _drafting)" data-action="add-to-draft">Add to draft</MudButton>
                     }
                     <MudButton Variant="@(Draftable && DraftsOpen ? Variant.Outlined : Variant.Filled)" Color="@(Request.Destructive ? Color.Error : Color.Primary)" OnClick="ApplyAsync"
-                               Disabled="@(_phase == Phase.Applying || _drafting)" data-review="apply">
+                               Disabled="@(_phase != Phase.Ready)" data-review="apply">
                         @if (_phase == Phase.Applying)
                         {
                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
@@ -152,16 +155,7 @@
                 </DrawerActions>
                 break;
             default:
-                @if (DraftsHere && _phase == Phase.Invalid)
-                {
-                    <DrawerActions OnCancel="Close" CancelLabel="Back to the form">
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddToDraftAsync" Disabled="_drafting" data-action="add-to-draft">Add to draft</MudButton>
-                    </DrawerActions>
-                }
-                else
-                {
-                    <DrawerActions PrimaryLabel="Back to the form" PrimaryAction="back" OnPrimary="Close" />
-                }
+                <DrawerActions PrimaryLabel="Back to the form" PrimaryAction="back" OnPrimary="Close" />
                 break;
         }
     </Footer>
@@ -277,7 +271,8 @@
 
     private async Task ShowAsync(ConfigCommandResult result, ConfigCommand command, bool tellForm = true)
     {
-        _groups = ChangeView.Build(_before, _after, result.Changes);
+        // A refused command carries no change list; what it would change is still what the person is looking at.
+        _groups = ChangeView.Build(_before, _after, result.Changes.Count == 0 && result.Status == ConfigCommandStatus.Invalid ? ConfigDiff.Compare(_before, _after) : result.Changes);
         var objectCommand = command is not (ReplaceConfigCommand or RollbackConfigCommand);
         _errors =
         [
