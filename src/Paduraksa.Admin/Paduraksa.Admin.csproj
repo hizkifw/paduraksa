@@ -17,6 +17,10 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The generated API description (OpenApiDocumentCache); OpenApiSnapshotTests keeps it equal to a fresh generation. -->
+    <EmbeddedResource Include="OpenApi/openapi.v1.json" LogicalName="Paduraksa.Admin.OpenApi.openapi.v1.json" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Integration" />
   </ItemGroup>

@@ -388,7 +388,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
         var text = await response.Content.ReadAsStringAsync(Ct);
         Assert.True(response.IsSuccessStatusCode, text);
         using var again = await api.GetAsync("/api/v1/openapi.json", caller: null);
-        Assert.Equal(text, await again.Content.ReadAsStringAsync(Ct)); // cached: byte for byte the same, example IDs included
+        Assert.Equal(text, await again.Content.ReadAsStringAsync(Ct)); // byte for byte the same every time
         var document = JsonNode.Parse(text)!.AsObject();
 
         Assert.StartsWith("3.1", document["openapi"]!.GetValue<string>(), StringComparison.Ordinal);

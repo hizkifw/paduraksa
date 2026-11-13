@@ -18,8 +18,8 @@ using Scalar.AspNetCore;
 namespace Paduraksa.Admin.OpenApi;
 
 /// <summary>
-/// The API description: an OpenAPI 3.1 document of every <c>/api/v1</c> endpoint, generated from the endpoints themselves and cached after the
-/// first request (the set of endpoints is fixed once the app runs), and the Scalar reference UI over it. The document and the UI describe the API,
+/// The API description: an OpenAPI 3.1 document of every <c>/api/v1</c> endpoint, generated from the endpoints themselves and served from a copy
+/// shipped in the assembly (generating it costs seconds of CPU and gigabytes of allocation; see <see cref="OpenApiDocumentCache"/>), and the Scalar reference UI over it. The document and the UI describe the API,
 /// not data, so both are anonymous (the UI's try-it requests carry the browser's own session or the token the reader pastes in). Nothing is loaded
 /// from the internet: Scalar's script is embedded in its package and served from the admin app, the fonts are the browser's, and telemetry, the AI
 /// agent and the MCP hook are off.
@@ -31,13 +31,16 @@ internal static class AdminOpenApi
     public const string DocsPath = "/api/docs";
     public const string BearerScheme = "bearer";
 
+    /// <summary>The generated document, embedded from <c>OpenApi/openapi.v1.json</c>; a test keeps it equal to a fresh generation.</summary>
+    public const string ShippedDocumentResource = "Paduraksa.Admin.OpenApi.openapi.v1.json";
+
     /// <summary>The extension member naming the permission an operation requires.</summary>
     public const string PermissionExtension = "x-required-permission";
 
     public static void AddServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.AddSingleton<OpenApiDocumentCache>();
+        services.AddSingleton(static provider => new OpenApiDocumentCache(provider, ShippedDocument()));
         services.AddOpenApi(DocumentName, options =>
         {
             options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1;
@@ -66,6 +69,20 @@ internal static class AdminOpenApi
                 .DisableAgent()
                 .DisableMcp())
             .AllowAnonymousAdmin();
+    }
+
+    /// <summary>The embedded document, or null in a build that has none (the cache then generates it).</summary>
+    internal static byte[]? ShippedDocument()
+    {
+        using var stream = typeof(AdminOpenApi).Assembly.GetManifestResourceStream(ShippedDocumentResource);
+        if (stream is null)
+        {
+            return null;
+        }
+
+        var document = new byte[stream.Length];
+        stream.ReadExactly(document);
+        return document;
     }
 
     private static Task DescribeDocument(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
@@ -267,17 +284,28 @@ internal static class AdminOpenApi
 }
 
 /// <summary>
-/// The generated document, serialized once: the endpoints don't change while the app runs, and generating it walks every schema. A
-/// generation that fails is not kept: the next request starts it again, so one transient failure doesn't leave the description
-/// unavailable for the life of the process.
+/// The API description's bytes. Generating the document from the endpoints is slow and heavy: ASP.NET's generator rebuilds and re-walks the full
+/// schema of every request and response type for every operation (the config changes each return the whole plan, so most operations are thousands of
+/// nodes), about 3 s of CPU warm and 6 to 9 s on a cold process, with some 2.7 GB of allocation that stalls the proxy that shares the process. Nothing
+/// about it varies at run time, so a build ships the result (<c>OpenApi/openapi.v1.json</c>, embedded) and this serves it; a test fails when it no longer
+/// equals a fresh generation. Without a shipped copy the document is generated on the first request and kept; a generation that fails is not kept: the
+/// next request starts it again, so one transient failure doesn't leave the description unavailable for the life of the process.
 /// </summary>
-internal sealed class OpenApiDocumentCache(IServiceProvider services)
+internal sealed class OpenApiDocumentCache(IServiceProvider services, byte[]? shipped = null)
 {
     private readonly Lock _gate = new();
     private Lazy<Task<byte[]>>? _document;
 
+    /// <summary>Whether the bytes come from the shipped copy, so no request ever generates the document.</summary>
+    public bool ServesShippedDocument => shipped is not null;
+
     public Task<byte[]> GetAsync(CancellationToken cancellationToken)
     {
+        if (shipped is not null)
+        {
+            return Task.FromResult(shipped);
+        }
+
         Lazy<Task<byte[]>> document;
         lock (_gate)
         {
@@ -292,7 +320,8 @@ internal sealed class OpenApiDocumentCache(IServiceProvider services)
         return document.Value.WaitAsync(cancellationToken);
     }
 
-    private static async Task<byte[]> GenerateAsync(IServiceProvider services)
+    /// <summary>Generates the document from the endpoints, the way the shipped copy was made.</summary>
+    internal static async Task<byte[]> GenerateAsync(IServiceProvider services)
     {
         var provider = services.GetRequiredKeyedService<IOpenApiDocumentProvider>(AdminOpenApi.DocumentName);
         var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None).ConfigureAwait(false);

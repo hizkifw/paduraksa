@@ -6,7 +6,7 @@ using Paduraksa.Admin.OpenApi;
 
 namespace Paduraksa.Tests.Unit.Admin;
 
-/// <summary>The generated OpenAPI document is cached, but a failed generation must not be cached for the life of the process.</summary>
+/// <summary>A shipped document is served as it is; a generated one is cached, but a failed generation must not be cached for the life of the process.</summary>
 public sealed class OpenApiDocumentCacheTests
 {
     public static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -40,6 +40,20 @@ public sealed class OpenApiDocumentCacheTests
 
         Assert.Equal(1, provider.Calls);
         Assert.All(documents, document => Assert.Equal(documents[0], document));
+    }
+
+    [Fact]
+    public async Task AShippedDocumentIsServedWithoutGeneratingAnything()
+    {
+        FlakyProvider provider = new(failures: 0);
+        using var services = Services(provider);
+        byte[] shipped = [1, 2, 3];
+        OpenApiDocumentCache cache = new(services, shipped);
+
+        Assert.True(cache.ServesShippedDocument);
+        Assert.Same(shipped, await cache.GetAsync(Ct));
+        Assert.Same(shipped, await cache.GetAsync(Ct));
+        Assert.Equal(0, provider.Calls);
     }
 
     private static ServiceProvider Services(IOpenApiDocumentProvider provider) =>
