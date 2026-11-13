@@ -1,0 +1,1777 @@
+{
+  "date": "2026-11-13T05:47:39Z",
+  "commit": "98ccf7652ed066f425c945c3d5cabcc5405c9a1e",
+  "dirty": false,
+  "machine": {
+    "cpu": "13th Gen Intel(R) Core(TM) i5-13600K",
+    "logical_cpus": 20
+  },
+  "cpu_sets": {
+    "proxy": "0-3",
+    "upstream": "12-19",
+    "load": "4-11"
+  },
+  "results": [
+    {
+      "proxy": "paduraksa",
+      "scenario": "h1",
+      "rate": null,
+      "rps": 171032.5023,
+      "statuses": {
+        "200": 1710895
+      },
+      "p50_ms": 0.3587,
+      "p99_ms": 0.795,
+      "p999_ms": 1.7955,
+      "cpu_us_per_req": 19.6038,
+      "busy_cpus": 3.3529,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "h1-tls",
+      "rate": null,
+      "rps": 137827.0397,
+      "statuses": {
+        "200": 1378554
+      },
+      "p50_ms": 0.4455,
+      "p99_ms": 0.9465,
+      "p999_ms": 2.2539,
+      "cpu_us_per_req": 24.4387,
+      "busy_cpus": 3.3683,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "h2-tls",
+      "rate": null,
+      "rps": 150429.8894,
+      "statuses": {
+        "200": 1504577
+      },
+      "p50_ms": 0.4052,
+      "p99_ms": 1.0253,
+      "p999_ms": 1.521,
+      "cpu_us_per_req": 23.7741,
+      "busy_cpus": 3.5763,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "browser",
+      "rate": null,
+      "rps": 124758.5929,
+      "statuses": {
+        "200": 1247805
+      },
+      "p50_ms": 0.486,
+      "p99_ms": 1.1724,
+      "p999_ms": 1.8433,
+      "cpu_us_per_req": 29.0831,
+      "busy_cpus": 3.6284,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "body-64k",
+      "rate": null,
+      "rps": 74281.3627,
+      "statuses": {
+        "200": 742952
+      },
+      "p50_ms": 0.8425,
+      "p99_ms": 1.5899,
+      "p999_ms": 2.5739,
+      "cpu_us_per_req": 46.5979,
+      "busy_cpus": 3.4614,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "upload-64k",
+      "rate": null,
+      "rps": 65420.5402,
+      "statuses": {
+        "200": 654294
+      },
+      "p50_ms": 0.9607,
+      "p99_ms": 1.5918,
+      "p999_ms": 2.704,
+      "cpu_us_per_req": 52.6522,
+      "busy_cpus": 3.4445,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "handshake",
+      "rate": null,
+      "rps": 10038.3273,
+      "statuses": {
+        "200": 100395
+      },
+      "p50_ms": 1.5446,
+      "p99_ms": 2.7428,
+      "p999_ms": 4.1081,
+      "cpu_us_per_req": 369.9387,
+      "busy_cpus": 3.7136,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "websocket",
+      "rate": null,
+      "rps": 251423.2456,
+      "statuses": {
+        "101": 64
+      },
+      "p50_ms": 0.2293,
+      "p99_ms": 0.6496,
+      "p999_ms": 1.386,
+      "cpu_us_per_req": 11.3273,
+      "busy_cpus": 2.8479,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "answered",
+      "rate": null,
+      "rps": 385589.6761,
+      "statuses": {
+        "200": 3856870
+      },
+      "p50_ms": 0.155,
+      "p99_ms": 0.6905,
+      "p999_ms": 2.2009,
+      "cpu_us_per_req": 7.6617,
+      "busy_cpus": 2.9543,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "access-log",
+      "rate": null,
+      "rps": 147562.3157,
+      "statuses": {
+        "200": 1475925
+      },
+      "p50_ms": 0.3801,
+      "p99_ms": 1.3009,
+      "p999_ms": 2.3638,
+      "cpu_us_per_req": 22.989,
+      "busy_cpus": 3.3923,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "rate-limit",
+      "rate": null,
+      "rps": 169585.3702,
+      "statuses": {
+        "200": 1696209
+      },
+      "p50_ms": 0.3622,
+      "p99_ms": 0.8305,
+      "p999_ms": 1.8522,
+      "cpu_us_per_req": 19.6615,
+      "busy_cpus": 3.3343,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "rate-limited",
+      "rate": null,
+      "rps": 395166.6691,
+      "statuses": {
+        "429": 3952585
+      },
+      "p50_ms": 0.1506,
+      "p99_ms": 0.6809,
+      "p999_ms": 2.1669,
+      "cpu_us_per_req": 7.9593,
+      "busy_cpus": 3.1453,
+      "errors": 3952585
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "browser-check",
+      "rate": null,
+      "rps": 151395.7647,
+      "statuses": {
+        "200": 1514380
+      },
+      "p50_ms": 0.4026,
+      "p99_ms": 0.9409,
+      "p999_ms": 2.5027,
+      "cpu_us_per_req": 22.6033,
+      "busy_cpus": 3.422,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "error-page",
+      "rate": null,
+      "rps": 19461.9105,
+      "statuses": {
+        "502": 194668
+      },
+      "p50_ms": 3.1153,
+      "p99_ms": 7.5094,
+      "p999_ms": 10.7974,
+      "cpu_us_per_req": 196.4884,
+      "busy_cpus": 3.824,
+      "errors": 194668
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "cf",
+      "rate": null,
+      "rps": 154484.6907,
+      "statuses": {
+        "200": 1545270
+      },
+      "p50_ms": 0.3892,
+      "p99_ms": 0.947,
+      "p999_ms": 2.5241,
+      "cpu_us_per_req": 21.7761,
+      "busy_cpus": 3.3641,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "h1",
+      "rate": null,
+      "rps": 324905.076,
+      "statuses": {
+        "200": 3249765
+      },
+      "p50_ms": 0.1825,
+      "p99_ms": 0.2903,
+      "p999_ms": 0.3107,
+      "cpu_us_per_req": 9.5572,
+      "busy_cpus": 3.1052,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "h1-tls",
+      "rate": null,
+      "rps": 305332.9152,
+      "statuses": {
+        "200": 3053935
+      },
+      "p50_ms": 0.2439,
+      "p99_ms": 0.2957,
+      "p999_ms": 0.3273,
+      "cpu_us_per_req": 10.2813,
+      "busy_cpus": 3.1392,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "h2-tls",
+      "rate": null,
+      "rps": 248390.3254,
+      "statuses": {
+        "200": 2484565
+      },
+      "p50_ms": 0.2512,
+      "p99_ms": 0.3719,
+      "p999_ms": 0.396,
+      "cpu_us_per_req": 13.1441,
+      "busy_cpus": 3.2649,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "browser",
+      "rate": null,
+      "rps": 225461.6676,
+      "statuses": {
+        "200": 2255254
+      },
+      "p50_ms": 0.2779,
+      "p99_ms": 0.4108,
+      "p999_ms": 0.4414,
+      "cpu_us_per_req": 14.775,
+      "busy_cpus": 3.3312,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "body-64k",
+      "rate": null,
+      "rps": 76140.6334,
+      "statuses": {
+        "200": 761539
+      },
+      "p50_ms": 0.8598,
+      "p99_ms": 1.0783,
+      "p999_ms": 1.5284,
+      "cpu_us_per_req": 41.1896,
+      "busy_cpus": 3.1362,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "upload-64k",
+      "rate": null,
+      "rps": 125243.8021,
+      "statuses": {
+        "200": 1252854
+      },
+      "p50_ms": 0.5055,
+      "p99_ms": 0.7686,
+      "p999_ms": 0.8947,
+      "cpu_us_per_req": 26.3125,
+      "busy_cpus": 3.2955,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "handshake",
+      "rate": null,
+      "rps": 9337.8703,
+      "statuses": {
+        "200": 93394
+      },
+      "p50_ms": 1.6122,
+      "p99_ms": 4.0155,
+      "p999_ms": 4.9684,
+      "cpu_us_per_req": 364.1786,
+      "busy_cpus": 3.4007,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "websocket",
+      "rate": null,
+      "rps": 497326.6308,
+      "statuses": {
+        "101": 64
+      },
+      "p50_ms": 0.1171,
+      "p99_ms": 0.4216,
+      "p999_ms": 1.4009,
+      "cpu_us_per_req": 4.1454,
+      "busy_cpus": 2.0616,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "answered",
+      "rate": null,
+      "rps": 481730.5732,
+      "statuses": {
+        "200": 4818268
+      },
+      "p50_ms": 0.1371,
+      "p99_ms": 0.1849,
+      "p999_ms": 0.2182,
+      "cpu_us_per_req": 6.9473,
+      "busy_cpus": 3.3467,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "access-log",
+      "rate": null,
+      "rps": 310624.7699,
+      "statuses": {
+        "200": 3107015
+      },
+      "p50_ms": 0.1996,
+      "p99_ms": 0.2672,
+      "p999_ms": 0.2864,
+      "cpu_us_per_req": 10.139,
+      "busy_cpus": 3.1494,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "rate-limit",
+      "rate": null,
+      "rps": 315447.3485,
+      "statuses": {
+        "200": 3155261
+      },
+      "p50_ms": 0.2003,
+      "p99_ms": 0.2501,
+      "p999_ms": 0.574,
+      "cpu_us_per_req": 9.9326,
+      "busy_cpus": 3.1332,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "rate-limited",
+      "rate": null,
+      "rps": 477211.4581,
+      "statuses": {
+        "429": 4772828
+      },
+      "p50_ms": 0.1373,
+      "p99_ms": 0.1667,
+      "p999_ms": 0.2031,
+      "cpu_us_per_req": 7.0197,
+      "busy_cpus": 3.3499,
+      "errors": 4772828
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "error-page",
+      "rate": null,
+      "rps": 219576.5155,
+      "statuses": {
+        "502": 2196251
+      },
+      "p50_ms": 0.2772,
+      "p99_ms": 0.4223,
+      "p999_ms": 0.4893,
+      "cpu_us_per_req": 14.0144,
+      "busy_cpus": 3.0772,
+      "errors": 2196251
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "cf",
+      "rate": null,
+      "rps": 301282.6837,
+      "statuses": {
+        "200": 3013198
+      },
+      "p50_ms": 0.1982,
+      "p99_ms": 0.2978,
+      "p999_ms": 0.3399,
+      "cpu_us_per_req": 10.5317,
+      "busy_cpus": 3.173,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "h1",
+      "rate": null,
+      "rps": 61647.7938,
+      "statuses": {
+        "200": 616584
+      },
+      "p50_ms": 0.7932,
+      "p99_ms": 3.5246,
+      "p999_ms": 4.474,
+      "cpu_us_per_req": 60.6325,
+      "busy_cpus": 3.7379,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "h1-tls",
+      "rate": null,
+      "rps": 69573.9521,
+      "statuses": {
+        "200": 695839
+      },
+      "p50_ms": 0.7014,
+      "p99_ms": 3.2713,
+      "p999_ms": 4.1781,
+      "cpu_us_per_req": 53.2822,
+      "busy_cpus": 3.7071,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "h2-tls",
+      "rate": null,
+      "rps": 45954.6557,
+      "statuses": {
+        "200": 459695
+      },
+      "p50_ms": 1.2064,
+      "p99_ms": 3.8973,
+      "p999_ms": 4.9616,
+      "cpu_us_per_req": 80.873,
+      "busy_cpus": 3.7165,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "browser",
+      "rate": null,
+      "rps": 37441.3802,
+      "statuses": {
+        "200": 374769
+      },
+      "p50_ms": 1.4673,
+      "p99_ms": 4.701,
+      "p999_ms": 5.927,
+      "cpu_us_per_req": 99.6287,
+      "busy_cpus": 3.7302,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "body-64k",
+      "rate": null,
+      "rps": 46062.1152,
+      "statuses": {
+        "200": 460674
+      },
+      "p50_ms": 1.0002,
+      "p99_ms": 5.3463,
+      "p999_ms": 6.8207,
+      "cpu_us_per_req": 77.4184,
+      "busy_cpus": 3.5661,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "upload-64k",
+      "rate": null,
+      "rps": 34520.7075,
+      "statuses": {
+        "200": 345247
+      },
+      "p50_ms": 1.4764,
+      "p99_ms": 5.4529,
+      "p999_ms": 8.0545,
+      "cpu_us_per_req": 105.85,
+      "busy_cpus": 3.654,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "handshake",
+      "rate": null,
+      "rps": 11186.9045,
+      "statuses": {
+        "200": 111876
+      },
+      "p50_ms": 1.308,
+      "p99_ms": 3.7439,
+      "p999_ms": 4.6965,
+      "cpu_us_per_req": 338.2402,
+      "busy_cpus": 3.7839,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "websocket",
+      "rate": null,
+      "rps": 407942.7261,
+      "statuses": {
+        "101": 64
+      },
+      "p50_ms": 0.1443,
+      "p99_ms": 0.3673,
+      "p999_ms": 1.1471,
+      "cpu_us_per_req": 5.6001,
+      "busy_cpus": 2.2845,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "answered",
+      "rate": null,
+      "rps": 145141.5698,
+      "statuses": {
+        "200": 1451625
+      },
+      "p50_ms": 0.292,
+      "p99_ms": 2.404,
+      "p999_ms": 3.4408,
+      "cpu_us_per_req": 25.5797,
+      "busy_cpus": 3.7127,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "access-log",
+      "rate": null,
+      "rps": 55964.0781,
+      "statuses": {
+        "200": 559740
+      },
+      "p50_ms": 0.8667,
+      "p99_ms": 4.0876,
+      "p999_ms": 8.7462,
+      "cpu_us_per_req": 66.8114,
+      "busy_cpus": 3.739,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "error-page",
+      "rate": null,
+      "rps": 37877.2001,
+      "statuses": {
+        "502": 378823
+      },
+      "p50_ms": 1.3381,
+      "p99_ms": 5.6182,
+      "p999_ms": 7.2817,
+      "cpu_us_per_req": 98.0343,
+      "busy_cpus": 3.7133,
+      "errors": 378823
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "cf",
+      "rate": null,
+      "rps": 51647.8625,
+      "statuses": {
+        "200": 516560
+      },
+      "p50_ms": 0.9858,
+      "p99_ms": 3.7118,
+      "p999_ms": 4.6116,
+      "cpu_us_per_req": 72.9322,
+      "busy_cpus": 3.7668,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "h1",
+      "rate": null,
+      "rps": 255487.9651,
+      "statuses": {
+        "200": 2555720
+      },
+      "p50_ms": 0.2384,
+      "p99_ms": 0.3577,
+      "p999_ms": 0.3699,
+      "cpu_us_per_req": 12.85,
+      "busy_cpus": 3.283,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "h1-tls",
+      "rate": null,
+      "rps": 166132.1721,
+      "statuses": {
+        "200": 1661727
+      },
+      "p50_ms": 0.3813,
+      "p99_ms": 0.4931,
+      "p999_ms": 0.5417,
+      "cpu_us_per_req": 19.5678,
+      "busy_cpus": 3.2508,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "h2-tls",
+      "rate": null,
+      "rps": 179728.7745,
+      "statuses": {
+        "200": 1797794
+      },
+      "p50_ms": 0.3523,
+      "p99_ms": 0.4713,
+      "p999_ms": 0.5312,
+      "cpu_us_per_req": 18.2061,
+      "busy_cpus": 3.2722,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "browser",
+      "rate": null,
+      "rps": 164361.1047,
+      "statuses": {
+        "200": 1644120
+      },
+      "p50_ms": 0.3823,
+      "p99_ms": 0.5219,
+      "p999_ms": 0.578,
+      "cpu_us_per_req": 20.3999,
+      "busy_cpus": 3.353,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "body-64k",
+      "rate": null,
+      "rps": 104255.4289,
+      "statuses": {
+        "200": 1042773
+      },
+      "p50_ms": 0.6097,
+      "p99_ms": 0.6873,
+      "p999_ms": 0.76,
+      "cpu_us_per_req": 32.6839,
+      "busy_cpus": 3.4075,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "upload-64k",
+      "rate": null,
+      "rps": 89700.0426,
+      "statuses": {
+        "200": 897123
+      },
+      "p50_ms": 0.7113,
+      "p99_ms": 0.8331,
+      "p999_ms": 3.0695,
+      "cpu_us_per_req": 35.4994,
+      "busy_cpus": 3.1843,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "handshake",
+      "rate": null,
+      "rps": 7951.6429,
+      "statuses": {
+        "200": 79523
+      },
+      "p50_ms": 2.0047,
+      "p99_ms": 2.5943,
+      "p999_ms": 2.915,
+      "cpu_us_per_req": 477.4229,
+      "busy_cpus": 3.7963,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "websocket",
+      "rate": null,
+      "rps": 420016.3196,
+      "statuses": {
+        "101": 64
+      },
+      "p50_ms": 0.1473,
+      "p99_ms": 0.2553,
+      "p999_ms": 0.92,
+      "cpu_us_per_req": 5.8458,
+      "busy_cpus": 2.4553,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "answered",
+      "rate": null,
+      "rps": 561275.329,
+      "statuses": {
+        "200": 5613634
+      },
+      "p50_ms": 0.1053,
+      "p99_ms": 0.2163,
+      "p999_ms": 0.2225,
+      "cpu_us_per_req": 5.8007,
+      "busy_cpus": 3.2558,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "access-log",
+      "rate": null,
+      "rps": 201716.4658,
+      "statuses": {
+        "200": 2017639
+      },
+      "p50_ms": 0.3121,
+      "p99_ms": 0.4321,
+      "p999_ms": 0.4787,
+      "cpu_us_per_req": 15.9281,
+      "busy_cpus": 3.213,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "rate-limit",
+      "rate": null,
+      "rps": 243534.2404,
+      "statuses": {
+        "200": 2435880
+      },
+      "p50_ms": 0.2501,
+      "p99_ms": 0.3787,
+      "p999_ms": 0.4021,
+      "cpu_us_per_req": 13.554,
+      "busy_cpus": 3.3009,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "rate-limited",
+      "rate": null,
+      "rps": 458879.2045,
+      "statuses": {
+        "429": 4589868
+      },
+      "p50_ms": 0.1302,
+      "p99_ms": 0.2791,
+      "p999_ms": 0.2879,
+      "cpu_us_per_req": 7.3578,
+      "busy_cpus": 3.3764,
+      "errors": 4589868
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "error-page",
+      "rate": null,
+      "rps": 195156.1661,
+      "statuses": {
+        "502": 1951966
+      },
+      "p50_ms": 0.3269,
+      "p99_ms": 0.3924,
+      "p999_ms": 0.4376,
+      "cpu_us_per_req": 16.3472,
+      "busy_cpus": 3.1903,
+      "errors": 1951966
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "cf",
+      "rate": null,
+      "rps": 233104.8707,
+      "statuses": {
+        "200": 2331455
+      },
+      "p50_ms": 0.2612,
+      "p99_ms": 0.396,
+      "p999_ms": 0.4114,
+      "cpu_us_per_req": 14.2882,
+      "busy_cpus": 3.3307,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "h1",
+      "rate": null,
+      "rps": 106967.5857,
+      "statuses": {
+        "200": 1069949
+      },
+      "p50_ms": 0.4941,
+      "p99_ms": 2.8633,
+      "p999_ms": 4.1084,
+      "cpu_us_per_req": 33.873,
+      "busy_cpus": 3.6233,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "h1-tls",
+      "rate": null,
+      "rps": 102010.6054,
+      "statuses": {
+        "200": 1020247
+      },
+      "p50_ms": 0.5099,
+      "p99_ms": 3.025,
+      "p999_ms": 4.3708,
+      "cpu_us_per_req": 35.3672,
+      "busy_cpus": 3.6078,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "h2-tls",
+      "rate": null,
+      "rps": 62889.3792,
+      "statuses": {
+        "200": 629074
+      },
+      "p50_ms": 0.8959,
+      "p99_ms": 3.5418,
+      "p999_ms": 4.7566,
+      "cpu_us_per_req": 58.4559,
+      "busy_cpus": 3.6763,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "browser",
+      "rate": null,
+      "rps": 53685.9242,
+      "statuses": {
+        "200": 536996
+      },
+      "p50_ms": 1.0354,
+      "p99_ms": 4.0846,
+      "p999_ms": 5.3599,
+      "cpu_us_per_req": 68.769,
+      "busy_cpus": 3.6919,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "body-64k",
+      "rate": null,
+      "rps": 61015.29,
+      "statuses": {
+        "200": 610240
+      },
+      "p50_ms": 0.8996,
+      "p99_ms": 3.9447,
+      "p999_ms": 5.9379,
+      "cpu_us_per_req": 55.9096,
+      "busy_cpus": 3.4113,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "upload-64k",
+      "rate": null,
+      "rps": 50565.1629,
+      "statuses": {
+        "200": 505728
+      },
+      "p50_ms": 0.9616,
+      "p99_ms": 4.9931,
+      "p999_ms": 6.4151,
+      "cpu_us_per_req": 70.4055,
+      "busy_cpus": 3.5601,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "handshake",
+      "rate": null,
+      "rps": 11657.5441,
+      "statuses": {
+        "200": 116580
+      },
+      "p50_ms": 1.2501,
+      "p99_ms": 3.8869,
+      "p999_ms": 5.366,
+      "cpu_us_per_req": 326.3392,
+      "busy_cpus": 3.8043,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "websocket",
+      "rate": null,
+      "rps": 417734.066,
+      "statuses": {
+        "101": 64
+      },
+      "p50_ms": 0.1415,
+      "p99_ms": 0.3578,
+      "p999_ms": 0.9973,
+      "cpu_us_per_req": 5.5866,
+      "busy_cpus": 2.3337,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "access-log",
+      "rate": null,
+      "rps": 68585.4043,
+      "statuses": {
+        "200": 686043
+      },
+      "p50_ms": 0.6473,
+      "p99_ms": 4.7828,
+      "p999_ms": 7.0518,
+      "cpu_us_per_req": 54.3435,
+      "busy_cpus": 3.7272,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "rate-limit",
+      "rate": null,
+      "rps": 98064.6488,
+      "statuses": {
+        "200": 980839
+      },
+      "p50_ms": 0.5277,
+      "p99_ms": 3.1506,
+      "p999_ms": 4.469,
+      "cpu_us_per_req": 37.0441,
+      "busy_cpus": 3.6327,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "rate-limited",
+      "rate": null,
+      "rps": 242306.6657,
+      "statuses": {
+        "429": 2423799
+      },
+      "p50_ms": 0.1904,
+      "p99_ms": 1.336,
+      "p999_ms": 3.7949,
+      "cpu_us_per_req": 14.8083,
+      "busy_cpus": 3.5881,
+      "errors": 2423799
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "error-page",
+      "rate": null,
+      "rps": 52807.6885,
+      "statuses": {
+        "502": 528172
+      },
+      "p50_ms": 1.0199,
+      "p99_ms": 4.4797,
+      "p999_ms": 6.1004,
+      "cpu_us_per_req": 67.838,
+      "busy_cpus": 3.5824,
+      "errors": 528172
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "h1",
+      "rate": null,
+      "rps": 110446.1049,
+      "statuses": {
+        "200": 1104585
+      },
+      "p50_ms": 0.5624,
+      "p99_ms": 0.8457,
+      "p999_ms": 0.8742,
+      "cpu_us_per_req": 33.2031,
+      "busy_cpus": 3.6672,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "h1-tls",
+      "rate": null,
+      "rps": 101847.7795,
+      "statuses": {
+        "200": 1018650
+      },
+      "p50_ms": 0.5876,
+      "p99_ms": 1.1558,
+      "p999_ms": 1.1964,
+      "cpu_us_per_req": 36.1298,
+      "busy_cpus": 3.6797,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "h2-tls",
+      "rate": null,
+      "rps": 113240.4043,
+      "statuses": {
+        "200": 1132687
+      },
+      "p50_ms": 0.5265,
+      "p99_ms": 1.2938,
+      "p999_ms": 1.3888,
+      "cpu_us_per_req": 32.6066,
+      "busy_cpus": 3.6924,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "browser",
+      "rate": null,
+      "rps": 98832.385,
+      "statuses": {
+        "200": 988595
+      },
+      "p50_ms": 0.3126,
+      "p99_ms": 1.9704,
+      "p999_ms": 2.0949,
+      "cpu_us_per_req": 36.8689,
+      "busy_cpus": 3.6438,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "body-64k",
+      "rate": null,
+      "rps": 70858.4138,
+      "statuses": {
+        "200": 708690
+      },
+      "p50_ms": 0.8594,
+      "p99_ms": 1.2066,
+      "p999_ms": 1.3161,
+      "cpu_us_per_req": 50.813,
+      "busy_cpus": 3.6005,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "upload-64k",
+      "rate": null,
+      "rps": 69140.7058,
+      "statuses": {
+        "200": 691560
+      },
+      "p50_ms": 0.8917,
+      "p99_ms": 1.3112,
+      "p999_ms": 1.3677,
+      "cpu_us_per_req": 51.4228,
+      "busy_cpus": 3.5554,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "handshake",
+      "rate": null,
+      "rps": 14026.0442,
+      "statuses": {
+        "200": 140289
+      },
+      "p50_ms": 1.0012,
+      "p99_ms": 2.7127,
+      "p999_ms": 3.052,
+      "cpu_us_per_req": 223.8339,
+      "busy_cpus": 3.1395,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "websocket",
+      "rate": null,
+      "rps": 334344.8618,
+      "statuses": {
+        "101": 64
+      },
+      "p50_ms": 0.1717,
+      "p99_ms": 0.3842,
+      "p999_ms": 0.9133,
+      "cpu_us_per_req": 7.8954,
+      "busy_cpus": 2.6398,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "answered",
+      "rate": null,
+      "rps": 261202.0923,
+      "statuses": {
+        "200": 2612546
+      },
+      "p50_ms": 0.2719,
+      "p99_ms": 0.3902,
+      "p999_ms": 0.4311,
+      "cpu_us_per_req": 13.9124,
+      "busy_cpus": 3.634,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "access-log",
+      "rate": null,
+      "rps": 108429.0439,
+      "statuses": {
+        "200": 1084632
+      },
+      "p50_ms": 0.5907,
+      "p99_ms": 0.8042,
+      "p999_ms": 0.8602,
+      "cpu_us_per_req": 33.8261,
+      "busy_cpus": 3.6677,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "rate-limit",
+      "rate": null,
+      "rps": 111306.3945,
+      "statuses": {
+        "200": 1113211
+      },
+      "p50_ms": 0.5481,
+      "p99_ms": 0.8976,
+      "p999_ms": 0.9347,
+      "cpu_us_per_req": 32.8848,
+      "busy_cpus": 3.6603,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "rate-limited",
+      "rate": null,
+      "rps": 262521.1938,
+      "statuses": {
+        "429": 2625844
+      },
+      "p50_ms": 0.2482,
+      "p99_ms": 0.3535,
+      "p999_ms": 0.4326,
+      "cpu_us_per_req": 13.8283,
+      "busy_cpus": 3.6302,
+      "errors": 2625844
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "error-page",
+      "rate": null,
+      "rps": 88742.9073,
+      "statuses": {
+        "502": 887575
+      },
+      "p50_ms": 0.6959,
+      "p99_ms": 0.98,
+      "p999_ms": 1.0135,
+      "cpu_us_per_req": 40.6888,
+      "busy_cpus": 3.6108,
+      "errors": 887575
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "cf",
+      "rate": null,
+      "rps": 101684.3862,
+      "statuses": {
+        "200": 1017066
+      },
+      "p50_ms": 0.6035,
+      "p99_ms": 0.8827,
+      "p999_ms": 0.9242,
+      "cpu_us_per_req": 36.2383,
+      "busy_cpus": 3.6849,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "h1",
+      "rate": null,
+      "rps": 172722.0189,
+      "statuses": {
+        "200": 1727505
+      },
+      "p50_ms": 0.3518,
+      "p99_ms": 0.7892,
+      "p999_ms": 2.2134,
+      "cpu_us_per_req": 19.0217,
+      "busy_cpus": 3.2855,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "h1-tls",
+      "rate": null,
+      "rps": 140469.7254,
+      "statuses": {
+        "200": 1405035
+      },
+      "p50_ms": 0.4331,
+      "p99_ms": 0.9821,
+      "p999_ms": 2.0554,
+      "cpu_us_per_req": 23.9353,
+      "busy_cpus": 3.3622,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "h2-tls",
+      "rate": null,
+      "rps": 157999.6926,
+      "statuses": {
+        "200": 1580489
+      },
+      "p50_ms": 0.3828,
+      "p99_ms": 1.0397,
+      "p999_ms": 1.6596,
+      "cpu_us_per_req": 22.2779,
+      "busy_cpus": 3.5199,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "browser",
+      "rate": null,
+      "rps": 130361.9011,
+      "statuses": {
+        "200": 1303931
+      },
+      "p50_ms": 0.4628,
+      "p99_ms": 1.1475,
+      "p999_ms": 1.8353,
+      "cpu_us_per_req": 27.2254,
+      "busy_cpus": 3.5492,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "body-64k",
+      "rate": null,
+      "rps": 75068.8221,
+      "statuses": {
+        "200": 750805
+      },
+      "p50_ms": 0.8341,
+      "p99_ms": 1.5692,
+      "p999_ms": 2.597,
+      "cpu_us_per_req": 46.2437,
+      "busy_cpus": 3.4715,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "upload-64k",
+      "rate": null,
+      "rps": 66169.6926,
+      "statuses": {
+        "200": 661851
+      },
+      "p50_ms": 0.9452,
+      "p99_ms": 1.6246,
+      "p999_ms": 2.9489,
+      "cpu_us_per_req": 51.1898,
+      "busy_cpus": 3.3872,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "handshake",
+      "rate": null,
+      "rps": 10154.5536,
+      "statuses": {
+        "200": 101562
+      },
+      "p50_ms": 1.524,
+      "p99_ms": 2.7984,
+      "p999_ms": 3.9728,
+      "cpu_us_per_req": 369.1341,
+      "busy_cpus": 3.7484,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "websocket",
+      "rate": null,
+      "rps": 261923.6226,
+      "statuses": {
+        "101": 64
+      },
+      "p50_ms": 0.2217,
+      "p99_ms": 0.4935,
+      "p999_ms": 1.2317,
+      "cpu_us_per_req": 11.3199,
+      "busy_cpus": 2.965,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "answered",
+      "rate": null,
+      "rps": 387152.6534,
+      "statuses": {
+        "200": 3872712
+      },
+      "p50_ms": 0.1543,
+      "p99_ms": 0.4601,
+      "p999_ms": 2.3666,
+      "cpu_us_per_req": 7.5193,
+      "busy_cpus": 2.9111,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "access-log",
+      "rate": null,
+      "rps": 148573.7719,
+      "statuses": {
+        "200": 1485950
+      },
+      "p50_ms": 0.4046,
+      "p99_ms": 0.9175,
+      "p999_ms": 1.9385,
+      "cpu_us_per_req": 22.5714,
+      "busy_cpus": 3.3535,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "rate-limit",
+      "rate": null,
+      "rps": 167165.1643,
+      "statuses": {
+        "200": 1671932
+      },
+      "p50_ms": 0.364,
+      "p99_ms": 0.8271,
+      "p999_ms": 1.9622,
+      "cpu_us_per_req": 19.8094,
+      "busy_cpus": 3.3114,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "rate-limited",
+      "rate": null,
+      "rps": 380572.051,
+      "statuses": {
+        "429": 3806527
+      },
+      "p50_ms": 0.1597,
+      "p99_ms": 0.5589,
+      "p999_ms": 2.1565,
+      "cpu_us_per_req": 7.9469,
+      "busy_cpus": 3.0244,
+      "errors": 3806527
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "error-page",
+      "rate": null,
+      "rps": 21187.8535,
+      "statuses": {
+        "502": 211912
+      },
+      "p50_ms": 2.9247,
+      "p99_ms": 6.1466,
+      "p999_ms": 9.1694,
+      "cpu_us_per_req": 180.4051,
+      "busy_cpus": 3.8224,
+      "errors": 211912
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "cf",
+      "rate": null,
+      "rps": 155559.4514,
+      "statuses": {
+        "200": 1555943
+      },
+      "p50_ms": 0.3878,
+      "p99_ms": 0.9662,
+      "p999_ms": 2.4815,
+      "cpu_us_per_req": 21.3761,
+      "busy_cpus": 3.3253,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "h1",
+      "rate": 10000,
+      "rps": 9996.9047,
+      "p50_ms": 0.4264,
+      "p99_ms": 1.3413,
+      "p999_ms": 3.1234,
+      "cpu_us_per_req": 159.8208,
+      "busy_cpus": 1.5977,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "h1",
+      "rate": 10000,
+      "rps": 9997.7776,
+      "p50_ms": 0.3606,
+      "p99_ms": 0.8141,
+      "p999_ms": 1.173,
+      "cpu_us_per_req": 68.6233,
+      "busy_cpus": 0.6861,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "h1",
+      "rate": 10000,
+      "rps": 9998.2238,
+      "p50_ms": 0.3822,
+      "p99_ms": 5.1711,
+      "p999_ms": 9.3181,
+      "cpu_us_per_req": 162.8887,
+      "busy_cpus": 1.6286,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "h1",
+      "rate": 10000,
+      "rps": 9997.5392,
+      "p50_ms": 0.3911,
+      "p99_ms": 0.8318,
+      "p999_ms": 1.7969,
+      "cpu_us_per_req": 66.2598,
+      "busy_cpus": 0.6624,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "h1",
+      "rate": 10000,
+      "rps": 9997.6154,
+      "p50_ms": 0.4778,
+      "p99_ms": 5.1831,
+      "p999_ms": 8.1314,
+      "cpu_us_per_req": 149.8535,
+      "busy_cpus": 1.4982,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "h1",
+      "rate": 10000,
+      "rps": 9997.7468,
+      "p50_ms": 0.6932,
+      "p99_ms": 1.6369,
+      "p999_ms": 8.3128,
+      "cpu_us_per_req": 121.3644,
+      "busy_cpus": 1.2134,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "h1",
+      "rate": 10000,
+      "rps": 9997.0675,
+      "p50_ms": 0.347,
+      "p99_ms": 1.7673,
+      "p999_ms": 3.736,
+      "cpu_us_per_req": 146.0146,
+      "busy_cpus": 1.4597,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "h1",
+      "rate": 30000,
+      "rps": 29994.1194,
+      "p50_ms": 0.5101,
+      "p99_ms": 2.4755,
+      "p999_ms": 16.2764,
+      "cpu_us_per_req": 55.7352,
+      "busy_cpus": 1.6717,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "h1",
+      "rate": 30000,
+      "rps": 29995.5746,
+      "p50_ms": 0.4944,
+      "p99_ms": 1.3145,
+      "p999_ms": 3.3723,
+      "cpu_us_per_req": 41.8097,
+      "busy_cpus": 1.2541,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "h1",
+      "rate": 30000,
+      "rps": 29993.7468,
+      "p50_ms": 0.4336,
+      "p99_ms": 3.2753,
+      "p999_ms": 22.4292,
+      "cpu_us_per_req": 64.185,
+      "busy_cpus": 1.9251,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "h1",
+      "rate": 30000,
+      "rps": 29993.7235,
+      "p50_ms": 0.6913,
+      "p99_ms": 1.3332,
+      "p999_ms": 5.2846,
+      "cpu_us_per_req": 52.3497,
+      "busy_cpus": 1.5702,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "h1",
+      "rate": 30000,
+      "rps": 29994.0958,
+      "p50_ms": 0.4941,
+      "p99_ms": 5.0246,
+      "p999_ms": 8.4707,
+      "cpu_us_per_req": 62.8822,
+      "busy_cpus": 1.8861,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "h1",
+      "rate": 30000,
+      "rps": 29993.5264,
+      "p50_ms": 0.7417,
+      "p99_ms": 1.3054,
+      "p999_ms": 10.1381,
+      "cpu_us_per_req": 52.4993,
+      "busy_cpus": 1.5746,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "h1",
+      "rate": 30000,
+      "rps": 29995.5155,
+      "p50_ms": 0.5243,
+      "p99_ms": 2.2484,
+      "p999_ms": 13.3748,
+      "cpu_us_per_req": 60.6059,
+      "busy_cpus": 1.8179,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "h2-tls",
+      "rate": 10000,
+      "rps": 9997.0348,
+      "p50_ms": 0.4687,
+      "p99_ms": 2.071,
+      "p999_ms": 5.0718,
+      "cpu_us_per_req": 165.1231,
+      "busy_cpus": 1.6507,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "h2-tls",
+      "rate": 10000,
+      "rps": 9998.216,
+      "p50_ms": 0.4091,
+      "p99_ms": 0.8196,
+      "p999_ms": 2.0741,
+      "cpu_us_per_req": 64.0689,
+      "busy_cpus": 0.6406,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "h2-tls",
+      "rate": 10000,
+      "rps": 9997.8826,
+      "p50_ms": 0.4751,
+      "p99_ms": 4.2883,
+      "p999_ms": 6.4947,
+      "cpu_us_per_req": 172.7562,
+      "busy_cpus": 1.7272,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "h2-tls",
+      "rate": 10000,
+      "rps": 9997.9609,
+      "p50_ms": 0.5526,
+      "p99_ms": 0.9789,
+      "p999_ms": 3.8275,
+      "cpu_us_per_req": 100.5454,
+      "busy_cpus": 1.0052,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "h2-tls",
+      "rate": 10000,
+      "rps": 9997.7941,
+      "p50_ms": 0.5851,
+      "p99_ms": 4.618,
+      "p999_ms": 7.0561,
+      "cpu_us_per_req": 182.0404,
+      "busy_cpus": 1.82,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "h2-tls",
+      "rate": 10000,
+      "rps": 9998.4459,
+      "p50_ms": 0.7252,
+      "p99_ms": 1.6274,
+      "p999_ms": 2.7438,
+      "cpu_us_per_req": 120.6813,
+      "busy_cpus": 1.2066,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "h2-tls",
+      "rate": 10000,
+      "rps": 9998.0482,
+      "p50_ms": 0.3743,
+      "p99_ms": 1.7634,
+      "p999_ms": 2.7007,
+      "cpu_us_per_req": 151.3106,
+      "busy_cpus": 1.5128,
+      "errors": 0
+    },
+    {
+      "proxy": "paduraksa",
+      "scenario": "h2-tls",
+      "rate": 30000,
+      "rps": 29993.8439,
+      "p50_ms": 0.4991,
+      "p99_ms": 1.8493,
+      "p999_ms": 6.418,
+      "cpu_us_per_req": 56.1427,
+      "busy_cpus": 1.6839,
+      "errors": 0
+    },
+    {
+      "proxy": "nginx",
+      "scenario": "h2-tls",
+      "rate": 30000,
+      "rps": 29996.6469,
+      "p50_ms": 0.5304,
+      "p99_ms": 4.486,
+      "p999_ms": 9.2476,
+      "cpu_us_per_req": 43.809,
+      "busy_cpus": 1.3141,
+      "errors": 0
+    },
+    {
+      "proxy": "caddy",
+      "scenario": "h2-tls",
+      "rate": 30000,
+      "rps": 29996.943,
+      "p50_ms": 0.7837,
+      "p99_ms": 3.8412,
+      "p999_ms": 11.8386,
+      "cpu_us_per_req": 82.1706,
+      "busy_cpus": 2.4649,
+      "errors": 0
+    },
+    {
+      "proxy": "haproxy",
+      "scenario": "h2-tls",
+      "rate": 30000,
+      "rps": 29995.1541,
+      "p50_ms": 0.6552,
+      "p99_ms": 2.0835,
+      "p999_ms": 6.9635,
+      "cpu_us_per_req": 51.3549,
+      "busy_cpus": 1.5404,
+      "errors": 0
+    },
+    {
+      "proxy": "traefik",
+      "scenario": "h2-tls",
+      "rate": 30000,
+      "rps": 29993.7077,
+      "p50_ms": 0.5514,
+      "p99_ms": 3.8631,
+      "p999_ms": 10.3055,
+      "cpu_us_per_req": 63.1301,
+      "busy_cpus": 1.8935,
+      "errors": 0
+    },
+    {
+      "proxy": "envoy",
+      "scenario": "h2-tls",
+      "rate": 30000,
+      "rps": 29991.7022,
+      "p50_ms": 0.589,
+      "p99_ms": 1.3727,
+      "p999_ms": 6.4076,
+      "cpu_us_per_req": 41.7495,
+      "busy_cpus": 1.2521,
+      "errors": 0
+    },
+    {
+      "proxy": "yarp",
+      "scenario": "h2-tls",
+      "rate": 30000,
+      "rps": 29993.9304,
+      "p50_ms": 0.4895,
+      "p99_ms": 1.9984,
+      "p999_ms": 3.8498,
+      "cpu_us_per_req": 57.5766,
+      "busy_cpus": 1.7269,
+      "errors": 0
+    }
+  ]
+}
