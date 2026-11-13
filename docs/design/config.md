@@ -102,12 +102,12 @@ Certificates, ACME accounts and orders, DNS providers and the identity entities 
 | `GlobalSettings` (singleton row) | `Defaults: HostSettings` (JSON complex type), default-host behaviour, trusted proxies, admin settings, ACME defaults |
 | `Profile` (`prof_`) | Named preset of `HostSettings` overrides, for example "Public app", "LAN only", "Media server" |
 | `Host` (`host_`) | `Kind` (Proxy, Redirect, Respond, Admin), `Enabled`, `ProfileId?`, `Settings: HostSettings` (overrides), `CertificateBinding` (Auto, a specific `CertificateId`, or None), `Tags`, `Notes`, concurrency token |
-| `HostName` (`hn_`) | Host FK, `Name`, unique index `COLLATE NOCASE`. Normalised on write (see below). |
+| `HostName` (`hn_`) | Host FK, `Name`, unique index `COLLATE NOCASE`. Normalised on write (see below). TODO(check): "Host names are natural keys" in the M2 build decisions says there is no `hn_` ID, and the table was dropped after M7. |
 | `Route` (`rte_`) | Host FK, `Match` (path exact or segment-aware prefix; the most specific wins), `Order` (tiebreaker), `UpstreamId`, per-route `Settings` overrides, transforms. Equivalent to NPM "custom locations". |
 | `Upstream` (`ups_`) | Load-balancing policy, health checks, HTTP version, Host header mode, TLS-to-upstream trust, timeouts, affinity, connection and DNS refresh (see below) |
 | `Destination` (`dst_`) | Upstream FK, address, weight, enabled |
 | `AccessList` (`acl_`) | CIDR allow/deny, basic-auth users (a username and the ID of a password credential in the vault; no hash in the document) |
-| `RuleSet` (`rset_`) / `Rule` (`rule_`) | Path, UA, header, method and country deny rules, ordered |
+| `RuleSet` (`rset_`, but `rs_` in the rule-set section of [waf.md](waf.md): TODO(check) which prefix is real) / `Rule` (`rule_`) | Path, UA, header, method and country deny rules, ordered |
 | `ErrorPageSet` (`eps_`) | Per-status templates (HTML), assets |
 | `AuthProvider` (`authp_`) | ForwardAuth (authentik, Authelia and oauth2-proxy presets; built in M7), OIDC (later) |
 | `Certificate` (`crt_`) | Source (Acme, Uploaded, SelfSigned, LocalCa), SANs, NotBefore/NotAfter, issuer, public chain (PEM), fingerprint, renewal state. **No private key.** |
@@ -284,7 +284,7 @@ Application command handler
   2. load current config, apply mutation
   3. validate (field rules + cross-object: dup hostnames, dangling refs, cert coverage, regex compile w/ timeout)
   4. COMPILE a candidate RuntimeSnapshot in memory   <- fails here, nothing is persisted
-  5. BEGIN TX: write ConfigRevision(doc, diff), AuditEvent; check concurrency token; COMMIT
+  5. BEGIN TX: write entities, ConfigRevision(doc, diff), AuditEvent; check concurrency token; COMMIT
   6. PUBLISH (single writer, coalescing to the latest candidate):
      a. swap the YARP provider config, cancel the old change token
      b. await YARP ConfigurationApplied / ConfigurationApplyingFailed (matched by RevisionId, timeout -> alert)
@@ -292,6 +292,8 @@ Application command handler
      d. SnapshotStore swap                       <- atomic reference swap; requests see it from here on
   7. notify: change feed (dashboard live update)
 ```
+
+TODO(check): step 5 says "write entities" as the original design did, but the config entities are no longer written to tables of their own (see "The config document is the only copy"). Only the revision and the audit event are written. The step list is left as it was.
 
 - **Optimistic concurrency.** Each top-level object has a version, and commands carry the version they edited (or `baseRevision` for whole-document commands). Two admins editing the same host get a conflict dialog with a diff instead of a silent overwrite.
 - **Dry run.** Every command supports `dryRun: true`, which runs steps 1 to 4 and returns the diff plus validation results. The dashboard's "Review changes" sheet, MCP's `execute` (a write without `confirm` is a dry run, see [admin-surfaces.md](admin-surfaces.md)) and `import --dry-run` all use it.
