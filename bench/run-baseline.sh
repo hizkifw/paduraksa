@@ -5,13 +5,13 @@
 #   PROFILE=quick bench/run-baseline.sh                      # short harness iteration, never recorded
 #   bench/run-baseline.sh                                    # full profile, all proxies and scenarios
 #   PROXIES=paduraksa SCENARIOS=h1 RATES=30000 bench/run-baseline.sh
-#   PROXIES=paduraksa SCENARIOS="access-log rate-limit rate-limited browser-check error-page" bench/run-baseline.sh
+#   SCENARIOS="access-log rate-limit rate-limited browser-check error-page cf" bench/run-baseline.sh
 #   RATES="" bench/run-baseline.sh                           # no fixed-rate runs
 #   REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh
 #   RECORD=1 bench/run-baseline.sh                           # append to the history and regenerate RESULTS.md
 #
 # Needs: Docker (host networking), the .NET SDK from global.json, curl, openssl, python3, taskset, ss, git, getconf,
-# sha256sum.
+# sha256sum, and socat (HAProxy's access-log sink).
 # Results: bench/results/<date>-<time>-baseline/ (or $OUT, which must not exist yet):
 #   raw/<run>.json       oha's output for every measured run
 #   raw/<run>.meta.json  the run's time window, the proxy's CPU time, and upstream TCP states at its end
@@ -83,8 +83,11 @@ RATES=${RATES-$profile_rates}
 RATE_DURATION=${RATE_DURATION:-$DURATION}
 RATE_WARMUP=${RATE_WARMUP:-$WARMUP}
 REPEATS=${REPEATS:-$profile_repeats}
-# `cf` is Paduraksa only: a second runner process with loopback as a trusted Cloudflare Tunnel. The five scenarios
-# between `answered` and `cf` run only on Paduraksa too: they use extra hosts in the one runner process.
+# The scenarios from `access-log` on run against every proxy that has a stock equivalent (`unsupported` lists the
+# skips, bench/README.md the reasons), each on an extra host of the proxy's one instance: access-log.test,
+# rate-limit.test, rate-limited.test, error-page.test, and for `cf` cf.test (Paduraksa: bench.test on a second
+# process, as it always was). A setting that can't be scoped to a host is run on a second instance started for that
+# scenario only (`variant_of`), so the other scenarios' configuration is the one they always had.
 SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page cf}
 PROXIES=${PROXIES:-paduraksa nginx caddy haproxy traefik envoy yarp}
 # Set to a directory to also keep oha's per-request SQLite database for every fixed-rate run (large; not committed).
@@ -110,6 +113,8 @@ OHA_IMAGE=${OHA_IMAGE:-ghcr.io/hatoo/oha:1.16.0@sha256:3ec3dbf549ea197793482d47a
 UPSTREAM_PORT=18080
 # The WebSocket echo server `websocket` runs against; it is the upstream for ws.test on every proxy.
 ECHO_PORT=18090
+# HAProxy has no log file, only syslog: the access-log scenario's UDP sink listens here.
+SINK_PORT=18091
 ADMIN_PORT=18943
 OUT=${OUT:-$ROOT/bench/results/$(date +%Y-%m-%d-%H%M)-baseline}
 RAW="$OUT/raw"
@@ -118,13 +123,14 @@ WORK=$(mktemp -d)
 RUNNER_PID=""
 YARP_PID=""
 ECHO_PID=""
+SINK_PID=""
 WS_DLL="$ROOT/bench/Paduraksa.Bench.WebSocket/bin/Release/net10.0/Paduraksa.Bench.WebSocket.dll"
 # The solved proof-of-work cookie the browser-check scenario sends; set by start_paduraksa from the runner's output.
 POW_COOKIE=""
 
 cleanup() {
     local status=$? pid
-    for pid in "$RUNNER_PID" "$YARP_PID" "$ECHO_PID"; do
+    for pid in "$RUNNER_PID" "$YARP_PID" "$ECHO_PID" "$SINK_PID"; do
         if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
             kill -TERM "$pid" 2>/dev/null || true
             wait "$pid" 2>/dev/null || true
@@ -201,6 +207,39 @@ known_proxy() {
 
 answers_locally() { [[ "$1" != traefik ]]; }
 
+# Scenarios a proxy skips for lack of a fair stock equivalent (bench/README.md gives the reasons).
+unsupported() {
+    [[ "$2" == browser-check && "$1" != paduraksa ]] && return 0
+    case "$1:$2" in
+        traefik:cf|caddy:rate-limit|caddy:rate-limited) return 0 ;;
+    esac
+    return 1
+}
+
+# Scenarios whose setting is server-wide or static, so the proxy is restarted with it for that scenario only.
+variant_of() {
+    case "$1:$2" in
+        traefik:access-log|caddy:cf|envoy:cf|yarp:cf|paduraksa:cf) return 0 ;;
+    esac
+    return 1
+}
+
+# The extra-host scenarios, in run order.
+HOST_SCENARIOS="access-log rate-limit rate-limited browser-check error-page cf"
+
+# Does the proxy's one base instance run this scenario on an extra host?
+runs_in_base() { wants "$2" && ! unsupported "$1" "$2" && ! variant_of "$1" "$2"; }
+
+# The host that carries the scenario. cf is bench.test on Paduraksa (its second process trusts loopback for every
+# host); the others have a cf.test host.
+scenario_host() {
+    if [[ "$2" == cf && "$1" == paduraksa ]]; then
+        echo bench.test
+    else
+        echo "$2.test"
+    fi
+}
+
 ports_for() {
     case "$1" in
         paduraksa) echo "18081 18443" ;;
@@ -220,6 +259,10 @@ preflight() {
     done
     if ((${#missing[@]})); then
         echo "missing tools: ${missing[*]}" >&2
+        return 1
+    fi
+    if wants access-log && [[ " $PROXIES " == *" haproxy "* ]] && ! command -v socat >/dev/null 2>&1; then
+        echo "missing tools: socat (HAProxy's access-log sink)" >&2
         return 1
     fi
     docker info >/dev/null 2>&1 || { echo "docker isn't usable by this user" >&2; return 1; }
@@ -250,6 +293,10 @@ preflight() {
     ports=("$UPSTREAM_PORT")
     if wants websocket; then
         ports+=("$ECHO_PORT")
+    fi
+    if wants access-log && [[ " $PROXIES " == *" haproxy "* ]] && [[ -n "$(ss -Hlun "sport = :$SINK_PORT")" ]]; then
+        echo "UDP port $SINK_PORT is already in use; HAProxy's access-log sink needs it" >&2
+        return 1
     fi
     for proxy in $PROXIES; do
         read -r http https < <(ports_for "$proxy")
@@ -305,15 +352,14 @@ estimate_seconds() {
         if wants websocket; then total=$((total + base)); calls=$((calls + 2)); fi
         if wants handshake; then total=$((total + base)); calls=$((calls + 2)); fi
         if answers_locally "$proxy" && wants answered; then total=$((total + base)); calls=$((calls + 2)); fi
-        if [[ "$proxy" == paduraksa ]]; then
-            for scenario in access-log rate-limit rate-limited browser-check error-page; do
-                if wants "$scenario"; then total=$((total + base)); calls=$((calls + 2)); fi
-            done
-        fi
-        if [[ "$proxy" == paduraksa ]] && wants cf; then
-            total=$((total + $(duration_seconds "$PROXY_WARMUP") + duration))
-            calls=$((calls + 2))
-        fi
+        for scenario in $HOST_SCENARIOS; do
+            if runs_in_base "$proxy" "$scenario"; then
+                total=$((total + base)); calls=$((calls + 2))
+            elif wants "$scenario" && ! unsupported "$proxy" "$scenario"; then
+                # A second instance: start, a proxy warm-up and the run.
+                total=$((total + 5 + $(duration_seconds "$PROXY_WARMUP") + duration)); calls=$((calls + 2))
+            fi
+        done
     done
     echo $((total + calls + 5 * $(wc -w <<<"$PROXIES")))
 }
@@ -361,26 +407,26 @@ wait_ready() {
     return 1
 }
 
-# The hosts the Paduraksa-only scenarios use; the runner serves them from the same process. Every check makes its
-# scenario's own point, so a wrong config fails here instead of producing a plausible-looking number.
-check_paduraksa_hosts() {
-    local http=$1 body code
-    if wants access-log; then
+# The extra hosts' scenarios on the base instance. Every check makes its scenario's own point, so a wrong config
+# fails here instead of producing a plausible-looking number.
+check_scenario_hosts() {
+    local proxy=$1 http=$2 body code
+    if runs_in_base "$proxy" access-log; then
         body=$(curl -sf -H "Host: access-log.test" "http://127.0.0.1:$http/")
         [[ "$body" == "upstream ok" ]] || { echo "access-log.test: unexpected body '$body'" >&2; return 1; }
     fi
-    if wants rate-limit; then
+    if runs_in_base "$proxy" rate-limit; then
         body=$(curl -sf -H "Host: rate-limit.test" "http://127.0.0.1:$http/")
         [[ "$body" == "upstream ok" ]] || { echo "rate-limit.test: unexpected body '$body'" >&2; return 1; }
     fi
-    if wants rate-limited; then
-        # The burst is one token: the first request spends it and the second must be the 429 the scenario measures.
+    if runs_in_base "$proxy" rate-limited; then
+        # One token: the first request spends it and the second must be the 429 the scenario measures.
         code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: rate-limited.test" "http://127.0.0.1:$http/")
         [[ "$code" == "200" ]] || { echo "rate-limited.test: the first request was $code, not 200" >&2; return 1; }
         code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: rate-limited.test" "http://127.0.0.1:$http/")
         [[ "$code" == "429" ]] || { echo "rate-limited.test: the second request was $code, not 429" >&2; return 1; }
     fi
-    if wants browser-check; then
+    if runs_in_base "$proxy" browser-check; then
         body=$(curl -sf -H "Host: browser-check.test" -H "Accept: text/html" "http://127.0.0.1:$http/")
         [[ "$body" == *'name="challenge"'* ]] \
             || { echo "browser-check.test: no challenge input without a cookie" >&2; return 1; }
@@ -388,10 +434,25 @@ check_paduraksa_hosts() {
         [[ "$body" == "upstream ok" ]] \
             || { echo "browser-check.test: the solved cookie didn't forward (body '$body')" >&2; return 1; }
     fi
-    if wants error-page; then
-        code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: error-page.test" -H "Accept: text/html" "http://127.0.0.1:$http/")
-        [[ "$code" == "502" ]] || { echo "error-page.test: the closed upstream answered $code, not 502" >&2; return 1; }
+    if runs_in_base "$proxy" error-page; then
+        # -w prints after the body, so the status and the page can be told apart.
+        body=$(curl -s -w '\n%{http_code}' -H "Host: error-page.test" -H "Accept: text/html" "http://127.0.0.1:$http/")
+        [[ "${body##*$'\n'}" == "502" ]] || { echo "error-page.test: the closed upstream answered ${body##*$'\n'}, not 502" >&2; return 1; }
+        [[ "$body" == *"Bad Gateway"* ]] || { echo "error-page.test: the 502 carries no page" >&2; return 1; }
     fi
+    if runs_in_base "$proxy" cf; then
+        check_cf "$http" "$(scenario_host "$proxy" cf)"
+    fi
+}
+
+# The proxy must forward the client address it resolved from CF-Connecting-IP as X-Forwarded-For; the upstream's /xff
+# answers with what it received.
+check_cf() {
+    local http=$1 host=$2 seen
+    seen=$(curl -sf -D - -o /dev/null -H "Host: $host" -H "CF-Connecting-IP: 2001:db8::1234" "http://127.0.0.1:$http/xff" \
+        | tr -d '\r' | grep -i '^x-seen-forwarded-for:' || true)
+    [[ "$seen" == *"2001:db8::1234"* ]] \
+        || { echo "$host: the upstream saw '$seen' instead of the CF-Connecting-IP address in X-Forwarded-For" >&2; return 1; }
 }
 
 # Checks that a proxy forwards, answers (when it can), speaks H2 over TLS, and serves the fixed 64 KiB body; records
@@ -417,9 +478,7 @@ check_proxy() {
         wsload "" --url "ws://ws.test:$http/" --connect 127.0.0.1 --connections 1 --size 64 --duration 1 \
             || { echo "websocket: no echo through $proxy" >&2; return 1; }
     fi
-    if [[ "$proxy" == paduraksa ]]; then
-        check_paduraksa_hosts "$http"
-    fi
+    check_scenario_hosts "$proxy" "$http"
     version=$(curl -sfk --http2 -o /dev/null -w '%{http_version}' --resolve "bench.test:$https:127.0.0.1" "https://bench.test:$https/")
     [[ "$version" == "2" ]] || { echo "HTTPS did not negotiate H2 ($version)" >&2; return 1; }
     tls=$(openssl s_client -connect "127.0.0.1:$https" -servername bench.test -alpn h2 </dev/null 2>/dev/null \
@@ -587,53 +646,41 @@ run_scenarios() {
         measure "$proxy" "$proxy.answered" -z "$DURATION" "${answered[@]}" "$answered_url"
     fi
 
-    # These five use extra hosts in the one Paduraksa runner, so only Paduraksa runs them.
-    if [[ "$proxy" == paduraksa ]]; then
-        if wants access-log; then
-            log "$proxy: access-log (plain HTTP/1.1, access log on, c=$CONNS)"
-            local access_url="http://access-log.test:$http/"
-            local access=(--connect-to "access-log.test:$http:127.0.0.1:$http" -c "$CONNS")
-            oha "" -z "$WARMUP" "${access[@]}" "$access_url"
-            measure "$proxy" "$proxy.access-log" -z "$DURATION" "${access[@]}" "$access_url"
+    local scenario
+    for scenario in $HOST_SCENARIOS; do
+        if runs_in_base "$proxy" "$scenario"; then
+            run_host_scenario "$proxy" "$http" "$scenario" "$WARMUP"
         fi
+    done
+}
 
-        if wants rate-limit; then
-            log "$proxy: rate-limit (plain HTTP/1.1, one hot bucket well inside its budget, c=$CONNS)"
-            local rate_url="http://rate-limit.test:$http/"
-            local rate=(--connect-to "rate-limit.test:$http:127.0.0.1:$http" -c "$CONNS")
-            oha "" -z "$WARMUP" "${rate[@]}" "$rate_url"
-            measure "$proxy" "$proxy.rate-limit" -z "$DURATION" "${rate[@]}" "$rate_url"
-        fi
+# The Cloudflare Tunnel headers the `cf` scenario sends: the client address, the scheme and the ray ID.
+CF_HEADERS=(-H "CF-Connecting-IP: 2001:db8:85a3::8a2e:370:7334" -H 'CF-Visitor: {"scheme":"https"}' -H "CF-Ray: 8f1e2d3c4b5a6978-SIN")
 
-        if wants rate-limited; then
-            log "$proxy: rate-limited (plain HTTP/1.1, every request refused with 429, c=$CONNS)"
-            local limited_url="http://rate-limited.test:$http/"
-            local limited=(--connect-to "rate-limited.test:$http:127.0.0.1:$http" -c "$CONNS")
-            oha "" -z "$WARMUP" "${limited[@]}" "$limited_url"
-            measure "$proxy" "$proxy.rate-limited" -z "$DURATION" "${limited[@]}" "$limited_url"
-        fi
-
-        if wants browser-check; then
-            log "$proxy: browser-check (plain HTTP/1.1 with a solved PoW cookie, c=$CONNS)"
+# One plain HTTP/1.1 scenario on the extra host that carries it. $1 = proxy, $2 = HTTP port, $3 = scenario, $4 = warm-up.
+run_host_scenario() {
+    local proxy=$1 http=$2 scenario=$3 warmup=$4 host what extra=()
+    host=$(scenario_host "$proxy" "$scenario")
+    case "$scenario" in
+        access-log) what="the access log on" ;;
+        rate-limit) what="one hot client well inside its budget" ;;
+        rate-limited) what="every request refused with 429" ;;
+        browser-check)
+            what="a solved PoW cookie"
             if [[ -z "$POW_COOKIE" ]]; then
                 echo "browser-check needs the runner's POW_COOKIE line" >&2
                 return 1
             fi
-            local pow_url="http://browser-check.test:$http/"
-            local pow=(--connect-to "browser-check.test:$http:127.0.0.1:$http" -c "$CONNS"
-                -H "Cookie: $POW_COOKIE" -H 'Accept: text/html')
-            oha "" -z "$WARMUP" "${pow[@]}" "$pow_url"
-            measure "$proxy" "$proxy.browser-check" -z "$DURATION" "${pow[@]}" "$pow_url"
-        fi
-
-        if wants error-page; then
-            log "$proxy: error-page (plain HTTP/1.1, a closed upstream, the built-in 502 page, c=$CONNS)"
-            local error_url="http://error-page.test:$http/"
-            local error=(--connect-to "error-page.test:$http:127.0.0.1:$http" -c "$CONNS" -H 'Accept: text/html')
-            oha "" -z "$WARMUP" "${error[@]}" "$error_url"
-            measure "$proxy" "$proxy.error-page" -z "$DURATION" "${error[@]}" "$error_url"
-        fi
-    fi
+            extra=(-H "Cookie: $POW_COOKIE" -H 'Accept: text/html')
+            ;;
+        error-page) what="a closed upstream, the proxy's 502 page"; extra=(-H 'Accept: text/html') ;;
+        cf) what="a trusted Cloudflare Tunnel's headers"; extra=("${CF_HEADERS[@]}") ;;
+    esac
+    log "$proxy: $scenario (plain HTTP/1.1, $what, c=$CONNS, $warmup warm-up)"
+    local url="http://$host:$http/"
+    local args=(--connect-to "$host:$http:127.0.0.1:$http" -c "$CONNS" "${extra[@]}")
+    oha "" -z "$warmup" "${args[@]}" "$url"
+    measure "$proxy" "$proxy.$scenario" -z "$DURATION" "${args[@]}" "$url"
 }
 
 # $1 = log name (default paduraksa), rest = extra runner arguments.
@@ -689,12 +736,18 @@ stop_paduraksa() {
     grep -v '^METRICS ' "$WORK/$RUNNER_LOG.log" | head -n 60 >&2 || true
 }
 
+# $1 = scenario for a second instance: `cf` turns the forwarded-headers middleware on.
 start_yarp() {
-    local http https
+    local http https cloudflare=()
+    mkdir -p "$WORK/yarp-access-log"
+    if [[ "${1:-}" == cf ]]; then
+        cloudflare=(--cloudflare-tunnel true)
+    fi
     read -r http https < <(ports_for yarp)
     taskset -c "$PROXY_CPUS" dotnet "$ROOT/bench/Paduraksa.Bench.Yarp/bin/Release/net10.0/Paduraksa.Bench.Yarp.dll" \
         --upstream "http://127.0.0.1:$UPSTREAM_PORT" --cert "$WORK/certs/cert.pem" --key "$WORK/certs/key.pem" \
-        --websocket-upstream "http://127.0.0.1:$ECHO_PORT" --http "$http" --https "$https" >"$WORK/yarp.log" 2>&1 &
+        --websocket-upstream "http://127.0.0.1:$ECHO_PORT" --error-page "$CONF/error-502.html" \
+        --access-log-dir "$WORK/yarp-access-log" "${cloudflare[@]}" --http "$http" --https "$https" >"$WORK/yarp.log" 2>&1 &
     YARP_PID=$!
     wait_ready bench.test "$http"
 }
@@ -707,20 +760,47 @@ stop_yarp() {
     tail -n 20 "$WORK/yarp.log" >&2 || true
 }
 
-# The `cf` scenario: plain HTTP/1.1 through a runner that trusts loopback as cloudflared, with the client address in
-# CF-Connecting-IP and the scheme in CF-Visitor (resolved per request, forwarded as X-Forwarded-For/-Proto).
+# Paduraksa's `cf` scenario: a runner that trusts loopback as a Cloudflare Tunnel (--cloudflare-tunnel true), so the
+# CF-Connecting-IP and CF-Visitor headers are honoured for every host and resolved per request.
 run_cloudflare() {
     local http https
     read -r http https < <(ports_for paduraksa)
     log "Starting paduraksa as a Cloudflare Tunnel origin (CPUs $PROXY_CPUS)"
     start_paduraksa paduraksa-cf --cloudflare-tunnel true
-    local cf=(--connect-to "bench.test:$http:127.0.0.1:$http" -c "$CONNS"
-        -H "CF-Connecting-IP: 2001:db8:85a3::8a2e:370:7334" -H 'CF-Visitor: {"scheme":"https"}' -H "CF-Ray: 8f1e2d3c4b5a6978-SIN")
-    log "paduraksa: cf (plain HTTP/1.1 from a trusted tunnel, c=$CONNS, $PROXY_WARMUP warm-up)"
-    oha "" -z "$PROXY_WARMUP" "${cf[@]}" "http://bench.test:$http/"
-    # Proxy label "paduraksa", not "paduraksa-cf", on purpose: summarize.py and proxy_cpu_us key on it.
-    measure paduraksa paduraksa.cf -z "$DURATION" "${cf[@]}" "http://bench.test:$http/"
+    check_cf "$http" bench.test
+    run_host_scenario paduraksa "$http" cf "$PROXY_WARMUP"
     stop_paduraksa
+}
+
+# A second instance of a proxy for the scenarios whose setting is server-wide or static (`variant_of`).
+run_variants() {
+    local proxy=$1 http https scenario
+    read -r http https < <(ports_for "$proxy")
+    for scenario in access-log cf; do
+        wants "$scenario" && variant_of "$proxy" "$scenario" && ! unsupported "$proxy" "$scenario" || continue
+        if [[ "$proxy" == paduraksa ]]; then
+            run_cloudflare
+            continue
+        fi
+        log "Starting $proxy again for $scenario (CPUs $PROXY_CPUS)"
+        "start_$proxy" "$scenario"
+        if [[ "$scenario" == cf ]]; then
+            check_cf "$http" "$(scenario_host "$proxy" cf)"
+        else
+            curl -sf -o /dev/null -H "Host: $scenario.test" "http://127.0.0.1:$http/" \
+                || { echo "$scenario.test: $proxy didn't forward" >&2; return 1; }
+        fi
+        run_host_scenario "$proxy" "$http" "$scenario" "$PROXY_WARMUP"
+        stop_instance "$proxy"
+    done
+}
+
+stop_instance() {
+    case "$1" in
+        paduraksa) stop_paduraksa ;;
+        yarp) stop_yarp ;;
+        *) stop_container "$1" ;;
+    esac
 }
 
 start_container() {
@@ -732,31 +812,62 @@ start_container() {
 }
 
 start_nginx() {
-    start_container nginx -v "$CONF/proxy.nginx.conf:/etc/nginx/nginx.conf:ro" "$NGINX_IMAGE"
+    start_container nginx -v "$CONF/proxy.nginx.conf:/etc/nginx/nginx.conf:ro" \
+        -v "$CONF/error-502.html:/srv/error-502.html:ro" "$NGINX_IMAGE"
     wait_ready bench.test "$(ports_for nginx | cut -d' ' -f1)"
 }
 
+# $1 = scenario for a second instance: `cf` adds the server-wide trusted_proxies and client_ip_headers options.
 start_caddy() {
-    start_container caddy -e GOMAXPROCS=4 -v "$CONF/Caddyfile:/etc/caddy/Caddyfile:ro" "$CADDY_IMAGE"
+    local server_extra=""
+    if [[ "${1:-}" == cf ]]; then
+        server_extra=$'trusted_proxies static 127.0.0.1/32\n\t\tclient_ip_headers CF-Connecting-IP'
+    fi
+    start_container caddy -e GOMAXPROCS=4 -e "CADDY_SERVER_EXTRA=$server_extra" \
+        -v "$CONF/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$CONF/error-502.html:/srv/error-502.html:ro" "$CADDY_IMAGE"
     wait_ready bench.test "$(ports_for caddy | cut -d' ' -f1)"
 }
 
-# HAProxy wants the certificate and its key in one PEM file.
+# HAProxy wants the certificate and its key in one PEM file. An errorfile is a whole HTTP response, so the 502 page
+# gets its status line and headers here. The syslog sink for the access-log scenario's lines is a socat on the upstream
+# CPUs writing every datagram to a file; a datagram it can't keep up with is lost, which costs HAProxy nothing.
 start_haproxy() {
-    start_container haproxy -v "$CONF/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro" "$HAPROXY_IMAGE"
+    {
+        printf 'HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %s\r\n\r\n' \
+            "$(wc -c <"$CONF/error-502.html")"
+        cat "$CONF/error-502.html"
+    } >"$WORK/error-502.http"
+    if wants access-log; then
+        taskset -c "$UPSTREAM_CPUS" socat -u "UDP4-RECV:$SINK_PORT,bind=127.0.0.1" "OPEN:$WORK/haproxy-syslog.log,creat,append" &
+        SINK_PID=$!
+    fi
+    start_container haproxy -v "$CONF/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro" \
+        -v "$WORK/error-502.http:/usr/local/etc/haproxy/error-502.http:ro" "$HAPROXY_IMAGE"
     wait_ready bench.test "$(ports_for haproxy | cut -d' ' -f1)"
 }
 
+# $1 = scenario for a second instance: `access-log` swaps in the static config that turns Traefik's access log on.
 start_traefik() {
+    local static=traefik.yml
+    if [[ "${1:-}" == access-log ]]; then
+        static=traefik-accesslog.yml
+    fi
     start_container traefik -e GOMAXPROCS=4 \
-        -v "$CONF/traefik.yml:/etc/traefik/traefik.yml:ro" \
+        -v "$CONF/$static:/etc/traefik/traefik.yml:ro" \
         -v "$CONF/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro" \
         "$TRAEFIK_IMAGE" --configFile=/etc/traefik/traefik.yml
     wait_ready bench.test "$(ports_for traefik | cut -d' ' -f1)"
 }
 
+# $1 = scenario for a second instance: `cf` replaces use_remote_address with the original-IP detection of
+# envoy-cf.yml (Envoy refuses to have both).
 start_envoy() {
-    start_container envoy -v "$CONF/envoy.yaml:/etc/envoy/envoy.yaml:ro" \
+    local config="$CONF/envoy.yaml"
+    if [[ "${1:-}" == cf ]]; then
+        sed "s|^\( *\)use_remote_address: true\$|\1$(cat "$CONF/envoy-cf.yml")|" "$CONF/envoy.yaml" >"$WORK/envoy-cf.yaml"
+        config="$WORK/envoy-cf.yaml"
+    fi
+    start_container envoy -v "$config:/etc/envoy/envoy.yaml:ro" -v "$CONF/error-502.html:/srv/error-502.html:ro" \
         "$ENVOY_IMAGE" -c /etc/envoy/envoy.yaml --concurrency 4 --log-level warn
     wait_ready bench.test "$(ports_for envoy | cut -d' ' -f1)"
 }
@@ -764,6 +875,11 @@ start_envoy() {
 stop_container() {
     docker logs "$PREFIX-$1" 2>&1 | tail -n 20 >&2 || true
     docker rm -f "$PREFIX-$1" >/dev/null
+    if [[ "$1" == haproxy && -n "$SINK_PID" ]]; then
+        kill "$SINK_PID" 2>/dev/null || true
+        wait "$SINK_PID" 2>/dev/null || true
+        SINK_PID=""
+    fi
 }
 
 record_environment() {
@@ -797,7 +913,7 @@ record_environment() {
         echo "yarp: Yarp.ReverseProxy $(sed -n 's/.*"Yarp.ReverseProxy" Version="\([^"]*\)".*/\1/p' "$ROOT/Directory.Packages.props")"
         echo "oha: $OHA_IMAGE ($(docker run --rm "$OHA_IMAGE" --version))"
         echo "cpu sets: proxy=$PROXY_CPUS upstream=$UPSTREAM_CPUS load=$LOAD_CPUS (oha worker threads: $LOAD_THREADS)"
-        echo "runs: $DURATION (warm-up: $PROXY_WARMUP per proxy, $WARMUP per scenario), c=$CONNS (h1, body-64k, upload-64k and the Paduraksa-only paths), ${H2_CONNS}x$H2_STREAMS (h2), c=$HANDSHAKE_CONNS (handshake), $WS_CONNS connections x $WS_MESSAGE B (websocket)"
+        echo "runs: $DURATION (warm-up: $PROXY_WARMUP per proxy, $WARMUP per scenario), c=$CONNS (h1, body-64k, upload-64k and the extra-host paths), ${H2_CONNS}x$H2_STREAMS (h2), c=$HANDSHAKE_CONNS (handshake), $WS_CONNS connections x $WS_MESSAGE B (websocket)"
         echo "fixed rates: ${RATES:-none} (${REPEATS}x $RATE_DURATION each, $RATE_WARMUP warm-up per rate)"
         echo "scenarios: $SCENARIOS; proxies: $PROXIES"
     } >"$OUT/env.txt"
@@ -835,6 +951,7 @@ main() {
     docker rm -f "$PREFIX-upstream" >/dev/null 2>&1 || true
     docker run -d --name "$PREFIX-upstream" --network host --cpuset-cpus "$UPSTREAM_CPUS" --ulimit nofile=65536:65536 \
         -v "$CONF/upstream.nginx.conf:/etc/nginx/nginx.conf:ro" -v "$WORK/64k.txt:/srv/64k.txt:ro" \
+        -v "$CONF/error-502.html:/srv/error-502.html:ro" \
         "$NGINX_IMAGE" >/dev/null
     wait_ready upstream "$UPSTREAM_PORT"
 
@@ -869,14 +986,8 @@ main() {
         oha "" -z "$PROXY_WARMUP" --insecure --connect-to "bench.test:$https:127.0.0.1:$https" --http2 -c "$H2_CONNS" \
             -p "$H2_STREAMS" "https://bench.test:$https/"
         run_scenarios "$proxy" "$http" "$https"
-        case "$proxy" in
-            paduraksa)
-                stop_paduraksa
-                if wants cf; then run_cloudflare; fi
-                ;;
-            yarp) stop_yarp ;;
-            *) stop_container "$proxy" ;;
-        esac
+        stop_instance "$proxy"
+        run_variants "$proxy"
     done
 
     cat "$OUT/env.txt" >&2
