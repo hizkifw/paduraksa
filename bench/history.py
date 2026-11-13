@@ -32,7 +32,7 @@ NAMES = {
 }
 PROXY_ORDER = ["paduraksa", "nginx", "caddy", "haproxy", "traefik", "envoy", "yarp"]
 SCENARIO_ORDER = [
-    "h1", "h1-tls", "h2-tls", "browser", "body-64k", "handshake", "answered",
+    "h1", "h1-tls", "h2-tls", "browser", "body-64k", "upload-64k", "handshake", "websocket", "answered",
     "access-log", "rate-limit", "rate-limited", "browser-check", "error-page", "cf",
 ]
 MAIN_SCENARIOS = ["h1", "h2-tls"]
@@ -131,6 +131,9 @@ def latest_tables(lines: list[str], entry: dict) -> None:
         lines.append("")
         lines.append("`rate-limited` and `error-page` count every response (429 and 502), not only 2xx: for those rows"
                      " the number is what the proxy refused or failed, and their `errors` column is the same count.")
+    if "websocket" in scenarios:
+        lines.append("")
+        lines.append("`websocket` counts echo round trips (a message each way), not requests.")
     lines.append("")
 
     lines.append("### Latency at fixed concurrency (ms)")
@@ -496,9 +499,11 @@ def throughput_svg(latest: dict) -> str:
         "Requests per second at fixed concurrency; each panel has its own scale."
     ]
     if any(len(panel["bars"]) == 1 for panel in panels):
-        subtitles.append("A panel with a single bar is a Paduraksa-only scenario.")
+        subtitles.append("A panel with a single bar is a scenario only that proxy runs (browser-check, or one the others skip).")
     if any(panel["key"] in {"rate-limited", "error-page"} for panel in panels):
         subtitles.append("rate-limited and error-page count every response (429 and 502), not only 2xx.")
+    if any(panel["key"] == "websocket" for panel in panels):
+        subtitles.append("websocket counts echo round trips (a message each way) per second.")
     return bar_chart(
         "Throughput per scenario, latest run", subtitles, panels, compact,
         lambda panel, proxy, value: f"{proxy} {panel['key']}: {value:,.0f} req/s")

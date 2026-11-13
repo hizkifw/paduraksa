@@ -67,7 +67,7 @@ The proxy itself runs Server GC. That changes throughput, not what our code allo
 bench/run-baseline.sh                                     # all proxies and scenarios, the full profile
 PROFILE=quick bench/run-baseline.sh                       # short runs for iterating on the harness
 PROXIES=paduraksa SCENARIOS="h1 h2-tls" bench/run-baseline.sh
-PROFILE=quick PROXIES=paduraksa SCENARIOS="access-log rate-limit rate-limited browser-check error-page" bench/run-baseline.sh
+PROFILE=quick SCENARIOS="access-log rate-limit rate-limited error-page cf" bench/run-baseline.sh
 RATES="" bench/run-baseline.sh                            # no fixed-rate runs
 REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh   # tail latency: 3 x 30 s, medians reported
 OHA_DB_DIR=/tmp/oha-db PROXIES=paduraksa SCENARIOS=h1 RATES=30000 bench/run-baseline.sh
@@ -77,11 +77,12 @@ RECORD=1 bench/run-baseline.sh                            # full profile, then a
 ```
 
 **Requirements:** Docker with host networking, the .NET SDK from `global.json`, and `curl`, `openssl`, `python3`,
-`taskset`, `ss`, `git`, `getconf` and `sha256sum`. The script checks for them before it starts.
+`taskset`, `ss`, `git`, `getconf` and `sha256sum`, plus `socat` when the `access-log` scenario runs against HAProxy (its
+syslog sink). The script checks for them before it starts.
 
 **What the script does:**
 - pulls the pinned `nginx`, `caddy`, `haproxy`, `traefik`, `envoy` and `oha` images (by digest) if they are missing;
-- builds the Paduraksa runner and the bare YARP reference;
+- builds the Paduraksa runner, the bare YARP reference and the WebSocket tool;
 - checks the CPU sets and ports before it starts, and prints an estimated wall time;
 - runs everything;
 - removes its containers (oha's included) and stops the Paduraksa and YARP processes on exit, including on Ctrl+C or
@@ -91,8 +92,8 @@ RECORD=1 bench/run-baseline.sh                            # full profile, then a
 directory.
 - `raw/<run>.json`: oha's output for every measured run.
 - `raw/<run>.meta.json`: the run's time window, the proxy's CPU time, and the proxy↔upstream TCP states at its end.
-- `paduraksa.log` (and `paduraksa-cf.log` for the `cf` runner) and `yarp.log`: the .NET processes' logs; the Paduraksa
-  logs carry one `METRICS` line per second.
+- `paduraksa.log` (and `paduraksa-cf.log` for the `cf` runner), `yarp.log` and `echo.log`: the .NET processes' logs; the
+  Paduraksa logs carry one `METRICS` line per second.
 - `env.txt`: the machine and versions, plus:
   - the image digests and CPU sets;
   - the negotiated TLS parameters per proxy;
@@ -117,6 +118,7 @@ directory.
 | `WARMUP` | `5s` | each scenario's discarded warm-up |
 | `PROXY_WARMUP` | `10s` | each proxy's warm-up before its first scenario |
 | `HANDSHAKE_CONNS` | `16` | requests in flight for `handshake` (the `quick` profile uses 8) |
+| `WS_CONNS` / `WS_MESSAGE` | `$CONNS` / `1024` | connections and message size in bytes for `websocket` |
 | `RATES` | `10000 30000` | fixed-rate points (req/s) for `h1` and `h2-tls`; empty disables them |
 | `RATE_DURATION` | `$DURATION` | each fixed-rate run |
 | `REPEATS` | `1` | fixed-rate runs per point; summaries report the median |
@@ -131,6 +133,7 @@ before anything starts.
 
 ```
 oha (Docker, CPUs 4-11) ──► one proxy under test (CPUs 0-3) ──► upstream: nginx (Docker, CPUs 12-19)
+WebSocket client (CPUs 4-11)                                 └──► WebSocket echo server (CPUs 12-19), ws.test only
                               Paduraksa  :18081 / :18443
                               nginx      :18082 / :18444
                               Caddy      :18083 / :18445
@@ -146,15 +149,24 @@ oha (Docker, CPUs 4-11) ──► one proxy under test (CPUs 0-3) ──► upst
   loopback.
 - **Upstream:** the same for every proxy, an nginx container returning a static 12-byte `200` at `/`
   (`baseline/upstream.nginx.conf`). It also serves a fixed 64 KiB body at `/64k` from a file the script generates in
-  its work directory and mounts read-only, for the `body-64k` scenario.
+  its work directory and mounts read-only, for the `body-64k` scenario. A few more paths serve the harness itself:
+  - `/upload` reads a request body before it answers (a content handler behind a `mirror` with
+    `mirror_request_body`; a plain `return` would answer first and only discard the body), for `upload-64k`.
+  - `/xff` echoes the `X-Forwarded-For` it received in a response header, so the `cf` check can prove a proxy forwards
+    the resolved client address.
+  - `/error-502.html` is the 502 page Traefik's `errors` middleware fetches.
+- **WebSocket echo server** (`Paduraksa.Bench.WebSocket echo`, :18090) is the upstream for `ws.test` on every proxy: a
+  Kestrel app that echoes every frame, natively on the upstream CPUs. oha has no WebSocket mode and the nginx upstream
+  can't echo one without a third-party module, so `Paduraksa.Bench.WebSocket load` is the load generator (below).
 - **Paduraksa** runs **outside Docker**, in Release, through the real `PaduraksaHost` (core, public and admin hosts).
   `Paduraksa.Bench.Runner` boots it with an in-memory config on :18081 (HTTP) and :18443 (HTTPS), with HTTP/3 off.
   - **Process settings:** Server GC, tiered PGO, the shipped `appsettings.json` and production logging, like
     `paduraksa` itself.
   - `bench.test` is a proxy host with one catch-all route to the upstream (gate → routing → YARP).
   - `respond.test` is a Respond host answering `200 ok` from the gate.
+  - `ws.test` forwards to the WebSocket echo server.
   - `access-log.test`, `rate-limit.test`, `rate-limited.test`, `browser-check.test` and `error-page.test` are the extra
-    hosts the Paduraksa-only scenarios use. They share the one runner process, so none of the scenarios restarts it
+    hosts the comparison scenarios use. They share the one runner process, so none of the scenarios restarts it
     (`cf` is the one that does, and it starts a second process).
     - `access-log.test` turns the access log on; every other host keeps it off.
     - `rate-limit.test` and `rate-limited.test` name a rate-limit policy each: one far above the load, one at 1
@@ -175,10 +187,10 @@ oha (Docker, CPUs 4-11) ──► one proxy under test (CPUs 0-3) ──► upst
 - **nginx** (`baseline/proxy.nginx.conf`, :18082/:18444), **Caddy** (`baseline/Caddyfile`, :18083/:18445), **HAProxy**
   (`baseline/haproxy.cfg`, :18084/:18446), **Traefik** (`baseline/traefik.yml` + `baseline/traefik-dynamic.yml`,
   :18085/:18447) and **Envoy** (`baseline/envoy.yaml`, :18086/:18448) run in their official images, with the same two
-  hosts.
+  hosts plus `ws.test` and the extra hosts of the comparison scenarios below.
 - **YARP** (`Paduraksa.Bench.Yarp`, :18087/:18449) is a bare Kestrel + YARP `WebApplication`, outside Docker like
   Paduraksa, with the same `Yarp.ReverseProxy` version as `Directory.Packages.props`: one catch-all route to the
-  upstream and a minimal endpoint answering `respond.test`. The gap between it and Paduraksa is Paduraksa's own cost
+  upstream, a minimal endpoint answering `respond.test`, and the same extra hosts. The gap between it and Paduraksa is Paduraksa's own cost
   (gate, routing, policies); the gap between it and nginx is Kestrel + YARP.
 - **Fairness:**
   - Every proxy keeps upstream connections alive and adds `X-Forwarded-For`/`-Proto`/`-Host`. nginx and HAProxy are
@@ -191,11 +203,11 @@ oha (Docker, CPUs 4-11) ──► one proxy under test (CPUs 0-3) ──► upst
     120 s idle timeout. YARP keeps Kestrel's default pool.
   - nginx's 1,000-requests-per-connection cap is lifted, because Kestrel, Caddy, HAProxy, Traefik and Envoy have none.
   - nginx gets `reuseport` so its 4 workers share the connections. Without it nginx sometimes used ~1 of its 4 CPUs.
-  - Access logs are off everywhere: nginx and Caddy are configured off, HAProxy has no `log` directive, Traefik has no
-    `accessLog`, Envoy has `access_log: []`, YARP drops its logging below Information (Kestrel's request diagnostics),
-    and Paduraksa's runner turns the host access log off explicitly (its built-in default is on). The one exception is
-    the `access-log` scenario's own host: it turns the log back on so that path can be measured. `bench.test` itself
-    stays off, so `h1` and the rest keep the numbers they had.
+  - Access logs are off for every host but the `access-log` scenario's own: nginx and Caddy log per host, HAProxy
+    silences its logging for every other host, Envoy filters its file log to that host's authority, YARP's W3C
+    logging runs in a branch for that host, Traefik's static log is only on in the second instance started for that
+    scenario, and Paduraksa's runner turns the host access log off everywhere else (its built-in default is on).
+    `bench.test` itself stays off, so `h1` and the rest keep the numbers they had.
   - Worker counts follow the CPU set: nginx `worker_processes auto`, `GOMAXPROCS=4` for Caddy and Traefik, `nbthread 4`
     for HAProxy, `--concurrency 4` for Envoy, and `Environment.ProcessorCount=4` for .NET (4 Server GC heaps unless
     DATAS shrinks them).
@@ -257,21 +269,52 @@ throughput. Compare latency at the fixed rates below.
 | `body-64k` | plain HTTP/1.1 `GET /64k` to `bench.test`, proxied; the upstream answers a fixed 64 KiB body, so this measures body streaming instead of per-request overhead |
 | `handshake` | HTTPS, HTTP/1.1, proxied, with oha's `--disable-keepalive`: every request is a new TCP connection plus a TLS handshake. This is the cost a real browser pays on its first visit, and it is why it gets its own lower concurrency |
 | `answered` | plain HTTP/1.1 `GET /` to `respond.test`, answered by the proxy itself (Paduraksa: a Respond host in the gate; Traefik: skipped, no built-in static response) |
-| `access-log` | Paduraksa only: plain HTTP/1.1 like `h1`, to `access-log.test`, whose settings turn the access log on (the production default; every other host keeps it off). The ring, formatter and file writer see every request; the file goes to the runner's throwaway data directory. |
-| `rate-limit` | Paduraksa only: plain HTTP/1.1 like `h1`, to `rate-limit.test` under a client-IP policy of 1,000,000 req/s with a burst of 1,048,575. Every request comes from 127.0.0.1, so all of them take a token from one hot bucket: the worst case for the table's CAS loop. The budget is far above the load, so nothing is refused. |
-| `rate-limited` | Paduraksa only: plain HTTP/1.1 like `h1`, to `rate-limited.test` under 1 request per hour with a burst of 1. The scenario's warm-up spends the one token, so the measured run is all 429s. This is the refusal path: how much abuse the proxy absorbs. |
-| `browser-check` | Paduraksa only: plain HTTP/1.1 like `h1`, to `browser-check.test`, which has the proof-of-work gate on at 8 bits. Every request carries a valid `paduraksa_pow` cookie and `Accept: text/html`, so the token is verified (HMAC over the host and client IP) and the request forwarded. The runner solves one challenge at startup; see the runner's hosts above. |
-| `error-page` | Paduraksa only: plain HTTP/1.1 with `Accept: text/html`, to `error-page.test`, whose upstream is a closed loopback port. Every forward fails and Paduraksa writes its built-in 502 HTML page. This is the upstream-failure path. |
-| `cf` | Paduraksa only: plain HTTP/1.1 like `h1`, through a second runner process that trusts loopback as a Cloudflare Tunnel (`--cloudflare-tunnel true`). Each request carries `CF-Connecting-IP` (IPv6), `CF-Visitor` and `CF-Ray`; the client address and scheme are resolved per request and forwarded as `X-Forwarded-For`/`-Proto`. It gets its own 10 s warm-up. |
+| `upload-64k` | plain HTTP/1.1 `POST /upload` with a 64 KiB body to `bench.test`, proxied; the upstream reads the whole body and answers `upstream ok`. The mirror of `body-64k`: it measures request-body streaming. oha sends the body from a file (`-D`) with a `Content-Length`. |
+| `websocket` | WebSocket echo through the proxy (`ws.test`, plain `ws://`): `$WS_CONNS` connections (64) each with one binary message of `$WS_MESSAGE` bytes (1,024) in flight, sent and echoed back, repeated for the run. The unit is the echo round trip (one message each way, so twice as many messages cross the proxy); the CPU column is per round trip. The upstream is the echo server, and an `upstream.websocket` run measures the client and echo server alone, as `upstream.h1` does for HTTP. The 64 connections are all opened (and upgraded) before the clock starts. |
+| `access-log` | plain HTTP/1.1 like `h1`, to `access-log.test`, whose proxy writes an access log to a file (the production default for Paduraksa; every other host keeps it off). Per proxy below. |
+| `rate-limit` | plain HTTP/1.1 like `h1`, to `rate-limit.test` under a per-client-address limit of 1,000,000 req/s with a burst of about a million. Every request comes from 127.0.0.1, so all of them take a token from one hot bucket: the worst case for Paduraksa's table, and the same single entry for the others. The budget is far above the load, so nothing is refused. |
+| `rate-limited` | plain HTTP/1.1 like `h1`, to `rate-limited.test` under one request per hour (per minute on nginx) with a burst of one. The pre-run probe spends the one token, so the measured run is all 429s. This is the refusal path: how much abuse the proxy absorbs. |
+| `browser-check` | Paduraksa only: plain HTTP/1.1 like `h1`, to `browser-check.test`, which has the proof-of-work gate on at 8 bits. Every request carries a valid `paduraksa_pow` cookie and `Accept: text/html`, so the token is verified (HMAC over the host and client IP) and the request forwarded. The runner solves one challenge at startup; see the runner's hosts above. No other proxy here has a proof-of-work gate, so nothing is run for them. |
+| `error-page` | plain HTTP/1.1 with `Accept: text/html`, to `error-page.test`, whose upstream is a closed loopback port (18079). Every forward fails and the proxy writes a 502 HTML page: Paduraksa's built-in page, and for the others a ~900-byte static page (`baseline/error-502.html`: Paduraksa's page without its request ID, logo and animation). This is the upstream-failure path. |
+| `cf` | plain HTTP/1.1 like `h1`, from a peer the proxy trusts as Cloudflare Tunnel (loopback), carrying `CF-Connecting-IP` (IPv6), `CF-Visitor` and `CF-Ray`. The proxy resolves the client address from `CF-Connecting-IP` and forwards it as `X-Forwarded-For` (checked before the run through the upstream's `/xff`). Paduraksa also resolves the scheme from `CF-Visitor` and forwards `X-Forwarded-Proto`; the others only resolve the address. Paduraksa runs it on `bench.test` in a second runner process (`--cloudflare-tunnel true`); the others on `cf.test`. Each gets its own proxy warm-up. |
 
-**The Paduraksa-only paths.** `access-log`, `rate-limit`, `rate-limited`, `browser-check` and `error-page` all run at
-`c=$CONNS` with plain HTTP/1.1, like `h1`, and only against Paduraksa. They use extra hosts in the one runner process,
-so one process serves them all and nothing restarts between them.
-- **Status codes:** `summarize.py` prints a status breakdown for these paths. `rate-limit` must show no 429s; if it
-  does, its policy is below the load and the run no longer measures the token take alone. `rate-limited` must show
-  429s and `error-page` 502s, which is what their throughput columns count: for those two rows the number is every
-  response, not only 2xx, because counting only successes would report zero for the path being measured. The
-  latency tables' `failed` column includes those expected non-2xx answers.
+**The comparison scenarios.** `access-log`, `rate-limit`, `rate-limited`, `error-page` and `cf` run against every proxy
+that has a stock equivalent, each configured with the closest feature its pinned image ships. No third-party module or
+plugin build is used; the table says what was ruled out. A skip is shown as `-` in the tables and has a reason here.
+
+| | nginx | Caddy | HAProxy | Traefik | Envoy | YARP |
+|---|---|---|---|---|---|---|
+| `access-log` | `access_log` in the host's `server`, `combined` format, `buffer=64k flush=1s` | `log { output file }` on the site; JSON, one entry per request | `log` to a UDP syslog sink (below) with a combined-style `log-format`; silenced per request for other hosts | `accessLog` to a file, common log format, `bufferingSize: 100`; static config, so a second instance | file access logger with a combined-style format; a header filter on the authority limits it to the host | ASP.NET Core W3C logger to a file (fields: date, time, client, method, path, query, status, host, user agent, referer), flushed every millisecond (its default second caps it near 1k lines/s); branch for the host |
+| `rate-limit`, `rate-limited` | `limit_req` zone on `$binary_remote_addr`; leaky bucket; 1,000,000r/s with `burst=1000000 nodelay`; `rate=1r/m` with no burst | skipped | stick table, `http_req_rate` per source address, `deny_status 429`; window of 1 s and 1 h | `rateLimit` middleware; token bucket per source address; 1,000,000 per 1 s burst 1,048,575; 1 per 1 h burst 1 | `local_ratelimit` token bucket on the route; 1,048,575 tokens, 1,000,000 per 1 s; 1 token, 1 per 3,600 s | ASP.NET Core token bucket limiter per client address, rejecting with 429; same sizes as Traefik |
+| `error-page` | `error_page 502` with a static file; the log level for the host is `crit` | `handle_errors` with `file_server { status {err.status_code} }` | `errorfile 503` holding a 502 response, `retries 0` | `errors` middleware with the page from a service (the shared upstream) | `local_reply_config` mapper on response flag `UF` (502 and the page) | a middleware writing the page when the forward ended in 502 |
+| `cf` | `set_real_ip_from 127.0.0.1` and `real_ip_header CF-Connecting-IP` on the host; `$proxy_add_x_forwarded_for` | `trusted_proxies` and `client_ip_headers` (server-wide, so a second instance) and `header_up X-Forwarded-For {client_ip}` | `set-src hdr(CF-Connecting-IP)` for the host when the source is loopback; `option forwardfor` | skipped | original-IP detection extension on `CF-Connecting-IP` (replaces `use_remote_address`, so a second instance) and `X-Forwarded-For` from the detected address | `UseForwardedHeaders` with `ForwardedForHeaderName = CF-Connecting-IP` (a second process, like Paduraksa) |
+
+Skipped, and why:
+- **Caddy `rate-limit` and `rate-limited`:** rate limiting is the third-party `caddy-ratelimit` module, which the pinned
+  `caddy:2.11.7-alpine` image doesn't contain. An `xcaddy` build would be a different binary from the other scenarios',
+  so the two rows are `-` for Caddy.
+- **Traefik `cf`:** `forwardedHeaders.trustedIPs` makes Traefik trust an `X-Forwarded-For` header from a listed peer, not
+  `CF-Connecting-IP`; reading that header takes a plugin (for example Traefik's own `real-ip` plugin), which isn't in the
+  image. Feeding it the CF address in `X-Forwarded-For` would be a different request from the other proxies' and from
+  Paduraksa's.
+- **`browser-check`:** Paduraksa's own proof-of-work gate; none of the others has an equivalent.
+
+**The extra-host scenarios.** `access-log`, `rate-limit`, `rate-limited`, `browser-check`, `error-page` and `cf` all run
+at `c=$CONNS` with plain HTTP/1.1, like `h1`. Each proxy serves them from extra hosts of the one instance that serves
+everything else, so nothing restarts between them, with these exceptions, where the setting can't be limited to a host
+and the proxy is started a second time with it, for that scenario only (a proxy warm-up first, as for `cf` on
+Paduraksa): Traefik for `access-log` (the access log is static configuration), and Caddy, Envoy and YARP for `cf`
+(trusted proxies, original-IP detection and the forwarded-headers middleware are server-wide). The other scenarios'
+configuration, and so their history, is the one they always had, apart from the extra hosts themselves.
+- **Status codes:** `summarize.py` prints a status breakdown for these paths and for `upload-64k` and `websocket`, for
+  every proxy that ran them. `rate-limit` must show no 429s anywhere; if it does, that policy is below the load and the
+  run no longer measures the check alone. `rate-limited` must show 429s and `error-page` 502s, which is what their
+  throughput columns count: for those two rows the number is every response, not only 2xx, because counting only
+  successes would report zero for the path being measured. `upload-64k` is 200s, `websocket` is one 101 per
+  connection. The latency tables' `failed` column includes the expected non-2xx answers.
+- **Per-scenario checks:** before the measured runs, `check_scenario_hosts` makes each proxy prove the scenario's own
+  point: the host answers, the second `rate-limited` request is a 429, `error-page` is a 502 with a page, and for
+  `cf` the upstream's `/xff` shows the `CF-Connecting-IP` address in `X-Forwarded-For`.
 - **`error-page` and passive health:** the host's upstream has no `PassiveHealth` configured, so YARP retries the
   closed destination on every request and the steady state is a 502 with the built-in HTML page (the smoke run's
   status breakdown was 502 only). With passive health on, YARP's transport-failure-rate policy would take the
@@ -283,9 +326,14 @@ so one process serves them all and nothing restarts between them.
   log file and the formatter's work into the same run.
 - **`browser-check` scope:** the token is bound to this host and the client IP /32 (`127.0.0.1`), and lives for an
   hour, so it outlasts the run. Solve failure stops the runner before `READY`.
-- **`access-log` disk:** at `h1` rates the writer sees several hundred MB in one run. It rotates and trims by
+- **`access-log` disk:** at `h1` rates the writer sees several hundred MB in one run. Paduraksa rotates and trims by
   production's limits (64 MiB a file, 1 GiB total) inside the throwaway data directory, which the runner deletes on
-  exit, so the run never commits or keeps it.
+  exit. The containers write inside their own (throwaway) filesystem: nginx, Caddy, Traefik and Envoy to `/tmp`, HAProxy
+  through the UDP sink to the harness's temporary directory, YARP's W3C logs (10 MB files, four kept) to a directory
+  there too. None of it is committed or kept.
+- **HAProxy's access-log sink:** HAProxy only logs to syslog, stdout or stderr, so a `socat` on the upstream CPUs
+  receives the UDP datagrams and appends them to a file. A datagram the sink can't keep up with is dropped, which costs
+  HAProxy nothing, so the file may be shorter than the request count; HAProxy still formats and sends every line.
 
 **Fixed rates:** `h1` and `h2-tls` are then run at fixed request rates (`RATES`, default 10,000 and 30,000 req/s).
 - Each rate is warmed up for 5 s at that rate first.
@@ -326,6 +374,7 @@ at the fixed-rate p99 as a possible regression.
   little more than this scenario.
 - **Different defaults.**
   - Caddy adds a `Via` header.
+  - Request bodies (`upload-64k`): nginx buffers a request body before connecting upstream; the others stream it.
   - Traefik also adds `X-Forwarded-Port` and `X-Real-Ip`, and Envoy generates an `x-request-id` (a UUID) per request,
     all by default.
   - nginx buffers responses; Envoy, HAProxy and Traefik stream them. For `body-64k` that includes nginx's default
@@ -339,15 +388,51 @@ at the fixed-rate p99 as a possible regression.
 - **CPU per request at fixed rates** includes the proxy's idle time around each run (oha's container start and stop)
   and .NET's thread-pool spin-waiting at low load. Compare it between proxies at the same rate, not with the
   fixed-concurrency figures.
-- **The Paduraksa-only paths have no cross-proxy comparison.** `access-log`, `rate-limit`, `rate-limited`,
-  `browser-check`, `error-page` and `cf` each show one bar, so they say what the feature costs Paduraksa, not where
-  Paduraksa stands against the others. That is why the charts put them in their own panels.
-- **`rate-limit` is one bucket, not a distribution.** Every client is `127.0.0.1`, so the run measures contention on
-  one hot entry: the worst case for the CAS loop, not the average over many keys. A real spread of client IPs hashes
-  to different entries and costs less.
-- **`rate-limited`'s one allowed request** is the pre-run probe's (the warm-up would spend it too); the measured run
-  should be all 429s. If the breakdown shows more than a handful of 2xx answers there, the policy isn't being applied
-  (or the bucket was swept) and the run is wrong.
+- **The comparison scenarios compare features that aren't identical.** Read each row with the matrix above; what
+  differs:
+  - `browser-check` has one bar (Paduraksa only). `rate-limit` and `rate-limited` have none for Caddy, and `cf` none
+    for Traefik, so those panels have fewer bars than the others.
+  - **Access log:** the line formats differ in content and size: Paduraksa writes a 13-field plain line (with request
+    ID, upstream and timings), nginx the `combined` format, Caddy JSON (the largest), HAProxy a combined-style line
+    over syslog, Traefik common log format plus router, service and duration, Envoy and YARP a combined-style or W3C
+    subset. Buffering differs too: Paduraksa's ring and background writer, nginx's explicit `buffer=64k` (an unbuffered
+    nginx writes every line with its own syscall and costs more), Traefik's 100-line queue, Envoy's file logger, YARP's
+    channel and 1 ms flush interval, Caddy's own writer, and for HAProxy a `sendto` per line to the sink instead of a file write. nginx, Caddy and the .NET apps log on their own host only; HAProxy and Envoy
+    evaluate a small per-request condition for every host to scope their log; Traefik is a second instance.
+  - **Rate limit:** the algorithms differ: nginx's `limit_req` is a leaky bucket with millisecond accounting, HAProxy's
+    stick table counts a request rate over a sliding window, and Traefik, Envoy, YARP and Paduraksa are token buckets
+    (Paduraksa's state is a packed word updated by a CAS loop; the others have their own implementations and locking).
+    Keying differs: nginx,
+    HAProxy, Traefik, YARP and Paduraksa key on the client address; Envoy's `local_ratelimit` is on the route and shared
+    by all clients (per-client buckets need descriptors and a `rate_limits` action), which is the same single bucket
+    for this one-client run. `rate-limit` is one hot entry, not a distribution: every client is `127.0.0.1`, so it is the
+    worst case for contention on one counter, not the average over many keys. nginx has no per-hour unit, so `rate-limited` is one request per minute there;
+    the run lasts well under a minute, so it is equivalent. YARP's partition key is the client address as a string, which
+    allocates per request, as a stock `AddPolicy` does.
+  - **`rate-limited`'s one allowed request** is the pre-run probe's (the warm-up would spend it too); the measured run
+    should be all 429s. If the breakdown shows more than a handful of 2xx answers there, the policy isn't being applied
+    (or the bucket was swept) and the run is wrong.
+  - **Error page:** the page comes from a different place on each: Paduraksa's precomputed built-in page, a static file
+    read by nginx (`root`) and Caddy (`file_server`), HAProxy's and Envoy's page held in
+    memory from the config, YARP's byte array, and for Traefik a proxied request to the shared upstream for every error
+    (the `errors` middleware has no other source), so Traefik pays an extra hop. HAProxy and Envoy would answer 503 for
+    a refused connect, so both are told to say 502, like the others. Passive health is off everywhere (nginx never marks
+    a single-server upstream down) and every proxy's per-failure logging is switched off or filtered (nginx's
+    error_log for that host at `crit`, Caddy's default logger at `PANIC`, YARP's forwarder logger off).
+  - **Cloudflare IP:** nginx, HAProxy and the .NET proxies take the address when the peer is trusted (loopback); Envoy's
+    custom-header extension takes it from any peer, because Envoy offers no trusted-peer list for it (it also has no
+    `use_remote_address` then, so the `cf.test` route writes `X-Forwarded-For` itself). Only Paduraksa resolves the
+    scheme from `CF-Visitor`.
+- **WebSocket numbers are for one small shape.** 64 connections each with one 1 KiB message in flight is a latency-bound
+  ping-pong; the proxies' CPU per frame (a read and a write each way) dominates. The client and the echo server are
+  .NET, on the load and upstream CPUs; `upstream.websocket` shows what they do without a proxy in between. Paduraksa
+  and the bare YARP forward the stream with YARP; the others use their own. Message size
+  and connection count are knobs (`WS_MESSAGE`, `WS_CONNS`); the other directions of load (one large message, many idle
+  connections) aren't measured.
+- **Upload buffering differs.** nginx reads the whole request body before it connects upstream (its default
+  `proxy_request_buffering on`); the others stream it. nginx's body buffer is raised to 128 KiB so a 64 KiB body stays
+  in memory (at its default of 8 or 16 KiB it spilled to a temp file and warned per request: the first quick smoke gave
+  1.5k req/s against 80k with the larger buffer).
 - **`rate-limited` and `error-page` report every response** in `summarize.py` and `bench/history.py`, because their
   useful answer is a 429 or a 502. Do not compare those two rows with the successful-requests rows as if they were
   the same metric; read the status breakdown beside them.

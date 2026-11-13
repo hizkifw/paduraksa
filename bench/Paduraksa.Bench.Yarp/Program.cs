@@ -81,6 +81,9 @@ builder.Services.AddW3CLogging(logging =>
     logging.LoggingFields = W3CLoggingFields.Date | W3CLoggingFields.Time | W3CLoggingFields.ClientIpAddress
         | W3CLoggingFields.Method | W3CLoggingFields.UriStem | W3CLoggingFields.UriQuery | W3CLoggingFields.ProtocolStatus
         | W3CLoggingFields.UserAgent | W3CLoggingFields.Referer | W3CLoggingFields.Host;
+    // The logger drains a 1,024-line queue once per interval and makes requests wait while it is full, so its default
+    // second caps a host at about a thousand requests a second (measured: 2.8k req/s at c=64 against 127k with 1 ms).
+    logging.FlushInterval = TimeSpan.FromMilliseconds(1);
     logging.LogDirectory = Get("access-log-dir", Path.Combine(Path.GetTempPath(), "yarp-access-log"));
 });
 builder.WebHost.ConfigureKestrel(kestrel =>
