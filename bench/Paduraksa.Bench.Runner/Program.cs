@@ -11,6 +11,7 @@
 //   rate-limited.test   like bench.test, under 1 request per hour with a burst of 1: every request is refused
 //   browser-check.test  like bench.test, behind the proof-of-work gate at 8 bits
 //   error-page.test     like bench.test, but its upstream is a closed loopback port, so forwarding fails
+//   compressed.test     like bench.test, with response compression on (Brotli or gzip, as the client asks)
 //   ws.test             like bench.test, but its upstream is the WebSocket echo server (--websocket-upstream)
 //
 // Configuration and logging are production's: the shipped appsettings.json (copied from Paduraksa.Server) plus the
@@ -119,6 +120,10 @@ ConfigDocument document = new(
         new HostConfig(
             HostId.New(), ["error-page.test"], Certificate: placeholderCertificate,
             Routes: [new RouteConfig(RouteId.New(), errorUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["compressed.test"], Certificate: placeholderCertificate,
+            Settings: new HostSettings { Compression = new CompressionSettings { Enabled = true } },
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
         new HostConfig(HostId.New(), ["ws.test"], Certificate: placeholderCertificate, Routes: [new RouteConfig(RouteId.New(), echoUpstreamId)]),
     ]);
 

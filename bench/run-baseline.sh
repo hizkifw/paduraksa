@@ -88,7 +88,7 @@ REPEATS=${REPEATS:-$profile_repeats}
 # rate-limit.test, rate-limited.test, error-page.test, and for `cf` cf.test (Paduraksa: bench.test on a second
 # process, as it always was). A setting that can't be scoped to a host is run on a second instance started for that
 # scenario only (`variant_of`), so the other scenarios' configuration is the one they always had.
-SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page cf}
+SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page compressed cf}
 PROXIES=${PROXIES:-paduraksa nginx caddy haproxy traefik envoy yarp}
 # Set to a directory to also keep oha's per-request SQLite database for every fixed-rate run (large; not committed).
 OHA_DB_DIR=${OHA_DB_DIR:-}
@@ -211,7 +211,7 @@ answers_locally() { [[ "$1" != traefik ]]; }
 unsupported() {
     [[ "$2" == browser-check && "$1" != paduraksa ]] && return 0
     case "$1:$2" in
-        traefik:cf|caddy:rate-limit|caddy:rate-limited) return 0 ;;
+        traefik:cf|caddy:rate-limit|caddy:rate-limited|envoy:compressed|yarp:compressed) return 0 ;;
     esac
     return 1
 }
@@ -225,7 +225,7 @@ variant_of() {
 }
 
 # The extra-host scenarios, in run order.
-HOST_SCENARIOS="access-log rate-limit rate-limited browser-check error-page cf"
+HOST_SCENARIOS="access-log rate-limit rate-limited browser-check error-page compressed cf"
 
 # Does the proxy's one base instance run this scenario on an extra host?
 runs_in_base() { wants "$2" && ! unsupported "$1" "$2" && ! variant_of "$1" "$2"; }
@@ -280,8 +280,8 @@ preflight() {
 
     for scenario in $SCENARIOS; do
         case "$scenario" in
-            h1|h1-tls|h2-tls|browser|body-64k|upload-64k|handshake|websocket|answered|access-log|rate-limit|rate-limited|browser-check|error-page|cf) ;;
-            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page cf)" >&2
+            h1|h1-tls|h2-tls|browser|body-64k|upload-64k|handshake|websocket|answered|access-log|rate-limit|rate-limited|browser-check|error-page|compressed|cf) ;;
+            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k upload-64k handshake websocket answered access-log rate-limit rate-limited browser-check error-page compressed cf)" >&2
                return 1 ;;
         esac
     done
@@ -439,6 +439,11 @@ check_scenario_hosts() {
         body=$(curl -s -w '\n%{http_code}' -H "Host: error-page.test" -H "Accept: text/html" "http://127.0.0.1:$http/")
         [[ "${body##*$'\n'}" == "502" ]] || { echo "error-page.test: the closed upstream answered ${body##*$'\n'}, not 502" >&2; return 1; }
         [[ "$body" == *"Bad Gateway"* ]] || { echo "error-page.test: the 502 carries no page" >&2; return 1; }
+    fi
+    if runs_in_base "$proxy" compressed; then
+        local encoding
+        encoding=$(curl -s -o /dev/null -w '%header{content-encoding}' -H "Host: compressed.test" -H "Accept-Encoding: gzip" "http://127.0.0.1:$http/text")
+        [[ "$encoding" == "gzip" ]] || { echo "compressed.test: the page came back with Content-Encoding '$encoding', not gzip" >&2; return 1; }
     fi
     if runs_in_base "$proxy" cf; then
         check_cf "$http" "$(scenario_host "$proxy" cf)"
@@ -659,7 +664,7 @@ CF_HEADERS=(-H "CF-Connecting-IP: 2001:db8:85a3::8a2e:370:7334" -H 'CF-Visitor: 
 
 # One plain HTTP/1.1 scenario on the extra host that carries it. $1 = proxy, $2 = HTTP port, $3 = scenario, $4 = warm-up.
 run_host_scenario() {
-    local proxy=$1 http=$2 scenario=$3 warmup=$4 host what extra=()
+    local proxy=$1 http=$2 scenario=$3 warmup=$4 host what extra=() path=/
     host=$(scenario_host "$proxy" "$scenario")
     case "$scenario" in
         access-log) what="the access log on" ;;
@@ -674,10 +679,11 @@ run_host_scenario() {
             extra=(-H "Cookie: $POW_COOKIE" -H 'Accept: text/html')
             ;;
         error-page) what="a closed upstream, the proxy's 502 page"; extra=(-H 'Accept: text/html') ;;
+        compressed) what="a 16 KiB HTML page compressed with gzip"; extra=(-H 'Accept-Encoding: gzip'); path=/text ;;
         cf) what="a trusted Cloudflare Tunnel's headers"; extra=("${CF_HEADERS[@]}") ;;
     esac
     log "$proxy: $scenario (plain HTTP/1.1, $what, c=$CONNS, $warmup warm-up)"
-    local url="http://$host:$http/"
+    local url="http://$host:$http$path"
     local args=(--connect-to "$host:$http:127.0.0.1:$http" -c "$CONNS" "${extra[@]}")
     oha "" -z "$warmup" "${args[@]}" "$url"
     measure "$proxy" "$proxy.$scenario" -z "$DURATION" "${args[@]}" "$url"
@@ -946,13 +952,23 @@ main() {
     cat "$WORK/certs/cert.pem" "$WORK/certs/key.pem" >"$WORK/certs/haproxy.pem"
     # The 64 KiB body body-64k streams and upload-64k sends. The upstream config mounts it read-only.
     python3 -I -c 'import sys; sys.stdout.write("x" * 65536)' >"$WORK/64k.txt"
+    # The compressed scenario's page: 16 KiB of HTML built from a fixed-seed word list, so it compresses like text (about
+    # 4:1 with gzip) rather than like a run of one byte.
+    python3 -I -c '
+import random, sys
+random.seed(7)
+words = "the a proxy route host upstream request header path page cache text compress gzip brotli client server".split()
+out = []
+while sum(map(len, out)) < 16384:
+    out.append("<p>" + " ".join(random.choice(words) for _ in range(12)) + "</p>\n")
+sys.stdout.write("".join(out)[:16384])' >"$WORK/text.html"
 
     record_environment
 
     log "Starting the upstream (nginx, CPUs $UPSTREAM_CPUS)"
     docker rm -f "$PREFIX-upstream" >/dev/null 2>&1 || true
     docker run -d --name "$PREFIX-upstream" --network host --cpuset-cpus "$UPSTREAM_CPUS" --ulimit nofile=65536:65536 \
-        -v "$CONF/upstream.nginx.conf:/etc/nginx/nginx.conf:ro" -v "$WORK/64k.txt:/srv/64k.txt:ro" \
+        -v "$CONF/upstream.nginx.conf:/etc/nginx/nginx.conf:ro" -v "$WORK/64k.txt:/srv/64k.txt:ro" -v "$WORK/text.html:/srv/text.html:ro" \
         -v "$CONF/error-502.html:/srv/error-502.html:ro" \
         "$NGINX_IMAGE" >/dev/null
     wait_ready upstream "$UPSTREAM_PORT"

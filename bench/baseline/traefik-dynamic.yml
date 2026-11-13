@@ -29,6 +29,9 @@ http:
         average: 1
         period: 1h
         burst: 1
+    compress:
+      compress:
+        minResponseBodyBytes: 1024
     error-502:
       errors:
         status: ["502"]
@@ -51,6 +54,11 @@ http:
     access-log:
       rule: Host(`access-log.test`)
       entryPoints: [web]
+      service: bench
+    compressed:
+      rule: Host(`compressed.test`)
+      entryPoints: [web]
+      middlewares: [compress]
       service: bench
     rate-limit:
       rule: Host(`rate-limit.test`)

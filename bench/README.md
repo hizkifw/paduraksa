@@ -276,6 +276,7 @@ throughput. Compare latency at the fixed rates below.
 | `rate-limited` | plain HTTP/1.1 like `h1`, to `rate-limited.test` under one request per hour (per minute on nginx) with a burst of one. The pre-run probe spends the one token, so the measured run is all 429s. This is the refusal path: how much abuse the proxy absorbs. |
 | `browser-check` | Paduraksa only: plain HTTP/1.1 like `h1`, to `browser-check.test`, which has the proof-of-work gate on at 8 bits. Every request carries a valid `paduraksa_pow` cookie and `Accept: text/html`, so the token is verified (HMAC over the host and client IP) and the request forwarded. The runner solves one challenge at startup; see the runner's hosts above. No other proxy here has a proof-of-work gate, so nothing is run for them. |
 | `error-page` | plain HTTP/1.1 with `Accept: text/html`, to `error-page.test`, whose upstream is a closed loopback port (18079). Every forward fails and the proxy writes a 502 HTML page: Paduraksa's built-in page, and for the others a ~900-byte static page (`baseline/error-502.html`: Paduraksa's page without its request ID, logo and animation). This is the upstream-failure path. |
+| `compressed` | plain HTTP/1.1 `GET /text` with `Accept-Encoding: gzip` to `compressed.test`, whose proxy compresses the upstream's 16 KiB HTML page (generated per run from a fixed-seed word list, so it compresses like text; nginx's own gzip stays off upstream). Paduraksa: host compression on (Brotli preferred, gzip here as asked); nginx `gzip on` at level 1 from 1 KiB with `gzip_proxied any`; Caddy `encode gzip`; HAProxy `compression algo gzip` on a backend of its own; Traefik the `compress` middleware from 1 KiB. Envoy and YARP skip it. The pre-run check asserts `Content-Encoding: gzip` |
 | `cf` | plain HTTP/1.1 like `h1`, from a peer the proxy trusts as Cloudflare Tunnel (loopback), carrying `CF-Connecting-IP` (IPv6), `CF-Visitor` and `CF-Ray`. The proxy resolves the client address from `CF-Connecting-IP` and forwards it as `X-Forwarded-For` (checked before the run through the upstream's `/xff`). Paduraksa also resolves the scheme from `CF-Visitor` and forwards `X-Forwarded-Proto`; the others only resolve the address. Paduraksa runs it on `bench.test` in a second runner process (`--cloudflare-tunnel true`); the others on `cf.test`. Each gets its own proxy warm-up. |
 
 **The comparison scenarios.** `access-log`, `rate-limit`, `rate-limited`, `error-page` and `cf` run against every proxy
@@ -298,6 +299,9 @@ Skipped, and why:
   image. Feeding it the CF address in `X-Forwarded-For` would be a different request from the other proxies' and from
   Paduraksa's.
 - **`browser-check`:** Paduraksa's own proof-of-work gate; none of the others has an equivalent.
+- **Envoy and YARP `compressed`:** Envoy's compressor filter sits in the shared listener's filter chain, so it would need a
+  per-route opt-out on every other host; YARP has no compression of its own (it would be ASP.NET's middleware, which is what
+  Paduraksa measures). Not configured in this round.
 
 **The extra-host scenarios.** `access-log`, `rate-limit`, `rate-limited`, `browser-check`, `error-page` and `cf` all run
 at `c=$CONNS` with plain HTTP/1.1, like `h1`. Each proxy serves them from extra hosts of the one instance that serves

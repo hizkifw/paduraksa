@@ -38,6 +38,7 @@ SCENARIOS = [
     ("rate-limited", "HTTP/1.1 plain, every request refused (429)"),
     ("browser-check", "HTTP/1.1 plain, valid proof-of-work cookie, proxied"),
     ("error-page", "HTTP/1.1 plain, closed upstream, the proxy's 502 page"),
+    ("compressed", "HTTP/1.1 plain, a 16 KiB HTML page compressed with gzip, proxied"),
     ("cf", "HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers"),
 ]
 LABELS = dict(SCENARIOS)
@@ -48,6 +49,8 @@ UNAVAILABLE = {
     ("caddy", "rate-limit"),
     ("caddy", "rate-limited"),
     ("traefik", "cf"),
+    ("envoy", "compressed"),
+    ("yarp", "compressed"),
     *((proxy, "browser-check") for proxy in PROXIES if proxy != "paduraksa"),
 }
 # These two measure what the proxy answers when it doesn't answer 2xx: the refusal and the failure path. Their

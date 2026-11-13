@@ -65,6 +65,12 @@ http://access-log.test:18083 {
 # rate-limit and rate-limited: not configured. Caddy has no rate limiter in the stock image (the `rate_limit` handler
 # is the third-party caddy-ratelimit module), so both scenarios are skipped for it.
 
+# compressed: encode with gzip (Caddy's default minimum is 512 bytes; the page is far above it).
+http://compressed.test:18083 {
+	encode gzip
+	import proxied
+}
+
 # error-page: a closed port; handle_errors serves the page from a file with the status kept at 502.
 http://error-page.test:18083 {
 	reverse_proxy 127.0.0.1:18079
