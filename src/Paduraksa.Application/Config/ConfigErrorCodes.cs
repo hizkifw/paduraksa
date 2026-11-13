@@ -117,6 +117,8 @@ public static class ConfigErrorCodes
     public const string UpstreamActiveHealthPathInvalid = "upstream.activeHealth.path.invalid";
     public const string UpstreamActiveHealthIntervalInvalid = "upstream.activeHealth.interval.invalid";
     public const string UpstreamActiveHealthTimeoutInvalid = "upstream.activeHealth.timeout.invalid";
+    public const string UpstreamConnectTimeoutInvalid = "upstream.timeouts.connect.invalid";
+    public const string UpstreamIdleTimeoutInvalid = "upstream.timeouts.idle.invalid";
     public const string DestinationAddressInvalid = "destination.address.invalid";
     public const string DestinationAddressCredentials = "destination.address.credentials";
     public const string DestinationAddressQueryOrFragment = "destination.address.queryOrFragment";

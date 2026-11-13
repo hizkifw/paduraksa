@@ -285,6 +285,46 @@ public sealed class ConfigValidatorTests
     }
 
     [Fact]
+    public void AnUpstreamsTimeoutsMustBeInRangeAndAnIdleTimeoutOfZeroMeansNone()
+    {
+        var document = Valid();
+        var upstream = document.Upstreams[0];
+        UpstreamConfig Another(int n, UpstreamTimeoutsConfig timeouts) =>
+            upstream with { Id = Id<UpstreamId>(n), Name = $"n{n}", Destinations = [new DestinationConfig(Id<DestinationId>(90 + n), $"http://n{n}")], Timeouts = timeouts };
+
+        AssertErrors(
+            document with
+            {
+                Upstreams =
+                [
+                    Another(1, new UpstreamTimeoutsConfig(Connect: TimeSpan.FromMilliseconds(99))),
+                    Another(2, new UpstreamTimeoutsConfig(Connect: TimeSpan.FromMinutes(5) + TimeSpan.FromMilliseconds(1))),
+                    Another(3, new UpstreamTimeoutsConfig(Connect: TimeSpan.Zero)),
+                    Another(4, new UpstreamTimeoutsConfig(Idle: TimeSpan.FromMilliseconds(999))),
+                    Another(5, new UpstreamTimeoutsConfig(Idle: TimeSpan.FromHours(24) + TimeSpan.FromSeconds(1))),
+                    Another(6, new UpstreamTimeoutsConfig(Idle: TimeSpan.FromSeconds(-1))),
+                ],
+            },
+            ("/upstreams/0/timeouts/connect", UpstreamConnectTimeoutInvalid),
+            ("/upstreams/1/timeouts/connect", UpstreamConnectTimeoutInvalid),
+            ("/upstreams/2/timeouts/connect", UpstreamConnectTimeoutInvalid),
+            ("/upstreams/3/timeouts/idle", UpstreamIdleTimeoutInvalid),
+            ("/upstreams/4/timeouts/idle", UpstreamIdleTimeoutInvalid),
+            ("/upstreams/5/timeouts/idle", UpstreamIdleTimeoutInvalid));
+
+        Assert.Empty(ConfigValidator.Validate(CanonicalConfigJson.Canonicalize(document with
+        {
+            Upstreams =
+            [
+                Another(1, new UpstreamTimeoutsConfig()),
+                Another(2, new UpstreamTimeoutsConfig(Connect: UpstreamTimeoutsConfig.MinConnect, Idle: UpstreamTimeoutsConfig.MinIdle)),
+                Another(3, new UpstreamTimeoutsConfig(Connect: UpstreamTimeoutsConfig.MaxConnect, Idle: UpstreamTimeoutsConfig.MaxIdle)),
+                Another(4, new UpstreamTimeoutsConfig(Idle: TimeSpan.Zero)),
+            ],
+        })));
+    }
+
+    [Fact]
     public void AnUpstreamAnEnabledHostRoutesToNeedsAnEnabledDestination()
     {
         var document = Valid();

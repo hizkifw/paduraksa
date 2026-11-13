@@ -48,6 +48,28 @@ public sealed class ConfigYamlRoundTripTests
     }
 
     [Fact]
+    public void AnUpstreamsTimeoutsAreAKeyOfTheYamlAndReadBack()
+    {
+        var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());
+        var document = sample with
+        {
+            Upstreams =
+            [
+                sample.Upstreams[0] with { Timeouts = new UpstreamTimeoutsConfig(TimeSpan.FromSeconds(3), TimeSpan.Zero) },
+                .. sample.Upstreams.Skip(1),
+            ],
+        };
+
+        var yaml = ConfigYamlExporter.Export(document);
+        var read = YamlTestSupport.Mapped(yaml);
+
+        Assert.Contains("timeouts:", yaml, StringComparison.Ordinal);
+        Assert.Equal(TimeSpan.FromSeconds(3), read.Upstreams[0].Timeouts!.Connect);
+        Assert.Equal(TimeSpan.Zero, read.Upstreams[0].Timeouts!.Idle);
+        Assert.Equal(Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)), Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(read)));
+    }
+
+    [Fact]
     public void EveryGeneratedValidDocumentExportsAndReadsBackToTheSameDocument()
     {
         var checkedDocuments = 0;

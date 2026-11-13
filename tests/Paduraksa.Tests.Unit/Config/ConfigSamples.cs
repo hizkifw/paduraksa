@@ -165,7 +165,10 @@ internal static class ConfigSamples
                     : new UpstreamTlsConfig(Coin() ? UpstreamTlsTrust.Any : UpstreamTlsTrust.System)),
                 HostHeader: Maybe(() => Coin()
                     ? new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Destination)
-                    : new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, Coin() ? $"app{i}.internal" : $"app{i}.internal:{random.Next(1, 65536)}")))),
+                    : new UpstreamHostHeaderConfig(UpstreamHostHeaderMode.Custom, Coin() ? $"app{i}.internal" : $"app{i}.internal:{random.Next(1, 65536)}")),
+                Timeouts: Maybe(() => new UpstreamTimeoutsConfig(
+                    Coin() ? TimeSpan.FromMilliseconds(random.Next(100, 300_000)) : null,
+                    Coin() ? (Coin() ? TimeSpan.Zero : TimeSpan.FromSeconds(random.Next(1, 86_400))) : null)))),
         ];
         RateLimitPolicyConfig[] policies =
         [

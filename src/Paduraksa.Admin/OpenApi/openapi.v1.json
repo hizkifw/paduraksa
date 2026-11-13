@@ -20765,6 +20765,17 @@
               }
             ]
           },
+          "timeouts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Connect and idle timeouts; null = the built-in defaults.",
+                "$ref": "#/components/schemas/UpstreamTimeoutsConfig"
+              }
+            ]
+          },
           "destinations": {
             "type": [
               "null",
@@ -20869,6 +20880,29 @@
         "pattern": "^ups_[0-9A-Za-z]{22}$",
         "type": "string",
         "description": "An upstream, compiled into a YARP cluster."
+      },
+      "UpstreamTimeoutsConfig": {
+        "type": "object",
+        "properties": {
+          "connect": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "TCP and TLS connect to a destination, 100 ms to 5 minutes; null = 10 seconds."
+          },
+          "idle": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "How long a request, a response stream or an upgraded connection (a WebSocket) may go with no data in either direction before the proxy closes it, 1 second to 24 hours; zero = never; null = 1 hour."
+          }
+        },
+        "additionalProperties": false,
+        "description": "How long the proxy waits on an upstream. Each value left null is the built-in default."
       },
       "UpstreamTlsConfig": {
         "type": "object",

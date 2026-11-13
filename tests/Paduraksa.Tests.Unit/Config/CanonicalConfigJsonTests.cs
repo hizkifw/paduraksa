@@ -72,6 +72,21 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void AnEmptyTimeoutsBlockIsNoSettingAndAnIdleOfNoneIsKept()
+    {
+        UpstreamConfig Upstream(UpstreamTimeoutsConfig? timeouts) =>
+            new(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "http://app:8080")], Timeouts: timeouts);
+        string Json(UpstreamConfig upstream) => Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(new ConfigDocument(Upstreams: [upstream])));
+
+        var plain = Json(Upstream(null));
+
+        Assert.Equal(plain, Json(Upstream(new UpstreamTimeoutsConfig())));
+        Assert.DoesNotContain("timeouts", plain, StringComparison.Ordinal);
+        Assert.Contains("\"timeouts\":{\"connect\":\"00:00:03\"}", Json(Upstream(new UpstreamTimeoutsConfig(Connect: TimeSpan.FromSeconds(3)))), StringComparison.Ordinal);
+        Assert.Contains("\"timeouts\":{\"idle\":\"00:00:00\"}", Json(Upstream(new UpstreamTimeoutsConfig(Idle: TimeSpan.Zero))), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RuleSetsAreWrittenInIdOrderWithTheirConditionsAsSets()
     {
         RuleSetConfig later = new(Id<RuleSetId>(2), "  Later  ");

@@ -380,6 +380,20 @@ public static class ConfigValidator
                 }
             }
 
+            if (upstream.Timeouts is { } timeouts)
+            {
+                if (timeouts.Connect is { } connect && (connect < UpstreamTimeoutsConfig.MinConnect || connect > UpstreamTimeoutsConfig.MaxConnect))
+                {
+                    Add($"{path}/timeouts/connect", UpstreamConnectTimeoutInvalid, "the connect timeout must be between 100 ms and 5 minutes");
+                }
+
+                // Zero is the one value below the minimum that means something: no timeout.
+                if (timeouts.Idle is { } idle && idle != TimeSpan.Zero && (idle < UpstreamTimeoutsConfig.MinIdle || idle > UpstreamTimeoutsConfig.MaxIdle))
+                {
+                    Add($"{path}/timeouts/idle", UpstreamIdleTimeoutInvalid, "the idle timeout must be between 1 second and 24 hours, or zero for none");
+                }
+            }
+
             CheckNotes(upstream.Notes, path);
         }
 

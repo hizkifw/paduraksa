@@ -20,6 +20,7 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="Notes">Free text.</param>
 /// <param name="Tls">How HTTPS destinations are authenticated; null = the system trust store.</param>
 /// <param name="HostHeader">The <c>Host</c> the upstream receives; null = the client's own (<see cref="UpstreamHostHeaderMode.Original"/>).</param>
+/// <param name="Timeouts">Connect and idle timeouts; null = the built-in defaults.</param>
 public sealed record UpstreamConfig(
     UpstreamId Id,
     string Name,
@@ -32,9 +33,28 @@ public sealed record UpstreamConfig(
     int? MaxConnectionsPerServer = null,
     string? Notes = null,
     UpstreamTlsConfig? Tls = null,
-    UpstreamHostHeaderConfig? HostHeader = null)
+    UpstreamHostHeaderConfig? HostHeader = null,
+    UpstreamTimeoutsConfig? Timeouts = null)
 {
     public IReadOnlyList<DestinationConfig> Destinations { get; init; } = Destinations ?? [];
+}
+
+/// <summary>How long the proxy waits on an upstream. Each value left null is the built-in default.</summary>
+/// <param name="Connect">TCP and TLS connect to a destination, 100 ms to 5 minutes; null = 10 seconds.</param>
+/// <param name="Idle">How long a request, a response stream or an upgraded connection (a WebSocket) may go with no data in either direction before the proxy closes it, 1 second to 24 hours; zero = never; null = 1 hour.</param>
+public sealed record UpstreamTimeoutsConfig(TimeSpan? Connect = null, TimeSpan? Idle = null)
+{
+    public static readonly TimeSpan DefaultConnect = TimeSpan.FromSeconds(10);
+
+    public static readonly TimeSpan DefaultIdle = TimeSpan.FromHours(1);
+
+    public static readonly TimeSpan MinConnect = TimeSpan.FromMilliseconds(100);
+
+    public static readonly TimeSpan MaxConnect = TimeSpan.FromMinutes(5);
+
+    public static readonly TimeSpan MinIdle = TimeSpan.FromSeconds(1);
+
+    public static readonly TimeSpan MaxIdle = TimeSpan.FromHours(24);
 }
 
 /// <summary>A destination of an upstream.</summary>

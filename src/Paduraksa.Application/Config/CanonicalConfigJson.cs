@@ -350,6 +350,7 @@ public static class CanonicalConfigJson
             }
             : null,
         HostHeader = CanonicalHostHeader(upstream.HostHeader),
+        Timeouts = upstream.Timeouts is { Connect: null, Idle: null } ? null : upstream.Timeouts,
         Notes = ConfigNormalization.NormalizeNotes(upstream.Notes),
     };
 
