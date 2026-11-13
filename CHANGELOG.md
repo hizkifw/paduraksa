@@ -22,6 +22,22 @@ Section numbers written as `(§7.4)` in the entries below refer to the numbering
 | 16 | `docs/design/deployment.md` |
 | 17 | `docs/PLAN.md` (open questions) |
 
+## v0.30
+
+Drafts finish M10; the threat model's gaps closed; counted body bytes; the dashboard made consistent; the design document split into an overview and per-area pages.
+
+- **Drafts ([dashboard.md](docs/design/dashboard.md), [admin-surfaces.md](docs/design/admin-surfaces.md)):** one open draft per user, kept across restarts for 30 days; every page and picker reads the config with the draft applied; Review and Apply commit the whole set as one revision with one audit event. Apply is whole or nothing: the review returns a token covering what would be committed, and an apply whose plan no longer matches it, or with any entry changed elsewhere, commits nothing and shows the fresh review (the owner's rule). `/api/v1/drafts` behind `config:write`; MCP applies need the review's token.
+- **Threat model ([threat-model.md](docs/threat-model.md)):** assets, boundaries, attackers by boundary with the mitigations and their tests; its small gaps closed: the MCP child's network and its routes back to the parent shut by Landlock and a seccomp filter (G2), the master-key warning and the key-file secret in compose (G3), the admin port on loopback in compose (G4), the Operator role described honestly (G5), `paduraksa.db` at 0600 (G7), CodeQL and an explicit NuGet audit (G9), the README (G13).
+- **Connections ([hot-path.md](docs/design/hot-path.md)):** a per-IP connection cap (256 by default) and a connection deny list from a named access list, both before TLS on TCP and QUIC, trusted proxies exempt (G1); the public listeners' slow-client and connection limits set explicitly (G8).
+- **Upstreams and certificates ([vault-and-certificates.md](docs/design/vault-and-certificates.md)):** Host header modes (the client's, the destination's, a fixed name) with SNI following the Host sent, at 0 B per request; `_acme-challenge` CNAME delegation; DNS-01 tested against a validating Pebble; local CA root rotation, with new roots unlimited and name constraints only when the operator chooses names (the owner's decision).
+- **Counted body bytes ([observability.md](docs/design/observability.md)):** the bytes actually sent and received per request, including the proxy's own answers and WebSocket frames, replace the declared `Content-Length` in metrics, analytics, Prometheus, the access log and the live tail; bytes in are new everywhere; 0 B per request, 0.4-2 % of throughput in the bench.
+- **Notifications ([observability.md](docs/design/observability.md)):** a durable database outbox with at-least-once delivery (an event ID on every webhook), retries, and a notification history page and API.
+- **Dashboard:** one SegmentedControl, CopyableCode and pill style across every page, floating labels, ChoiceCards, one primary action per list page; the MCP setup prefilled in the new-token drawer; no second-factor nagging on the overview (the setup checklist and Users show it); Analytics without its accuracy note, the visitors' error under the count.
+- **API description ([admin-surfaces.md](docs/design/admin-surfaces.md)):** shipped as a generated file instead of generated on the first request of every boot (9 s of CPU), with a test that fails when it drifts.
+- **Logs:** a client that went away mid-write is one Debug line and a counter, not an Error with two stacks.
+- **Tests and CI ([testing.md](docs/design/testing.md)):** the load-sensitive flakes fixed at their cause and written up in development.md; CI runs two test apps at a time; the fuzz corpora grown by an hour per target (no crash).
+- **Docs:** `docs/PLAN.md` is now an overview; the as-built detail moved to `docs/design/`, the changelog to this file.
+
 ## v0.29
 
 M10 interop (all but drafts) and traffic analytics.

@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.29**: M0-M9 done; M10 backup/restore, YAML import/export and MCP (code mode, child-process sandbox) done, drafts next; traffic analytics built (see CHANGELOG.md) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.30**: M0-M10 done (the NPM importer stays a nice-to-have); M11 under way: threat model done, its small gaps closed; the fuzz run, load tests, docs site and the v0.1 tag left (see CHANGELOG.md) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 

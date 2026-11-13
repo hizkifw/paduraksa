@@ -423,7 +423,7 @@ The country is part of the **address side**.
 
 ## Rule sets
 
-Built in M7. A `RuleSet` is a top-level named object like an access list: a typed `rs_` ID (TODO(check): the data-model table in config.md says `rset_`), a unique name, notes and `rules`, an ordered list.
+Built in M7. A `RuleSet` is a top-level named object like an access list: a typed `rs_` ID, a unique name, notes and `rules`, an ordered list.
 
 ### The model
 

@@ -22,15 +22,15 @@ Contents:
 **Stack.** A .NET 10 Blazor Web App in interactive server render mode, served on the admin app only. The component library is **MudBlazor** (the most complete, with good data grids and dialogs); Fluent UI Blazor was the alternative. Charts are lightweight SVG sparklines rendered by our own components, with ApexCharts for the detail views.
 
 **UX principles:**
-- **Live by default.** Status dots, request rates and cert expiry update over the existing circuit. The sampler pushes deltas, with no polling and no per-user timers on the hot path. TODO(check): several built pages do poll (the overview, the security overview, Analytics and upstream health read on a timer while the tab is visible, see below), so "no polling" no longer describes the dashboard.
+- **Live by default.** Status dots, request rates and cert expiry update over the existing circuit. As built, the overview, the security overview, Analytics, upstream health, the live tail and notification history read on a timer while their page is open; nothing on the request path waits on them or runs per user.
 - **Every change goes through review.** An edit form leads to a "Review changes" drawer (diff, validation and warnings like "this host will lose its certificate"), then Apply. Undo in a toast rolls back to the previous revision.
 - **Inheritance is visible.** Every setting shows a badge for *Inherited*, *Profile* or *Overridden*.
-- A command palette (Ctrl or Cmd + K): jump to a host, "issue cert", "rollback", "tail logs for ...". TODO(check): M5 listed the command palette as deferred, and nothing later says it was built.
+- A command palette (Ctrl or Cmd + K): jump to a host, "issue cert", "rollback", "tail logs for ...". Deferred in M5 and not built.
 - Keyboard-first forms, dark and light themes, a mobile-friendly host list.
 
 **Pages:**
 1. **Overview:** traffic, error rate, p50 and p95 latency, top hosts, blocked requests, cert expiries, unhealthy upstreams, recent audit events.
-2. **Hosts:** a searchable, taggable list with live sparkline, health and cert status. Host detail tabs: General, Routes, Upstream, TLS, Security (WAF), Auth, Pages, Advanced, Metrics, History. TODO(check): the built host editor is a drawer (see "Drawers" below), not a tabbed detail page, and the list has no sparkline.
+2. **Hosts:** a searchable, taggable list with live sparkline, health and cert status. As built, a host is edited in a drawer (see "Drawers" below), not on a tabbed detail page, and the list has no sparkline.
 3. **Request simulator ("Why was this blocked?"):** enter a URL, IP, UA and headers and see the exact decision chain (host match, each policy, route, upstream), against the live config, an old revision or the change being reviewed. The same function is exposed to the API and MCP, and access-log entries link straight into it (see [hot-path.md](hot-path.md)).
 4. **Certificates:** list, issue (wizard), upload, local CA, renewal timeline, ACME order logs.
 5. **Upstreams and health:** destinations, probe results, history.
