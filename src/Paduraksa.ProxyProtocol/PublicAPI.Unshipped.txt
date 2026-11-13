@@ -1,0 +1,97 @@
+#nullable enable
+const Paduraksa.ProxyProtocol.IpKey.MaxFormattedLength = 39 -> int
+const Paduraksa.ProxyProtocol.IpParser.MaxLength = 45 -> int
+const Paduraksa.ProxyProtocol.ProxyProtocolParser.DefaultMaxV2Length = 4096 -> int
+const Paduraksa.ProxyProtocol.ProxyProtocolParser.V1MaxLength = 107 -> int
+const Paduraksa.ProxyProtocol.ProxyProtocolParser.V2FixedLength = 16 -> int
+const Paduraksa.ProxyProtocol.ProxyProtocolParser.V2MaxLengthWithoutTlvs = 232 -> int
+override Paduraksa.ProxyProtocol.IpKey.Equals(object? obj) -> bool
+override Paduraksa.ProxyProtocol.IpKey.GetHashCode() -> int
+override Paduraksa.ProxyProtocol.IpKey.ToString() -> string!
+override Paduraksa.ProxyProtocol.ProxyProtocolHeader.Equals(object? obj) -> bool
+override Paduraksa.ProxyProtocol.ProxyProtocolHeader.GetHashCode() -> int
+override Paduraksa.ProxyProtocol.ProxyProtocolReadResult.GetHashCode() -> int
+Paduraksa.ProxyProtocol.IpKey
+Paduraksa.ProxyProtocol.IpKey.CompareTo(Paduraksa.ProxyProtocol.IpKey other) -> int
+Paduraksa.ProxyProtocol.IpKey.Equals(Paduraksa.ProxyProtocol.IpKey other) -> bool
+Paduraksa.ProxyProtocol.IpKey.IpKey() -> void
+Paduraksa.ProxyProtocol.IpKey.IpKey(System.UInt128 value) -> void
+Paduraksa.ProxyProtocol.IpKey.IPv4Value.get -> uint
+Paduraksa.ProxyProtocol.IpKey.IsIPv4.get -> bool
+Paduraksa.ProxyProtocol.IpKey.MaskTo(int ipv4PrefixLength, int ipv6PrefixLength) -> Paduraksa.ProxyProtocol.IpKey
+Paduraksa.ProxyProtocol.IpKey.MaskTo(int prefixLength) -> Paduraksa.ProxyProtocol.IpKey
+Paduraksa.ProxyProtocol.IpKey.ToIPAddress() -> System.Net.IPAddress!
+Paduraksa.ProxyProtocol.IpKey.ToString(string? format, System.IFormatProvider? formatProvider) -> string!
+Paduraksa.ProxyProtocol.IpKey.TryFormat(System.Span<byte> utf8Destination, out int bytesWritten, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) -> bool
+Paduraksa.ProxyProtocol.IpKey.TryFormat(System.Span<char> destination, out int charsWritten) -> bool
+Paduraksa.ProxyProtocol.IpKey.TryFormat(System.Span<char> destination, out int charsWritten, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) -> bool
+Paduraksa.ProxyProtocol.IpKey.Value.get -> System.UInt128
+Paduraksa.ProxyProtocol.IpKey.WriteBytes(System.Span<byte> destination) -> void
+Paduraksa.ProxyProtocol.IpParser
+Paduraksa.ProxyProtocol.ProxyProtocolCommand
+Paduraksa.ProxyProtocol.ProxyProtocolCommand.Local = 1 -> Paduraksa.ProxyProtocol.ProxyProtocolCommand
+Paduraksa.ProxyProtocol.ProxyProtocolCommand.Proxy = 0 -> Paduraksa.ProxyProtocol.ProxyProtocolCommand
+Paduraksa.ProxyProtocol.ProxyProtocolHeader
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.Command.get -> Paduraksa.ProxyProtocol.ProxyProtocolCommand
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.DestinationAddress.get -> Paduraksa.ProxyProtocol.IpKey
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.DestinationEndPoint.get -> System.Net.IPEndPoint?
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.DestinationPort.get -> ushort
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.Equals(Paduraksa.ProxyProtocol.ProxyProtocolHeader other) -> bool
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.HasAddresses.get -> bool
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.ProxyProtocolHeader() -> void
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.SourceAddress.get -> Paduraksa.ProxyProtocol.IpKey
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.SourceEndPoint.get -> System.Net.IPEndPoint?
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.SourcePort.get -> ushort
+Paduraksa.ProxyProtocol.ProxyProtocolHeader.Version.get -> int
+Paduraksa.ProxyProtocol.ProxyProtocolParser
+Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+Paduraksa.ProxyProtocol.ProxyProtocolParseStatus.Incomplete = 0 -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+Paduraksa.ProxyProtocol.ProxyProtocolParseStatus.Invalid = 2 -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+Paduraksa.ProxyProtocol.ProxyProtocolParseStatus.Success = 1 -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+Paduraksa.ProxyProtocol.ProxyProtocolReader
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Deconstruct(out Paduraksa.ProxyProtocol.ProxyProtocolReadStatus Status, out Paduraksa.ProxyProtocol.ProxyProtocolHeader Header) -> void
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Equals(Paduraksa.ProxyProtocol.ProxyProtocolReadResult other) -> bool
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Header.get -> Paduraksa.ProxyProtocol.ProxyProtocolHeader
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Header.init -> void
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.ProxyProtocolReadResult() -> void
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.ProxyProtocolReadResult(Paduraksa.ProxyProtocol.ProxyProtocolReadStatus Status, Paduraksa.ProxyProtocol.ProxyProtocolHeader Header) -> void
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Status.get -> Paduraksa.ProxyProtocol.ProxyProtocolReadStatus
+Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Status.init -> void
+Paduraksa.ProxyProtocol.ProxyProtocolReadStatus
+Paduraksa.ProxyProtocol.ProxyProtocolReadStatus.Absent = 4 -> Paduraksa.ProxyProtocol.ProxyProtocolReadStatus
+Paduraksa.ProxyProtocol.ProxyProtocolReadStatus.Closed = 3 -> Paduraksa.ProxyProtocol.ProxyProtocolReadStatus
+Paduraksa.ProxyProtocol.ProxyProtocolReadStatus.Invalid = 1 -> Paduraksa.ProxyProtocol.ProxyProtocolReadStatus
+Paduraksa.ProxyProtocol.ProxyProtocolReadStatus.Success = 0 -> Paduraksa.ProxyProtocol.ProxyProtocolReadStatus
+Paduraksa.ProxyProtocol.ProxyProtocolReadStatus.TimedOut = 2 -> Paduraksa.ProxyProtocol.ProxyProtocolReadStatus
+static Paduraksa.ProxyProtocol.IpKey.FromBytes(System.ReadOnlySpan<byte> bytes) -> Paduraksa.ProxyProtocol.IpKey
+static Paduraksa.ProxyProtocol.IpKey.FromIPAddress(System.Net.IPAddress! address) -> Paduraksa.ProxyProtocol.IpKey
+static Paduraksa.ProxyProtocol.IpKey.FromIPv4(uint address) -> Paduraksa.ProxyProtocol.IpKey
+static Paduraksa.ProxyProtocol.IpKey.operator !=(Paduraksa.ProxyProtocol.IpKey left, Paduraksa.ProxyProtocol.IpKey right) -> bool
+static Paduraksa.ProxyProtocol.IpKey.operator <(Paduraksa.ProxyProtocol.IpKey left, Paduraksa.ProxyProtocol.IpKey right) -> bool
+static Paduraksa.ProxyProtocol.IpKey.operator <=(Paduraksa.ProxyProtocol.IpKey left, Paduraksa.ProxyProtocol.IpKey right) -> bool
+static Paduraksa.ProxyProtocol.IpKey.operator ==(Paduraksa.ProxyProtocol.IpKey left, Paduraksa.ProxyProtocol.IpKey right) -> bool
+static Paduraksa.ProxyProtocol.IpKey.operator >(Paduraksa.ProxyProtocol.IpKey left, Paduraksa.ProxyProtocol.IpKey right) -> bool
+static Paduraksa.ProxyProtocol.IpKey.operator >=(Paduraksa.ProxyProtocol.IpKey left, Paduraksa.ProxyProtocol.IpKey right) -> bool
+static Paduraksa.ProxyProtocol.IpKey.Parse(string! text) -> Paduraksa.ProxyProtocol.IpKey
+static Paduraksa.ProxyProtocol.IpKey.TryFromEndPoint(System.Net.EndPoint? endPoint, out Paduraksa.ProxyProtocol.IpKey address, out ushort port) -> bool
+static Paduraksa.ProxyProtocol.IpKey.TryParse(System.ReadOnlySpan<byte> utf8Text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.IpKey.TryParse(System.ReadOnlySpan<char> text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.IpKey.Unspecified.get -> Paduraksa.ProxyProtocol.IpKey
+static Paduraksa.ProxyProtocol.ProxyProtocolHeader.operator !=(Paduraksa.ProxyProtocol.ProxyProtocolHeader left, Paduraksa.ProxyProtocol.ProxyProtocolHeader right) -> bool
+static Paduraksa.ProxyProtocol.ProxyProtocolHeader.operator ==(Paduraksa.ProxyProtocol.ProxyProtocolHeader left, Paduraksa.ProxyProtocol.ProxyProtocolHeader right) -> bool
+static Paduraksa.ProxyProtocol.IpParser.TryParse(System.ReadOnlySpan<byte> utf8Text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.IpParser.TryParse(System.ReadOnlySpan<char> text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.IpParser.TryParseIPv4(System.ReadOnlySpan<byte> utf8Text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.IpParser.TryParseIPv4(System.ReadOnlySpan<char> text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.IpParser.TryParseIPv6(System.ReadOnlySpan<byte> utf8Text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.IpParser.TryParseIPv6(System.ReadOnlySpan<char> text, out Paduraksa.ProxyProtocol.IpKey address) -> bool
+static Paduraksa.ProxyProtocol.ProxyProtocolParser.TryParse(in System.Buffers.ReadOnlySequence<byte> buffer, out Paduraksa.ProxyProtocol.ProxyProtocolHeader header, out long consumed) -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+static Paduraksa.ProxyProtocol.ProxyProtocolParser.TryParse(in System.Buffers.ReadOnlySequence<byte> buffer, out Paduraksa.ProxyProtocol.ProxyProtocolHeader header, out long consumed, int maxV2Length) -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+static Paduraksa.ProxyProtocol.ProxyProtocolParser.TryParse(System.ReadOnlySpan<byte> buffer, out Paduraksa.ProxyProtocol.ProxyProtocolHeader header, out int consumed) -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+static Paduraksa.ProxyProtocol.ProxyProtocolParser.TryParse(System.ReadOnlySpan<byte> buffer, out Paduraksa.ProxyProtocol.ProxyProtocolHeader header, out int consumed, int maxV2Length) -> Paduraksa.ProxyProtocol.ProxyProtocolParseStatus
+static Paduraksa.ProxyProtocol.ProxyProtocolReader.ReadAsync(System.IO.Pipelines.PipeReader! input, System.TimeSpan timeout, int maxV2Length = 4096, bool headerOptional = false) -> System.Threading.Tasks.ValueTask<Paduraksa.ProxyProtocol.ProxyProtocolReadResult>
+static Paduraksa.ProxyProtocol.ProxyProtocolReadResult.operator !=(Paduraksa.ProxyProtocol.ProxyProtocolReadResult left, Paduraksa.ProxyProtocol.ProxyProtocolReadResult right) -> bool
+static Paduraksa.ProxyProtocol.ProxyProtocolReadResult.operator ==(Paduraksa.ProxyProtocol.ProxyProtocolReadResult left, Paduraksa.ProxyProtocol.ProxyProtocolReadResult right) -> bool
+~override Paduraksa.ProxyProtocol.ProxyProtocolReadResult.Equals(object obj) -> bool
+~override Paduraksa.ProxyProtocol.ProxyProtocolReadResult.ToString() -> string

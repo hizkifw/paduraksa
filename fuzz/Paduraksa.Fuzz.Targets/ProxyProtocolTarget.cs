@@ -59,10 +59,10 @@ internal static class ProxyProtocolTarget
             return;
         }
 
-        // The cap is anywhere from below the smallest the parser accepts to well above its default.
+        // The cap is anywhere from the smallest the parser accepts (it refuses a lower one) to well above its default.
         var maxV2 = input[0] switch
         {
-            < 64 => input[0] * 4,
+            < 64 => ProxyProtocolParser.V2MaxLengthWithoutTlvs + (input[0] * 4),
             < 128 => ProxyProtocolParser.DefaultMaxV2Length,
             _ => ProxyProtocolParser.DefaultMaxV2Length * (input[0] - 126),
         };

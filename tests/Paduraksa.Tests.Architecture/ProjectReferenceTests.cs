@@ -52,6 +52,16 @@ public sealed class ProjectReferenceTests
         Assert.Equal(expected, projects);
     }
 
+    /// <summary>Paduraksa.ProxyProtocol is a NuGet package for projects that don't run ASP.NET Core: the base class library and nothing else.</summary>
+    [Fact]
+    public void TheParserPackageUsesTheBaseClassLibraryOnly()
+    {
+        var references = LoadAssembly(Layer.ProxyProtocol).GetReferencedAssemblies().Select(a => a.Name!).ToList();
+
+        Assert.DoesNotContain(references, n => n.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal) || n.StartsWith("Paduraksa.", StringComparison.Ordinal));
+        Assert.DoesNotContain("FrameworkReference", File.ReadAllText(CsprojPath("Paduraksa.ProxyProtocol")), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task SanityEvaluationSeesReferences()
     {

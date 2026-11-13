@@ -1,3 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- BCL only: no ASP.NET reference, so any project can take the parser. -->
+  <Import Project="../Packaging.props" />
+  <PropertyGroup>
+    <PackageId>Paduraksa.ProxyProtocol</PackageId>
+    <Description>A strict, allocation-free parser for the HAProxy PROXY protocol (v1 and v2), with the address types it uses. No dependencies beyond the .NET base class library.</Description>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <!-- Part of the base class library from .NET 9; a package before that. -->
+    <PackageReference Include="System.IO.Pipelines" />
+  </ItemGroup>
 </Project>

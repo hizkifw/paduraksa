@@ -135,24 +135,34 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
     /// <summary>A mask with the top <paramref name="bits"/> (0-128) of 128 set.</summary>
     private static UInt128 PrefixMask(int bits) => bits == 0 ? UInt128.Zero : UInt128.MaxValue << (128 - bits);
 
+    /// <inheritdoc/>
     public bool Equals(IpKey other) => _value == other._value;
 
+    /// <inheritdoc/>
     public override bool Equals([NotNullWhen(true)] object? obj) => obj is IpKey other && Equals(other);
 
+    /// <inheritdoc/>
     public override int GetHashCode() => _value.GetHashCode();
 
+    /// <summary>Orders by the 128-bit value.</summary>
     public int CompareTo(IpKey other) => _value.CompareTo(other._value);
 
+    /// <summary>Whether both keys are the same address.</summary>
     public static bool operator ==(IpKey left, IpKey right) => left._value == right._value;
 
+    /// <summary>Whether the keys are different addresses.</summary>
     public static bool operator !=(IpKey left, IpKey right) => left._value != right._value;
 
+    /// <summary>Compares the 128-bit values.</summary>
     public static bool operator <(IpKey left, IpKey right) => left._value < right._value;
 
+    /// <summary>Compares the 128-bit values.</summary>
     public static bool operator <=(IpKey left, IpKey right) => left._value <= right._value;
 
+    /// <summary>Compares the 128-bit values.</summary>
     public static bool operator >(IpKey left, IpKey right) => left._value > right._value;
 
+    /// <summary>Compares the 128-bit values.</summary>
     public static bool operator >=(IpKey left, IpKey right) => left._value >= right._value;
 
     /// <summary>Dotted quad for IPv4 keys, otherwise the RFC 5952 canonical IPv6 text (lowercase, longest run of
@@ -164,6 +174,7 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
         return new string(buffer[..written]);
     }
 
+    /// <summary>The same text as <see cref="ToString()"/>; the format and the provider are ignored.</summary>
     public string ToString(string? format, IFormatProvider? formatProvider) => ToString();
 
     /// <summary>Allocation-free formatting (see <see cref="ToString()"/>); needs at most
@@ -182,6 +193,7 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
         return true;
     }
 
+    /// <summary>The same as <see cref="TryFormat(Span{char}, out int)"/>; the format and the provider are ignored.</summary>
     public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider) =>
         TryFormat(destination, out charsWritten);
 

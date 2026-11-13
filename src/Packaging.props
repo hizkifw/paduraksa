@@ -1,0 +1,45 @@
+<Project>
+  <!-- Shared by the two NuGet packages (Paduraksa.ProxyProtocol and Paduraksa.ProxyProtocol.AspNetCore); the rest of the solution is not packable.
+       The version is this one property: CI passes -p:Version=<tag without the v> to pack a release, so a tag decides it. -->
+  <PropertyGroup>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <IsPackable>true</IsPackable>
+    <!-- Directory.Build.props sets one TargetFramework; the packages target two. -->
+    <TargetFramework />
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+    <Description>PROXY protocol (HAProxy v1 and v2) support.</Description>
+    <PackageTags>proxy-protocol;haproxy;kestrel;aspnetcore</PackageTags>
+    <PackageProjectUrl>https://github.com/hizkifw/paduraksa</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/hizkifw/paduraksa</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReleaseNotes>https://github.com/hizkifw/paduraksa/blob/main/CHANGELOG.md</PackageReleaseNotes>
+
+    <!-- A public type or member without documentation fails the build (the solution-wide NoWarn for CS1591 is lifted here). -->
+    <NoWarn>$([System.String]::Copy('$(NoWarn)').Replace('CS1591', ''))</NoWarn>
+
+    <!-- A package built twice from one commit is byte-identical, and a debugger can step into it: SourceLink (bundled with the SDK), the repository's
+         untracked sources embedded, and the symbols in a .snupkg beside the .nupkg. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- Fails the pack when the package breaks compatibility with a baseline version or its target frameworks disagree. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- 128x128, rendered from the dashboard favicon: see docs/development.md, Publishing the NuGet packages. -->
+    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="/" Visible="false" />
+    <!-- The public API is tracked in PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt: a change to it shows in the diff, and a new member fails the build until it is listed. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

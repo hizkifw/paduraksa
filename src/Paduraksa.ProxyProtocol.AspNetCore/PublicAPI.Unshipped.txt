@@ -1,0 +1,27 @@
+#nullable enable
+Paduraksa.ProxyProtocol.AspNetCore.IProxyProtocolFeature
+Paduraksa.ProxyProtocol.AspNetCore.IProxyProtocolFeature.Header.get -> Paduraksa.ProxyProtocol.ProxyProtocolHeader
+Paduraksa.ProxyProtocol.AspNetCore.IProxyProtocolFeature.ProxyEndPoint.get -> System.Net.EndPoint?
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolListenOptionsExtensions
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.HeaderTimeout.get -> System.TimeSpan
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.HeaderTimeout.set -> void
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.MaxV2Length.get -> int
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.MaxV2Length.set -> void
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.OnOutcome.get -> System.Action<Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome>?
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.OnOutcome.set -> void
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.ProxyProtocolOptions() -> void
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.Required.get -> bool
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.Required.set -> void
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.TrustedProxies.get -> System.Collections.Generic.IList<System.Net.IPNetwork>!
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.TrustedProxies.set -> void
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome.Accepted = 0 -> Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome.AcceptedWithoutAddress = 1 -> Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome.Closed = 6 -> Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome.Invalid = 4 -> Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome.NoHeader = 2 -> Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome.TimedOut = 5 -> Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome.UntrustedSource = 3 -> Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOutcome
+static Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolListenOptionsExtensions.UseProxyProtocol(this Microsoft.AspNetCore.Server.Kestrel.Core.ListenOptions! listenOptions, System.Action<Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions!>! configure) -> Microsoft.AspNetCore.Server.Kestrel.Core.ListenOptions!
+static readonly Paduraksa.ProxyProtocol.AspNetCore.ProxyProtocolOptions.MaxHeaderTimeout -> System.TimeSpan

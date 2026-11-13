@@ -34,7 +34,7 @@ public static class ProxyProtocolReader
     /// </summary>
     /// <param name="input">The connection's input; every byte after the header stays in it.</param>
     /// <param name="timeout">How long the peer has to deliver the complete header.</param>
-    /// <param name="maxV2Length">Cap on a whole v2 header, TLVs included.</param>
+    /// <param name="maxV2Length">Cap on a whole v2 header, TLVs included; at least <see cref="ProxyProtocolParser.V2MaxLengthWithoutTlvs"/>.</param>
     /// <param name="headerOptional">Treat bytes that don't begin a header as application data: the result is <see cref="ProxyProtocolReadStatus.Absent"/>
     /// and nothing is consumed. A header that begins correctly and then breaks is still <see cref="ProxyProtocolReadStatus.Invalid"/>.</param>
     /// <remarks>Allocation: nothing when the header is already buffered (the usual case: proxies send it in the
@@ -47,6 +47,7 @@ public static class ProxyProtocolReader
         bool headerOptional = false)
     {
         ArgumentNullException.ThrowIfNull(input);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxV2Length, ProxyProtocolParser.V2MaxLengthWithoutTlvs);
         CancellationTokenSource? timer = null;
         try
         {

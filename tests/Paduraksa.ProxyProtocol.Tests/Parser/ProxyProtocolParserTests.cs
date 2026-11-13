@@ -145,6 +145,58 @@ public sealed class ProxyProtocolParserTests
         Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out _, out var _, maxV2Length: 8192));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(100)]
+    [InlineData(ProxyProtocolParser.V2MaxLengthWithoutTlvs - 1)]
+    [InlineData(-1)]
+    public void ACapBelowTheLargestHeaderWithoutTlvsIsRefused(int maxV2Length)
+    {
+        var bytes = V2();
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProxyProtocolParser.TryParse(bytes, out _, out var _, maxV2Length));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProxyProtocolParser.TryParse(new ReadOnlySequence<byte>(bytes), out _, out _, maxV2Length));
+    }
+
+    [Fact]
+    public void TheSmallestAcceptedCapStillParsesEveryAddressFamily()
+    {
+        const int Smallest = ProxyProtocolParser.V2MaxLengthWithoutTlvs;
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(V2(family: 3), out _, out var _, Smallest));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(V2(family: 2, source: "2001:db8::7", destination: "2001:db8::1"), out _, out var _, Smallest));
+        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse(V2(family: 1, tlvBytes: 300), out _, out var _, Smallest));
+    }
+
+    [Fact]
+    public void HeadersAreEqualWhenTheySayTheSameThing()
+    {
+        ProxyProtocolParser.TryParse(V2(family: 1, source: "203.0.113.7", sourcePort: 5), out var a, out var _);
+        ProxyProtocolParser.TryParse(V2(family: 1, source: "203.0.113.7", sourcePort: 5, tlvBytes: 30), out var sameWithTlvs, out var _);
+        ProxyProtocolParser.TryParse(V1("PROXY TCP4 203.0.113.7 192.0.2.1 5 443\r\n"), out var v1, out var _);
+        ProxyProtocolParser.TryParse(V2(family: 1, source: "203.0.113.8", sourcePort: 5), out var otherAddress, out var _);
+        ProxyProtocolParser.TryParse(V2(family: 1, source: "203.0.113.7", sourcePort: 6), out var otherPort, out var _);
+        ProxyProtocolParser.TryParse(V2(command: 0, family: 0, transport: 0), out var local, out var _);
+        ProxyProtocolParser.TryParse(V2(command: 1, family: 0, transport: 0), out var unspec, out var _);
+
+        Assert.True(a == sameWithTlvs);
+        Assert.True(a.Equals((object)sameWithTlvs));
+        Assert.Equal(a.GetHashCode(), sameWithTlvs.GetHashCode());
+        Assert.True(a != v1); // the version differs
+        Assert.True(a != otherAddress);
+        Assert.True(a != otherPort);
+        Assert.True(local != unspec); // LOCAL and PROXY differ even though neither carries addresses
+        Assert.True(default(ProxyProtocolHeader) == default);
+        Assert.False(a.Equals("not a header"));
+    }
+
+    [Fact]
+    public async Task TheReaderRefusesACapBelowTheLargestHeaderWithoutTlvs()
+    {
+        var pipe = new System.IO.Pipelines.Pipe();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            async () => await ProxyProtocolReader.ReadAsync(pipe.Reader, TimeSpan.FromSeconds(1), ProxyProtocolParser.V2MaxLengthWithoutTlvs - 1));
+    }
+
     [Fact]
     public void EveryPrefixOfAValidHeaderIsIncomplete()
     {

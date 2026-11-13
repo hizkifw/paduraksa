@@ -18,7 +18,7 @@ public enum ProxyProtocolCommand : byte
 /// <remarks>The address properties are <see cref="IpKey"/>s, which are values and never allocate.
 /// <see cref="SourceEndPoint"/> and <see cref="DestinationEndPoint"/> allocate an <see cref="IPEndPoint"/> on every call:
 /// use them once per connection, not per request.</remarks>
-public readonly struct ProxyProtocolHeader
+public readonly struct ProxyProtocolHeader : IEquatable<ProxyProtocolHeader>
 {
     internal ProxyProtocolHeader(
         int version,
@@ -66,6 +66,29 @@ public readonly struct ProxyProtocolHeader
 
     /// <summary>The endpoint the client connected to, or null when <see cref="HasAddresses"/> is false. Allocates.</summary>
     public IPEndPoint? DestinationEndPoint => HasAddresses ? new IPEndPoint(DestinationAddress.ToIPAddress(), DestinationPort) : null;
+
+    /// <summary>Whether both headers say the same: version, command, and (when they carry addresses) every address and port.</summary>
+    public static bool operator ==(ProxyProtocolHeader left, ProxyProtocolHeader right) => left.Equals(right);
+
+    /// <summary>Whether the headers differ.</summary>
+    public static bool operator !=(ProxyProtocolHeader left, ProxyProtocolHeader right) => !left.Equals(right);
+
+    /// <inheritdoc/>
+    public bool Equals(ProxyProtocolHeader other) =>
+        Version == other.Version
+        && Command == other.Command
+        && HasAddresses == other.HasAddresses
+        && SourceAddress == other.SourceAddress
+        && SourcePort == other.SourcePort
+        && DestinationAddress == other.DestinationAddress
+        && DestinationPort == other.DestinationPort;
+
+    /// <inheritdoc/>
+    public override bool Equals(object? obj) => obj is ProxyProtocolHeader other && Equals(other);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() =>
+        HashCode.Combine(Version, Command, HasAddresses, SourceAddress, SourcePort, DestinationAddress, DestinationPort);
 }
 
 /// <summary>The outcome of <see cref="ProxyProtocolParser.TryParse(System.ReadOnlySpan{byte}, out ProxyProtocolHeader, out int, int)"/>.</summary>
@@ -120,14 +143,25 @@ public static class ProxyProtocolParser
 
     private static ReadOnlySpan<byte> V1Prefix => "PROXY "u8;
 
+    /// <summary>As <see cref="TryParse(in ReadOnlySequence{byte}, out ProxyProtocolHeader, out long, int)"/> with
+    /// <see cref="DefaultMaxV2Length"/>.</summary>
+    public static ProxyProtocolParseStatus TryParse(in ReadOnlySequence<byte> buffer, out ProxyProtocolHeader header, out long consumed) =>
+        TryParse(in buffer, out header, out consumed, DefaultMaxV2Length);
+
     /// <summary>Parses a header at the start of <paramref name="buffer"/>. On <see cref="ProxyProtocolParseStatus.Success"/>,
     /// <paramref name="consumed"/> is the header length; anything after it is application data.</summary>
+    /// <param name="buffer">The bytes received so far.</param>
+    /// <param name="header">The header, when the status is <see cref="ProxyProtocolParseStatus.Success"/>.</param>
+    /// <param name="consumed">The header's length in bytes, when the status is <see cref="ProxyProtocolParseStatus.Success"/>.</param>
+    /// <param name="maxV2Length">Cap on a whole v2 header, TLVs included; at least <see cref="V2MaxLengthWithoutTlvs"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="maxV2Length"/> is less than <see cref="V2MaxLengthWithoutTlvs"/>.</exception>
     public static ProxyProtocolParseStatus TryParse(
         in ReadOnlySequence<byte> buffer,
         out ProxyProtocolHeader header,
         out long consumed,
-        int maxV2Length = DefaultMaxV2Length)
+        int maxV2Length)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxV2Length, V2MaxLengthWithoutTlvs);
         var first = buffer.FirstSpan;
         if (buffer.IsSingleSegment || first.Length >= PeekLength)
         {
@@ -140,14 +174,21 @@ public static class ProxyProtocolParser
         return Parse(peek[..length], buffer.Length, maxV2Length, out header, out consumed);
     }
 
+    /// <summary>As <see cref="TryParse(ReadOnlySpan{byte}, out ProxyProtocolHeader, out int, int)"/> with
+    /// <see cref="DefaultMaxV2Length"/>.</summary>
+    public static ProxyProtocolParseStatus TryParse(ReadOnlySpan<byte> buffer, out ProxyProtocolHeader header, out int consumed) =>
+        TryParse(buffer, out header, out consumed, DefaultMaxV2Length);
+
     /// <summary>As <see cref="TryParse(in ReadOnlySequence{byte}, out ProxyProtocolHeader, out long, int)"/>, over
     /// a contiguous buffer.</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="maxV2Length"/> is less than <see cref="V2MaxLengthWithoutTlvs"/>.</exception>
     public static ProxyProtocolParseStatus TryParse(
         ReadOnlySpan<byte> buffer,
         out ProxyProtocolHeader header,
         out int consumed,
-        int maxV2Length = DefaultMaxV2Length)
+        int maxV2Length)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxV2Length, V2MaxLengthWithoutTlvs);
         var status = Parse(buffer, buffer.Length, maxV2Length, out header, out var consumedLong);
         consumed = (int)consumedLong;
         return status;

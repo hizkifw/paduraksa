@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../Packaging.props" />
+  <PropertyGroup>
+    <PackageId>Paduraksa.ProxyProtocol.AspNetCore</PackageId>
+    <Description>PROXY protocol (HAProxy v1 and v2) for Kestrel: a UseProxyProtocol connection middleware that makes the client behind a load balancer the connection's remote address. Secure by default: no trusted proxies means every connection is refused.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../Paduraksa.ProxyProtocol/Paduraksa.ProxyProtocol.csproj" />
