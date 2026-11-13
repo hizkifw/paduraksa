@@ -3397,19 +3397,24 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
 }
 
 .pdk-auth-note {
+    display: grid;
+    gap: 8px;
     margin: 22px 0 0;
     color: var(--pdk-muted);
     font-size: 0.8125rem;
 }
 
-.pdk-auth code {
-    white-space: nowrap;
-    padding: 1px 6px;
-    border: 1px solid var(--pdk-line);
-    border-radius: 6px;
-    background: var(--pdk-surface-2);
-    font-family: var(--pdk-mono);
-    font-size: 0.8125em;
+.pdk-auth-note p {
+    margin: 0;
+}
+
+/* A CopyableCode on these pages reads the MudBlazor palette, which only the interactive pages define. */
+.pdk-auth {
+    --mud-palette-lines-default: var(--pdk-line);
+    --mud-palette-background-gray: var(--pdk-surface-2);
+    --mud-palette-text-primary: var(--pdk-text);
+    --mud-palette-text-secondary: var(--pdk-muted);
+    --mud-palette-primary: var(--pdk-accent);
 }
 
 .pdk-auth-links {

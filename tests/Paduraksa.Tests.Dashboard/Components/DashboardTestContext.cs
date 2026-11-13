@@ -30,6 +30,7 @@ internal sealed class DashboardTestContext : BunitContext
         Services.AddSingleton(new DashboardOptions { MinPasswordLength = 12 });
         Services.AddScoped<ThemeState>();
         Services.AddScoped<DrawerStack>();
+        Services.AddScoped<DashboardBrowser>();
     }
 
     /// <summary>A cascading authentication state for <paramref name="user"/> (anonymous when null).</summary>

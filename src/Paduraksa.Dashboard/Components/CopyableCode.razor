@@ -16,9 +16,18 @@
         {
             <code class="pdk-copy-text" tabindex="0" aria-label="@(Label ?? "Value")">@Value</code>
         }
-        <MudIconButton Icon="@(_copied ? Icons.Material.Rounded.Check : Icons.Material.Outlined.ContentCopy)" Size="Size.Small" Class="pdk-copy-button"
-                       aria-label="@(_copied ? "Copied" : (Label is null ? "Copy" : $"Copy {Label}"))" title="@(_copied ? "Copied" : "Copy")"
-                       OnClick="CopyAsync" data-action="@CopyAction" />
+        @if (Static)
+        {
+            <button type="button" class="pdk-copy-button pdk-copy-static" aria-label="@(Label is null ? "Copy" : $"Copy {Label}")" title="Copy" data-copy-value="@Value" data-action="@CopyAction">
+                <MudIcon Icon="@Icons.Material.Outlined.ContentCopy" Size="Size.Small" />
+            </button>
+        }
+        else
+        {
+            <MudIconButton Icon="@(_copied ? Icons.Material.Rounded.Check : Icons.Material.Outlined.ContentCopy)" Size="Size.Small" Class="pdk-copy-button"
+                           aria-label="@(_copied ? "Copied" : (Label is null ? "Copy" : $"Copy {Label}"))" title="@(_copied ? "Copied" : "Copy")"
+                           OnClick="CopyAsync" data-action="@CopyAction" />
+        }
     </div>
 </div>
 
@@ -42,6 +51,13 @@
     /// <summary>Several short lines, laid out in two columns.</summary>
     [Parameter]
     public bool Multiline { get; set; }
+
+    /// <summary>
+    /// For a page rendered as plain HTML (sign-in, setup), where a component has no events: the button is a native one that <c>paduraksa.js</c>
+    /// answers, and the text is in the page's markup, which is public there, so never use it for a secret.
+    /// </summary>
+    [Parameter]
+    public bool Static { get; set; }
 
     /// <summary>The copy button's <c>data-action</c>, for tests and for telling several apart.</summary>
     [Parameter]

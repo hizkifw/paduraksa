@@ -9,7 +9,10 @@
         <div class="pdk-mcp-summary">
             <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
             <span class="pdk-list-title">MCP is off</span>
-            <MudText Typo="Typo.body2" Class="pdk-muted">Set <code>Paduraksa__Mcp__Enabled=true</code> and restart to let AI assistants connect (their code runs in a separate sandbox process; see install.md).</MudText>
+            <MudText Typo="Typo.body2" Class="pdk-muted">To let AI assistants connect, set this and restart (their code runs in a separate sandbox process; see install.md).</MudText>
+        </div>
+        <div class="pdk-mcp-body">
+            <CopyableCode Value="Paduraksa__Mcp__Enabled=true" Label="Environment variable" CopyAction="copy-env" data-field="mcp-enable" />
         </div>
     </MudPaper>
     return;

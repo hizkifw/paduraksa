@@ -21,8 +21,9 @@
         <label class="pdk-field">
             <span class="pdk-label">Setup token</span>
             <input class="pdk-input pdk-mono" name="@DashboardForm.SetupToken" autocomplete="off" autocapitalize="none" spellcheck="false" required autofocus />
-            <span class="pdk-hint">Printed in the server log at startup. Run <code>paduraksa setup-token</code> to see it again.</span>
+            <span class="pdk-hint">Printed in the server log at startup. To see it again, run:</span>
         </label>
+        <CliHint Arguments="setup-token" Static="true" />
     </fieldset>
 
     <hr class="pdk-divider" />

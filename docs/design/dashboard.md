@@ -912,6 +912,9 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - `SecretValue` (shown once) wraps it with a dashed, tinted box.
 - The MCP snippets, the local CA fingerprint, the TOTP key and the restore command use it too.
 - Recovery codes keep their Copy and Download pair.
+- A command to run on the server is never a bare `<code>`: it is `CliHint`, which shows the Docker form (`docker compose exec paduraksa paduraksa ...`, or `run --rm` when the server must be stopped) and the bare form for a systemd install, each in a `CopyableCode`.
+- The sign-in and setup pages are plain HTML, so their `CopyableCode` is `Static`: a native button that `paduraksa.js` answers. The text is in the markup, so it is never a secret.
+- Inline `<code>` stays for a name inside a sentence (a setting, a flag), never for something to run.
 
 **Pills.**
 - `.pdk-chip` and `.pdk-pill` are status (one look, tone by meaning: success, warning, error, info, default).

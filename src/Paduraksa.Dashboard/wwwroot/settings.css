@@ -73,6 +73,33 @@
     right: 2px;
 }
 
+/* The page's own button, where a component has no events (sign-in, setup); a 36 px icon button like MudBlazor's. */
+.pdk-copy-static {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--mud-palette-text-secondary);
+    cursor: pointer;
+}
+
+.pdk-copy-static:hover {
+    background: color-mix(in srgb, var(--mud-palette-text-primary) 8%, transparent);
+}
+
+.pdk-copy-static:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+}
+
+.pdk-cli-hint {
+    display: grid;
+    gap: 10px;
+}
+
 .pdk-copy-multiline .pdk-copy-text {
     columns: 2;
     column-gap: 24px;

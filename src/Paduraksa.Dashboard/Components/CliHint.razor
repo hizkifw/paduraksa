@@ -1,0 +1,31 @@
+@* A command the person runs on the server, in the two forms an install has: through Compose for Docker, bare for a systemd install. One
+   component so every hint reads the same (docs/design/dashboard.md "Dashboard conventions"). The text is the command's own, never a secret. *@
+<div class="pdk-cli-hint" data-cli="@Arguments" @attributes="AdditionalAttributes">
+    <CopyableCode Label="Docker" Value="@DockerCommand" Static="Static" CopyAction="copy-docker" data-form="docker" />
+    <CopyableCode Label="systemd" Value="@BareCommand" Static="Static" CopyAction="copy-systemd" data-form="systemd" />
+</div>
+
+@code {
+    /// <summary>What follows <c>paduraksa</c>, for a systemd install (<c>admin reset-password &lt;user&gt;</c>).</summary>
+    [Parameter, EditorRequired]
+    public string Arguments { get; set; } = string.Empty;
+
+    /// <summary>What follows it in the container, when the command takes different arguments there (a path under <c>/data</c>); otherwise <see cref="Arguments"/>.</summary>
+    [Parameter]
+    public string? DockerArguments { get; set; }
+
+    /// <summary>The command can't run while the server does (a restore): the container form starts a throwaway one, not <c>exec</c> in the running one.</summary>
+    [Parameter]
+    public bool ServerStopped { get; set; }
+
+    /// <inheritdoc cref="CopyableCode.Static"/>
+    [Parameter]
+    public bool Static { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string BareCommand => $"paduraksa {Arguments}";
+
+    private string DockerCommand => $"docker compose {(ServerStopped ? "run --rm" : "exec")} paduraksa {(ServerStopped ? string.Empty : "paduraksa ")}{DockerArguments ?? Arguments}";
+}

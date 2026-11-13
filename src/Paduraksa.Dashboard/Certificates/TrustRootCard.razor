@@ -57,7 +57,10 @@
                 <ul class="pdk-howto">
                     <li><strong>Windows:</strong> open the .crt, Install Certificate, Local Machine, "Trusted Root Certification Authorities".</li>
                     <li><strong>macOS:</strong> open the .crt in Keychain Access (System), then set it to "Always Trust".</li>
-                    <li><strong>Linux:</strong> copy the PEM to <code>/usr/local/share/ca-certificates/paduraksa.crt</code> and run <code>sudo update-ca-certificates</code>.</li>
+                    <li>
+                        <strong>Linux:</strong> put the PEM where the system looks for roots, then rebuild its list:
+                        <CopyableCode Value="sudo cp paduraksa-root.pem /usr/local/share/ca-certificates/paduraksa.crt &amp;&amp; sudo update-ca-certificates" Label="Linux install command" CopyAction="copy-linux" />
+                    </li>
                     <li><strong>Firefox:</strong> Settings, Privacy &amp; Security, Certificates, View Certificates, Authorities, Import.</li>
                     <li><strong>iOS / Android:</strong> open the .crt on the device, install the profile, then enable full trust for it.</li>
                 </ul>

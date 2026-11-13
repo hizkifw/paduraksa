@@ -325,6 +325,28 @@
         }
     }, { capture: true });
 
+    // A CopyableCode on a plain-HTML page (sign-in, setup) has no component behind it: its button carries the text.
+    document.addEventListener("click", async (event) => {
+        const button = event.target instanceof Element ? event.target.closest("[data-copy-value]") : null;
+        if (!button) {
+            return;
+        }
+
+        const label = button.getAttribute("aria-label");
+        try {
+            await navigator.clipboard.writeText(button.dataset.copyValue);
+            button.title = "Copied";
+            button.setAttribute("aria-label", "Copied");
+        } catch {
+            button.title = "Select the text and copy it yourself";
+        }
+
+        setTimeout(() => {
+            button.title = "Copy";
+            button.setAttribute("aria-label", label);
+        }, 2000);
+    });
+
     // A SegmentedControl's or ChoiceCards' arrow keys move its choice; the page must not also scroll.
     document.addEventListener("keydown", (event) => {
         if (event.key.startsWith("Arrow") && event.target instanceof Element && event.target.closest(".pdk-seg, .pdk-choice-cards")) {
