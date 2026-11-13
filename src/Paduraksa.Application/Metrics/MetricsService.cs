@@ -164,6 +164,7 @@ public sealed class MetricsService(
         point.ErrorRate,
         point.PerSecond(point.Refused),
         point.PerSecond(point.BytesOut),
+        point.PerSecond(point.BytesIn),
         new LatencyFigures(Milliseconds(point.TotalP50), Milliseconds(point.TotalP95), Milliseconds(point.TotalP99)),
         new LatencyFigures(Milliseconds(point.UpstreamP50), Milliseconds(point.UpstreamP95), Milliseconds(point.UpstreamP99)));
 

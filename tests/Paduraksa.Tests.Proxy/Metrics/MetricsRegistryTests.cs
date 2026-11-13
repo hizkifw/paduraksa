@@ -35,6 +35,7 @@ public sealed class MetricsRegistryTests
             Status = 200,
             Outcome = GateOutcome.Forwarded,
             ResponseBytes = 512,
+            RequestBytes = 2_048,
             TotalMicros = 1_500,
             UpstreamMicros = 1_000,
         });
@@ -56,17 +57,21 @@ public sealed class MetricsRegistryTests
         Assert.Equal(1, hostCounters[RequestMetric.Status + 4]);
         Assert.Equal(2, hostCounters[RequestMetric.Outcome + (int)GateOutcome.Forwarded]);
         Assert.Equal(512, hostCounters[RequestMetric.BytesOut]);
+        Assert.Equal(2_048, hostCounters[RequestMetric.BytesIn]);
         Assert.Equal(1_800, hostCounters[RequestMetric.TotalMicros]);
         Assert.Equal(1_200, hostCounters[RequestMetric.UpstreamMicros]);
 
         var routeCounters = Counters(registry, MetricSubject.Route, route.Index);
         Assert.Equal(1, routeCounters[RequestMetric.Status + 1]);
         Assert.Equal(512, routeCounters[RequestMetric.BytesOut]);
+        Assert.Equal(2_048, routeCounters[RequestMetric.BytesIn]);
 
         var upstreamCounters = Counters(registry, MetricSubject.Upstream, upstream.Index);
         Assert.Equal(2, upstreamCounters[UpstreamMetric.Requests]);
         Assert.Equal(1, upstreamCounters[UpstreamMetric.Errors + 10]);
         Assert.Equal(1_200, upstreamCounters[UpstreamMetric.UpstreamMicros]);
+        Assert.Equal(512, upstreamCounters[UpstreamMetric.BytesOut]);
+        Assert.Equal(2_048, upstreamCounters[UpstreamMetric.BytesIn]);
 
         var destinationCounters = Counters(registry, MetricSubject.Destination, destination.Index);
         Assert.Equal(2, destinationCounters[DestinationMetric.Requests]);

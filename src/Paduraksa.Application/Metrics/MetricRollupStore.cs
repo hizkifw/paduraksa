@@ -158,6 +158,7 @@ public sealed class MetricRollupStore
             Refused = group.Sum(row => row.Refused),
             Errors = group.Sum(row => row.Errors),
             BytesOut = group.Sum(row => row.BytesOut),
+            BytesIn = group.Sum(row => row.BytesIn),
             TotalMicrosSum = group.Sum(row => row.TotalMicrosSum),
             UpstreamMicrosSum = group.Sum(row => row.UpstreamMicrosSum),
             UpstreamTimed = group.Sum(row => row.UpstreamTimed),
@@ -196,6 +197,8 @@ public sealed class MetricRollupStore
 
         public long BytesOut { get; set; }
 
+        public long BytesIn { get; set; }
+
         public long TotalMicrosSum { get; set; }
 
         public long UpstreamMicrosSum { get; set; }
@@ -230,6 +233,7 @@ public sealed class MetricRollupStore
         Refused = sums.Refused,
         Errors = sums.Errors,
         BytesOut = sums.BytesOut,
+        BytesIn = sums.BytesIn,
         TotalMicrosSum = sums.TotalMicrosSum,
         UpstreamMicrosSum = sums.UpstreamMicrosSum,
         UpstreamTimed = sums.UpstreamTimed,
@@ -269,6 +273,7 @@ public sealed class MetricRollupStore
         Refused = row.Refused,
         Errors = row.Errors,
         BytesOut = row.BytesOut,
+        BytesIn = row.BytesIn,
         TotalMicrosSum = row.TotalMicrosSum,
         UpstreamMicrosSum = row.UpstreamMicrosSum,
         UpstreamTimed = row.UpstreamTimed,
@@ -293,6 +298,7 @@ public sealed class MetricRollupStore
         row.Refused = point.Refused;
         row.Errors = point.Errors;
         row.BytesOut = point.BytesOut;
+        row.BytesIn = point.BytesIn;
         row.TotalMicrosSum = point.TotalMicrosSum;
         row.UpstreamMicrosSum = point.UpstreamMicrosSum;
         row.UpstreamTimed = point.UpstreamTimed;

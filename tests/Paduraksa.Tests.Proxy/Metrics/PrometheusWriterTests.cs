@@ -39,7 +39,7 @@ public sealed partial class PrometheusWriterTests
 
     private static string[] Lines(string text) => text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-    private static void Record(MetricsRegistry registry, CompiledHost host, int status, GateOutcome outcome, long totalMicros, long upstreamMicros = -1, long bytes = -1)
+    private static void Record(MetricsRegistry registry, CompiledHost host, int status, GateOutcome outcome, long totalMicros, long upstreamMicros = -1, long bytes = -1, long bytesIn = -1)
     {
         var route = host.Routes[0];
         registry.RecordRequest(new RequestMetrics
@@ -51,6 +51,7 @@ public sealed partial class PrometheusWriterTests
             Status = status,
             Outcome = outcome,
             ResponseBytes = bytes,
+            RequestBytes = bytesIn,
             TotalMicros = totalMicros,
             UpstreamMicros = upstreamMicros,
         });
@@ -77,7 +78,7 @@ public sealed partial class PrometheusWriterTests
         var (registry, snapshot) = Live(ProxyHost("app", "app.test", Route("app-root", "web")));
         var host = snapshot.HostsByIndex[0];
         Record(registry, host, 200, GateOutcome.Forwarded, 1_500, 1_000, bytes: 42);
-        Record(registry, host, 200, GateOutcome.Forwarded, 1_500, 1_000, bytes: 8);
+        Record(registry, host, 200, GateOutcome.Forwarded, 1_500, 1_000, bytes: 8, bytesIn: 700);
         Record(registry, host, 503, GateOutcome.Forwarded, 300);
         var id = TestIds.Host("app").ToString();
 
@@ -88,6 +89,11 @@ public sealed partial class PrometheusWriterTests
         Assert.Contains($"paduraksa_requests_total{{host=\"app.test\",host_id=\"{id}\",status_class=\"4xx\"}} 0\n", text, StringComparison.Ordinal);
         Assert.Contains($"paduraksa_gate_outcomes_total{{host=\"app.test\",host_id=\"{id}\",outcome=\"forwarded\"}} 3\n", text, StringComparison.Ordinal);
         Assert.Contains($"paduraksa_response_size_bytes_total{{host=\"app.test\",host_id=\"{id}\"}} 50\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_request_size_bytes_total{{host=\"app.test\",host_id=\"{id}\"}} 700\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_route_response_size_bytes_total{{host=\"app.test\",host_id=\"{id}\",route_id=\"{TestIds.Route("app-root")}\",path=\"/\"}} 50\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_route_request_size_bytes_total{{host=\"app.test\",host_id=\"{id}\",route_id=\"{TestIds.Route("app-root")}\",path=\"/\"}} 700\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_upstream_response_size_bytes_total{{upstream_id=\"{TestIds.Upstream("web")}\"}} 50\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_upstream_request_size_bytes_total{{upstream_id=\"{TestIds.Upstream("web")}\"}} 700\n", text, StringComparison.Ordinal);
         Assert.Contains($"paduraksa_upstream_requests_total{{upstream_id=\"{TestIds.Upstream("web")}\"}} 3\n", text, StringComparison.Ordinal);
         Assert.Contains($"paduraksa_destination_requests_total{{upstream_id=\"{TestIds.Upstream("web")}\",destination_id=\"{TestIds.Destination("web-d0")}\"}} 3\n", text, StringComparison.Ordinal);
         Assert.Contains("paduraksa_config_generation 1\n", text, StringComparison.Ordinal);

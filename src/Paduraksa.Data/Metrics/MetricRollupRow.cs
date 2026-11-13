@@ -44,7 +44,11 @@ internal sealed class MetricRollupRow
 
     public long Errors { get; set; }
 
+    /// <summary>Response body bytes written to clients. Rows from before counted body bytes hold the declared <c>Content-Length</c>s instead.</summary>
     public long BytesOut { get; set; }
+
+    /// <summary>Request body bytes read from clients; 0 in rows from before they were counted.</summary>
+    public long BytesIn { get; set; }
 
     public long TotalMicrosSum { get; set; }
 

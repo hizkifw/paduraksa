@@ -69,10 +69,12 @@ public sealed class MetricSamplerTests
 
         public MetricSlot Host(Guid id) => Registry.SlotFor(MetricSubject.Host, id);
 
-        public void Request(MetricSlot host, int status = 200, long totalMicros = 1_000, long upstreamMicros = -1, GateOutcome outcome = GateOutcome.Forwarded, MetricSlot? upstream = null, int error = 0) =>
+        public void Request(MetricSlot host, int status = 200, long totalMicros = 1_000, long upstreamMicros = -1, GateOutcome outcome = GateOutcome.Forwarded, MetricSlot? upstream = null, int error = 0, long bytesOut = -1, long bytesIn = -1) =>
             Registry.RecordRequest(new RequestMetrics
             {
                 Host = host,
+                ResponseBytes = bytesOut,
+                RequestBytes = bytesIn,
                 Upstream = upstream ?? MetricSlot.None,
                 Status = status,
                 Outcome = outcome,
@@ -195,7 +197,7 @@ public sealed class MetricSamplerTests
         var upstream = rig.Registry.SlotFor(MetricSubject.Upstream, UpstreamA);
         for (var i = 0; i < 30; i++)
         {
-            rig.Request(host, 200, upstreamMicros: 500, upstream: upstream);
+            rig.Request(host, 200, upstreamMicros: 500, upstream: upstream, bytesOut: 1_000, bytesIn: 40);
         }
 
         rig.Request(host, 502, upstreamMicros: 900, upstream: upstream, error: 10);
@@ -208,16 +210,21 @@ public sealed class MetricSamplerTests
         var hostMinute = Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Host);
         Assert.Equal(HostId.FromValue(HostA).ToString(), hostMinute.SubjectId);
         Assert.Equal(31, hostMinute.Point.Requests);
+        Assert.Equal(30_000, hostMinute.Point.BytesOut);
+        Assert.Equal(1_200, hostMinute.Point.BytesIn);
         Assert.Equal(60, hostMinute.Point.Width);
         Assert.Equal(60, hostMinute.Point.CoveredSeconds);
         Assert.Equal(Start.ToUnixTimeSeconds(), hostMinute.Point.Start);
         var totalMinute = Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Total);
         Assert.Equal(string.Empty, totalMinute.SubjectId);
         Assert.Equal(31, totalMinute.Point.Requests);
+        Assert.Equal(1_200, totalMinute.Point.BytesIn);
         var upstreamMinute = Assert.Single(minutes, m => m.Subject == MetricRollupSubject.Upstream);
         Assert.Equal(UpstreamId.FromValue(UpstreamA).ToString(), upstreamMinute.SubjectId);
         Assert.Equal(31, upstreamMinute.Point.Requests);
         Assert.Equal(1, upstreamMinute.Point.Errors);
+        Assert.Equal(30_000, upstreamMinute.Point.BytesOut);
+        Assert.Equal(1_200, upstreamMinute.Point.BytesIn);
     }
 
     [Fact]

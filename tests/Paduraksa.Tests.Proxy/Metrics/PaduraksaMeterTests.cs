@@ -65,7 +65,7 @@ public sealed class PaduraksaMeterTests
     {
         var (registry, store, snapshot) = Live();
         var host = snapshot.HostsByIndex[0];
-        registry.RecordRequest(new RequestMetrics { Host = host.MetricSlot, Route = host.Routes[0].MetricSlot, Status = 200, Outcome = GateOutcome.Forwarded, TotalMicros = 2_000_000, ResponseBytes = 10 });
+        registry.RecordRequest(new RequestMetrics { Host = host.MetricSlot, Route = host.Routes[0].MetricSlot, Status = 200, Outcome = GateOutcome.Forwarded, TotalMicros = 2_000_000, ResponseBytes = 10, RequestBytes = 30 });
         registry.RecordRequest(new RequestMetrics { Host = host.MetricSlot, Status = 404, Outcome = GateOutcome.NoRoute, TotalMicros = 1_000_000 });
         using PaduraksaMeter meter = new(registry, store, ProcessCounters.None);
 
@@ -77,6 +77,7 @@ public sealed class PaduraksaMeterTests
         Assert.Equal(1, Assert.Single(observed, o => o.Instrument == "paduraksa.requests" && o.Tags["host"] == "app.test" && o.Tags["status_class"] == "4xx").Value);
         Assert.Equal(1, Assert.Single(observed, o => o.Instrument == "paduraksa.gate.outcomes" && o.Tags["host"] == "app.test" && o.Tags["outcome"] == "no_route").Value);
         Assert.Equal(10, Assert.Single(observed, o => o.Instrument == "paduraksa.response.size" && o.Tags["host"] == "app.test").Value);
+        Assert.Equal(30, Assert.Single(observed, o => o.Instrument == "paduraksa.request.size" && o.Tags["host"] == "app.test").Value);
         Assert.Equal(3, Assert.Single(observed, o => o.Instrument == "paduraksa.request.duration.sum" && o.Tags["host"] == "app.test").Value);
         Assert.Equal(1, Assert.Single(observed, o => o.Instrument == "paduraksa.config.generation").Value);
         Assert.Equal(1, Assert.Single(observed, o => o.Instrument == "paduraksa.hosts").Value);

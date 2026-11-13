@@ -17313,6 +17313,7 @@
           "errorRate",
           "refusedPerSecond",
           "bytesPerSecond",
+          "bytesInPerSecond",
           "total",
           "upstream"
         ],
@@ -17351,7 +17352,16 @@
               "number",
               "string"
             ],
-            "description": "Response bytes a second, over the responses that declare a length.",
+            "description": "Response body bytes written to clients a second.",
+            "format": "double"
+          },
+          "bytesInPerSecond": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Request body bytes read from clients a second.",
             "format": "double"
           },
           "total": {

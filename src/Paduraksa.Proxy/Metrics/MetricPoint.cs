@@ -6,7 +6,7 @@ namespace Paduraksa.Proxy.Metrics;
 /// What one series did during one bucket of the sampler's ring or one minute of a rollup: counts, the sum of the durations and the
 /// percentiles the bucket's histogram gave (PLAN §7.4), and how many of the bucket's seconds the process was there to see.
 /// Percentiles are whole microseconds, 0 when nothing was timed.
-/// A host series fills every field; an upstream series fills the requests, <see cref="Errors"/> and the upstream-time fields;
+/// A host series fills every field; an upstream series fills the requests, <see cref="Errors"/>, the bytes and the upstream-time fields;
 /// the totals series is the sum over every host, the unmatched slot included.
 /// </summary>
 public readonly record struct MetricPoint
@@ -46,7 +46,11 @@ public readonly record struct MetricPoint
     /// <summary>Forwards that failed on the upstream's side (<see cref="ForwarderErrors.IsUpstreamFault"/>); upstream series only.</summary>
     public long Errors { get; init; }
 
+    /// <summary>Response body bytes written to clients (PLAN §7.4, counted body bytes).</summary>
     public long BytesOut { get; init; }
+
+    /// <summary>Request body bytes read from clients.</summary>
+    public long BytesIn { get; init; }
 
     public long TotalMicrosSum { get; init; }
 

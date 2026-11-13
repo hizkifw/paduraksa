@@ -40,7 +40,8 @@ public sealed class PaduraksaMeter : IDisposable
 
         _meter.CreateObservableCounter("paduraksa.requests", ObserveRequests, "{request}", "Requests answered, by host and the class of the status the client got.");
         _meter.CreateObservableCounter("paduraksa.gate.outcomes", ObserveOutcomes, "{request}", "What the gate did with each request, by host: forwarded, answered itself, or refused by which kind of policy or limit.");
-        _meter.CreateObservableCounter("paduraksa.response.size", ObserveBytes, "By", "Bytes of response bodies whose Content-Length is known, by host.");
+        _meter.CreateObservableCounter("paduraksa.response.size", ObserveBytesOut, "By", "Response body bytes written to clients, as they went out, by host.");
+        _meter.CreateObservableCounter("paduraksa.request.size", ObserveBytesIn, "By", "Request body bytes read from clients, by host.");
         _meter.CreateObservableCounter("paduraksa.request.duration.sum", ObserveRequestSeconds, "s", "Total time spent on requests, by host. Divide its increase by the increase of paduraksa.requests for the mean.");
         _meter.CreateObservableCounter("paduraksa.request.upstream.duration.sum", ObserveHostUpstreamSeconds, "s", "Total time spent forwarding and waiting for the upstream, by host; the difference to paduraksa.request.duration.sum is the proxy's own time.");
         _meter.CreateObservableCounter("paduraksa.route.requests", ObserveRouteRequests, "{request}", "Requests answered, by route and status class.");
@@ -148,11 +149,15 @@ public sealed class PaduraksaMeter : IDisposable
         }
     }
 
-    private IEnumerable<Measurement<long>> ObserveBytes()
+    private IEnumerable<Measurement<long>> ObserveBytesOut() => ObserveHost(RequestMetric.BytesOut);
+
+    private IEnumerable<Measurement<long>> ObserveBytesIn() => ObserveHost(RequestMetric.BytesIn);
+
+    private IEnumerable<Measurement<long>> ObserveHost(int metric)
     {
         foreach (var host in Inventory().Hosts)
         {
-            yield return new(Counters(MetricSubject.Host, host.Slot, RequestMetric.Stride)[RequestMetric.BytesOut], HostTags(host));
+            yield return new(Counters(MetricSubject.Host, host.Slot, RequestMetric.Stride)[metric], HostTags(host));
         }
     }
 

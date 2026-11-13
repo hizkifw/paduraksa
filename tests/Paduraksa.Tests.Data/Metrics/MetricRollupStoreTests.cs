@@ -33,6 +33,8 @@ public sealed class MetricRollupStoreTests
             Status2xx = requests - errors,
             Status5xx = errors,
             Errors = errors,
+            BytesOut = requests * 100,
+            BytesIn = requests * 10,
             TotalMicrosSum = requests * 1_000,
             TotalP50 = p95 / 2,
             TotalP95 = p95,
@@ -55,6 +57,8 @@ public sealed class MetricRollupStoreTests
         Assert.Equal(120, read.Requests);
         Assert.Equal(6, read.Status5xx);
         Assert.Equal(2_000, read.TotalP95);
+        Assert.Equal(12_000, read.BytesOut);
+        Assert.Equal(1_200, read.BytesIn);
         Assert.Equal(60, read.CoveredSeconds);
         Assert.Equal(60, read.Width);
     }
@@ -88,6 +92,8 @@ public sealed class MetricRollupStoreTests
         Assert.Equal(12, row.Status5xx);
         Assert.Equal(12, row.Errors);
         Assert.Equal(400 * 1_000, row.TotalMicrosSum);
+        Assert.Equal(400 * 100, row.BytesOut);
+        Assert.Equal(400 * 10, row.BytesIn);
         Assert.Equal(55, row.CoveredSeconds);
         Assert.Equal(2_500, row.TotalP95);
     }
@@ -196,6 +202,8 @@ public sealed class MetricRollupStoreTests
         Assert.Equal(400, steps[0].Requests);
         Assert.Equal(3, steps[0].Status5xx);
         Assert.Equal(2_500, steps[0].TotalP95);
+        Assert.Equal(400 * 100, steps[0].BytesOut);
+        Assert.Equal(400 * 10, steps[0].BytesIn);
         Assert.Equal(2 * 60, steps[0].CoveredSeconds);
         Assert.Equal(6 * 60, steps[0].Width);
         Assert.Equal(50, steps[1].Requests);

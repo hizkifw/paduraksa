@@ -83,10 +83,16 @@ public static class PrometheusWriter
             }
         }
 
-        Header(output, "paduraksa_response_size_bytes_total", "Bytes of response bodies whose Content-Length is known; chunked and streamed bodies add nothing.", "counter");
+        Header(output, "paduraksa_response_size_bytes_total", "Response body bytes written to clients, as they went out (an upstream's compression counts compressed), by host.", "counter");
         for (var i = 0; i < rows.Length; i++)
         {
             Sample(output, "paduraksa_response_size_bytes_total", [("host", rows[i].Name), ("host_id", rows[i].Id)], hostCounters[i][RequestMetric.BytesOut]);
+        }
+
+        Header(output, "paduraksa_request_size_bytes_total", "Request body bytes read from clients, by host.", "counter");
+        for (var i = 0; i < rows.Length; i++)
+        {
+            Sample(output, "paduraksa_request_size_bytes_total", [("host", rows[i].Name), ("host_id", rows[i].Id)], hostCounters[i][RequestMetric.BytesIn]);
         }
 
         var total = new long[rows.Length][];
@@ -139,10 +145,16 @@ public static class PrometheusWriter
             }
         }
 
-        Header(output, "paduraksa_route_response_size_bytes_total", "Bytes of response bodies whose Content-Length is known, by route.", "counter");
+        Header(output, "paduraksa_route_response_size_bytes_total", "Response body bytes written to clients, by route.", "counter");
         for (var i = 0; i < rows.Length; i++)
         {
             Sample(output, "paduraksa_route_response_size_bytes_total", RouteLabels(rows[i]), counters[i][RequestMetric.BytesOut]);
+        }
+
+        Header(output, "paduraksa_route_request_size_bytes_total", "Request body bytes read from clients, by route.", "counter");
+        for (var i = 0; i < rows.Length; i++)
+        {
+            Sample(output, "paduraksa_route_request_size_bytes_total", RouteLabels(rows[i]), counters[i][RequestMetric.BytesIn]);
         }
     }
 
@@ -168,6 +180,18 @@ public static class PrometheusWriter
         for (var i = 0; i < rows.Length; i++)
         {
             Sample(output, "paduraksa_upstream_requests_total", [("upstream_id", rows[i].Id)], counters[i][UpstreamMetric.Requests]);
+        }
+
+        Header(output, "paduraksa_upstream_response_size_bytes_total", "Response body bytes written to clients for the requests forwarded to the upstream.", "counter");
+        for (var i = 0; i < rows.Length; i++)
+        {
+            Sample(output, "paduraksa_upstream_response_size_bytes_total", [("upstream_id", rows[i].Id)], counters[i][UpstreamMetric.BytesOut]);
+        }
+
+        Header(output, "paduraksa_upstream_request_size_bytes_total", "Request body bytes read from clients for the requests forwarded to the upstream.", "counter");
+        for (var i = 0; i < rows.Length; i++)
+        {
+            Sample(output, "paduraksa_upstream_request_size_bytes_total", [("upstream_id", rows[i].Id)], counters[i][UpstreamMetric.BytesIn]);
         }
 
         Header(output, "paduraksa_upstream_errors_total", "Forwards that failed, by YARP's kind of error: a client that went away is counted too, see paduraksa_upstream_requests_total for the total.", "counter");

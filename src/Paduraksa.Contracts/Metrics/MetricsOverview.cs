@@ -22,10 +22,11 @@ public sealed record LatencyFigures(double P50Ms, double P95Ms, double P99Ms);
 /// <param name="RequestsPerSecond">Requests answered a second, the connections the gate dropped included.</param>
 /// <param name="ErrorRate">The share of requests answered with a 5xx, 0 to 1.</param>
 /// <param name="RefusedPerSecond">Requests the gate refused by a policy or a limit, a second.</param>
-/// <param name="BytesPerSecond">Response bytes a second, over the responses that declare a length.</param>
+/// <param name="BytesPerSecond">Response body bytes written to clients a second.</param>
+/// <param name="BytesInPerSecond">Request body bytes read from clients a second.</param>
 /// <param name="Total">Time from the request's first byte to the end of the response.</param>
 /// <param name="Upstream">Time spent forwarding and waiting for the upstream; the difference to <paramref name="Total"/> is the proxy's own.</param>
-public sealed record MetricsFigures(double RequestsPerSecond, double ErrorRate, double RefusedPerSecond, double BytesPerSecond, LatencyFigures Total, LatencyFigures Upstream);
+public sealed record MetricsFigures(double RequestsPerSecond, double ErrorRate, double RefusedPerSecond, double BytesPerSecond, double BytesInPerSecond, LatencyFigures Total, LatencyFigures Upstream);
 
 /// <summary>
 /// One step of the chart: the figures over the <paramref name="WidthSeconds"/> starting at <paramref name="Start"/>. A step whose
