@@ -301,6 +301,7 @@ public sealed class AccessListVerificationQueueTests
             var now = Interlocked.Increment(ref running);
             InterlockedMax(ref peak, now);
             Interlocked.Increment(ref granted);
+            // Work that holds a slot a moment: the stress test needs the slots occupied.
             await Task.Delay(1);
             Interlocked.Decrement(ref running);
             queue.Exit(client);

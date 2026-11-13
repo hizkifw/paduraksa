@@ -133,6 +133,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
         var deadline = DateTime.UtcNow.AddSeconds(15);
         while (runtime.Stats.Open > 0 && DateTime.UtcNow < deadline)
         {
+            // Poll step of a wait bounded to 15 s.
             await Task.Delay(50, TestContext.Current.CancellationToken);
         }
 
@@ -381,6 +382,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
         var deadline = DateTime.UtcNow.AddSeconds(failAfterGate ? 3 : 15);
         while (slots.Released < 1 && DateTime.UtcNow < deadline)
         {
+            // Poll step of a wait bounded by the deadline above.
             await Task.Delay(50, TestContext.Current.CancellationToken);
         }
 

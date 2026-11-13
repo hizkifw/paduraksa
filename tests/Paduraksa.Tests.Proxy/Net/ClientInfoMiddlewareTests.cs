@@ -180,6 +180,7 @@ public sealed class ClientInfoMiddlewareTests
             }
 
             await connection.ClientWriter.WriteAsync(new[] { b }, Ct);
+            // A peer that drips a byte at a time: the timeout is for the whole header, not per read.
             await Task.Delay(40, Ct);
         }
 

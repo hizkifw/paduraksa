@@ -35,6 +35,7 @@ public sealed class AccessListQueueEndToEndTests(HeaderEchoUpstream upstream) : 
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, "the condition never held");
+            // Poll step of a wait bounded to 30 s.
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
     }

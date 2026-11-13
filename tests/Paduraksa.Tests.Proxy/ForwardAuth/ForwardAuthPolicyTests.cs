@@ -299,6 +299,7 @@ public sealed class ForwardAuthPolicyTests
         await using var auth = await FakeAuthServer.StartAsync(Cancel);
         auth.Handler = async context =>
         {
+            // A thinking endpoint: it answers after the 10 s the test never waits for.
             await Task.Delay(TimeSpan.FromSeconds(10), context.RequestAborted);
         };
         var runtime = new ForwardAuthRuntime();
@@ -312,6 +313,7 @@ public sealed class ForwardAuthPolicyTests
     public async Task AClientThatGoesAwayWhileTheEndpointThinksIsDroppedAndCountsNoFailure()
     {
         await using var auth = await FakeAuthServer.StartAsync(Cancel);
+        // A thinking endpoint: the client goes away first.
         auth.Handler = context => Task.Delay(TimeSpan.FromSeconds(10), context.RequestAborted);
         var runtime = new ForwardAuthRuntime();
         var gate = GateFor(runtime, Model(Spec(auth.Address)), out _);

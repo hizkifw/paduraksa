@@ -107,6 +107,7 @@ public sealed class UpstreamHealthTests
 
         // The same reading, replaced by the watcher every second, renders nothing; a different one is pushed once.
         board.Update([Degraded()]);
+        // Absence window: six periods of the feed's 20 ms poll, in which an unchanged reading must push nothing.
         await Task.Delay(120, Xunit.TestContext.Current.CancellationToken);
         Assert.Single(seen);
         board.Update([Down()]);
@@ -143,6 +144,7 @@ public sealed class UpstreamHealthTests
 
         var panel = context.Render<UpstreamHealthPanel>(p => p.Add(x => x.Id, Plain.Id));
 
+        // Absence window for the panel's load: nothing signals a section that must not appear.
         await Task.Delay(50, Xunit.TestContext.Current.CancellationToken);
         Assert.Empty(panel.FindAll("[data-section=health]"));
     }
@@ -194,6 +196,7 @@ public sealed class UpstreamHealthTests
     {
         for (var i = 0; i < 200 && !condition(); i++)
         {
+            // Poll step of a wait bounded to two seconds.
             await Task.Delay(10, Xunit.TestContext.Current.CancellationToken);
         }
 

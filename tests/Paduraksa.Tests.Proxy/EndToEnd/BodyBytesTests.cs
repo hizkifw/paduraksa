@@ -401,6 +401,7 @@ public sealed class BodyBytesTests(BodyUpstream upstream) : IClassFixture<BodyUp
         var timeout = Stopwatch.StartNew();
         while (!condition() && timeout.Elapsed < TimeSpan.FromSeconds(10))
         {
+            // Poll step of a wait bounded to ten seconds.
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
 

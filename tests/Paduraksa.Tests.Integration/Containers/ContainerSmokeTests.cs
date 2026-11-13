@@ -188,6 +188,7 @@ public sealed class ContainerSmokeTests
                 break;
             }
 
+            // Poll step of the container's health check, bounded by the loop above.
             await Task.Delay(TimeSpan.FromSeconds(2), Ct);
         }
 

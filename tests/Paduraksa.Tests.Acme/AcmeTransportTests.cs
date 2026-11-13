@@ -377,6 +377,7 @@ public sealed class AcmeTransportTests
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            // A hung peer: only the client's timeout or cancellation ends the request.
             await Task.Delay(Timeout.Infinite, cancellationToken);
             return new HttpResponseMessage(HttpStatusCode.OK);
         }

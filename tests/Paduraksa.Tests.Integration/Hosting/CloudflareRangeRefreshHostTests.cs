@@ -147,6 +147,7 @@ public sealed class CloudflareRangeRefreshHostTests
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, "the condition never held");
+            // Poll step of a wait bounded to 15 s.
             await Task.Delay(10, ct);
         }
     }

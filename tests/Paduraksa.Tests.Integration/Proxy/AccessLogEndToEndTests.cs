@@ -275,6 +275,7 @@ public sealed class AccessLogEndToEndTests
                 Assert.Fail($"nothing carrying '{tag}' reached {path} in 15 s");
             }
 
+            // Poll step of a wait bounded to 15 s.
             await Task.Delay(100, ct);
         }
     }
@@ -398,6 +399,7 @@ public sealed class AccessLogEndToEndTests
                     Assert.Fail($"no line carries '{fragment}' after 15 s: {string.Join(" | ", Lines)}");
                 }
 
+                // Poll step of a wait bounded to 15 s.
                 await Task.Delay(50, ct);
             }
         }

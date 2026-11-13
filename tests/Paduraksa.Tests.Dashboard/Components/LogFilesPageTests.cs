@@ -221,8 +221,10 @@ public sealed class LogFilesPageTests
         await drawer.Find("button[data-action=follow]").ClickAsync(new());
         Assert.Equal("false", drawer.Find("button[data-action=follow]").GetAttribute("aria-pressed"));
 
+        // Absence window: several periods of the 25 ms follow poll, in which no further read may happen once follow is off.
         await Task.Delay(150, Xunit.TestContext.Current.CancellationToken);
         var settled = store.Reads.Count;
+        // The second window: the count taken above must not grow.
         await Task.Delay(150, Xunit.TestContext.Current.CancellationToken);
         Assert.Equal(settled, store.Reads.Count);
     }

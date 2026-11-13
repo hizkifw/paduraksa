@@ -308,6 +308,7 @@ public sealed class AcmeRenewalSchedulerTests
         var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
         while (h.Server.OrderCount == 1 && DateTimeOffset.UtcNow < deadline)
         {
+            // Poll step of a wait bounded to 15 s.
             await Task.Delay(TimeSpan.FromMilliseconds(25), Ct);
         }
 
@@ -343,6 +344,7 @@ public sealed class AcmeRenewalSchedulerTests
             IssuanceHarness.AlreadyReady);
 
         await scheduler.StartAsync(Ct);
+        // Absence window: a loop that faults on the absurd pacing would show within it; nothing signals one that does not.
         await Task.Delay(TimeSpan.FromMilliseconds(200), Ct);
 
         Assert.False(scheduler.ExecuteTask!.IsCompleted);

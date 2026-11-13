@@ -347,6 +347,7 @@ internal sealed class PebbleCa : IAsyncDisposable
                 last = ex.GetBaseException().Message;
             }
 
+            // Poll step of the wait for Pebble's listener, bounded by the deadline above.
             await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
         }
 

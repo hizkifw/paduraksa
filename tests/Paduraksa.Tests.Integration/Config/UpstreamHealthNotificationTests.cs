@@ -41,6 +41,7 @@ public sealed class UpstreamHealthNotificationTests
                 return;
             }
 
+            // Poll step of a wait bounded to 40 s.
             await Task.Delay(100, Ct);
         }
 
@@ -78,6 +79,7 @@ public sealed class UpstreamHealthNotificationTests
         // Publishes that keep the IDs, while it is healthy and settled: nothing is reported.
         await CommitAsync(host, new UpsertHostCommand(ProxyHost("other", "other.test", "app")), Ct);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("page", "page.test", "hi")), Ct);
+        // The health hold (1 s) and the coalesce window are real timers of a real host, and nothing signals a report that must not come: this is the hold plus margin.
         await Task.Delay(3500, Ct);
         Assert.Equal(0, await CountAsync(dataDirectory, "upstream.down") + await CountAsync(dataDirectory, "upstream.up"));
         Assert.Empty(hook.Received);
@@ -89,6 +91,7 @@ public sealed class UpstreamHealthNotificationTests
 
         // Another publish after the flips: still nothing new, and the single destination's own changes were absorbed into the upstream's.
         await CommitAsync(host, new UpsertHostCommand(RespondHost("page2", "page2.test", "hello again")), Ct);
+        // As above: the hold plus margin, after the publish that must report nothing.
         await Task.Delay(3500, Ct);
         var rows = new List<long>();
         foreach (var action in new[] { "upstream.down", "upstream.up", "upstream.destination.down", "upstream.destination.up" })

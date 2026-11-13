@@ -71,6 +71,7 @@ public sealed class SandboxHostileChildTests
 
         for (var i = 0; i < 60 && Directory.Exists($"/proc/{pid}"); i++)
         {
+            // Poll step of a wait bounded to six seconds for the child to be gone.
             await Task.Delay(100, Ct);
         }
 
@@ -109,6 +110,7 @@ public sealed class SandboxHostileChildTests
 
         for (var i = 0; i < 40 && SleepersOf("31.7").Count > 0; i++)
         {
+            // Poll step of a wait bounded to four seconds for the child to be gone.
             await Task.Delay(100, Ct);
         }
 
@@ -143,6 +145,7 @@ public sealed class SandboxHostileChildTests
         Assert.Contains(log, l => l.Contains("used CPU while it was idle", StringComparison.Ordinal));
         for (var i = 0; i < 40 && Directory.Exists($"/proc/{pid}"); i++)
         {
+            // Poll step of a wait bounded to two seconds for the child to be gone.
             await Task.Delay(50, Ct);
         }
 

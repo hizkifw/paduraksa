@@ -39,6 +39,7 @@ public sealed class CertificateRepublishTests
 
         // Not yet: the boundary is NotBefore less the five-minute tolerance.
         env.Time.Advance(TimeSpan.FromMinutes(54));
+        // Absence window: the clock's timers fire inline, but the republish they would start runs on, and nothing signals one that must not happen.
         await Task.Delay(100, Ct);
         Assert.Equal(generation, env.Store.Current.Generation);
 
@@ -287,6 +288,7 @@ public sealed class CertificateRepublishTests
             while (!condition())
             {
                 Assert.True(DateTime.UtcNow < deadline, "The condition never held.");
+                // Poll step of a wait bounded to 10 s.
                 await Task.Delay(20, Ct);
             }
         }

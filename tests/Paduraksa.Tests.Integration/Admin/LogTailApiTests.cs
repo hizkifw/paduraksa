@@ -78,6 +78,7 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
     {
         for (var attempt = 0; attempt < 400 && Hub.SubscriberCount != expected; attempt++)
         {
+            // Poll step of a wait bounded to ten seconds.
             await Task.Delay(25, Ct);
         }
 

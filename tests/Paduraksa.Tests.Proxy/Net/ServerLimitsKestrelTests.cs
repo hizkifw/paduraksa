@@ -95,6 +95,7 @@ public sealed class ServerLimitsKestrelTests : IAsyncLifetime
                 {
                     await context.Response.WriteAsync($"data: {i}\n\n", context.RequestAborted);
                     await context.Response.Body.FlushAsync(context.RequestAborted);
+                    // A server-sent event every 700 ms: the connection stays busy past the limit under test.
                     await Task.Delay(700, context.RequestAborted);
                 }
 
@@ -180,6 +181,7 @@ public sealed class ServerLimitsKestrelTests : IAsyncLifetime
             for (; sent < request.Length && watch.Elapsed < TimeSpan.FromSeconds(8); sent++)
             {
                 await stream.WriteAsync(request.AsMemory(sent, 1), Ct);
+                // A client slower than the header timeout allows (see the comment above).
                 await Task.Delay(150, Ct);
             }
         }
@@ -207,6 +209,7 @@ public sealed class ServerLimitsKestrelTests : IAsyncLifetime
             while (watch.Elapsed < TimeSpan.FromSeconds(10))
             {
                 await stream.WriteAsync(new byte[10], Ct);
+                // A client slower than the minimum data rate (see the comment above).
                 await Task.Delay(1000, Ct);
             }
         }

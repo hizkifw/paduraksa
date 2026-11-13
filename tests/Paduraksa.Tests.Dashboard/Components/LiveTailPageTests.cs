@@ -57,6 +57,7 @@ public sealed class LiveTailPageTests
     {
         for (var attempt = 0; attempt < 200 && page.Instance.Renders <= after; attempt++)
         {
+            // Poll step of a wait bounded to two seconds.
             await Task.Delay(10, Xunit.TestContext.Current.CancellationToken);
         }
     }
@@ -172,6 +173,7 @@ public sealed class LiveTailPageTests
             await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(false));
             var renders = page.Instance.Renders;
             hub.Offer(Entry("/while-hidden"));
+            // Absence window: six batch periods of the page's real timer, in which a hidden tab must render nothing.
             await Task.Delay(Batch * 6, Xunit.TestContext.Current.CancellationToken);
 
             Assert.Empty(Paths(page));
@@ -406,6 +408,7 @@ public sealed class LiveTailPageTests
                     hub.Offer(Entry("/load/" + sent));
                 }
 
+                // Paces the offered load against the wall clock: the test is about a sustained rate.
                 await Task.Delay(1, Xunit.TestContext.Current.CancellationToken);
             }
 

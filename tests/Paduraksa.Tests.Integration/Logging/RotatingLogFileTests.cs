@@ -459,6 +459,7 @@ public sealed class RotatingLogFileTests : IDisposable
                 return;
             }
 
+            // Poll step of the bounded wait above.
             Thread.Sleep(25);
         }
 

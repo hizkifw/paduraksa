@@ -71,6 +71,7 @@ public sealed class UpstreamHealthReadingTests : IAsyncLifetime
                 return value;
             }
 
+            // Poll step of a bounded wait.
             await Task.Delay(50, ct);
         }
 

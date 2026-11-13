@@ -233,6 +233,7 @@ public sealed class AuthenticationStateTests
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
         while (!condition())
         {
+            // Poll step of a wait bounded to 10 s.
             await Task.Delay(10, timeout.Token);
         }
     }

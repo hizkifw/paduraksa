@@ -404,6 +404,7 @@ public sealed class MacKeyTests : IDisposable
         using (await runtime.EnterAsync(Ct))
         {
             var during = Task.Run(() => (key.Sign(Data, tag), key.Verify(Data, tag)), Ct);
+            // The bound of a wait on the signed task; 5 s is never reached when it works.
             Assert.Same(during, await Task.WhenAny(during, Task.Delay(TimeSpan.FromSeconds(5), Ct)));
             Assert.True((await during).Item2);
         }
@@ -414,6 +415,7 @@ public sealed class MacKeyTests : IDisposable
         using (await runtime.EnterAsync(Ct))
         {
             first = Task.Run(() => fresh.Sign(Data, new byte[32]), Ct);
+            // Absence window: a refresh that does not wait for the held gate would finish within it.
             Assert.NotSame(first, await Task.WhenAny(first, Task.Delay(TimeSpan.FromMilliseconds(300), Ct)));
             Assert.False(first.IsCompleted);
         }

@@ -155,6 +155,7 @@ public abstract class OutboxTestBase : IAsyncLifetime
     {
         for (var spent = TimeSpan.Zero; !done() && spent < max; spent += step)
         {
+            // Real time for the dispatcher's loops to run between fake-clock steps (see Writing tests that don't flake).
             await Task.Delay(8, Ct);
             Time.Advance(step);
         }
@@ -167,10 +168,12 @@ public abstract class OutboxTestBase : IAsyncLifetime
     {
         for (var spent = TimeSpan.Zero; spent < total; spent += step)
         {
+            // Real time for the loops to run between fake-clock steps.
             await Task.Delay(8, Ct);
             Time.Advance(step);
         }
 
+        // Absence window: the loops get time to act on the last step, for the callers that assert nothing was sent.
         await Task.Delay(50, Ct);
     }
 
@@ -186,6 +189,7 @@ public abstract class OutboxTestBase : IAsyncLifetime
                 return value;
             }
 
+            // Poll step of a wait bounded to four seconds.
             await Task.Delay(10, Ct);
         }
 
@@ -202,6 +206,7 @@ public abstract class OutboxTestBase : IAsyncLifetime
                 return;
             }
 
+            // Poll step of a wait bounded to four seconds.
             await Task.Delay(10, Ct);
         }
 

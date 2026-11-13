@@ -89,6 +89,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
         _servers[0].AddTxt(Challenge, "v1");
         var late = Task.Run(async () =>
         {
+            // A lagging server: the value reaches it after a real delay, which is the case the check waits out.
             await Task.Delay(250, Token);
             _servers[1].AddTxt(Challenge, "v1");
         }, Token);

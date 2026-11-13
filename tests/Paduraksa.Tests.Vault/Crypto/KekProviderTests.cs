@@ -321,10 +321,12 @@ public sealed class KekProviderTests : IDisposable
         var deadline = DateTime.UtcNow.AddSeconds(10);
         while (!File.Exists(path) && DateTime.UtcNow < deadline)
         {
+            // Poll step of a wait bounded to ten seconds.
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
 
         var resolve = Task.Run(() => ResolvePatiently());
+        // Absence window: the reader retries in real time, and nothing signals a read that must not finish while the file is held.
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(resolve.IsCompleted); // Held exclusively: the reader cannot open it yet, and retries instead of failing.
         release.Set();
@@ -352,6 +354,7 @@ public sealed class KekProviderTests : IDisposable
         writer.Flush();
 
         var resolve = Task.Run(() => ResolvePatiently());
+        // Absence window: as above, for a file that is only ten bytes long.
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(resolve.IsCompleted); // Ten bytes are not a key: the reader waits for the rest instead of parsing them.
         writer.Write(bytes.AsSpan(10));

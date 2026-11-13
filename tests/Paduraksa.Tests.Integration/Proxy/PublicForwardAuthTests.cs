@@ -272,6 +272,7 @@ public sealed class PublicForwardAuthTests : IAsyncLifetime
     public async Task ASlowEndpointRefusesWith504AndAnEndpointErrorWith502()
     {
         await using var host = await StartedAsync(timeout: TimeSpan.FromMilliseconds(400));
+        // A slow endpoint: the 400 ms timeout of the host is what ends the request.
         Auth.Handler = context => Task.Delay(TimeSpan.FromSeconds(10), context.RequestAborted);
 
         var (slow, slowUpstream) = await SendAsync(host, "app.test", "/docs", request => request.Headers.TryAddWithoutValidation("Cookie", "session=alice"));

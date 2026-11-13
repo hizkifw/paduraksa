@@ -122,6 +122,7 @@ internal sealed class MetricProcess : IAsyncDisposable
             }
             else
             {
+                // Backs off a millisecond when the sample is not ready yet; the loop is bounded by its own deadline.
                 await Task.Delay(1, Ct);
             }
         }

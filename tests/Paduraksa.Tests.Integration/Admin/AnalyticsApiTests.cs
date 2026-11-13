@@ -124,6 +124,7 @@ public sealed class AnalyticsApiTests(SharedAdminApi shared) : IClassFixture<Sha
             }
             else
             {
+                // Poll step of a bounded wait for the drain to count the request.
                 await Task.Delay(50, Ct);
             }
         }

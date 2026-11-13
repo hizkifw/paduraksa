@@ -100,6 +100,7 @@ public sealed class NotificationWorkerTests : OutboxTestBase
     {
         for (var i = 0; i < 300 && (await Deliveries()).Single(d => d.EventId == eventId).State != state; i++)
         {
+            // Poll step of a wait bounded to three seconds.
             await Task.Delay(10, Ct);
         }
     }

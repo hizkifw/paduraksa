@@ -115,6 +115,7 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         var deadline = DateTime.UtcNow + Wait;
         while (!condition() && DateTime.UtcNow < deadline)
         {
+            // Poll step of a bounded wait.
             await Task.Delay(20, TestContext.Current.CancellationToken);
         }
 

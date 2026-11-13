@@ -89,6 +89,7 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
             }
 
             Assert.True(DateTime.UtcNow < deadline, "The audit event never appeared.");
+            // Poll step of a wait bounded by the deadline above.
             await Task.Delay(20, Ct);
         }
     }

@@ -50,6 +50,7 @@ public sealed class MetricsEndToEndTests(TestUpstream upstream) : IClassFixture<
         var timeout = Stopwatch.StartNew();
         while (!condition() && timeout.Elapsed < TimeSpan.FromSeconds(10))
         {
+            // Poll step of a wait bounded to ten seconds.
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
 
@@ -182,6 +183,7 @@ public sealed class MetricsEndToEndTests(TestUpstream upstream) : IClassFixture<
                     }
 
                     (lastHost, lastRoute, lastUpstream) = (host, route, up);
+                    // Paces the monitor between its readings.
                     await Task.Delay(2, CancellationToken.None);
                 }
             },
@@ -200,12 +202,14 @@ public sealed class MetricsEndToEndTests(TestUpstream upstream) : IClassFixture<
                     var rest = PublishEvery - started.Elapsed;
                     if (rest > TimeSpan.Zero && !stop.IsCancellationRequested)
                     {
+                        // Paces the publisher to one publish per period.
                         await Task.Delay(rest, CancellationToken.None);
                     }
                 }
             },
             ct);
 
+        // The test is about the metrics staying whole while load and publishes run for this long.
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
         await stop.CancelAsync();
         await Task.WhenAll([.. load, monitor, publisher]);

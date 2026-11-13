@@ -153,6 +153,7 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
             while (!ring.TryWrite(entry))
             {
                 Assert.True(deadline.Elapsed < TimeSpan.FromMinutes(2), $"the drain stopped taking entries at {i}");
+                // Waits for room in the ring: a writer that must not overflow it waits instead of keeping a rate.
                 await Task.Delay(1, TestContext.Current.CancellationToken);
             }
         }
@@ -160,6 +161,7 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
         while (ring.EntriesRead < Entries)
         {
             Assert.True(deadline.Elapsed < TimeSpan.FromMinutes(2), $"the drain read {ring.EntriesRead} of {Entries}");
+            // Poll step of a wait bounded to two minutes.
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
 
@@ -204,6 +206,7 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
         Assert.True(ring.TryWrite(new() { TimestampUtcTicks = DateTime.UtcNow.Ticks, Host = "app.test", Method = "GET", Path = "/live", Protocol = "HTTP/1.1", StatusCode = 200 }));
         for (var attempt = 0; attempt < 1_000 && analytics.Counted < 1; attempt++)
         {
+            // Poll step of a wait bounded to ten seconds.
             await Task.Delay(10, TestContext.Current.CancellationToken);
         }
 
@@ -255,6 +258,7 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
 
         for (var attempt = 0; attempt < 2_000 && server.AccessLog.EntriesWritten < 2; attempt++)
         {
+            // Poll step: the access-log callback trails the client's read.
             await Task.Delay(1, ct);
         }
 

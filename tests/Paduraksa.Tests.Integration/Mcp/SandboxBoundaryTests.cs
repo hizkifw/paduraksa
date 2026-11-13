@@ -422,6 +422,7 @@ public sealed class SandboxBoundaryTests
     {
         for (var i = 0; i < 100 && Directory.Exists($"/proc/{pid}"); i++)
         {
+            // Poll step of a wait bounded to five seconds for the child to be gone.
             await Task.Delay(50, Ct);
         }
 
@@ -436,6 +437,7 @@ public sealed class SandboxBoundaryTests
         public async ValueTask<ApiReply> SendAsync(ApiCall request, CancellationToken cancellationToken)
         {
             Called.TrySetResult();
+            // A slow dispatcher: the script waits on it, which is what the tests need to interrupt.
             await Task.Delay(delay, cancellationToken);
             return new ApiReply(200, "application/json", "{}");
         }
@@ -460,6 +462,7 @@ public sealed class SandboxBoundaryTests
         {
             for (var i = 0; i < 200 && Volatile.Read(ref _waiting) < count; i++)
             {
+                // Poll step of a wait bounded to ten seconds.
                 await Task.Delay(50, Ct);
             }
 

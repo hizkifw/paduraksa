@@ -367,6 +367,7 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
             handler.ConnectTimeout = TimeSpan.FromMilliseconds(100);
             handler.ConnectCallback = static async (_, cancellationToken) =>
             {
+                // A connect that never completes, so the handler's 100 ms connect timeout is what the forwarder sees.
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 return Stream.Null;
             };

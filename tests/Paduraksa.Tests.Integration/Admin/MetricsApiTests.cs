@@ -165,6 +165,7 @@ public sealed class MetricsApiTests(SharedAdminApi shared) : IClassFixture<Share
             line = text.Split('\n').FirstOrDefault(l => l.StartsWith("paduraksa_requests_total{host=\"(unmatched)\",host_id=\"\",status_class=\"4xx\"} ", StringComparison.Ordinal) && !l.EndsWith(" 0", StringComparison.Ordinal)) ?? string.Empty;
             if (line.Length == 0)
             {
+                // Poll step of a bounded wait for the scrape to show the request.
                 await Task.Delay(10, Ct);
             }
         }

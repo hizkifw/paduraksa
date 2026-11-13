@@ -486,6 +486,7 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, "the condition never held");
+            // Poll step of a wait bounded to ten seconds.
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
     }
@@ -510,6 +511,7 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
             {
                 if (delay is { } wait)
                 {
+                    // A slow Cloudflare response: the refresher must not wait it out.
                     await Task.Delay(wait, token);
                 }
 

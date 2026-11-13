@@ -106,6 +106,7 @@ public sealed class PebbleFixture : IAsyncLifetime
                 last = ex.GetBaseException().Message;
             }
 
+            // Poll step of the wait for Pebble to answer, bounded by the deadline above.
             await Task.Delay(TimeSpan.FromMilliseconds(500));
         }
 

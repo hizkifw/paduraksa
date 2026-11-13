@@ -79,12 +79,14 @@ public sealed class RateLimitContinuityTests(TestUpstream upstream) : IClassFixt
                     var rest = PublishEvery - started.Elapsed;
                     if (rest > TimeSpan.Zero && !stop.IsCancellationRequested)
                     {
+                        // Paces the publisher to one publish per period.
                         await Task.Delay(rest, CancellationToken.None);
                     }
                 }
             },
             ct);
 
+        // The test is about continuity while load and publishes run for this long.
         await Task.Delay(LoadDuration, ct);
         await stop.CancelAsync();
         await Task.WhenAll(load, publisher);

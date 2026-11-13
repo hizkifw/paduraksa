@@ -257,6 +257,7 @@ public sealed class ErrorUpstream : IAsyncLifetime
     public async Task<bool> HugeWasCutOffAsync(CancellationToken cancellationToken)
     {
         var cutOff = Volatile.Read(ref _hugeCutOff).Task;
+        // The bound of a wait on the signal (the cut-off); 60 s is never reached when it works.
         return await Task.WhenAny(cutOff, Task.Delay(TimeSpan.FromSeconds(60), cancellationToken)) == cutOff;
     }
 

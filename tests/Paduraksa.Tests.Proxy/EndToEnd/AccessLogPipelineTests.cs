@@ -194,11 +194,13 @@ public sealed class AccessLogPipelineTests(TestUpstream upstream) : IClassFixtur
             Drain();
             if (entries.Count >= count)
             {
+                // Absence window: a late extra entry would show in the second drain.
                 await Task.Delay(20, ct);
                 Drain();
                 return [.. entries];
             }
 
+            // Poll step of a wait bounded to 30 s.
             await Task.Delay(10, ct);
         }
 

@@ -90,6 +90,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
             Assert.True(result.Succeeded, string.Join("; ", result.Errors));
             clusterByGeneration[result.Generation] = toB ? "/b/" : "/a/";
             publishes++;
+            // Paces the publisher: a snapshot swap every few milliseconds under the readers.
             await Task.Delay(5, ct);
         }
 

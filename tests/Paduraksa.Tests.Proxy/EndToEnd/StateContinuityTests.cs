@@ -156,6 +156,7 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
                     var rest = PublishEvery - started.Elapsed;
                     if (rest > TimeSpan.Zero && !stop.IsCancellationRequested)
                     {
+                        // Paces the publisher to one publish per period.
                         await Task.Delay(rest, CancellationToken.None);
                     }
                 }
@@ -176,11 +177,13 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
                         }
                     }
 
+                    // Paces the monitor between its readings.
                     await Task.Delay(5, CancellationToken.None);
                 }
             },
             ct);
 
+        // The test is about state staying continuous while load and publishes run for this long.
         await Task.Delay(LoadDuration, ct);
         await stop.CancelAsync();
         await Task.WhenAll([.. load, publisher, monitor]);
@@ -215,6 +218,7 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, $"timed out waiting until {what}");
+            // Poll step of a wait bounded to 15 s.
             await Task.Delay(25, ct);
         }
     }

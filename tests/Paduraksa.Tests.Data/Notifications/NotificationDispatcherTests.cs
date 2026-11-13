@@ -64,10 +64,12 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
         var each = step ?? TimeSpan.FromSeconds(1);
         for (var spent = TimeSpan.Zero; spent < total; spent += each)
         {
+            // Real time for the dispatcher's loops to run between fake-clock steps.
             await Task.Delay(8, Ct);
             _time.Advance(each);
         }
 
+        // Absence window: the loops get time to act on the last step, for the callers that assert nothing was sent.
         await Task.Delay(30, Ct);
     }
 
@@ -86,6 +88,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
                 return row;
             }
 
+            // Poll step of a wait bounded by the loop above.
             await Task.Delay(10, Ct);
         }
 
@@ -98,6 +101,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
     {
         for (var spent = TimeSpan.Zero; !done() && spent < max; spent += step)
         {
+            // Real time for the dispatcher's loops to run between fake-clock steps.
             await Task.Delay(8, Ct);
             _time.Advance(step);
         }
@@ -115,6 +119,7 @@ public sealed class NotificationDispatcherTests : IAsyncLifetime
                 return value;
             }
 
+            // Poll step of a wait bounded by the loop above.
             await Task.Delay(10, Ct);
         }
 

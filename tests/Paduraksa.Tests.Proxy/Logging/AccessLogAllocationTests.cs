@@ -185,6 +185,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
     {
         for (var attempt = 0; attempt < 2_000 && ring.EntriesWritten < count; attempt++)
         {
+            // Poll step of a wait bounded to two seconds.
             await Task.Delay(1, TestContext.Current.CancellationToken);
         }
 

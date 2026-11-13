@@ -119,6 +119,7 @@ public sealed class NotificationRestartTests : OutboxTestBase
         Sender.OnSend((message, token) =>
         {
             _ = stopped.TrySetResult(Task.Run(() => dispatcher.StopAsync(CancellationToken.None), CancellationToken.None));
+            // A sender that never answers: the stop has to cut it off.
             return Task.Delay(Timeout.Infinite, token);
         });
         return stopped;

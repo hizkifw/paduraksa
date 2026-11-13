@@ -65,6 +65,7 @@ public sealed class NotificationHistoryApiTests : IAsyncLifetime
                 return found;
             }
 
+            // Poll step of a bounded wait for the event's delivery state.
             await Task.Delay(25, Ct);
         }
 
