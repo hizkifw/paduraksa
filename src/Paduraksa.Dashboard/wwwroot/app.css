@@ -741,6 +741,10 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     white-space: nowrap;
 }
 
+.pdk-badge .mud-icon-root {
+    font-size: 0.875rem;
+}
+
 .pdk-badge + .pdk-badge {
     margin-left: 4px;
 }

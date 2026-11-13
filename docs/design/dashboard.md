@@ -918,7 +918,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 
 **Pills.**
 - `.pdk-chip` and `.pdk-pill` are status (one look, tone by meaning: success, warning, error, info, default).
-- `.pdk-badge` is the smaller label or count.
+- `.pdk-badge` is the smaller label or count. An icon inside it is sized by the badge, never by a `Style=`; there is no inline style in the dashboard.
 - `.pdk-tag` is a neutral tag.
 - A row that summarises and filters is a segmented control with counts, never a row of pills. A row that only summarises is stat tiles.
 
