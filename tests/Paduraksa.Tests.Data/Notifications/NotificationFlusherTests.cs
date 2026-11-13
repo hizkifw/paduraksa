@@ -55,7 +55,7 @@ public sealed class NotificationFlusherTests : OutboxTestBase
 
         // Two full batches go at once; the 50 left wait for the (long) interval.
         await SettledAsync(() => dispatcher.Routed >= 200);
-        await Task.Delay(100, Ct);
+        await Task.Delay(100, Ct); // Absence window: nothing signals a flush that should not happen, so a wrong early one gets time to show.
         Assert.Equal(200, (await Events()).Count);
 
         // The stop writes them: a graceful stop loses nothing that was published.
@@ -92,8 +92,7 @@ public sealed class NotificationFlusherTests : OutboxTestBase
         var factory = new InterceptedFactory(Db, counter);
         var dispatcher = Dispatcher(Options(flush: TimeSpan.FromMilliseconds(200)), factory);
         await dispatcher.StartAsync(Ct);
-        await Task.Delay(100, Ct);
-        var before = counter.EnabledChannelReads;
+        var before = counter.EnabledChannelReads; // Nothing reads the channels until an event is routed, so no wait is needed for a baseline.
 
         for (var i = 0; i < 40; i++)
         {

@@ -167,8 +167,9 @@ public sealed class SandboxBoundaryTests
     {
         await using var tools = SandboxFixture.Create();
         using CancellationTokenSource gone = new();
-        var running = tools.ExecuteAsync("async () => await paduraksa.request({ method: 'GET', path: '/api/v1/hosts' })", new DelayedDispatcher(TimeSpan.FromMinutes(1)), gone.Token);
-        await Task.Delay(1500, Ct);
+        DelayedDispatcher dispatcher = new(TimeSpan.FromMinutes(1));
+        var running = tools.ExecuteAsync("async () => await paduraksa.request({ method: 'GET', path: '/api/v1/hosts' })", dispatcher, gone.Token);
+        await dispatcher.Called.Task.WaitAsync(TimeSpan.FromSeconds(60), Ct);
         var pid = Assert.Single(tools.Pool.ChildProcessIds);
         await gone.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
@@ -429,8 +430,12 @@ public sealed class SandboxBoundaryTests
 
     private sealed class DelayedDispatcher(TimeSpan delay) : IApiDispatcher
     {
+        /// <summary>Completed when the script's request reaches the dispatcher: the child is running by then.</summary>
+        public TaskCompletionSource Called { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public async ValueTask<ApiReply> SendAsync(ApiCall request, CancellationToken cancellationToken)
         {
+            Called.TrySetResult();
             await Task.Delay(delay, cancellationToken);
             return new ApiReply(200, "application/json", "{}");
         }

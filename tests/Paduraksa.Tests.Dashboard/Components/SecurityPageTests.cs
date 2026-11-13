@@ -397,7 +397,7 @@ public sealed class SecurityPageTests
         await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(false));
         shell.ProofOfWork.Stats.CountChallengeServed();
         shell.Time.Advance(TimeSpan.FromSeconds(10));
-        await Task.Delay(100, Xunit.TestContext.Current.CancellationToken);
+        await page.InvokeAsync(() => { }); // Whatever the timer queued on the renderer has run once this does.
         Assert.Equal("1", page.Find("[data-tile=served] [data-part=value]").TextContent);
 
         await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(true));

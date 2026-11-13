@@ -111,11 +111,11 @@ public sealed class NotificationWorkerTests : OutboxTestBase
         await using HoldableFactory flaky = new(Db.Factory);
         var dispatcher = Dispatcher(Options(maxAge: TimeSpan.FromHours(1)), flaky);
         await dispatcher.StartAsync(Ct);
-        await Task.Delay(100, Ct);
+        await SettledAsync(() => Time.ArmedTimers >= 1); // The upkeep timer is armed once the start's recovery has run.
 
         flaky.Broken = true;
         dispatcher.Publish(Event(title: "Upstream media is down"));
-        await Task.Delay(100, Ct);
+        await SettledAsync(() => flaky.Refusals >= 1);
         // Two hours pass with the database down; the event is still in the flusher's hands, with the time it was published.
         Time.Advance(TimeSpan.FromHours(2));
         flaky.Broken = false;
@@ -143,7 +143,7 @@ public sealed class NotificationWorkerTests : OutboxTestBase
 
         // The start's recovery throws: nothing wakes the channel.
         await dispatcher.StartAsync(Ct);
-        await Task.Delay(300, Ct);
+        await SettledAsync(() => flaky.Refusals >= 1 && Time.ArmedTimers >= 1);
         await AdvanceAsync(TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(1));
         Assert.Empty(Sender.Sent);
 
@@ -188,7 +188,7 @@ public sealed class NotificationWorkerTests : OutboxTestBase
         await dispatcher.StartAsync(Ct);
 
         // The one that is due waits behind nothing; the retry that is not due holds the channel, so neither goes yet.
-        await Task.Delay(100, Ct);
+        await SettledAsync(() => Time.ArmedTimers >= 1);
         await AdvanceAsync(TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(5));
         Assert.Empty(Sender.Sent);
 
@@ -325,7 +325,7 @@ public sealed class NotificationWorkerTests : OutboxTestBase
 
         // A row written behind the flusher's back (another writer) has no signal: it is found by the 30 s poll, not before.
         await UntilAsync(async () => (await Deliveries()).All(d => d.State == NotificationDeliveryState.Sent));
-        await Task.Delay(100, Ct);
+        await SettledAsync(() => dispatcher.Stats.Pending == 0 && Time.ArmedTimers >= 1);
         _ = await LeftBehind(channel, TimeSpan.Zero, NotificationEventKind.SignInNewAddress, "found by the poll", nextAttemptAt: Time.Now);
         var written = Time.Now;
         await AdvanceAsync(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(1));
@@ -396,12 +396,25 @@ public sealed class NotificationWorkerTests : OutboxTestBase
 
     private sealed class HoldableFactory(IDbContextFactory<ConfigDbContext> inner) : IDbContextFactory<ConfigDbContext>, IAsyncDisposable
     {
+        private int _refusals;
+
         public volatile bool Broken;
+
+        /// <summary>How many times it refused while <see cref="Broken"/>: the signal that the code under test has tried and failed.</summary>
+        public int Refusals => Volatile.Read(ref _refusals);
 
         public ConfigDbContext CreateDbContext() => inner.CreateDbContext();
 
-        public Task<ConfigDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
-            Broken ? throw new Microsoft.Data.Sqlite.SqliteException("database is locked", 5) : inner.CreateDbContextAsync(cancellationToken);
+        public Task<ConfigDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        {
+            if (Broken)
+            {
+                _ = Interlocked.Increment(ref _refusals);
+                throw new Microsoft.Data.Sqlite.SqliteException("database is locked", 5);
+            }
+
+            return inner.CreateDbContextAsync(cancellationToken);
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

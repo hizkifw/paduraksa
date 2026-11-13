@@ -1,6 +1,7 @@
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Net;
 using Paduraksa.ProxyProtocol;
+using Paduraksa.Tests.Data;
 using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.AccessLists;
@@ -204,12 +205,13 @@ public sealed class AccessListVerificationQueueTests
     [Fact]
     public async Task OnlyTheWaitersPastTheirMaximumTimeOutTheOthersKeepTheirTurn()
     {
-        // A second between the two deadlines, so a stalled test thread can't let the timer expire the late one too.
-        var queue = Queue(out var stats, slots: 1, perClient: 8, maxWait: TimeSpan.FromMilliseconds(1500));
+        ManualTimeProvider time = new(new DateTimeOffset(2026, 11, 13, 12, 0, 0, TimeSpan.Zero));
+        var queue = Queue(out var stats, slots: 1, perClient: 8, maxWait: TimeSpan.FromMilliseconds(1500), time: time);
         Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Client(1)));
         var early = queue.EnterAsync(Client(2), TestContext.Current.CancellationToken).AsTask();
-        await Task.Delay(1000, TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromMilliseconds(1000));
         var late = queue.EnterAsync(Client(3), TestContext.Current.CancellationToken).AsTask();
+        time.Advance(TimeSpan.FromMilliseconds(500));
 
         Assert.Equal(VerificationSlot.TimedOut, await early.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
         Assert.False(late.IsCompleted);
