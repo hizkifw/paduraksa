@@ -76,14 +76,26 @@ leaves the thing unprotected. What has caused them so far:
 - **Playwright.** Each browser test starts its own Chromium and server; run in parallel on 4 cores they starve one another (page loads over 30 s). Every one is in the
   `[Collection(PlaywrightBrowser.CollectionName)]`, which runs alone, one class after another, and `Expect` waits 15 s. Never read a response body after the page has navigated away: use a plain
   API request.
-- **A cold first call.** The first request for the OpenAPI document builds it (2 s on a quiet machine, several times that on a loaded one) and the harness client's 30 s was once not enough in a
-  class of five fetches: fetch it once per class with `SharedAdminApi.OpenApiAsync`. A probe or client with a contract timeout of its own (the 3 s of `doctor --liveness`) takes a longer
+- **A cold first call.** The first request of a boot runs cold code, and a probe or client with a contract timeout of its own (the 3 s of `doctor --liveness`) takes a longer
   one in tests (`LivenessAsync`'s `timeout`), as the timeout is not what the test checks.
 - **A local port prober.** On the dev machine a Node tool sends `GET /` to every new localhost port within seconds. A fake or a log that counts requests must count only what
   the proxy sent (`X-Forwarded-Proto`: `FakeAuthServer`, `BodyCountingUpstream`) or only the names the test sent (`*.test` in `AccessLogPipelineTests`). CI doesn't have it, so such a failure shows locally only.
 - **Ports.** Bind port 0 and read the real one back (`TestHost.Endpoint`). If a number must be known before the bind, `TestPorts.StartOnFreePortAsync` retries the whole start with a new port; never probe, release and rebind by hand.
 - **Waiting for something that arrives by an event.** Wait on the event (a `TaskCompletionSource` completed by the code, `WaitForState` in bUnit), with a bound for the failure
   case that a loaded runner can't reach: not a poll of a fixed number of 50 ms steps.
+
+## The API description
+
+`/api/v1/openapi.json` is served from a copy of the generated document, `src/Paduraksa.Admin/OpenApi/openapi.v1.json`, embedded in the assembly. ASP.NET builds the schema of
+every request and response type again for every operation, so generating it takes seconds of CPU and gigabytes of allocation, which the first `/api/docs` visit and the
+first MCP `search` of every boot would otherwise wait for. `OpenApiSnapshotTests` fails when the copy no longer equals a fresh generation (after you add or change an
+endpoint, a DTO, an enum, a description or an XML comment on one). Regenerate it, commit it with the change, and rebuild:
+
+```sh
+PADURAKSA_UPDATE_OPENAPI=1 dotnet test --project tests/Paduraksa.Tests.Integration --filter-class "*OpenApiSnapshotTests"
+```
+
+The file is the API's changelog as much as a build input: read its diff before committing it. A server run from a build made before you regenerated serves the old description.
 
 ## The data directory
 
