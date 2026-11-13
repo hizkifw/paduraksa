@@ -192,7 +192,9 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         }
 
         Assert.Equal(0, stats.OverCap);
-        Assert.Equal(0, stats.Open);
+
+        // The server sees the clients' closes after they are sent; counting before it has is a race (the count reads 1 on a loaded machine).
+        await WaitForAsync(() => stats.Open == 0);
     }
 
     [Fact]
