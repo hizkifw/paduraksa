@@ -6,15 +6,16 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Dashboard.Auth;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
 /// The toast after a change is applied: what was saved, as which revision, with <b>Undo</b>. Undo rolls the config back to the
 /// revision before it through the rollback command (a new revision; history is never rewritten), based on the revision it undoes, so it
-/// is refused when someone changed the config in between. One per circuit, so the toast's button outlives the page that applied.
+/// is refused when someone changed the config in between, and asks first while a draft is open. One per circuit, so the toast's button outlives the page that applied.
 /// </summary>
-public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, ISnackbar snackbar, ILogger<ConfigUndo> logger)
+public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, DraftState drafts, IDialogService dialogs, ISnackbar snackbar, ILogger<ConfigUndo> logger)
 {
     // Only the latest change can be undone (an undo is based on the revision it undoes), so a newer toast replaces the last one.
     private Snackbar? _offered;
@@ -56,6 +57,13 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
         _offered = null;
         try
         {
+            // The one-click toast is the only whole-document change with no review sheet to carry the draft notice, so it asks.
+            if (drafts.IsOpen && !await ConfirmActionDialog.AskAsync(dialogs, $"Undo {committed} with a draft open?", DraftNotices.WholeDocument(drafts.Count),
+                "Undo anyway", "Cancel to look at the draft first: Review in the draft bar.", destructive: false).ConfigureAwait(true))
+            {
+                return null;
+            }
+
             return await RollBackAsync(committed).ConfigureAwait(false);
         }
         catch (Exception ex) when (StoreFailures.Survivable(ex))
