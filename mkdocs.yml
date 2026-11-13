@@ -1,0 +1,130 @@
+# The documentation site (docs/): `pip install -r docs/requirements.txt`, then `mkdocs serve` or `mkdocs build --strict`.
+# docs/development.md says how CI builds and publishes it.
+site_name: Paduraksa
+site_description: A self-hosted reverse proxy for homelabs, with a dashboard, a REST API and a built-in WAF.
+site_url: https://hizkifw.github.io/paduraksa/
+repo_url: https://github.com/hizkifw/paduraksa
+repo_name: hizkifw/paduraksa
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: site
+
+# Not pages: the pip pins.
+exclude_docs: |
+  requirements.txt
+
+# The map from the old install guide's sections to the new pages: reachable by link, not a place to browse.
+not_in_nav: |
+  install.md
+
+hooks:
+  - scripts/docs/hooks.py
+
+# Every internal link and anchor is checked, and --strict turns a miss into a failed build. External links are not fetched, so the
+# build is offline (the one download is the pinned API-reference bundle, cached; see scripts/docs/hooks.py).
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  # System fonts: no request to Google Fonts when a page is read.
+  font: false
+  language: en
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  # GitHub's heading anchors, so a link that works on GitHub works here (python-markdown's own slugs differ on "a / b" and "a - b").
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra:
+  generator: false
+
+nav:
+  - Home: index.md
+  - User guide:
+      - Getting started: guide/getting-started.md
+      - Hosts and routes: guide/hosts-and-routes.md
+      - Upstreams: guide/upstreams.md
+      - TLS and certificates: guide/tls.md
+      - Access control and WAF: guide/security.md
+      - Connections, limits and client addresses: guide/connections-and-limits.md
+      - Behind Cloudflare: guide/cloudflare.md
+      - Logs, metrics and notifications: guide/observability.md
+  - Operating it:
+      - Running with Docker: operating/docker.md
+      - Exposing the admin port: operating/admin-access.md
+      - The master key: operating/master-key.md
+      - Backups and restore: operating/backups.md
+      - Export and import: operating/export-import.md
+      - Upgrading: operating/upgrading.md
+      - Bare metal (systemd): operating/bare-metal.md
+      - Health endpoints: operating/health.md
+      - Server settings: operating/settings.md
+      - Troubleshooting: operating/troubleshooting.md
+  - Automation:
+      - The REST API: automation/api.md
+      - API reference: automation/api-reference.md
+      - MCP (AI assistants): automation/mcp.md
+      - The command line: automation/cli.md
+  - Packages: packages.md
+  - Reference:
+      - Threat model: threat-model.md
+      - Changelog: changelog.md
+  - Design:
+      - Overview: PLAN.md
+      - Process and hosting: design/hosting.md
+      - Config: design/config.md
+      - The hot path: design/hot-path.md
+      - WAF building blocks: design/waf.md
+      - Client IP behind Cloudflare: design/cloudflare.md
+      - Vault, certificates and ACME: design/vault-and-certificates.md
+      - Identity: design/identity.md
+      - Admin surfaces: design/admin-surfaces.md
+      - The dashboard: design/dashboard.md
+      - Observability: design/observability.md
+      - Deployment: design/deployment.md
+      - Testing: design/testing.md
+      - Risks, spikes and milestones: design/milestones.md
+      - "Spike S1: HTTP/3 and SNI": spikes/S1-http3-sni.md
+      - "Spike S2: YARP reload": spikes/S2-yarp-reload.md
+      - "Spike S3: zero-allocation gate": spikes/S3-zero-alloc-gate.md
+  - Developing:
+      - Working on the code: development.md

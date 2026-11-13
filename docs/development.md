@@ -95,6 +95,37 @@ It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemb
   ```
 - **Targets** are `net10.0` and `net8.0`. Only `net10.0` runs the tests; the `net8.0` build is compiled (with the API analyzer and package validation) but not executed.
 
+## The documentation site
+
+The site you read (`mkdocs.yml`, the pages under `docs/`) is MkDocs with the Material theme. The design is in [deployment.md](design/deployment.md#the-documentation-site).
+
+Build it locally with a virtualenv outside the repository:
+
+```sh
+python3 -m venv ~/.cache/paduraksa-docs-venv
+~/.cache/paduraksa-docs-venv/bin/pip install -r docs/requirements.txt
+~/.cache/paduraksa-docs-venv/bin/mkdocs serve                      # http://127.0.0.1:8000, rebuilds as you save
+~/.cache/paduraksa-docs-venv/bin/mkdocs build --strict            # what CI runs
+python3 scripts/docs/check-site.py site                           # the links of the built site
+```
+
+- `--strict` fails on a broken link or anchor between pages. `check-site.py` checks the rest of the built HTML. External links are not fetched.
+- The first build downloads the pinned API-reference bundle into `~/.cache/paduraksa-docs` and checks its integrity hash. After that it is offline.
+- The API reference is the committed `src/Paduraksa.Admin/OpenApi/openapi.v1.json`: regenerate that file when the API changes ([The API description](#the-api-description)) and the site follows.
+- A page has one home. Put a fact where the task is (`docs/guide/`, `docs/operating/`, `docs/automation/`), check it against the code, and link to it from elsewhere. `docs/install.md` only maps the old sections to the new pages.
+- Write ASCII and check headings by their GitHub slug: other pages link to `page.md#the-slug`, and `--strict` tells you when one breaks.
+- Screenshots are real dashboard captures under `docs/assets/`, small and few. Take them with the Dashboard end-to-end tests (`PADURAKSA_E2E_CHROMIUM=/usr/bin/chromium PADURAKSA_E2E_SCREENSHOTS=<dir> dotnet test --project tests/Paduraksa.Tests.Dashboard -c Release --filter-class "*DraftsEndToEndTests"`), crush them to a palette (Pillow's `quantize` with libimagequant, 96 colours) and look at them before committing: a screenshot can show the machine's host name.
+
+### Publishing it
+
+The `Docs` workflow (`.github/workflows/docs.yml`) builds the site on every push and pull request and uploads it as the `docs-site` artifact. **It publishes nothing by itself.** To publish to GitHub Pages:
+
+1. In the repository's Settings, Pages, set the source to **GitHub Actions**.
+2. Set the repository variable: `gh variable set DOCS_PUBLISH --body true`.
+3. Run the workflow by hand: `gh workflow run docs.yml` (or Actions, Docs, Run workflow). Its `deploy` job runs only for a manual run while `DOCS_PUBLISH` is `true`, and deploys the site that run built.
+
+To stop publishing, set the variable to anything else, or delete it. The site's address is `site_url` in `mkdocs.yml` (`https://hizkifw.github.io/paduraksa/`): change it there if the repository or its owner is renamed, or if the site gets a domain of its own.
+
 ## Writing tests that don't flake
 
 CI runs on GitHub's 4-core runners with the test classes in parallel, and a test that passes alone can fail there: a blocked image publish blocks every deploy.

@@ -20,7 +20,7 @@ Contents:
 - **Bare metal:** a self-contained single-file publish plus a systemd unit (`AmbientCapabilities=CAP_NET_BIND_SERVICE`, `LoadCredential=master.key`).
 - **SQLite:** `Microsoft.Data.Sqlite` ships its own bundled SQLite (SQLitePCLRaw `e_sqlite3`), so the host's SQLite version does not matter. The required floor is **3.35** (`RETURNING`, used by EF Core 10; WAL long predates it). `doctor` prints the runtime version.
 - **Runtime tuning:** Server GC with DATAS (adapts heap to load, good for small homelab boxes), `TieredPGO`, ReadyToRun.
-- **Backups:** `paduraksa backup` takes an online SQLite backup of both databases plus KEK handling instructions. Built in M10: one passphrase-encrypted archive of both databases and the last-known-good file, made online, that restores on a fresh machine under its own master key (see [vault-and-certificates.md](vault-and-certificates.md)). The `docker exec` and `docker compose run` forms and the homelab routine are in `docs/install.md` ("Backups"). The volume also holds `/data/run/server.lock`, the claim of the one running server.
+- **Backups:** `paduraksa backup` takes an online SQLite backup of both databases plus KEK handling instructions. Built in M10: one passphrase-encrypted archive of both databases and the last-known-good file, made online, that restores on a fresh machine under its own master key (see [vault-and-certificates.md](vault-and-certificates.md)). The `docker exec` and `docker compose run` forms and the homelab routine are in [Backups and restore](../operating/backups.md). The volume also holds `/data/run/server.lock`, the claim of the one running server.
 
 ## The container and the install path (M5)
 
@@ -76,7 +76,7 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
 
 ### Docs
 
-`README.md` has the short install section. `docs/install.md` has the details:
+`README.md` has the short install section. The site's [Getting started](../guide/getting-started.md) and [Operating it](../operating/docker.md) pages have the details (`docs/install.md` is only the map from its old sections to them):
 - compose up, reading or reprinting the setup token;
 - the master key as a Docker secret with the uid-10001 chown;
 - trusting the local CA root from `root.pem` (PEM for `update-ca-certificates`; DER `root.crt` for Android and iOS);
@@ -87,6 +87,23 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
 - upgrade (`git pull && docker compose up -d --build`) and `vault rotate-kek` (stop, rotate, restart);
 - the health endpoints;
 - the bare-metal path including libmsquic.
+
+### The documentation site
+
+Built on `docs-site`. The site is MkDocs with the Material theme over `docs/` (`mkdocs.yml` at the root, pins in `docs/requirements.txt`).
+
+- **Pages.** The user guide (`docs/guide/`), operating it (`docs/operating/`) and automation (`docs/automation/`) are written for someone running Paduraksa. The threat model, the changelog, the design docs and `development.md` are the same files the repository has, shown as reference.
+- **One home per fact.** The old `docs/install.md` was split into those pages, and what is left of it is a map from its old sections. The Overview's "How to move it" link and a test pin `install.md#the-master-key`, so the page keeps that heading.
+- **Written against the code.** Each page's defaults, bounds, paths and commands were read from the code, and the CLI and API examples were run against a real instance. Where the code and the older text disagreed, the code won.
+- **Hooks (`scripts/docs/hooks.py`).**
+  - A link that leaves `docs/` (a source file, `deploy/`, `bench/`) becomes a link to the repository on GitHub, so the Markdown stays valid on GitHub and on the site.
+  - `CHANGELOG.md` is added as the page `changelog.md`.
+  - The API reference is written after the build: the shipped `openapi.v1.json`, byte for byte, and a pinned `@scalar/api-reference` bundle (version and integrity hash in the hook, downloaded once into `~/.cache/paduraksa-docs`). The page loads nothing from outside the site, with Scalar's fonts, telemetry, agent and MCP features off, as on the server's own `/api/docs`.
+- **Anchors** are GitHub's (`pymdownx.slugs`), because the existing docs link to headings by their GitHub slug and the files are read on GitHub too.
+- **Offline.** The theme uses system fonts. The build fetches nothing but that one cached bundle, and the check never fetches an external link.
+- **Checks.** `mkdocs build --strict` (every internal link and anchor between pages warns, and a warning fails the build), then `scripts/docs/check-site.py`, which walks the built HTML for the links Markdown never sees (raw HTML, the theme, the generated reference).
+- **CI.** The `Docs` workflow (`.github/workflows/docs.yml`) is its own file, so that it builds on every push to any branch and every pull request (`ci.yml` runs for pushes to `main` only). Its `build` job builds with `--strict`, runs the check and uploads the site (as the `docs-site` artifact and as the Pages artifact). Its `deploy` job publishes to GitHub Pages and runs only on a manual run (`workflow_dispatch`) **and** only when the repository variable `DOCS_PUBLISH` is `true`. Nothing publishes by itself, and Pages is not enabled: [development.md](../development.md#the-documentation-site) says how the owner turns it on.
+- **Material's end of life.** Material for MkDocs is in maintenance until 2027-05-05, and its team points to Zensical as the successor, which reads the same `mkdocs.yml`. The build sets `NO_MKDOCS_2_WARNING=1` to keep that notice out of the log. Moving is a later job.
 
 ### Test
 

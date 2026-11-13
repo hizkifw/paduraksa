@@ -205,7 +205,7 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
 
 - **Scope:**
   - multi-arch image publishing;
-  - the docs site;
+  - the docs site (**built** on `docs-site`: MkDocs Material over `docs/`, a user guide split from the old install guide, the API reference rendered from the shipped OpenAPI document, built `--strict` on every push; publishing to GitHub Pages waits for the owner, see "The documentation site" in [deployment.md](deployment.md#the-documentation-site));
   - the threat model doc (**done**: [../threat-model.md](../threat-model.md), with its gaps list). The small gaps G2, G3, G4, G5, G7, G9 and G13 are closed on `security-gaps`; G12 waits for the fuzz run;
   - the PROXY protocol parser as two NuGet packages (`Paduraksa.ProxyProtocol`, `Paduraksa.ProxyProtocol.AspNetCore`; **built** on `proxyprotocol-package`: packed on every CI run, pushed to nuget.org by a `proxyprotocol-v*` tag through trusted publishing once a `NUGET_USER` variable exists, see [../development.md](../development.md#publishing-the-nuget-packages));
   - per-upstream connect and idle timeouts (**done** on `upstream-timeouts`: YARP's 100 s activity timeout was cutting quiet WebSockets and event streams; see "Upstream timeouts" in [hot-path.md](hot-path.md));
