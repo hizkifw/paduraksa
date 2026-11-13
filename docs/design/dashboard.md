@@ -685,7 +685,7 @@ In the config database (migration `ConfigDrafts`: `ConfigDrafts`, one row per us
 
 A token acts on its owner's draft (an agent proposes, the person applies).
 
-**Not drafted: what is not config.** Certificates, ACME accounts, DNS providers, users, tokens, notification channels and backup act at once as before (a draft can reference a certificate created meanwhile). So do a host list's on/off switch (it is its own review) and an import.
+**Not drafted: what is not config.** Certificates, ACME accounts, DNS providers, users, tokens, notification channels and backup act at once as before (a draft can reference a certificate created meanwhile). So does a YAML import, which replaces the whole document.
 
 ### Lifetime
 
@@ -782,18 +782,25 @@ Someone else's draft is a 404.
 
 **The bar.** A slim **bar** under the app bar on every page (`DraftBar`) while a draft is open, for a user who may change config. It shows "Draft", the change count and, when there are, how many are changed elsewhere, with **Review** and **Discard** (which asks).
 
-**Forms.** A draftable form (`DraftActions` in each drawer's footer, and the global defaults) behaves as follows:
-- With a draft open, **Add to draft** is its primary button, with **Review and apply now** beside it as the secondary path.
-- With no draft open, the primary is "Review changes" as ever, and **Add to a new draft** is the secondary.
-- Enter follows the primary.
-- A delete from a drawer becomes a draft entry while one is open.
-- Applying a change on its own that the draft also holds drops the draft's stale entry.
+**Making a change.** Every draftable change takes one path (see "Making a change" under the dashboard conventions):
+- A form (host, upstream, profile, rate limit, access list, rule set, sign-in provider, global defaults) has one primary button, **Review changes**. It has no draft button of its own, whether or not a draft is open.
+- The **review sheet** it opens (`ReviewPanel`: diff, warnings, lock-out guard, Simulate) is where the person chooses **Apply now** or **Add to draft**. The buttons keep one order, Cancel, Add to draft, Apply now. With a draft open Add to draft is the filled one and Apply now the outlined one; with none, the other way round.
+- Add to draft opens a draft when there is none. The toast says which ("Added to the draft: ..." or "Started a draft: ...").
+- A delete, a host's switch or wrench in the list, a row's delete: the same sheet. Putting a host in maintenance from the list asks first for the mode's options (`MaintenanceDrawer`: status, Retry-After, who is let through, the page, prefilled from what the host inherits), then opens the sheet.
+- Applying now a change the draft also holds drops the draft's stale entry. The sheet says so in one line when the draft holds one ("Applying now drops this object's entry from the draft.").
+- A change the live config refuses while a draft is open (a host naming an upstream only the draft adds) shows its refusal as a warning, keeps Add to draft, and turns Apply now off. Add to draft checks it on the draft's view and shows a refusal at the form's fields.
+- A whole-document change (rollback, YAML import) has no draft choice. While a draft is open its sheet carries one notice (`DraftOpenNotice`): the draft was made on the config as it is, applying this moves it, and entries for the objects it changes become changed elsewhere. **Review the draft first** closes the sheet and opens the draft. The Undo toast asks the same in a confirm.
 
-**Review.** It opens the draft's list (`DraftReviewDrawer`): each entry in words with a remove button, the "Changed elsewhere" state with its reason and Reload, Discard draft, and "Review changes", which stacks the review panel over the whole set.
+**The draft drawer is the review.** The bar's Review opens it (`DraftReviewDrawer`); there is no separate step.
+- **Entries:** in the order they were added, each a section with its summary line, a toggle, a remove button, and its diff rendered by the same `ChangeList` the review sheet uses (field by field, grouped by object, with Added, Changed and Removed chips). Each entry is applied on the document the entries before it left, so its "before" is the object as the head has it and its names resolve (`DraftEntryDiffs`).
+- **Collapse:** a draft of up to 3 entries opens them all (`DraftReviewDrawer.OpenByDefaultUpTo`). A longer draft starts collapsed to its summary lines, so the drawer stays one scroll long.
+- **The whole set:** below the entries, the review's warnings, the lock-out guard's errors and Simulate for the set.
+- **Footer:** **Apply** (primary), **Discard** (danger, asks) and Close, with the note for the history. Apply sends the review token of exactly what is on screen.
+- **Cost:** the review runs once when the drawer opens, and again only when the draft's version or the head moved (the draft state says "changed" on every commit, so the drawer compares the key). It reads the draft service's cached replay; a render reads what the drawer holds.
 
-**When Apply is refused** because the config changed since the review, the sheet stays open and shows the new review **in place**, with one line: "The config changed since this review. This is the review as it is now: check it, then apply." Apply needs a new click on that review, never an automatic one.
+**When Apply is refused** because the config changed since the review, the drawer stays open and shows the new review **in place**, with one line: "The config changed since this review. This is the review as it is now: check it, then apply." Apply needs a new click on that review, never an automatic one. A change that lands while the drawer is open shows the same way before any click.
 
-**When entries are blocked** (before or after), the sheet says how many ("N changes are changed elsewhere, so nothing can be applied"). It lists each with its reason and its own **Reload**, still shows the diff of the rest, and Apply is disabled until they are resolved.
+**When entries are blocked** (before or after), the drawer says how many ("N changes are changed elsewhere, so nothing can be applied"). Each blocked entry shows its reason and its own **Reload**, the diff of the rest is still shown, and Apply is disabled until they are resolved.
 
 Lists mark rows the draft creates or changes with "Draft".
 
@@ -804,7 +811,15 @@ Lists mark rows the draft creates or changes with "Draft".
 - **A draft is applied whole or not at all.** The first version applied the unblocked entries and kept the blocked ones. It was replaced by the owner's rule that what was confirmed is what is applied.
 - The review of a set is a whole-document dry run, so its errors are by place in the document and the lock-out guard applies to the set.
 - The token covers what the draft does, not the head.
-- The host list's switch is not drafted, and a delete of an object something still uses is the validator's to refuse (at the add or at the review).
+- A delete of an object something still uses is the validator's to refuse (at the add or at the review).
+- **The choice is in the review sheet, not in the form** (owner's rule). A form, a toggle and a delete are all "make this change"; Apply now and Add to draft are what the person then decides, so every control offers the same two, in the same order.
+- Quick toggles never apply or draft silently: they open the same sheet. The host list's switch and wrench are drafted like a form's change.
+- A toggle's host comes from the head with the draft applied, so a host the draft already changes carries those changes into the sheet (the diff shows them against the live config).
+- Maintenance from the list takes its options in a small drawer first, because the mode needs a status, a page and who is let through, not a bare flag.
+- Rollback, Undo and YAML import stay immediate whole-document changes with their own review. They are not draftable (an entry is one object), and while a draft is open they say why that matters and offer the draft first.
+- Each entry's diff is the entry applied on the entries before it, against the head. An object has one entry, so this is the object before and after.
+- A draft of up to 3 entries opens all its entries; more start collapsed.
+- Apply on the draft drawer follows the same refusal rule as the old sheet: nothing committed, the fresh review in place, a new click.
 - Other open tabs follow a change through the draft's `Changed` event, not a poll.
 - A draft made through a token shows for its owner's session at once.
 
@@ -830,16 +845,21 @@ Lists mark rows the draft creates or changes with "Draft".
   - `DraftLifetimeEndToEndTests`: restart survival, then an apply as one revision; 30 days untouched on a real database.
   - `McpDraftTests`: a confirmed apply without the token does nothing and answers with the review.
   - `McpRequestPolicyApiTests`.
-- **bUnit** (`DraftTests`): the bar; the list with remove and changed-elsewhere; the review and apply through the draft with its token; the sheet refreshing in place after a refusal and needing a new click; a blocked entry disabling Apply with its Reload; "Add to draft" and its secondary; the refused add shown at the field; delete; the global defaults; marks on a list and in a picker; a page following a change made in another tab.
-- **Playwright** (`DraftsEndToEndTests`): an upstream in one page, a host using it in another (the picker offers it marked Draft), the bar across pages, a reload and a second tab, one review and one revision; an upstream changed while the review is open (the sheet shows the blocked entry in place and nothing is applied); and the bar and the list at 390 px.
-- **Visual pass** (throwaway tours in dark, light and 390 px; not committed) found and fixed a changed-elsewhere chip and Reload cut off on a phone.
+- **bUnit** (`DraftTests`, `ChangeActionsTests`):
+  - the bar; the draft drawer with remove and changed-elsewhere; each entry's diff, open for a small draft and collapsed for a long one; one review per draft or head change, not per render;
+  - apply through the draft with its token; the drawer refreshing in place after a refusal and needing a new click; a blocked entry disabling Apply with its Reload;
+  - a form with one Review changes button; the sheet's two choices in one order with the primary swapping; the drop-entry line; a refused add shown in the sheet and at the field; a delete; the global defaults;
+  - the host list's switch with and without a draft; maintenance from the list (options, then the sheet); a destination's switch; a row's delete; a change the live config refuses while a draft is open; the rollback notice and its Review the draft first;
+  - marks on a list and in a picker; a page following a change made in another tab.
+- **Playwright** (`DraftsEndToEndTests`): an upstream in one page, a host using it in another (the picker offers it marked Draft), each added from the review sheet; the bar across pages, a reload and a second tab; the draft drawer's entries with their diffs and one Apply, one revision; a host's switch in the list through the same sheet into a new draft; an upstream changed while the draft is open (the drawer shows the blocked entry in place and nothing is applied); and the bar and the drawer at 390 px.
+- **Architecture** (`DashboardChangePathTests`): reads the IL of the dashboard assembly and fails on any call to the config's execute, add-to-draft or apply-draft methods outside the review sheet, the undo toast, the draft state and the draft drawer.
+- **Visual pass** (throwaway tours in dark, light and 390 px; not committed) found and fixed a changed-elsewhere chip and Reload cut off on a phone, and (the change-actions tour) a draft notice whose button wrapped into its text and a repeated Maintenance heading above the maintenance options.
 
 ### Not yet
 
 - The simulator page does not offer a draft as a target of its own (the review panel's Simulate does).
-- A draft's entries are not shown as a field-level diff in the list (the review is).
 - No merge of an entry's fields with someone else's change (an entry is reloaded, not rebased).
-- The host list's on/off switch and the YAML import do not go through a draft.
+- The YAML import does not go through a draft.
 
 ## Notification history
 
@@ -905,6 +925,16 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - Counts and percentages are tabular and right-aligned.
 
 **Units.** A compact control writes units short ("1 h", "24 h", "7 d", "30 d", "1 y"), with the long form as its tooltip. Prose writes them out ("7 days").
+
+**Making a change.** Every control that changes the config goes through one path, so the choices, labels, order and styling are the same everywhere.
+- **Draftable changes** (everything that is a config command on one object or the global settings): a form, a toggle, a row's delete or a menu item builds a `ReviewRequest` and opens the **review sheet**. Nothing applies or drafts silently.
+- **The form:** one primary, **Review changes**, then Cancel and Delete (danger, at the start) where they apply. No "Add to draft" in a form.
+- **The sheet:** Cancel, **Add to draft**, **Apply now**, in that order. Add to draft is the filled button while a draft is open, Apply now otherwise; Apply now is red when the change removes something.
+- **Quick toggles** (a host's switch or wrench, a destination's switch in its form) open the same sheet. Maintenance from the list asks for its options in a small drawer first.
+- **Acts at once by design** (certificates, ACME accounts, DNS providers, users, tokens, notification channels, backup): their own confirm where destructive, no review sheet, no draft choice. Their drawers use the same footer (`DrawerActions`), so Cancel and the primary button sit where they do in a config form.
+- **Whole-document changes** (rollback, undo, YAML import): their own review, no draft choice, and the draft-open notice while a draft is open.
+- **The footer is `DrawerActions`:** Delete or another leading action at the start, Cancel, extra choices, the primary last. A drawer does not lay out its own footer buttons.
+- **A guard** (`DashboardChangePathTests`) fails when a component calls the config's execute or add-to-draft methods outside the allowed types.
 
 **The connection snippets** of an AI assistant (`McpConnect`) take the token just issued and fill it into the commands. The token drawer shows them open, with the token only in that component's parameter and the markup built from it (it goes with the drawer, as the token's own box does), and says how to turn MCP on when it is off.
 
