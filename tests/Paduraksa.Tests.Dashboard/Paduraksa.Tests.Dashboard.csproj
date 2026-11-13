@@ -6,6 +6,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/FakeAuthServer.cs" Link="Shared/FakeAuthServer.cs" />
+    <Compile Include="../Shared/Requirements.cs" Link="Shared/Requirements.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="bunit" />

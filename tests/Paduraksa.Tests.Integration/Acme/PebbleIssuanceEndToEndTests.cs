@@ -12,6 +12,7 @@ using Paduraksa.Server.Hosting;
 using Paduraksa.Storage.Sqlite;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
@@ -55,7 +56,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     [Fact]
     public async Task ACertificateIssuedByHttp01WithPebbleFetchingTheChallengeFromTheGateIsWhatTheProxyServes()
     {
-        Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
+        Requirements.RequireAvailable(Requirements.Pebble, pebble.SkipReason);
         string[] names = ["issue.pebble.test", "www.issue.pebble.test"];
         // The process under test binds an OS-assigned port and Pebble is told that port afterwards, so neither has to
         // win a race for a probed one.
@@ -92,7 +93,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     [Fact]
     public async Task ARenewalIssuesANewCertificateUnderTheSameIdAndItIsServedWithoutANewRevision()
     {
-        Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
+        Requirements.RequireAvailable(Requirements.Pebble, pebble.SkipReason);
         string[] names = ["renew.pebble.test"];
         await using var host = TestHost.Create(settings: Settings(0));
         await host.StartAsync(Ct);
@@ -126,7 +127,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     [Fact]
     public async Task ARestartedProcessRenewsADueCertificateWithItsSchedulerAndServesTheNewOne()
     {
-        Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
+        Requirements.RequireAvailable(Requirements.Pebble, pebble.SkipReason);
         string[] names = ["again.pebble.test"];
         var data = TestDataDirectories.NewPath();
         var firstFingerprint = "";
@@ -192,7 +193,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     [Fact]
     public async Task ANameThePublicListenerDoesNotAnswerFailsValidationAndLeavesNothingServed()
     {
-        Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
+        Requirements.RequireAvailable(Requirements.Pebble, pebble.SkipReason);
         string[] names = ["unreachable.pebble.test"];
         await using var host = TestHost.Create(settings: Settings(0));
         await host.StartAsync(Ct);
@@ -218,7 +219,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     [Fact]
     public async Task WithoutTheCaRootInTheTrustFileTheDirectoryIsNotTrusted()
     {
-        Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
+        Requirements.RequireAvailable(Requirements.Pebble, pebble.SkipReason);
         var settings = Settings(0);
         settings.Remove("Paduraksa:Acme:TrustedRootsFile");
         await using var host = TestHost.Create(settings: settings);

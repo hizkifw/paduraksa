@@ -68,7 +68,7 @@ public sealed class AcmePebbleDnsTests(PebbleDnsFixture pebble) : IClassFixture<
 
     private static async Task<Rig> StartAsync(PebbleDnsFixture pebble)
     {
-        Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
+        Requirements.RequireAvailable(Requirements.Pebble, pebble.SkipReason);
         return await Rig.CreateAsync(pebble);
     }
 

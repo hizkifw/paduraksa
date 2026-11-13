@@ -1,5 +1,7 @@
 using Microsoft.Playwright;
 
+using Paduraksa.Tests.Shared;
+
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
@@ -43,7 +45,7 @@ internal static class PlaywrightBrowser
         }
         catch (PlaywrightException ex)
         {
-            Assert.Skip($"Playwright's driver is not available ({FirstLine(ex.Message)}).");
+            Requirements.SkipOrFail(Requirements.Playwright, $"Playwright's driver is not available ({FirstLine(ex.Message)}).");
             throw;
         }
 
@@ -60,7 +62,8 @@ internal static class PlaywrightBrowser
         catch (PlaywrightException ex) when (string.IsNullOrWhiteSpace(executable) && IsMissingBrowser(ex))
         {
             playwright.Dispose();
-            Assert.Skip(
+            Requirements.SkipOrFail(
+                Requirements.Playwright,
                 "No Chromium for Playwright: run `pwsh bin/Release/net10.0/playwright.ps1 install chromium` in tests/Paduraksa.Tests.Dashboard "
                 + $"(or set {ExecutableVariable} to an installed Chromium).");
             throw;

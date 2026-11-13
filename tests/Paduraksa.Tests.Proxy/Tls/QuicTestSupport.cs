@@ -5,17 +5,16 @@ using System.Net.Sockets;
 
 using Microsoft.AspNetCore.Connections;
 
+using Paduraksa.Tests.Shared;
+
 namespace Paduraksa.Tests.Proxy.Tls;
 
 /// <summary>
-/// QUIC tests need libmsquic, which normal dev machines and CI don't have: there they are skipped (xUnit v3 dynamic
-/// skip). <c>run-quic-tests.sh</c> runs them in Docker with libmsquic and sets <see cref="RequireVariable"/>, which
-/// turns a missing QUIC stack into a failure so a "green" Docker run can't be all skips.
+/// QUIC tests need libmsquic, which a dev machine usually lacks: there they are skipped (xUnit v3 dynamic skip). CI installs it and sets
+/// <c>PADURAKSA_REQUIRE=quic</c> (<see cref="Requirements"/>), which turns a missing QUIC stack into a failure.
 /// </summary>
 internal static class QuicTestSupport
 {
-    public const string RequireVariable = "PADURAKSA_REQUIRE_QUIC";
-
     public static void Require()
     {
         if (QuicListener.IsSupported && QuicConnection.IsSupported)
@@ -23,12 +22,7 @@ internal static class QuicTestSupport
             return;
         }
 
-        if (Environment.GetEnvironmentVariable(RequireVariable) == "1")
-        {
-            Assert.Fail($"{RequireVariable}=1 but QUIC isn't supported here (libmsquic missing?).");
-        }
-
-        Assert.Skip("QUIC isn't supported here (libmsquic missing). Run tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh.");
+        Requirements.SkipOrFail(Requirements.Quic, "QUIC isn't supported here (libmsquic missing). tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh runs these in Docker.");
     }
 
     /// <summary>

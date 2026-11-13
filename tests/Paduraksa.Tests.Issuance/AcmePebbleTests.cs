@@ -28,7 +28,7 @@ public sealed class AcmePebbleTests(PebbleFixture pebble) : IClassFixture<Pebble
 
     private static async Task<Rig> StartAsync(PebbleFixture pebble)
     {
-        Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
+        Requirements.RequireAvailable(Requirements.Pebble, pebble.SkipReason);
         return await Rig.CreateAsync();
     }
 

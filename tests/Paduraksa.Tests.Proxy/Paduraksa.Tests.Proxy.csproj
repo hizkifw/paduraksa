@@ -8,6 +8,7 @@
   <ItemGroup>
     <!-- The header-echo upstream and the readable test IDs, shared with the other end-to-end test project. -->
     <Compile Include="../Shared/HeaderEchoUpstreamHost.cs" Link="Shared/HeaderEchoUpstreamHost.cs" />
+    <Compile Include="../Shared/Requirements.cs" Link="Shared/Requirements.cs" />
     <Compile Include="../Shared/FakeAuthServer.cs" Link="Shared/FakeAuthServer.cs" />
     <Compile Include="../Shared/BodyCountingUpstream.cs" Link="Shared/BodyCountingUpstream.cs" />
     <Compile Include="../Shared/ZeroStream.cs" Link="Shared/ZeroStream.cs" />

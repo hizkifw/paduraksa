@@ -254,14 +254,11 @@ internal sealed class ClientInfoProbe : IStartupFilter
 }
 
 /// <summary>
-/// QUIC needs libmsquic, which dev machines and CI lack: there the H3 tests are skipped. The Docker script
-/// (<c>tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh</c>) sets <see cref="RequireVariable"/>, turning a missing QUIC
-/// stack into a failure so a green Docker run can't be all skips.
+/// QUIC needs libmsquic, which a dev machine usually lacks: there the H3 tests are skipped. CI installs it and sets <c>PADURAKSA_REQUIRE=quic</c>
+/// (<see cref="Requirements"/>), which turns a missing QUIC stack into a failure.
 /// </summary>
 internal static class QuicSupport
 {
-    public const string RequireVariable = "PADURAKSA_REQUIRE_QUIC";
-
     public static void Require()
     {
         if (QuicListener.IsSupported && QuicConnection.IsSupported)
@@ -269,12 +266,7 @@ internal static class QuicSupport
             return;
         }
 
-        if (Environment.GetEnvironmentVariable(RequireVariable) == "1")
-        {
-            Assert.Fail($"{RequireVariable}=1 but QUIC isn't supported here (libmsquic missing?).");
-        }
-
-        Assert.Skip("QUIC isn't supported here (libmsquic missing). Run tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh.");
+        Requirements.SkipOrFail(Requirements.Quic, "QUIC isn't supported here (libmsquic missing). tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh runs these in Docker.");
     }
 
     /// <summary>A port free for both TCP and UDP on dual-mode <c>[::]</c> (or <c>0.0.0.0</c>), as the public listener binds.</summary>
