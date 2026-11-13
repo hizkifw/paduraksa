@@ -68,6 +68,7 @@ bench/run-baseline.sh                                     # all proxies and scen
 PROFILE=quick bench/run-baseline.sh                       # short runs for iterating on the harness
 PROXIES=paduraksa SCENARIOS="h1 h2-tls" bench/run-baseline.sh
 PROFILE=quick SCENARIOS="access-log rate-limit rate-limited error-page cf" bench/run-baseline.sh
+PROFILE=quick RATES="" SCENARIOS="h1 compressed headers rewrite rewrite-redirect" bench/run-baseline.sh
 RATES="" bench/run-baseline.sh                            # no fixed-rate runs
 REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh   # tail latency: 3 x 30 s, medians reported
 OHA_DB_DIR=/tmp/oha-db PROXIES=paduraksa SCENARIOS=h1 RATES=30000 bench/run-baseline.sh
@@ -155,6 +156,14 @@ WebSocket client (CPUs 4-11)                                 └──► WebSoc
   - `/xff` echoes the `X-Forwarded-For` it received in a response header, so the `cf` check can prove a proxy forwards
     the resolved client address.
   - `/error-502.html` is the 502 page Traefik's `errors` middleware fetches.
+  - `/hdr` is the `headers` scenario's page: the same 12-byte answer plus an `X-Powered-By` and a `SAMEORIGIN`
+    `X-Frame-Options` that the proxy's response rules must remove and replace.
+  - `/api/...` is the only path the `rewrite` scenarios' upstream answers 200 for; `/app/...` and the paths a strip alone
+    would leave (`/users/...`) are 404, so a missed rewrite shows in the status breakdown. `/api/redirect/...` answers
+    `302` with `Location: /api/login`.
+  - **Probe echo.** A request with `X-Bench-Probe: 1` makes the upstream echo what it received in `X-Seen-*` response
+    headers (the request headers the `headers` rules touch, with a removed one read as `(absent)`, and the URI). Without
+    that header the values are empty, which nginx doesn't send, so measured requests carry none of it.
 - **WebSocket echo server** (`Paduraksa.Bench.WebSocket echo`, :18090) is the upstream for `ws.test` on every proxy: a
   Kestrel app that echoes every frame, natively on the upstream CPUs. oha has no WebSocket mode and the nginx upstream
   can't echo one without a third-party module, so `Paduraksa.Bench.WebSocket load` is the load generator (below).
@@ -165,8 +174,9 @@ WebSocket client (CPUs 4-11)                                 └──► WebSoc
   - `bench.test` is a proxy host with one catch-all route to the upstream (gate → routing → YARP).
   - `respond.test` is a Respond host answering `200 ok` from the gate.
   - `ws.test` forwards to the WebSocket echo server.
-  - `access-log.test`, `rate-limit.test`, `rate-limited.test`, `browser-check.test` and `error-page.test` are the extra
-    hosts the comparison scenarios use. They share the one runner process, so none of the scenarios restarts it
+  - `access-log.test`, `rate-limit.test`, `rate-limited.test`, `browser-check.test`, `error-page.test`,
+    `compressed.test`, `headers.test`, `rewrite.test` and `rewrite-redirect.test` are the extra hosts the comparison
+    scenarios use. They share the one runner process, so none of the scenarios restarts it
     (`cf` is the one that does, and it starts a second process).
     - `access-log.test` turns the access log on; every other host keeps it off.
     - `rate-limit.test` and `rate-limited.test` name a rate-limit policy each: one far above the load, one at 1
@@ -276,10 +286,13 @@ throughput. Compare latency at the fixed rates below.
 | `rate-limited` | plain HTTP/1.1 like `h1`, to `rate-limited.test` under one request per hour (per minute on nginx) with a burst of one. The pre-run probe spends the one token, so the measured run is all 429s. This is the refusal path: how much abuse the proxy absorbs. |
 | `browser-check` | Paduraksa only: plain HTTP/1.1 like `h1`, to `browser-check.test`, which has the proof-of-work gate on at 8 bits. Every request carries a valid `paduraksa_pow` cookie and `Accept: text/html`, so the token is verified (HMAC over the host and client IP) and the request forwarded. The runner solves one challenge at startup; see the runner's hosts above. No other proxy here has a proof-of-work gate, so nothing is run for them. |
 | `error-page` | plain HTTP/1.1 with `Accept: text/html`, to `error-page.test`, whose upstream is a closed loopback port (18079). Every forward fails and the proxy writes a 502 HTML page: Paduraksa's built-in page, and for the others a ~900-byte static page (`baseline/error-502.html`: Paduraksa's page without its request ID, logo and animation). This is the upstream-failure path. |
-| `compressed` | plain HTTP/1.1 `GET /text` with `Accept-Encoding: gzip` to `compressed.test`, whose proxy compresses the upstream's 16 KiB HTML page (generated per run from a fixed-seed word list, so it compresses like text; nginx's own gzip stays off upstream). Paduraksa: host compression on (Brotli preferred, gzip here as asked); nginx `gzip on` at level 1 from 1 KiB with `gzip_proxied any`; Caddy `encode gzip`; HAProxy `compression algo gzip` on a backend of its own; Traefik the `compress` middleware from 1 KiB. Envoy and YARP skip it. The pre-run check asserts `Content-Encoding: gzip` |
+| `compressed` | plain HTTP/1.1 `GET /text` with `Accept-Encoding: gzip` to `compressed.test`, whose proxy compresses the upstream's 16 KiB HTML page (generated per run from a fixed-seed word list, so it compresses like text; nginx's own gzip stays off upstream). Paduraksa: host compression on (Brotli preferred, gzip here as asked); nginx `gzip on` at level 1 from 1 KiB with `gzip_proxied any`; Caddy `encode gzip`; HAProxy `compression algo gzip` on a backend of its own; Traefik the `compress` middleware from 1 KiB. Envoy `compressor` filter with gzip at `BEST_SPEED` from 1 KiB, on for this route only; YARP ASP.NET Core's `ResponseCompression` (gzip at its fastest level) in a branch for the host. The pre-run check asserts `Content-Encoding: gzip` |
+| `headers` | plain HTTP/1.1 like `h1`, to `headers.test`, path `/hdr`, through a header rule set on each proxy. Request side: set `X-Bench-Replace` (the load sends `client`, the rule makes it `replaced`), set `X-Bench-Tenant`, add `X-Bench-Added`, remove `X-Bench-Drop` (the load sends it). Response side: set `X-Frame-Options: DENY` over the upstream's `SAMEORIGIN`, set `X-Bench-Policy: max-age=31536000`, remove the upstream's `X-Powered-By`. The pre-run probe checks the upstream received each request change (its echo) and the client saw each response change, with exactly one `X-Frame-Options` |
+| `rewrite` | plain HTTP/1.1 like `h1`, to `rewrite.test`, route `/app` stripping its prefix and adding `/api`, on varied paths with a query (`/app/users/abcdef/123?x=4`; oha's regex URLs, as in `browser`). The upstream answers 200 only under `/api/`; the pre-run probe reads back the URI it received, `/api/users/abcdef/123?x=1` for `/app/users/abcdef/123?x=1` |
+| `rewrite-redirect` | the same route on `rewrite-redirect.test`, load on `/app/redirect/<random>?x=<digit>`, where the upstream answers `302` with `Location: /api/login` and the proxy must give the client `Location: /app/login`. oha doesn't follow redirects (`--redirect 0`), so the run is one 302 per request, and the throughput counts every response. Paduraksa (built in), nginx, Caddy and HAProxy only; the pre-run probe checks the status, the URI the upstream saw and the mapped `Location` |
 | `cf` | plain HTTP/1.1 like `h1`, from a peer the proxy trusts as Cloudflare Tunnel (loopback), carrying `CF-Connecting-IP` (IPv6), `CF-Visitor` and `CF-Ray`. The proxy resolves the client address from `CF-Connecting-IP` and forwards it as `X-Forwarded-For` (checked before the run through the upstream's `/xff`). Paduraksa also resolves the scheme from `CF-Visitor` and forwards `X-Forwarded-Proto`; the others only resolve the address. Paduraksa runs it on `bench.test` in a second runner process (`--cloudflare-tunnel true`); the others on `cf.test`. Each gets its own proxy warm-up. |
 
-**The comparison scenarios.** `access-log`, `rate-limit`, `rate-limited`, `error-page` and `cf` run against every proxy
+**The comparison scenarios.** `access-log`, `rate-limit`, `rate-limited`, `error-page`, `compressed`, `headers`, `rewrite`, `rewrite-redirect` and `cf` run against every proxy
 that has a stock equivalent, each configured with the closest feature its pinned image ships. No third-party module or
 plugin build is used; the table says what was ruled out. A skip is shown as `-` in the tables and has a reason here.
 
@@ -289,6 +302,10 @@ plugin build is used; the table says what was ruled out. A skip is shown as `-` 
 | `rate-limit`, `rate-limited` | `limit_req` zone on `$binary_remote_addr`; leaky bucket; 1,000,000r/s with `burst=1000000 nodelay`; `rate=1r/m` with no burst | skipped | stick table, `http_req_rate` per source address, `deny_status 429`; window of 1 s and 1 h | `rateLimit` middleware; token bucket per source address; 1,000,000 per 1 s burst 1,048,575; 1 per 1 h burst 1 | `local_ratelimit` token bucket on the route; 1,048,575 tokens, 1,000,000 per 1 s; 1 token, 1 per 3,600 s | ASP.NET Core token bucket limiter per client address, rejecting with 429; same sizes as Traefik |
 | `error-page` | `error_page 502` with a static file; the log level for the host is `crit` | `handle_errors` with `file_server { status {err.status_code} }` | `errorfile 503` holding a 502 response, `retries 0` | `errors` middleware with the page from a service (the shared upstream) | `local_reply_config` mapper on response flag `UF` (502 and the page) | a middleware writing the page when the forward ended in 502 |
 | `cf` | `set_real_ip_from 127.0.0.1` and `real_ip_header CF-Connecting-IP` on the host; `$proxy_add_x_forwarded_for` | `trusted_proxies` and `client_ip_headers` (server-wide, so a second instance) and `header_up X-Forwarded-For {client_ip}` | `set-src hdr(CF-Connecting-IP)` for the host when the source is loopback; `option forwardfor` | skipped | original-IP detection extension on `CF-Connecting-IP` (replaces `use_remote_address`, so a second instance) and `X-Forwarded-For` from the detected address | `UseForwardedHeaders` with `ForwardedForHeaderName = CF-Connecting-IP` (a second process, like Paduraksa) |
+| `compressed` | `gzip on` at level 1 from 1 KiB, `gzip_proxied any` | `encode gzip` | `compression algo gzip` on a backend of its own | `compress` middleware from 1 KiB | `compressor` filter, gzip `BEST_SPEED`, 1 KiB minimum; switched off by its runtime flag in the shared chain and on for the route by a `CompressorPerRoute` override | ASP.NET Core `ResponseCompression`, gzip `Fastest`, no minimum size, in a branch for the host |
+| `headers` | `proxy_set_header` (an empty value drops a request header); `proxy_hide_header` plus `add_header ... always` for the response | `header_up` (`Name value` sets, `+Name` appends, `-Name` removes) and `header_down` on the proxy handler | `http-request` and `http-response` `set-header`, `add-header`, `del-header`, in a backend of their own | `headers` middleware, `customRequestHeaders` and `customResponseHeaders` (an empty value removes) | the route's `request_headers_to_add`/`_to_remove` and `response_headers_to_add`/`_to_remove`, with `OVERWRITE_IF_EXISTS_OR_ADD` and `APPEND_IF_EXISTS_OR_ADD` | transforms `RequestHeader` (`Set`, `Append`), `RequestHeaderRemove`, `ResponseHeader` (`Set`, `When: Always`), `ResponseHeaderRemove` |
+| `rewrite` | `rewrite ^/app(/.*)$ /api$1 break;` in `location /app/` | `handle_path /app/*` and `rewrite * /api{uri}` | `http-request replace-path ^/app(/.*)$ /api\1` | `stripPrefix` then `addPrefix` middlewares on a `Host() && PathPrefix(/app/)` router | route `prefix: /app/` with `prefix_rewrite: /api/` | transforms `PathRemovePrefix: /app` and `PathPrefix: /api` on a route `/app/{**rest}` |
+| `rewrite-redirect` | `proxy_redirect /api/ /app/;` with `absolute_redirect off` | `header_down Location ^/api/ /app/` | `http-response replace-header Location ^/api/(.*)$ /app/\1` | skipped | skipped | skipped |
 
 Skipped, and why:
 - **Caddy `rate-limit` and `rate-limited`:** rate limiting is the third-party `caddy-ratelimit` module, which the pinned
@@ -299,11 +316,15 @@ Skipped, and why:
   image. Feeding it the CF address in `X-Forwarded-For` would be a different request from the other proxies' and from
   Paduraksa's.
 - **`browser-check`:** Paduraksa's own proof-of-work gate; none of the others has an equivalent.
-- **Envoy and YARP `compressed`:** Envoy's compressor filter sits in the shared listener's filter chain, so it would need a
-  per-route opt-out on every other host; YARP has no compression of its own (it would be ASP.NET's middleware, which is what
-  Paduraksa measures). Not configured in this round.
+- **Traefik, Envoy and YARP `rewrite-redirect`:** none of them maps a `Location` header with stock configuration.
+  Traefik's `headers` middleware sets whole header values and has no search-and-replace (a regex rewrite of response
+  headers is the third-party `rewriteHeaders` plugin); Envoy's route `prefix_rewrite` acts on the request only, and mapping a
+  response `Location` takes a Lua or Wasm filter or an internal redirect (which re-dispatches the request, so it isn't
+  the same behaviour); YARP's transforms can set, append or remove a response header but not edit its value by pattern.
+  Their `rewrite` still runs.
 
-**The extra-host scenarios.** `access-log`, `rate-limit`, `rate-limited`, `browser-check`, `error-page` and `cf` all run
+**The extra-host scenarios.** `access-log`, `rate-limit`, `rate-limited`, `browser-check`, `error-page`, `compressed`, `headers`, `rewrite`,
+`rewrite-redirect` and `cf` all run
 at `c=$CONNS` with plain HTTP/1.1, like `h1`. Each proxy serves them from extra hosts of the one instance that serves
 everything else, so nothing restarts between them, with these exceptions, where the setting can't be limited to a host
 and the proxy is started a second time with it, for that scenario only (a proxy warm-up first, as for `cf` on
@@ -312,12 +333,12 @@ Paduraksa): Traefik for `access-log` (the access log is static configuration), a
 configuration, and so their history, is the one they always had, apart from the extra hosts themselves.
 - **Status codes:** `summarize.py` prints a status breakdown for these paths and for `upload-64k` and `websocket`, for
   every proxy that ran them. `rate-limit` must show no 429s anywhere; if it does, that policy is below the load and the
-  run no longer measures the check alone. `rate-limited` must show 429s and `error-page` 502s, which is what their
-  throughput columns count: for those two rows the number is every response, not only 2xx, because counting only
-  successes would report zero for the path being measured. `upload-64k` is 200s, `websocket` is one 101 per
+  run no longer measures the check alone. `rate-limited` must show 429s, `error-page` 502s and `rewrite-redirect` 302s, which is
+  what their throughput columns count: for those three rows the number is every response, not only 2xx, because counting only
+  successes would report zero for the path being measured. `headers`, `rewrite` and `compressed` must be all 200. `upload-64k` is 200s, `websocket` is one 101 per
   connection. The latency tables' `failed` column includes the expected non-2xx answers.
 - **Per-scenario checks:** before the measured runs, `check_scenario_hosts` makes each proxy prove the scenario's own
-  point: the host answers, the second `rate-limited` request is a 429, `error-page` is a 502 with a page, and for
+  point: the host answers, the second `rate-limited` request is a 429, `error-page` is a 502 with a page, `compressed` is gzip, `headers` shows each rule's effect at the upstream and the client, `rewrite` the URI the upstream received, `rewrite-redirect` the mapped `Location`, and for
   `cf` the upstream's `/xff` shows the `CF-Connecting-IP` address in `X-Forwarded-For`.
 - **`error-page` and passive health:** the host's upstream has no `PassiveHealth` configured, so YARP retries the
   closed destination on every request and the steady state is a 502 with the built-in HTML page (the smoke run's
@@ -395,7 +416,8 @@ at the fixed-rate p99 as a possible regression.
 - **The comparison scenarios compare features that aren't identical.** Read each row with the matrix above; what
   differs:
   - `browser-check` has one bar (Paduraksa only). `rate-limit` and `rate-limited` have none for Caddy, and `cf` none
-    for Traefik, so those panels have fewer bars than the others.
+    for Traefik, so those panels have fewer bars than the others. `rewrite-redirect` has bars for Paduraksa,
+    nginx, Caddy and HAProxy only.
   - **Access log:** the line formats differ in content and size: Paduraksa writes a 13-field plain line (with request
     ID, upstream and timings), nginx the `combined` format, Caddy JSON (the largest), HAProxy a combined-style line
     over syslog, Traefik common log format plus router, service and duration, Envoy and YARP a combined-style or W3C
@@ -427,6 +449,40 @@ at the fixed-rate p99 as a possible regression.
     custom-header extension takes it from any peer, because Envoy offers no trusted-peer list for it (it also has no
     `use_remote_address` then, so the `cf.test` route writes `X-Forwarded-For` itself). Only Paduraksa resolves the
     scheme from `CF-Visitor`.
+  - **Header rules** (`headers`): what differs.
+    - **Add.** Paduraksa, Caddy, HAProxy, Envoy and YARP have a real append for a request header; nginx and Traefik only
+      have a set. The load doesn't send `X-Bench-Added`, so the upstream sees one value either way, and the probe checks it.
+    - **Response set.** Caddy, HAProxy, Traefik, Envoy, YARP and Paduraksa replace the header. nginx's `add_header` only
+      adds, so its rule is `proxy_hide_header X-Frame-Options` and then `add_header X-Frame-Options DENY always`: two steps, and
+      the probe requires exactly one `X-Frame-Options` line at the client. `always` is needed or nginx drops the header on
+      non-2xx answers.
+    - **Response remove** is a true remove on every proxy (nginx's `proxy_hide_header`, HAProxy's `del-header`, Traefik's empty
+      value, Envoy's `response_headers_to_remove`, Caddy's `-Name`, YARP's `ResponseHeaderRemove`, Paduraksa's `remove`); the probe
+      requires it absent at the client.
+    - **Request remove** is a true remove everywhere except nginx, where an empty `proxy_set_header` is the stock way to keep
+      a header from being passed upstream (the upstream sees it absent, which is what the probe reads).
+    - **Cost.** Paduraksa writes precomputed values into the request and response header stores; nginx and HAProxy
+      evaluate their directives per request on already-parsed headers; YARP's transforms run per request as delegates over
+      its header copy. The `/hdr` page carries two more upstream headers than `h1`'s page, so comparing with the proxy's
+      own `h1` includes copying them (and an `X-Powered-By` that the proxy then drops).
+  - **Path rewrite** (`rewrite`, `rewrite-redirect`): what differs.
+    - **Matching.** nginx, Caddy, Envoy and Traefik match the literal prefix `/app/`; HAProxy's `replace-path` regex and
+      YARP's route (`/app/{**rest}`) do the same. Paduraksa's route is `/app` (a prefix that also matches `/app` itself),
+      matched on the canonical view; it forwards the raw path, answers 404 for a dot segment or an unstrippable spelling (a
+      per-request check the others don't make), and sends `X-Forwarded-Prefix: /app` upstream, a header none of the others adds.
+    - **Query.** Kept by every proxy (the probe sends `?x=1`).
+    - **Location mapping** (`rewrite-redirect`):
+      - Paduraksa maps a path-absolute `Location` (or an absolute URL on the request's own host) that points under what the
+        route sends: it takes the strip and add off and puts the client's prefix back, and leaves a `Location` that already
+        starts with the client's prefix alone. `rewrite.test` has the mapping on too (its default) but its upstream sends no `Location`.
+      - nginx's `proxy_redirect /api/ /app/` is a string-prefix replacement of the header text: it maps what starts with
+        `/api/` and nothing else, and for a path-only replacement it needs `absolute_redirect off` or it writes an absolute URL.
+      - HAProxy's `replace-header` and Caddy's `header_down Location` are regular-expression replacements on the header
+        value, anchored by us at `^/api/`; they are configured on `rewrite-redirect.test` only, so `rewrite.test` pays nothing for them.
+      - The scenario's upstream answers a path-absolute `Location`, which is what all four handle; an absolute one on the
+        proxy's own host is something only Paduraksa maps.
+    - **Redirect answers are 302s.** The throughput of `rewrite-redirect` counts them (oha doesn't follow); a 200 in its
+      status breakdown is a miss.
 - **WebSocket numbers are for one small shape.** 64 connections each with one 1 KiB message in flight is a latency-bound
   ping-pong; the proxies' CPU per frame (a read and a write each way) dominates. The client and the echo server are
   .NET, on the load and upstream CPUs; `upstream.websocket` shows what they do without a proxy in between. Paduraksa
@@ -437,8 +493,8 @@ at the fixed-rate p99 as a possible regression.
   `proxy_request_buffering on`); the others stream it. nginx's body buffer is raised to 128 KiB so a 64 KiB body stays
   in memory (at its default of 8 or 16 KiB it spilled to a temp file and warned per request: the first quick smoke gave
   1.5k req/s against 80k with the larger buffer).
-- **`rate-limited` and `error-page` report every response** in `summarize.py` and `bench/history.py`, because their
-  useful answer is a 429 or a 502. Do not compare those two rows with the successful-requests rows as if they were
+- **`rate-limited`, `error-page` and `rewrite-redirect` report every response** in `summarize.py` and `bench/history.py`, because their
+  useful answer is a 429, a 502 or a 302. Do not compare those three rows with the successful-requests rows as if they were
   the same metric; read the status breakdown beside them.
 
 ### Future work

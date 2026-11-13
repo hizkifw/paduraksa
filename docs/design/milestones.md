@@ -64,6 +64,7 @@ These were done first, before the features that depend on them. Each has an exit
   - Paduraksa reaches about 0.54 to 0.71x nginx's throughput and 2.1 to 3.6x Caddy's.
   - At fixed rates its median latency is within 0.15 ms of nginx's, but its p99 is 1.4 to 2.3x nginx's. The cause is process-wide stalls that are not GC-driven and are still under investigation.
 - The harness now also runs HAProxy, Traefik, Envoy and a bare Kestrel + YARP reference, adds `body-64k` and `handshake` scenarios, and records run-to-run history with `RECORD=1`.
+- The comparison scenarios also cover response compression, custom header rules, path rewrite, and a `Location` mapped back through a rewrite, each configured with the stock equivalent of every proxy that has one (bench/README.md lists the skips). Their numbers are not recorded yet.
 
 ## Milestones
 
