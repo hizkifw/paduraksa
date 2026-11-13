@@ -7,11 +7,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Drafts;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Contracts.Simulation;
@@ -55,6 +57,138 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
     public CloudflareRangeStatus CloudflareRanges { get; set; } = new(CloudflareRangeSource.BuiltIn, new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero), 22, 0, null);
 
     public Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult(new CurrentConfig(Document, Revision));
+
+    /// <summary>The open draft, as the service would hold it; null: none. Entries are replayed by hand: <see cref="WorkingDocument"/> is the head with them applied.</summary>
+    public ConfigDraft? Draft { get; set; }
+
+    /// <summary>What the pages read while a draft is open (the head with the draft applied); <see cref="Document"/> when null.</summary>
+    public ConfigDocument? WorkingDocument { get; set; }
+
+    /// <summary>Every call that added commands to the draft.</summary>
+    public List<IReadOnlyList<ConfigCommand>> DraftAdds { get; } = [];
+
+    /// <summary>What an add gets; by default the fake draft takes the commands (opening itself first), one entry per object.</summary>
+    public Func<IReadOnlyList<ConfigCommand>, DraftResult>? AddResult { get; set; }
+
+    /// <summary>What a review of the draft gets; by default a dry run that passes with no changes (and the token <see cref="TokenOf"/>), or <see cref="DraftStatus.Blocked"/> when every entry is blocked.</summary>
+    public Func<ConfigDraft, DraftResult>? ReviewResult { get; set; }
+
+    /// <summary>What an apply gets, given the draft and the token sent; by default the whole draft commits as #1 when the token is the review's, a changed-since-review answer
+    /// (the fresh review) when it is not, and a refusal when an entry is blocked.</summary>
+    public Func<ConfigDraft, string?, DraftResult>? ApplyResult { get; set; }
+
+    public List<(DraftId Draft, string? Token, string? Message)> DraftApplies { get; } = [];
+
+    /// <summary>The review token the fake gives a draft: its version, until a test moves it.</summary>
+    public static string TokenOf(ConfigDraft draft) => $"t{draft.Version}";
+
+    public int DraftDiscards { get; private set; }
+
+    public List<DraftNotice> Notices { get; } = [];
+
+    public Task<CurrentConfig> GetWorkingAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new CurrentConfig(Draft is null ? Document : WorkingDocument ?? Document, Revision));
+
+    public Task<DraftResult> GetDraftAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(Draft is null ? new DraftResult(DraftStatus.NoDraft) : new DraftResult(DraftStatus.Succeeded, Draft));
+
+    public Task<DraftResult> AddToDraftAsync(IReadOnlyList<ConfigCommand> commands, CancellationToken cancellationToken = default)
+    {
+        DraftAdds.Add(commands);
+        if (AddResult is { } scripted)
+        {
+            return Task.FromResult(scripted(commands));
+        }
+
+        var entries = Draft?.Entries.ToList() ?? [];
+        foreach (var command in commands)
+        {
+            var (target, action) = DraftTargets.Of(command)!.Value;
+            var at = entries.FindIndex(e => e.Target == target);
+            DraftEntry entry = new(at >= 0 ? entries[at].Number : entries.Count + 1, action, target, command, DateTimeOffset.UnixEpoch);
+            if (at >= 0)
+            {
+                entries[at] = entry;
+            }
+            else
+            {
+                entries.Add(entry);
+            }
+        }
+
+        Draft = (Draft ?? new ConfigDraft(DraftId.New(), 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(30), [])) with
+        {
+            Entries = entries,
+            Version = (Draft?.Version ?? 0) + 1,
+        };
+        return Task.FromResult(new DraftResult(DraftStatus.Succeeded, Draft));
+    }
+
+    public Task<DraftResult> RemoveDraftEntryAsync(DraftId draft, int number, CancellationToken cancellationToken = default)
+    {
+        if (Draft is null)
+        {
+            return Task.FromResult(new DraftResult(DraftStatus.NoDraft));
+        }
+
+        Draft = Draft with { Entries = [.. Draft.Entries.Where(e => e.Number != number)], Version = Draft.Version + 1 };
+        return Task.FromResult(new DraftResult(DraftStatus.Succeeded, Draft));
+    }
+
+    public Task<DraftResult> ReviewDraftAsync(DraftId draft, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Draft is null ? new DraftResult(DraftStatus.NoDraft) : ReviewResult?.Invoke(Draft) ?? Review(Draft));
+
+    private static DraftResult Review(ConfigDraft draft)
+    {
+        var blocked = draft.Entries.Any(static e => e.State == DraftEntryState.ChangedElsewhere);
+        return blocked && draft.Entries.All(static e => e.State == DraftEntryState.ChangedElsewhere)
+            ? new DraftResult(DraftStatus.Blocked, draft)
+            : new DraftResult(DraftStatus.Succeeded, draft, new ConfigCommandResult(ConfigCommandStatus.DryRun), ReviewToken: blocked ? null : TokenOf(draft));
+    }
+
+    public Task<DraftResult> ApplyDraftAsync(DraftId draft, string? reviewToken, string? message, CancellationToken cancellationToken = default)
+    {
+        DraftApplies.Add((draft, reviewToken, message));
+        if (Draft is null)
+        {
+            return Task.FromResult(new DraftResult(DraftStatus.NoDraft));
+        }
+
+        if (ApplyResult is { } scripted)
+        {
+            return Task.FromResult(scripted(Draft, reviewToken));
+        }
+
+        if (Draft.Entries.Any(static e => e.State == DraftEntryState.ChangedElsewhere))
+        {
+            return Task.FromResult(new DraftResult(DraftStatus.Blocked, Draft));
+        }
+
+        if (reviewToken != TokenOf(Draft))
+        {
+            return Task.FromResult(Review(Draft) with { Status = DraftStatus.ChangedSinceReview });
+        }
+
+        Draft = null;
+        return Task.FromResult(new DraftResult(DraftStatus.Succeeded, null, new ConfigCommandResult(ConfigCommandStatus.Committed, new RevisionRef(ConfigRevisionId.New(), 1))));
+    }
+
+    public Task<DraftResult> DiscardDraftAsync(DraftId draft, CancellationToken cancellationToken = default)
+    {
+        DraftDiscards++;
+        Draft = null;
+        return Task.FromResult(new DraftResult(DraftStatus.Succeeded));
+    }
+
+    public Task<IReadOnlyList<DraftNotice>> TakeDraftNoticesAsync(CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<DraftNotice> taken = [.. Notices];
+        Notices.Clear();
+        return Task.FromResult(taken);
+    }
+
+    /// <summary>Announces a change to the draft (made in another tab, say) to every page that watches.</summary>
+    public Task DraftChangedAsync() => CommitAsync(new ConfigCommitted(Revision ?? new RevisionRef(ConfigRevisionId.Empty, 0), []));
 
     public Task<ConfigCommandResult> ExecuteAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
@@ -147,6 +281,7 @@ internal static class ConfigPages
         context.Services.AddSingleton(new Paduraksa.Application.Notifications.UpstreamHealthBoard());
         context.Services.AddScoped<DashboardCaller>();
         context.Services.AddScoped<ConfigUndo>();
+        context.Services.AddScoped<DraftState>();
         context.Services.AddScoped<ReviewedDraft>();
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return config;

@@ -60,7 +60,9 @@ public sealed class ConfigPageTests
         await page.WaitForStateAsync(() => page.FindAll(".pdk-hosts-table").Count == 1);
         Assert.Contains("app.example.com", page.Find(".pdk-hosts-table").TextContent, StringComparison.Ordinal);
         page.Instance.Dispose();
-        Assert.Equal(0, config.WatcherCount);
+
+        // What is left is the circuit's draft state, which follows the draft for every page and lives as long as the circuit.
+        Assert.Equal(1, config.WatcherCount);
     }
 
     [Theory]
