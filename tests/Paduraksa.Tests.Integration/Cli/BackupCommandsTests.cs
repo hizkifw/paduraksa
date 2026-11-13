@@ -2,9 +2,7 @@ using System.CommandLine;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
-
 using Microsoft.Data.Sqlite;
-
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Certificates;
@@ -18,6 +16,7 @@ using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Server.Cli;
 using Paduraksa.Server.Hosting;
+using Paduraksa.Storage.Sqlite;
 using Paduraksa.Tests.Integration.Admin;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
@@ -80,11 +79,23 @@ public sealed class BackupCommandsTests
     private static async Task<(string Data, string Fingerprint)> SourceAsync()
     {
         var data = TestDataDirectories.NewPath();
-        await using var host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data);
-        await host.StartAsync(Ct);
-        var fingerprint = (await host.Shared.CertificateOperations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["bk.test"]), Origin, Ct)).Certificate!.Sha256Fingerprint;
-        await CommitAsync(host, new UpsertHostCommand(RespondHost("r", "bk.test", "from the source")), Ct);
-        await host.StopAsync(Ct);
+        string fingerprint;
+        await using (var host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
+        {
+            await host.StartAsync(Ct);
+            fingerprint = (await host.Shared.CertificateOperations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["bk.test"]), Origin, Ct)).Certificate!.Sha256Fingerprint;
+            await CommitAsync(host, new UpsertHostCommand(RespondHost("r", "bk.test", "from the source")), Ct);
+            await host.StopAsync(Ct);
+        }
+
+        // Pooled connections outlive the host; the pool closes idle ones on a timer, and the last close folds the WAL into the
+        // database file. Close them now, so a test that compares the directory's bytes before and after isn't racing that timer.
+        foreach (var file in new[] { "paduraksa.db", "vault.db" })
+        {
+            using SqliteConnection connection = new(PaduraksaSqlite.ConnectionString(Path.Combine(data, file)));
+            SqliteConnection.ClearPool(connection);
+        }
+
         return (data, fingerprint);
     }
 

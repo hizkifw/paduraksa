@@ -170,6 +170,10 @@ public sealed class McpEndpointTests(SharedAdminApi shared) : IClassFixture<Shar
         request.Headers.TryAddWithoutValidation("Accept", "application/json, text/event-stream");
         request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + shared.Api.TokenValueOf("owner"));
         request.Content = new StringContent("""{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"code":"%s"}}}""".Replace("%s", new string('x', 400 * 1024), StringComparison.Ordinal), Encoding.UTF8, "application/json");
+
+        // The server answers without reading the body; without 100-continue the client would still be writing it and could fail with
+        // a broken pipe before it reads the 413. With it, the client sends nothing until the server says so, which it never does here.
+        request.Headers.ExpectContinue = true;
         using var response = await shared.Api.Client.SendAsync(request, Ct);
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
     }
