@@ -27,8 +27,8 @@ namespace Paduraksa.Proxy.Yarp;
 /// <item><c>X-Request-Id</c>: the request's ID when the host sends one upstream
 /// (<see cref="Snapshot.CompiledHost.RequestIdPropagation"/>): always the gate's own, never the client's. Otherwise
 /// whatever the client sent is removed.</item>
-/// <item>Removed and not replaced: <c>Forwarded</c>, <c>X-Forwarded-Prefix</c>, <c>X-Forwarded-Port</c>, which only a
-/// client could have set.</item>
+/// <item>Removed: <c>Forwarded</c>, <c>X-Forwarded-Prefix</c>, <c>X-Forwarded-Port</c>, which only a client could have
+/// set. A route that strips its prefix sends its own <c>X-Forwarded-Prefix</c>: the prefix it took off.</item>
 /// <item>Cloudflare's headers (every <c>cf-*</c> header plus <c>True-Client-IP</c>,
 /// <see cref="CloudflareHeaders.IsStrippedWhenUntrusted"/>) pass through only when
 /// <see cref="ClientIpResolution.CloudflareHeadersTrusted"/> (a Cloudflare mode and a trusted peer); otherwise they're
@@ -98,6 +98,12 @@ internal static class ForwardedHeadersTransform
         }
 
         upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedProto, proto);
+        if (state?.Route?.Rewrite?.ForwardedPrefix is { } stripped)
+        {
+            // The one source of the header: the client's copy was removed above with the others.
+            upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedPrefix, stripped);
+        }
+
         var host = request.Headers.Host;
         if (host.Count == 1 && !string.IsNullOrEmpty(host[0]))
         {

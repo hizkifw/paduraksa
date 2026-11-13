@@ -479,6 +479,8 @@ public static class CanonicalConfigJson
 
     private static RouteConfig Canonical(RouteConfig route) => route with
     {
+        // A rewrite that does nothing is no rewrite: the key stays out, so a stored revision keeps its bytes.
+        Rewrite = route.Rewrite is { StripPrefix: false, AddPrefix: null or "", RewriteLocation: null } ? null : route.Rewrite,
         Settings = (route.Settings ?? new()) with
         {
             ProofOfWork = DropIfNothingSet(route.Settings?.ProofOfWork),

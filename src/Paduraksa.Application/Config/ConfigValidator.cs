@@ -20,6 +20,7 @@ using HostRuleSetSpec = Paduraksa.Proxy.Config.HostRuleSetSpec;
 using HostServerHeaderSpec = Paduraksa.Proxy.Config.HostServerHeaderSpec;
 using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
+using PathRewrite = Paduraksa.Proxy.Snapshot.PathRewrite;
 using RoutePath = Paduraksa.Proxy.Snapshot.RoutePath;
 using ServerHeader = Paduraksa.Proxy.Http.ServerHeader;
 using UpstreamCertificatePins = Paduraksa.Proxy.Yarp.UpstreamCertificatePins;
@@ -734,6 +735,24 @@ public static class ConfigValidator
             if (route.Settings?.Headers is { } headers)
             {
                 CheckHeaders(headers, $"{path}/settings/headers");
+            }
+
+            if (route.Rewrite is { } rewrite)
+            {
+                if (rewrite.StripPrefix && routePath == "/")
+                {
+                    Add($"{path}/rewrite/stripPrefix", RouteRewriteStripRoot, "a route on / has no prefix to strip; add a prefix instead");
+                }
+
+                if (rewrite.RewriteLocation is not null && !rewrite.StripPrefix)
+                {
+                    Add($"{path}/rewrite/rewriteLocation", RouteRewriteLocationUnused, "only a route that strips its prefix maps Location; leave it unset");
+                }
+
+                if (!string.IsNullOrEmpty(rewrite.AddPrefix) && PathRewrite.AddPrefixProblem(rewrite.AddPrefix) is { } prefixProblem)
+                {
+                    Add($"{path}/rewrite/addPrefix", RouteRewriteAddPrefixInvalid, $"{prefixProblem}, got '{rewrite.AddPrefix}'");
+                }
             }
 
             // Only the route's own named policy is checked here: one inherited from the host is reported at the host.

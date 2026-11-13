@@ -365,6 +365,19 @@ public sealed class GateMiddleware
         }
 
         state.Route = route;
+
+        // Before the route's chain: a spelling of the prefix that can't be stripped, or a dot segment that would step out of what
+        // the rewrite forwards, is a path this route doesn't take apart, so it is the 404 of no route rather than a guess.
+        if (route.Rewrite is { } rewrite)
+        {
+            var rawPath = PathRewriteSource(context);
+            if (rewrite.StripEnd(rawPath) < 0)
+            {
+                tracer.PathNotStrippable(route, rawPath);
+                return GateDecision.Respond(snapshot.NoRoute);
+            }
+        }
+
         if (route.MaxBodySize is { } routeBodyLimit)
         {
             RequestLimitsGate.ApplyBodyLimit(context, routeBodyLimit);
@@ -406,6 +419,20 @@ public sealed class GateMiddleware
         // Recorded where the state is at hand, so the completion that carries the decision out needs no feature lookup for it.
         state.Outcome = GateOutcome.Forwarded;
         return GateDecision.Forward;
+    }
+
+    /// <summary>The path a rewrite works on, as the request transform reads it: the raw target's path, else the decoded path (an
+    /// absolute-form target, or a test context without a raw target). 0 B.</summary>
+    internal static ReadOnlySpan<char> PathRewriteSource(HttpContext context)
+    {
+        var raw = context.Features.Get<IHttpRequestFeature>()?.RawTarget;
+        if (raw is { Length: > 0 } && raw[0] == '/')
+        {
+            var query = raw.IndexOf('?', StringComparison.Ordinal);
+            return query < 0 ? raw : raw.AsSpan(0, query);
+        }
+
+        return context.Request.Path.Value;
     }
 
     /// <summary>

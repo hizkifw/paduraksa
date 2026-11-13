@@ -86,6 +86,24 @@ public sealed class ConfigYamlRoundTripTests
     }
 
     [Fact]
+    public void ARoutesRewriteIsAKeyOfTheYamlAndReadsBack()
+    {
+        var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());
+        var host = sample.Hosts[0];
+        var document = sample with
+        {
+            Hosts = [host with { Routes = [host.Routes[0], host.Routes[1] with { Rewrite = new PathRewriteConfig(StripPrefix: true, AddPrefix: "/v2") }] }, .. sample.Hosts.Skip(1)],
+        };
+
+        var yaml = ConfigYamlExporter.Export(document);
+        var read = YamlTestSupport.Mapped(yaml);
+
+        Assert.Contains("rewrite:", yaml, StringComparison.Ordinal);
+        Assert.Contains("stripPrefix: true", yaml, StringComparison.Ordinal);
+        Assert.Equal(Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)), Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(read)));
+    }
+
+    [Fact]
     public void AnUpstreamsTimeoutsAreAKeyOfTheYamlAndReadBack()
     {
         var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());

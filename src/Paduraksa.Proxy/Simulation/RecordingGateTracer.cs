@@ -560,6 +560,17 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             route.Id));
     }
 
+    public void PathNotStrippable(CompiledRoute route, ReadOnlySpan<char> rawPath) =>
+        steps.Add(new GateStep(
+            GateStepKind.RouteMatch,
+            GateStepVerdict.Stopped,
+            route.Rewrite!.StripPrefix && route.Rewrite.PrefixEnd(rawPath) < 0
+                ? $"the route strips {route.Rewrite.RoutePrefix}, and {rawPath} spells it another way (encoded, '//' or ';'): 404"
+                : $"the route rewrites the path, and {rawPath} has a dot segment ('.', '..' or '%2e' in any spelling) the upstream could resolve outside it: 404",
+            [new("rawPath", rawPath.ToString()), new("strip", route.Rewrite.RoutePrefix)],
+            null,
+            route.Id));
+
     public void Forward(HttpContext context, RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent)
     {
         List<GateFact> facts = [new("slot", route.Slot.ToString(System.Globalization.CultureInfo.InvariantCulture)), new("endpoint", Flag(endpointPresent))];
@@ -588,6 +599,15 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
         var hostSent = GateSimulator.HostSentOf(snapshot, route, cluster, context.Request.Host.Value ?? string.Empty);
         facts.Add(new("hostHeaderMode", route.UpstreamHost.Mode.ToString()));
         facts.Add(new("hostSent", hostSent));
+        if (route.Rewrite is { } rewrite && rewrite.ForwardedPath(GateMiddleware.PathRewriteSource(context).ToString()) is { } forwarded)
+        {
+            facts.Add(new("forwardedPath", forwarded));
+            if (rewrite.ForwardedPrefix is { } stripped)
+            {
+                facts.Add(new("X-Forwarded-Prefix", stripped));
+            }
+        }
+
         AddCustomHeaderFacts(facts, route.Headers.Request, "request");
         AddCustomHeaderFacts(facts, route.Headers.Response, "response");
         steps.Add(new GateStep(

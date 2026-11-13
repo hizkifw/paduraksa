@@ -276,6 +276,9 @@ public static class ProxyConfigMapping
                 AuthProvider = HostSettingsLayers.ResolveRouteAuthProvider(effective, route.Settings).Effective,
                 AuthProviderRouteOverride = route.Settings?.AuthProvider is { Enabled: not null } or { AuthProviderId: not null },
                 Headers = HostSettingsLayers.ResolveRouteHeaders(effective, route.Settings),
+                StripPrefix = route.Rewrite?.StripPrefix ?? false,
+                AddPrefix = route.Rewrite?.AddPrefix,
+                RewriteLocation = route.Rewrite?.RewriteLocation ?? true,
             };
         }
 

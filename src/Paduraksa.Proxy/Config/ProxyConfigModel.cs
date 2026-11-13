@@ -505,6 +505,15 @@ public sealed record RouteSpec
     /// <summary>True when the route's own layer set the provider (the trace says so).</summary>
     public bool AuthProviderRouteOverride { get; init; }
 
+    /// <summary>Take <see cref="Path"/> off the front of the path forwarded.</summary>
+    public bool StripPrefix { get; init; }
+
+    /// <summary>Put this in front of the path forwarded; null for none.</summary>
+    public string? AddPrefix { get; init; }
+
+    /// <summary>Give an upstream's <c>Location</c> the client's prefix back, when the route strips.</summary>
+    public bool RewriteLocation { get; init; } = true;
+
     /// <summary>This route's custom headers: the host's, with the route's own rules over them.</summary>
     public HostHeadersSpec Headers { get; init; } = HostHeadersSpec.None;
 

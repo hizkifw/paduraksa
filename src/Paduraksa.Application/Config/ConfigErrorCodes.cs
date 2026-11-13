@@ -93,6 +93,9 @@ public static class ConfigErrorCodes
     public const string ErrorPagesHtmlInvalid = "errorPages.html.invalid";
     public const string ErrorPagesHtmlUnexpected = "errorPages.html.unexpected";
     public const string ErrorPagesVariableUnknown = "errorPages.variable.unknown";
+    public const string RouteRewriteStripRoot = "route.rewrite.stripPrefix.root";
+    public const string RouteRewriteAddPrefixInvalid = "route.rewrite.addPrefix.invalid";
+    public const string RouteRewriteLocationUnused = "route.rewrite.rewriteLocation.unused";
     public const string HeadersTooMany = "headers.tooMany";
     public const string HeadersNameInvalid = "headers.name.invalid";
     public const string HeadersNameReserved = "headers.name.reserved";

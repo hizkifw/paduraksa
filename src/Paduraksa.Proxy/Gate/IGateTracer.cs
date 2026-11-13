@@ -103,6 +103,9 @@ internal interface IGateTracer
     /// <summary>The request was handed to YARP; <paramref name="endpointPresent"/> false: the snapshot has no endpoint
     /// for the route's slot (unbound), so it answered 503 instead.</summary>
     void Forward(HttpContext context, RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent);
+
+    /// <summary>The route rewrites the path and the request can't be rewritten (a prefix spelled another way, a dot segment): 404.</summary>
+    void PathNotStrippable(CompiledRoute route, ReadOnlySpan<char> rawPath);
 }
 
 /// <summary>The production tracer: reports nothing, costs nothing.</summary>
@@ -187,6 +190,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RouteMatch(CompiledHost host, ReadOnlySpan<char> path, ReadOnlySpan<char> canonicalPath, CompiledRoute? route)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void PathNotStrippable(CompiledRoute route, ReadOnlySpan<char> rawPath)
     {
     }
 

@@ -482,10 +482,33 @@ public static partial class SnapshotCompiler
                 UpstreamHost = context.UpstreamHosts.GetValueOrDefault(spec.Upstream) ?? UpstreamHost.Original,
                 // A route's resolved rules can only be empty when its host's are, so an empty spec (a hand-built model's default) is the host's.
                 Headers = spec.Headers.IsEmpty ? context.HeadersOf(host.Headers, where) : context.HeadersOf(spec.Headers, routeWhere),
+                Rewrite = CompileRewrite(spec, path, routeWhere, errors),
             };
         }
 
         return routes;
+    }
+
+    /// <summary>The route's rewrite, checked again (the validator's backstop); null when it does nothing.</summary>
+    private static PathRewrite? CompileRewrite(RouteSpec spec, string path, CompileErrorSource where, List<CompileError> errors)
+    {
+        var add = string.IsNullOrEmpty(spec.AddPrefix) ? null : spec.AddPrefix;
+        if (!spec.StripPrefix && add is null)
+        {
+            return null;
+        }
+
+        if (spec.StripPrefix && path == "/")
+        {
+            errors.Add(new(where, "a route on / has no prefix to strip"));
+        }
+
+        if (add is not null && PathRewrite.AddPrefixProblem(add) is { } problem)
+        {
+            errors.Add(new(where, $"the route's added prefix: {problem}"));
+        }
+
+        return new PathRewrite(path, spec.Match, spec.StripPrefix, add, spec.RewriteLocation);
     }
 
     /// <summary>

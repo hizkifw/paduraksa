@@ -21583,6 +21583,32 @@
         "additionalProperties": false,
         "description": "Proves the person at the keyboard knows their password, for a sensitive change to their own sign-in."
       },
+      "PathRewriteConfig": {
+        "type": "object",
+        "properties": {
+          "stripPrefix": {
+            "type": "boolean",
+            "description": "Take the route's path off the front. A request that spells the prefix differently from the\n            route (encoded, with `//`, `;` or dot segments) can't be stripped without guessing, and gets 404. Not on a route\n            whose path is `/`.",
+            "default": false
+          },
+          "addPrefix": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Put this in front of what is forwarded: starts with `/`, no trailing `/`, at most 256\n            characters of a URL path (letters, digits, `-._~!$&amp;'()*+,;=:@/` and percent escapes), with no empty or dot\n            segments. Sent as written."
+          },
+          "rewriteLocation": {
+            "type": [
+              "null",
+              "boolean"
+            ],
+            "description": "With StripPrefix: give an upstream's `Location` the client's prefix back\n            (`/login` becomes `/app/login`; one that already starts with `/app` is left alone). Null is on; turn it off for an\n            upstream that redirects to other routes of the host, which the mapping would put under this one. Only with a strip."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The path a route forwards: the client's, with the route's own path taken off the front, a fixed prefix put on, or both\n(`/app/x` becomes `/x`, or `/api/x`). It works on the path as the client sent it, without decoding or\nre-encoding it, and the query is untouched. With bool PathRewriteConfig.StripPrefix the upstream is told the stripped prefix in\n`X-Forwarded-Prefix`, and a `Location` it answers with that points into its own paths gets the client's\nprefix back."
+      },
       "ProfileConfig": {
         "required": [
           "id",
@@ -22443,6 +22469,17 @@
             "type": "string",
             "description": "Starts with `/`; decoded and canonical (no `\\`, `//`, `;`, dot segments,\n            percent-encoding, query or fragment). Matching ignores case, but the path keeps the case it was written in; two\n            routes of a host with the same match kind can't have paths that differ only in case.",
             "default": "/"
+          },
+          "rewrite": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "How the path the upstream receives differs from the client's; null forwards it as received.",
+                "$ref": "#/components/schemas/PathRewriteConfig"
+              }
+            ]
           },
           "settings": {
             "$ref": "#/components/schemas/RouteSettings"
