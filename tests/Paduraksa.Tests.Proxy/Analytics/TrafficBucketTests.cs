@@ -1,3 +1,5 @@
+using System.IO.Compression;
+
 using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Logging;
 
@@ -6,7 +8,7 @@ namespace Paduraksa.Tests.Proxy.Analytics;
 /// <summary>A bucket's counts, what is and is not kept, the merge of two, and the stored form.</summary>
 public sealed class TrafficBucketTests
 {
-    private static AccessLogEntry Entry(string path = "/", int status = 200, string method = "GET", string protocol = "HTTP/1.1", long bytes = 1_000, string? referer = null, string? userAgent = "curl/8.5.0", string host = "app.test", long totalMs = 5) => new()
+    private static AccessLogEntry Entry(string path = "/", int status = 200, string method = "GET", string protocol = "HTTP/1.1", long bytes = 1_000, string? referer = null, string? userAgent = "curl/8.5.0", string host = "app.test", long totalMs = 5, long bytesIn = -1) => new()
     {
         Host = host,
         Path = path,
@@ -14,6 +16,7 @@ public sealed class TrafficBucketTests
         Protocol = protocol,
         StatusCode = status,
         ResponseBytes = bytes,
+        RequestBytes = bytesIn,
         Referer = referer,
         UserAgent = userAgent,
         TotalTicks = totalMs * TimeSpan.TicksPerMillisecond,
@@ -27,12 +30,13 @@ public sealed class TrafficBucketTests
     {
         TrafficBucket bucket = new();
         Record(bucket, Entry("/a", 200, "GET", "HTTP/2", bytes: 100));
-        Record(bucket, Entry("/b", 404, "POST", "HTTP/1.1", bytes: -1));
+        Record(bucket, Entry("/b", 404, "POST", "HTTP/1.1", bytes: -1, bytesIn: 4_000));
         Record(bucket, Entry("/c", 503, "GET", "HTTP/3", bytes: 50));
         Record(bucket, Entry("/d", 0, "GET", "HTTP/1.1", bytes: -1));
 
         Assert.Equal(4, bucket.Requests);
         Assert.Equal(150, bucket.BytesOut);
+        Assert.Equal(4_000, bucket.BytesIn);
         Assert.Equal(1, bucket.ServerErrors);
         Assert.Equal([1L, 0, 1, 0, 1, 1], bucket.StatusClasses);
         Assert.Equal(1, bucket.Statuses.Counts["404"]);
@@ -185,7 +189,7 @@ public sealed class TrafficBucketTests
 
         for (ulong i = 201; i <= 500; i++)
         {
-            Record(b, Entry("/b", 500), visitor: HyperLogLogTests.Mix(i));
+            Record(b, Entry("/b", 500, bytesIn: 10), visitor: HyperLogLogTests.Mix(i));
         }
 
         TrafficBucket total = new(scale: 4);
@@ -194,6 +198,8 @@ public sealed class TrafficBucketTests
 
         Assert.Equal(600, total.Requests);
         Assert.Equal(300, total.ServerErrors);
+        Assert.Equal(600 * 1_000, total.BytesOut);
+        Assert.Equal(300 * 10, total.BytesIn);
         Assert.InRange(total.Visitors.Estimate(), 490, 510);
         Assert.Equal(2, total.Paths.Size);
     }
@@ -219,7 +225,7 @@ public sealed class TrafficBucketTests
         {
             Record(
                 bucket,
-                Entry("/p/" + (i % 90), i % 7 == 0 ? 502 : 200, i % 5 == 0 ? "POST" : "GET", i % 3 == 0 ? "HTTP/2" : "HTTP/1.1", bytes: (i * 37) + 1, referer: i % 4 == 0 ? "https://ref.example/x" : null, userAgent: i % 3 == 0 ? "GPTBot/1.2" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36", totalMs: 1 + (i % 40)),
+                Entry("/p/" + (i % 90), i % 7 == 0 ? 502 : 200, i % 5 == 0 ? "POST" : "GET", i % 3 == 0 ? "HTTP/2" : "HTTP/1.1", bytes: (i * 37) + 1, bytesIn: i % 5 == 0 ? i * 11 : -1, referer: i % 4 == 0 ? "https://ref.example/x" : null, userAgent: i % 3 == 0 ? "GPTBot/1.2" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0 Safari/537.36", totalMs: 1 + (i % 40)),
                 visitor: HyperLogLogTests.Mix((ulong)(i % 120)) | 1,
                 ignored: i % 3 == 0);
         }
@@ -228,7 +234,8 @@ public sealed class TrafficBucketTests
         var read = TrafficBucketCodec.Decode(encoded);
 
         Assert.NotNull(read);
-        Assert.Equal((bucket.Requests, bucket.BytesOut, bucket.ServerErrors), (read.Requests, read.BytesOut, read.ServerErrors));
+        Assert.True(bucket.BytesIn > 0);
+        Assert.Equal((bucket.Requests, bucket.BytesOut, bucket.BytesIn, bucket.ServerErrors), (read.Requests, read.BytesOut, read.BytesIn, read.ServerErrors));
         Assert.Equal(bucket.StatusClasses, read.StatusClasses);
         Assert.Equal(bucket.Protocols, read.Protocols);
         Assert.Equal(bucket.Devices, read.Devices);
@@ -242,6 +249,39 @@ public sealed class TrafficBucketTests
         Assert.Equal(bucket.Referers.Top(100).Select(static h => (h.Key, h.Count)), read.Referers.Top(100).Select(static h => (h.Key, h.Count)));
         Assert.Equal(bucket.UserAgents.Top(100).Select(static h => (h.Key, h.Count)), read.UserAgents.Top(100).Select(static h => (h.Key, h.Count)));
         Assert.Equal(bucket.Visitors.Estimate(), TrafficBucketCodec.DecodeVisitors(encoded.Visitors)!.Estimate());
+    }
+
+    /// <summary>A row stored before request bytes were counted (format 1: no request-bytes figure) still reads, as a bucket with none.</summary>
+    [Fact]
+    public void ABucketStoredBeforeRequestBytesReadsWithNone()
+    {
+        TrafficBucket bucket = new();
+        Record(bucket, Entry("/a", bytes: 1_000));
+        var encoded = TrafficBucketCodec.Encode(bucket);
+
+        // Format 2's plain bytes, rewritten as format 1's: the third varint (the request bytes, 0 here, so one byte) taken out.
+        ByteReader header = new(encoded.Data);
+        Assert.Equal(2, header.Byte());
+        var plain = new byte[header.Varint()];
+        Assert.True(BrotliDecoder.TryDecompress(header.Rest, plain, out _));
+        ByteReader figures = new(plain);
+        _ = figures.Varint();
+        _ = figures.Varint();
+        var at = plain.Length - figures.Remaining;
+        Assert.Equal(0, plain[at]);
+        byte[] old = [.. plain.AsSpan(0, at), .. plain.AsSpan(at + 1)];
+        var compressed = new byte[BrotliEncoder.GetMaxCompressedLength(old.Length)];
+        Assert.True(BrotliEncoder.TryCompress(old, compressed, out var written));
+        ByteWriter data = new();
+        data.Add(1);
+        data.Varint(old.Length);
+        data.Add(compressed.AsSpan(0, written));
+
+        var read = TrafficBucketCodec.Decode(new EncodedTrafficBucket(encoded.Visitors, data.Written.ToArray()));
+
+        Assert.NotNull(read);
+        Assert.Equal((1L, 1_000L, 0L), (read.Requests, read.BytesOut, read.BytesIn));
+        Assert.Equal(bucket.Paths.Top(10).Select(static h => h.Key), read.Paths.Top(10).Select(static h => h.Key));
     }
 
     [Fact]

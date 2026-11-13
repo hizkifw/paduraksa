@@ -174,6 +174,7 @@ public sealed class AnalyticsService(AnalyticsRollupStore store, TrafficAnalytic
 
             accumulator.Requests += decoded.Requests;
             accumulator.BytesOut += decoded.BytesOut;
+            accumulator.BytesIn += decoded.BytesIn;
             accumulator.ServerErrors += decoded.ServerErrors;
             accumulator.Visitors.Merge(decoded.Visitors);
             total.MergeFrom(decoded);
@@ -197,7 +198,7 @@ public sealed class AnalyticsService(AnalyticsRollupStore store, TrafficAnalytic
             }
 
             Add(
-                new AnalyticsRow(AnalyticsTier.Fine, bucket.Subject, bucket.Host.IsEmpty ? string.Empty : bucket.Host.ToString(), bucket.Start, bucket.CoveredSeconds, 0, 0, 0, null),
+                new AnalyticsRow(AnalyticsTier.Fine, bucket.Subject, bucket.Host.IsEmpty ? string.Empty : bucket.Host.ToString(), bucket.Start, bucket.CoveredSeconds, 0, 0, 0, 0, null),
                 bucket.Bucket);
         }
 
@@ -211,6 +212,7 @@ public sealed class AnalyticsService(AnalyticsRollupStore store, TrafficAnalytic
         AnalyticsTotals totals = new(
             total.Requests,
             total.BytesOut,
+            total.BytesIn,
             total.Visitors.Estimate(),
             total.ServerErrors,
             total.Requests == 0 ? 0 : (double)total.ServerErrors / total.Requests,
@@ -269,7 +271,7 @@ public sealed class AnalyticsService(AnalyticsRollupStore store, TrafficAnalytic
         {
             if (!steps.TryGetValue(start, out var accumulator) || (accumulator.Covered == 0 && accumulator.Requests == 0))
             {
-                series.Add(new AnalyticsStep(DateTimeOffset.FromUnixTimeSeconds(start), width, 0, 0, 0, 0, 0));
+                series.Add(new AnalyticsStep(DateTimeOffset.FromUnixTimeSeconds(start), width, 0, 0, 0, 0, 0, 0));
                 continue;
             }
 
@@ -281,6 +283,7 @@ public sealed class AnalyticsService(AnalyticsRollupStore store, TrafficAnalytic
                 (int)Math.Max(1, Math.Min(width, accumulator.Covered)),
                 accumulator.Requests,
                 accumulator.BytesOut,
+                accumulator.BytesIn,
                 accumulator.Visitors.Estimate(),
                 accumulator.ServerErrors));
         }
@@ -415,6 +418,8 @@ public sealed class AnalyticsService(AnalyticsRollupStore store, TrafficAnalytic
         public long Requests { get; set; }
 
         public long BytesOut { get; set; }
+
+        public long BytesIn { get; set; }
 
         public long ServerErrors { get; set; }
 

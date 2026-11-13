@@ -36,8 +36,9 @@ public enum AnalyticsTier
 /// <param name="Start">The first second (Unix time) of the stretch, a multiple of its width.</param>
 /// <param name="CoveredSeconds">How many of the stretch's seconds the process observed.</param>
 /// <param name="Requests">Requests in it.</param>
-/// <param name="BytesOut">Declared response bytes.</param>
+/// <param name="BytesOut">Response body bytes written to clients.</param>
+/// <param name="BytesIn">Request body bytes read from clients.</param>
 /// <param name="ServerErrors">5xx answers.</param>
 /// <param name="Bucket">The rest of the traffic, or null for coverage.</param>
 public sealed record AnalyticsRollup(
-    AnalyticsSubject Subject, string HostKey, long Start, int CoveredSeconds, long Requests, long BytesOut, long ServerErrors, EncodedTrafficBucket? Bucket);
+    AnalyticsSubject Subject, string HostKey, long Start, int CoveredSeconds, long Requests, long BytesOut, long BytesIn, long ServerErrors, EncodedTrafficBucket? Bucket);

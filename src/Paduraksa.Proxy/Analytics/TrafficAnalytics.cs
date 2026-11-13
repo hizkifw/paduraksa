@@ -293,7 +293,7 @@ public sealed class TrafficAnalytics
         var covered = (int)Math.Round(open.Covered);
         if (covered > 0)
         {
-            rollups.Add(new AnalyticsRollup(AnalyticsSubject.Coverage, string.Empty, start, covered, 0, 0, 0, null));
+            rollups.Add(new AnalyticsRollup(AnalyticsSubject.Coverage, string.Empty, start, covered, 0, 0, 0, 0, null));
         }
 
         foreach (var (host, bucket) in open.Hosts)
@@ -310,6 +310,7 @@ public sealed class TrafficAnalytics
                 covered,
                 bucket.Requests,
                 bucket.BytesOut,
+                bucket.BytesIn,
                 bucket.ServerErrors,
                 TrafficBucketCodec.Encode(bucket)));
         }

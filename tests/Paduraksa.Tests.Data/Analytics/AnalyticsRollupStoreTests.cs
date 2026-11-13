@@ -23,15 +23,15 @@ public sealed class AnalyticsRollupStoreTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static AnalyticsRollup Coverage(DateTimeOffset at, int seconds = 300) =>
-        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, null);
+        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, 0, null);
 
     /// <summary>A host's bucket with <paramref name="requests"/> requests from visitors <paramref name="firstVisitor"/> up.</summary>
-    internal static AnalyticsRollup Host(HostId host, DateTimeOffset at, int requests, ulong firstVisitor = 1, string path = "/p", int covered = 300, int status = 200, long bytes = 100)
+    internal static AnalyticsRollup Host(HostId host, DateTimeOffset at, int requests, ulong firstVisitor = 1, string path = "/p", int covered = 300, int status = 200, long bytes = 100, long bytesIn = 10)
     {
         TrafficBucket bucket = new();
         for (var i = 0; i < requests; i++)
         {
-            var entry = new AccessLogEntry { Path = path, Method = "GET", Protocol = "HTTP/1.1", StatusCode = status, ResponseBytes = bytes, Host = "app.test", UserAgent = "curl/8.5.0", TotalTicks = TimeSpan.TicksPerMillisecond * 3 };
+            var entry = new AccessLogEntry { Path = path, Method = "GET", Protocol = "HTTP/1.1", StatusCode = status, ResponseBytes = bytes, RequestBytes = bytesIn, Host = "app.test", UserAgent = "curl/8.5.0", TotalTicks = TimeSpan.TicksPerMillisecond * 3 };
             bucket.Record(in entry, MixOf(firstVisitor + (ulong)i), UserAgentClassifier.Classify(entry.UserAgent), false);
         }
 
@@ -42,6 +42,7 @@ public sealed class AnalyticsRollupStoreTests
             covered,
             bucket.Requests,
             bucket.BytesOut,
+            bucket.BytesIn,
             bucket.ServerErrors,
             TrafficBucketCodec.Encode(bucket));
     }
@@ -66,10 +67,10 @@ public sealed class AnalyticsRollupStoreTests
 
         await store.WritePendingAsync(Ct);
 
-        var rows = await database.QueryAsync("SELECT \"Tier\", \"Subject\", \"HostKey\", \"Start\", \"CoveredSeconds\", \"Requests\", \"ServerErrors\", \"BytesOut\" FROM \"AnalyticsRollups\" ORDER BY \"Subject\"");
+        var rows = await database.QueryAsync("SELECT \"Tier\", \"Subject\", \"HostKey\", \"Start\", \"CoveredSeconds\", \"Requests\", \"ServerErrors\", \"BytesOut\", \"BytesIn\" FROM \"AnalyticsRollups\" ORDER BY \"Subject\"");
         Assert.Equal(2, rows.Count);
-        Assert.Equal([0L, 0L, string.Empty, Noon.ToUnixTimeSeconds(), 300L, 0L, 0L, 0L], rows[0]);
-        Assert.Equal([0L, 1L, App.ToString(), Noon.ToUnixTimeSeconds(), 300L, 12L, 12L, 1_200L], rows[1]);
+        Assert.Equal([0L, 0L, string.Empty, Noon.ToUnixTimeSeconds(), 300L, 0L, 0L, 0L, 0L], rows[0]);
+        Assert.Equal([0L, 1L, App.ToString(), Noon.ToUnixTimeSeconds(), 300L, 12L, 12L, 1_200L, 120L], rows[1]);
         var read = await store.ReadAsync(AnalyticsScope.All, Noon.AddMinutes(-10), Noon.AddMinutes(10), Ct);
         Assert.Empty(read.Unwritten);
         var host = Assert.Single(read.Rows, static row => row.Subject == AnalyticsSubject.Host);
@@ -236,6 +237,8 @@ public sealed class AnalyticsRollupStoreTests
             var hostHour = Assert.Single(read, row => row.Subject == AnalyticsSubject.Host && row.Start == Noon.AddHours(-3).ToUnixTimeSeconds());
             Assert.Equal(AnalyticsTier.Hour, hostHour.Tier);
             Assert.Equal(120, hostHour.Requests);
+            Assert.Equal(120 * 100, hostHour.BytesOut);
+            Assert.Equal(120 * 10, hostHour.BytesIn);
             // Twelve buckets of ten visitors, all different: a hundred and twenty, not the twelve a single bucket has.
             Assert.InRange(TrafficBucketCodec.Decode(hostHour.Bucket!)!.Visitors.Estimate(), 114, 126);
         }

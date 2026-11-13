@@ -105,7 +105,7 @@ public sealed class ConfigDatabaseTests
 
         var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
 
-        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn"], result.AppliedMigrations);
+        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn", "20261113023752_AnalyticsRollupBytesIn"], result.AppliedMigrations);
         var tables = (await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).Select(r => (string)r[0]!).ToList();
         Assert.All(["GlobalSettings", "Profiles", "Upstreams", "Destinations", "Hosts", "HostNames", "Routes"], dropped => Assert.DoesNotContain(dropped, tables));
         Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM ConfigRevisions WHERE Seq = 1"));

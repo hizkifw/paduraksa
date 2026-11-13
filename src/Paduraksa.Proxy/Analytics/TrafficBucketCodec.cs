@@ -14,7 +14,10 @@ public sealed record EncodedTrafficBucket(byte[] Visitors, byte[] Data);
 /// </summary>
 public static class TrafficBucketCodec
 {
-    private const byte Format = 1;
+    // 2 added the request bytes after the response bytes; 1 is still read, as a bucket with none.
+    private const byte Format = 2;
+
+    private const byte FormatWithoutBytesIn = 1;
 
     /// <summary>The most a decoded blob may take; a full bucket is tens of KiB, so this only ever refuses a corrupt one.</summary>
     private const int MaxPlainBytes = 8 * 1024 * 1024;
@@ -28,6 +31,7 @@ public static class TrafficBucketCodec
         ByteWriter plain = new();
         plain.Varint(bucket.Requests);
         plain.Varint(bucket.BytesOut);
+        plain.Varint(bucket.BytesIn);
         plain.Varint(bucket.ServerErrors);
         WriteAll(plain, bucket.StatusClasses);
         WriteAll(plain, bucket.Protocols);
@@ -68,7 +72,8 @@ public static class TrafficBucketCodec
         }
 
         ByteReader header = new(encoded.Data);
-        if (header.Byte() != Format)
+        var format = header.Byte();
+        if (format is not (Format or FormatWithoutBytesIn))
         {
             return null;
         }
@@ -88,6 +93,7 @@ public static class TrafficBucketCodec
         ByteReader reader = new(plain);
         var requests = reader.Varint();
         var bytesOut = reader.Varint();
+        var bytesIn = format == FormatWithoutBytesIn ? 0 : reader.Varint();
         var serverErrors = reader.Varint();
         var statusClasses = ReadAll(ref reader, 6);
         var protocols = ReadAll(ref reader, 5);
@@ -111,7 +117,7 @@ public static class TrafficBucketCodec
         }
 
         return new TrafficBucket(
-            requests, bytesOut, serverErrors, statusClasses, statuses, methods, protocols, devices, botClasses, browsers, operatingSystems, botNames, ignoredRobots,
+            requests, bytesOut, bytesIn, serverErrors, statusClasses, statuses, methods, protocols, devices, botClasses, browsers, operatingSystems, botNames, ignoredRobots,
             visitors, paths, referers, agents, largest);
     }
 

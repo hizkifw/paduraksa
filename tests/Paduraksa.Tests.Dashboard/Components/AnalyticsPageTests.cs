@@ -69,12 +69,13 @@ public sealed class AnalyticsPageTests
             300,
             bucket.Requests,
             bucket.BytesOut,
+            bucket.BytesIn,
             bucket.ServerErrors,
             TrafficBucketCodec.Encode(bucket));
     }
 
     private static AnalyticsRollup Coverage(DateTimeOffset at, int seconds = 300) =>
-        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, null);
+        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, 0, null);
 
     /// <summary>The database the test has opened, or - until it has - one that fails every time, as a database that is down does.</summary>
     private sealed class SwitchableFactory : IDbContextFactory<ConfigDbContext>

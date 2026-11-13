@@ -64,12 +64,13 @@ public sealed class TrafficBucket
     }
 
     internal TrafficBucket(
-        long requests, long bytesOut, long serverErrors, long[] statusClasses, BoundedCounter statuses, BoundedCounter methods, long[] protocols, long[] devices,
+        long requests, long bytesOut, long bytesIn, long serverErrors, long[] statusClasses, BoundedCounter statuses, BoundedCounter methods, long[] protocols, long[] devices,
         long[] botClasses, BoundedCounter browsers, BoundedCounter operatingSystems, BoundedCounter botNames, BoundedCounter ignoredRobots, HyperLogLog visitors,
         HeavyHitters paths, HeavyHitters referers, HeavyHitters userAgents, HeavyHitters largest)
     {
         Requests = requests;
         BytesOut = bytesOut;
+        BytesIn = bytesIn;
         ServerErrors = serverErrors;
         StatusClasses = statusClasses;
         Statuses = statuses;
@@ -94,8 +95,11 @@ public sealed class TrafficBucket
 
     public long Requests { get; private set; }
 
-    /// <summary>The bytes of the responses that declared a <c>Content-Length</c>; a streamed one adds nothing.</summary>
+    /// <summary>Response body bytes written to clients, as counted on the request path.</summary>
     public long BytesOut { get; private set; }
+
+    /// <summary>Request body bytes read from clients; 0 in a bucket stored before they were counted.</summary>
+    public long BytesIn { get; private set; }
 
     /// <summary>Answers with a 5xx status.</summary>
     public long ServerErrors { get; private set; }
@@ -172,6 +176,11 @@ public sealed class TrafficBucket
             BytesOut += bytes;
         }
 
+        if (entry.RequestBytes > 0)
+        {
+            BytesIn += entry.RequestBytes;
+        }
+
         if (visitor != 0)
         {
             Visitors.Add(visitor);
@@ -210,6 +219,7 @@ public sealed class TrafficBucket
         ArgumentNullException.ThrowIfNull(other);
         Requests += other.Requests;
         BytesOut += other.BytesOut;
+        BytesIn += other.BytesIn;
         ServerErrors += other.ServerErrors;
         Add(StatusClasses, other.StatusClasses);
         Add(Protocols, other.Protocols);

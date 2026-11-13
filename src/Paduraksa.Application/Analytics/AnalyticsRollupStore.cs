@@ -128,6 +128,7 @@ public sealed class AnalyticsRollupStore : IDisposable
         var encoded = TrafficBucketCodec.Encode(current);
         row.Requests += added.Requests;
         row.BytesOut += added.BytesOut;
+        row.BytesIn += added.BytesIn;
         row.ServerErrors += added.ServerErrors;
         row.Visitors = encoded.Visitors;
         row.Data = encoded.Data;
@@ -137,6 +138,7 @@ public sealed class AnalyticsRollupStore : IDisposable
     {
         row.Requests = added.Requests;
         row.BytesOut = added.BytesOut;
+        row.BytesIn = added.BytesIn;
         row.ServerErrors = added.ServerErrors;
         row.Visitors = added.Bucket!.Visitors;
         row.Data = added.Bucket.Data;
@@ -152,6 +154,7 @@ public sealed class AnalyticsRollupStore : IDisposable
         CoveredSeconds = rollup.CoveredSeconds,
         Requests = rollup.Requests,
         BytesOut = rollup.BytesOut,
+        BytesIn = rollup.BytesIn,
         ServerErrors = rollup.ServerErrors,
         Visitors = rollup.Bucket?.Visitors,
         Data = rollup.Bucket?.Data,
@@ -165,11 +168,12 @@ public sealed class AnalyticsRollupStore : IDisposable
         row.CoveredSeconds,
         row.Requests,
         row.BytesOut,
+        row.BytesIn,
         row.ServerErrors,
         row.Visitors is not null && row.Data is not null ? new EncodedTrafficBucket(row.Visitors, row.Data) : null);
 
     internal static AnalyticsRow ToRow(AnalyticsRollup rollup) => new(
-        AnalyticsTier.Fine, rollup.Subject, rollup.HostKey, rollup.Start, rollup.CoveredSeconds, rollup.Requests, rollup.BytesOut, rollup.ServerErrors, rollup.Bucket);
+        AnalyticsTier.Fine, rollup.Subject, rollup.HostKey, rollup.Start, rollup.CoveredSeconds, rollup.Requests, rollup.BytesOut, rollup.BytesIn, rollup.ServerErrors, rollup.Bucket);
 
     /// <summary>
     /// The rows of <paramref name="scope"/> (and every coverage row) from <paramref name="from"/> up to <paramref name="to"/>, hourly rows being
@@ -388,6 +392,7 @@ public sealed class AnalyticsRollupStore : IDisposable
                 CoveredSeconds = covered,
                 Requests = group.Sum(static row => row.Requests),
                 BytesOut = group.Sum(static row => row.BytesOut),
+                BytesIn = group.Sum(static row => row.BytesIn),
                 ServerErrors = group.Sum(static row => row.ServerErrors),
                 Visitors = encoded.Visitors,
                 Data = encoded.Data,

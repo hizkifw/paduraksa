@@ -21,6 +21,9 @@ namespace Paduraksa.Data.Migrations
                     b.Property<long>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long>("BytesIn")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("BytesOut")
                         .HasColumnType("INTEGER");
 

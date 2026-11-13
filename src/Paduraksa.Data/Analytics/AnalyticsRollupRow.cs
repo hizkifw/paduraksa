@@ -33,7 +33,11 @@ internal sealed class AnalyticsRollupRow
 
     public long Requests { get; set; }
 
+    /// <summary>Response body bytes written to clients; rows from before bodies were counted hold the declared <c>Content-Length</c>s.</summary>
     public long BytesOut { get; set; }
+
+    /// <summary>Request body bytes read from clients; 0 in rows from before they were counted.</summary>
+    public long BytesIn { get; set; }
 
     public long ServerErrors { get; set; }
 

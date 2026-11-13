@@ -61,6 +61,7 @@ public sealed class AnalyticsEndToEndTests
             300,
             bucket.Requests,
             bucket.BytesOut,
+            bucket.BytesIn,
             bucket.ServerErrors,
             TrafficBucketCodec.Encode(bucket));
     }
@@ -85,7 +86,7 @@ public sealed class AnalyticsEndToEndTests
                 continue;
             }
 
-            rollups.Add(new AnalyticsRollup(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), 300, 0, 0, 0, null));
+            rollups.Add(new AnalyticsRollup(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), 300, 0, 0, 0, 0, null));
             var busy = 4 + (bucket % 7);
             List<(AccessLogEntry, int, bool)> entries = [];
             for (var i = 0; i < busy; i++)

@@ -12492,7 +12492,7 @@
               "integer",
               "string"
             ],
-            "description": "Declared response bytes since the path was first tracked in a sketch; a lower bound on its total.",
+            "description": "Response body bytes since the path was first tracked in a sketch; a lower bound on its total.",
             "format": "int64"
           },
           "p95Ms": {
@@ -12524,6 +12524,7 @@
           "coveredSeconds",
           "requests",
           "bytesOut",
+          "bytesIn",
           "visitors",
           "serverErrors"
         ],
@@ -12567,7 +12568,16 @@
               "integer",
               "string"
             ],
-            "description": "Declared response bytes in the step.",
+            "description": "Response body bytes written to clients in the step.",
+            "format": "int64"
+          },
+          "bytesIn": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Request body bytes read from clients in the step.",
             "format": "int64"
           },
           "visitors": {
@@ -12596,6 +12606,7 @@
         "required": [
           "requests",
           "bytesOut",
+          "bytesIn",
           "visitors",
           "serverErrors",
           "errorRate",
@@ -12619,7 +12630,16 @@
               "integer",
               "string"
             ],
-            "description": "Declared response bytes (a streamed body declares none, so this is a floor).",
+            "description": "Response body bytes written to clients, as they went out (an upstream's compression counts compressed). Stretches stored\n            before bodies were counted hold the declared `Content-Length`s instead.",
+            "format": "int64"
+          },
+          "bytesIn": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Request body bytes read from clients; none for stretches stored before they were counted.",
             "format": "int64"
           },
           "visitors": {

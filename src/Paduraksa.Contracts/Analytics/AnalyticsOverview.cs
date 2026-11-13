@@ -17,7 +17,7 @@ public sealed record AnalyticsCount(string Label, long Count, long Error);
 /// <param name="Path">The decoded path without its query string, at most 256 characters.</param>
 /// <param name="Requests">Requests to it, an upper bound that may overshoot by <paramref name="Error"/>.</param>
 /// <param name="Error">The most <paramref name="Requests"/> may overshoot by.</param>
-/// <param name="BytesOut">Declared response bytes since the path was first tracked in a sketch; a lower bound on its total.</param>
+/// <param name="BytesOut">Response body bytes since the path was first tracked in a sketch; a lower bound on its total.</param>
 /// <param name="P95Ms">The 95th-percentile total time in milliseconds, over the requests seen since the path was first tracked.</param>
 /// <param name="ErrorRate">The share of those requests answered with a 5xx, 0 to 1.</param>
 public sealed record AnalyticsPath(string Path, long Requests, long Error, long BytesOut, double P95Ms, double ErrorRate);
@@ -37,20 +37,23 @@ public sealed record AnalyticsBot(string Kind, string Name, long Count);
 /// <param name="WidthSeconds">How long the step is.</param>
 /// <param name="CoveredSeconds">How many of those seconds the server was running to count them.</param>
 /// <param name="Requests">Requests in the step.</param>
-/// <param name="BytesOut">Declared response bytes in the step.</param>
+/// <param name="BytesOut">Response body bytes written to clients in the step.</param>
+/// <param name="BytesIn">Request body bytes read from clients in the step.</param>
 /// <param name="Visitors">Estimated unique visitors in the step (HyperLogLog, about 1.6 % standard error).</param>
 /// <param name="ServerErrors">5xx answers in the step.</param>
-public sealed record AnalyticsStep(DateTimeOffset Start, int WidthSeconds, int CoveredSeconds, long Requests, long BytesOut, long Visitors, long ServerErrors);
+public sealed record AnalyticsStep(DateTimeOffset Start, int WidthSeconds, int CoveredSeconds, long Requests, long BytesOut, long BytesIn, long Visitors, long ServerErrors);
 
 /// <summary>The headline figures of the range.</summary>
 /// <param name="Requests">Requests answered, the connections the gate dropped included.</param>
-/// <param name="BytesOut">Declared response bytes (a streamed body declares none, so this is a floor).</param>
+/// <param name="BytesOut">Response body bytes written to clients, as they went out (an upstream's compression counts compressed). Stretches stored
+/// before bodies were counted hold the declared <c>Content-Length</c>s instead.</param>
+/// <param name="BytesIn">Request body bytes read from clients; none for stretches stored before they were counted.</param>
 /// <param name="Visitors">Estimated unique visitors over the whole range, the union of the steps' and not their sum (about 1.6 % standard error). A visitor active across a restart counts once on each side of it.</param>
 /// <param name="ServerErrors">Requests answered with a 5xx.</param>
 /// <param name="ErrorRate"><paramref name="ServerErrors"/> over <paramref name="Requests"/>, 0 to 1.</param>
 /// <param name="BotRequests">Requests whose user agent is an automated client.</param>
 /// <param name="CoveredSeconds">How many seconds of the range the server was running for.</param>
-public sealed record AnalyticsTotals(long Requests, long BytesOut, long Visitors, long ServerErrors, double ErrorRate, long BotRequests, long CoveredSeconds);
+public sealed record AnalyticsTotals(long Requests, long BytesOut, long BytesIn, long Visitors, long ServerErrors, double ErrorRate, long BotRequests, long CoveredSeconds);
 
 /// <summary>
 /// The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (PLAN §7.4). Computed from the

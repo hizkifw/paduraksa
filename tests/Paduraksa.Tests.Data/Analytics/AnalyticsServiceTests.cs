@@ -46,7 +46,7 @@ public sealed class AnalyticsServiceTests
         public void Dispose() => Store.Dispose();
     }
 
-    private static AccessLogEntry Entry(string path, int status = 200, string agent = Chrome, long bytes = 1_000, string protocol = "HTTP/2", string? referer = null, long ms = 4) => new()
+    private static AccessLogEntry Entry(string path, int status = 200, string agent = Chrome, long bytes = 1_000, string protocol = "HTTP/2", string? referer = null, long ms = 4, long bytesIn = -1) => new()
     {
         Host = "app.test",
         Path = path,
@@ -54,6 +54,7 @@ public sealed class AnalyticsServiceTests
         Protocol = protocol,
         StatusCode = status,
         ResponseBytes = bytes,
+        RequestBytes = bytesIn,
         UserAgent = agent,
         Referer = referer,
         TotalTicks = ms * TimeSpan.TicksPerMillisecond,
@@ -83,12 +84,13 @@ public sealed class AnalyticsServiceTests
             300,
             bucket.Requests,
             bucket.BytesOut,
+            bucket.BytesIn,
             bucket.ServerErrors,
             TrafficBucketCodec.Encode(bucket));
     }
 
     private static AnalyticsRollup Coverage(DateTimeOffset at, int seconds = 300) =>
-        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, null);
+        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, 0, null);
 
     [Fact]
     public async Task AnInstallWithNothingRecordedHasAnEmptyOverview()
@@ -125,8 +127,8 @@ public sealed class AnalyticsServiceTests
         using var rig = new Rig(database);
         await rig.StoreAsync(
             Coverage(Noon.AddMinutes(-15)),
-            Rollup(App, Noon.AddMinutes(-15), (Entry("/a", referer: "https://www.google.com/x?q=1"), 1, false), (Entry("/a", 500), 2, false), (Entry("/b", agent: Firefox, bytes: 5_000_000), 3, false)));
-        rig.Backlog.Add([Coverage(Noon.AddMinutes(-10)), Rollup(App, Noon.AddMinutes(-10), (Entry("/a"), 2, false), (Entry("/c", agent: "GPTBot/1.2"), 9, true))]);
+            Rollup(App, Noon.AddMinutes(-15), (Entry("/a", referer: "https://www.google.com/x?q=1"), 1, false), (Entry("/a", 500, bytesIn: 700), 2, false), (Entry("/b", agent: Firefox, bytes: 5_000_000), 3, false)));
+        rig.Backlog.Add([Coverage(Noon.AddMinutes(-10)), Rollup(App, Noon.AddMinutes(-10), (Entry("/a", bytesIn: 50), 2, false), (Entry("/c", agent: "GPTBot/1.2"), 9, true))]);
 
         var overview = await rig.Service.ReadOverviewAsync(MetricsRange.Hour, null, false, Ct);
 
@@ -136,6 +138,8 @@ public sealed class AnalyticsServiceTests
         Assert.Equal(1, overview.Totals.ServerErrors);
         Assert.Equal(0.2, overview.Totals.ErrorRate, 6);
         Assert.Equal(5_004_000, overview.Totals.BytesOut);
+        Assert.Equal(750, overview.Totals.BytesIn);
+        Assert.Equal(750, overview.Series.Sum(static step => step.BytesIn));
         Assert.Equal(1, overview.Totals.BotRequests);
         Assert.Equal(600, overview.Totals.CoveredSeconds);
         Assert.Equal(("/a", 3L), (overview.TopPaths[0].Path, overview.TopPaths[0].Requests));
@@ -378,6 +382,7 @@ public sealed class AnalyticsServiceTests
                     CoveredSeconds = 3_600,
                     Requests = hour.Requests,
                     BytesOut = hour.BytesOut,
+                    BytesIn = hour.BytesIn,
                     ServerErrors = hour.ServerErrors,
                     Visitors = encoded.Visitors,
                     Data = encoded.Data,

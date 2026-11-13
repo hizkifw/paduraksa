@@ -9,11 +9,12 @@ namespace Paduraksa.Application.Analytics;
 /// <param name="Start">The first second (Unix time).</param>
 /// <param name="CoveredSeconds">Seconds the process observed.</param>
 /// <param name="Requests">Requests.</param>
-/// <param name="BytesOut">Declared response bytes.</param>
+/// <param name="BytesOut">Response body bytes written to clients (declared <c>Content-Length</c>s in rows from before they were counted).</param>
+/// <param name="BytesIn">Request body bytes read from clients (0 in rows from before they were counted).</param>
 /// <param name="ServerErrors">5xx answers.</param>
 /// <param name="Bucket">The sketches and tables, or null for coverage.</param>
 public sealed record AnalyticsRow(
-    AnalyticsTier Tier, AnalyticsSubject Subject, string HostKey, long Start, int CoveredSeconds, long Requests, long BytesOut, long ServerErrors, EncodedTrafficBucket? Bucket)
+    AnalyticsTier Tier, AnalyticsSubject Subject, string HostKey, long Start, int CoveredSeconds, long Requests, long BytesOut, long BytesIn, long ServerErrors, EncodedTrafficBucket? Bucket)
 {
     /// <summary>The seconds the row spans.</summary>
     public int Width => Tier switch
