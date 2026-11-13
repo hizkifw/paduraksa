@@ -18,6 +18,13 @@ internal static class TypedIdSchemas
 
     private static readonly ConcurrentDictionary<Type, TypedIdSchema?> Cache = new();
 
+    /// <summary>
+    /// The characters an example ID is made of, led by a '0' so it is in range for every kind (a 64-bit ID rejects a larger first digit). The example is
+    /// the same on every boot because the generated document is shipped as a file and compared with a fresh generation: an ID from <c>New()</c> would
+    /// differ each time.
+    /// </summary>
+    private const string ExampleCharacters = "0A1b2C3d4E5f6G7h8I9j0K";
+
     /// <summary>True when <paramref name="type"/> is a typed ID (implements <see cref="ITypedId{TSelf}"/>).</summary>
     public static bool TryDescribe(Type type, out TypedIdSchema schema)
     {
@@ -34,6 +41,6 @@ internal static class TypedIdSchemas
         where TId : struct, ITypedId<TId>
     {
         var width = TId.FormattedLength - TId.Prefix.Length - 1;
-        return new TypedIdSchema(typeof(TId).Name, TId.Prefix, $"^{TId.Prefix}_[0-9A-Za-z]{{{width}}}$", TId.New().ToString() ?? string.Empty);
+        return new TypedIdSchema(typeof(TId).Name, TId.Prefix, $"^{TId.Prefix}_[0-9A-Za-z]{{{width}}}$", TId.Parse($"{TId.Prefix}_{ExampleCharacters[..width]}").ToString() ?? string.Empty);
     }
 }

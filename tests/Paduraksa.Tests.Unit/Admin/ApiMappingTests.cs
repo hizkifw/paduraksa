@@ -205,6 +205,12 @@ public sealed class ApiMappingTests
         Assert.Equal("^host_[0-9A-Za-z]{22}$", host.Pattern);
         Assert.Matches(host.Pattern, host.Example);
         Assert.Matches(audit.Pattern, audit.Example);
+
+        // The shipped API description is compared with a fresh generation, so an example is a constant (and a valid ID of its kind), not a new ID per boot.
+        Assert.Equal("host_0A1b2C3d4E5f6G7h8I9j0K", host.Example);
+        Assert.Equal("aud_0A1b2C3d4E5", audit.Example);
+        Assert.True(HostId.TryParse(host.Example, out _));
+        Assert.True(AuditEventId.TryParse(audit.Example, out _));
     }
 
     [Fact]
