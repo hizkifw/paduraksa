@@ -777,7 +777,9 @@ run_variants() {
     local proxy=$1 http https scenario
     read -r http https < <(ports_for "$proxy")
     for scenario in access-log cf; do
-        wants "$scenario" && variant_of "$proxy" "$scenario" && ! unsupported "$proxy" "$scenario" || continue
+        if ! wants "$scenario" || ! variant_of "$proxy" "$scenario" || unsupported "$proxy" "$scenario"; then
+            continue
+        fi
         if [[ "$proxy" == paduraksa ]]; then
             run_cloudflare
             continue
