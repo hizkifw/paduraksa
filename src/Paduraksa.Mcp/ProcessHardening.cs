@@ -46,17 +46,50 @@ internal static class ProcessHardening
             return "Inherited descriptors: not Linux, none closed";
         }
 
-        var closed = 0;
+        List<string> closed = [];
         foreach (var fd in OpenDescriptors())
         {
             var flags = fcntl(fd, FGetFd, 0);
-            if (flags >= 0 && (flags & FdCloexec) == 0 && close(fd) == 0)
+            if (flags < 0 || (flags & FdCloexec) != 0)
             {
-                closed++;
+                continue;
+            }
+
+            // Named before it closes, so the log says what reached the child (QUIC's UDP listeners did: libmsquic opens them
+            // without close-on-exec). Only the kind for sockets and pipes, whose targets are inode numbers.
+            var kind = KindOf(fd);
+            if (close(fd) == 0)
+            {
+                closed.Add(kind);
             }
         }
 
-        return closed == 0 ? "Inherited descriptors: none" : $"{InheritedClosedPrefix} {closed}";
+        return closed.Count == 0
+            ? "Inherited descriptors: none"
+            : $"{InheritedClosedPrefix} {closed.Count} ({string.Join(", ", closed.GroupBy(k => k, StringComparer.Ordinal).Select(g => g.Count() == 1 ? g.Key : $"{g.Count()} x {g.Key}"))})";
+    }
+
+    /// <summary>What a descriptor is, for the log: "socket", "pipe", an anonymous inode's kind, or a file's path (at most 120 characters).</summary>
+    private static string KindOf(int fd)
+    {
+        string? target;
+        try
+        {
+            target = new FileInfo($"/proc/self/fd/{fd}").LinkTarget;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            target = null;
+        }
+
+        return target switch
+        {
+            null => "unknown",
+            _ when target.StartsWith("socket:", StringComparison.Ordinal) => "socket",
+            _ when target.StartsWith("pipe:", StringComparison.Ordinal) => "pipe",
+            _ when target.StartsWith("anon_inode:", StringComparison.Ordinal) => target,
+            _ => target.Length <= 120 ? target : string.Concat(target.AsSpan(0, 117), "..."),
+        };
     }
 
     /// <summary>The descriptors above stderr: from <c>/proc/self/fd</c>, or every number up to the soft limit where there is no <c>/proc</c>.</summary>

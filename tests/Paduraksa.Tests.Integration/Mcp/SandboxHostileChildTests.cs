@@ -230,6 +230,10 @@ public sealed class SandboxHostileChildTests
             var closed = Assert.Single(log, l => l.StartsWith("Sandbox child hardening: Inherited descriptors: closed", StringComparison.Ordinal));
             var count = int.Parse(Regex.Match(closed, @"closed (\d+)").Groups[1].Value, CultureInfo.InvariantCulture);
             Assert.True(count >= leaked.Count, closed);
+
+            // And names what it closed: the kinds of the sockets and the file's path.
+            Assert.Contains("socket", closed, StringComparison.Ordinal);
+            Assert.Contains(file, closed, StringComparison.Ordinal);
         }
         finally
         {
