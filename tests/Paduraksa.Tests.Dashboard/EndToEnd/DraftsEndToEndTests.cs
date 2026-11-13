@@ -91,7 +91,7 @@ public sealed class DraftsEndToEndTests
 
         // Nothing is live: the history is empty.
         await OpenFromNavigationAsync(page, "History");
-        await Expect(page.Locator("[data-revision]")).ToHaveCountAsync(0);
+        await Expect(page.Locator(".pdk-timeline-item")).ToHaveCountAsync(0);
 
         // Review: the draft's two entries, then the whole set as one change.
         await page.Locator("[data-draft-bar] [data-action=review-draft]").ClickAsync();
@@ -110,8 +110,8 @@ public sealed class DraftsEndToEndTests
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
         await Expect(page.Locator("[data-draft-bar]")).ToHaveCountAsync(0);
         await Expect(page.Locator(".mud-snackbar", new() { HasText = "Live as #1" })).ToBeVisibleAsync();
-        await Expect(page.Locator("[data-revision]")).ToHaveCountAsync(1, new() { Timeout = 15_000 });
-        await Expect(page.Locator("[data-revision]")).ToContainTextAsync($"Draft (2 changes): add upstream app, add host {HostName}");
+        await Expect(page.Locator(".pdk-timeline-item")).ToHaveCountAsync(1, new() { Timeout = 15_000 });
+        await Expect(page.Locator(".pdk-timeline-item")).ToContainTextAsync($"Draft (2 changes): add upstream app, add host {HostName}");
         await OpenFromNavigationAsync(page, "Hosts");
         await Expect(page.Locator($"[data-host='{HostName}']")).ToContainTextAsync("http://127.0.0.1:18080");
         await Expect(page.Locator($"[data-host='{HostName}'] [data-chip=draft]")).ToHaveCountAsync(0);
