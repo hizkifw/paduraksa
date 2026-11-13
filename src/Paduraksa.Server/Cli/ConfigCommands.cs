@@ -51,7 +51,22 @@ internal static class ConfigCommands
     {
         Command config = new("config", "Export and import the config as YAML, through the running instance's admin API.");
 
-        Option<Uri> url = new("--url") { Description = $"The admin API's address (default: ${UrlVariable}, else this installation's own admin listener on loopback)." };
+        Option<Uri> url = new("--url")
+        {
+            Description = $"The admin API's address (default: ${UrlVariable}, else this installation's own admin listener on loopback).",
+            // System.CommandLine has no converter for Uri: without this, parsing accepted the value and reading it threw.
+            CustomParser = static result =>
+            {
+                var text = result.Tokens.Count == 1 ? result.Tokens[0].Value : string.Empty;
+                if (Uri.TryCreate(text, UriKind.Absolute, out var parsed) && (parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp))
+                {
+                    return parsed;
+                }
+
+                result.AddError($"--url must be an absolute http:// or https:// address, such as https://127.0.0.1:9443 (got '{text}').");
+                return null;
+            },
+        };
         Option<bool> allowInsecureHttp = new("--allow-insecure-http") { Description = "Send the token over plain http:// to an address that isn't loopback (refused by default: anyone on the path could read it)." };
         Option<string> tokenFile = new("--token-file") { Description = $"A file whose first line is an API token (default: the ${TokenVariable} variable). Needs config:read to export, config:write to import." };
 

@@ -96,9 +96,6 @@ A change to an existing object needs `If-Match` with the `ETag` you read. `412` 
 **`500` with `config.publishFailed`.**
 The change was stored but could not go live. The answer carries the stored revision. Fix the cause and change again, or roll back from **History**.
 
-**`paduraksa config export --url ...` ends with `Cannot parse argument`.**
-In this build `--url` is not accepted. Set `PADURAKSA_URL` instead. Without either, the command uses this installation's own admin listener on loopback.
-
 **`paduraksa restore` says `A Paduraksa server is running on ...`.**
 Stop the server first. A restore refuses while one runs on the data directory, and changes nothing.
 

@@ -236,7 +236,12 @@ public sealed class ConfigCommandsTests
     {
         var root = PaduraksaCli.BuildRootCommand();
 
-        Assert.Empty(root.Parse(["config", "export", "--revision", "rev_x", "--output", "a.yaml", "--url", "https://h:9443", "--token-file", "t"]).Errors);
+        var parsed = root.Parse(["config", "export", "--revision", "rev_x", "--output", "a.yaml", "--url", "https://h:9443", "--token-file", "t"]);
+        Assert.Empty(parsed.Errors);
+        // The value is read, not only parsed: reading a Uri option without a parser of its own threw.
+        Assert.Equal(new Uri("https://h:9443"), parsed.GetValue<Uri>("--url"));
+        Assert.NotEmpty(root.Parse(["config", "export", "--url", "127.0.0.1:9443"]).Errors);
+        Assert.NotEmpty(root.Parse(["config", "export", "--url", "ftp://h"]).Errors);
         Assert.Empty(root.Parse(["config", "import", "c.yaml", "--mode", "replace", "--dry-run", "--message", "m", "--base-revision", "rev_x", "--force"]).Errors);
         Assert.NotEmpty(root.Parse(["config", "import", "c.yaml", "--mode", "overwrite"]).Errors);
         Assert.NotEmpty(root.Parse(["config", "import"]).Errors);

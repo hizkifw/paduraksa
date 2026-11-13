@@ -74,10 +74,7 @@ Options of `config import`:
 `config export` also takes `--revision <rev_...>` and `--output`, `-o <file>`. Both take `--token-file`, and `--allow-insecure-http`.
 
 - The token comes from `--token-file` (its first line) or `PADURAKSA_TOKEN`, never from the command line. Keep the file private (`chmod 600`): the CLI warns when others can read it.
-- The address is this installation's own admin listener on loopback, or `PADURAKSA_URL`. A loopback address is not certificate-checked, because the admin certificate is signed by the instance's own CA. Any other address must present a certificate your system trusts. The CLI refuses to send the token over plain `http://` to a non-loopback address unless you pass `--allow-insecure-http`.
+- The address is `--url` (an absolute `http://` or `https://` address), else `PADURAKSA_URL`, else this installation's own admin listener on loopback. A loopback address is not certificate-checked, because the admin certificate is signed by the instance's own CA. Any other address must present a certificate your system trusts. The CLI refuses to send the token over plain `http://` to a non-loopback address unless you pass `--allow-insecure-http`.
 - A dry run prints the changes (`+`, `-`, `~` and the path) and the warnings. A refusal prints each error with its YAML path and line and exits 1. Exit 0 is success, including "nothing to change".
-
-!!! warning "Known issue: `--url`"
-    In this build the `--url` option fails with `Cannot parse argument ... for option '--url'`. Set `PADURAKSA_URL` instead.
 
 More on the format and its rules: [Export and import](../operating/export-import.md).
