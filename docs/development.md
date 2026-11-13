@@ -1,6 +1,6 @@
 # Developing Paduraksa
 
-You need the .NET 10 SDK. Docker is optional; the tests that need it (Pebble, the container smoke test) skip without it.
+You need the .NET 10 SDK. Docker, a Chromium and libmsquic are optional locally: the tests that need them skip without them (see [Tests that need something installed](#tests-that-need-something-installed)).
 
 ## Build and test
 
@@ -17,6 +17,18 @@ Write ASCII. `NoConfusableCharactersTests` (architecture tests) fails on an ambi
 anywhere in a tracked file (an en dash, a smart quote, a non-breaking or zero-width space, a Greek or Cyrillic homoglyph),
 because editors flag them and every reviewer has to look twice. The test's remarks list what stays allowed (box drawing,
 arrows, `§`). `./scripts/check-confusables.sh` is the same check as one grep.
+
+## Tests that need something installed
+
+Three kinds of test need more than the SDK, and skip when it is missing:
+
+| Needs | Tests | Locally |
+|---|---|---|
+| Chromium | the Playwright browser tests of the dashboard (`Paduraksa.Tests.Dashboard/EndToEnd`) | `PADURAKSA_E2E_CHROMIUM=/usr/bin/chromium`, or `playwright.ps1 install chromium` (see `PlaywrightBrowser`) |
+| libmsquic | the QUIC and HTTP/3 tests (trait `Transport=Quic`) | install it, or `tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh` runs them in Docker |
+| Docker and the Pebble image | the ACME tests against Pebble (`Paduraksa.Tests.Issuance`, `Paduraksa.Tests.Integration/Acme`); the container smoke test is separate and needs `PADURAKSA_CONTAINER_TESTS=1` | `docker pull` works; `PADURAKSA_PEBBLE=off` skips them on purpose |
+
+A skip hides a gap, and it once hid one for good: CI had no Chromium and no libmsquic, so 19 browser tests and 19 QUIC tests skipped on every run. **`PADURAKSA_REQUIRE`** turns a skip into a failure for what it names, a comma-separated list of `playwright`, `quic` and `pebble` (`tests/Shared/Requirements.cs`). CI installs all three and sets `PADURAKSA_REQUIRE=playwright,quic,pebble`, so a runner that loses one goes red. Nothing changes locally unless you set it, for example `PADURAKSA_REQUIRE=quic` to check that a QUIC run is not all skips (`run-quic-tests.sh` sets it).
 
 ## Property tests and fuzzing
 
@@ -45,7 +57,7 @@ scripts/fuzz.sh --target proxy-protocol --time 3600 --merge   # one target, an h
 
 It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemblies (the parser's among them) there with the pinned `sharpfuzz` tool and runs the pinned release of
 `libfuzzer-dotnet` (downloaded once into `~/.cache/paduraksa`). A crash is a file in `artifacts/fuzz/crashes/<target>/`. To keep it: copy it to
-`fuzz/regressions/<target>/`, fix the bug and add a unit test next to the code. `Paduraksa.Fuzz seed` writes a target's well-formed starting inputs (`fuzz/corpus/<target>/seed-*`).
+`fuzz/regressions/<target>/`, fix the bug and add a unit test next to the code. The targets are `scripts/fuzz.sh --list`; each states its properties in the remarks of its class (`fuzz/Paduraksa.Fuzz.Targets`), and the table is in [fuzz/README.md](../fuzz/README.md). Adding one means registering it in `FuzzTargets.All`, writing its seeds (`Paduraksa.Fuzz seed`) and running it for a while with `--merge`; the nightly job's timeout has to grow with the count (`FuzzWorkflowTests` checks it). `Paduraksa.Fuzz seed` writes a target's well-formed starting inputs (`fuzz/corpus/<target>/seed-*`).
 
 ## Publishing the NuGet packages
 
@@ -117,6 +129,10 @@ leaves the thing unprotected. What has caused them so far:
 - **A local port prober.** On the dev machine a Node tool sends `GET /` to every new localhost port within seconds. A fake or a log that counts requests must count only what
   the proxy sent (`X-Forwarded-Proto`: `FakeAuthServer`, `BodyCountingUpstream`) or only the names the test sent (`*.test` in `AccessLogPipelineTests`). CI doesn't have it, so such a failure shows locally only.
 - **Ports.** Bind port 0 and read the real one back (`TestHost.Endpoint`). If a number must be known before the bind, `TestPorts.StartOnFreePortAsync` retries the whole start with a new port; never probe, release and rebind by hand.
+- **Sleeping for time.** A `Task.Delay` or `Thread.Sleep` in a test waits for a signal or it is one of a few things that really are time, and says which in a one-line comment beside it:
+  a short poll step inside a bounded wait for a condition; a step of the fake clock's pump (real time for loops to run between steps, `AdvanceUntilAsync`); the pacing of a load or soak test whose subject is running for that long; a deliberately slow or hung peer
+  in a test about slowness; an absence window, where nothing can signal that something did not happen (keep it short and name what would show in it); a real-time gap that cannot be faked (a real host's timers). Anything else becomes a signal (a `TaskCompletionSource` the code completes, a counter, the armed timer of a fake clock,
+  a failing fake's own count) or a fake clock: a quiet period after the fact is replaced by waiting for the cause.
 - **Waiting for something that arrives by an event.** Wait on the event (a `TaskCompletionSource` completed by the code, `WaitForState` in bUnit), with a bound for the failure
   case that a loaded runner can't reach: not a poll of a fixed number of 50 ms steps.
 

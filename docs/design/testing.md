@@ -6,6 +6,7 @@ Contents:
 - [Test levels](#test-levels)
 - [Settings and response-header tables](#settings-and-response-header-tables)
 - [Integration tests](#integration-tests)
+- [What CI runs, and sleeping in tests](#what-ci-runs-and-sleeping-in-tests)
 - [Architecture tests](#architecture-tests)
 - [Performance](#performance)
 - [Security](#security)
@@ -50,6 +51,19 @@ Production never sets either. A host's stop no longer waits for the log writer's
 - Pages are waited on by signal (the shell's `data-circuit=live`, a finite animation finishing) rather than by delay.
 
 **The two 0 B assertions** (`MacKeyTests`, `AllocationTests`) measure after warm-up on a thread of their own and take the smallest of three rounds. A one-off on that thread cannot fail them, while a real allocation still does.
+
+## What CI runs, and sleeping in tests
+
+**CI ran less than it claimed.** The Playwright tests skip when no Chromium is found, the QUIC tests when libmsquic is missing, and the Pebble tests when Docker can't pull the image. CI had none of the first two, so 19 browser tests and 19 QUIC tests skipped on every run (the last green run before the change: 8 069 passed, 45 not executed).
+
+**As built.**
+- `.github/workflows/ci.yml` installs Playwright's own Chromium for the pinned package version (`playwright.ps1 install --with-deps chromium`, browser download cached by version; Ubuntu's `chromium` is a snap) and libmsquic at the version the Dockerfile pins, from Microsoft's package feed. The Test step sets `PADURAKSA_REQUIRE=playwright,quic,pebble`.
+- `tests/Shared/Requirements.cs` reads it: `Requirements.SkipOrFail` is what the three skip sites call (`PlaywrightBrowser.LaunchOrSkipAsync`, the two QUIC `Require` helpers, the Pebble fixtures' `SkipReason`). A named capability that is missing fails the test with the reason; unnamed, it skips as before. The older `PADURAKSA_REQUIRE_QUIC=1` is gone; `run-quic-tests.sh` sets `PADURAKSA_REQUIRE=quic`.
+- `run-quic-tests.sh` stays: it is the way to run the QUIC tests on a machine without libmsquic (the dev box). CI covers them in the normal run now.
+- The build-test job's timeout is 30 minutes (it was 20 for a 10-minute run).
+- Verified locally: the helper's list parsing, and a run with `PADURAKSA_REQUIRE=playwright` and no Chromium fails with the reason. Only GitHub can show that the installs work on the runner.
+
+**The sleeps.** There were 110 `Task.Delay` and `Thread.Sleep` lines in the tests. Nine calls became signals or a fake clock: the verification queue's two deadlines (a manual clock, no 1 s sleep), the sandbox caller-gone test (the dispatcher's first call), the notification outbox tests (the upkeep timer being armed, and the failing factory's own count of refusals), a flusher baseline that needed no wait, and the security page's hidden tab (the renderer's own queue). The 100 calls left each carry a one-line comment saying which of the allowed kinds they are (the rule is in `docs/development.md`, "Writing tests that don't flake"): 52 poll steps of bounded waits, 16 slow or hung peers in tests about slowness, 14 absence windows (nothing can signal that something did not happen; each says what would show in it), 7 pacings of a concurrent loop, 3 soak durations, 4 steps of the fake-clock pump, 2 real-time gaps of a real host's timers (`UpstreamHealthNotificationTests`: the health hold) and 2 bounds on a signal wait.
 
 ## Architecture tests
 
@@ -155,6 +169,7 @@ Each property and harness was shown to fail by breaking the code it checks: the 
 | `error-page`, `upstream-error-replacement`, `access-log-tail` | The M8 and M9 surfaces (see below). |
 | `mcp-sandbox` | The parent of the MCP sandbox against a child that is not to be trusted (see below). |
 | `yaml-import` | The YAML reader and importer (see below). |
+| `ip-network`, `glob-pattern`, `cloudflare-ranges`, `backup-archive`, `certificate-import` | The `ci-tests` round (see below). |
 
 ### Corpora and crashes
 
@@ -277,3 +292,33 @@ There are 24 seeds: well-formed configs, a flow-style one, an export, a billion-
 - The unit tests found two more: the emitter's own analysis misjudges some mixes of YAML indicators and quotes (`0 *'` followed by a backtick as a key), so the writer asks for a plain scalar only for text of letters, digits and a few joiners and quotes everything else itself. And the scanner throws `InvalidOperationException` for an unterminated flow collection followed by more lines.
 - The property over `ConfigGen` found that an empty `passiveHealth` is not the same as none, and that a valid document can name an object that is gone in a layer nothing uses. Both are in [admin-surfaces.md](admin-surfaces.md).
 - Harness bug, fixed before the final runs: the round trip was first asserted for every accepted document. But a document with a route ID used by two hosts (a merge of an export whose host ID was changed) maps and cannot be read back, because the import refuses repeated IDs.
+
+### The `ci-tests` round: five more targets
+
+The gaps list named parsers of attacker or admin input that had no harness. Each target states its properties in its class's remarks.
+- **`ip-network`.** `IpNetwork.TryParse` on text. The verdict is compared with an independent reading of its three rules (the address `IpParser` reads, a decimal prefix without a leading zero within the family's width, no host bit below the prefix, judged on the bytes `IPAddress` reads). A parsed block spans exactly 2^(128-prefix) addresses, contains its ends and not the addresses beside them, and its canonical text parses back to the same block. 0 B on both paths, the error included.
+- **`glob-pattern`.** A pattern, then a path. A pattern compiles exactly when it is ASCII, starts with a slash and fits the token limit. A match equals a memoised recursion written from the rules (no automaton in it), the case of the path never matters, 0 B, and a 64 KiB path against any pattern takes well under a second.
+- **`cloudflare-ranges`.** The real `CloudflareRangeFetcher` over a handler that answers with the input (the JSON answer, the two text ones, or both, under a 1 KiB cap). A list is accepted exactly when an independent reading of the list rules accepts the first source that gives one, and then holds the canonical, sorted, unique blocks that source says, three of each family at least, none too wide, with every end in the set. A refusal is one short printable line.
+- **`backup-archive`.** The header and chunk reader up to the passphrase check, under a fixed key (the Argon2 derivation is the cost a header may ask for, up to a gigabyte, so it is not run). Only `BackupException` escapes, with the reason a second reading of the header table and the chunk rules gives (the chunks are decrypted again with `AesGcm` in the target). An accepted header is the bytes `ToBytes` writes and asks for a derivation within the caps. Allocation stays bounded whatever the header says. The first input byte can pick the manifest instead: it parses or is `Damaged`, and one that parses writes and reads back to itself.
+- **`certificate-import`.** The vault's `ICertificateImport` over a scratch directory, a fixed clock and one fixed certificate ID (a success replaces the row). Input byte 0 picks the password. Only `CertificateImportException` escapes; the same upload gives the same verdict; an import takes under 30 s and 512 MiB; a refusal never repeats the password; the leaf of a success is one of the PEM's certificates by SHA-256, has a name, and the public chain holds no key.
+
+`Paduraksa.Vault` is instrumented by `scripts/fuzz.sh` and lets `Paduraksa.Fuzz.Targets` see its internals (`InternalsVisibleTo`, like `Paduraksa.Tests.Vault`); the targets project is a key-material boundary project (`PaduraksaKeyMaterialBoundary`) because the backup target decrypts with `AesGcm` and the import target builds seed certificates. No other target uses either.
+
+**Found.** Three real bugs, each with its input in `fuzz/regressions/<target>/` and a unit test beside the code.
+- A refused Cloudflare range list put the response's text in its reason as it came, so an escape sequence or a forged log line in a block reached the log and the dashboard. Control, format and line-separating characters are `?` now (`CloudflareEdgeRangesTests`).
+- Invalid UTF-8 in a string of the JSON answer threw `InvalidOperationException` out of `CloudflareRangeFetcher` (the refresh loop survived it), so the text endpoints were never asked. It is a failed source like any other now (`CloudflareRangeRefresherTests`).
+- A PKCS#8 key on a curve the platform doesn't have (a made-up curve OID) escaped the certificate import as `PlatformNotSupportedException`, a 500 from the admin API. It is `Unreadable` now (`CertificateImportHardeningTests`).
+
+`backup-archive`, `ip-network` and `glob-pattern` found nothing.
+
+**Sessions run.** On a 20-core box, 10 minutes a target, one process each (three other lanes of an hour-long run were going at the time), then `--merge` into `fuzz/corpus/<target>/`; a target that crashed was fixed and run again for the full time.
+
+| Target | Runs | Per second | Corpus files |
+|---|---|---|---|
+| `ip-network` | 34.6 M | 60 k | 114 |
+| `glob-pattern` | 7.4 M | 12 k | 87 |
+| `cloudflare-ranges` | 8.2 M | 14 k | 279 |
+| `backup-archive` | 14.3 M | 24 k | 46 |
+| `certificate-import` | 1.0 M | 1.7 k | 124 |
+
+`.github/workflows/fuzz.yml` runs all 16 targets one after another, so its timeout is 300 minutes (16 targets at 15 minutes and the build); `FuzzWorkflowTests` fails when a target is added without raising it.
