@@ -1,0 +1,82 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.!!.0.1/ ], countries: {allow: [N ,:OID]}}
+    basicA`th:
+      users:
+        - username: alice
+        # ntialIddentie: office
+    # crede{ntialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credent credentialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: allI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: alice
+        # c# credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.!.0.1/ ], countries: {allow: [N ,:OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # ntialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: offientie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - usernIddentie: office
+    # credentialI
+        - user>
+ '
+>
+,
+>name: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+  %     - username: allI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: alice
+        # c# credentialId: pwc_03wndAAHBs:
+  - name: office
+    ip: {allow: [10.!.0.1/ ], countries: {allow: [N ,:OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # ntialIddentie: office
+    # credentialI
+        - username: alice-
+        # credentie: offientie: office
+    # credentialI
+        - username: alice-
+        # credentie: office
+    # credentialIddentie: office
+    # credentialId: pw      users:
+        - username: allI
+        - username: alice-
+     ++   # credentie: edentialId: pw      users:
+        - username: alice
++        # ciars:
+        - username: alice
+        # credentiC96f4Al8rl5fialIdame: allI
+        - username: alice-
+  

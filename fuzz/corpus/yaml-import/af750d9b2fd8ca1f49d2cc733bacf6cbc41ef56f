@@ -1,0 +1,17 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.KKKIIIIIIIIII
+  - name: MtttttIIIIIIGIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MttttIig
+ruleSets:
+  - name: scI	IIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000It'ttt2tttttttttItttttttttttttttttttttttEDI000g
+accessLists:
+  - name: o&fice
+    ip: {allow: [2], countries: {allow: [Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4AtIIIII000?ttttt'ttttttttttttttttIIIIIIIIIIIIIIIIIllyfin

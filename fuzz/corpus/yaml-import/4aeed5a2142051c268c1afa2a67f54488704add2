@@ -1,0 +1,11 @@
+%e 
+%k api?Vers: false
+hosts:
+  -
+    routes:
+      - id: rte
+  - id: hst_hos
+    certificate:
+    routes:
+      - id: rte
+%f 

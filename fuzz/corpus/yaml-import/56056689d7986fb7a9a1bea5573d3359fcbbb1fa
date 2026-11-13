@@ -1,0 +1,45 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888888888888888kqa7777kqa.dev/v1Apa&e *bject:os.&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jmllyfin
+    # os.sys: Co*siu/s:[]e *bjetojetos.sys: Co*siuos:*         <p>no7777777777777777777k.sys: Co*siu/sroutes:
+      - upstream: jellyf4in
+    # os.sct:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no7777777777777777777kqaqa.dev/v1Apa&e *bject:os.&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.ssuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfil
+    # os.sys: Co*siu/s:[]s.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellifin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os.jec.sject:os.sys: Co*siq/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e 

@@ -1,0 +1,27 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: true
+rateLimitPolicies:
+  - id: rlp_02wndAAHBC95f4Al8rNFlB
+    name: api
+    requests: 60
+
+hosts:
+  - id: host_02wndHBCAA95f4Al8rNFlB
+    names: [jellyfin.example.com, tv.example.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+      mode: auto
+    routes:
+      - id: rte_02wndAAHBC95f4Al8rNFlB
+        upstream: jellyfin
+        order: 0
+        match: prefix
+        #ath: /

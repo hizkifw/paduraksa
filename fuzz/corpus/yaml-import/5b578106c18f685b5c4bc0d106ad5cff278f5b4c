@@ -1,0 +1,23 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.KKKIIIIIIIIII
+  - name: Mtt.ttIIIIIIGIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIL
+  - name: Mttttt't	ttttttttt000000III
+  - name: MttttIig
+ruleSets:
+  - name: scIIIIIIIII
+  - name: MtttIIIIIII?tttttttt000000IIIIIIIIIIIIIII
+  - name: Mttttt000IIIIIIIIIIIIIIIIIIItttttttttttttttttttttttEDI000g
+accessLists:
+  - name: o&fice
+    ip: {allow: [2], countries: {allow: [Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAH@C9*5f4AttIIIIIIIIIIIIIIIIIIIIII000?ttttt'tt2tttttttttIIIIIIIIIIIIII
+  - name: Mttttt'K0KK   sssssss6
+hosts:
+  - names: [examp1e.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MttttttttttttttttIIIIIIt000000III
+  - name: MttttIig
+ruleSets:
+  - name: scIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttIIig
+accessLists:
+  - name: office
+    # a- name: office
+    basicAuth:
+      users:
+        - username: IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII]I
+  - name: Mtt0000000

@@ -1,0 +1,93 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC8*5f4ATIIIIIIIIHItIIIIIIItttttttttt0000000IIIIIItttttttt000IIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - us
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC8*5f4ATIIIIIIIIIII0000IIIIIIIIIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - usern00000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #ername: dAAHBC8*5f4AtIIIIIIIIIIIHItIIIIIIItttttttttt0000000IIIICItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIItttt000IIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - us
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC8*5f4ATIIIIIIIIIII0000IIIIIIIIIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - usern00000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #ername: dAAHBC8*5f4AtIIIIIIIIIIIHItIIIIIIItttttttttt0000000IIIICItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0000IIIIIIIIIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - us
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC8*5f4ATIIIIIIIIHItIIIIIIItttttttttt0000000IIIIIItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0000IIIIIIIIIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: dAAHBIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #ername: dAAHBC8*5f4AtIIIIIIIIIIIHItIIIIIIItttttttttt0000000IIIICItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: dAAHBC8*5f4AttIIIIIIIIII0II&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: IIIIIIIIIIIIIIIIII0000IIIIIIIIIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - us
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC8*5f4ATIIIIIIIIHItIIIIIIItttttttttt0000000IIIIIItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0000IIIIIIIIIII
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: dAAHBIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #ername: dAAHBC8*5f4AtIIIIIIIIIIIHItIIIIIIItttttttttt0000000IIIICItttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: dAAHBC8*5f4AttIIIIIIIIII0II&III
+  - name: Mttttt'tttttttttt]}}
+    basicAuth:
+      users:
+    #  - username: dAAHBC8*5f4AttIIIIIIIIII0000IIIIIIIIIIIIIIIIIIIIIIIIHItIIIIIIIttttttIIII
+  - name: l8rNFlB

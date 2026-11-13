@@ -1,0 +1,20 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: 
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFnB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: jzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzrue
+hosts:
+  - id: host_01wndHBCAA95f4Al8rNFlB
+    names: [jellyfin:n.example.com, tv.example.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+  

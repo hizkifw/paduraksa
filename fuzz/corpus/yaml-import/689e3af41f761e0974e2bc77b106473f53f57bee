@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offic
+    ip: {allow: [6WWWWWWW:WWW,0WWW::WWW,:WWWWW], countries: {allow: [NO, ID]}}

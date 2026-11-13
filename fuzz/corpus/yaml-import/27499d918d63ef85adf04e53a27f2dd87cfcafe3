@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDQ
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      
+accessLists:
+  - name: o&fice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [z,IN D]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4AtIIIIIIIIHItIIIIIIItIIIIIIIIIIIIIIIIIIIIIIIIIIIIII@@@f)u00e0 \u65e5\u632c"
+    notes: "t  k"

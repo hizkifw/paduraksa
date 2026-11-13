@@ -1,0 +1,50 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: nozFound
+  trustedProxies:
+    mode: 'off
+    useTrueClientIp: false
+    forwarde forwardeddProto: false
+profiles:
+  - id: prof_01wndAAHBC95f4Al8rNFlB
+    name: media
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlB    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id:pstreams:
+  - id: ups_02wndBAHBC9f4Al8rNFlB    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst_01wndAAHBC95f4Al8rNFlB
+        address: http://127.0.0.1:8096
+        enabled: true
+- id: rlp_02wndAAHBC95f4Al8rNFlB
+    name: api
+    requests: 60
+    per: minute
+    burst: 60
+    key: clientIp
+accessLists:
+  -Version: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [10./8], countries: {allow: [%O, D]}}
+    basicAuth:   id: acl_02wndAAHBC95f4Al8rNFlB
+    name: staff
+    ip:
+      dropDenied: fa{apiVe: [[names:,i
+V: false
+hosts:
+  - id: host_'2wndAAHBC95f4Al8rNFlB
+    names: [jellyfin.example.com, tv.example.com]
+    kind: proxy
+  3  enabled: true
+    ppstream: jellyfin
+        order: 0
+        match: prefix
+        path: /

@@ -1,0 +1,105 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888888888888888kqa.no777777777777777777777777777kqa.dev/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuos:* :* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777777777777777777kqa.dev/v01Apa&e *bject:os.jec.sject:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuo778*s *bject:os.jec.sject:os.sys: Co*siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxamnple.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kject:os.t:os.sys: Co*siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxamnple.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no38888jec.sjt:os.sys: Co*siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no777777ect:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuos:* :* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777777777777777777kqa.dev/v01Apa&e *bject:os.jec.sject:os.sys: Co*siu/s:[]e *bjetos Co*siuo778*s *bject:os.jec.sject:e ts:
+  - names: [aҙxamnple.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.no7777777777777777777kqv/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjeto/v1apa&e *bject:os.sys: Co*:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888888888888888kqa.no777777777777777777777777777kqa.dev/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuos:* :* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777777777777777777kqa.dev/v01Apa&e *bject:os.jec.sject:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuo778*s *bject:os.jec.sject:os.sys: Co*siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxamnple.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kject:os.t:os.sys: Co*siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxamnple.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no38888jec.sjt:os.sys: Co*siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no777777ect:os.sys: Co*siu/s:[]e *bjetos.sys: Co*siuos:* :* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no7777777777777777777kqa.dev/v01Apa&e *bject:os.jec.sject:os.sys: Co*siu/s:[]e *bjetos Co*siuo778*s *bject:os.jec.sject:e ts:
+  - names: [aҙxamnple.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.no7777777777777777777kqv/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjeto/v1apa&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:*bject:os.jec.sject:oosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+       7777777777777kqa.   contentTy/e: text/[hssiu/s:[]e *bjetosuos:*bject:os.jec.sject:oosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+       7777777777777kqa.   contentTy/e: text/[hs:* []jec.sys:    contentTy/e: text/[html

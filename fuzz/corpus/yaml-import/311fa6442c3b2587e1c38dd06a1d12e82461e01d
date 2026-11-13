@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.e*ample.com]
+    kind: respond
+    respond:
+      statusCode: 816
+      body: |
+       orry</p>
+      contentType: tom]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbpppp000000000000tml

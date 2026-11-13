@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <<p>sorry</p>
+      contentType: t0000000000                    2                                                          &        (/html

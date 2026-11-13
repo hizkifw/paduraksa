@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tv.exale.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb00;""\22222=2222A2\22222;Ip
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: st"\u\\\\\\\\\\\\\\\222220000000148569
