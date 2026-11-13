@@ -116,13 +116,16 @@
 
 .pdk-section-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px 12px;
 }
 
+/* The text takes the width it can, so a wide aside (the scope presets) drops under it on a phone instead of squeezing it to a sliver. */
 .pdk-section-titles {
     display: grid;
+    flex: 1 1 14rem;
     gap: 2px;
     min-width: 0;
 }

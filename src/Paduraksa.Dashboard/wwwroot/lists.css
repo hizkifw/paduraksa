@@ -761,7 +761,7 @@
         position: relative;
     }
 
-    .pdk-users-table .pdk-dt-actions, .pdk-tokens-table .pdk-dt-actions {
+    .pdk-users-table .pdk-dt-actions, .pdk-tokens-table .pdk-dt-actions, .pdk-logs-table .pdk-dt-actions {
         position: absolute;
         top: 10px;
         right: 8px;
