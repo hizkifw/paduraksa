@@ -150,6 +150,8 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          # GET /api/v1/version names the commit the image was built from.
+          build-args: PADURAKSA_COMMIT=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -158,6 +160,8 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          # GET /api/v1/version names the commit the image was built from.
+          build-args: PADURAKSA_COMMIT=${{ github.sha }}
           platforms: linux/amd64
           load: true
           tags: paduraksa:ci
@@ -220,6 +224,8 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          # GET /api/v1/version names the commit the image was built from.
+          build-args: PADURAKSA_COMMIT=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
