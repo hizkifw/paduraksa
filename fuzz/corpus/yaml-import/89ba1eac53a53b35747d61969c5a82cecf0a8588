@@ -1,0 +1,13 @@
+apiVersion: p\e
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+ 
+    sessionAffinity:  |-1
+    ndestinationscies:
+  - id: r  
+    rtes:
+     name: jel,yfin
+    sessionAffinity:  |-2
+    
+    routes:
+      - id: 

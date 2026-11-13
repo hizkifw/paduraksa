@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [tv.ex    amplecom]
+    profile: media
+    kind: respond
+    respond:
+      statusCode: 152
+      body: |1
+        <p>no""oo
+  - names: [a.e%xample.cm]
+    kind: respond
+    

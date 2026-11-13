@@ -1,0 +1,2 @@
+v/a: &a x[]
+b: &b [*a, : *a, *a,dd: *a,: *a, *a,dddddd: &b [*a, : *a, *a,d, *a,dd: *a,: *a, *a,dddddd: &b [*a, : *a, *a,dd: *a,: %a,dddd: *a,: %a,ddd

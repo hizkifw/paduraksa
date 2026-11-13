@@ -1,0 +1,31 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFlB
+    name: fedia
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_01wndAAHBC95f4Il8rNFlB
+    name: jellyfiu
+    sessionAffinity: false
+    destinations:
+      - id: dst_00wndAAHBC95f4Al8rNFlB
+        address: http://127.0.0.1:8096
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_02wCBdnAAH95f4Al8rNFlB
+    name: inute
+    burst: 60
+    key: clientIp
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFlB
+    name: staff
+    

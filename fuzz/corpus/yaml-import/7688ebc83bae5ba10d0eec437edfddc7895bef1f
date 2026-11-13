@@ -1,0 +1,21 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.exampm]
+    kind: respond
+    respond:
+      statusCode: 220
+      body: |
+        <p>no38 *bject:os.sy s: ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no3888888888888888888kqa.d%v/v0*siu/s:[]e *bv1apa&e  Co*siu/s:[]e *bjetosu:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <[]jntTy/e: text/[html

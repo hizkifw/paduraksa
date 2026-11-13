@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 2Config
+hosts:
+  - names: [a.example.com]
+    kind: #respond
+    respond:
+      statusCode: 404
+      body: ~
+        <p>>22222244E+A

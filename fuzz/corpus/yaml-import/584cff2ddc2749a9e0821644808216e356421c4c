@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [tv.ex    amplecom]
+    profile: media
+    kind: respond
+    respond:
+      statusCode: 304
+      body: |
+      # <   
+profiles:
+ - name: u672ce\ak%
