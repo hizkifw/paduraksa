@@ -181,8 +181,9 @@ internal sealed class CertificateImport(VaultRuntime runtime, CertificateStore s
         }
     }
 
+    // NotSupportedException: a key on a curve this platform doesn't have (a PKCS#8 whose curve OID is made up) is the upload's fault, like any other key it can't read.
     private static bool IsMalformed(Exception ex) =>
-        ex is CryptographicException or ArgumentException or FormatException or AsnContentException or InvalidOperationException;
+        ex is CryptographicException or ArgumentException or FormatException or AsnContentException or InvalidOperationException or NotSupportedException;
 
     private static ParsedUpload ParsePem(ReadOnlySpan<byte> data, ReadOnlySpan<char> password)
     {

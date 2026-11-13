@@ -55,6 +55,33 @@ public sealed class CertificateImportHardeningTests : IDisposable
     }
 
     [Fact]
+    public async Task AKeyOnACurveThePlatformDoesNotHaveIsRefusedAsUnreadable()
+    {
+        // Found by the certificate-import fuzz target: the key is a valid PKCS#8 for a P-256 key with its curve OID altered, which the platform answers with
+        // PlatformNotSupportedException; that escaped the import as a 500 instead of a refusal.
+        const string Upload =
+            "-----BEGIN CERTIFICATE-----\n" +
+            "MIIBZzCCAQ2gAwIBAgIIASNFZ4mrze8wCgYIKoZIzj0EAwIwFDESMBAGA1UEAxMJ\n" +
+            "RnV6eiBSb290MB4XDTI2MTExMjEyMDAwMFoXDTI3MDIxMTEyMDAwMFowGjEYMBYG\n" +
+            "A1UEAxMPYXBwLmV4YW1wbGUuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE\n" +
+            "E9y0PoB3KW2OLqUeCdFnRgXhbyPaVB6ht2/xFiyP0UGsIyIoe2LA9qzI3qAsCBk9\n" +
+            "FY4I4a1jXQjl1tWg3IhHmqNDMEEwMQYDVR0RBCowKIIPYXBwLmV4YW1wbGUuY29t\n" +
+            "gg93d3cuZXhhbXBsZS5jb22HBMAAAgcwDAYDVR0TAQH/BAIwADAKBggqhkjOPQQD\n" +
+            "AgNIADBFAiBNQzET/G079JWePUYN1zPFkQUOsNumIxVa5v4Hb5AElAIhAOSli7bi\n" +
+            "PqlGTdIebs4mGdeMisfdUR0OpB1mzG+j8toS\n" +
+            "-----END CERTIFICATE-----\n" +
+            "-----BEGIN PRIVATE KEY-----\n" +
+            "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49EwAHBG0wawIBAQQgm3Xbm+3+7kbWlKoj\n" +
+            "FXvAz3VX33S7ODtp45cw+/VpghKhRANCAAQT3LQ+gHcpbY4upR4J0WdGBeFvI9pU\n" +
+            "HqG3b/EWLI/RQawjIih7YsD2rMjeoCwIGT0VjgjhrWNdCOXW1aDciEea\n" +
+            "-----END PRIVATE KEY-----\n";
+
+        var refused = await Refused(Upload);
+
+        Assert.Equal(CertificateImportFailure.Unreadable, refused.Reason);
+    }
+
+    [Fact]
     public async Task AMalformedSanIsUnreadableNotAnException()
     {
         using var ca = TestCa.CreateRoot();
