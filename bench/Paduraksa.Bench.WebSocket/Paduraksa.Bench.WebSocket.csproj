@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    The WebSocket echo upstream and load generator for the baseline's `websocket` scenario (bench/run-baseline.sh):
+    oha has no WebSocket mode, and the shared nginx upstream can't echo one without a third-party module.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+</Project>
