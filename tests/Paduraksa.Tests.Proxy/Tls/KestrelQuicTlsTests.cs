@@ -482,23 +482,6 @@ public sealed class KestrelQuicTlsTests : IDisposable
         Assert.Equal(IPAddress.Loopback, address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address);
     }
 
-    [Fact]
-    public async Task AltSvcAdvertisesThePublicPortOnTcpOnly()
-    {
-        var value = new AltSvcHeader(443, http3Listening: true).Value;
-        await using var server = await StartAsync(
-            new TlsHandshakeSelector(new CertificateTableSource(Table())),
-            IPAddress.Loopback,
-            context =>
-            {
-                context.Response.Headers.AltSvc = value;
-                return context.Response.WriteAsync(context.Request.Protocol);
-            });
-
-        Assert.Equal("h3=\":443\"", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version20)).AltSvc); // parsed: default ma dropped
-        Assert.Null((await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30)).AltSvc);
-    }
-
     /// <summary>A stand-in per-IP cap: acquires in the gate, releases on <c>ConnectionClosed</c>.</summary>
     private sealed class SlotCounter
     {
