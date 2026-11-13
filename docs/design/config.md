@@ -212,7 +212,7 @@ The dashboard shows where each value comes from ("inherited from Global" or "fro
 - A layer lifts an inherited rate limit, access list or rule set with `enabled: false`. Everything else is a plain override.
 - A nested record that sets none of its fields is no record at all. Canonical JSON writes no key for it, so a stored revision keeps its bytes (and its hash). `ISettingsLayer.SetsNothing`, which each record states, is the one rule that decides it.
 
-Examples of `HostSettings` fields: force HTTPS, HSTS, HTTP/2 and HTTP/3 enable, min TLS version, request body limit, upstream timeouts, compression, rate-limit policy, geo policy, IP access list, rule sets, auth provider, error page set, robots mode, security headers preset, websocket, buffering, custom request and response headers, and `X-Forwarded-*` behaviour.
+The `HostSettings` fields are: force HTTPS, TLS (minimum version, TCP protocols, HTTP/3), HSTS, access log, request ID propagation, the `Server` header, proof of work, rate limit, `robots.txt`, Cloudflare (origin lockdown, Authenticated Origin Pulls), access list, request limits, rule set, auth provider, error pages and maintenance mode. Custom request and response headers, path rewriting and compression are not host settings in v0.1; `X-Forwarded-*` is not a setting either, the proxy always writes it (see [hot-path.md](hot-path.md#e-yarp)).
 
 ### Adding a host setting
 

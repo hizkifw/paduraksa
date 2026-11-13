@@ -402,7 +402,7 @@ It starts the child with `DOTNET_GCHeapHardLimit` 256 MiB, workstation non-concu
 **The pool** (`SandboxProcessPool`):
 - Lazy: no child until the first call, which pays the cold start once.
 - Warm while MCP is in use: a child that finished a run waits for the next, one run at a time in each.
-- Up to 4 children spawned on demand. A fifth call waits 5 s for one, then is told to retry. One token can hold all four. That is accepted, and install.md says to give the token only to assistants you trust.
+- Up to 4 children spawned on demand. A fifth call waits 5 s for one, then is told to retry. One token can hold all four. That is accepted, and [the MCP page](../automation/mcp.md) says to give the token only to assistants you trust.
 - A child is despawned after `Paduraksa:Mcp:IdleTimeout` without a run (checked by a timer on the pool's `TimeProvider`).
 - A child is replaced after any kill, or after 200 runs or half of its CPU lifetime.
 - The same timer, at most every 5 s, looks at each idle child's CPU time and kills one that used more than 0.4 s since the last look (a loop that outlived its run, a spinning child).
@@ -501,7 +501,7 @@ The API tokens page (`/settings/tokens`) has a closed-by-default card with:
 - a line that a read-only token is the safe default and where a change shows (History and Audit);
 - a note that the admin certificate comes from the local CA, so its root has to be trusted where the client runs (Node clients read `NODE_EXTRA_CA_CERTS`).
 
-Client setup is in `docs/install.md`.
+Client setup is in [the MCP page](../automation/mcp.md).
 
 ### Tests
 
@@ -570,7 +570,7 @@ The same binary, using `System.CommandLine`.
 | `vault rotate-kek` | See [vault-and-certificates.md](vault-and-certificates.md). |
 | `backup --out <file>`, `restore <file>` | Built in M10. The passphrase comes from a file, the environment or a prompt, never argv. |
 | `doctor` | Ports, permissions, H3 and libmsquic, DNS, clock skew. Built in M5: `doctor --liveness` only, the admin `/healthz` over loopback, for the container `HEALTHCHECK`. |
-| `migrate` | Database migrations. |
+| `migrate` | Database migrations. **Not built**: migrations run at startup, and `paduraksa --help` has no such command. |
 
 ### `config export` and `config import` (M10)
 

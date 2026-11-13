@@ -30,7 +30,7 @@ The detail lives in `docs/design/`, one page per area. Each section below ends w
 | [deployment.md](design/deployment.md) | Container, compose, bare metal, fleet mode |
 | [milestones.md](design/milestones.md) | Spikes and the scope and outcome of each milestone |
 
-Other documents: [install.md](install.md) (running it), [development.md](development.md) (working on it), [threat-model.md](threat-model.md), and [../CHANGELOG.md](../CHANGELOG.md) (what changed, newest first).
+Other documents: [the user guide](guide/getting-started.md) and [operating it](operating/docker.md) (running it; [install.md](install.md) is the map to them), [development.md](development.md) (working on it), [threat-model.md](threat-model.md), and [../CHANGELOG.md](../CHANGELOG.md) (what changed, newest first).
 
 ---
 

@@ -3,11 +3,11 @@
 **Status: S1 is partially closed. The browser H3 upgrade is still pending.**
 
 What's done:
-- Per-SNI certificate selection works on Kestrel's QUIC/HTTP/3 listener, and so does hot-swap. So the [hot-path.md, HTTP/3 strategy](design/hot-path.md#http3-strategy)
+- Per-SNI certificate selection works on Kestrel's QUIC/HTTP/3 listener, and so does hot-swap. So the [hot-path.md, HTTP/3 strategy](../design/hot-path.md#http3-strategy)
   single-H3-certificate fallback isn't needed. It still works (tested), so it stays available as a contingency.
 - `Alt-Svc` with the public port, unknown-SNI rejection and a connection-stage IP gate on QUIC were all verified.
 
-What's pending: the [milestones.md, Risks and spikes](design/milestones.md#risks-and-spikes) exit criterion also requires that **a real browser actually upgrades to H3** in the Docker
+What's pending: the [milestones.md, Risks and spikes](../design/milestones.md#risks-and-spikes) exit criterion also requires that **a real browser actually upgrades to H3** in the Docker
 deployment. That hasn't been tested (see [Not covered](#not-covered--follow-ups)).
 
 ## What was tested
@@ -27,7 +27,7 @@ The spike runs everything in one process inside the container:
   have **no AIA extension**.
 - Every leaf is wrapped in `SslStreamCertificateContext.Create(leaf, [intermediate], offline: true)`.
 - The certificates sit behind a `CertStore` that holds a `volatile` reference to an immutable map (exact match, then
-  wildcard, then default). That's the shape [config.md, The runtime snapshot](design/config.md#the-runtime-snapshot)/[hot-path.md, Request pipeline](design/hot-path.md#request-pipeline) plan for.
+  wildcard, then default). That's the shape [config.md, The runtime snapshot](../design/config.md#the-runtime-snapshot)/[hot-path.md, Request pipeline](../design/hot-path.md#request-pipeline) plan for.
 - It starts one Kestrel app per mechanism, each on its own port.
 - The client is `HttpClient` + `SocketsHttpHandler` with `RequestVersionExact` (2.0 over TCP, 3.0 over QUIC) and a
   fresh handler per probe, so every probe is a new connection. The served cert and chain are captured in
@@ -162,7 +162,7 @@ Mechanisms:
 | `tlscb-cert` | callback → `{ ServerCertificate = cert }` (no context) |
 | `tlscb-selcb` | callback → `{ ServerCertificateSelectionCallback = ... }` |
 | `optsel-cb` | `UseHttps(ServerOptionsSelectionCallback, state)` |
-| `split` | two `Listen` calls on the **same port**: TCP `Http1AndHttp2` per-SNI (callback) + QUIC `Http3` with one fixed cert (`HttpsConnectionAdapterOptions{ServerCertificate, ServerCertificateChain}`). This is the [hot-path.md, HTTP/3 strategy](design/hot-path.md#http3-strategy) fallback. |
+| `split` | two `Listen` calls on the **same port**: TCP `Http1AndHttp2` per-SNI (callback) + QUIC `Http3` with one fixed cert (`HttpsConnectionAdapterOptions{ServerCertificate, ServerCertificateChain}`). This is the [hot-path.md, HTTP/3 strategy](../design/hot-path.md#http3-strategy) fallback. |
 | `split-sni` | two `Listen` calls on the same port, **both** per-SNI via `TlsHandshakeCallbackOptions`, each returning prebuilt per-transport options (TCP: ALPN `h2, http/1.1`; QUIC: ALPN `h3`). TCP has `DisableAltSvcHeader = true`, and middleware emits `h3=":443"`. |
 | `reject-throw` / `reject-null` | `split-sni` with no default cert: for an unknown or absent SNI the callback **throws** `AuthenticationException` / **returns null**. Kestrel logs captured at Debug. |
 | `quic-gate` | `split-sni` on `0.0.0.0` with an IP deny list `{127.0.0.1}`. TCP: `ListenOptions.Use` connection middleware (`Abort()`). QUIC: the check happens inside the QUIC `TlsHandshakeCallbackOptions` callback, using `ctx.Connection.RemoteEndPoint`, which throws when denied |
@@ -315,7 +315,7 @@ network (loopback `::1` only).
 
 ## Recommendation for Paduraksa
 
-1. **Use per-SNI on QUIC.** Drop the "single H3 certificate" fallback from [hot-path.md, HTTP/3 strategy](design/hot-path.md#http3-strategy) as the default plan. The per-host
+1. **Use per-SNI on QUIC.** Drop the "single H3 certificate" fallback from [hot-path.md, HTTP/3 strategy](../design/hot-path.md#http3-strategy) as the default plan. The per-host
    "H3 eligible" logic reduces to: H3 is enabled globally (libmsquic present), and the host hasn't opted out.
    Keep the fallback only as a documented contingency.
 2. **Listener layout per HTTPS endpoint (e.g. :443): two `Listen` calls on the same address and port.** Use
@@ -357,7 +357,7 @@ network (loopback `::1` only).
    ```
    **Options cache key.** Prebuild `SslServerAuthenticationOptions` per **(resolved host TLS policy, transport)**,
    deduplicated on **(cert, TLS policy, transport)**, at snapshot compile time. Keying per (cert, transport) is not
-   enough. [hot-path.md, B. TLS handshake](design/hot-path.md#b-tls-handshake) allows per-host min TLS version and per-host ALPN, and several hosts can share one wildcard or the
+   enough. [hot-path.md, B. TLS handshake](../design/hot-path.md#b-tls-handshake) allows per-host min TLS version and per-host ALPN, and several hosts can share one wildcard or the
    default cert while having different policies. Each SNI table entry points at the deduplicated instance for its
    host:
    - **TCP:** `ServerCertificateContext`, `EnabledSslProtocols` = the host's minimum and up, and an **explicit**
@@ -376,8 +376,8 @@ network (loopback `::1` only).
    `ServerName` means no SNI. Emit our own counters, because QUIC rejections are invisible in Kestrel logs.
 5. **Alt-Svc:** emitted by the gate from the precomputed per-host bytes, using the configured **public** port and
    `ma=86400`, only on non-H3 responses of H3-enabled hosts. Kestrel's header never appears with this layout (the
-   TCP listener has no H3, and `DisableAltSvcHeader` is set). That's as planned in [hot-path.md, HTTP/3 strategy](design/hot-path.md#http3-strategy).
-6. **Docker image ([deployment.md, Overview](design/deployment.md#overview)):** the stock `mcr.microsoft.com/dotnet/aspnet:10.0` (Ubuntu 24.04 noble) **does not include
+   TCP listener has no H3, and `DisableAltSvcHeader` is set). That's as planned in [hot-path.md, HTTP/3 strategy](../design/hot-path.md#http3-strategy).
+6. **Docker image ([deployment.md, Overview](../design/deployment.md#overview)):** the stock `mcr.microsoft.com/dotnet/aspnet:10.0` (Ubuntu 24.04 noble) **does not include
    libmsquic**.
    - Add the `packages.microsoft.com` repo (`/config/ubuntu/24.04/packages-microsoft-prod.deb`) and install a
      pinned `libmsquic=<ver>` (2.6.3 tested). It depends on `libnuma1` and the system `libcrypto.so.3`, and added

@@ -105,7 +105,7 @@ All three are allocation-free. **Use the custom connection feature.** It is type
 - It agreed with `IPAddress.TryParse` on 400,000 random v4/v6/compressed/mapped round-trips, and rejected 20 malformed forms (`selftest`).
 - **Coverage gap:** the round-trips only cover canonical forms. The deprecated IPv4-compatible form `::a.b.c.d` parses to `::a.b.c.d` and does **not** collapse to the IPv4 key. Only `::ffff:a.b.c.d` does, which matches the BCL. M1 should keep the edge-case list and add a differential fuzz against `IPAddress.TryParse` over non-canonical inputs: mixed case, uncompressed zero runs, `::` at every position, and IPv4 tails in non-final positions.
 
-**Kestrel's own cost for the header is not zero.** An unknown request header makes Kestrel allocate its name and value strings on every request, and YARP then copies it to the upstream request. With `CF-Connecting-IP` present, the proxied request cost **+104 B (H1) / +256 B (H2)**. The gate's part stayed at 0 B (`cf` rows; 593k/593k and 1.0M/1.0M requests parsed). With browser-like traffic the delta was larger: +639 B (H1) and +641 B (H2), which includes run-to-run noise. This is accepted, because it's the price of being behind Cloudflare. Per [cloudflare.md](design/cloudflare.md), M1 must also *remove* the header before forwarding, which is a YARP transform.
+**Kestrel's own cost for the header is not zero.** An unknown request header makes Kestrel allocate its name and value strings on every request, and YARP then copies it to the upstream request. With `CF-Connecting-IP` present, the proxied request cost **+104 B (H1) / +256 B (H2)**. The gate's part stayed at 0 B (`cf` rows; 593k/593k and 1.0M/1.0M requests parsed). With browser-like traffic the delta was larger: +639 B (H1) and +641 B (H2), which includes run-to-run noise. This is accepted, because it's the price of being behind Cloudflare. Per [cloudflare.md](../design/cloudflare.md), M1 must also *remove* the header before forwarding, which is a YARP transform.
 
 ## 3. Per-request state hand-off between gate stages
 
@@ -232,8 +232,8 @@ The Answer table and this list use the same attribution: everything outside the 
   - `HttpRequestMessage`/`HttpResponseMessage` and their header collections (`HeaderEntry[]`, `HttpResponseHeaders`, `HttpContentHeaders`), plus `Uri`/`UriInfo`.
   - Async state-machine boxes: `HttpForwarder.SendAsync`, `HttpConnectionPool.SendWithVersionDetectionAndRetryAsync`, `HttpConnection.SendAsync`, `ForwarderMiddleware`, `PassiveHealthCheckMiddleware`.
   - `ReverseProxyFeature`, `RequestTransformContext`, and header-value strings.
-  - Default `X-Forwarded-*` transforms cost ~150 B. Paduraksa replaces them with its own ([cloudflare.md](design/cloudflare.md)), so that's roughly the budget for our transforms.
-  - **Accepted, and out of scope per [hot-path.md, Budget and rules](design/hot-path.md#budget-and-rules).** Reducing it would mean replacing `HttpClient` underneath YARP.
+  - Default `X-Forwarded-*` transforms cost ~150 B. Paduraksa replaces them with its own ([cloudflare.md](../design/cloudflare.md)), so that's roughly the budget for our transforms.
+  - **Accepted, and out of scope per [hot-path.md, Budget and rules](../design/hot-path.md#budget-and-rules).** Reducing it would mean replacing `HttpClient` underneath YARP.
 
 ## 8. Zero-alloc test helper for M1
 
@@ -342,14 +342,14 @@ public readonly struct PolicyDecision { PolicyAction Action; PrecomputedResponse
 public readonly ref struct RequestView { HttpContext Http; GateRequestState State; }
 ```
 Sealed classes with all data compiled into the policy instance:
-- sorted `UInt128` ranges (or the trie from [waf.md, The blocks at a glance](design/waf.md#the-blocks-at-a-glance)) for IP rules;
+- sorted `UInt128` ranges (or the trie from [waf.md, The blocks at a glance](../design/waf.md#the-blocks-at-a-glance)) for IP rules;
 - `SearchValues<string>` (`OrdinalIgnoreCase`) for user-agent rules;
 - segment-aware prefix lists for path rules.
 
 Interface dispatch costs ≤ 1 ns per policy compared with an enum switch, which isn't worth giving up the open design.
 
 ### Response-writing helpers
-`PrecomputedResponse` is built at snapshot compile time. It holds the status, the body `byte[]`, and `StringValues` for `Content-Type`, `Location` and `Cache-Control` (plus any others). `ResponseWriter.WriteAsync` sets the headers through the **typed properties** (`Headers.Location`, `Headers.ContentType`, ...), sets `ContentLength`, writes with `BodyWriter.WriteAsync(byte[])`, and returns `Task.CompletedTask` on synchronous completion. It costs 0 B on H1 and H2, including redirects. Templated error pages ([waf.md, The blocks at a glance](design/waf.md#the-blocks-at-a-glance)) write their segments with `BodyWriter.Write(span)` and format variables straight into `GetSpan()`. For example, a request ID uses `Utf8Formatter`/`IUtf8SpanFormattable`. Never build a string.
+`PrecomputedResponse` is built at snapshot compile time. It holds the status, the body `byte[]`, and `StringValues` for `Content-Type`, `Location` and `Cache-Control` (plus any others). `ResponseWriter.WriteAsync` sets the headers through the **typed properties** (`Headers.Location`, `Headers.ContentType`, ...), sets `ContentLength`, writes with `BodyWriter.WriteAsync(byte[])`, and returns `Task.CompletedTask` on synchronous completion. It costs 0 B on H1 and H2, including redirects. Templated error pages ([waf.md, The blocks at a glance](../design/waf.md#the-blocks-at-a-glance)) write their segments with `BodyWriter.Write(span)` and format variables straight into `GetSpan()`. For example, a request ID uses `Utf8Formatter`/`IUtf8SpanFormattable`. Never build a string.
 
 ### Accepted Kestrel / YARP allocations
 - **Kestrel: ~1.0-1.1 KB/req with real browser traffic.** That covers header values and paths that differ from the previous request on the connection, unknown headers (name and value), query strings, and the H2 request-loop box when the app goes async. It is 0 B only for repetitive synthetic traffic.

@@ -434,7 +434,7 @@ The existing mechanism was the internal listener's socket probe, which cannot se
 
 - `docker exec paduraksa paduraksa backup --out /data/backups/x.pdkbak`. Add `-it` for the prompt, or give the passphrase as `PADURAKSA_BACKUP_PASSPHRASE` or a mounted file.
 - With the service stopped: `docker compose run --rm paduraksa restore /data/backups/x.pdkbak`.
-- `docs/install.md` ("Backups") has both and the homelab routine.
+- [Backups and restore](../operating/backups.md) has both and the homelab routine.
 
 ### Dashboard
 

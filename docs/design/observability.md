@@ -473,7 +473,7 @@ Built in `m9-live-tail`. The ring keeps its one reader. The request path is unto
 
 ### The hub
 
-`AccessLogTail` (`Paduraksa.Proxy.Logging`) holds the newest `Paduraksa:AccessLog:TailSize` entries (default 4 096, range 64 to 65 536, validated and documented in install.md) and a bounded channel per subscriber.
+`AccessLogTail` (`Paduraksa.Proxy.Logging`) holds the newest `Paduraksa:AccessLog:TailSize` entries (default 4 096, range 64 to 65 536, validated and documented in [the user guide](../guide/observability.md)) and a bounded channel per subscriber.
 - `AccessLogDrainService` calls `Offer` after `sink.WriteLine`, in its own `try`. A failure in the tail is reported like a failing sink and never costs the file a line.
 - **Per-host on or off needs no code of its own.** A host with its access log off never reaches the ring (`AccessLogMiddleware.Record` returns first), so it is in neither the file nor the tail.
 - **Decision, recorded because privacy depends on it:** "off" means not recorded anywhere. A test proves it through a real listener.
@@ -673,7 +673,7 @@ There is a unique index on (tier, subject, host, start) and one on (tier, start)
 - It then rolls **a day up once all its hours are rolled** (four times the size).
 - It prunes hourly.
 
-**Retention** is `Paduraksa:Analytics:Retention` (default 30 days, range 1 hour to 5 years, validated, in install.md). Five-minute rows are kept two days once their hour is rolled up. Hourly and daily rows are kept for the whole retention.
+**Retention** is `Paduraksa:Analytics:Retention` (default 30 days, range 1 hour to 5 years, validated, in [the user guide](../guide/observability.md#analytics)). Five-minute rows are kept two days once their hour is rolled up. Hourly and daily rows are kept for the whole retention.
 
 **Decision: reads take the stored rows and the backlog's unconfirmed buckets under one gate with the writer.** A bucket is therefore in exactly one of the two: never missing, never doubled.
 
@@ -920,7 +920,7 @@ It then **claims the due `pending` rows**: `next attempt <= now`, in due order, 
 - Writing a delivered message down is outside the send's error handling. The rows are updated first, then the channel's last-sent state. A failure of either is logged and is never counted as a send failure (a test makes the channel-state write throw a non-database exception).
 - A **webhook** body carries `eventId`, and the request carries `X-Paduraksa-Event-Id` (both signed with the rest when the channel has a key). It is the event's ID, or the digest's when several events went out as one message, **the same on every resend**, so a receiver drops the repeat. Other kinds have no such key.
 - The "send test" button does not go through the outbox and carries no event ID.
-- Documented in install.md.
+- Documented in [the user guide](../guide/observability.md#notifications).
 
 ### Retention
 

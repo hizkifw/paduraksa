@@ -29,7 +29,7 @@ services:
       # The admin (sign-in, API, dashboard) is published on loopback only: Docker puts published ports ahead of the
       # host's firewall rules, so a bare "9443:9443" would offer the sign-in page to every network the host is on. Open it
       # from this machine, or through an SSH tunnel (ssh -L 9443:127.0.0.1:9443 you@server). To reach it from your LAN,
-      # replace the line with the host's LAN address (never a public one), and see "Exposing the admin" in docs/install.md:
+      # replace the line with the host's LAN address (never a public one), and see "Exposing the admin port" in docs/operating/admin-access.md:
       - "127.0.0.1:9443:9443"
       # - "192.168.1.10:9443:9443"
     volumes:
