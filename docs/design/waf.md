@@ -30,7 +30,7 @@ Everything here is compiled per snapshot, so the gate does only lookups and arit
 | Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page, solved by pure-JS SHA-256 workers. The verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. See [Proof of work](#proof-of-work). |
 | Robots.txt | Per host: passthrough or managed (preset: disallow all, block AI crawlers, or custom text). Served from pre-encoded bytes. |
 | Error pages | Per status (and "upstream down", "blocked", "rate limited", "maintenance"). Templates are pre-split into byte segments at compile time. See [Error pages](#error-pages). |
-| Maintenance mode | Per host (layered like the rest): a toggle with a status, a page and a bypass named by an access list. See [Maintenance mode](#maintenance-mode). |
+| Maintenance mode | Per host (layered like the rest): a toggle with a status, a page and a bypass named by an access list. See [Maintenance mode](#maintenance-mode-m8). |
 
 ## Rate limiting
 

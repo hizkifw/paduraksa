@@ -115,7 +115,7 @@ interface IPasswordVerifier          // the gate's check: a hit or miss without 
 
 The subject has a CN only for a DNS name of at most 64 characters, otherwise it is empty.
 
-**JWS.** Acme writes the protected header and payload. The vault base64url-encodes, signs (ES256 and ES384 as fixed-width `R||S`, RS256 as PKCS#1 v1.5) and returns the flattened-JWS pieces. It refuses a header whose `alg` is not the key's. EAB's inner JWS is built by Acme and signed with an `IMacKey` (HS256). Account key rollover is deferred (see [ACME](#acme)).
+**JWS.** Acme writes the protected header and payload. The vault base64url-encodes, signs (ES256 and ES384 as fixed-width `R||S`, RS256 as PKCS#1 v1.5) and returns the flattened-JWS pieces. It refuses a header whose `alg` is not the key's. EAB's inner JWS is built by Acme and signed with an `IMacKey` (HS256). Account key rollover is deferred (see [ACME](#certificates-and-acme)).
 
 **MAC keys.**
 - The algorithm is fixed in the secret's metadata when it is stored, and `OpenAsync` checks the expected kind.
