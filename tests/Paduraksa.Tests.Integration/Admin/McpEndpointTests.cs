@@ -46,6 +46,23 @@ public sealed class McpEndpointTests(SharedAdminApi shared) : IClassFixture<Shar
     }
 
     [Fact]
+    public async Task TheInstructionsSayWhatPaduraksaIsAndToDraftChanges_AndEveryPathTheyNameExists()
+    {
+        await using var client = await McpTestClient.ConnectAsync(shared.Api, cancellationToken: Ct);
+        var instructions = client.ServerInstructions!;
+        Assert.Contains("reverse proxy", instructions, StringComparison.Ordinal);
+        Assert.Contains("the user's draft", instructions, StringComparison.Ordinal);
+        Assert.Contains("Not reachable from here", instructions, StringComparison.Ordinal);
+
+        // The instructions name endpoints by path; one that the API no longer has would send a model looking for nothing.
+        var described = await client.CallAsync("search", "async () => Object.keys(spec.paths)", Ct);
+        var paths = described.Json.EnumerateArray().Select(e => e.GetString()).ToHashSet(StringComparer.Ordinal);
+        var named = System.Text.RegularExpressions.Regex.Matches(instructions, @"/api/v1/[A-Za-z0-9/{}_-]+").Select(m => m.Value.TrimEnd('/')).Distinct().ToList();
+        Assert.NotEmpty(named);
+        Assert.All(named, path => Assert.Contains(path, paths));
+    }
+
+    [Fact]
     public void TheDashboardShowsTheSamePathTheAdminAppServes() => Assert.Equal(Paduraksa.Admin.Mcp.McpExtensions.Path, Paduraksa.Dashboard.DashboardRoutes.Mcp);
 
     [Fact]

@@ -35,7 +35,7 @@ public static class McpExtensions
             .AddMcpServer(options =>
             {
                 options.ServerInfo = new Implementation { Name = "paduraksa", Version = "1" };
-                options.ServerInstructions = "Two tools: search finds endpoints in the API description, execute calls the API. Writes need confirm: true after a dry run.";
+                options.ServerInstructions = Paduraksa.Mcp.ToolDescriptions.ServerInstructions;
                 options.Handlers.ListToolsHandler = static (context, _) => ValueTask.FromResult(McpToolkit.List());
                 options.Handlers.CallToolHandler = static async (context, cancellationToken) =>
                     await context.Services!.GetRequiredService<McpToolkit>().CallAsync(context.Params!, cancellationToken).ConfigureAwait(false);

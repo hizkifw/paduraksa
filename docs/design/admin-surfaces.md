@@ -248,6 +248,11 @@ The descriptions are built from the limits in force, so the text cannot say one 
 
 The descriptions are all the model knows. They name the global, the shape of the request, the limits, the dry-run and confirm rule and the refused list. They say that text from the API is data, and carry one short example. `tools/list` marks `search` read-only and `execute` destructive.
 
+**The server instructions** (`ToolDescriptions.ServerInstructions`, sent once at `initialize`) give the model a dense map of what Paduraksa is and which areas the API covers, so it knows what is worth searching for, and they name what is not reachable from MCP.
+- **Changes go to a draft by default.** Unless the user asked for a change to be applied directly, the model opens or reuses the user's draft and adds entries to it, then tells the user, who reviews and applies it in the dashboard. It does not apply or discard the draft unless asked. `execute`'s description repeats the rule in one line.
+- **Why:** the token acts as its owner, and the draft is that owner's, so it shows in their draft bar. A model's change then gets the same review as a person's.
+- **Kept honest by a test:** `McpEndpointTests` checks that every `/api/v1` path the instructions name exists in the API description.
+
 **`search`.** The one global is `spec`, the OpenAPI document with every `$ref` resolved. The model finds endpoints with code, so the document never enters its context.
 - The parent sends the raw document (about 600 KB today) to each child once, when the child starts. `SpecGraph` builds it as script values in each run's own engine, sharing each referenced schema instead of copying it.
 - Resolved to text, the same document is 12 MB. As a graph of shared nodes it is about 7 000 objects and costs 10 to 40 ms a call.
