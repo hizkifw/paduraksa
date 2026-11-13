@@ -95,7 +95,7 @@ Paduraksa builds these request headers itself and never forwards what the client
 | `X-Forwarded-Proto` | The trusted request scheme, the one the HTTPS redirect uses |
 | `X-Forwarded-Host` | The `Host` or `:authority` as received, port included |
 | `Host` | As the upstream's Host header mode says |
-| `Forwarded`, `X-Forwarded-Prefix`, `X-Forwarded-Port` | Removed |
+| `Forwarded`, `X-Forwarded-Prefix`, `X-Forwarded-Port` | Removed. A route that strips its prefix sends its own `X-Forwarded-Prefix`: the path it took off ([Rewriting the path](hosts-and-routes.md#rewriting-the-path)) |
 | `cf-*` and `True-Client-IP` | Removed, unless the request came from a trusted Cloudflare peer |
 | `X-Request-Id` | Sent when the host's request ID setting says so |
 

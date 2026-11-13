@@ -45,10 +45,95 @@ A route has a **match**, a **path** and an **upstream**.
 
 A request that matches no route gets a `404`.
 
-Each route can carry a few overrides of its own: proof of work, rate limit, access list, rule set, sign-in provider and body size. See [Access control and WAF](security.md) and [Connections, limits and client addresses](connections-and-limits.md).
+Each route can carry a few overrides of its own: proof of work, rate limit, access list, rule set, sign-in provider, body size and custom headers. It can also rewrite the path it forwards (below). See [Access control and WAF](security.md) and [Connections, limits and client addresses](connections-and-limits.md).
 
-!!! note "Not in v0.1"
-    Custom request and response headers, path rewriting (stripping or adding a prefix) and response compression are not config options in v0.1. An upstream that needs a different path or compresses its own responses has to do that itself. What Paduraksa sets on the request it sends is listed under [What the upstream receives](upstreams.md#what-the-upstream-receives).
+### Rewriting the path
+
+A route can forward a different path from the one the client asked for. Use it to put an app that expects to live at `/` under a path of a shared host, or to reach an API's versioned path. In the dashboard: the route's menu, **Route settings**, **Path sent upstream** and **Prefix to add**.
+
+- **Strip the prefix:** the route's own path comes off. On `/grafana`, `/grafana/d/x` reaches Grafana as `/d/x`, and `/grafana` as `/`. Not on a route whose path is `/`.
+- **Add a prefix:** a fixed path goes in front. With both on `/api` and `/v2`, `/api/users` reaches the API as `/v2/users`. The prefix starts with `/` and has no trailing `/`.
+- The path is forwarded as the client sent it, without decoding or re-encoding (`%2F` stays `%2F`), and the query is untouched.
+- A stripping route tells the upstream what it took off in `X-Forwarded-Prefix` (`/grafana`), so an app that builds its own links can add it back.
+- **Redirects:** an upstream's `Location` under what the route sends gets the route's path back (`/login` reaches the client as `/grafana/login`). One that already starts with `/grafana`, from an app that reads `X-Forwarded-Prefix`, is left alone. An absolute `Location` on the name the upstream was sent gets the client's own scheme and host, so an internal address doesn't reach the browser.
+- **Turn the mapping off** (**Redirects from the upstream**: *As the upstream sends them*, `rewriteLocation: false`) when the upstream redirects to other routes of the same host, such as oauth2-proxy sending `/oauth2/sign_in`: mapped, that would become `/grafana/oauth2/sign_in` and 404.
+- **404 for a path that can't be rewritten without a guess:** a spelling of the prefix other than the route's own (`//grafana`, `/%67rafana`), and, on any rewritten route, a dot segment in any spelling (`..`, `%2e%2e`, `.%2E`, `..;`) or an escape a loose decoder could misread (`%25`, `%c0`, `%u`, control characters). Matching resolves dot segments first, but the path forwarded is the raw one, and the upstream would resolve it outside the prefix.
+
+```yaml
+upstreams:
+  - name: grafana
+    destinations:
+      - address: http://grafana:3000
+  - name: api
+    destinations:
+      - address: http://api:8080
+hosts:
+  - names: [home.example.com]
+    routes:
+      - path: /grafana
+        upstream: grafana
+        rewrite: {stripPrefix: true}
+      - path: /api
+        upstream: api
+        rewrite: {stripPrefix: true, addPrefix: /v2, rewriteLocation: false}
+```
+
+## Custom headers
+
+Rules set, add or remove a header on the request the upstream receives, or on the response the client receives. They are a host setting, so the global defaults, a profile, a host and a route can each carry some. In the dashboard: **Request headers** and **Response headers**, under *Headers and logging*.
+
+- **Set** replaces every value the header had, **add** appends a value, **remove** takes the header off, whoever set it.
+- **Layers merge by header name:** a rule for a name replaces the lower layer's rule for that name, and the other rules are kept. A route's rules go over its host's the same way. The form lists what a layer inherits and marks the rules it replaces.
+- At most 32 rules per direction, per layer and after the layers merge. A name is up to 64 characters; a value is up to 4096 visible ASCII characters, with no line breaks and no leading or trailing space. Values are sent as written: there are no placeholders.
+- **Response rules** go on the upstream's responses and on Paduraksa's own pages for the host (error pages, redirects, maintenance), after the built-in headers: a rule for `Server` wins over the **Server header** setting. A page's own `Content-Security-Policy` stays, whatever a rule says.
+- **Refused names**, because Paduraksa sets them itself or they frame the message: `Connection`, `Content-Encoding`, `Content-Length`, `Expect`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Proxy-Connection`, `TE`, `Trailer`, `Transfer-Encoding` and `Upgrade` in both directions; `Host`, every `X-Forwarded-*`, `Forwarded`, `X-Real-IP`, `X-Request-Id`, every `cf-*`, `True-Client-IP` and `X-Paduraksa-Internal` on the request; `Strict-Transport-Security`, `Alt-Svc`, `X-Request-Id` and `Location` on the response. A request rule can't set a header a sign-in provider of the host vouches for, and a response `Set-Cookie` rule can only add.
+- **Values are config, not secrets:** a static `Authorization` to an upstream is stored in the config and in its YAML export like any setting. The Simulator shows such values (`Authorization`, `Cookie`, names ending in `-Key`, `-Token` or `-Secret`) as redacted.
+
+```yaml
+profiles:
+  - name: public
+    settings:
+      headers:
+        response:
+          - {name: X-Frame-Options, operation: set, value: DENY}
+          - {name: X-Powered-By, operation: remove}
+hosts:
+  - names: [app.example.com]
+    profile: public
+    settings:
+      headers:
+        request:
+          - {name: X-Tenant, operation: set, value: homelab}
+    routes:
+      - upstream: app
+      - path: /embed
+        upstream: app
+        settings:
+          headers:
+            response:
+              - {name: X-Frame-Options, operation: remove}   # replaces the profile's DENY for this route
+```
+
+## Compression
+
+A host can compress the upstream's responses with Brotli or gzip, whichever the client's `Accept-Encoding` prefers. It is off until you turn it on, globally, per profile or per host (**Compress responses**, under *Compression*).
+
+- It compresses text (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly, fonts) whose declared size is at least **Smallest body** (1 KiB by default, 0 to 1 MiB). A body without a declared length is compressed.
+- It leaves alone a response the upstream already compressed, a range, an event stream, a `Cache-Control: no-transform`, a `HEAD`, a WebSocket, and Paduraksa's own pages.
+- A compressed response gets `Vary: Accept-Encoding`, a weak `ETag` (`W/"..."`, which still revalidates) and no `Content-Length` or `Accept-Ranges`.
+- The access log and the metrics count the compressed bytes.
+
+!!! warning "Compression and secrets (BREACH)"
+    A page that shows a secret (a CSRF token, a session-bound value) next to text the request put there (a search term echoed back) leaks the secret through its compressed size to an attacker who can make a victim's browser send many requests. Paduraksa can't tell which pages do that, so compression is off by default. Leave it off for such hosts, or let the app compress what it knows is safe: a response the upstream already compressed passes through untouched.
+
+```yaml
+hosts:
+  - names: [docs.example.com]
+    settings:
+      compression: {enabled: true, minimumSize: 512}
+    routes:
+      - upstream: docs
+```
 
 ## Settings layers
 
@@ -58,13 +143,13 @@ Every host setting can be set at four layers. A layer that does not set a value 
 2. **Global defaults** (Settings, *Global defaults*): what every host inherits.
 3. **Profile** (Traffic, *Profiles*): a named preset such as "LAN only" or "Media server". A host names at most one.
 4. **Host:** the host's own overrides.
-5. **Route:** only a few settings (the ones listed above), on top of the host's.
+5. **Route:** only a few settings (the ones listed above, and custom headers), on top of the host's.
 
 How layers combine:
 
 - Each setting is either set or inherited. Grouped settings, such as HSTS, merge field by field: a layer can change `max-age` and keep the `includeSubDomains` below it.
 - A rate limit, access list, rule set or sign-in provider that a lower layer applies can be lifted by turning it **off** at a higher layer. The choice of policy is kept while it is off.
-- Error pages merge entry by entry, and each entry is replaced whole.
+- Error pages merge entry by entry, and each entry is replaced whole. Custom headers merge by header name.
 - The dashboard shows where each value comes from ("inherited from Global", "from profile *LAN only*") and offers "override here" and "reset to inherited".
 
 The settings a host can carry:
@@ -84,6 +169,8 @@ The settings a host can carry:
 | Request limits | 100 MiB body, 100 header lines, 32 KiB of headers, 8 KiB request target |
 | Error pages | the built-in pages |
 | Maintenance mode | off |
+| Custom headers | none |
+| Compression | off. Once on: from 1 KiB |
 
 ### HTTPS and HSTS
 
