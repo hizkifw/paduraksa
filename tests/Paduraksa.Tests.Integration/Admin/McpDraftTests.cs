@@ -28,7 +28,7 @@ public sealed class McpDraftTests
 
         var read = await client.RequestAsync("{ method: 'GET', path: '/api/v1/drafts' }", Ct);
         Assert.Equal(200, read.GetProperty("status").GetInt32());
-        Assert.Equal(0, read.GetProperty("body").GetArrayLength());
+        Assert.Equal(0, read.GetProperty("body").GetProperty("items").GetArrayLength());
 
         var withoutConfirm = await client.RequestAsync("{ method: 'POST', path: '/api/v1/drafts' }", Ct);
         Assert.Equal(428, withoutConfirm.GetProperty("status").GetInt32());
@@ -66,7 +66,7 @@ public sealed class McpDraftTests
         Assert.Equal("draft.changedSinceReview", invented.GetProperty("body").GetProperty("code").GetString());
         using (var before = await api.GetAsync("/api/v1/hosts"))
         {
-            Assert.Equal("[]", (await before.Content.ReadAsStringAsync(Ct)).Trim());
+            Assert.Equal("""{"items":[],"nextCursor":null}""", (await before.Content.ReadAsStringAsync(Ct)).Trim());
         }
 
         // The person who owns the token applies what the agent proposed.
@@ -95,5 +95,5 @@ public sealed class McpDraftTests
     }
 
     private static async Task<JsonElement> DraftsAsync(McpClient client) =>
-        (await client.RequestAsync("{ method: 'GET', path: '/api/v1/drafts' }", Ct)).GetProperty("body").Clone();
+        (await client.RequestAsync("{ method: 'GET', path: '/api/v1/drafts' }", Ct)).GetProperty("body").GetProperty("items").Clone();
 }

@@ -11,12 +11,19 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Get setup status",
+        "summary": "Whether first-run setup is done",
         "description": "Anonymous: it needs no credentials.",
         "operationId": "GetSetupStatus",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatus"
+                }
+              }
+            }
           }
         },
         "security": [ ]
@@ -25,8 +32,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Complete setup",
-        "description": "Anonymous: it needs no credentials.",
+        "summary": "Complete first-run setup",
+        "description": "Creates the Owner with the setup token the server prints and signs them in (the answer's session). Works once: 409 setup.complete after that.\n\nAnonymous: it needs no credentials.",
         "operationId": "CompleteSetup",
         "requestBody": {
           "content": {
@@ -39,8 +46,85 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupCompleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           }
         },
         "security": [ ]
@@ -51,8 +135,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Login",
-        "description": "Anonymous: it needs no credentials.",
+        "summary": "Sign in with a username and password",
+        "description": "Sets the session cookie. A user with a second factor gets a session that is not yet complete (secondFactorRequired): finish it with auth/second-factor. A refusal is always the same generic 401.\n\nAnonymous: it needs no credentials.",
         "operationId": "Login",
         "requestBody": {
           "content": {
@@ -66,7 +150,64 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           }
         },
         "security": [ ]
@@ -77,8 +218,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Complete second factor",
-        "description": "Anonymous: it needs no credentials.",
+        "summary": "Finish signing in with a code",
+        "description": "Send either the authenticator's code or one recovery code.\n\nAnonymous: it needs no credentials.",
         "operationId": "CompleteSecondFactor",
         "requestBody": {
           "content": {
@@ -92,7 +233,64 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           }
         },
         "security": [ ]
@@ -103,12 +301,12 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Logout",
-        "description": "Anonymous: it needs no credentials.",
+        "summary": "Sign out",
+        "description": "Ends the session of the cookie and clears it; 204 whether or not there was one.\n\nAnonymous: it needs no credentials.",
         "operationId": "Logout",
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
           }
         },
         "security": [ ]
@@ -119,12 +317,19 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Get me",
+        "summary": "Who the caller is and what they may do",
         "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "GetMe",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentCaller"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -159,8 +364,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Change password",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "Change your password",
+        "description": "Needs the current password (a wrong one is 422 and counts toward the lockout) and ends every other session of the caller.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "ChangePassword",
         "requestBody": {
           "content": {
@@ -173,8 +378,68 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -209,8 +474,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Begin totp enrollment",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "Start enrolling an authenticator",
+        "description": "Needs the password. The provisioning URI carries the secret and is shown once; the enrolment is not active until it is confirmed.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "BeginTotpEnrollment",
         "requestBody": {
           "content": {
@@ -224,7 +489,84 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnrollmentStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -259,8 +601,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Confirm totp enrollment",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "Confirm the authenticator with a code",
+        "description": "Activates the second factor and returns the recovery codes, shown once.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "ConfirmTotpEnrollment",
         "requestBody": {
           "content": {
@@ -274,7 +616,74 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -304,13 +713,13 @@
         ]
       }
     },
-    "/api/v1/me/totp": {
-      "delete": {
+    "/api/v1/me/totp/disable": {
+      "post": {
         "tags": [
           "Identity"
         ],
-        "summary": "Disable totp",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "Turn the second factor off",
+        "description": "Needs the password, so it is a POST with a body (a DELETE has no body to rely on).\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "DisableTotp",
         "requestBody": {
           "content": {
@@ -323,8 +732,78 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -359,8 +838,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Regenerate recovery codes",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "Make new recovery codes",
+        "description": "Needs the password. The old codes stop working; the new ones are shown once.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "RegenerateRecoveryCodes",
         "requestBody": {
           "content": {
@@ -374,7 +853,84 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -410,7 +966,7 @@
           "Identity"
         ],
         "summary": "List sessions",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "The caller's own sessions, or another user's with ?userId= (the service checks the caller may). A signed-in session is required: a token caller gets 403 session.required.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "ListSessions",
         "parameters": [
           {
@@ -423,7 +979,44 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageOfSessionSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -458,12 +1051,32 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Revoke other sessions",
+        "summary": "End every other session of the caller",
         "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "RevokeOtherSessions",
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -498,7 +1111,7 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Revoke session",
+        "summary": "End a session",
         "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "RevokeSession",
         "parameters": [
@@ -517,8 +1130,28 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -553,8 +1186,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "List tokens",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "List API tokens",
+        "description": "The caller's own tokens, or another user's with ?userId= (the service checks the caller may). A signed-in session is required: a token caller gets 403 session.required.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "ListTokens",
         "parameters": [
           {
@@ -567,7 +1200,44 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageOfApiTokenSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -600,8 +1270,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Issue token",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "Issue an API token",
+        "description": "The token's secret is in the answer and nowhere else, ever again.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "IssueToken",
         "requestBody": {
           "content": {
@@ -614,8 +1284,65 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedApiToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -650,7 +1377,7 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Revoke token",
+        "summary": "Revoke an API token",
         "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "RevokeToken",
         "parameters": [
@@ -669,8 +1396,28 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -710,10 +1457,17 @@
         "operationId": "ListUsers",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageOfUserSummary"
+                }
+              }
+            }
           },
-          "401": {
-            "description": "Authentication is required.",
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -723,7 +1477,17 @@
             }
           },
           "403": {
-            "description": "The caller lacks the `users:read` permission.",
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -754,7 +1518,7 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Create user",
+        "summary": "Create a user",
         "description": "Requires the `users:write` permission.",
         "operationId": "CreateUser",
         "requestBody": {
@@ -768,11 +1532,18 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSummary"
+                }
+              }
+            }
           },
-          "401": {
-            "description": "Authentication is required.",
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -782,7 +1553,47 @@
             }
           },
           "403": {
-            "description": "The caller lacks the `users:write` permission.",
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -815,8 +1626,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Get user",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "summary": "Get a user",
+        "description": "A user may read themselves; reading another needs users:read.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "GetUser",
         "parameters": [
           {
@@ -835,7 +1646,34 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSummary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication is required.",
@@ -868,8 +1706,8 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Update user",
-        "description": "Requires the `users:write` permission.",
+        "summary": "Change a user",
+        "description": "A partial update: the display name, roles and disabled flag that are given. Users carry no version, so there is no If-Match: the last write wins.\n\nRequires the `users:write` permission.",
         "operationId": "UpdateUser",
         "parameters": [
           {
@@ -898,10 +1736,17 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSummary"
+                }
+              }
+            }
           },
-          "401": {
-            "description": "Authentication is required.",
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -911,7 +1756,57 @@
             }
           },
           "403": {
-            "description": "The caller lacks the `users:write` permission.",
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -942,7 +1837,7 @@
         "tags": [
           "Identity"
         ],
-        "summary": "Delete user",
+        "summary": "Delete a user",
         "description": "Requires the `users:write` permission.",
         "operationId": "DeleteUser",
         "parameters": [
@@ -961,11 +1856,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
           },
-          "401": {
-            "description": "Authentication is required.",
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -974,8 +1869,28 @@
               }
             }
           },
-          "403": {
-            "description": "The caller lacks the `users:write` permission.",
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1001,6 +1916,53 @@
           }
         ],
         "x-required-permission": "users:write"
+      }
+    },
+    "/api/v1/version": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "The version and build commit",
+        "description": "The product version and the commit it was built from. The API is versioned by its path (v1); a change that breaks it would be a v2.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "operationId": "GetVersion",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/config": {
@@ -1495,10 +2457,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AcmeOrderSummary"
-                  }
+                  "$ref": "#/components/schemas/PageOfAcmeOrderSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -1883,10 +2852,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/HostConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfHostConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -2419,10 +3395,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RouteConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfRouteConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -2627,6 +3610,16 @@
         "responses": {
           "200": {
             "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigCommandResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
             "content": {
               "application/json": {
                 "schema": {
@@ -2873,10 +3866,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UpstreamConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfUpstreamConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -3404,10 +4404,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RateLimitPolicyConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfRateLimitPolicyConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -3935,10 +4942,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AccessListConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfAccessListConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -4466,10 +5480,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RuleSetConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfRuleSetConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -4643,10 +5664,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RuleSetConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfRuleSetConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -5058,10 +6086,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AuthProviderConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfAuthProviderConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -5589,10 +6624,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProfileConfig"
-                  }
+                  "$ref": "#/components/schemas/PageOfProfileConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -6120,10 +7162,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ConfigDraft"
-                  }
+                  "$ref": "#/components/schemas/PageOfConfigDraft"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -6632,7 +7681,7 @@
           "Drafts"
         ],
         "summary": "Remove an entry",
-        "description": "Takes one entry out of the draft, whatever its state: this is also how an entry that is changed elsewhere is reloaded (read the object again and add it afresh).\n\nRequires the `config:write` permission.",
+        "description": "Takes one entry out of the draft, whatever its state: this is also how an entry that is changed elsewhere is reloaded (read the object again and add it afresh). The ETag of the answer is the draft's new version.\n\nRequires the `config:write` permission.",
         "operationId": "RemoveDraftEntry",
         "parameters": [
           {
@@ -6660,15 +7709,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigDraft"
-                }
-              }
-            }
+          "204": {
+            "description": "No Content"
           },
           "404": {
             "description": "Not Found",
@@ -7347,10 +8389,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CertificateSummary"
-                  }
+                  "$ref": "#/components/schemas/PageOfCertificateSummary"
                 }
               }
             }
@@ -8775,10 +9814,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AcmeAccountSummary"
-                  }
+                  "$ref": "#/components/schemas/PageOfAcmeAccountSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -9033,15 +10079,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AcmeAccountSummary"
-                }
-              }
-            }
+          "204": {
+            "description": "No Content"
           },
           "404": {
             "description": "Not Found",
@@ -9126,10 +10165,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DnsProviderSummary"
-                  }
+                  "$ref": "#/components/schemas/PageOfDnsProviderSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -9351,7 +10397,93 @@
         ],
         "x-required-permission": "providers:read"
       },
-      "put": {
+      "delete": {
+        "tags": [
+          "DNS providers"
+        ],
+        "summary": "Delete a DNS provider and its credential",
+        "description": "Refused (422) while certificates are ordered through it.\n\nRequires the `providers:write` permission.",
+        "operationId": "DeleteDnsProvider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "examples": [
+                "dnsp_0A1b2C3d4E5f6G7h8I9j0K"
+              ],
+              "pattern": "^dnsp_[0-9A-Za-z]{22}$",
+              "type": "string",
+              "description": "A configured DNS provider for DNS-01 challenges. Its credentials are a SecretId."
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `providers:write` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "providers:write"
+      }
+    },
+    "/api/v1/dns-providers/{id}/credential": {
+      "post": {
         "tags": [
           "DNS providers"
         ],
@@ -9416,90 +10548,6 @@
           },
           "415": {
             "description": "Unsupported Media Type",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblem"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller lacks the `providers:write` permission.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblem"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiProblem"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": [ ]
-          }
-        ],
-        "x-required-permission": "providers:write"
-      },
-      "delete": {
-        "tags": [
-          "DNS providers"
-        ],
-        "summary": "Delete a DNS provider and its credential",
-        "description": "Refused (422) while certificates are ordered through it.\n\nRequires the `providers:write` permission.",
-        "operationId": "DeleteDnsProvider",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "examples": [
-                "dnsp_0A1b2C3d4E5f6G7h8I9j0K"
-              ],
-              "pattern": "^dnsp_[0-9A-Za-z]{22}$",
-              "type": "string",
-              "description": "A configured DNS provider for DNS-01 challenges. Its credentials are a SecretId."
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9654,10 +10702,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NotificationChannelSummary"
-                  }
+                  "$ref": "#/components/schemas/PageOfNotificationChannelSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -11660,11 +12715,8 @@
           "acl_0A1b2C3d4E5f6G7h8I9j0K"
         ],
         "pattern": "^acl_[0-9A-Za-z]{22}$",
-        "type": [
-          "null",
-          "string"
-        ],
-        "description": "A AccessListId: 'acl_' and 22 base62 characters."
+        "type": "string",
+        "description": "An access list: IP allow and deny entries and basic-auth users, which hosts and routes name."
       },
       "AccessListIp": {
         "type": "object",
@@ -12821,6 +13873,72 @@
         "additionalProperties": false,
         "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error\nthe admin app answers under `/api` has this shape, whoever produced it: `type`, `title`, `status`,\n`detail` and `traceId` are the standard members, the rest are extension members that appear when they apply."
       },
+      "ApiTokenId": {
+        "examples": [
+          "tok_0A1b2C3d4E5f6G7h8I9j0K"
+        ],
+        "pattern": "^tok_[0-9A-Za-z]{22}$",
+        "type": "string",
+        "description": "An API token."
+      },
+      "ApiTokenSummary": {
+        "required": [
+          "id",
+          "userId",
+          "name",
+          "scopes",
+          "expiresAt",
+          "createdAt",
+          "lastUsedAt",
+          "revoked"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The token.",
+            "$ref": "#/components/schemas/ApiTokenId"
+          },
+          "userId": {
+            "description": "The user it acts as; it can never do more than they can.",
+            "$ref": "#/components/schemas/UserId"
+          },
+          "name": {
+            "type": "string",
+            "description": "What the owner called it."
+          },
+          "scopes": {
+            "type": "array",
+            "description": "What it may do: a subset of what its owner may do."
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When it stops working, or null for never.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When it was issued.",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When it was last used (to within the touch interval), or null.",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean",
+            "description": "It was revoked."
+          }
+        },
+        "additionalProperties": false,
+        "description": "An API token's public facts. The secret is shown once, when it is issued, and never again."
+      },
       "AuditBreak": {
         "required": [
           "eventId",
@@ -12985,6 +14103,15 @@
         "additionalProperties": false,
         "description": "The result of walking the audit hash chain."
       },
+      "AuthKind": {
+        "enum": [
+          "unspecified",
+          "session",
+          "token"
+        ],
+        "type": "string",
+        "description": "How the caller of an admin request authenticated, as the wire says it: `session`, `token` or `unspecified`."
+      },
       "AuthProviderConfig": {
         "required": [
           "id",
@@ -13037,11 +14164,8 @@
           "authp_0A1b2C3d4E5f6G7h8I9j0K"
         ],
         "pattern": "^authp_[0-9A-Za-z]{22}$",
-        "type": [
-          "null",
-          "string"
-        ],
-        "description": "A AuthProviderId: 'authp_' and 22 base62 characters."
+        "type": "string",
+        "description": "An authentication provider: a forward-auth endpoint (authentik, Authelia, oauth2-proxy or any other) that hosts and routes\n            name to ask who a request is before it is forwarded."
       },
       "AuthProviderOverride": {
         "required": [
@@ -15433,6 +16557,52 @@
         "additionalProperties": false,
         "description": "Creates a user."
       },
+      "CurrentCaller": {
+        "required": [
+          "user",
+          "permissions",
+          "authKind"
+        ],
+        "type": "object",
+        "properties": {
+          "user": {
+            "description": "The user (for a token, the one it acts as).",
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "permissions": {
+            "type": "array",
+            "description": "What the caller may do right now, in a fixed order: for a token, its scopes narrowed to what its user holds."
+          },
+          "authKind": {
+            "description": "How the caller authenticated: AuthKind.Session or AuthKind.Token.",
+            "$ref": "#/components/schemas/AuthKind"
+          },
+          "sessionId": {
+            "examples": [
+              "ses_0A1b2C3d4E5f6G7h8I9j0K"
+            ],
+            "pattern": "^ses_[0-9A-Za-z]{22}$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The session, for AuthKind.Session."
+          },
+          "tokenId": {
+            "examples": [
+              "tok_0A1b2C3d4E5f6G7h8I9j0K"
+            ],
+            "pattern": "^tok_[0-9A-Za-z]{22}$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The token, for AuthKind.Token."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Who the admin API thinks the caller is."
+      },
       "CurrentConfig": {
         "required": [
           "document"
@@ -16749,6 +17919,25 @@
         },
         "additionalProperties": false,
         "description": "Issues an API token for the signed-in user."
+      },
+      "IssuedApiToken": {
+        "required": [
+          "summary",
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "summary": {
+            "description": "The token's public facts.",
+            "$ref": "#/components/schemas/ApiTokenSummary"
+          },
+          "token": {
+            "type": "string",
+            "description": "The full `pdk_...` string to present as a Bearer token. Not recoverable later."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A newly issued token: the only time its secret is shown."
       },
       "JwsAlgorithm": {
         "enum": [
@@ -18112,6 +19301,102 @@
           "string"
         ]
       },
+      "PageOfAccessListConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessListConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfAcmeAccountSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcmeAccountSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfAcmeOrderSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcmeOrderSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfApiTokenSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiTokenSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
       "PageOfAuditEventSummary": {
         "required": [
           "items"
@@ -18123,14 +19408,158 @@
             "items": {
               "$ref": "#/components/schemas/AuditEventSummary"
             },
-            "description": "The items, newest first."
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
           },
           "nextCursor": {
             "type": [
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfAuthProviderConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthProviderConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfCertificateSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CertificateSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfConfigDraft": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigDraft"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfDnsProviderSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DnsProviderSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfHostConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfNotificationChannelSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationChannelSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
           }
         },
         "additionalProperties": false,
@@ -18147,14 +19576,62 @@
             "items": {
               "$ref": "#/components/schemas/NotificationHistoryEvent"
             },
-            "description": "The items, newest first."
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
           },
           "nextCursor": {
             "type": [
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfProfileConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfRateLimitPolicyConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RateLimitPolicyConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
           }
         },
         "additionalProperties": false,
@@ -18171,14 +19648,134 @@
             "items": {
               "$ref": "#/components/schemas/RevisionSummary"
             },
-            "description": "The items, newest first."
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
           },
           "nextCursor": {
             "type": [
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfRouteConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfRuleSetConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleSetConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfSessionSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfUpstreamConfig": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpstreamConfig"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfUserSummary": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
           }
         },
         "additionalProperties": false,
@@ -18581,11 +20178,8 @@
           "rlp_0A1b2C3d4E5f6G7h8I9j0K"
         ],
         "pattern": "^rlp_[0-9A-Za-z]{22}$",
-        "type": [
-          "null",
-          "string"
-        ],
-        "description": "A RateLimitPolicyId: 'rlp_' and 22 base62 characters."
+        "type": "string",
+        "description": "A rate-limit policy: one token bucket's rate, burst and partition key, which hosts and routes name."
       },
       "RateLimitPolicyRef": {
         "required": [
@@ -18658,6 +20252,23 @@
         },
         "additionalProperties": false,
         "description": "Which rate-limit policy a layer applies. RateLimitPolicyId? RateLimitSettings.PolicyId names a policy the document declares; it inherits\nfield by field, so a host can turn an inherited policy off without forgetting which one it was, and a route can\ninherit its host's, name another, or turn it off. A layer that names a policy without stating\nbool? RateLimitSettings.Enabled leaves the switch to the built-in default, which is on: naming a policy is the whole job."
+      },
+      "RecoveryCodes": {
+        "required": [
+          "codes"
+        ],
+        "type": "object",
+        "properties": {
+          "codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Single-use codes, e.g. `abcd-efgh-jkmn-pqrs`."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Recovery codes, shown once: only their hashes are kept."
       },
       "RedirectConfig": {
         "required": [
@@ -19292,11 +20903,8 @@
           "rs_0A1b2C3d4E5f6G7h8I9j0K"
         ],
         "pattern": "^rs_[0-9A-Za-z]{22}$",
-        "type": [
-          "null",
-          "string"
-        ],
-        "description": "A RuleSetId: 'rs_' and 22 base62 characters."
+        "type": "string",
+        "description": "A rule set: an ordered list of path, method and user-agent rules, which hosts and routes name. The built-in presets\n            have reserved IDs."
       },
       "RuleSetOverride": {
         "required": [
@@ -19644,6 +21252,123 @@
         "additionalProperties": false,
         "description": "What the host's responses say in `Server`. ServerHeaderMode? ServerHeaderSettings.Mode and string? ServerHeaderSettings.Value inherit on\ntheir own, like every other nested setting."
       },
+      "SessionId": {
+        "examples": [
+          "ses_0A1b2C3d4E5f6G7h8I9j0K"
+        ],
+        "pattern": "^ses_[0-9A-Za-z]{22}$",
+        "type": "string",
+        "description": "An admin session. UuidV4: a session's ID is shown in the session list and handed to the dashboard, so it\nshould not tell when the session began. It is a handle, not a credential: the cookie value is the credential, a\nseparate 256-bit random value of which only the hash is stored."
+      },
+      "SessionStarted": {
+        "required": [
+          "sessionId",
+          "secondFactorRequired",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "description": "The session (a handle, not the cookie).",
+            "$ref": "#/components/schemas/SessionId"
+          },
+          "secondFactorRequired": {
+            "type": "boolean",
+            "description": "The password was right but a second factor is owed: only `auth/second-factor` accepts this session until it is given."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "When the session ends (when the partial session ends, if a second factor is owed).",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A session that was just started, by signing in or by setup. Its cookie travels in `Set-Cookie` only, never in a body."
+      },
+      "SessionSummary": {
+        "required": [
+          "id",
+          "clientIp",
+          "userAgent",
+          "createdAt",
+          "lastSeenAt",
+          "expiresAt",
+          "secondFactorCompleted",
+          "current"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The session (a handle, not the cookie).",
+            "$ref": "#/components/schemas/SessionId"
+          },
+          "clientIp": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Where it was created from."
+          },
+          "userAgent": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The browser that created it."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When it began.",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "description": "When it was last used (to within the touch interval).",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "Its absolute end; it ends earlier if idle too long.",
+            "format": "date-time"
+          },
+          "secondFactorCompleted": {
+            "type": "boolean",
+            "description": "False for a session still waiting for the second factor."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "The session that asked for the list."
+          }
+        },
+        "additionalProperties": false,
+        "description": "An active session, for the session list."
+      },
+      "SetupCompleted": {
+        "required": [
+          "owner",
+          "session"
+        ],
+        "type": "object",
+        "properties": {
+          "owner": {
+            "description": "The new Owner.",
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "session": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The session the response sets a cookie for; null only if signing the new Owner in failed, in which case they sign in as usual.",
+                "$ref": "#/components/schemas/SessionStarted"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "The result of first-run setup: the new Owner, signed in."
+      },
       "SetupRequest": {
         "required": [
           "setupToken",
@@ -19674,6 +21399,20 @@
         },
         "additionalProperties": false,
         "description": "Creates the first Owner."
+      },
+      "SetupStatus": {
+        "required": [
+          "complete"
+        ],
+        "type": "object",
+        "properties": {
+          "complete": {
+            "type": "boolean",
+            "description": "An Owner exists."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Whether the first Owner exists. Until it does, the admin app serves only the setup flow."
       },
       "SignInCounters": {
         "required": [
@@ -20555,6 +22294,21 @@
         "additionalProperties": false,
         "description": "A code from the authenticator, to confirm an enrolment."
       },
+      "TotpEnrollmentStarted": {
+        "required": [
+          "provisioningUri"
+        ],
+        "type": "object",
+        "properties": {
+          "provisioningUri": {
+            "type": "string",
+            "description": "The `otpauth://` URI for the QR code: shown once, not stored.",
+            "format": "uri"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The start of a TOTP enrolment."
+      },
       "TrustedProxySettings": {
         "type": "object",
         "properties": {
@@ -20984,6 +22738,96 @@
         },
         "additionalProperties": false,
         "description": "An upstream's forwards over the range."
+      },
+      "UserId": {
+        "examples": [
+          "usr_0A1b2C3d4E5f6G7h8I9j0K"
+        ],
+        "pattern": "^usr_[0-9A-Za-z]{22}$",
+        "type": "string",
+        "description": "An admin user; its entity is `UserRow` in Data."
+      },
+      "UserSummary": {
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "roles",
+          "twoFactorEnabled",
+          "disabled",
+          "locked",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The user.",
+            "$ref": "#/components/schemas/UserId"
+          },
+          "username": {
+            "type": "string",
+            "description": "The sign-in name, as the user typed it when created."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "The name shown in the UI."
+          },
+          "roles": {
+            "type": "array",
+            "description": "The roles the user holds, in a fixed order."
+          },
+          "twoFactorEnabled": {
+            "type": "boolean",
+            "description": "An authenticator is enrolled, so signing in needs a code."
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "The user cannot sign in, and their tokens and sessions are dead."
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "Sign-in is refused for now after too many failures."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the user was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "When the user was last changed.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "An admin user as the admin surfaces see them."
+      },
+      "VersionInfo": {
+        "required": [
+          "version",
+          "api"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "The product version (SemVer), for example `0.1.0`."
+          },
+          "api": {
+            "type": "string",
+            "description": "The API's major version, as in its path prefix: `v1`."
+          },
+          "commit": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The full SHA of the commit the build came from; null for a build that was not given one (the container image build passes it as `-p:SourceRevisionId`). Always written."
+          }
+        },
+        "additionalProperties": false,
+        "description": "What is running: the product's version and the commit it was built from."
       }
     },
     "securitySchemes": {
@@ -20997,6 +22841,9 @@
   "tags": [
     {
       "name": "Identity"
+    },
+    {
+      "name": "Server"
     },
     {
       "name": "Config"

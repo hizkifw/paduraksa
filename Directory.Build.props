@@ -19,6 +19,9 @@
     <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902</WarningsNotAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsPackable>false</IsPackable>
+    <!-- The product version, one for every assembly and package; CI passes -p:Version=<tag without the v> for a release. The SDK appends the commit when the build passes
+         -p:SourceRevisionId (the container image build does, from PADURAKSA_COMMIT); GET /api/v1/version reads both. -->
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
     <Authors>Hizkia Felix</Authors>
     <Product>Paduraksa</Product>
     <Copyright>Copyright 2026 Hizkia Felix</Copyright>

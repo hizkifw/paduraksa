@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Drafts;
+using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Drafts;
@@ -25,7 +25,7 @@ internal static class DraftEndpoints
         var drafts = api.MapGroup("/drafts").WithTags("Drafts");
         drafts.MapGet("/", ListAsync).WithName("ListDrafts").WithSummary("The caller's open draft")
             .WithDescription("A list of at most one: the caller's open draft (a token's is its owner's), each entry marked Ready or ChangedElsewhere against the latest revision. Empty when there is none.")
-            .Produces<IReadOnlyList<ConfigDraft>>().RequirePermission(Permission.ConfigWrite);
+            .Produces<Page<ConfigDraft>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigWrite);
         drafts.MapPost("/", CreateAsync).WithName("CreateDraft").WithSummary("Open a draft")
             .WithDescription("Starts an empty draft on the latest revision. 409 when the caller has one open already (see Location).")
             .Produces<ConfigDraft>(201).ProducesApiProblems(403, 409, 503).RequirePermission(Permission.ConfigWrite);
@@ -42,8 +42,8 @@ internal static class DraftEndpoints
             .Accepts<AddDraftEntriesRequest>("application/json").Produces<ConfigDraft>().ProducesApiProblems(400, 403, 404, 412, 415, 422, 503)
             .RequirePermission(Permission.ConfigWrite);
         drafts.MapDelete("/{id:DraftId}/entries/{number:int}", RemoveEntryAsync).WithName("RemoveDraftEntry").WithSummary("Remove an entry")
-            .WithDescription("Takes one entry out of the draft, whatever its state: this is also how an entry that is changed elsewhere is reloaded (read the object again and add it afresh).")
-            .Produces<ConfigDraft>().ProducesApiProblems(404).RequirePermission(Permission.ConfigWrite);
+            .WithDescription("Takes one entry out of the draft, whatever its state: this is also how an entry that is changed elsewhere is reloaded (read the object again and add it afresh). The ETag of the answer is the draft's new version.")
+            .Produces(204).ProducesApiProblems(404).RequirePermission(Permission.ConfigWrite);
         drafts.MapPost("/{id:DraftId}/review", ReviewAsync).WithName("ReviewDraft").WithSummary("Review the draft as a dry run")
             .WithDescription("Replays the entries on the latest revision and dry-runs them as one change: the diff, the compiler's warnings, the admin lock-out guard (?force=true overrides it) and the errors of the whole set. "
                 + "The answer's reviewToken (also its ETag) is what apply must send back as If-Match to commit exactly this: it covers what the draft would do, so a change to the draft, to an object it writes or refers to, or to what the compiler says about it makes it stale, while an unrelated commit does not. "
@@ -65,8 +65,8 @@ internal static class DraftEndpoints
         var result = await drafts.GetAsync(caller.Origin, ct).ConfigureAwait(false);
         return result.Status switch
         {
-            DraftStatus.NoDraft => EndpointSupport.Json<IReadOnlyList<ConfigDraft>>([], AdminJsonContext.Default.IReadOnlyListConfigDraft),
-            DraftStatus.Succeeded => EndpointSupport.Json<IReadOnlyList<ConfigDraft>>([result.Draft!], AdminJsonContext.Default.IReadOnlyListConfigDraft),
+            DraftStatus.NoDraft => Pagination.Respond(http, Array.Empty<ConfigDraft>(), d => d.Id, AdminJsonContext.Default.PageConfigDraft),
+            DraftStatus.Succeeded => Pagination.Respond(http, [result.Draft!], d => d.Id, AdminJsonContext.Default.PageConfigDraft),
             _ => Problem(http, result),
         };
     }
@@ -130,7 +130,14 @@ internal static class DraftEndpoints
         }
 
         var result = await drafts.RemoveEntryAsync(caller.Origin, id, number, ct).ConfigureAwait(false);
-        return result.Status == DraftStatus.Succeeded ? Draft(http, result.Draft!) : Problem(http, result);
+        if (result.Status != DraftStatus.Succeeded)
+        {
+            return Problem(http, result);
+        }
+
+        // 204 like every delete; the ETag is the draft's new version, so a client need not read it again.
+        http.Response.Headers.ETag = Preconditions.VersionTag(result.Draft!.Version);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> ReviewAsync(HttpContext http, DraftId id, AdminCaller caller, DraftService drafts, CancellationToken ct)

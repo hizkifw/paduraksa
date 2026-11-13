@@ -16,14 +16,24 @@ internal static class SignInEndpoints
 {
     public static void Map(IEndpointRouteBuilder api)
     {
-        api.MapGet("setup", GetSetupStatusAsync).AllowAnonymousAdmin().WithName("GetSetupStatus");
-        api.MapPost("setup", CompleteSetupAsync).AllowAnonymousAdmin().WithName("CompleteSetup");
+        api.MapGet("setup", GetSetupStatusAsync).AllowAnonymousAdmin().WithName("GetSetupStatus").WithSummary("Whether first-run setup is done")
+            .Produces<SetupStatus>();
+        api.MapPost("setup", CompleteSetupAsync).AllowAnonymousAdmin().WithName("CompleteSetup").WithSummary("Complete first-run setup")
+            .WithDescription("Creates the Owner with the setup token the server prints and signs them in (the answer's session). Works once: 409 setup.complete after that.")
+            .Accepts<SetupRequest>("application/json").Produces<SetupCompleted>(StatusCodes.Status201Created).ProducesApiProblems(400, 403, 409, 415, 422, 429, 503);
 
         var auth = api.MapGroup("auth");
-        auth.MapPost("login", LoginAsync).AllowAnonymousAdmin().WithName("Login");
-        auth.MapPost("second-factor", SecondFactorAsync).AllowAnonymousAdmin().WithName("CompleteSecondFactor");
-        auth.MapPost("logout", LogoutAsync).AllowAnonymousAdmin().WithName("Logout");
-        auth.MapGet("me", GetMeAsync).RequireAuthenticated().WithName("GetMe");
+        auth.MapPost("login", LoginAsync).AllowAnonymousAdmin().WithName("Login").WithSummary("Sign in with a username and password")
+            .WithDescription("Sets the session cookie. A user with a second factor gets a session that is not yet complete (secondFactorRequired): finish it with auth/second-factor. A refusal is always the same generic 401.")
+            .Accepts<LoginRequest>("application/json").Produces<SessionStarted>().ProducesApiProblems(400, 401, 415, 429, 503);
+        auth.MapPost("second-factor", SecondFactorAsync).AllowAnonymousAdmin().WithName("CompleteSecondFactor").WithSummary("Finish signing in with a code")
+            .WithDescription("Send either the authenticator's code or one recovery code.")
+            .Accepts<SecondFactorRequest>("application/json").Produces<SessionStarted>().ProducesApiProblems(400, 401, 415, 429, 503);
+        auth.MapPost("logout", LogoutAsync).AllowAnonymousAdmin().WithName("Logout").WithSummary("Sign out")
+            .WithDescription("Ends the session of the cookie and clears it; 204 whether or not there was one.")
+            .Produces(StatusCodes.Status204NoContent);
+        auth.MapGet("me", GetMeAsync).RequireAuthenticated().WithName("GetMe").WithSummary("Who the caller is and what they may do")
+            .Produces<CurrentCaller>();
     }
 
     private static async Task<IResult> GetSetupStatusAsync(SetupService setup, HttpContext http) =>

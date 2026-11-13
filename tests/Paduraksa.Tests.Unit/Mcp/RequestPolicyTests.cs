@@ -38,7 +38,7 @@ public sealed class RequestPolicyTests
     [InlineData("POST", "/api/v1/auth/login")]
     [InlineData("POST", "/api/v1/setup")]
     [InlineData("POST", "/api/v1/dns-providers")]
-    [InlineData("PUT", "/api/v1/dns-providers/dnsp_abc")]
+    [InlineData("POST", "/api/v1/dns-providers/dnsp_abc/credential")]
     [InlineData("GET", "/api/v1/logs/tail")]
     [InlineData("GET", "/api/v1/backup")]
     [InlineData("POST", "/api/v1/backup/restore")]

@@ -102,8 +102,8 @@ public sealed class McpRequestPolicyApiTests(SharedAdminApi shared) : IClassFixt
         foreach (var must in new[]
         {
             "POST /api/v1/tokens", "GET /api/v1/tokens", "DELETE /api/v1/tokens/{id}", "GET /api/v1/users", "POST /api/v1/users", "PATCH /api/v1/users/{id}", "GET /api/v1/sessions",
-            "POST /api/v1/me/password", "POST /api/v1/auth/login", "POST /api/v1/setup", "POST /api/v1/dns-providers", "PUT /api/v1/dns-providers/{id}", "POST /api/v1/acme-accounts",
-            "POST /api/v1/notification-channels", "PUT /api/v1/notification-channels/{id}", "POST /api/v1/certificates", "GET /api/v1/logs/tail", "GET /api/v1/metrics",
+            "POST /api/v1/me/password", "POST /api/v1/auth/login", "POST /api/v1/setup", "POST /api/v1/dns-providers", "POST /api/v1/dns-providers/{id}/credential", "POST /api/v1/acme-accounts",
+            "POST /api/v1/notification-channels", "PUT /api/v1/notification-channels/{id}", "POST /api/v1/certificates", "PUT /api/v1/certificates/{id}", "GET /api/v1/logs/tail", "GET /api/v1/metrics",
         })
         {
             Assert.Contains(must, refused);

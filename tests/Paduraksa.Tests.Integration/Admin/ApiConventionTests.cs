@@ -309,7 +309,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("GET /api/v1/dns-providers", Permission.ProvidersRead),
             ("GET /api/v1/dns-providers/{id:DnsProviderId}", Permission.ProvidersRead),
             ("POST /api/v1/dns-providers", Permission.ProvidersWrite),
-            ("PUT /api/v1/dns-providers/{id:DnsProviderId}", Permission.ProvidersWrite),
+            ("POST /api/v1/dns-providers/{id:DnsProviderId}/credential", Permission.ProvidersWrite),
             ("DELETE /api/v1/dns-providers/{id:DnsProviderId}", Permission.ProvidersWrite),
             ("POST /api/v1/dns-providers/{id:DnsProviderId}/test", Permission.ProvidersWrite),
             ("GET /api/v1/notification-channels", Permission.ProvidersRead),
@@ -349,9 +349,9 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             Assert.Equal(permission, found);
         }
 
-        // Nothing resource-like is mapped that this table doesn't know (the identity endpoints are the auth branch's, the CA
+        // Nothing resource-like is mapped that this table doesn't know (the identity endpoints and the version are any signed-in caller, the CA
         // endpoints are anonymous by design, and both are checked by their own rules).
-        string[] anonymousPrefixes = ["/api/v1/setup", "/api/v1/auth", "/api/v1/me", "/api/v1/sessions", "/api/v1/tokens", "/api/v1/users", "/api/v1/ca", "/api/v1/openapi.json", "/api/docs"];
+        string[] anonymousPrefixes = ["/api/v1/setup", "/api/v1/auth", "/api/v1/me", "/api/v1/sessions", "/api/v1/tokens", "/api/v1/users", "/api/v1/ca", "/api/v1/version", "/api/v1/openapi.json", "/api/docs"];
         var unknown = actual.Keys.Where(k => !expected.Any(e => e.Route == k) && !anonymousPrefixes.Any(prefix => k[(k.IndexOf(' ', StringComparison.Ordinal) + 1)..].StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
         Assert.Empty(unknown);
     }

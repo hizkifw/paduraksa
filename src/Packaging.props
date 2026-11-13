@@ -2,7 +2,9 @@
   <!-- Shared by the two NuGet packages (Paduraksa.ProxyProtocol and Paduraksa.ProxyProtocol.AspNetCore); the rest of the solution is not packable.
        The version is this one property: CI passes -p:Version=<the proxyprotocol-v* tag without that prefix> to pack a release, so a tag decides it. -->
   <PropertyGroup>
-    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <!-- The packages' own version, apart from the app's (Directory.Build.props): they release on their own tag. Unconditional, so it
+         overrides the repository-wide Version; a -p:Version from the tag is a global property and still wins. -->
+    <Version>0.1.0</Version>
     <IsPackable>true</IsPackable>
     <!-- Directory.Build.props sets one TargetFramework; the packages target two. -->
     <TargetFramework />

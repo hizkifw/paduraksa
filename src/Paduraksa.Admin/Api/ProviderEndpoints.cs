@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Routing;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
@@ -26,7 +27,7 @@ internal static class ProviderEndpoints
     {
         var accounts = api.MapGroup("/acme-accounts").WithTags("ACME accounts");
         accounts.MapGet("/", ListAccountsAsync).WithName("ListAcmeAccounts").WithSummary("List ACME accounts")
-            .Produces<IReadOnlyList<AcmeAccountSummary>>().RequirePermission(Permission.ProvidersRead);
+            .Produces<Page<AcmeAccountSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         accounts.MapGet("/{id:AcmeAccountId}", GetAccountAsync).WithName("GetAcmeAccount").WithSummary("Get an ACME account")
             .Produces<AcmeAccountSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         accounts.MapPost("/", CreateAccountAsync).WithName("CreateAcmeAccount").WithSummary("Register an ACME account")
@@ -35,18 +36,18 @@ internal static class ProviderEndpoints
             .RequirePermission(Permission.ProvidersWrite);
         accounts.MapDelete("/{id:AcmeAccountId}", DeactivateAccountAsync).WithName("DeactivateAcmeAccount").WithSummary("Deactivate an ACME account")
             .WithDescription("Final (RFC 8555): deactivates the account at the CA and deletes its key. Refused (422) while certificates are ordered with it.")
-            .Produces<AcmeAccountSummary>().ProducesApiProblems(404, 422, 502).RequirePermission(Permission.ProvidersWrite);
+            .Produces(204).ProducesApiProblems(404, 422, 502).RequirePermission(Permission.ProvidersWrite);
 
         var providers = api.MapGroup("/dns-providers").WithTags("DNS providers");
         providers.MapGet("/", ListProvidersAsync).WithName("ListDnsProviders").WithSummary("List DNS providers")
-            .Produces<IReadOnlyList<DnsProviderSummary>>().RequirePermission(Permission.ProvidersRead);
+            .Produces<Page<DnsProviderSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         providers.MapGet("/{id:DnsProviderId}", GetProviderAsync).WithName("GetDnsProvider").WithSummary("Get a DNS provider")
             .Produces<DnsProviderSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         providers.MapPost("/", CreateProviderAsync).WithName("CreateDnsProvider").WithSummary("Add a DNS provider")
             .WithDescription("The credential goes into the vault, usable only against the provider's own API host, and is never returned.")
             .Accepts<CreateDnsProviderBody>("application/json").Produces<DnsProviderSummary>(201).ProducesApiProblems(400, 415, 422)
             .RequirePermission(Permission.ProvidersWrite);
-        providers.MapPut("/{id:DnsProviderId}", RotateProviderAsync).WithName("RotateDnsProviderCredential").WithSummary("Replace a DNS provider's credential")
+        providers.MapPost("/{id:DnsProviderId}/credential", RotateProviderAsync).WithName("RotateDnsProviderCredential").WithSummary("Replace a DNS provider's credential")
             .WithDescription("The provider keeps its ID, so everything that uses it keeps working. The credential is never returned.")
             .Accepts<RotateDnsCredentialBody>("application/json").Produces<DnsProviderSummary>().ProducesApiProblems(400, 404, 415, 422)
             .RequirePermission(Permission.ProvidersWrite);
@@ -58,8 +59,8 @@ internal static class ProviderEndpoints
             .Produces<DnsProviderTestOutcome>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersWrite);
     }
 
-    private static async Task<IResult> ListAccountsAsync(AcmeAccountService accounts, CancellationToken ct) =>
-        EndpointSupport.Json(await accounts.ListAsync(ct).ConfigureAwait(false), AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary);
+    private static async Task<IResult> ListAccountsAsync(HttpContext http, AcmeAccountService accounts, CancellationToken ct) =>
+        Pagination.Respond(http, await accounts.ListAsync(ct).ConfigureAwait(false), a => a.Id, AdminJsonContext.Default.PageAcmeAccountSummary);
 
     private static async Task<IResult> GetAccountAsync(AcmeAccountId id, AcmeAccountService accounts, CancellationToken ct) =>
         await accounts.GetAsync(id, ct).ConfigureAwait(false) is { } account
@@ -105,8 +106,11 @@ internal static class ProviderEndpoints
         }
     }
 
-    private static async Task<IResult> DeactivateAccountAsync(HttpContext http, AdminCaller caller, AcmeAccountId id, AcmeAccountService accounts, CancellationToken ct) =>
-        AccountAnswer(await accounts.DeactivateAsync(id, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
+    private static async Task<IResult> DeactivateAccountAsync(HttpContext http, AdminCaller caller, AcmeAccountId id, AcmeAccountService accounts, CancellationToken ct)
+    {
+        var result = await accounts.DeactivateAsync(id, caller.Origin, ct).ConfigureAwait(false);
+        return result.Status == IssuanceChangeStatus.Committed ? Results.NoContent() : AccountAnswer(result, MutationKind.Change);
+    }
 
     private static IResult AccountAnswer(AcmeAccountResult result, MutationKind kind)
     {
@@ -128,8 +132,8 @@ internal static class ProviderEndpoints
         return EndpointSupport.Located(EndpointSupport.Json(result.Account!, AdminJsonContext.Default.AcmeAccountSummary, status), status == StatusCodes.Status201Created ? EndpointSupport.Path("acme-accounts", result.Account!.Id) : null);
     }
 
-    private static async Task<IResult> ListProvidersAsync(DnsProviderService providers, CancellationToken ct) =>
-        EndpointSupport.Json(await providers.ListAsync(ct).ConfigureAwait(false), AdminJsonContext.Default.IReadOnlyListDnsProviderSummary);
+    private static async Task<IResult> ListProvidersAsync(HttpContext http, DnsProviderService providers, CancellationToken ct) =>
+        Pagination.Respond(http, await providers.ListAsync(ct).ConfigureAwait(false), p => p.Id, AdminJsonContext.Default.PageDnsProviderSummary);
 
     private static async Task<IResult> GetProviderAsync(DnsProviderId id, DnsProviderService providers, CancellationToken ct) =>
         await providers.GetAsync(id, ct).ConfigureAwait(false) is { } provider

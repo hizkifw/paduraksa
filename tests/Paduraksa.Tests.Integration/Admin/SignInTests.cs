@@ -174,12 +174,12 @@ public sealed class SignInTests(SharedOwnerSession shared) : IClassFixture<Share
         }
 
         // Turning it off needs the password.
-        using (var wrongPassword = await h.SendAsync(HttpMethod.Delete, "/api/v1/me/totp", Body.Password("nope nope nope nope"), full))
+        using (var wrongPassword = await h.SendAsync(HttpMethod.Post, "/api/v1/me/totp/disable", Body.Password("nope nope nope nope"), full))
         {
             Assert.Equal(HttpStatusCode.UnprocessableEntity, wrongPassword.Status);
         }
 
-        using (var off = await h.SendAsync(HttpMethod.Delete, "/api/v1/me/totp", Body.Password(AdminHarness.Password), full))
+        using (var off = await h.SendAsync(HttpMethod.Post, "/api/v1/me/totp/disable", Body.Password(AdminHarness.Password), full))
         {
             Assert.Equal(HttpStatusCode.NoContent, off.Status);
         }

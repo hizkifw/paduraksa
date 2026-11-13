@@ -20,6 +20,8 @@
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:212fe4cb74627d5adf9817a4088906ae3edff1bd853bb27565d4b46731efe61e AS build
 ARG TARGETARCH
 ARG PADURAKSA_READYTORUN=true
+# The commit the image is built from, for GET /api/v1/version: the build context has no .git for the SDK to read it from.
+ARG PADURAKSA_COMMIT=
 
 # setcap runs here rather than in the runtime image: COPY --from keeps the file capability, so the runtime image never
 # carries libcap2-bin and an app change doesn't re-run apt there.
@@ -57,6 +59,7 @@ RUN set -eux; \
         --output /app \
         -p:PublishReadyToRun="$PADURAKSA_READYTORUN" \
         -p:ContinuousIntegrationBuild=true \
+        ${PADURAKSA_COMMIT:+-p:SourceRevisionId="$PADURAKSA_COMMIT"} \
         -nologo; \
     setcap cap_net_bind_service=+ep /app/paduraksa
 

@@ -29,7 +29,7 @@ public sealed class DraftApiTests(SharedAdminApi shared) : IClassFixture<SharedA
     private static async Task<ConfigDraft> FreshAsync(AdminApiHarness api, string caller = "owner")
     {
         using var listed = await api.GetAsync("/api/v1/drafts", caller);
-        foreach (var open in await AdminApiHarness.ReadAsync(listed, AdminJsonContext.Default.IReadOnlyListConfigDraft, Ct))
+        foreach (var open in (await AdminApiHarness.ReadAsync(listed, AdminJsonContext.Default.PageConfigDraft, Ct)).Items)
         {
             using var discarded = await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{open.Id}", caller);
             Assert.Equal(HttpStatusCode.NoContent, discarded.StatusCode);
@@ -271,7 +271,9 @@ public sealed class DraftApiTests(SharedAdminApi shared) : IClassFixture<SharedA
         using var review = await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{draft.Id}/review");
         Assert.Null((await AdminApiHarness.ReadAsync(review, AdminJsonContext.Default.DraftOutcome, Ct)).ReviewToken);
         using var removed = await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{draft.Id}/entries/{seen.Entries[0].Number}");
-        Assert.Single((await AdminApiHarness.ReadAsync(removed, AdminJsonContext.Default.ConfigDraft, Ct)).Entries);
+        Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
+        Assert.NotNull(removed.Headers.ETag);
+        Assert.Single((await GetDraftAsync(api, draft.Id)).Entries);
         using var noEntry = await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{draft.Id}/entries/{seen.Entries[0].Number}");
         Assert.Equal(HttpStatusCode.NotFound, noEntry.StatusCode);
         using var applied = await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{draft.Id}/apply", ifMatch: $"\"{await TokenAsync(api, draft.Id)}\"");
@@ -342,7 +344,7 @@ public sealed class DraftApiTests(SharedAdminApi shared) : IClassFixture<SharedA
 
         Assert.Equal(HttpStatusCode.NoContent, discarded.StatusCode);
         using var list = await api.GetAsync("/api/v1/drafts");
-        Assert.Empty(await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListConfigDraft, Ct));
+        Assert.Empty((await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.PageConfigDraft, Ct)).Items);
         Assert.NotEqual(draft.Id, (await FreshAsync(api)).Id);
     }
 

@@ -95,7 +95,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(ConfigCommandStatus.DryRun, plan.Status);
         Assert.Contains(plan.Changes, c => c is HostChange { Kind: ConfigChangeKind.Added });
         using var hosts = await api.GetAsync("/api/v1/hosts");
-        Assert.Empty(await AdminApiHarness.ReadAsync(hosts, AdminJsonContext.Default.IReadOnlyListHostConfig, Ct));
+        Assert.Empty((await AdminApiHarness.ReadAsync(hosts, AdminJsonContext.Default.PageHostConfig, Ct)).Items);
         using var revisions = await api.GetAsync("/api/v1/revisions");
         Assert.Empty((await AdminApiHarness.ReadAsync(revisions, AdminJsonContext.Default.PageRevisionSummary, Ct)).Items);
 
@@ -145,7 +145,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(ConfigCommandStatus.Committed, (await ResultAsync(added)).Status);
 
         using var list = await api.GetAsync($"/api/v1/hosts/{host.Id}/routes");
-        Assert.Equal(2, (await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListRouteConfig, Ct)).Count);
+        Assert.Equal(2, ((await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.PageRouteConfig, Ct)).Items).Count);
         using var one = await api.GetAsync($"/api/v1/hosts/{host.Id}/routes/{route.Id}");
         Assert.Equal("/api", (await AdminApiHarness.ReadAsync(one, AdminJsonContext.Default.RouteConfig, Ct)).Path);
 
@@ -174,9 +174,9 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.NotEmpty(problem.RelatedErrors!);
 
         using var profiles = await api.GetAsync("/api/v1/profiles");
-        Assert.Single(await AdminApiHarness.ReadAsync(profiles, AdminJsonContext.Default.IReadOnlyListProfileConfig, Ct));
+        Assert.Single((await AdminApiHarness.ReadAsync(profiles, AdminJsonContext.Default.PageProfileConfig, Ct)).Items);
         using var upstreams = await api.GetAsync("/api/v1/upstreams");
-        Assert.Contains(await AdminApiHarness.ReadAsync(upstreams, AdminJsonContext.Default.IReadOnlyListUpstreamConfig, Ct), u => u.Id == upstream.Id);
+        Assert.Contains((await AdminApiHarness.ReadAsync(upstreams, AdminJsonContext.Default.PageUpstreamConfig, Ct)).Items, u => u.Id == upstream.Id);
         using var profileGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/profiles/{profile.Id}", ifMatch: AdminApiHarness.ETag(createdProfile));
         Assert.Equal(HttpStatusCode.NoContent, profileGone.StatusCode);
     }
@@ -200,7 +200,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(30, stored.Requests);
         Assert.Equal(version, AdminApiHarness.ETag(read));
         using var list = await api.GetAsync("/api/v1/rate-limit-policies");
-        Assert.Contains(await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListRateLimitPolicyConfig, Ct), p => p.Id == policy.Id);
+        Assert.Contains((await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.PageRateLimitPolicyConfig, Ct)).Items, p => p.Id == policy.Id);
 
         using var replaced = await api.SendJsonAsync(
             HttpMethod.Put, $"/api/v1/rate-limit-policies/{policy.Id}", stored with { Burst = 10 }, AdminJsonContext.Default.RateLimitPolicyConfig, ifMatch: version);
@@ -262,7 +262,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.AccessListConfig)!;
         var credential = Assert.Single(stored.BasicAuth!.Users).CredentialId;
         using var all = await api.GetAsync("/api/v1/access-lists");
-        Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListAccessListConfig, Ct), l => l.Id == list.Id);
+        Assert.Contains((await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.PageAccessListConfig, Ct)).Items, l => l.Id == list.Id);
 
         // An edit that names the user without a password keeps the credential.
         var edit = stored with { BasicAuth = new AccessListBasicAuth(Users: [new AccessListUserConfig("alice")]), Ip = new AccessListIp(["10.0.0.0/8", "192.168.0.0/16"]) };
@@ -325,13 +325,13 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(version, AdminApiHarness.ETag(read));
         var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.RuleSetConfig)!;
         using var all = await api.GetAsync("/api/v1/rule-sets");
-        Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct), r => r.Id == set.Id);
+        Assert.Contains((await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.PageRuleSetConfig, Ct)).Items, r => r.Id == set.Id);
 
         // The built-in presets are read-only: listed on their own, readable by ID, never written.
         using var presets = await api.GetAsync("/api/v1/rule-sets/presets");
-        var presetList = await AdminApiHarness.ReadAsync(presets, AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct);
+        var presetList = (await AdminApiHarness.ReadAsync(presets, AdminJsonContext.Default.PageRuleSetConfig, Ct)).Items;
         Assert.Equal(["Block AI crawlers", "Block known scanners", "Block empty user agent"], presetList.Select(p => p.Name));
-        Assert.DoesNotContain(await AdminApiHarness.ReadAsync(await api.GetAsync("/api/v1/rule-sets"), AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct), r => RuleSetPresets.IsPreset(r.Id));
+        Assert.DoesNotContain((await AdminApiHarness.ReadAsync(await api.GetAsync("/api/v1/rule-sets"), AdminJsonContext.Default.PageRuleSetConfig, Ct)).Items, r => RuleSetPresets.IsPreset(r.Id));
         using var presetRead = await api.GetAsync($"/api/v1/rule-sets/{RuleSetPresets.KnownScanners.Id}");
         Assert.Equal(HttpStatusCode.OK, presetRead.StatusCode);
         using var presetWrite = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/rule-sets", RuleSetPresets.AiCrawlers, AdminJsonContext.Default.RuleSetConfig);
@@ -418,7 +418,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.Equal(version, AdminApiHarness.ETag(read));
         var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.AuthProviderConfig)!;
         using var all = await api.GetAsync("/api/v1/auth-providers");
-        Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListAuthProviderConfig, Ct), p => p.Id == provider.Id);
+        Assert.Contains((await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.PageAuthProviderConfig, Ct)).Items, p => p.Id == provider.Id);
 
         // An endpoint with credentials and a header the proxy owns are 422s pointing at their fields.
         AuthProviderConfig broken = new(AuthProviderId.New(), "broken", ForwardAuth: new ForwardAuthConfig("http://user:pw@auth/", ResponseHeaders: ["X-Forwarded-For"]));
@@ -565,7 +565,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         using var rolledBack = await api.SendAsync(HttpMethod.Post, $"/api/v1/revisions/{ids[0]}/rollback", ifMatch: latest);
         Assert.Equal(ConfigCommandStatus.Committed, (await ResultAsync(rolledBack)).Status);
         using var hosts = await api.GetAsync("/api/v1/hosts");
-        Assert.Single(await AdminApiHarness.ReadAsync(hosts, AdminJsonContext.Default.IReadOnlyListHostConfig, Ct));
+        Assert.Single((await AdminApiHarness.ReadAsync(hosts, AdminJsonContext.Default.PageHostConfig, Ct)).Items);
         using var missing = await api.GetAsync($"/api/v1/revisions/{ConfigRevisionId.New()}");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }

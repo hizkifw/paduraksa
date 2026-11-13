@@ -173,7 +173,7 @@ public sealed class ApiOnlySetupEndToEndTests
 
             using (var hosts = await h.GetAsync("/api/v1/hosts", bearer: token))
             {
-                Assert.Empty(Read(hosts, AdminJsonContext.Default.IReadOnlyListHostConfig));
+                Assert.Empty(Read(hosts, AdminJsonContext.Default.PageHostConfig).Items);
             }
 
             Assert.Equal(revisionsBeforeDryRun, await RevisionCountAsync(h, token));

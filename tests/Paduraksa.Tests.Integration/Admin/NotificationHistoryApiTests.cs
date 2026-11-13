@@ -254,7 +254,7 @@ public sealed class NotificationHistoryApiTests : IAsyncLifetime
         await UntilAsync("broken", e => e.Deliveries.All(d => d.State == NotificationDeliveryState.Failed));
 
         using var list = await _api.GetAsync("/api/v1/notification-channels");
-        var channels = JsonSerializer.Deserialize(await list.Content.ReadAsStringAsync(Ct), AdminJsonContext.Default.IReadOnlyListNotificationChannelSummary)!;
+        var channels = JsonSerializer.Deserialize(await list.Content.ReadAsStringAsync(Ct), AdminJsonContext.Default.PageNotificationChannelSummary)!.Items;
 
         Assert.Equal(new NotificationChannelFigures(0, 2, 1), channels.Single(c => c.Id == channel.Id).Delivery);
     }

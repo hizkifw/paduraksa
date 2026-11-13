@@ -28,7 +28,7 @@ public sealed class McpWriteTests
     {
         using var response = await api.GetAsync("/api/v1/hosts");
         using var hosts = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
-        return hosts.RootElement.GetArrayLength();
+        return hosts.RootElement.GetProperty("items").GetArrayLength();
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class McpWriteTests
 
         using var certificates = await api.GetAsync("/api/v1/certificates");
         using var inventory = JsonDocument.Parse(await certificates.Content.ReadAsStringAsync(Ct));
-        Assert.DoesNotContain(inventory.RootElement.EnumerateArray(), c => c.GetRawText().Contains("x.test", StringComparison.Ordinal));
+        Assert.DoesNotContain(inventory.RootElement.GetProperty("items").EnumerateArray(), c => c.GetRawText().Contains("x.test", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -8,6 +8,51 @@ namespace Paduraksa.Tests.Integration.Admin;
 
 public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
+    [Theory]
+    [InlineData("sessions")]
+    [InlineData("users")]
+    public async Task SessionsAndUsersPageLikeEveryOtherCollection(string collection)
+    {
+        var h = shared.Harness;
+        await h.CreateUserAsync(shared.OwnerCookie, "paging-" + collection, "viewer");
+        var cookie = await h.SignInAsync("paging-" + collection);
+        await h.SignInAsync("paging-" + collection);
+
+        // The owner sees at least two users and (as the paging user) at least two sessions of one user.
+        var caller = collection == "users" ? shared.OwnerCookie : cookie;
+        using var first = await h.GetAsync($"/api/v1/{collection}?limit=1", caller);
+        Assert.Equal(HttpStatusCode.OK, first.Status);
+        Assert.Equal(1, first.Json.GetProperty("items").GetArrayLength());
+        var cursor = first.Json.GetProperty("nextCursor").GetString();
+        Assert.False(string.IsNullOrEmpty(cursor));
+
+        using var second = await h.GetAsync($"/api/v1/{collection}?limit=1&cursor={cursor}", caller);
+        Assert.Equal(HttpStatusCode.OK, second.Status);
+        Assert.NotEqual(
+            first.Json.GetProperty("items")[0].GetProperty("id").GetString(),
+            second.Json.GetProperty("items")[0].GetProperty("id").GetString());
+
+        using var refused = await h.GetAsync($"/api/v1/{collection}?limit=0", caller);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+    }
+
+    [Fact]
+    public async Task TokensPageToo()
+    {
+        var h = shared.Harness;
+        await h.CreateUserAsync(shared.OwnerCookie, "paging-tokens", "owner");
+        var cookie = await h.SignInAsync("paging-tokens");
+        for (var i = 0; i < 2; i++)
+        {
+            using var issued = await h.PostAsync("/api/v1/tokens", """{"name":"t","scopes":["config:read"],"expiresAt":null}""", cookie);
+            Assert.Equal(HttpStatusCode.Created, issued.Status);
+        }
+
+        using var page = await h.GetAsync("/api/v1/tokens?limit=1", cookie);
+        Assert.Equal(1, page.Json.GetProperty("items").GetArrayLength());
+        Assert.False(string.IsNullOrEmpty(page.Json.GetProperty("nextCursor").GetString()));
+    }
+
     [Fact]
     public async Task SessionsAreListedAndRevokedIndividually_AndRevokedOnesDieAtOnce()
     {
@@ -21,7 +66,7 @@ public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixt
         using (var list = await h.GetAsync("/api/v1/sessions", a))
         {
             Assert.Equal(HttpStatusCode.OK, list.Status);
-            JsonElement[] sessions = [.. list.Json.EnumerateArray()];
+            JsonElement[] sessions = [.. list.Json.GetProperty("items").EnumerateArray()];
             Assert.Equal(2, sessions.Length);
             var current = Assert.Single(sessions, s => s.GetProperty("current").GetBoolean());
             Assert.NotEqual(current.GetProperty("id").GetString(), sessions.Single(s => !s.GetProperty("current").GetBoolean()).GetProperty("id").GetString());
@@ -66,7 +111,7 @@ public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixt
         string ownerSessionId;
         using (var list = await h.GetAsync("/api/v1/sessions", a))
         {
-            ownerSessionId = list.Json.EnumerateArray().First(s => !s.GetProperty("current").GetBoolean()).GetProperty("id").GetString()!;
+            ownerSessionId = list.Json.GetProperty("items").EnumerateArray().First(s => !s.GetProperty("current").GetBoolean()).GetProperty("id").GetString()!;
         }
 
         // Someone else's session is, to this caller, one that does not exist.
@@ -179,7 +224,7 @@ public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixt
         using (var list = await h.GetAsync("/api/v1/tokens?userId=" + id0, owner))
         {
             Assert.Equal(HttpStatusCode.OK, list.Status);
-            Assert.Equal(id, Assert.Single(list.Json.EnumerateArray()).GetProperty("id").GetString());
+            Assert.Equal(id, Assert.Single(list.Json.GetProperty("items").EnumerateArray()).GetProperty("id").GetString());
             Assert.DoesNotContain(secret, list.Body, StringComparison.Ordinal);
         }
 
@@ -259,7 +304,7 @@ public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixt
         using (var allowed = await h.GetAsync("/api/v1/tokens?userId=" + viewerId, owner))
         {
             Assert.Equal(HttpStatusCode.OK, allowed.Status);
-            Assert.Single(allowed.Json.EnumerateArray());
+            Assert.Single(allowed.Json.GetProperty("items").EnumerateArray());
         }
 
         using (var allowedSessions = await h.GetAsync("/api/v1/sessions?userId=" + viewerId, owner))

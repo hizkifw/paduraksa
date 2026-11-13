@@ -46,7 +46,7 @@ public sealed class UserEndpointTests(SharedOwnerSession shared) : IClassFixture
                 Assert.Equal(read ? HttpStatusCode.OK : HttpStatusCode.Forbidden, list.Status);
                 if (read)
                 {
-                    Assert.True(list.Json.GetArrayLength() >= Roles.Length);
+                    Assert.True(list.Json.GetProperty("items").GetArrayLength() >= Roles.Length);
                 }
             }
 

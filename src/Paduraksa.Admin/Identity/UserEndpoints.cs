@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
+using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
 
@@ -15,19 +17,27 @@ internal static class UserEndpoints
     public static void Map(IEndpointRouteBuilder api)
     {
         var users = api.MapGroup("users");
-        users.MapGet(string.Empty, ListAsync).RequirePermission(Permission.UsersRead).WithName("ListUsers");
-        users.MapPost(string.Empty, CreateAsync).RequirePermission(Permission.UsersWrite).WithName("CreateUser");
+        users.MapGet(string.Empty, ListAsync).RequirePermission(Permission.UsersRead).WithName("ListUsers").WithSummary("List users")
+            .Produces<Page<UserSummary>>().ProducesApiProblems(400, 403);
+        users.MapPost(string.Empty, CreateAsync).RequirePermission(Permission.UsersWrite).WithName("CreateUser").WithSummary("Create a user")
+            .Accepts<CreateUserRequest>("application/json").Produces<UserSummary>(StatusCodes.Status201Created).ProducesApiProblems(400, 403, 409, 415, 422);
 
         // A user may read themselves without users:read; the service decides, so only a caller is required here.
-        users.MapGet("{id:UserId}", GetAsync).RequireAuthenticated().WithName("GetUser");
-        users.MapPatch("{id:UserId}", UpdateAsync).RequirePermission(Permission.UsersWrite).WithName("UpdateUser");
-        users.MapDelete("{id:UserId}", DeleteAsync).RequirePermission(Permission.UsersWrite).WithName("DeleteUser");
+        users.MapGet("{id:UserId}", GetAsync).RequireAuthenticated().WithName("GetUser").WithSummary("Get a user")
+            .WithDescription("A user may read themselves; reading another needs users:read.")
+            .Produces<UserSummary>().ProducesApiProblems(403, 404);
+        users.MapPatch("{id:UserId}", UpdateAsync).RequirePermission(Permission.UsersWrite).WithName("UpdateUser").WithSummary("Change a user")
+            .WithDescription("A partial update: the display name, roles and disabled flag that are given. Users carry no version, so there is no If-Match: the last write wins.")
+            .Accepts<UpdateUserRequest>("application/json").Produces<UserSummary>().ProducesApiProblems(400, 403, 404, 409, 415, 422);
+        users.MapDelete("{id:UserId}", DeleteAsync).RequirePermission(Permission.UsersWrite).WithName("DeleteUser").WithSummary("Delete a user")
+            .Produces(StatusCodes.Status204NoContent).ProducesApiProblems(403, 404, 409);
     }
 
     private static async Task<IResult> ListAsync(AdminCaller caller, HttpContext http, UserService users)
     {
         var result = await users.ListAsync(caller.Origin, http.RequestAborted).ConfigureAwait(false);
-        return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Users);
+        return AdminProblems.OfFailure(result.Status, "user")
+            ?? (Pagination.TryPage(http, result.Users, u => u.Id, out var page, out var problem) ? Results.Ok(page) : problem!);
     }
 
     private static async Task<IResult> GetAsync(UserId id, AdminCaller caller, HttpContext http, UserService users)

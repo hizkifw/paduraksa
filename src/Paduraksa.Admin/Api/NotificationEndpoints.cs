@@ -24,7 +24,7 @@ internal static class NotificationEndpoints
         var channels = api.MapGroup("/notification-channels").WithTags("Notifications");
         channels.MapGet("/", ListAsync).WithName("ListNotificationChannels").WithSummary("List notification channels")
             .WithDescription("With each channel's last delivery: lastSentAt, and lastError (the last failure after its retries, cleared by the next delivery).")
-            .Produces<IReadOnlyList<NotificationChannelSummary>>().RequirePermission(Permission.ProvidersRead);
+            .Produces<Page<NotificationChannelSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         channels.MapGet("/{id:NotificationChannelId}", GetAsync).WithName("GetNotificationChannel").WithSummary("Get a notification channel")
             .Produces<NotificationChannelSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         channels.MapPost("/", CreateAsync).WithName("CreateNotificationChannel").WithSummary("Add a notification channel")
@@ -60,8 +60,8 @@ internal static class NotificationEndpoints
             .Produces<UpstreamHealthView>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
     }
 
-    private static async Task<IResult> ListAsync(NotificationService service, CancellationToken ct) =>
-        EndpointSupport.Json(await service.ListAsync(ct).ConfigureAwait(false), AdminJsonContext.Default.IReadOnlyListNotificationChannelSummary);
+    private static async Task<IResult> ListAsync(HttpContext http, NotificationService service, CancellationToken ct) =>
+        Pagination.Respond(http, await service.ListAsync(ct).ConfigureAwait(false), c => c.Id, AdminJsonContext.Default.PageNotificationChannelSummary);
 
     private static async Task<IResult> GetAsync(NotificationChannelId id, NotificationService service, CancellationToken ct) =>
         await service.GetAsync(id, ct).ConfigureAwait(false) is { } channel

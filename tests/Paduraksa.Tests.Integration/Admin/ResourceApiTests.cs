@@ -95,9 +95,9 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.Equal($"/api/v1/certificates/{id}", created.Headers.Location!.ToString());
 
         using var list = await api.GetAsync("/api/v1/certificates?source=uploaded");
-        Assert.Contains((await NodeAsync(list)).AsArray(), certificate => certificate!["id"]!.GetValue<string>() == id.ToString());
+        Assert.Contains((await NodeAsync(list))["items"]!.AsArray(), certificate => certificate!["id"]!.GetValue<string>() == id.ToString());
         using var other = await api.GetAsync("/api/v1/certificates?source=acme");
-        Assert.Empty((await NodeAsync(other)).AsArray());
+        Assert.Empty((await NodeAsync(other))["items"]!.AsArray());
         using var badFilter = await api.GetAsync("/api/v1/certificates?source=bogus");
         Assert.Equal(HttpStatusCode.BadRequest, badFilter.StatusCode);
 
@@ -205,14 +205,14 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         // Nothing this test does may make an order. Another test on the shared host may have made one, so the list is compared
         // with itself rather than with emptiness.
         using var before = await api.GetAsync("/api/v1/acme-orders");
-        IReadOnlyList<AcmeOrderSummary> ordersBefore = await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary, Ct);
+        IReadOnlyList<AcmeOrderSummary> ordersBefore = (await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.PageAcmeOrderSummary, Ct)).Items;
 
         using var unknownAccount = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/certificates/acme", request, AdminJsonContext.Default.CertificateIssueRequest);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, unknownAccount.StatusCode);
         Assert.NotEmpty((await AdminApiHarness.ProblemAsync(unknownAccount, Ct)).Errors!);
 
         using var orders = await api.GetAsync("/api/v1/acme-orders");
-        Assert.Equal(ordersBefore.Select(o => o.OrderId), (await AdminApiHarness.ReadAsync(orders, AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary, Ct)).Select(o => o.OrderId));
+        Assert.Equal(ordersBefore.Select(o => o.OrderId), ((await AdminApiHarness.ReadAsync(orders, AdminJsonContext.Default.PageAcmeOrderSummary, Ct)).Items).Select(o => o.OrderId));
         using var noOrder = await api.GetAsync($"/api/v1/certificates/{CertificateId.New()}/order");
         Assert.Equal(HttpStatusCode.NotFound, noOrder.StatusCode);
         using var renew = await api.SendAsync(HttpMethod.Post, $"/api/v1/certificates/{CertificateId.New()}/renew");
@@ -228,7 +228,7 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         // Nothing this test does may create an account, and another test on the shared host may have created one: this is a
         // delta, not emptiness.
         using var before = await api.GetAsync("/api/v1/acme-accounts");
-        IReadOnlyList<AcmeAccountSummary> accountsBefore = await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary, Ct);
+        IReadOnlyList<AcmeAccountSummary> accountsBefore = (await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.PageAcmeAccountSummary, Ct)).Items;
 
         using var http = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"http://ca.test/dir","termsOfServiceAgreed":true}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, http.StatusCode);
@@ -241,7 +241,7 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.DoesNotContain("not base64", await badKey.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
 
         using var list = await api.GetAsync("/api/v1/acme-accounts");
-        Assert.Equal(accountsBefore.Select(a => a.Id), (await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary, Ct)).Select(a => a.Id));
+        Assert.Equal(accountsBefore.Select(a => a.Id), ((await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.PageAcmeAccountSummary, Ct)).Items).Select(a => a.Id));
         using var unknown = await api.GetAsync($"/api/v1/acme-accounts/{AcmeAccountId.New()}");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         using var deactivate = await api.SendAsync(HttpMethod.Delete, $"/api/v1/acme-accounts/{AcmeAccountId.New()}");
@@ -266,7 +266,7 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         bodies.Add(await list.Content.ReadAsStringAsync(Ct));
         using var one = await api.GetAsync($"/api/v1/dns-providers/{provider.Id}");
         bodies.Add(await one.Content.ReadAsStringAsync(Ct));
-        using var rotated = await api.SendAsync(HttpMethod.Put, $"/api/v1/dns-providers/{provider.Id}", content: Json($$"""{"credential":"{{RotatedToken}}"}"""));
+        using var rotated = await api.SendAsync(HttpMethod.Post, $"/api/v1/dns-providers/{provider.Id}/credential", content: Json($$"""{"credential":"{{RotatedToken}}"}"""));
         bodies.Add(await rotated.Content.ReadAsStringAsync(Ct));
         Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
         Assert.Equal(provider.Id, System.Text.Json.JsonSerializer.Deserialize(bodies[^1], AdminJsonContext.Default.DnsProviderSummary)!.Id);
@@ -387,7 +387,7 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         using var drafted = await SimulateAsync(request, new DraftCommandSimulationTarget(new UpsertHostCommand(draft)));
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, (await AdminApiHarness.ReadAsync(drafted, AdminJsonContext.Default.SimulationResult, Ct)).Outcome!.Kind);
         using var hosts = await api.GetAsync("/api/v1/hosts");
-        Assert.Single(await AdminApiHarness.ReadAsync(hosts, AdminJsonContext.Default.IReadOnlyListHostConfig, Ct));
+        Assert.Single((await AdminApiHarness.ReadAsync(hosts, AdminJsonContext.Default.PageHostConfig, Ct)).Items);
 
         using var atRevision = await SimulateAsync(known, new RevisionSimulationTarget(revision));
         Assert.Equal(SimulationStatus.Simulated, (await AdminApiHarness.ReadAsync(atRevision, AdminJsonContext.Default.SimulationResult, Ct)).Status);

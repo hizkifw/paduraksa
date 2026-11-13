@@ -11,6 +11,7 @@ using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
@@ -32,7 +33,7 @@ internal static class CertificateEndpoints
         var certificates = api.MapGroup("/certificates").WithTags("Certificates");
         certificates.MapGet("/", ListAsync).WithName("ListCertificates").WithSummary("List certificates")
             .WithDescription("Public data only. Filters: source, status (their names) and name (the certificates covering a host name).")
-            .Produces<IReadOnlyList<CertificateSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
+            .Produces<Page<CertificateSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
         certificates.MapGet("/{id:CertificateId}", GetAsync).WithName("GetCertificate").WithSummary("Get a certificate with its public chain")
             .Produces<CertificateDetail>().ProducesApiProblems(404).RequirePermission(Permission.CertificatesRead);
 
@@ -84,7 +85,7 @@ internal static class CertificateEndpoints
         certificates.MapGet("/{id:CertificateId}/order", GetOrderAsync).WithName("GetCertificateOrder").WithSummary("The ACME order and renewal state of a certificate")
             .Produces<AcmeOrderSummary>().ProducesApiProblems(404).RequirePermission(Permission.CertificatesRead);
         api.MapGet("/acme-orders", ListOrdersAsync).WithName("ListAcmeOrders").WithTags("Certificates").WithSummary("The ACME order state of every ACME certificate")
-            .Produces<IReadOnlyList<AcmeOrderSummary>>().RequirePermission(Permission.CertificatesRead);
+            .Produces<Page<AcmeOrderSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
     }
 
     private static async Task<IResult> ListAsync(HttpContext http, CertificateService certificates, CancellationToken ct)
@@ -110,7 +111,7 @@ internal static class CertificateEndpoints
 
         var name = http.Request.Query["name"].ToString() is { Length: > 0 } covers ? covers : null;
         var list = await certificates.ListAsync(new CertificateQuery(source, status, name), ct).ConfigureAwait(false);
-        return EndpointSupport.Json(list, AdminJsonContext.Default.IReadOnlyListCertificateSummary);
+        return Pagination.Respond(http, list, c => c.Id, AdminJsonContext.Default.PageCertificateSummary);
     }
 
     private static async Task<IResult> GetAsync(CertificateId id, CertificateService certificates, CancellationToken ct) =>
@@ -306,8 +307,8 @@ internal static class CertificateEndpoints
             ? EndpointSupport.Json(order, AdminJsonContext.Default.AcmeOrderSummary)
             : ApiProblems.Problem(StatusCodes.Status404NotFound, "This certificate has no ACME order.");
 
-    private static async Task<IResult> ListOrdersAsync(AcmeIssuanceService issuance, CancellationToken ct) =>
-        EndpointSupport.Json(await issuance.ListOrdersAsync(ct).ConfigureAwait(false), AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary);
+    private static async Task<IResult> ListOrdersAsync(HttpContext http, AcmeIssuanceService issuance, CancellationToken ct) =>
+        Pagination.Respond(http, await issuance.ListOrdersAsync(ct).ConfigureAwait(false), o => o.CertificateId, AdminJsonContext.Default.PageAcmeOrderSummary);
 
     private static IResult OperationResult(CertificateOperationResult result, MutationKind kind)
     {

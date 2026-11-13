@@ -333,5 +333,50 @@ internal static class Pagination
         return true;
     }
 
+    /// <summary>
+    /// One page of an in-memory collection, ascending by the typed ID of its items: the page after <c>cursor</c> (the ID of the last item the caller saw).
+    /// Ordering by ID rather than by position keeps a cursor valid when the item it names is deleted between two requests.
+    /// </summary>
+    public static bool TryPage<TItem, TId>(HttpContext http, IEnumerable<TItem> items, Func<TItem, TId> idOf, out Page<TItem> page, out IResult? problem)
+        where TId : struct, ITypedId<TId>
+    {
+        page = new([]);
+        if (!TryGetPage(http, out var limit, out var cursor, out problem))
+        {
+            return false;
+        }
+
+        TId? after = null;
+        if (cursor is not null)
+        {
+            if (!TryDecode(cursor, out TId decoded))
+            {
+                problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"The cursor is not one this API issued for this collection (it carries a {TId.Prefix}_ ID).");
+                return false;
+            }
+
+            after = decoded;
+        }
+
+        var window = items.Select(item => (Item: item, Id: idOf(item)))
+            .Where(entry => after is not { } last || entry.Id.CompareTo(last) > 0)
+            .OrderBy(entry => entry.Id)
+            .Take(limit + 1)
+            .ToList();
+        var more = window.Count > limit;
+        if (more)
+        {
+            window.RemoveAt(limit);
+        }
+
+        page = new([.. window.Select(entry => entry.Item)], more ? Encode(window[^1].Id) : null);
+        return true;
+    }
+
+    /// <summary><see cref="TryPage{TItem,TId}"/>, answered as JSON through <paramref name="typeInfo"/>.</summary>
+    public static IResult Respond<TItem, TId>(HttpContext http, IEnumerable<TItem> items, Func<TItem, TId> idOf, JsonTypeInfo<Page<TItem>> typeInfo)
+        where TId : struct, ITypedId<TId> =>
+        TryPage(http, items, idOf, out var page, out var problem) ? EndpointSupport.Json(page, typeInfo) : problem!;
+
     private static string Base64Url(byte[] bytes) => System.Buffers.Text.Base64Url.EncodeToString(bytes);
 }
