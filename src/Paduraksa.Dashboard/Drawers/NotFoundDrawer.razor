@@ -3,9 +3,7 @@
         <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="@Message" Description="It may have been deleted, or the link is wrong." />
     </ChildContent>
     <Footer>
-        <div class="pdk-drawer-actions">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => Level?.Cancel()">@BackLabel</MudButton>
-        </div>
+        <DrawerActions PrimaryLabel="@BackLabel" OnPrimary="() => Level?.Cancel()" />
     </Footer>
 </DrawerShell>
 

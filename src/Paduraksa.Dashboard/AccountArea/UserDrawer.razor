@@ -71,16 +71,7 @@
         </div>
     </ChildContent>
     <Footer>
-        <div class="pdk-drawer-actions">
-            <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()" Disabled="_saving">Cancel</MudButton>
-            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" data-action="save-user">
-                @if (_saving)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                }
-                @(IsNew ? "Add user" : "Save")
-            </MudButton>
-        </div>
+        <DrawerActions OnCancel="() => Level?.RequestClose()" Busy="_saving" PrimaryLabel="@(IsNew ? "Add user" : "Save")" PrimaryAction="save-user" Submit="true" />
     </Footer>
 </DrawerShell>
 

@@ -88,9 +88,7 @@
     private RenderFragment? FooterContent =>
         _method is null || _mayWrite is false ? CancelFooter : _start is not null ? RunFooter : null;
 
-    private RenderFragment CancelFooter => @<div class="pdk-drawer-actions">
-        <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()">Cancel</MudButton>
-    </div>;
+    private RenderFragment CancelFooter => @<DrawerActions OnCancel="() => Level?.RequestClose()" />;
 
     private RenderFragment RunFooter => @<div class="pdk-drawer-actions">
         @if (_finished is { Outcome: IssuanceOutcome.Failed } && _lastRequest is not null)

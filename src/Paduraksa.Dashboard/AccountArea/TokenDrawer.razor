@@ -91,23 +91,14 @@
         }
     </ChildContent>
     <Footer>
-        <div class="pdk-drawer-actions">
-            @if (_issued is not null)
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Done" data-action="done">I've copied it</MudButton>
-            }
-            else
-            {
-                <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()" Disabled="_saving">Cancel</MudButton>
-                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" data-action="issue">
-                    @if (_saving)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                    }
-                    Create token
-                </MudButton>
-            }
-        </div>
+        @if (_issued is not null)
+        {
+            <DrawerActions PrimaryLabel="I've copied it" PrimaryAction="done" OnPrimary="Done" />
+        }
+        else
+        {
+            <DrawerActions OnCancel="() => Level?.RequestClose()" Busy="_saving" PrimaryLabel="Create token" PrimaryAction="issue" Submit="true" />
+        }
     </Footer>
 </DrawerShell>
 
