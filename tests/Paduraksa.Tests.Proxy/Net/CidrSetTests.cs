@@ -1,4 +1,5 @@
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Net;

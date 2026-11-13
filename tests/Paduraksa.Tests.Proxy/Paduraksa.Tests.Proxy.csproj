@@ -11,6 +11,7 @@
     <Compile Include="../Shared/FakeAuthServer.cs" Link="Shared/FakeAuthServer.cs" />
     <Compile Include="../Shared/BodyCountingUpstream.cs" Link="Shared/BodyCountingUpstream.cs" />
     <Compile Include="../Shared/ZeroStream.cs" Link="Shared/ZeroStream.cs" />
+    <Compile Include="../Shared/ProxyProtocolTestData.cs" Link="Shared/ProxyProtocolTestData.cs" />
     <Compile Include="../Shared/TestIds.cs" Link="Shared/TestIds.cs" />
     <Compile Include="../Shared/TestAccessLists.cs" Link="Shared/TestAccessLists.cs" />
     <Compile Include="../Shared/Property.cs" Link="Shared/Property.cs" />

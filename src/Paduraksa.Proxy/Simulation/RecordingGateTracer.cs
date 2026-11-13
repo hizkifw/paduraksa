@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
@@ -9,6 +8,7 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.Simulation;
 

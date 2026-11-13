@@ -15,5 +15,6 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="../../src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.ProxyProtocol/Paduraksa.ProxyProtocol.csproj" />
   </ItemGroup>
 </Project>

@@ -1,8 +1,7 @@
 using BenchmarkDotNet.Attributes;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Benchmarks;
 

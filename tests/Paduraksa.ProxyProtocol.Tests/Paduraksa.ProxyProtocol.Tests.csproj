@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.ProxyProtocol/Paduraksa.ProxyProtocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The middleware tests run on a real Kestrel; the pipe-backed connection helper needs the connection abstractions too. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/ProxyProtocolTestData.cs" Link="Shared/ProxyProtocolTestData.cs" />
+    <!-- The allocation check the other test projects use, linked in under its own namespace. -->
+    <Compile Include="../Paduraksa.Tests.Proxy/Testing/AllocAssert.cs" Link="Shared/AllocAssert.cs" />
+  </ItemGroup>
+</Project>

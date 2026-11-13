@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 
-namespace Paduraksa.Proxy.Net;
+namespace Paduraksa.ProxyProtocol;
 
 public enum ProxyProtocolCommand : byte
 {
@@ -89,7 +89,7 @@ public static class ProxyProtocolParser
 
     /// <summary>Longest v2 header without TLVs: the fixed part plus the largest address block (AF_UNIX, 2 x 108
     /// bytes). The parser peeks this many bytes (which also covers v1's 107), and a configured maximum
-    /// (<see cref="ProxyProtocolOptions.MaxV2Length"/>) can't be lower.</summary>
+    /// (<c>maxV2Length</c>) can't be lower.</summary>
     public const int V2MaxLengthWithoutTlvs = V2FixedLength + UnixAddressLength;
 
     // AF_UNIX address block: source and destination paths, 108 bytes each.

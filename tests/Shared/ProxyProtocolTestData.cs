@@ -1,10 +1,11 @@
+// Linked into Paduraksa.ProxyProtocol.Tests and Paduraksa.Tests.Proxy (<Compile Include Link>), like HeaderEchoUpstreamHost.
 using System.Buffers.Binary;
 using System.IO.Pipelines;
 using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Connections;
 
-namespace Paduraksa.Tests.Proxy.Net;
+namespace Paduraksa.Tests.Shared;
 
 /// <summary>Builders for PROXY protocol headers and a pipe-backed connection for middleware tests.</summary>
 internal static class ProxyProtocolTestData

@@ -1,9 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
@@ -11,6 +9,7 @@ using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Simulation;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.AccessLists;
 

@@ -16,6 +16,7 @@ public static class Layer
     public const string Acme = "Acme";
     public const string Notifications = "Notifications";
     public const string Mcp = "Mcp";
+    public const string ProxyProtocol = "ProxyProtocol";
     public const string Proxy = "Proxy";
     public const string Application = "Application";
     public const string Admin = "Admin";
@@ -46,14 +47,15 @@ public static class SolutionLayers
         [Layer.Acme] = [Layer.Core],
         [Layer.Notifications] = [Layer.Core],
         [Layer.Mcp] = [],
-        [Layer.Proxy] = [Layer.Core],
-        [Layer.Application] = [Layer.Core, Layer.Contracts, Layer.Data, Layer.Proxy, Layer.Acme, Layer.Notifications],
+        [Layer.ProxyProtocol] = [],
+        [Layer.Proxy] = [Layer.Core, Layer.ProxyProtocol],
+        [Layer.Application] = [Layer.Core, Layer.Contracts, Layer.Data, Layer.ProxyProtocol, Layer.Proxy, Layer.Acme, Layer.Notifications],
         [Layer.Admin] = [Layer.Core, Layer.Application, Layer.Contracts, Layer.Mcp],
         [Layer.Dashboard] = [Layer.Core, Layer.Application, Layer.Contracts],
         [Layer.Server] =
         [
             Layer.Core, Layer.Contracts, Layer.Storage, Layer.Data, Layer.Vault, Layer.Acme, Layer.Notifications,
-            Layer.Proxy, Layer.Application, Layer.Admin, Layer.Dashboard, Layer.Mcp,
+            Layer.ProxyProtocol, Layer.Proxy, Layer.Application, Layer.Admin, Layer.Dashboard, Layer.Mcp,
         ],
     };
 

@@ -1,17 +1,15 @@
 using System.Net;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.ForwardAuth.ForwardAuthFixtures;
 
 namespace Paduraksa.Tests.Proxy.ForwardAuth;

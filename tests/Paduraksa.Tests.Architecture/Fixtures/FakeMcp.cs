@@ -12,6 +12,7 @@ using Paduraksa.Dashboard.ArchFixtures;
 using Paduraksa.Data.ArchFixtures;
 using Paduraksa.Notifications.ArchFixtures;
 using Paduraksa.Proxy.ArchFixtures;
+using Paduraksa.ProxyProtocol.ArchFixtures;
 using Paduraksa.Server.ArchFixtures;
 using Paduraksa.Storage.ArchFixtures;
 using Paduraksa.Tests.Architecture.Fixtures;
@@ -22,6 +23,8 @@ namespace Paduraksa.Mcp.ArchFixtures;
 public sealed class FakeMcp
 {
     public FakeCore? Core { get; set; }
+
+    public FakeProxyProtocol? ProxyProtocol { get; set; }
 
     public FakeNotifications? Notifications { get; set; }
 

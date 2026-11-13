@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Paduraksa.Proxy.Net;
+namespace Paduraksa.ProxyProtocol;
 
 /// <summary>
 /// Allocation-free parser for a bare IPv4 or IPv6 literal, from UTF-16 or UTF-8 (raw header values).

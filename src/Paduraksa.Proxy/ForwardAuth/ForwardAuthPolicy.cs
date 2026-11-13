@@ -1,14 +1,13 @@
 using System.Globalization;
 using System.Net.Http.Headers;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Simulation;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.ForwardAuth;
 
@@ -213,7 +212,7 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
         }
 
         headers.TryAddWithoutValidation(ForwardAuthHeaders.Uri, ForwardAuthKey.RawTarget(http));
-        if (state.ClientAddress != Net.IpKey.Unspecified)
+        if (state.ClientAddress != IpKey.Unspecified)
         {
             headers.TryAddWithoutValidation(ForwardAuthHeaders.For, state.FormattedClientAddress());
         }

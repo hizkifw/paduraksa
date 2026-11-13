@@ -2,6 +2,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.Config;
 

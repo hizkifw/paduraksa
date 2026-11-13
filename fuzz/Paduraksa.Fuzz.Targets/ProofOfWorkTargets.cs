@@ -1,12 +1,11 @@
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Fuzz;
 

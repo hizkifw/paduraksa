@@ -1,12 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
-
 using BenchmarkDotNet.Attributes;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Benchmarks;
 

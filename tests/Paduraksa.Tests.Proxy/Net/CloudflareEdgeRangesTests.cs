@@ -1,10 +1,9 @@
 using System.Net;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Simulation;
-
+using Paduraksa.ProxyProtocol;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Net;

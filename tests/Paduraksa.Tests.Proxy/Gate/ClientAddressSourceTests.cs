@@ -5,6 +5,7 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 

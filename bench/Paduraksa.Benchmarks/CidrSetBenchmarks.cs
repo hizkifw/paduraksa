@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
-
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Benchmarks;
 

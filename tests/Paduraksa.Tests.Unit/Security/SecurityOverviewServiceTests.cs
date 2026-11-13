@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Application.Security;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
@@ -11,7 +10,7 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
-
+using Paduraksa.ProxyProtocol;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Security;

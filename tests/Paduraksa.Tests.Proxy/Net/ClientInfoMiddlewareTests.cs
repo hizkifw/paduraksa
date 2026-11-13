@@ -4,7 +4,9 @@ using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Connections;
 using Paduraksa.Proxy.Net;
-using static Paduraksa.Tests.Proxy.Net.ProxyProtocolTestData;
+using Paduraksa.ProxyProtocol;
+using Paduraksa.Tests.Shared;
+using static Paduraksa.Tests.Shared.ProxyProtocolTestData;
 
 namespace Paduraksa.Tests.Proxy.Net;
 

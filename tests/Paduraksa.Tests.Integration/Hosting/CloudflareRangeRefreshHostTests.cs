@@ -11,6 +11,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 

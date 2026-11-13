@@ -1,6 +1,6 @@
 using System.IO.Pipelines;
 
-namespace Paduraksa.Proxy.Net;
+namespace Paduraksa.ProxyProtocol;
 
 public enum ProxyProtocolReadStatus : byte
 {

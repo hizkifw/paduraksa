@@ -2,20 +2,18 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
 namespace Paduraksa.Tests.Integration.Proxy;

@@ -65,6 +65,7 @@ Paduraksa.slnx
 |  +- Paduraksa.Acme            RFC 8555 client + DNS providers. Signs via vault capabilities.
 |  +- Paduraksa.Notifications   Notification senders (ntfy, Gotify, Discord, webhook, email over MailKit) and their payload formats. Secrets come through Core capabilities.
 |  +- Paduraksa.Mcp             MCP in code mode: the sandbox's child process (Jint) and the parent's pool, watchdog and frame protocol, the spec graph, the request policy and the tool descriptions. No ASP.NET Core, no other project.
+|  +- Paduraksa.ProxyProtocol   PROXY protocol v1/v2 parser and reader, plus IpKey/IpParser (BCL only; published as a NuGet package)
 |  +- Paduraksa.Proxy           HOT PATH: runtime snapshot model, gate middleware, policies, TLS selector, YARP glue, metrics
 |  +- Paduraksa.Application     Use cases: config commands, validation, revisions, audit, snapshot compiler, YAML, auth
 |  +- Paduraksa.Admin           Admin web surface: auth, REST /api/v1, /mcp, /metrics, OpenAPI
@@ -94,8 +95,9 @@ Vault --> Core, Storage              (has its OWN store and DbContext; never ref
 Acme --> Core                        (signing/creds via Core capability interfaces)
 Notifications --> Core               (secrets via Core's notification-secret capability, HMAC via IMacKeySource)
 Mcp --> (nothing)                    (Jint only; the admin app owns the transport and the in-process dispatcher, the server starts the child)
-Proxy --> Core                       (no Data, no Storage, no Application, no EF: the hot path can't reach the DB)
-Application --> Core, Contracts, Data, Proxy, Acme, Notifications
+ProxyProtocol --> (nothing)          (BCL only; the parser and the address types, a NuGet package of its own)
+Proxy --> Core, ProxyProtocol        (no Data, no Storage, no Application, no EF: the hot path can't reach the DB)
+Application --> Core, Contracts, Data, ProxyProtocol, Proxy, Acme, Notifications
 Admin, Dashboard --> Application, Contracts   (never Data: UI/API can only see DTOs); Admin also --> Mcp
 Server --> everything (composition only)
 ```

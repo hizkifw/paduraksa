@@ -12,7 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Tests.Proxy.Testing;
-using static Paduraksa.Tests.Proxy.Net.ProxyProtocolTestData;
+using Paduraksa.Tests.Shared;
+using static Paduraksa.Tests.Shared.ProxyProtocolTestData;
 
 namespace Paduraksa.Tests.Proxy.Net;
 

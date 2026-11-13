@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BCL only: no ASP.NET reference, so any project can take the parser. Packaging comes with the pack commit. -->
+  <ItemGroup>
+    <!-- IpNetwork builds its masks from IpKey.PrefixMask, which stays internal. -->
+    <InternalsVisibleTo Include="Paduraksa.Proxy" />
+  </ItemGroup>
+</Project>

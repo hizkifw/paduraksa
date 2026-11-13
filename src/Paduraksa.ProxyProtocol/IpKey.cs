@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 
-namespace Paduraksa.Proxy.Net;
+namespace Paduraksa.ProxyProtocol;
 
 /// <summary>
 /// An IP address as a 128-bit key: the one client-IP representation used on the hot path.

@@ -1,8 +1,7 @@
 using System.Net;
-
 using Microsoft.AspNetCore.Connections;
-
 using Paduraksa.Proxy.Tls;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.Net;
 

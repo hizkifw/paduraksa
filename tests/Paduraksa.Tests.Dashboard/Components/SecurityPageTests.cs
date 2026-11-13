@@ -1,8 +1,6 @@
 using Bunit;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-
 using Paduraksa.Application.Security;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
@@ -17,6 +15,7 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Dashboard.Components;

@@ -21,11 +21,13 @@
     <Project Path="src/Paduraksa.Mcp/Paduraksa.Mcp.csproj" />
     <Project Path="src/Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
     <Project Path="src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
+    <Project Path="src/Paduraksa.ProxyProtocol/Paduraksa.ProxyProtocol.csproj" />
     <Project Path="src/Paduraksa.Server/Paduraksa.Server.csproj" />
     <Project Path="src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
     <Project Path="src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Paduraksa.ProxyProtocol.Tests/Paduraksa.ProxyProtocol.Tests.csproj" />
     <Project Path="tests/Paduraksa.Tests.Acme/Paduraksa.Tests.Acme.csproj" />
     <Project Path="tests/Paduraksa.Tests.Architecture/Paduraksa.Tests.Architecture.csproj" />
     <Project Path="tests/Paduraksa.Tests.Dashboard/Paduraksa.Tests.Dashboard.csproj" />

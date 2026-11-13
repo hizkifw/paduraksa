@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using Paduraksa.Core.Text;
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.Snapshot;
 

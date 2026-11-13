@@ -1,13 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.AccessLists;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.AccessLists.AccessListFixtures;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
@@ -16,7 +15,7 @@ namespace Paduraksa.Tests.Proxy.EndToEnd;
 /// wait (the upstream never sees the credentials), a full line is a 429 with <c>Retry-After</c>, and a client that hangs up leaves.</summary>
 public sealed class AccessListQueueEndToEndTests(HeaderEchoUpstream upstream) : IClassFixture<HeaderEchoUpstream>
 {
-    private static readonly Paduraksa.Proxy.Net.IpKey Holder = Paduraksa.Proxy.Net.IpKey.Parse("203.0.113.250");
+    private static readonly IpKey Holder = IpKey.Parse("203.0.113.250");
 
     private ProxyConfigModel Model() => AccessListFixtures.Model(List("office")) with { Upstreams = [TestSnapshots.Upstream("web", upstream.Address)] };
 

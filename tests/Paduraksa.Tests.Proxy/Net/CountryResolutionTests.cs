@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
 using Paduraksa.Core.Geo;
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Net;

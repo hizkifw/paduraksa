@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.Net;
 

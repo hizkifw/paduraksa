@@ -1,9 +1,8 @@
 using System.Runtime.CompilerServices;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Gate;

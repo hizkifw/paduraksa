@@ -5,6 +5,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 using Yarp.ReverseProxy.Transforms;
 
 namespace Paduraksa.Proxy.Yarp;

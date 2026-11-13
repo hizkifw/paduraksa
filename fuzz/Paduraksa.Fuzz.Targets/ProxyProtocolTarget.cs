@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Fuzz;
 

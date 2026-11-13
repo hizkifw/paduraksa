@@ -2,10 +2,9 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Net;
 using System.Text;
-
 using BenchmarkDotNet.Attributes;
-
 using Paduraksa.Proxy.Net;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Benchmarks;
 

@@ -2,11 +2,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
-
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
@@ -14,10 +12,10 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Proxy.Tls;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Simulation;

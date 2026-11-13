@@ -13,6 +13,7 @@ using Paduraksa.Data.ArchFixtures;
 using Paduraksa.Mcp.ArchFixtures;
 using Paduraksa.Notifications.ArchFixtures;
 using Paduraksa.Proxy.ArchFixtures;
+using Paduraksa.ProxyProtocol.ArchFixtures;
 using Paduraksa.Storage.ArchFixtures;
 using Paduraksa.Tests.Architecture.Fixtures;
 using Paduraksa.Vault.ArchFixtures;
@@ -22,6 +23,8 @@ namespace Paduraksa.Server.ArchFixtures;
 public sealed class FakeServer
 {
     public FakeCore? Core { get; set; }
+
+    public FakeProxyProtocol? ProxyProtocol { get; set; }
 
     public FakeNotifications? Notifications { get; set; }
 

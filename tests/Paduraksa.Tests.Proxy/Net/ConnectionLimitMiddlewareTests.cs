@@ -1,17 +1,15 @@
 using System.Net;
-
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Http.Features;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
-
-using static Paduraksa.Tests.Proxy.Net.ProxyProtocolTestData;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
+using static Paduraksa.Tests.Shared.ProxyProtocolTestData;
 
 namespace Paduraksa.Tests.Proxy.Net;
 

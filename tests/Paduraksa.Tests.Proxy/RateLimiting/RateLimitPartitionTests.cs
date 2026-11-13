@@ -1,5 +1,6 @@
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Tests.Proxy.RateLimiting;
 

@@ -1,7 +1,5 @@
 using System.Net;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
@@ -9,9 +7,9 @@ using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.AccessLists;
 using Paduraksa.Tests.Proxy.Testing;
-
 using static Paduraksa.Tests.Proxy.AccessLists.AccessListFixtures;
 
 namespace Paduraksa.Tests.Proxy.Simulation;

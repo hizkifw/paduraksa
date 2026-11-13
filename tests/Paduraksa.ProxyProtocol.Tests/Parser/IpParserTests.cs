@@ -1,9 +1,8 @@
 using System.Net;
 using System.Text;
-using Paduraksa.Proxy.Net;
 using Paduraksa.Tests.Proxy.Testing;
 
-namespace Paduraksa.Tests.Proxy.Net;
+namespace Paduraksa.ProxyProtocol.Tests;
 
 public sealed class IpParserTests
 {
