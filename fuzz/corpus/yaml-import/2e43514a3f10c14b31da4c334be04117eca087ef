@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: EE2222#22""""[!!!!!
+hosts:
+  - names: [le.com]
+    profile: media
+  

@@ -1,0 +1,65 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888888888888888kos:*    o3888888888888888888kqa.no7777777777iu/s:[]e *bjeto/v1apaA&e *bject:xt/[hs:* []jec.sys:    contentTy/e: #tex *bjetos.sys: Co*siuo777:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        -
+        <p>no7777777777777777776kqa.no7777777777iu/s:[]e *bjeto/v1ap&ae *bject:xt/[hs:* []jec.sys:    contentTy/e: #text/[htx *bjetos.sys: Co*siuo777:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 101
+      body: |
+        -
+        <p>no3888888888888888888kqa.no77777?7* []jec.sys:    contentTy/e: #tex *bjetos.sys: Co*siuo777:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        -
+        <p>no77777777777777777ys: Co*siuo777:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        -
+        <p>no3888888888888888888kqa.no77777?7777iu/s:[]e *bj8888888888888888kqa.no7777777777iu/s:[]e *bjeto/v1apaA&e *bject:xt/[hs:* []jec.sys:    contentTy/e: #tex *bjetos.sys: Co*siuo777:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        -
+        <p>no7777777777777777776kqa.no7777777777iu/s:[]e *bjeto/v1ap&ae *bject:xt/[hs:* []jec.sys:    contentTy/e: #text/[htx *bjetos.sys: Co*siuo777:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        -
+        <p>no3888888888888888888kqa.no77777?7777iu/s:[]e *bjeto/v1apa&e *bject:xt/[hs:* []jec/v1apaA&e *bject:xt/[hs:* []jec.sys:    contentTy/e: #tex *bjetos.sys: Co*siuo777:
+  - names: [aҙle.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        -
+        <p>no7777777777777777776kqa.no7777777777iu/s:[]e *bjeto/v1ap&ae *bject:xt/[hs:* []jec.sys:    contentTy/e: #text/[htx *bjetos.sys: Co*siuo777:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        -
+        <p>no3888888888888888888kqa.no77777?7777iu/s:[]e *bjeto/v1apa&e *bject:xt/[hs:* []jec.sys:    contentTy/e: #text/[html

@@ -1,0 +1,9 @@
+apiVon: penfig
+hosts:
+  - names: [a.example.com]
+    tag: [x]
+    version: 3
+    passwsts:
+  - names: [a.examp]
+    version: 3
+    password:ord:  x

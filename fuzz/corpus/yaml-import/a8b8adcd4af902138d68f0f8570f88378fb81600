@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [5<555555,555,55]

@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: M2964A
+hosts:
+  - names: [tv.exampl5.com]
+    profile: media
+    routes:
+  
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+       00000000

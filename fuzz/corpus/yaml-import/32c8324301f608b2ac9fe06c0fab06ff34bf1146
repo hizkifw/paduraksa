@@ -1,0 +1,70 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no77kqa.dev/v1Apa&e *bject:os.&e *bject:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.sys:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetojetos.sys: Co*siuos:*         <p>no54jec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os.jec.sject:os.sys: Co*siq/s:[]e *bv1s.jec.sject:os.sys- upstream: jellyfin
+    # os.ssuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetojetos.sys: Co*siuos:*         <p>no54jec.    :uoerts
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os.jec. Co*siq/s:[]e *bv1apa&e *bject:os.sys: Co*siuream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetotes:    # os.ssuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetojetos.sys: Co*siuos:*         <p>no54jec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os.jec.sject:os.sys: Co*siq/s:[]e *bv1apa&e *bject:os.sys: Co*siu/s:[]e ct.os.jec.sject:os.sys4 Co*jec.ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetotes:    # os.ssuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetojetos.sys: Co*siuos:*         <p>no54jec. siu/s:[]e *bv1apa&e *bject:os.sys: Co*siu
+      - upstream: jellyfin
+    # os.ssuos:* []e ts:
+  # os.sys: Co*siu/s:[]s.sys: Co*siu/s:[]e *bjetosuos:
+    # os.sys: Co*siu/s:[]e *bjetosuos:*bject:os.jec.sject:os.sys: Co*siq/s:[uos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetosuos:*bject:os.jec.sject:os.sys: C:[]e *bjetosuos:* []e sys:    contentTy/e: #text/[html

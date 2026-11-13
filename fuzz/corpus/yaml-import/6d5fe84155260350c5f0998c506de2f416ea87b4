@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [tv.ex    ampne󜐒]
+    profile: media
+    kind: respond
+    respond:
+      statusCode: 305
+      body: |
+      # < nameuce\ak%

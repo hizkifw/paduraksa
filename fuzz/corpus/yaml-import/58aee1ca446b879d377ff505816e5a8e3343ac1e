@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [sCCCom]
+  - names: [om]
+  - names: [,CCCom]
+    kind: respond
+   #   m]
+  - names: [om]
+  - names: [,CCom]
+    kind: resp}

@@ -1,0 +1,19 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so*o~CCC x,`x, x~,@xCCom]
+    kind: respond
+   #   kinLLL media
+    routes:
+      - upstream: jellyfin
+        path: /om]
+  - names: [so*o~CC"\u00e5CCC x,`x, x~,@xo~CCCCC x,`x, x~,@x, xCCCom]
+    kind: respond
+   #: onfig
+ruleSets:
+  - name: scars
+    rules:
+      - action: deny
+        match: {userAgent: {contains: [sqlmap]}}
+rateLimitPolicies:
+  - name: stri.....................LLoon}

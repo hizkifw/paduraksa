@@ -1,0 +1,123 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # cred:    - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_01wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# credentie: offientialId:lId:cessLists:
+  - name: office
+    # credentialIN ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_06wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# crwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# credentie: office
+    # credentialIddentie: office
+    # creden5f4Al8rl5f4credentiC95f4Al8rl5f4Al8rNFd: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  red:    - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_01wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# credentie: offientialId:lId:cessLists:
+  - name: office
+    # credentialIN ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_06wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# crwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# credentie: office
+    # credentialIddentie: office
+    # creden5f4Al8rl5f4credentiC95f4Al8rl5f4Al8rNFd: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [05.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# credentie: office
+    # credentialIddentie: office
+    # creden5# credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.10.0.1/ ], countries: {allow: [N ,ON ,OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        # name: alice
+        # cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [05.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# credentie: office
+    # credice
+    # creden5f4Al8rl5f4credentiC95f4Al8rl5f4Al8rNFlB

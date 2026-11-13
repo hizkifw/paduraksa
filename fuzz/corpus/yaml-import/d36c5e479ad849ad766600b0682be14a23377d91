@@ -1,0 +1,30 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.uxample.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body:   <p>not hrry</p>
+      contentType: te00000000000000000000000000000000000000000000000000000xt55555555555555555555555555555555555555555555555555500000000000000000000000000000100000000000000000000000000000000
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <p>not hrry</p>
+      contentType: te000000555555555000000000000000000000000000001000000000000000000000000000000000000xt555555550000000000000000000?0000000000000000000000000000000000000000000000000100000000000000000000000000000000
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <p>not hrry</p>
+      contentType: te0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <p>not hrry</p>
+      contentType: te000000000000000000000000000000000000000000000'00x00000000000000000000000xt(/html

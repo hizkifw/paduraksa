@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.KKKIIIIIIIIIGItIig
+ruleSets:
+  - name: scI	IIIIIII
+  - name: MDI000g
+accessLists:
+  - name: o&fice
+    basicAuth:
+      users:
+  

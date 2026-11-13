@@ -1,0 +1,22 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+       	s:* []jec.sys:    contea7777kqa.dev/v1Apa&e *bject:os.&[x, x,x, :, x, x,e *bject:os.sys: Co*si[{naspond,u/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 030
+    routes:
+      - upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetojetos.sys: Co[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>nkqa.   contentTy/e: text/[hs:* []jec.sys:    contentTy/e: #text/[html

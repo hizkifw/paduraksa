@@ -1,0 +1,6 @@
+--- 
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office2   ce
+    ip: {allow: [10.0.0.~/ ], countries: }

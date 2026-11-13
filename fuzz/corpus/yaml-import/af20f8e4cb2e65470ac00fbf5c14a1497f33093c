@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: aliceffice
+    ip: {allow: [10.258573.0.1/8], countries: {allow: [TO, ID, ID]}}
+    basicAuth:
+      # credesern# cs:

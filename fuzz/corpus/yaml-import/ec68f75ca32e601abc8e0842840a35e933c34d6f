@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&000ice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [Xz, I*]}}
+    basicAuth:
+      users:
+        - username: dAfig
+hosts:
+  - names: [a.example.com]
+    #ind: respond
+    respond:
+      statusCode: 202
+      body: |
+       88888n
+    # os.sys:bjetojetos.sys: Co*si8rLFlB

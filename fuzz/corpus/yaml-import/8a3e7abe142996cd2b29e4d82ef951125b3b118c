@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so*o x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`xCom]
+  - names: [so* x~, n, xCx, x~,@xo~CCCCC x,x,`x, x~,@rrrrrrrrrrrrrrrrrrrr~,@x, xtCCCom]
+    kind: respond
+   #   kinLLLoon}

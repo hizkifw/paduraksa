@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+- name: MEDIA
+hosts:
+  - names: [tvale.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb00;""\\2b00;""\\22222;4"\u\\\\\22222;4"\u\\\\;4"\u\\\\\\\\\\\\\\;2222200\\\\\]2222;4"\u\\\\\\\\\\\\\\;2222200000\\\\\\\\\\\\\\\222220000000148469

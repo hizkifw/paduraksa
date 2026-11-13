@@ -1,0 +1,4 @@
+apn: g
+hosts:
+  -  respond: {statusCode: -28 i0 2-81}
+  -  respond: {statusCode: -28 i0}

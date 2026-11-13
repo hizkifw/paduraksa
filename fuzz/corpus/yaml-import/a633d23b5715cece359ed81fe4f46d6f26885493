@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: sca3333333333333333333333333333333333333333333333333333333333ttt0tttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII	ttttttttt0000000IIIIIItttttttt000000I
+  - name: Mttttt'IIIIIII33333333333rs
+    rules:
+      - action: deny
+        match: {userAgent: {contains: [sqap]}}
+rateLimitPolicies:
+  - name: ct
+    per: seconl

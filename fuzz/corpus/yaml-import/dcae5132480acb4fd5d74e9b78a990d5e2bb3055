@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tm]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbbb"""111 aath:22222222222222222222222222222222222A""""""""""""""""""""b"""111 aath:22222222222222222222222222222222222A""""""""""""""""""""bbbbbbbbbbbbbbbbbbbbbb"""""""""""""""11111111111222222222222222222Abbbqqqqqqqqqqqqqqqqqqbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"""""""""""""""11111111111222222222222222222Abbbqqqqqqqqqqqqqqqqqqbbbbbbbbbbbbbbbbbbbbbb

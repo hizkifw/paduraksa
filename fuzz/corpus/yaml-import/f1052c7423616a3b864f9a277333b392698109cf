@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # cred: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,yID]}}
+    basicAuth:
+      users:
+       - username: a00000000016@97A
+hosts:
+  - names: [tv.om]
+    profile: media
+    routes:
+      - upstream: jellyfin
+           # credentieAl8rl5f4Al8rNB

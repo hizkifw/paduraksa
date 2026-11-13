@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: aliceffice
+    ip: {allow: [10.258573.0.1/8], countries: {allow: [TO, ID, ID]}}
+    basicAuth:
+      # credenti`lIsts:
+  - name: aliceffice
+    ip: {allow: [10.2222222222222222000008], countries: {allow: [TO, ID, ID]}}
+    basicAuth:
+      # credenti`lId: pwc_02wndAAHBC9usern9username: alice;
+        # cs:

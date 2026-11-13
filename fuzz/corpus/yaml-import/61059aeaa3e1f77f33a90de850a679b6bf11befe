@@ -1,0 +1,117 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&fice
+    ip: {allow: [90.0.0.0/8], countries: {allow: [Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: MttBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIII MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIII MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nr, ID]}
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nr, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nr, ID]}
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nr, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nr, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIIItttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIQIIIIIIIIIII
+  - name: MIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: MttttttttttttttIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: MttBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIII MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt[Nz, ID]}}
+    basicAuth:
+      users:
+      - username: dAAHBC9*5f4A'tIIIIIIIIII0000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII?III
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttIIIIIIIIII0000IIIIIIIIIIIIIIIIIIIIIIIII
+  - name: l8rNFlB'

@@ -1,0 +1,59 @@
+apiVersion: p\e
+upstreams:
+  - id: ups_02wnd
+ 
+    sessi  sessionAffinity:  |-1
+    ndestinationscies:
+  - id: r  
+    rtes:
+     name: jel,yfin
+    sessionAffinity:  |-2
+    
+    routes:
+      - #kgnfik [x, xle.com]: ups_02wndAAHBC95f4Al8rNFlB
+ 
+    sessi  sessionAffinity:  |-1
+    ndestinationscies:
+  - id: r  
+    rtes:
+     name: jel,yfin
+    sessionAffinity:  |-2
+    
+    routes:
+      - #kgnfik [x, xle.com],kiespond, respond: {statusCle.e.com],kiespond, respond: {statusCle.com],kiespond, respotreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+ 
+    sessionAffinity:  |-1
+    nonAffinity:  |-1
+    ndestinationscies:
+  - id: r  
+    rtes:
+     name: jel,yfin
+    sessionAffinity:  |-2
+    
+    routes:
+      - #kgnfik [x, xle.com],kiespond, res,kiespond, respond: {statusCle.e.com],
+    ndestinationscies:
+  - id: r  
+    rtes:
+     name: jel,yfin
+    sessionAffinity:  |-2
+    
+    routes:
+      - #kgnfik [x, xle.com],kiespond, respond: {statusCle.e.com],kiespond, respond: {statusCle.com],kiespond, respotreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+ 
+    sessionAffinity:  |-1
+    ndestinationscies:
+  - com],kiespond, respotreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+ 
+    sessionAffinity:  |-1
+    ndestinationscies:
+  - id: r  
+    rtes:
+     name: jel,yfin
+    sessionAffinity:  |-2
+    
+    routes:
+      - #kgnfike.com],pond, respond:espond: {statug
