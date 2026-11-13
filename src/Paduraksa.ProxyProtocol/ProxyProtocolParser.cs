@@ -1,8 +1,10 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Net;
 
 namespace Paduraksa.ProxyProtocol;
 
+/// <summary>What a header says about the connection.</summary>
 public enum ProxyProtocolCommand : byte
 {
     /// <summary>The connection was relayed on behalf of a client; the addresses (if any) are the client's.</summary>
@@ -12,10 +14,13 @@ public enum ProxyProtocolCommand : byte
     Local = 1,
 }
 
-/// <summary>A parsed PROXY protocol header (v1 or v2).</summary>
+/// <summary>A parsed PROXY protocol header (v1 or v2). TLVs of a v2 header are skipped, not kept.</summary>
+/// <remarks>The address properties are <see cref="IpKey"/>s, which are values and never allocate.
+/// <see cref="SourceEndPoint"/> and <see cref="DestinationEndPoint"/> allocate an <see cref="IPEndPoint"/> on every call:
+/// use them once per connection, not per request.</remarks>
 public readonly struct ProxyProtocolHeader
 {
-    public ProxyProtocolHeader(
+    internal ProxyProtocolHeader(
         int version,
         ProxyProtocolCommand command,
         bool hasAddresses,
@@ -36,26 +41,40 @@ public readonly struct ProxyProtocolHeader
     /// <summary>1 (text) or 2 (binary).</summary>
     public int Version { get; }
 
+    /// <summary>Whether the connection was relayed for a client, or is the proxy's own.</summary>
     public ProxyProtocolCommand Command { get; }
 
     /// <summary>False for v2 <c>LOCAL</c>, <c>AF_UNSPEC</c>, <c>AF_UNIX</c> or an unspecified transport, and for
     /// v1 <c>UNKNOWN</c>: the receiver must then use the socket's own endpoints.</summary>
     public bool HasAddresses { get; }
 
+    /// <summary>The client's address; <see cref="IpKey.Unspecified"/> when <see cref="HasAddresses"/> is false.</summary>
     public IpKey SourceAddress { get; }
 
+    /// <summary>The client's port; 0 when <see cref="HasAddresses"/> is false.</summary>
     public ushort SourcePort { get; }
 
+    /// <summary>The address the client connected to (the proxy's front); <see cref="IpKey.Unspecified"/> when
+    /// <see cref="HasAddresses"/> is false.</summary>
     public IpKey DestinationAddress { get; }
 
+    /// <summary>The port the client connected to; 0 when <see cref="HasAddresses"/> is false.</summary>
     public ushort DestinationPort { get; }
+
+    /// <summary>The client's endpoint, or null when <see cref="HasAddresses"/> is false. Allocates.</summary>
+    public IPEndPoint? SourceEndPoint => HasAddresses ? new IPEndPoint(SourceAddress.ToIPAddress(), SourcePort) : null;
+
+    /// <summary>The endpoint the client connected to, or null when <see cref="HasAddresses"/> is false. Allocates.</summary>
+    public IPEndPoint? DestinationEndPoint => HasAddresses ? new IPEndPoint(DestinationAddress.ToIPAddress(), DestinationPort) : null;
 }
 
+/// <summary>The outcome of <see cref="ProxyProtocolParser.TryParse(System.ReadOnlySpan{byte}, out ProxyProtocolHeader, out int, int)"/>.</summary>
 public enum ProxyProtocolParseStatus : byte
 {
     /// <summary>The bytes so far are a valid prefix of a header; read more.</summary>
     Incomplete = 0,
 
+    /// <summary>A complete header was parsed.</summary>
     Success = 1,
 
     /// <summary>Not a valid PROXY protocol header; drop the connection.</summary>
@@ -132,6 +151,17 @@ public static class ProxyProtocolParser
         var status = Parse(buffer, buffer.Length, maxV2Length, out header, out var consumedLong);
         consumed = (int)consumedLong;
         return status;
+    }
+
+    /// <summary>Whether the input begins with the v1 prefix or the v2 signature in full. A header that the parser rejects but
+    /// that begins this way is a broken header; one that doesn't is not a PROXY protocol header at all.</summary>
+    internal static bool HasHeaderPrefix(in ReadOnlySequence<byte> buffer)
+    {
+        Span<byte> start = stackalloc byte[12];
+        var length = (int)Math.Min(buffer.Length, start.Length);
+        buffer.Slice(0, length).CopyTo(start);
+        start = start[..length];
+        return start.StartsWith(V1Prefix) || start.StartsWith(V2Signature);
     }
 
     // peek: the first bytes of the input (at least PeekLength when that many are available).

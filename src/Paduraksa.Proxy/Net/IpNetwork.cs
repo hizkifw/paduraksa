@@ -21,6 +21,8 @@ public readonly struct IpNetwork : IEquatable<IpNetwork>
     // 128 - prefix length, so the zero-initialised default is a /128 rather than a match-all /0.
     private readonly byte _hostBits;
 
+    private static UInt128 PrefixMask(int bits) => bits == 0 ? UInt128.Zero : UInt128.MaxValue << (128 - bits);
+
     private IpNetwork(IpKey first, int prefix128)
     {
         First = first;
@@ -31,7 +33,7 @@ public readonly struct IpNetwork : IEquatable<IpNetwork>
     public IpKey First { get; }
 
     /// <summary>The highest address in the block.</summary>
-    public IpKey Last => new(First.Value | ~IpKey.PrefixMask(Prefix128));
+    public IpKey Last => new(First.Value | ~PrefixMask(Prefix128));
 
     /// <summary>The prefix length in the 128-bit key space (an IPv4 /8 is 104).</summary>
     public int Prefix128 => 128 - _hostBits;
@@ -50,7 +52,7 @@ public readonly struct IpNetwork : IEquatable<IpNetwork>
     }
 
     /// <summary>Whether <paramref name="address"/> falls in this block.</summary>
-    public bool Contains(IpKey address) => (address.Value & IpKey.PrefixMask(Prefix128)) == First.Value;
+    public bool Contains(IpKey address) => (address.Value & PrefixMask(Prefix128)) == First.Value;
 
     /// <summary>Parses <c>address/prefix</c> or a bare address (strict; see the type remarks).</summary>
     public static bool TryParse(ReadOnlySpan<char> text, out IpNetwork network) => TryParse(text, out network, out _);
@@ -80,7 +82,7 @@ public readonly struct IpNetwork : IEquatable<IpNetwork>
         }
 
         var prefix128 = isIPv4Text ? 96 + prefix : prefix;
-        if ((address.Value & ~IpKey.PrefixMask(prefix128)) != 0)
+        if ((address.Value & ~PrefixMask(prefix128)) != 0)
         {
             error = "host bits are set below the prefix length (did you mean the network address?)";
             return false;

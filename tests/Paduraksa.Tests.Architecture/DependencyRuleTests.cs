@@ -97,7 +97,7 @@ public sealed class DependencyRuleTests
         Assert.DoesNotContain("FixtureVaultServiceCollectionExtensions", failures, StringComparison.Ordinal);
     }
 
-    private static string FakeTypeName(string layer) => $"Paduraksa.{layer}.ArchFixtures.Fake{layer}";
+    private static string FakeTypeName(string layer) => $"Paduraksa.{layer}.ArchFixtures.Fake{layer.Replace('.', ' ').Replace(" ", "")}";
 
     /// <summary>Evaluates a rule against the fixtures; it must fail, and the failure text is returned.</summary>
     private static string Failures(IArchRule rule)

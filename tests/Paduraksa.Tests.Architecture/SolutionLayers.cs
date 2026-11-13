@@ -17,6 +17,7 @@ public static class Layer
     public const string Notifications = "Notifications";
     public const string Mcp = "Mcp";
     public const string ProxyProtocol = "ProxyProtocol";
+    public const string ProxyProtocolAspNetCore = "ProxyProtocol.AspNetCore";
     public const string Proxy = "Proxy";
     public const string Application = "Application";
     public const string Admin = "Admin";
@@ -48,6 +49,7 @@ public static class SolutionLayers
         [Layer.Notifications] = [Layer.Core],
         [Layer.Mcp] = [],
         [Layer.ProxyProtocol] = [],
+        [Layer.ProxyProtocolAspNetCore] = [Layer.ProxyProtocol],
         [Layer.Proxy] = [Layer.Core, Layer.ProxyProtocol],
         [Layer.Application] = [Layer.Core, Layer.Contracts, Layer.Data, Layer.ProxyProtocol, Layer.Proxy, Layer.Acme, Layer.Notifications],
         [Layer.Admin] = [Layer.Core, Layer.Application, Layer.Contracts, Layer.Mcp],
@@ -78,7 +80,14 @@ public static class SolutionLayers
 
     /// <summary>Namespace regex matching any of <paramref name="layers"/>.</summary>
     public static string NamespacePattern(IEnumerable<string> layers) =>
-        $@"^(__Blazor\.)?Paduraksa\.({string.Join('|', layers.Select(l => Regex.Escape(l)))})(\..+)?$";
+        $@"^(__Blazor\.)?Paduraksa\.({string.Join('|', layers.Select(l => Regex.Escape(l) + ChildLayerExclusion(l)))})(\..+)?$";
+
+    /// <summary>A layer named under another's (<c>ProxyProtocol.AspNetCore</c> under <c>ProxyProtocol</c>) is not part of the parent layer.</summary>
+    private static string ChildLayerExclusion(string layer)
+    {
+        var children = All.Where(l => l.StartsWith(layer + ".", StringComparison.Ordinal)).Select(l => Regex.Escape(l[(layer.Length + 1)..])).ToList();
+        return children.Count == 0 ? "" : $@"(?!\.({string.Join('|', children)})(\.|$))";
+    }
 
     public static bool InLayer(string? @namespace, string layer)
     {
@@ -90,6 +99,11 @@ public static class SolutionLayers
         if (@namespace.StartsWith(RazorGeneratedPrefix, StringComparison.Ordinal))
         {
             @namespace = @namespace[RazorGeneratedPrefix.Length..];
+        }
+
+        if (All.Any(l => l.StartsWith(layer + ".", StringComparison.Ordinal) && InLayer(@namespace, l)))
+        {
+            return false;
         }
 
         return @namespace == $"Paduraksa.{layer}" || @namespace.StartsWith($"Paduraksa.{layer}.", StringComparison.Ordinal);

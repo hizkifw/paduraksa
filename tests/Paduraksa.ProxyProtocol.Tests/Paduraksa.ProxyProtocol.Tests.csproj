@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../../src/Paduraksa.ProxyProtocol/Paduraksa.ProxyProtocol.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.ProxyProtocol.AspNetCore/Paduraksa.ProxyProtocol.AspNetCore.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The middleware tests run on a real Kestrel; the pipe-backed connection helper needs the connection abstractions too. -->

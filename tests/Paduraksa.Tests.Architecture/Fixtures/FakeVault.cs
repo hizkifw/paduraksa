@@ -14,6 +14,7 @@ using Paduraksa.Mcp.ArchFixtures;
 using Paduraksa.Notifications.ArchFixtures;
 using Paduraksa.Proxy.ArchFixtures;
 using Paduraksa.ProxyProtocol.ArchFixtures;
+using Paduraksa.ProxyProtocol.AspNetCore.ArchFixtures;
 using Paduraksa.Server.ArchFixtures;
 using Paduraksa.Storage.ArchFixtures;
 using Paduraksa.Tests.Architecture.Fixtures;
@@ -25,6 +26,8 @@ public sealed class FakeVault
     public FakeCore? Core { get; set; }
 
     public FakeProxyProtocol? ProxyProtocol { get; set; }
+
+    public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
 
     public FakeNotifications? Notifications { get; set; }
 

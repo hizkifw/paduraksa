@@ -133,7 +133,7 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
         MaskTo(IsIPv4 ? ipv4PrefixLength : ipv6PrefixLength);
 
     /// <summary>A mask with the top <paramref name="bits"/> (0-128) of 128 set.</summary>
-    internal static UInt128 PrefixMask(int bits) => bits == 0 ? UInt128.Zero : UInt128.MaxValue << (128 - bits);
+    private static UInt128 PrefixMask(int bits) => bits == 0 ? UInt128.Zero : UInt128.MaxValue << (128 - bits);
 
     public bool Equals(IpKey other) => _value == other._value;
 
