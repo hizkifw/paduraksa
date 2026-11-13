@@ -1,6 +1,6 @@
 @implements IDisposable
 @inject DrawerStack Drawers
-@* "Review changes" for a page whose form isn't a drawer itself: Open puts ReviewPanel on the drawer stack and how it
+@* The review sheet for a page whose form isn't a drawer itself: Open puts ReviewPanel on the drawer stack and how it
    ends comes back through the callbacks. *@
 
 @code {
@@ -27,7 +27,7 @@
     public ConfigDocument? AfterDocument { get; set; }
 
     [Parameter]
-    public string ApplyLabel { get; set; } = "Apply";
+    public string ApplyLabel { get; set; } = "Apply now";
 
     /// <summary>Apply removes something: the button is red.</summary>
     [Parameter]
@@ -44,6 +44,10 @@
     /// <summary>After a commit (live, or stored but not live).</summary>
     [Parameter]
     public EventCallback<ConfigCommandResult> OnApplied { get; set; }
+
+    /// <summary>After the change went into the draft instead.</summary>
+    [Parameter]
+    public EventCallback<ConfigDraft> OnDrafted { get; set; }
 
     /// <summary>The dry run's errors about what was sent (object-relative paths), for the form to show at its fields.</summary>
     [Parameter]
@@ -100,6 +104,10 @@
                 if (outcome.Applied is { } applied)
                 {
                     await OnApplied.InvokeAsync(applied);
+                }
+                else if (outcome.Drafted is { } drafted)
+                {
+                    await OnDrafted.InvokeAsync(drafted);
                 }
                 else if (outcome.Reload)
                 {

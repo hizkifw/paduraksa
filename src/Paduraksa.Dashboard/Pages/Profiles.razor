@@ -237,7 +237,6 @@ else
         _deleteRefusal = null;
         await Drawers.ReviewAsync(new ReviewRequest($"Delete profile {profile.Name}", new DeleteProfileCommand(profile.Id, profile.Version))
         {
-            ApplyLabel = "Delete",
             Destructive = true,
             SuccessMessage = $"Deleted the profile {profile.Name}",
         });

@@ -1,117 +1,345 @@
 @implements IDisposable
 @using Microsoft.Extensions.Logging
-@inject DraftState Draft
+@inject DraftState Drafts
 @inject IDashboardConfig Config
-@inject DrawerStack Drawers
+@inject DashboardCaller Caller
+@inject ReviewedDraft Reviewed
+@inject ConfigUndo Undo
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
 @inject NavigationManager Navigation
 @inject ILogger<DraftReviewDrawer> Logger
-@* The draft's entries, one per object, in the order they were added: each can be taken out on its own, and one whose object changed elsewhere says so and can be
-   reloaded (taken out, and its form opened on the object as it is now). "Review changes" shows the whole set as one change. *@
+@* The draft, which is its own review: the entries in the order they were added, each with its diff as the review sheet shows a change, then the warnings,
+   the lock-out guard and Simulate of the whole set. Apply commits the set as one revision, with the token of exactly the review on screen. An entry
+   can be taken out, and one whose object changed elsewhere says so and can be reloaded (taken out, and its form opened on the object as it is now).
+   The review runs once when the drawer opens and again only when the draft or the head moved; a render reads what it has. *@
 
 <DrawerShell Title="Draft" Icon="@Icons.Material.Outlined.EditNote" Name="draft">
     <ChildContent>
-        @if (_head is null)
-        {
-            <div class="pdk-form" aria-busy="true">
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" />
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" Class="mt-2" />
-            </div>
-        }
-        else if (Entries.Count == 0)
-        {
-            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.EditNote" Title="No changes in the draft"
-                        Description="Use Add to draft on a form to collect changes from any page, then apply them together." />
-        }
-        else
-        {
-            <ul class="pdk-list pdk-draft-entries" data-section="draft-entries">
-                @foreach (var entry in Entries)
-                {
-                    var blocked = entry.State == DraftEntryState.ChangedElsewhere;
-                    <li class="pdk-list-row pdk-draft-entry" data-entry="@entry.Number" data-state="@(blocked ? "changed-elsewhere" : "ready")">
-                        <span class="pdk-list-icon pdk-tone-@(blocked ? "warning" : Tone(entry))"><MudIcon Icon="@IconOf(entry)" Size="Size.Small" /></span>
-                        <span class="pdk-list-main">
-                            <span class="pdk-list-title">
-                                @Capital(DraftText.Title(entry, _head))
-                                @if (blocked)
-                                {
-                                    <span class="pdk-chip pdk-tone-warning" data-chip="changed-elsewhere">Changed elsewhere</span>
-                                }
-                            </span>
-                            @if (blocked)
-                            {
-                                <span class="pdk-list-sub">@entry.Reason Reload or remove it before applying.</span>
-                            }
-                        </span>
-                        @if (blocked)
+        <div class="pdk-review-body" data-review-phase="@_phase.ToString().ToLowerInvariant()">
+            @switch (_phase)
+            {
+                case Phase.Loading:
+                    <div class="pdk-review-loading" aria-busy="true">
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" Class="mt-2" />
+                    </div>
+                    break;
+
+                case Phase.Empty:
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.EditNote" Title="No changes in the draft"
+                                Description="Choose Add to draft in a review to collect changes from any page, then apply them together." />
+                    break;
+
+                case Phase.DraftGone:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="draft-gone">
+                        <strong>The draft is gone.</strong> It was applied or discarded elsewhere, so there is nothing to apply here.
+                    </MudAlert>
+                    break;
+
+                case Phase.Denied:
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="denied">@IdentityText.CantChangeConfig</MudAlert>
+                    break;
+
+                case Phase.SignedOut:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="signed-out">
+                        <strong>Your session has ended.</strong> Sign in again to review and apply the draft.
+                    </MudAlert>
+                    break;
+
+                case Phase.Failed:
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="failed">
+                        Something went wrong while talking to the config store. The details are in the server log.
+                    </MudAlert>
+                    break;
+
+                case Phase.PublishFailed:
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="publish-failed">
+                        <strong>Saved as @_committed, but it isn't live.</strong>
+                        Publishing the new config failed, so the proxy keeps serving the previous one. The change goes live with the next
+                        successful change or the next restart.
+                        @if (_publishErrors.Count > 0)
                         {
-                            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="() => ReloadAsync(entry)" data-action="reload-entry">Reload</MudButton>
+                            <ul class="pdk-plain-list">
+                                @foreach (var error in _publishErrors)
+                                {
+                                    <li class="pdk-mono">@error</li>
+                                }
+                            </ul>
                         }
-                        <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="() => RemoveAsync(entry)" aria-label="@($"Remove {DraftText.Title(entry, _head)} from the draft")"
-                                       data-action="remove-entry" />
-                    </li>
-                }
-            </ul>
-        }
+                    </MudAlert>
+                    break;
+
+                default:
+                    @if (_changedSinceReview)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="changed-since-review">
+                            The config changed since this review. This is the review as it is now: check it, then apply.
+                        </MudAlert>
+                    }
+
+                    @if (_blocked.Count > 0)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="blocked">
+                            <strong>@(_blocked.Count == 1 ? "1 change is" : $"{_blocked.Count} changes are") changed elsewhere, so nothing can be applied.</strong>
+                            A draft goes in whole or not at all: reload or remove @(_blocked.Count == 1 ? "it" : "these"), then apply.
+                        </MudAlert>
+                    }
+
+                    <ReviewFindings Errors="_errors" Notices="_notices" />
+
+                    <ul class="pdk-list pdk-draft-entries" data-section="draft-entries">
+                        @foreach (var entry in Entries)
+                        {
+                            @EntryRow(entry)
+                        }
+                    </ul>
+
+                    @if (_phase == Phase.Ready && _maySimulate && _set is not null)
+                    {
+                        <SimulateChange Command="_set" />
+                    }
+                    break;
+            }
+        </div>
     </ChildContent>
     <Footer>
-        <div class="pdk-drawer-actions">
-            <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DiscardAsync" data-action="discard-draft"
-                       Class="pdk-drawer-actions-start">Discard draft</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="Close" data-action="cancel">Close</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" OnClick="ReviewAsync"
-                       Disabled="@(_head is null || ReadyCount == 0)" data-action="review-changes">Review changes</MudButton>
-        </div>
+        @if (_phase == Phase.Ready)
+        {
+            <MudTextField T="string" @bind-Value="_message" Label="Note for the history (optional)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          MaxLength="1000" Class="pdk-review-note" />
+        }
+        <DrawerActions OnCancel="Close" CancelLabel="Close" Busy="@(_phase == Phase.Applying)"
+                       PrimaryLabel="Apply" PrimaryAction="apply-draft" OnPrimary="ApplyAsync" PrimaryDisabled="@(_phase != Phase.Ready || _blocked.Count > 0 || _token is null)">
+            <Start>
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="DiscardAsync" Disabled="@(_phase is Phase.Applying or Phase.Loading)"
+                           data-action="discard-draft" Class="pdk-drawer-actions-start">Discard</MudButton>
+            </Start>
+        </DrawerActions>
     </Footer>
 </DrawerShell>
 
 @code {
-    private ConfigDocument? _head;
+    /// <summary>Entries up to this many open with their diff showing; a longer draft starts collapsed to its summary lines, each one click from its diff.</summary>
+    public const int OpenByDefaultUpTo = 3;
+
+    private enum Phase
+    {
+        Loading,
+        Ready,
+        Invalid,
+        Blocked,
+        Empty,
+        DraftGone,
+        Denied,
+        SignedOut,
+        Failed,
+        Applying,
+        PublishFailed,
+    }
+
+    private Phase _phase;
+    private (DraftId Id, long Version, string? Head)? _loadedKey;
+    private bool _loading;
+    private bool _again;
+    private IReadOnlyList<DraftEntry> _entries = [];
+    private IReadOnlyDictionary<int, IReadOnlyList<ChangeGroup>> _diffs = new Dictionary<int, IReadOnlyList<ChangeGroup>>();
+    private List<DraftEntry> _blocked = [];
+    private List<(string Where, string Message)> _errors = [];
+    private IReadOnlyList<string> _notices = [];
+    private ConfigDocument _head = new();
+    private ConfigCommand? _set;
+    private string? _token;
+    private string? _message;
+    private bool _changedSinceReview;
+    private bool _maySimulate;
     private bool _busy;
+    private RevisionRef? _committed;
+    private IReadOnlyList<string> _publishErrors = [];
+    private readonly Dictionary<int, bool> _open = [];
 
     [CascadingParameter]
     private DrawerLevel? Level { get; set; }
 
-    private IReadOnlyList<DraftEntry> Entries => Draft.Current?.Entries ?? [];
+    private IReadOnlyList<DraftEntry> Entries => _entries;
 
-    private int ReadyCount => Entries.Count(static e => e.State == DraftEntryState.Ready);
+    private bool IsOpen(DraftEntry entry) => _open.TryGetValue(entry.Number, out var open) ? open : _entries.Count <= OpenByDefaultUpTo;
 
     protected override async Task OnInitializedAsync()
     {
-        Draft.Changed += OnChanged;
-        await Draft.EnsureLoadedAsync();
-        try
-        {
-            _head = (await Config.GetCurrentAsync()).Document;
-        }
-        catch (Exception ex) when (StoreFailures.Survivable(ex))
-        {
-            Logger.LogStoreFailure(ex, "Couldn't read the config for the draft's list.");
-            _head = new ConfigDocument();
-        }
+        Drafts.Changed += OnChanged;
+        await Drafts.EnsureLoadedAsync();
+        await LoadAsync();
     }
 
     public void Dispose()
     {
-        Draft.Changed -= OnChanged;
+        Drafts.Changed -= OnChanged;
         GC.SuppressFinalize(this);
     }
 
-    private void OnChanged()
+    private void OnChanged() => _ = InvokeAsync(async () =>
     {
-        // The draft went (applied or discarded elsewhere): there is nothing left to list.
-        _ = InvokeAsync(() =>
+        // The draft went (applied or discarded elsewhere): there is nothing left to show. Any other change reviews again, but only when the draft or the head
+        // is not the one on screen: the draft state follows every commit and says "changed" each time.
+        if (!Drafts.IsOpen && _phase is not (Phase.PublishFailed or Phase.Applying))
         {
-            if (!Draft.IsOpen)
+            Level?.Cancel();
+            return;
+        }
+
+        if ((_phase is Phase.Ready or Phase.Invalid or Phase.Blocked or Phase.Empty) && KeyOf(Drafts.Current) != _loadedKey)
+        {
+            await LoadAsync();
+        }
+    });
+
+    private static (DraftId, long, string?)? KeyOf(ConfigDraft? draft) => draft is null ? null : (draft.Id, draft.Version, draft.Head?.ToString());
+
+    /// <summary>The review of the set: the dry run through the draft service (the cached replay), and each entry's diff. One at a time; a change that arrives meanwhile is reviewed after.</summary>
+    private async Task LoadAsync()
+    {
+        if (_loading)
+        {
+            _again = true;
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            do
             {
-                Level?.Cancel();
+                _again = false;
+                await ReviewAsync();
+            }
+            while (_again);
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ReviewAsync(DraftResult? handed = null)
+    {
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            _phase = Phase.SignedOut;
+            return;
+        }
+
+        _maySimulate = user.Has(Permission.Simulate);
+        if (Drafts.Current is not { } draft)
+        {
+            _phase = Phase.DraftGone;
+            return;
+        }
+
+        try
+        {
+            var head = await Config.GetCurrentAsync();
+            _head = head.Document;
+            var reviewed = handed ?? await Config.ReviewDraftAsync(draft.Id);
+            var current = reviewed.Draft ?? draft;
+            _loadedKey = KeyOf(current);
+            _entries = current.Entries;
+            _blocked = [.. _entries.Where(static e => e.State == DraftEntryState.ChangedElsewhere)];
+            _errors = [];
+            _notices = [];
+            _set = null;
+            _token = reviewed.ReviewToken;
+            _diffs = DraftEntryDiffs.Build(_head, _entries);
+            if (reviewed.Command is null)
+            {
+                _phase = reviewed.Status switch
+                {
+                    DraftStatus.Blocked => Phase.Blocked,
+                    DraftStatus.NoDraft => Phase.DraftGone,
+                    DraftStatus.NothingToApply => Phase.Empty,
+                    DraftStatus.Denied => Phase.Denied,
+                    _ => Phase.Failed,
+                };
+                return;
             }
 
-            StateHasChanged();
-        });
+            var working = (await Config.GetWorkingAsync()).Document;
+            var set = new ReplaceConfigCommand(working, head.Revision?.Id);
+            _set = set;
+            var result = reviewed.Command;
+            _errors =
+            [
+                .. result.Errors.Select(e => (ChangeView.Locate(e.Path, working), ReviewNotices.Text(e, working))),
+                .. result.RelatedErrors.Select(e => (ChangeView.Locate(e.Path, working), ReviewNotices.Text(e, working))),
+            ];
+            _phase = result.Status switch
+            {
+                ConfigCommandStatus.DryRun => Phase.Ready,
+                ConfigCommandStatus.Invalid => Phase.Invalid,
+                ConfigCommandStatus.Unchanged => Phase.Empty,
+                ConfigCommandStatus.Denied => Phase.Denied,
+                _ => Phase.Failed,
+            };
+            _notices = _phase is Phase.Ready or Phase.Invalid ? ReviewNotices.Of(_head, working, result.Changes, result.Warnings, Config.LiveWarnings) : [];
+            if (_phase == Phase.Ready)
+            {
+                Reviewed.Set(set, "Apply the draft", null);
+            }
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't review the draft.");
+            _phase = Phase.Failed;
+        }
     }
+
+    private RenderFragment EntryRow(DraftEntry entry) => __builder =>
+    {
+        var blocked = entry.State == DraftEntryState.ChangedElsewhere;
+        var title = Capital(DraftText.Title(entry, _head));
+        var diff = _diffs.GetValueOrDefault(entry.Number);
+        var open = !blocked && diff is not null && IsOpen(entry);
+        <li class="pdk-draft-entry" data-entry="@entry.Number" data-state="@(blocked ? "changed-elsewhere" : "ready")" data-open="@(open ? "true" : "false")" @key="entry.Number">
+            <div class="pdk-list-row pdk-draft-entry-head">
+                <span class="pdk-list-icon pdk-tone-@(blocked ? "warning" : Tone(entry))"><MudIcon Icon="@IconOf(entry)" Size="Size.Small" /></span>
+                <span class="pdk-list-main">
+                    <span class="pdk-list-title">
+                        @title
+                        @if (blocked)
+                        {
+                            <span class="pdk-chip pdk-tone-warning" data-chip="changed-elsewhere">Changed elsewhere</span>
+                        }
+                    </span>
+                    @if (blocked)
+                    {
+                        <span class="pdk-list-sub">@entry.Reason Reload or remove it before applying.</span>
+                    }
+                </span>
+                @if (blocked)
+                {
+                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="() => ReloadAsync(entry)" data-action="reload-entry">Reload</MudButton>
+                }
+                else if (diff is not null)
+                {
+                    <MudIconButton Icon="@(open ? Icons.Material.Rounded.ExpandLess : Icons.Material.Rounded.ExpandMore)" Size="Size.Small" OnClick="() => Toggle(entry, open)"
+                                   aria-label="@($"{(open ? "Hide" : "Show")} the changes of {title}")" aria-expanded="@(open ? "true" : "false")" data-action="toggle-entry" />
+                }
+                <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="() => RemoveAsync(entry)" aria-label="@($"Remove {DraftText.Title(entry, _head)} from the draft")"
+                               data-action="remove-entry" />
+            </div>
+            @if (open)
+            {
+                <div class="pdk-draft-entry-diff" data-section="entry-diff">
+                    <ChangeList Groups="diff!" />
+                </div>
+            }
+        </li>
+    };
+
+    private void Toggle(DraftEntry entry, bool open) => _open[entry.Number] = !open;
 
     private void Close() => Level?.RequestClose();
 
@@ -125,7 +353,7 @@
         _busy = true;
         try
         {
-            await Logger.TryAsync(Snackbar, "The change couldn't be taken out of the draft.", async () => await Draft.RemoveAsync(entry.Number));
+            await Logger.TryAsync(Snackbar, "The change couldn't be taken out of the draft.", async () => await Drafts.RemoveAsync(entry.Number));
         }
         finally
         {
@@ -144,7 +372,7 @@
 
     private async Task DiscardAsync()
     {
-        var count = Entries.Count;
+        var count = Drafts.Count;
         var what = count == 1 ? "The 1 change in it is dropped." : $"The {count} changes in it are dropped.";
         if (_busy || !await ConfirmActionDialog.AskAsync(Dialogs, "Discard the draft?", what, "Discard", "Nothing in a draft is live, so nothing is undone."))
         {
@@ -153,36 +381,98 @@
 
         await Logger.TryAsync(Snackbar, "The draft couldn't be discarded.", async () =>
         {
-            await Draft.DiscardAsync();
+            await Drafts.DiscardAsync();
             Snackbar.Add("Draft discarded.", Severity.Success);
             Level?.Cancel();
         });
     }
 
-    private async Task ReviewAsync()
+    /// <summary>
+    /// Commits the set with the token of the review on screen. If the config moved since, nothing is committed and the review as it is now takes this
+    /// one's place, with one line saying so; applying that needs a new click.
+    /// </summary>
+    private async Task ApplyAsync()
     {
-        if (Draft.Current is not { } draft || _busy)
+        if (_phase != Phase.Ready || Drafts.Current is not { } draft || _token is null || _blocked.Count > 0 || _busy)
         {
             return;
         }
 
-        _busy = true;
+        _phase = Phase.Applying;
+        SetBusy(true);
         try
         {
-            var outcome = await Drawers.ReviewAsync(new ReviewRequest("Apply the draft", new ReplaceConfigCommand(new ConfigDocument(), null))
+            var applied = await Config.ApplyDraftAsync(draft.Id, _token, string.IsNullOrWhiteSpace(_message) ? null : _message.Trim());
+            if (applied.Status is DraftStatus.ChangedSinceReview or DraftStatus.Blocked)
             {
-                Draft = draft.Id,
-                ApplyLabel = "Apply draft",
-                SuccessMessage = "Draft applied",
-            });
-            if (outcome.Applied is not null)
-            {
-                Level?.Cancel();
+                // Nothing was committed.
+                _changedSinceReview = true;
+                _message = null;
+                await Drafts.RefreshAsync();
+                await ReviewAsync(applied.Status == DraftStatus.Blocked ? await Config.ReviewDraftAsync(draft.Id) : applied);
+                return;
             }
+
+            if (applied.Command is null)
+            {
+                _phase = applied.Status switch
+                {
+                    DraftStatus.NoDraft => Phase.DraftGone,
+                    DraftStatus.NothingToApply => Phase.Empty,
+                    DraftStatus.Denied => Phase.Denied,
+                    _ => Phase.Failed,
+                };
+                await Drafts.RefreshAsync();
+                return;
+            }
+
+            Drafts.Applied(applied.Draft);
+            await FinishAsync(applied.Command);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't apply the draft.");
+            _phase = Phase.Failed;
         }
         finally
         {
-            _busy = false;
+            SetBusy(false);
+        }
+    }
+
+    private Task FinishAsync(ConfigCommandResult result)
+    {
+        Reviewed.Clear();
+        switch (result.Status)
+        {
+            case ConfigCommandStatus.Committed:
+                Undo.Offer(result.Revision!, "Draft applied", pending: result.Publish?.Status == PublishOutcomeStatus.Pending);
+                Level?.Close(new ReviewOutcome(result, false));
+                break;
+            case ConfigCommandStatus.PublishFailed:
+                _committed = result.Revision;
+                _publishErrors = result.Publish?.Errors ?? [];
+                _phase = Phase.PublishFailed;
+                Snackbar.Add($"Saved as {result.Revision}, but publishing failed: the previous config is still live.", Severity.Error, options => options.RequireInteraction = true);
+                break;
+            case ConfigCommandStatus.Unchanged:
+                Snackbar.Add("Nothing changed: the config already was that way.", Severity.Info);
+                Level?.Close(ReviewOutcome.Closed);
+                break;
+            default:
+                _phase = Phase.Invalid;
+                _errors = [.. result.Errors.Select(e => (ChangeView.Locate(e.Path, null), ReviewNotices.Text(e)))];
+                break;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void SetBusy(bool busy)
+    {
+        if (Level is not null)
+        {
+            Level.Busy = busy;
         }
     }
 

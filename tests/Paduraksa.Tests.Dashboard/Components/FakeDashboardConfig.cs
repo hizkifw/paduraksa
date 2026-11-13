@@ -135,11 +135,22 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
         return Task.FromResult(new DraftResult(DraftStatus.Succeeded, Draft));
     }
 
-    public Task<DraftResult> ReviewDraftAsync(DraftId draft, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Draft is null ? new DraftResult(DraftStatus.NoDraft) : ReviewResult?.Invoke(Draft) ?? Review(Draft));
+    /// <summary>How many times the draft was reviewed (a dry run through the draft service).</summary>
+    public int DraftReviews { get; private set; }
+
+    public Task<DraftResult> ReviewDraftAsync(DraftId draft, CancellationToken cancellationToken = default)
+    {
+        DraftReviews++;
+        return Task.FromResult(Draft is null ? new DraftResult(DraftStatus.NoDraft) : ReviewResult?.Invoke(Draft) ?? Review(Draft));
+    }
 
     private static DraftResult Review(ConfigDraft draft)
     {
+        if (draft.Entries.Count == 0)
+        {
+            return new DraftResult(DraftStatus.NothingToApply, draft);
+        }
+
         var blocked = draft.Entries.Any(static e => e.State == DraftEntryState.ChangedElsewhere);
         return blocked && draft.Entries.All(static e => e.State == DraftEntryState.ChangedElsewhere)
             ? new DraftResult(DraftStatus.Blocked, draft)

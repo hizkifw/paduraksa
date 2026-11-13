@@ -311,9 +311,22 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     overflow-wrap: anywhere;
 }
 
-.pdk-draft-entry > .mud-button-root,
-.pdk-draft-entry > .mud-icon-button {
+.pdk-draft-entry-head > .mud-button-root,
+.pdk-draft-entry-head > .mud-icon-button {
     flex: none;
+}
+
+/* An entry is a row (what it does, remove) with its diff under it; the rule between entries is on the item so a diff stays inside its own. */
+.pdk-draft-entry {
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-draft-entry:first-child {
+    border-top: 0;
+}
+
+.pdk-draft-entry-diff {
+    padding-bottom: 12px;
 }
 
 @media (max-width: 599px) {
@@ -2536,6 +2549,12 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-review-alert.mud-alert {
     margin: 0;
+}
+
+.pdk-review-drops {
+    margin: 0;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
 }
 
 .pdk-review-section {

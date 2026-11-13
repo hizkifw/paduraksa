@@ -1,0 +1,85 @@
+@* The footer of every drawer that changes something: Delete (danger) at the start, then Cancel, any further choices, and the one primary action last.
+   A config form's primary is "Review changes" (Apply now and Add to draft are the review sheet's); a drawer that acts at once (a user, a token) puts its own verb there.
+   Nothing here knows about drafts. *@
+<div class="pdk-drawer-actions">
+    @if (ShowDelete)
+    {
+        <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="OnDelete" Disabled="Busy" data-action="delete"
+                   Class="pdk-drawer-actions-start">@DeleteLabel</MudButton>
+    }
+    @Start
+    @if (OnCancel.HasDelegate)
+    {
+        <MudButton Variant="Variant.Text" OnClick="OnCancel" Disabled="Busy" data-action="cancel">@CancelLabel</MudButton>
+    }
+    @ChildContent
+    @if (PrimaryLabel is not null)
+    {
+        <MudButton ButtonType="@(Submit ? ButtonType.Submit : ButtonType.Button)" Variant="Variant.Filled" Color="@(Destructive ? Color.Error : Color.Primary)"
+                   StartIcon="@StartIcon" EndIcon="@EndIcon" OnClick="OnPrimary" Disabled="@(Busy || PrimaryDisabled)" data-action="@PrimaryAction">
+            @if (Busy)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @PrimaryLabel
+        </MudButton>
+    }
+</div>
+
+@code {
+    /// <summary>Shows Delete at the start of the row.</summary>
+    [Parameter]
+    public bool ShowDelete { get; set; }
+
+    [Parameter]
+    public EventCallback OnDelete { get; set; }
+
+    [Parameter]
+    public string DeleteLabel { get; set; } = "Delete";
+
+    /// <summary>Other actions at the start, beside Delete (Discard draft).</summary>
+    [Parameter]
+    public RenderFragment? Start { get; set; }
+
+    /// <summary>Shows Cancel; leave unset where the drawer's only way out is its primary.</summary>
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public string CancelLabel { get; set; } = "Cancel";
+
+    /// <summary>Buttons between Cancel and the primary action (the review sheet's two choices).</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? PrimaryLabel { get; set; }
+
+    /// <summary>The test hook of the primary button.</summary>
+    [Parameter]
+    public string? PrimaryAction { get; set; }
+
+    /// <summary>The primary submits the drawer's form (Enter does the same).</summary>
+    [Parameter]
+    public bool Submit { get; set; }
+
+    [Parameter]
+    public EventCallback OnPrimary { get; set; }
+
+    [Parameter]
+    public bool PrimaryDisabled { get; set; }
+
+    /// <summary>The primary removes something: it is red.</summary>
+    [Parameter]
+    public bool Destructive { get; set; }
+
+    [Parameter]
+    public string? StartIcon { get; set; }
+
+    [Parameter]
+    public string? EndIcon { get; set; }
+
+    /// <summary>Working: a spinner in the primary, and every button of the row disabled.</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+}

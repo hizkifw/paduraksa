@@ -292,31 +292,16 @@
         }
     </ChildContent>
     <Footer>
-        <div class="pdk-drawer-actions">
-            @if (!Stage && Model is { IsNew: false } && MayWrite)
-            {
-                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="ReviewDeleteAsync" data-action="delete"
-                           Class="pdk-drawer-actions-start">Delete</MudButton>
-            }
-            @if (MayWrite && Model is not null)
-            {
-                <MudButton Variant="Variant.Text" OnClick="Cancel" data-action="cancel">Cancel</MudButton>
-                @if (Stage)
-                {
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Check" data-action="stage">
-                        Use this upstream
-                    </MudButton>
-                }
-                else
-                {
-                    <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
-                }
-            }
-            else
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Cancel" data-action="cancel">Close</MudButton>
-            }
-        </div>
+        @if (MayWrite && Model is not null)
+        {
+            <DrawerActions ShowDelete="@(!Stage && Model.IsNew == false)" OnDelete="ReviewDeleteAsync" OnCancel="Cancel"
+                           PrimaryLabel="@(Stage ? "Use this upstream" : "Review changes")" PrimaryAction="@(Stage ? "stage" : "review")" Submit="true"
+                           StartIcon="@(Stage ? Icons.Material.Rounded.Check : null)" EndIcon="@(Stage ? null : Icons.Material.Rounded.ArrowForward)" />
+        }
+        else
+        {
+            <DrawerActions PrimaryLabel="Close" PrimaryAction="cancel" OnPrimary="Cancel" />
+        }
     </Footer>
 </DrawerShell>
 
@@ -572,7 +557,7 @@
             return;
         }
 
-        await SubmitRequestAsync(new ReviewRequest(Model!.IsNew ? $"New upstream {upstream.Name}" : $"Edit {upstream.Name}", new UpsertUpstreamCommand(upstream))
+        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New upstream {upstream.Name}" : $"Edit {upstream.Name}", new UpsertUpstreamCommand(upstream))
         {
             SuccessMessage = Model.IsNew ? $"Created {upstream.Name}" : $"Saved {upstream.Name}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
@@ -594,9 +579,8 @@
             return;
         }
 
-        await DeleteRequestAsync(new ReviewRequest($"Delete {StoredName}", new DeleteUpstreamCommand(Model.Id, Model.Version))
+        await RunReviewAsync(new ReviewRequest($"Delete {StoredName}", new DeleteUpstreamCommand(Model.Id, Model.Version))
         {
-            ApplyLabel = "Delete",
             Destructive = true,
             SuccessMessage = $"Deleted {StoredName}",
         });

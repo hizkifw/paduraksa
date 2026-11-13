@@ -42,7 +42,7 @@ else
         </MudAlert>
     }
 
-    <form class="pdk-editor" @onsubmit="() => SubmitAsync(null)" @onsubmit:preventDefault="true" novalidate data-form="defaults">
+    <form class="pdk-editor" @onsubmit="Submit" @onsubmit:preventDefault="true" novalidate data-form="defaults">
         @if (_attempted && _errors.Count > 0)
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
@@ -199,7 +199,7 @@ else
                 {
                     <MudButton Variant="Variant.Text" OnClick="ReloadAsync" data-action="discard">Discard changes</MudButton>
                 }
-                <DraftActions OnApplyNow="() => SubmitAsync(false)" OnAddToNewDraft="() => SubmitAsync(true)" />
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">Review changes</MudButton>
             </div>
         }
         else
@@ -209,7 +209,7 @@ else
     </form>
 
     <ReviewDrawer @bind-Open="_reviewing" Title="Global defaults" Command="_command" SuccessMessage="Saved the global defaults"
-                  OnApplied="OnAppliedAsync" OnInvalid="OnInvalid" OnReload="ReloadAsync" />
+                  OnApplied="OnAppliedAsync" OnDrafted="OnDraftedAsync" OnInvalid="OnInvalid" OnReload="ReloadAsync" />
 }
 
 @code {
@@ -324,10 +324,7 @@ else
             : $"{(string.IsNullOrWhiteSpace(certificate.Label) ? string.Join(", ", certificate.Names.Take(2)) : certificate.Label)}{(HostOverview.IsUsable(certificate) ? string.Empty : " (not usable)")}";
     }
 
-    /// <summary>
-    /// Reviews the change, or adds it to the draft: <paramref name="toDraft"/> says which, and null follows the primary button (the draft when one is open).
-    /// </summary>
-    private async Task SubmitAsync(bool? toDraft)
+    private void Submit()
     {
         if (_model is null || !_mayWrite)
         {
@@ -336,45 +333,10 @@ else
 
         _attempted = true;
         Validate();
-        if (_errors.Count > 0)
+        if (_errors.Count == 0)
         {
-            return;
-        }
-
-        var command = new UpdateSettingsCommand(_model.ToSettings());
-        if (!(toDraft ?? Drafts.IsOpen))
-        {
-            _command = command;
+            _command = new UpdateSettingsCommand(_model.ToSettings());
             _reviewing = true;
-            return;
-        }
-
-        var result = await Drafts.AddAsync([command]);
-        switch (result.Status)
-        {
-            case DraftStatus.Succeeded:
-                Snackbar.Add("Added to the draft: global defaults.", Severity.Success);
-                await ReloadAsync();
-                break;
-            case DraftStatus.Denied:
-                Snackbar.Add(IdentityText.CantChangeConfig, Severity.Warning);
-                break;
-            default:
-                if (result.Command is { Status: ConfigCommandStatus.Invalid } invalid)
-                {
-                    OnInvalid(invalid.Errors);
-                }
-                else if (result.Command is { Status: ConfigCommandStatus.Conflict } conflict)
-                {
-                    _changedElsewhere = conflict.Conflict?.CurrentRevision;
-                    Snackbar.Add("The defaults were changed elsewhere since you opened this page. Reload to start from the new version.", Severity.Warning);
-                }
-                else
-                {
-                    Snackbar.Add(result.Command is { Errors.Count: > 0 } failed ? failed.Errors[0].Message : "The change couldn't be added to the draft.", Severity.Error);
-                }
-
-                break;
         }
     }
 
@@ -392,6 +354,8 @@ else
     }
 
     private Task OnAppliedAsync(ConfigCommandResult result) => ReloadAsync();
+
+    private Task OnDraftedAsync(ConfigDraft draft) => ReloadAsync();
 
     private async Task ReloadAsync()
     {

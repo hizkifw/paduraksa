@@ -223,7 +223,6 @@ else
 
         await Drawers.ReviewAsync(new ReviewRequest($"Delete access list {list.Name}", new DeleteAccessListCommand(list.Id, list.Version))
         {
-            ApplyLabel = "Delete",
             Destructive = true,
             SuccessMessage = $"Deleted the access list {list.Name}",
         });

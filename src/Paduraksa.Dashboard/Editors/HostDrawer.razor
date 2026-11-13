@@ -234,22 +234,15 @@
         }
     </ChildContent>
     <Footer>
-        <div class="pdk-drawer-actions">
-            @if (Model is { IsNew: false } && MayWrite)
-            {
-                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="ReviewDeleteAsync" data-action="delete"
-                           Class="pdk-drawer-actions-start">Delete</MudButton>
-            }
-            @if (MayWrite && Model is not null)
-            {
-                <MudButton Variant="Variant.Text" OnClick="Cancel" data-action="cancel">Cancel</MudButton>
-                <DraftActions OnApplyNow="ApplyNowAsync" OnAddToNewDraft="AddToNewDraftAsync" />
-            }
-            else
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Cancel" data-action="cancel">Close</MudButton>
-            }
-        </div>
+        @if (MayWrite && Model is not null)
+        {
+            <DrawerActions ShowDelete="@(Model.IsNew == false)" OnDelete="ReviewDeleteAsync" OnCancel="Cancel"
+                           PrimaryLabel="Review changes" PrimaryAction="review" Submit="true" EndIcon="@Icons.Material.Rounded.ArrowForward" />
+        }
+        else
+        {
+            <DrawerActions PrimaryLabel="Close" PrimaryAction="cancel" OnPrimary="Cancel" />
+        }
     </Footer>
 </DrawerShell>
 
@@ -666,7 +659,7 @@
             SampleHost = SampleHost,
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         };
-        await SubmitRequestAsync(final, final.Command is ReplaceConfigCommand ? ReviewAsync : null);
+        await RunReviewAsync(final, final.Command is ReplaceConfigCommand ? ReviewAsync : null);
     }
 
     private async Task ReviewDeleteAsync()
@@ -677,9 +670,8 @@
         }
 
         var name = ChangeView.HostTitle(_stored);
-        await DeleteRequestAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(Model.Id, Model.Version))
+        await RunReviewAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(Model.Id, Model.Version))
         {
-            ApplyLabel = "Delete",
             Destructive = true,
             SuccessMessage = $"Deleted {name}",
         });

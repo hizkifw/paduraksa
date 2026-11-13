@@ -1,0 +1,16 @@
+@inject DraftState Drafts
+@* A whole-document change (rollback, import) while a draft is open: the one warning, with the way to look at the draft first. *@
+
+@if (Drafts.IsOpen)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="draft-open">
+        @DraftNotices.WholeDocument(Drafts.Count)
+        <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Warning" OnClick="OnReviewDraft" data-action="review-draft-first" Class="ml-2">Review the draft first</MudButton>
+    </MudAlert>
+}
+
+@code {
+    /// <summary>The person chose to look at the draft first: the caller closes its own sheet and opens it.</summary>
+    [Parameter]
+    public EventCallback OnReviewDraft { get; set; }
+}

@@ -16,7 +16,7 @@ public sealed record ReviewRequest(string Title, ConfigCommand Command)
     /// <summary>For a whole-document command: the document it leaves, to show the diff against.</summary>
     public ConfigDocument? AfterDocument { get; init; }
 
-    public string ApplyLabel { get; init; } = "Apply";
+    public string ApplyLabel { get; init; } = "Apply now";
 
     /// <summary>Apply removes something: the button is red.</summary>
     public bool Destructive { get; init; }
@@ -34,23 +34,18 @@ public sealed record ReviewRequest(string Title, ConfigCommand Command)
     public EventCallback<IReadOnlyList<ConfigError>> OnInvalidDocument { get; init; }
 
     /// <summary>
-    /// What "Add to draft" adds, in order, when it is not just <see cref="Command"/>: a host form's staged objects and then the host (the form's
-    /// one whole-document command is how it applies them at once; a draft keeps each as its own entry).
+    /// What Add to draft adds, in order, when it is not just <see cref="Command"/>: a host form's staged objects and then the host (the form's
+    /// one whole-document command is how it applies them at once; a draft keeps each as its own entry). A whole-document command
+    /// (rollback, import) has none and cannot be drafted.
     /// </summary>
     public IReadOnlyList<ConfigCommand>? DraftCommands { get; init; }
-
-    /// <summary>
-    /// Reviews and applies this open draft instead of <see cref="Command"/> (which then only stands for the set: the draft's document as a
-    /// whole-document command, for the diff and the simulator): the dry run and the apply go through the draft, which replays its entries on the latest
-    /// config, leaves out the ones changed elsewhere, and commits the rest as one revision.
-    /// </summary>
-    public DraftId? Draft { get; init; }
 }
 
-/// <summary>How a review ended: applied (live, or stored but not live), or the person asked to reload after a conflict.</summary>
+/// <summary>How a review ended: applied (live, or stored but not live), added to the draft, or the person asked to reload after a conflict.</summary>
 /// <param name="Applied">The commit's result; null when nothing was applied.</param>
 /// <param name="Reload">The person chose Reload after a conflict.</param>
-public sealed record ReviewOutcome(ConfigCommandResult? Applied, bool Reload)
+/// <param name="Drafted">The draft the change went into; null when it did not.</param>
+public sealed record ReviewOutcome(ConfigCommandResult? Applied, bool Reload, ConfigDraft? Drafted = null)
 {
     public static ReviewOutcome Closed { get; } = new(null, false);
 }

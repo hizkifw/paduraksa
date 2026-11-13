@@ -1,0 +1,72 @@
+@using Paduraksa.Contracts.Simulation
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+@inject ILogger<SimulateChange> Logger
+@* "Simulate this change": a request tried against the config the change would leave, in the review sheet and in the draft. *@
+
+<div class="pdk-review-simulate">
+    <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Science"
+               OnClick="Toggle" aria-expanded="@(_open ? "true" : "false")">Simulate this change</MudButton>
+    @if (_open)
+    {
+        <div class="pdk-review-simulate-form">
+            <MudTextField T="string" @bind-Value="_form.Url" Label="URL" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" />
+            <MudTextField T="string" @bind-Value="_form.ClientIp" Label="Client IP" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="RunAsync" Disabled="_running">Try it</MudButton>
+        </div>
+        @if (_result is not null)
+        {
+            <SimulationView Result="_result" Compact="true" />
+        }
+    }
+</div>
+
+@code {
+    private bool _open;
+    private bool _running;
+    private SimulationForm _form = new();
+    private SimulationResult? _result;
+    private ConfigCommand? _seen;
+
+    /// <summary>What to try the request against: the command the review is of, or the draft's set as one whole-document command.</summary>
+    [Parameter, EditorRequired]
+    public ConfigCommand Command { get; set; } = default!;
+
+    /// <summary>A host name the change is about, to pre-fill the URL.</summary>
+    [Parameter]
+    public string? SampleHost { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // A new review starts over: the last answer is about another change.
+        if (!ReferenceEquals(Command, _seen))
+        {
+            _seen = Command;
+            _result = null;
+            _form = new SimulationForm { Url = SampleHost is null ? "https://" : $"https://{SampleHost}/" };
+        }
+    }
+
+    private void Toggle() => _open = !_open;
+
+    private async Task RunAsync()
+    {
+        if (await Caller.OriginAsync() is not { } origin)
+        {
+            return;
+        }
+
+        _running = true;
+        try
+        {
+            await Logger.TryAsync(Snackbar, "The simulation couldn't run.", async () =>
+                _result = await Config.SimulateAsync(new DraftCommandSimulationTarget(Command with { DryRun = true }), _form.ToRequest(), origin));
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+}

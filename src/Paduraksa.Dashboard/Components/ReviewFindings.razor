@@ -1,0 +1,35 @@
+@* What a dry run found, above the diff: the errors that stop it from going live, and the compiler's warnings. One look for the review sheet and the draft. *@
+@if (Errors.Count > 0)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="invalid">
+        <strong>@(Errors.Count == 1 ? "One thing to fix" : $"{Errors.Count} things to fix") @Consequence.</strong>
+        <ul class="pdk-error-list">
+            @foreach (var (where, message) in Errors)
+            {
+                <li><span class="pdk-error-where">@where</span> @message</li>
+            }
+        </ul>
+    </MudAlert>
+}
+
+@if (Notices.Count > 0)
+{
+    <ul class="pdk-notices" aria-label="Warnings">
+        @foreach (var notice in Notices)
+        {
+            <li><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" /> <span>@notice</span></li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(string Where, string Message)> Errors { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Notices { get; set; } = [];
+
+    /// <summary>What the errors stop: "before this can go live", "before this can be applied on its own".</summary>
+    [Parameter]
+    public string Consequence { get; set; } = "before this can go live";
+}
