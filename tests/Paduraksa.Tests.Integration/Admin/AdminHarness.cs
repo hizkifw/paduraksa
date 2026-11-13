@@ -112,7 +112,9 @@ internal sealed class AdminHarness : IAsyncDisposable
             handler.UseCookies = false;
             handler.AllowAutoRedirect = false;
         }, checkServerName: false);
-        http.Timeout = TimeSpan.FromSeconds(20);
+        // The first fetch of /api/v1/openapi.json generates the document (about 9 s of CPU on four cores today), and a loaded
+        // two-core CI runner has taken longer than 20 s for it.
+        http.Timeout = TimeSpan.FromSeconds(60);
         return new AdminHarness(host, http, TestHost.Endpoint(host, HostRole.Admin, "https"));
     }
 
