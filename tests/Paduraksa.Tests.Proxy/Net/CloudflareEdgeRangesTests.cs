@@ -110,6 +110,19 @@ public sealed class CloudflareEdgeRangesTests
         Assert.True(why.Length < 200, why);
     }
 
+    [Theory]
+    [InlineData("1.2.3.0/24\u001b[31m")]
+    [InlineData("1.2.3.0/24\r\nFATAL forged line")]
+    [InlineData("1.2.3.0/24\u202eevil")]
+    [InlineData("1.2.3.0/24\u2028next")]
+    public void AReasonHasNoControlOrLineBreakingCharacterOfTheResponse(string entry)
+    {
+        // Found by the cloudflare-ranges fuzz target: the reason is logged and shown, so it must stay one printable line.
+        Assert.False(EdgeRangeList.TryCreate([.. Good, entry], Now, out _, out var why));
+        Assert.False(why.Any(static c => char.IsControl(c) || c is '\u202e' or '\u2028'), why);
+        Assert.Contains("?", why, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ReplacingWithTheSameBlocksOnlyMovesTheAge()
     {

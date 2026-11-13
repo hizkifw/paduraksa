@@ -14,5 +14,7 @@
     <!-- For `dotnet ef` (design time only; doesn't flow to referencing projects). -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Vault" />
+    <!-- The backup archive reader, the manifest parser and the certificate import are fuzz targets (fuzz/README.md): they read what an attacker or an admin hands the vault. -->
+    <InternalsVisibleTo Include="Paduraksa.Fuzz.Targets" />
   </ItemGroup>
 </Project>

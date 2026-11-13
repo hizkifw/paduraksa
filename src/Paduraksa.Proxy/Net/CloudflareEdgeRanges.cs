@@ -164,6 +164,26 @@ public sealed class EdgeRangeList
         return Blocks.AsSpan().SequenceEqual(other.Blocks.AsSpan());
     }
 
-    // A response is data from the network: cut what ends up in a log line or an error.
-    private static string Shown(string text) => text.Length <= 64 ? text : string.Concat(text.AsSpan(0, 64), "...");
+    // A response is data from the network: cut what ends up in a log line or an error, and make it printable (an escape sequence or a
+    // line break in a reason would reach the log and the dashboard as it came).
+    private static string Shown(string text)
+    {
+        var shown = text.Length <= 64 ? text : string.Concat(text.AsSpan(0, 64), "...");
+        var clean = true;
+        foreach (var c in shown)
+        {
+            clean &= !IsUnprintable(c);
+        }
+
+        return clean ? shown : string.Create(shown.Length, shown, static (span, source) =>
+        {
+            for (var i = 0; i < span.Length; i++)
+            {
+                span[i] = IsUnprintable(source[i]) ? '?' : source[i];
+            }
+        });
+    }
+
+    private static bool IsUnprintable(char c) =>
+        char.IsControl(c) || char.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 }
