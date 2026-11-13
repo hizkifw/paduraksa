@@ -29,6 +29,20 @@
         target.focus({ preventScroll: true });
     };
 
+    // What the person just activated. A drawer with an address (a routed one) opens by navigating, and the router moves focus to the page's
+    // heading before the stack looks at it, so the control that opened the drawer is read from the click, not from where focus is by then.
+    let activated = null;
+    let activatedAt = 0;
+    document.addEventListener("click", (event) => {
+        const control = event.target instanceof Element ? event.target.closest("button, a[href], [role=button], [role=menuitem]") : null;
+        if (control) {
+            activated = control;
+            activatedAt = Date.now();
+        }
+    }, { capture: true });
+    const openerNow = () =>
+        activated && activated.isConnected && !activated.closest(".pdk-sheet") && Date.now() - activatedAt < 2000 ? activated : document.activeElement;
+
     const drawers = Object.freeze({
         /** Hands Escape to the host while focus is in the top drawer, unless an open list or menu, or a dialog, takes it first. */
         attach(host) {
@@ -92,7 +106,7 @@
         sync(depth) {
             if (depth > opener.length) {
                 while (opener.length < depth) {
-                    opener.push(document.activeElement);
+                    opener.push(openerNow());
                 }
 
                 // After the drawer's own fields had their turn (a new form focuses its first field).
@@ -107,6 +121,12 @@
 
             if (back && back.isConnected && !back.closest("[inert]")) {
                 back.focus({ preventScroll: true });
+                // A routed drawer closes by navigating back, and the router then focuses the heading: take focus back once it has.
+                setTimeout(() => {
+                    if (back.isConnected && !topSheet() && (document.activeElement === document.body || document.activeElement?.tagName === "H1")) {
+                        back.focus({ preventScroll: true });
+                    }
+                }, 150);
             } else {
                 const top = topSheet();
                 if (top) {
