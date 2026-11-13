@@ -189,3 +189,75 @@ jobs:
           # SLSA provenance and an SBOM go up with the image as attestations.
           provenance: mode=max
           sbom: true
+
+  # Packs Paduraksa.ProxyProtocol and Paduraksa.ProxyProtocol.AspNetCore (src/Packaging.props) on every run, so a change that breaks packing or the
+  # package validation fails here and not at the tag. A `v*` tag packs them at the tag's version (v0.1.0 -> 0.1.0); any other run packs the
+  # version in Packaging.props. The packages are uploaded as an artifact either way.
+  pack:
+    name: Pack NuGet packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET (from global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Pack
+        run: |
+          version_args=()
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version_args=("-p:Version=${GITHUB_REF_NAME#v}")
+          fi
+          for project in Paduraksa.ProxyProtocol Paduraksa.ProxyProtocol.AspNetCore; do
+            dotnet pack "src/$project" -c Release -warnaserror -o artifacts/nupkg "${version_args[@]}"
+          done
+          ls -l artifacts/nupkg
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: artifacts/nupkg/*
+          if-no-files-found: error
+
+  # Pushes the packs to nuget.org for a `v*` tag once the tests pass. It does nothing until the repository has a NUGET_API_KEY secret:
+  # without it the push step is skipped and the job says so. The runner's own .NET SDK does the push. A package version that is already on nuget.org is skipped, so re-running a tag is safe.
+  publish-nuget:
+    name: Publish NuGet packages
+    needs: [build-test, pack]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    steps:
+      - name: Download the packages
+        if: ${{ env.NUGET_API_KEY != '' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-packages
+          path: artifacts/nupkg
+
+      # nuget.org takes the symbols as a package of their own: the .snupkg is pushed explicitly, after the .nupkg it belongs to
+      # (the "*.nupkg" glob does not match ".snupkg").
+      - name: Push the packages to nuget.org
+        if: ${{ env.NUGET_API_KEY != '' }}
+        run: dotnet nuget push "artifacts/nupkg/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Push the symbol packages to nuget.org
+        if: ${{ env.NUGET_API_KEY != '' }}
+        run: dotnet nuget push "artifacts/nupkg/*.snupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Skipped, no NUGET_API_KEY
+        if: ${{ env.NUGET_API_KEY == '' }}
+        run: echo "::notice::The NUGET_API_KEY secret is not set, so nothing was pushed to nuget.org (docs/development.md, Publishing the NuGet packages)."
