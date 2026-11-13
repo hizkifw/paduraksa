@@ -208,7 +208,7 @@ One merge owns the layers for every consumer: `HostSettingsLayers` in `Paduraksa
 
 The dashboard shows where each value comes from ("inherited from Global" or "from profile *LAN only*"), with a one-click "override here" or "reset to inherited". It goes through the same merge, so a form cannot promise a value the proxy would not apply.
 
-**Nested records** merge field by field. They are `Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits` and `RuleSet`.
+**Nested records** merge field by field. They are `Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`, `RuleSet` and `Headers`. `Headers` merges rule by rule, keyed on the header name (see "Custom headers" in [hot-path.md](hot-path.md)).
 - A layer lifts an inherited rate limit, access list or rule set with `enabled: false`. Everything else is a plain override.
 - A nested record that sets none of its fields is no record at all. Canonical JSON writes no key for it, so a stored revision keeps its bytes (and its hash). `ISettingsLayer.SetsNothing`, which each record states, is the one rule that decides it.
 

@@ -19037,6 +19037,64 @@
         "additionalProperties": false,
         "description": "The global settings: one per document."
       },
+      "HeaderRuleConfig": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The header's name: 1-64 token characters."
+          },
+          "operation": {
+            "enum": [
+              "set",
+              "add",
+              "remove"
+            ],
+            "type": "string",
+            "description": "What to do with the header.",
+            "default": "set"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The value HeaderOperation.Set and HeaderOperation.Add send: 1-4096 visible\n            ASCII characters, spaces or tabs, with no leading or trailing whitespace. Sent as written, with no placeholders. Absent for\n            HeaderOperation.Remove."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One custom header rule."
+      },
+      "HeadersSettings": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HeaderRuleConfig"
+            },
+            "description": "Rules for the request the upstream receives, at most 32, one per header name; at most 32 also after the layers merge."
+          },
+          "response": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HeaderRuleConfig"
+            },
+            "description": "Rules for the response the client receives, at most 32, one per header name; at most 32 also after the layers merge."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Custom headers: rules for the request the upstream receives and for the response the client receives. The layers merge\nrule by rule, keyed on the header name (ignoring case) per direction: a layer's rule for a name replaces the rule a lower\nlayer has for it, and every other inherited rule stays. A route's rules go over its host's the same way."
+      },
       "HealthChangeView": {
         "required": [
           "at",
@@ -19430,10 +19488,21 @@
                 "$ref": "#/components/schemas/MaintenanceSettings"
               }
             ]
+          },
+          "headers": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Merged rule by rule (keyed on the header name) with the layers below. Built-in default: none.",
+                "$ref": "#/components/schemas/HeadersSettings"
+              }
+            ]
           }
         },
         "additionalProperties": false,
-        "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means\n<i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings\n(TlsSettings? HostSettings.Tls, HstsSettings? HostSettings.Hsts, ServerHeaderSettings? HostSettings.ServerHeader, ProofOfWorkSettings? HostSettings.ProofOfWork, RateLimitSettings? HostSettings.RateLimit,\nRobotsSettings? HostSettings.Robots, CloudflareSettings? HostSettings.Cloudflare, AccessListSettings? HostSettings.AccessList, RequestLimitsSettings? HostSettings.RequestLimits, RuleSetSettings? HostSettings.RuleSet, AuthProviderSettings? HostSettings.AuthProvider, ErrorPagesSettings? HostSettings.ErrorPages, MaintenanceSettings? HostSettings.Maintenance) merge field by field."
+        "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means\n<i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings\n(TlsSettings? HostSettings.Tls, HstsSettings? HostSettings.Hsts, ServerHeaderSettings? HostSettings.ServerHeader, ProofOfWorkSettings? HostSettings.ProofOfWork, RateLimitSettings? HostSettings.RateLimit,\nRobotsSettings? HostSettings.Robots, CloudflareSettings? HostSettings.Cloudflare, AccessListSettings? HostSettings.AccessList, RequestLimitsSettings? HostSettings.RequestLimits, RuleSetSettings? HostSettings.RuleSet, AuthProviderSettings? HostSettings.AuthProvider, ErrorPagesSettings? HostSettings.ErrorPages, MaintenanceSettings? HostSettings.Maintenance, HeadersSettings? HostSettings.Headers) merge field by field."
       },
       "HostTraffic": {
         "required": [
@@ -22456,6 +22525,17 @@
               {
                 "description": "Field by field over the host's resolved provider: a route inherits the host's, names another, or turns authentication off\n            for its own paths (the route that serves the provider's sign-in pages has to).",
                 "$ref": "#/components/schemas/AuthProviderSettings"
+              }
+            ]
+          },
+          "headers": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Rule by rule over the host's resolved rules: a route's rule for a header name replaces the host's for it.",
+                "$ref": "#/components/schemas/HeadersSettings"
               }
             ]
           }

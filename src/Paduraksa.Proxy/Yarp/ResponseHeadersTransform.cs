@@ -18,6 +18,8 @@ namespace Paduraksa.Proxy.Yarp;
 /// <para>It also runs when a forward fails (502/504), where there is no upstream response at all, so the modes hold
 /// there too, and before a WebSocket upgrade is accepted. With header copying turned off a transform owns the response, so
 /// a removed header is taken off the proxy response too, and a later copy (if one is ever added) can't resurrect it.</para>
+/// <para>The host's or route's custom response rules (<see cref="CompiledHeaders"/>) follow the built-in list, so they
+/// have the last word on the names they may touch.</para>
 /// <para>0 B on the ordinary path: the precomputed <see cref="StringValues"/> is stored as it is, and the request ID is
 /// the one string the request already materialised.</para>
 /// </summary>
@@ -59,6 +61,25 @@ internal static class ResponseHeadersTransform
             }
 
             responseHeaders[operation.Name] = ResponseHeaders.IsRequestId(operation) ? state.RequestIdText() : operation.Value;
+        }
+
+        // After the built-in list, so a rule for Server wins over the Server setting and a remove takes it off too.
+        if ((state.Route?.Headers ?? host.Headers).Response is { Length: > 0 } rules)
+        {
+            if (!context.HeadersCopied && context.ProxyResponse is { } uncopied)
+            {
+                // The copy still to come would put the upstream's value next to a set, or bring a removed header back. Each name lives in
+                // one of the two stores, and the other throws for it.
+                foreach (var rule in rules)
+                {
+                    if (rule.Operation != Core.Model.HeaderOperation.Add)
+                    {
+                        _ = rule.OnContent ? uncopied.Content.Headers.Remove(rule.Name) : uncopied.Headers.Remove(rule.Name);
+                    }
+                }
+            }
+
+            CompiledHeaders.ApplyResponse(responseHeaders, rules);
         }
 
         return ValueTask.CompletedTask;

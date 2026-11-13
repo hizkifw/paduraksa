@@ -20,6 +20,23 @@ public static partial class SnapshotCompiler
 {
     internal sealed partial class CompileContext
     {
+        // By reference: the mapping hands a route without rules of its own its host's spec instance, so it shares the host's
+        // compiled rules and its errors are reported once, at the host.
+        private readonly Dictionary<HostHeadersSpec, CompiledHeaders> _headers = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>The compiled form of <paramref name="spec"/>, compiled once per instance.</summary>
+        public CompiledHeaders HeadersOf(HostHeadersSpec spec, CompileErrorSource where)
+        {
+            if (!_headers.TryGetValue(spec, out var compiled))
+            {
+                var errors = Errors;
+                compiled = CompiledHeaders.Compile(spec, message => errors.Add(new(where, message)));
+                _headers[spec] = compiled;
+            }
+
+            return compiled;
+        }
+
         /// <summary>
         /// Compiles one host into the candidate, reporting every rule it breaks. The admin-host rules live here, so a
         /// test can run one host through them without a whole document.
@@ -56,6 +73,9 @@ public static partial class SnapshotCompiler
             }
 
             var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors, AccessLists, RuleSets);
+
+            // An admin host's answers and its app's own headers are the admin's: custom rules apply to proxy hosts only.
+            var hostHeaders = spec.Kind == HostKind.Admin ? CompiledHeaders.None : HeadersOf(spec.Headers, where);
 
             // One policy object per (policy, host) pair, shared by every route that resolves to it: that pair owns the
             // buckets. A disabled host serves nothing and a Redirect/Respond host has no routes, so neither registers a
@@ -173,6 +193,7 @@ public static partial class SnapshotCompiler
                 AccessLog = spec.AccessLog,
                 RequestIdPropagation = spec.RequestIdPropagation,
                 ResponseHeaders = responseHeaders,
+                Headers = hostHeaders,
                 ProofOfWork = spec.ProofOfWork,
                 RequestLimits = spec.RequestLimits,
                 ServesProofOfWork = servesProofOfWork,
@@ -180,6 +201,7 @@ public static partial class SnapshotCompiler
                 MetricSlot = MetricSlotOf(MetricSubject.Host, spec.Id.Value, spec.Enabled),
             };
 
+            CheckIdentityHeaders(host, spec, where, Errors);
             if (spec.Names is null || spec.Names.Count == 0)
             {
                 Errors.Add(new(where, "needs at least one name"));
@@ -458,10 +480,47 @@ public static partial class SnapshotCompiler
                 MetricSlot = context.MetricSlotOf(MetricSubject.Route, spec.Id.Value, host.Enabled),
                 Upstream = context.UpstreamMetricsOf(spec.Upstream, host.Enabled),
                 UpstreamHost = context.UpstreamHosts.GetValueOrDefault(spec.Upstream) ?? UpstreamHost.Original,
+                // A route's resolved rules can only be empty when its host's are, so an empty spec (a hand-built model's default) is the host's.
+                Headers = spec.Headers.IsEmpty ? context.HeadersOf(host.Headers, where) : context.HeadersOf(spec.Headers, routeWhere),
             };
         }
 
         return routes;
+    }
+
+    /// <summary>
+    /// A request rule may not set a header an auth provider of the host vouches for: every route strips those from the client's
+    /// request, and a rule applied after the strip would forge the identity the upstream trusts.
+    /// </summary>
+    private static void CheckIdentityHeaders(CompiledHost host, HostSpec spec, CompileErrorSource where, List<CompileError> errors)
+    {
+        if (host.IdentityProviders.Length == 0)
+        {
+            return;
+        }
+
+        CheckOwned(host.Headers, host.IdentityProviders, where, errors);
+        for (var i = 0; i < host.Routes.Length; i++)
+        {
+            if (!ReferenceEquals(host.Routes[i].Headers, host.Headers))
+            {
+                CheckOwned(host.Routes[i].Headers, host.IdentityProviders, CompileErrorSource.Route(spec.Id, host.Routes[i].Id), errors);
+            }
+        }
+
+        static void CheckOwned(CompiledHeaders headers, CompiledAuthProvider[] providers, CompileErrorSource where, List<CompileError> errors)
+        {
+            foreach (var rule in headers.Request)
+            {
+                foreach (var provider in providers)
+                {
+                    if (rule.Operation != Core.Model.HeaderOperation.Remove && provider.Owns(rule.Name))
+                    {
+                        errors.Add(new(where, $"custom request header '{rule.Name}' is an identity header auth provider '{provider.Id}' vouches for; only the provider may set it"));
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>The distinct providers the host and its routes ask, whose identity headers every route of the host must strip.</summary>

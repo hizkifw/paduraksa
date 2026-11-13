@@ -421,6 +421,9 @@ public sealed record HostSpec
     /// <summary>Origin lockdown and Authenticated Origin Pulls; inert unless the trusted-proxy mode is a Cloudflare one.</summary>
     public HostCloudflareSpec Cloudflare { get; init; } = HostCloudflareSpec.Off;
 
+    /// <summary>The host's custom request and response headers; each route carries its own resolved set.</summary>
+    public HostHeadersSpec Headers { get; init; } = HostHeadersSpec.None;
+
     /// <summary>Proxy hosts only; listed in the order the host evaluates them: exact first, then the longest prefix,
     /// then <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];
@@ -433,6 +436,25 @@ public sealed record HostSpec
 
     /// <summary>Required for <see cref="HostKind.Respond"/>.</summary>
     public RespondSpec? Respond { get; init; }
+}
+
+/// <summary>One custom header rule as the compiler takes it; the compiler checks the name and value again.</summary>
+public sealed record HeaderRuleSpec(string Name, HeaderOperation Operation, string? Value);
+
+/// <summary>Custom header rules resolved across the layers, at most one per name and direction.</summary>
+public sealed record HostHeadersSpec
+{
+    /// <summary>No rules.</summary>
+    public static HostHeadersSpec None { get; } = new();
+
+    /// <summary>For the request the upstream receives.</summary>
+    public IReadOnlyList<HeaderRuleSpec> Request { get; init; } = [];
+
+    /// <summary>For the response the client receives.</summary>
+    public IReadOnlyList<HeaderRuleSpec> Response { get; init; } = [];
+
+    /// <summary>True when there is no rule in either direction.</summary>
+    public bool IsEmpty => Request.Count == 0 && Response.Count == 0;
 }
 
 /// <summary>One route of a proxy host.</summary>
@@ -482,6 +504,9 @@ public sealed record RouteSpec
 
     /// <summary>True when the route's own layer set the provider (the trace says so).</summary>
     public bool AuthProviderRouteOverride { get; init; }
+
+    /// <summary>This route's custom headers: the host's, with the route's own rules over them.</summary>
+    public HostHeadersSpec Headers { get; init; } = HostHeadersSpec.None;
 
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }

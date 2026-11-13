@@ -90,6 +90,7 @@ public static class ProxyHostingExtensions
                 transforms.AddRequestTransform(ForwardedHeadersTransform.ApplyAsync);
                 transforms.AddRequestTransform(adminSecret.ApplyAsync);
                 transforms.AddRequestTransform(SessionCookieTransform.ApplyAsync);
+                transforms.AddRequestTransform(CustomHeadersTransform.ApplyAsync);
                 transforms.AddResponseTransform(SessionCookieTransform.ApplyResponseAsync);
                 transforms.AddResponseTransform(AccessLogTransform.OnResponseAsync);
                 transforms.AddResponseTransform(ResponseHeadersTransform.ApplyResponseAsync);

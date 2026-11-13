@@ -184,6 +184,44 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
         }
     }
 
+    /// <summary>
+    /// The custom response rules a gate answer for <paramref name="host"/> carries, added to the host's response-header step
+    /// (or a step of their own when the trace has none), as the gate applies them when it writes the answer.
+    /// </summary>
+    internal static void AddAnswerHeaders(List<GateStep> steps, CompiledHost host, CustomHeaderRule[] rules)
+    {
+        if (rules.Length == 0)
+        {
+            return;
+        }
+
+        List<GateFact> facts = [];
+        AddCustomHeaderFacts(facts, rules, "response");
+        var existing = steps.FindLastIndex(step => step is { Kind: GateStepKind.ResponseHeaders } && step.Host == host.Id);
+        if (existing >= 0)
+        {
+            steps[existing] = steps[existing] with { Facts = [.. steps[existing].Facts, .. facts] };
+            return;
+        }
+
+        steps.Add(new GateStep(GateStepKind.ResponseHeaders, GateStepVerdict.Passed, "the host's response headers", facts, host.Id));
+    }
+
+    /// <summary>Each custom rule as a fact under its header's own name: the direction, the operation and the value.</summary>
+    private static void AddCustomHeaderFacts(List<GateFact> facts, CustomHeaderRule[] rules, string direction)
+    {
+        foreach (var rule in rules)
+        {
+            var value = CustomHeaderRules.LooksSecret(rule.Name) ? "(redacted)" : rule.Value.ToString();
+            facts.Add(new(rule.Name, rule.Operation switch
+            {
+                HeaderOperation.Set => $"{direction}: set to {value}",
+                HeaderOperation.Add => $"{direction}: {value} added",
+                _ => $"{direction}: removed",
+            }));
+        }
+    }
+
     /// <summary>One header as a fact: the value it carries, or why the answer doesn't carry it.</summary>
     private static GateFact Describe(HttpContext context, in ResponseHeaderOperation operation, HeaderOutcome outcome)
     {
@@ -550,6 +588,8 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
         var hostSent = GateSimulator.HostSentOf(snapshot, route, cluster, context.Request.Host.Value ?? string.Empty);
         facts.Add(new("hostHeaderMode", route.UpstreamHost.Mode.ToString()));
         facts.Add(new("hostSent", hostSent));
+        AddCustomHeaderFacts(facts, route.Headers.Request, "request");
+        AddCustomHeaderFacts(facts, route.Headers.Response, "response");
         steps.Add(new GateStep(
             GateStepKind.Upstream,
             endpointPresent ? GateStepVerdict.Passed : GateStepVerdict.Stopped,

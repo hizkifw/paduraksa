@@ -11,7 +11,7 @@ namespace Paduraksa.Proxy.Gate;
 internal static class GateResponseHeaders
 {
     /// <summary>Puts the host's headers back on a response that hasn't started, exactly as the gate set them: the
-    /// request ID included, whose text is materialised once and shared.</summary>
+    /// request ID included, whose text is materialised once and shared, and the custom response rules after them.</summary>
     public static void Reapply(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -26,5 +26,7 @@ internal static class GateResponseHeaders
         {
             _ = ResponseHeaders.Apply(context, in headers[i], state);
         }
+
+        CompiledHeaders.ApplyResponse(context.Response.Headers, (state.Route?.Headers ?? host.Headers).Response, again: true);
     }
 }

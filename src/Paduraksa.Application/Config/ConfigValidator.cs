@@ -731,6 +731,11 @@ public static class ConfigValidator
                 CheckRequestLimits(requestLimits, $"{path}/settings/requestLimits", route: true);
             }
 
+            if (route.Settings?.Headers is { } headers)
+            {
+                CheckHeaders(headers, $"{path}/settings/headers");
+            }
+
             // Only the route's own named policy is checked here: one inherited from the host is reported at the host.
             if (route.Settings?.RateLimit?.PolicyId is { IsEmpty: false } routePolicyId)
             {
@@ -812,6 +817,77 @@ public static class ConfigValidator
             if (settings.Maintenance is { } maintenance)
             {
                 CheckMaintenance(maintenance, $"{path}/maintenance");
+            }
+
+            if (settings.Headers is { } headers)
+            {
+                CheckHeaders(headers, $"{path}/headers");
+            }
+        }
+
+        /// <summary>
+        /// The custom header rules of one layer, judged where they are set: a bounded list per direction, one rule per name, a name
+        /// the proxy doesn't own, and a value exactly when the operation sends one. Whether an auth provider owns a request name
+        /// depends on the providers the host's routes resolve to, so the compiler judges that.
+        /// </summary>
+        private void CheckHeaders(HeadersSettings headers, string path)
+        {
+            CheckHeaderRules(headers.Request, $"{path}/request", response: false);
+            CheckHeaderRules(headers.Response, $"{path}/response", response: true);
+        }
+
+        private void CheckHeaderRules(IReadOnlyList<HeaderRuleConfig>? rules, string path, bool response)
+        {
+            if (rules is null)
+            {
+                return;
+            }
+
+            if (rules.Count > CustomHeaderRules.MaxRules)
+            {
+                Add(path, HeadersTooMany, $"at most {CustomHeaderRules.MaxRules} rules per direction, got {rules.Count}");
+            }
+
+            Dictionary<string, int> seen = new(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < rules.Count; i++)
+            {
+                var at = $"{path}/{i}";
+                if (!NotNull(rules[i], at))
+                {
+                    continue;
+                }
+
+                var rule = rules[i];
+                if (CustomHeaderRules.NameProblem(rule.Name, response) is { } nameProblem)
+                {
+                    Add($"{at}/name", CustomHeaderRules.IsReserved(rule.Name, response) ? HeadersNameReserved : HeadersNameInvalid, nameProblem);
+                }
+                else if (!seen.TryAdd(rule.Name, i))
+                {
+                    Add($"{at}/name", HeadersNameDuplicate, $"rule {seen[rule.Name]} already sets '{rule.Name}'; a layer has one rule per header");
+                }
+
+                if (!CheckEnum(rule.Operation, $"{at}/operation"))
+                {
+                    continue;
+                }
+
+                if (CustomHeaderRules.OperationProblem(rule.Name, rule.Operation, response) is { } operationProblem)
+                {
+                    Add($"{at}/operation", HeadersOperationInvalid, operationProblem);
+                }
+
+                if (rule.Operation == HeaderOperation.Remove)
+                {
+                    if (rule.Value is not null)
+                    {
+                        Add($"{at}/value", HeadersValueUnexpected, "a remove rule takes no value");
+                    }
+                }
+                else if (CustomHeaderRules.ValueProblem(rule.Value) is { } valueProblem)
+                {
+                    Add($"{at}/value", HeadersValueInvalid, valueProblem);
+                }
             }
         }
 

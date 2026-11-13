@@ -38,6 +38,7 @@ public sealed class SharedEnumWireTests
                 typeof(ErrorPageSource),
                 typeof(ForwardAuthCacheScope),
                 typeof(ForwardAuthPreset),
+                typeof(HeaderOperation),
                 typeof(HostKind),
                 typeof(OriginLockdownMode),
                 typeof(RateLimitKey),
@@ -113,6 +114,7 @@ public sealed class SharedEnumWireTests
             "\"hostHeader\":{\"mode\":\"custom\"",
             "\"per\":\"hour\"",
             "\"key\":\"header\"",
+            "\"operation\":\"remove\"",
         })
         {
             Assert.True(written.Contains(member, StringComparison.Ordinal), written);
@@ -136,6 +138,7 @@ public sealed class SharedEnumWireTests
                     Forbidden = new ErrorPageContent { Mode = ErrorPageMode.Html, Html = "<p>no</p>" },
                     ReplaceUpstream = UpstreamErrorReplacement.Any,
                 },
+                Headers = new HeadersSettings { Response = [new HeaderRuleConfig("X-Powered-By", HeaderOperation.Remove)] },
             },
             UnknownHost: UnknownHostBehaviour.Close,
             TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareTunnel, ["10.0.0.0/8"])),

@@ -48,6 +48,28 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
 
     private static readonly CertificateId Certificate = TestIds.Certificate("cert");
 
+    private static readonly HostHeadersSpec Custom = new()
+    {
+        Response =
+        [
+            new HeaderRuleSpec("Server", HeaderOperation.Set, "custom/9"),
+            new HeaderRuleSpec("X-Frame-Options", HeaderOperation.Set, "DENY"),
+            new HeaderRuleSpec("Vary", HeaderOperation.Add, "Origin"),
+            new HeaderRuleSpec("X-Powered-By", HeaderOperation.Remove, null),
+        ],
+    };
+
+    private static readonly HostHeadersSpec CustomApi = new()
+    {
+        Response =
+        [
+            new HeaderRuleSpec("Server", HeaderOperation.Set, "custom/9"),
+            new HeaderRuleSpec("X-Frame-Options", HeaderOperation.Remove, null),
+            new HeaderRuleSpec("Vary", HeaderOperation.Add, "Origin"),
+            new HeaderRuleSpec("X-Powered-By", HeaderOperation.Remove, null),
+        ],
+    };
+
     private readonly TestPki _pki = TestPki.Create();
     private readonly SnapshotStore _store = new();
     private readonly GateMiddleware _gate;
@@ -147,6 +169,19 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
                 Hsts = new HostHstsSpec { Enabled = true },
                 ServerHeader = new HostServerHeaderSpec { Mode = ServerHeaderMode.Custom, Value = "strict/1.0" },
             },
+            // Custom response rules: a set of Server wins over the built-in one, an add joins the upstream's value, a remove
+            // takes the upstream's off; a route of its own replaces one rule by name and keeps the rest.
+            ProxyHost("custom", "custom.test", Route("custom-root", "web"), Route("custom-api", "web", "/api") with { Headers = CustomApi }) with
+            {
+                Certificate = Certificate,
+                Headers = Custom,
+            },
+            // Removing Server with a rule takes off the built-in one too.
+            ProxyHost("unserved", "unserved.test", Route("unserved-root", "web")) with
+            {
+                Certificate = Certificate,
+                Headers = new HostHeadersSpec { Response = [new HeaderRuleSpec("Server", HeaderOperation.Remove, null), new HeaderRuleSpec("X-Frame-Options", HeaderOperation.Set, "DENY")] },
+            },
             new HostSpec
             {
                 Id = TestIds.Host("old"),
@@ -200,6 +235,9 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     [InlineData("app.test", "/nothing", "https", "HTTP/1.1", "Server=Paduraksa|Strict-Transport-Security=max-age=31536000|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*")]
     [InlineData("soon.test", "/", "https", "HTTP/2", "Server=edge/2.0|Strict-Transport-Security=max-age=86400|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*")]
     [InlineData("old.test", "/deep/path", "https", "HTTP/2", "Server|Strict-Transport-Security=max-age=86400|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*")]
+    // Custom rules ride the response transform on a forward (the gate's own pass leaves them to it) and the gate's own answer.
+    [InlineData("custom.test", "/", "https", "HTTP/1.1", "Server=Paduraksa|Strict-Transport-Security|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*|X-Frame-Options|Vary|X-Powered-By")]
+    [InlineData("unserved.test", "/", "https", "HTTP/2", "Server=Paduraksa|Strict-Transport-Security|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*|X-Frame-Options")]
     // The HTTPS redirect a force-HTTPS host answers on plain HTTP: a gate answer like any other, and neither header that
     // needs HTTPS goes on a plain-HTTP answer.
     [InlineData("secure.test", "/", "http", "HTTP/1.1", "Server=Paduraksa|Strict-Transport-Security|Alt-Svc|X-Request-Id=*")]
@@ -225,6 +263,70 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         await _gate.InvokeAsync(context, static _ => Task.CompletedTask);
 
         AssertSet(expected, context);
+    }
+
+    /// <summary>
+    /// A response rule can't weaken a page the proxy writes itself: the rules go on first and the page's own security headers after
+    /// them, so a rule that removes <c>Content-Security-Policy</c> leaves the page's in place. A <c>Set-Cookie</c> rule, which no
+    /// page sets, reaches the client like any other header the operator chose.
+    /// </summary>
+    [Theory]
+    [InlineData("/nothing", 404, "Checking your browser")]
+    [InlineData("/pow", 200, "Checking your browser")]
+    public async Task ARuleCantTakeAPagesOwnSecurityHeadersOff(string path, int status, string powHeading)
+    {
+        var runtime = new ProofOfWorkRuntime();
+        runtime.UseKey(new TestMacKey());
+        HostHeadersSpec rules = new()
+        {
+            Response =
+            [
+                new HeaderRuleSpec("Content-Security-Policy", HeaderOperation.Remove, null),
+                new HeaderRuleSpec("Set-Cookie", HeaderOperation.Add, "operator=1; Path=/"),
+            ],
+        };
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", "http://127.0.0.1:1/")],
+            Hosts =
+            [
+                ProxyHost("pages", "pages.test", Route("pages-api", "web", "/api"), Route("pages-pow", "web", "/pow") with
+                {
+                    ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 8 },
+                    ProofOfWorkRouteOverride = true,
+                }) with { Headers = rules, ProofOfWork = new HostProofOfWorkSpec { Difficulty = 8 } },
+            ],
+        };
+        using SnapshotStore store = new();
+        store.Publish(Bound(model, options: new SnapshotCompilerOptions { ProofOfWork = runtime }));
+        GateMiddleware gate = new(store, new TrustedProxyClientAddressSource(), proofOfWork: runtime);
+        var context = TestContexts.Create("pages.test", path, scheme: "http");
+        context.Request.Headers.Accept = "text/html";
+        context.Response.Body = new MemoryStream();
+
+        await gate.InvokeAsync(context, static _ => Task.CompletedTask);
+
+        Assert.Equal(status, context.Response.StatusCode);
+        Assert.False(string.IsNullOrEmpty(context.Response.Headers.ContentSecurityPolicy.ToString()), "the page keeps its own Content-Security-Policy");
+        Assert.Equal("operator=1; Path=/", context.Response.Headers.SetCookie.ToString());
+        var body = System.Text.Encoding.UTF8.GetString(((MemoryStream)context.Response.Body).ToArray());
+        Assert.Equal(path == "/pow", body.Contains(powHeading, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ANotFoundCarriesTheHostsCustomRules()
+    {
+        // The gate's own answer, before any route is known: the host's rules, after its built-in headers.
+        var context = TestContexts.Create("custom.test", "/", scheme: "http");
+        var model = Model() with { Hosts = [.. Model().Hosts.Select(h => h.Id == TestIds.Host("custom") ? h with { Routes = [Route("custom-api", "web", "/api")] } : h)] };
+        using SnapshotStore store = new();
+        store.Publish(Bound(model, options: Options()));
+        GateMiddleware gate = new(store, new TrustedProxyClientAddressSource());
+
+        await gate.InvokeAsync(context, static _ => Task.CompletedTask);
+
+        Assert.Equal(404, context.Response.StatusCode);
+        AssertSet("Server=custom/9|Strict-Transport-Security|Alt-Svc|X-Request-Id=*|X-Frame-Options=DENY|Vary=Origin|X-Powered-By", context);
     }
 
     [Fact]
@@ -358,9 +460,19 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     // The upstream's own Server and HSTS pass through where the host has none of its own.
     [InlineData("bare.test", "Server=upstream/1.0|Strict-Transport-Security=max-age=1|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id")]
     [InlineData("removed.test", "Server|Strict-Transport-Security=max-age=1|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*")]
+    // Custom rules after the copy: Server set over the upstream's and ours, an add joins the upstream's Vary, a remove drops
+    // its X-Powered-By; the API route replaces X-Frame-Options with a remove and keeps the others.
+    [InlineData("custom.test", "Server=custom/9|Strict-Transport-Security=max-age=1|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*|X-Frame-Options=DENY|Vary=Accept-Encoding,Origin|X-Powered-By")]
+    [InlineData("custom.test/api", "Server=custom/9|Strict-Transport-Security=max-age=1|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*|X-Frame-Options|Vary=Accept-Encoding,Origin|X-Powered-By")]
+    [InlineData("unserved.test", "Server|Strict-Transport-Security=max-age=1|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*|X-Frame-Options=DENY")]
     public async Task TheResponseTransformMakesEachModeHoldAfterYarpsCopy(string hostName, string expected)
     {
+        var routePath = hostName.Contains('/', StringComparison.Ordinal) ? hostName[hostName.IndexOf('/', StringComparison.Ordinal)..] : null;
+        hostName = routePath is null ? hostName : hostName[..hostName.IndexOf('/', StringComparison.Ordinal)];
         var context = TestContexts.Create(hostName, "/", scheme: "https");
+        context.Response.Headers["X-Powered-By"] = "Express";
+        context.Response.Headers["Vary"] = "Accept-Encoding";
+        context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
         // What YARP copies: the upstream's own next to ours, or on its own when the host leaves it there.
         context.Response.Headers[ServerHeader.HeaderName] = KindOf(hostName, ServerHeader.HeaderName) == ResponseHeaderKind.LeaveToUpstream
             ? new StringValues("upstream/1.0")
@@ -368,7 +480,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         context.Response.Headers[HstsHeader.HeaderName] = "max-age=1";
         context.Response.Headers[RequestIds.HeaderName] = "upstream-id";
 
-        await ResponseHeadersTransform.ApplyResponseAsync(Transform(context, hostName, headersCopied: true));
+        await ResponseHeadersTransform.ApplyResponseAsync(Transform(context, hostName, headersCopied: true, route: routePath));
 
         AssertSet(expected, context);
     }
@@ -399,6 +511,47 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         await ResponseHeadersTransform.ApplyResponseAsync(Transform(ours, "app.test", headersCopied: false, upstream));
         Assert.Equal("Paduraksa", Header(ours, ServerHeader.HeaderName));
         Assert.False(upstream.Headers.Contains(ServerHeader.HeaderName));
+    }
+
+    [Fact]
+    public async Task CustomRulesSettleAnUncopiedUpstreamResponseInTheRightStore()
+    {
+        // With copying off a transform owns the proxy response: a set or a remove takes the upstream's copy off whichever store holds
+        // it (a content header lives on the content, and the other store throws for it), so the copy can't put it back.
+        var context = TestContexts.Create("custom.test", "/", scheme: "https");
+        using HttpResponseMessage upstream = new() { Content = new StringContent("x") };
+        upstream.Headers.TryAddWithoutValidation("X-Powered-By", "Express");
+        upstream.Headers.TryAddWithoutValidation("X-Frame-Options", "SAMEORIGIN");
+        upstream.Content.Headers.ContentLanguage.Add("de");
+        var transform = Transform(context, "custom.test", headersCopied: false, upstream);
+        GateRequestState state = (GateRequestState)context.Features.Get<IGateFeature>()!;
+        state.Route = new CompiledRoute
+        {
+            Id = TestIds.Route("lang"),
+            MatchKind = RouteMatchKind.Prefix,
+            Path = "/",
+            Slot = 0,
+            Policies = [],
+            Headers = CompiledHeaders.Compile(
+                new HostHeadersSpec
+                {
+                    Response =
+                    [
+                        new HeaderRuleSpec("Content-Language", HeaderOperation.Set, "en"),
+                        new HeaderRuleSpec("X-Powered-By", HeaderOperation.Remove, null),
+                        new HeaderRuleSpec("X-Frame-Options", HeaderOperation.Set, "DENY"),
+                    ],
+                },
+                static message => throw new InvalidOperationException(message)),
+        };
+
+        await ResponseHeadersTransform.ApplyResponseAsync(transform);
+
+        Assert.Empty(upstream.Content.Headers.ContentLanguage);
+        Assert.False(upstream.Headers.Contains("X-Powered-By"));
+        Assert.False(upstream.Headers.Contains("X-Frame-Options"));
+        Assert.Equal("en", Header(context, "Content-Language"));
+        Assert.Equal("DENY", Header(context, "X-Frame-Options"));
     }
 
     /// <summary>What a refused value does: the compiler refuses it, so nothing that can't be sent is ever sent.</summary>
@@ -492,7 +645,8 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     [Fact]
     public void TheResponseTransformAllocatesNothing()
     {
-        foreach (var hostName in new[] { "full.test", "bare.test", "removed.test" })
+        // unserved.test: custom rules that set and remove, which is a store and a removal of precomputed values.
+        foreach (var hostName in new[] { "full.test", "bare.test", "removed.test", "unserved.test" })
         {
             var context = TestContexts.Create(hostName, "/", scheme: "https");
             context.Response.Headers[ServerHeader.HeaderName] = KindOf(hostName, ServerHeader.HeaderName) == ResponseHeaderKind.LeaveToUpstream
@@ -539,6 +693,16 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
             parts.Add(value is null ? operation.Name : $"{operation.Name}={(value == id ? Own : value)}");
         }
 
+        // Every custom rule's header is a column too, the ones that share a built-in's name (Server) once.
+        foreach (var rule in (state?.Route?.Headers ?? state?.Host?.Headers ?? CompiledHeaders.None).Response)
+        {
+            if (!headers.Any(operation => string.Equals(operation.Name, rule.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                var value = Header(context, rule.Name);
+                parts.Add(value is null ? rule.Name : $"{rule.Name}={value}");
+            }
+        }
+
         return string.Join('|', parts);
     }
 
@@ -560,9 +724,10 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         Assert.Single(_store.Current.Hosts.Find(hostName)!.ResponseHeaders, h => h.Name == name).Kind;
 
     private ResponseTransformContext Transform(
-        DefaultHttpContext context, string hostName, bool headersCopied, HttpResponseMessage? proxy = default)
+        DefaultHttpContext context, string hostName, bool headersCopied, HttpResponseMessage? proxy = default, string? route = null)
     {
-        GateRequestState state = new() { Host = _store.Current.Hosts.Find(hostName), IsHttps = true };
+        var host = _store.Current.Hosts.Find(hostName);
+        GateRequestState state = new() { Host = host, IsHttps = true, Route = route is null ? null : host!.Match(route) };
         context.Features.Set<IGateFeature>(state);
         return new ResponseTransformContext
         {

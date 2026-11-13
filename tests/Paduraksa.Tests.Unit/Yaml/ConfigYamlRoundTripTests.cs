@@ -48,6 +48,44 @@ public sealed class ConfigYamlRoundTripTests
     }
 
     [Fact]
+    public void CustomHeadersOfAHostAndARouteAreKeysOfTheYamlAndReadBack()
+    {
+        var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());
+        var host = sample.Hosts[0];
+        var document = sample with
+        {
+            Hosts =
+            [
+                host with
+                {
+                    Settings = host.Settings with
+                    {
+                        Headers = new HeadersSettings
+                        {
+                            Request = [new HeaderRuleConfig("X-Tenant", HeaderOperation.Set, "homelab")],
+                            Response = [new HeaderRuleConfig("X-Powered-By", HeaderOperation.Remove), new HeaderRuleConfig("Vary", HeaderOperation.Add, "Origin")],
+                        },
+                    },
+                    Routes =
+                    [
+                        host.Routes[0] with { Settings = new RouteSettings { Headers = new HeadersSettings { Response = [new HeaderRuleConfig("Cache-Control", HeaderOperation.Set, "no-store")] } } },
+                        .. host.Routes.Skip(1),
+                    ],
+                },
+                .. sample.Hosts.Skip(1),
+            ],
+        };
+
+        var yaml = ConfigYamlExporter.Export(document);
+        var read = YamlTestSupport.Mapped(yaml);
+
+        Assert.Contains("headers:", yaml, StringComparison.Ordinal);
+        Assert.Contains("operation: remove", yaml, StringComparison.Ordinal);
+        Assert.Equal("homelab", read.Hosts[0].Settings.Headers!.Request![0].Value);
+        Assert.Equal(Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)), Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(read)));
+    }
+
+    [Fact]
     public void AnUpstreamsTimeoutsAreAKeyOfTheYamlAndReadBack()
     {
         var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());

@@ -42,6 +42,7 @@ namespace Paduraksa.Contracts.Config;
         typeof(ConfigEnumConverter<TlsMinimumVersion>),
         typeof(ConfigEnumConverter<TcpAlpn>),
         typeof(ConfigEnumConverter<ServerHeaderMode>),
+        typeof(ConfigEnumConverter<HeaderOperation>),
         typeof(ConfigEnumConverter<UpstreamTlsTrust>),
         typeof(ConfigEnumConverter<UpstreamHostHeaderMode>),
         typeof(ConfigEnumConverter<RequestIdPropagation>),

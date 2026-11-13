@@ -275,6 +275,7 @@ public static class ProxyConfigMapping
                 RuleSet = HostSettingsLayers.ResolveRouteRuleSet(effective, route.Settings).Effective,
                 AuthProvider = HostSettingsLayers.ResolveRouteAuthProvider(effective, route.Settings).Effective,
                 AuthProviderRouteOverride = route.Settings?.AuthProvider is { Enabled: not null } or { AuthProviderId: not null },
+                Headers = HostSettingsLayers.ResolveRouteHeaders(effective, route.Settings),
             };
         }
 
@@ -358,6 +359,7 @@ public static class ProxyConfigMapping
             AuthProvider = host.Kind == HostKind.Proxy ? effective.AuthProvider : HostAuthProviderSpec.Off,
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
+            Headers = effective.Headers,
             ErrorPages = ErrorPagesOf(host, effective.ErrorPages, where, warnings),
             Maintenance = maintenance,
             Routes = routes,

@@ -63,6 +63,9 @@ public sealed class CompiledRoute
     /// <summary>The <c>Host</c> the route's upstream receives, read by the request transform.</summary>
     public Yarp.UpstreamHost UpstreamHost { get; init; } = Yarp.UpstreamHost.Original;
 
+    /// <summary>The route's custom headers: its own rules over the host's, or the host's instance when it sets none.</summary>
+    public Http.CompiledHeaders Headers { get; init; } = Http.CompiledHeaders.None;
+
     /// <summary>Does this route take <paramref name="path"/> (a canonical view)? An empty path counts as <c>/</c>.</summary>
     public bool Matches(ReadOnlySpan<char> path) => RoutePath.Takes(MatchKind, Path, path);
 }

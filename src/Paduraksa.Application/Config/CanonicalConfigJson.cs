@@ -487,6 +487,7 @@ public static class CanonicalConfigJson
             RequestLimits = DropIfNothingSet(route.Settings?.RequestLimits),
             RuleSet = DropIfNothingSet(route.Settings?.RuleSet),
             AuthProvider = DropIfNothingSet(route.Settings?.AuthProvider),
+            Headers = Canonical(route.Settings?.Headers),
         },
     };
 
@@ -508,8 +509,15 @@ public static class CanonicalConfigJson
             AuthProvider = DropIfNothingSet(settings.AuthProvider),
             ErrorPages = DropIfNothingSet(settings.ErrorPages),
             Maintenance = DropIfNothingSet(settings.Maintenance),
+            Headers = Canonical(settings.Headers),
         };
     }
+
+    // An empty direction is written as absent, like a record that sets nothing. The rules keep their order: it is the order
+    // the dashboard lists them in, and a rule's place doesn't change what it does (there is one rule per name).
+    private static HeadersSettings? Canonical(HeadersSettings? headers) => DropIfNothingSet(headers) is { } set
+        ? set with { Request = set.Request is { Count: > 0 } ? set.Request : null, Response = set.Response is { Count: > 0 } ? set.Response : null }
+        : null;
 
     /// <summary>
     /// The one rule for a nested settings record: one that sets none of its fields is the same as no record at all, so it

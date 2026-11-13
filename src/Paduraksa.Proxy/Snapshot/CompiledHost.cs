@@ -58,6 +58,9 @@ public sealed class CompiledHost
     /// </summary>
     public ResponseHeaderOperation[] ResponseHeaders { get; init; } = [];
 
+    /// <summary>The host's custom headers; a route that sets none of its own forwards with these.</summary>
+    public CompiledHeaders Headers { get; init; } = CompiledHeaders.None;
+
     /// <summary>
     /// The host's TLS settings. The handshake applies the settings of the SNI's host; the gate re-checks this host's
     /// against the request's connection (<see cref="ConnectionTlsCheck"/>), since clients coalesce connections across

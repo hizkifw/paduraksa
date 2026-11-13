@@ -98,6 +98,11 @@ public static class GateSimulator
 
         var context = BuildContext(bound, probe, peer, negotiated, tlsVersion, certificateAsked, path, hostHeader);
         var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, proofOfWork ?? ProofOfWorkRuntime.Unavailable, new RecordingGateTracer(steps, now));
+        if (decision.Action is GateAction.Respond or GateAction.VerifyProofOfWork && context.Features.Get<IGateFeature>()?.State is { Host: { } answering } answered)
+        {
+            RecordingGateTracer.AddAnswerHeaders(steps, answering, (answered.Route?.Headers ?? answering.Headers).Response);
+        }
+
         var outcome = OutcomeOf(decision, context, steps);
         var upstream = outcome.Action == GateOutcomeAction.Forward && context.Features.Get<IGateFeature>()?.State.Route is { } route
             ? route.Admin

@@ -325,6 +325,24 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: Id<AccessListId>(1).ToString()!,
             Second: Id<AccessListId>(2).ToString()!),
+
+        // One rule for the same name at every layer: the merge keys on the name, so a higher layer's rule replaces the lower's.
+        new(
+            "headers.request",
+            static s => s.Headers?.Request?.SingleOrDefault()?.Value,
+            static v => new HostSettings { Headers = new HeadersSettings { Request = [new HeaderRuleConfig("X-Sample", HeaderOperation.Set, v)] } },
+            static h => h.Headers.Request.SingleOrDefault()?.Value,
+            BuiltIn: null,
+            First: "from-the-first",
+            Second: "from-the-second"),
+        new(
+            "headers.response",
+            static s => s.Headers?.Response?.SingleOrDefault()?.Value,
+            static v => new HostSettings { Headers = new HeadersSettings { Response = [new HeaderRuleConfig("x-sample", HeaderOperation.Add, v)] } },
+            static h => h.Headers.Response.SingleOrDefault()?.Value,
+            BuiltIn: null,
+            First: "from-the-first",
+            Second: "from-the-second"),
     ];
 
     /// <summary>One row per page: a message whose heading is the sample, so each status's layer shows in what the host carries.</summary>
@@ -604,6 +622,7 @@ public sealed class SettingsInheritanceTests
             Profile: ["errorPages.misdirectedRequest", "errorPages.tooManyRequests", "errorPages.headerFieldsTooLarge", "errorPages.replaceUpstream"],
             Host: ["errorPages.badGateway", "errorPages.serviceUnavailable", "errorPages.gatewayTimeout", "errorPages.maintenance"]),
         new("maintenance", Defaults: ["maintenance.enabled"], Profile: ["maintenance.status", "maintenance.retryAfterSeconds"], Host: ["maintenance.bypassAccessListId"]),
+        new("headers", Defaults: ["headers.request"], Profile: [], Host: ["headers.response"]),
     ];
 
     /// <summary>

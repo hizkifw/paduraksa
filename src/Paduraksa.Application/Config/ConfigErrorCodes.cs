@@ -93,6 +93,13 @@ public static class ConfigErrorCodes
     public const string ErrorPagesHtmlInvalid = "errorPages.html.invalid";
     public const string ErrorPagesHtmlUnexpected = "errorPages.html.unexpected";
     public const string ErrorPagesVariableUnknown = "errorPages.variable.unknown";
+    public const string HeadersTooMany = "headers.tooMany";
+    public const string HeadersNameInvalid = "headers.name.invalid";
+    public const string HeadersNameReserved = "headers.name.reserved";
+    public const string HeadersNameDuplicate = "headers.name.duplicate";
+    public const string HeadersOperationInvalid = "headers.operation.invalid";
+    public const string HeadersValueInvalid = "headers.value.invalid";
+    public const string HeadersValueUnexpected = "headers.value.unexpected";
     public const string MaintenanceStatusInvalid = "maintenance.status.invalid";
     public const string MaintenanceRetryAfterInvalid = "maintenance.retryAfterSeconds.invalid";
     public const string HostMaintenanceBypassUnknown = "host.maintenance.bypassUnknown";

@@ -271,3 +271,17 @@ public static class ProofOfWorkLimits
     /// <summary>The built-in token lifetime: seven days.</summary>
     public const int DefaultTokenLifetimeHours = 168;
 }
+
+/// <summary>What a custom header rule does to its header.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<HeaderOperation>))]
+public enum HeaderOperation : byte
+{
+    /// <summary>Replaces every value the header had with the rule's own.</summary>
+    Set = 0,
+
+    /// <summary>Adds the rule's value after any the header already has.</summary>
+    Add = 1,
+
+    /// <summary>Removes the header, whoever set it.</summary>
+    Remove = 2,
+}

@@ -6,6 +6,7 @@ Contents:
 - [Budget and rules](#budget-and-rules)
 - [Request pipeline](#request-pipeline)
 - [Response headers](#response-headers-built-in-m6)
+- [Custom headers](#custom-headers-built-in-route-transforms)
 - [The connection stage](#the-connection-stage)
 - [The listeners' limits](#the-listeners-limits)
 - [Upstream timeouts](#upstream-timeouts)
@@ -206,6 +207,33 @@ A host that does not send a header still has its entry, so the trace can say why
 - On a successful forward the transforms already applied the headers, so the hook does nothing. A bodyless upstream response such as a 204 or a 304 starts at the end of the request, after the transforms, and is no longer applied a second time.
 
 The response `X-Request-Id` is the one header the decision leaves to the answer, because its value is the one string a request materialises. The trace reports it as such.
+
+## Custom headers (built in route-transforms)
+
+**The setting.** `HostSettings.Headers` and `RouteSettings.Headers` (`HeadersSettings`) hold two lists, `request` and `response`, of rules `{name, operation, value}`. The operation is `set` (replace every value), `add` (append) or `remove`.
+- **Layers.** The merge keys on the header name, ignoring case, per direction: a layer's rule for a name replaces the lower layer's rule for it in place, and a new name goes after the inherited ones. A route merges over its host's resolved rules the same way. There is no way to drop an inherited rule except to replace it with another rule for the name.
+- **Bounds.** At most 32 rules per direction, one per name: per layer (the validator, `headers.tooMany`) and again after the layers merge, for a host and for each route (a compile error naming the count, since the merge can add up four layers' different names). A name is 1-64 token characters. A value is 1-4096 visible ASCII characters, spaces or tabs, with no leading or trailing whitespace, so it can't carry CR or LF. A `remove` takes no value.
+- **Values are static.** Decided: no placeholders. Each candidate the brief allowed (the client IP, the request ID, the host, the scheme) already has a header the proxy sets (`X-Real-IP`/`X-Forwarded-For`, `X-Request-Id`, `X-Forwarded-Host`, `X-Forwarded-Proto`), so a placeholder would only rename it, at the cost of per-request formatting.
+- **Refused names** (`CustomHeaderRules`, shared by the validator, the compiler and the dashboard; code `headers.name.reserved`):
+  - both directions: `Connection`, `Content-Encoding`, `Content-Length`, `Expect`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Proxy-Connection`, `TE`, `Trailer`, `Transfer-Encoding`, `Upgrade`;
+  - request: `Host` (the upstream's Host header mode owns it), every `X-Forwarded-*`, `Forwarded`, `X-Real-IP`, `X-Request-Id`, every `cf-*`, `True-Client-IP`, `X-Paduraksa-Internal`;
+  - response: `Strict-Transport-Security`, `Alt-Svc` and `X-Request-Id`, which have settings of their own with rules a static header would skip (no HSTS for an IP literal, no `Alt-Svc` over HTTP/3); and `Location`. Decided (review): refused outright rather than kept off the gate's redirects, because a static `Location` makes every answer of the host a redirect target, the HTTPS redirect, Redirect hosts and the proof-of-work return included, and would override a route's `Location` mapping.
+  - **`Set-Cookie` only takes `add`** (`headers.operation.invalid` otherwise): a `set` or `remove` would take off every cookie the upstream sets and the session cookie of the host's sign-in, which the proxy writes on the same response.
+  - A request rule that sets a header an auth provider of the host vouches for (its identity headers, prefixes included) is a compile error: the strip runs before the rule, so the rule would forge the identity.
+- Other codes: `headers.tooMany`, `headers.name.invalid`, `headers.name.duplicate`, `headers.operation.invalid`, `headers.value.invalid`, `headers.value.unexpected`. The compiler checks names and values again.
+
+**Where they apply.**
+- **Request:** `CustomHeadersTransform`, after the forwarding, identity and session-cookie transforms, so a rule has the last word on the names it may touch. A header `HttpClient` keeps on the content (`Content-Type`, `Content-Language`, ...) goes on the request's content; a body-less request has none, and the rule does nothing there.
+- **Forwarded response:** `ResponseHeadersTransform`, after the built-in list. So a rule for `Server` wins over the `Server` setting, and a `remove` of `Server` takes the built-in one off too (pinned in `ResponseHeaderMatrixTests`). An `add` joins the upstream's value.
+- **The proxy's own answers** for a known host (error pages, redirects, maintenance, robots.txt, the proof-of-work page, a 421): the gate applies the response rules when it writes the answer, after the built-in headers. Decided: they apply, because the rules people set (CSP, CORS, `X-Frame-Options`, cache headers) are about the site, and an error page is part of it. Before a route is known the host's rules apply, after it the route's.
+  - A name no host serves gets none (as it gets no HSTS), and an admin host has no custom rules: the admin app's headers are its own.
+  - The 502 that YARP answers after clearing a response gets them back with the built-in ones (`GateResponseHeaders.Reapply`).
+- **Simulator:** the upstream step lists each rule of the route as a fact under the header's own name (`request: set to ...`, `response: removed`); a gate answer's rules extend the response-headers step. A value that looks like a credential (`Authorization`, `Proxy-Authorization`, `Cookie`, a name ending in `-Key`, `-Token` or `-Secret`) is shown as `(redacted)`, so it stays out of a trace an MCP script reads. Rule values are config, not vault secrets: the config document stores them and the YAML export carries them like any setting.
+
+**Cost.**
+- A route without rules shares `CompiledHeaders.None`, or its host's instance when it has none of its own: one length test.
+- A response `set` or `remove` stores or removes a precomputed `StringValues`: 0 B in Kestrel's store once the connection has held the name. An `add` onto a header that already has a value builds the one array that holds both, and only then.
+- A request rule writes into `HttpRequestHeaders`, which allocates inside the framework like every header YARP copies. `CustomHeadersAllocationTests` pins that the rules cost no more than the same writes made directly.
 
 ## The connection stage
 

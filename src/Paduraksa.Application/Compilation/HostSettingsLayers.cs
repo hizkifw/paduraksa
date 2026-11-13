@@ -123,6 +123,7 @@ public static class HostSettingsLayers
             AuthProvider = Merge(lower.AuthProvider, upper.AuthProvider),
             ErrorPages = Merge(lower.ErrorPages, upper.ErrorPages),
             Maintenance = Merge(lower.Maintenance, upper.Maintenance),
+            Headers = Merge(lower.Headers, upper.Headers),
         };
     }
 
@@ -384,6 +385,55 @@ public static class HostSettingsLayers
     }
 
     /// <summary>
+    /// <paramref name="lower"/>'s rules with <paramref name="upper"/>'s over them, per direction and keyed on the header name
+    /// (ignoring case): an upper rule replaces the lower rule for its name in place, a new name is added after the inherited
+    /// ones. Absent when neither sets a rule. A direction one side leaves empty keeps the other's list as it is.
+    /// </summary>
+    public static HeadersSettings? Merge(HeadersSettings? lower, HeadersSettings? upper)
+    {
+        if (upper is null || upper.SetsNothing)
+        {
+            return lower is { SetsNothing: false } ? lower : null;
+        }
+
+        if (lower is null || lower.SetsNothing)
+        {
+            return upper;
+        }
+
+        return new HeadersSettings { Request = MergeRules(lower.Request, upper.Request), Response = MergeRules(lower.Response, upper.Response) };
+    }
+
+    private static IReadOnlyList<HeaderRuleConfig>? MergeRules(IReadOnlyList<HeaderRuleConfig>? lower, IReadOnlyList<HeaderRuleConfig>? upper)
+    {
+        if (upper is not { Count: > 0 })
+        {
+            return lower;
+        }
+
+        if (lower is not { Count: > 0 })
+        {
+            return upper;
+        }
+
+        List<HeaderRuleConfig> merged = [.. lower];
+        foreach (var rule in upper)
+        {
+            var at = merged.FindIndex(existing => string.Equals(existing.Name, rule.Name, StringComparison.OrdinalIgnoreCase));
+            if (at >= 0)
+            {
+                merged[at] = rule;
+            }
+            else
+            {
+                merged.Add(rule);
+            }
+        }
+
+        return merged;
+    }
+
+    /// <summary>
     /// When, in <paramref name="layers"/> (listed bottom to top), the switch of the auth provider ends up off and the layer that names the provider is
     /// above the one that last set the switch, the index of the layer that names it, else -1. The merge leaves the switch where the lower layer put it,
     /// so the provider is named and never asked.
@@ -533,6 +583,7 @@ public static class HostSettingsLayers
         var authProvider = settings.AuthProvider ?? new AuthProviderSettings();
         var errorPages = settings.ErrorPages ?? new ErrorPagesSettings();
         var maintenance = settings.Maintenance ?? new MaintenanceSettings();
+        var headers = HeadersSpec(settings.Headers);
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -613,7 +664,34 @@ public static class HostSettingsLayers
                 Status = maintenance.Status ?? BuiltInMaintenanceStatus,
                 RetryAfterSeconds = maintenance.RetryAfterSeconds ?? BuiltInMaintenanceRetryAfterSeconds,
                 BypassAccessListId = maintenance.BypassAccessListId ?? AccessListId.Empty,
-            });
+            },
+            headers);
+    }
+
+    // No built-in rule: the built-in headers (Server, HSTS, Alt-Svc, the request ID) are settings of their own.
+    private static HostHeadersSpec HeadersSpec(HeadersSettings? settings) =>
+        settings is null || settings.SetsNothing
+            ? HostHeadersSpec.None
+            : new HostHeadersSpec { Request = RuleSpecs(settings.Request), Response = RuleSpecs(settings.Response) };
+
+    private static HeaderRuleSpec[] RuleSpecs(IReadOnlyList<HeaderRuleConfig>? rules) =>
+        rules is null ? [] : [.. rules.Select(static rule => new HeaderRuleSpec(rule.Name, rule.Operation, rule.Value))];
+
+    /// <summary>The custom headers of a route: the route's own rules over the host's resolved ones, by name.</summary>
+    internal static HostHeadersSpec ResolveRouteHeaders(EffectiveHostSettings host, RouteSettings? route)
+    {
+        if (route?.Headers is not { SetsNothing: false } own)
+        {
+            return host.Headers;
+        }
+
+        // The host's resolved rules as a layer, so the route merges over them exactly as a host merges over its profile.
+        HeadersSettings inherited = new()
+        {
+            Request = [.. host.Headers.Request.Select(static rule => new HeaderRuleConfig(rule.Name, rule.Operation, rule.Value))],
+            Response = [.. host.Headers.Response.Select(static rule => new HeaderRuleConfig(rule.Name, rule.Operation, rule.Value))],
+        };
+        return HeadersSpec(Merge(inherited, own));
     }
 
     // The pages a layer sets, as the compiler takes them. Where each came from is the caller's to say (ErrorPageSources),
@@ -683,6 +761,7 @@ public enum SettingsLayer
 /// <param name="AuthProvider">The auth provider in force, with the switch as it resolved.</param>
 /// <param name="ErrorPages">The pages the layers set, and whether an upstream's error bodies are replaced.</param>
 /// <param name="Maintenance">Maintenance mode as it resolved.</param>
+/// <param name="Headers">The custom request and response header rules.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -699,4 +778,5 @@ internal sealed record EffectiveHostSettings(
     HostRuleSetSpec RuleSet,
     HostAuthProviderSpec AuthProvider,
     HostErrorPagesSpec ErrorPages,
-    HostMaintenanceSpec Maintenance);
+    HostMaintenanceSpec Maintenance,
+    HostHeadersSpec Headers);

@@ -48,9 +48,12 @@ public sealed class SettingsMergeReflectionTests
                 or $"{nameof(HostSettings.AccessList)}.{nameof(AccessListSettings.AccessListId)}"
                 or $"{nameof(HostSettings.RuleSet)}.{nameof(RuleSetSettings.RuleSetId)}"
                 or $"{nameof(HostSettings.AuthProvider)}.{nameof(AuthProviderSettings.AuthProviderId)}"
-                or $"{nameof(HostSettings.Robots)}.{nameof(RobotsSettings.CustomText)}")
+                or $"{nameof(HostSettings.Robots)}.{nameof(RobotsSettings.CustomText)}"
+                or $"{nameof(HostSettings.Headers)}.{nameof(HeadersSettings.Request)}"
+                or $"{nameof(HostSettings.Headers)}.{nameof(HeadersSettings.Response)}")
             {
-                // The absence is the default: no named policy or list, no custom Server value and no custom robots.txt text.
+                // The absence is the default: no named policy or list, no custom Server value, no custom robots.txt text and no
+                // custom header rule.
                 Assert.Null(value);
                 continue;
             }
@@ -119,6 +122,11 @@ public sealed class SettingsMergeReflectionTests
         if (value == typeof(string))
         {
             return "x";
+        }
+
+        if (value == typeof(IReadOnlyList<HeaderRuleConfig>))
+        {
+            return new List<HeaderRuleConfig> { new("X-Sample", Value: "x") };
         }
 
         if (value == typeof(ErrorPageContent))

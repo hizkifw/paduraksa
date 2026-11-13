@@ -110,6 +110,13 @@ public sealed class GateMiddleware
         {
             var headers = state.Host is { } host ? host.ResponseHeaders : state.Snapshot?.DefaultResponseHeaders ?? [];
             ResponseHeaders.ApplyStage(context, headers, ResponseHeaderStage.AfterDecision, state, [], applyRequestId: true);
+
+            // The proxy's own answer for a known host carries its custom response rules (a forward gets them from the response
+            // transform, after the upstream's headers are copied). A name no host serves gets none, as it gets no HSTS.
+            if (decision.Action is GateAction.Respond or GateAction.VerifyProofOfWork && state.Host is { } answering)
+            {
+                CompiledHeaders.ApplyResponse(context.Response.Headers, (state.Route?.Headers ?? answering.Headers).Response);
+            }
         }
 
         if (decision.Action == GateAction.VerifyProofOfWork && state?.Host is { } verifyHost)
