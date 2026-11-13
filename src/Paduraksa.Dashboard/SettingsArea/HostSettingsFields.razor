@@ -4,241 +4,245 @@
 <div class="pdk-setting-list">
     @ChildContent
 
-    <h4 class="pdk-setting-section">HTTPS and TLS</h4>
-
-    @if (ShowForceHttps)
+    @if (!MaintenanceOnly)
     {
-        <InheritSelect T="bool" Value="_current.ForceHttps" ValueChanged="@(value => Update(_current with { ForceHttps = value }, "/forceHttps"))"
-                      Inherited="@Resolved.ForceHttps!.Value" Format="@(value => value ? "redirect" : "don't redirect")"
-                      InheritWord="@InheritWord" Title="HTTPS redirect"
-                      Help="Send plain-HTTP requests to HTTPS before anything else. A host without a certificate can't redirect."
-                      Label="HTTPS redirect" Field="force-https" Error="@E("/forceHttps")" ReadOnly="@ReadOnly" Disabled="@ForceHttpsDisabled">
-            <MudSelectItem T="bool?" Value="true">Redirect to HTTPS</MudSelectItem>
-            <MudSelectItem T="bool?" Value="false">Don't redirect</MudSelectItem>
-        </InheritSelect>
-    }
+        <h4 class="pdk-setting-section">HTTPS and TLS</h4>
 
-    <InheritSelect T="TlsMinimumVersion" Value="_current.Tls?.MinimumVersion" ValueChanged="@(value => Update(WithTls(tls => tls with { MinimumVersion = value }), "/tls"))"
-                  Inherited="@Resolved.Tls!.MinimumVersion!.Value" Format="@(value => SettingsSummary.TlsText(value))" InheritWord="@InheritWord"
-                  Title="Minimum TLS version" Help="The oldest TLS a client may use over TCP. HTTP/3 always uses TLS 1.3."
-                  Label="Minimum TLS version" Field="minimum-tls" Error="@E("/tls")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls12">TLS 1.2</MudSelectItem>
-        <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls13">TLS 1.3</MudSelectItem>
-    </InheritSelect>
-
-    <InheritSelect T="TcpAlpn" Value="_current.Tls?.TcpAlpn" ValueChanged="@(value => Update(WithTls(tls => tls with { TcpAlpn = value }), "/tls"))"
-                  Inherited="@Resolved.Tls!.TcpAlpn!.Value" Format="@(value => SettingsSummary.AlpnText(value))" InheritWord="@InheritWord"
-                  Title="Protocols over TCP" Help="What is offered in the TLS handshake. HTTP/1.1 only helps an old client or a picky upstream."
-                  Label="Protocols over TCP" Field="tcp-alpn" Error="@E("/tls")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http2AndHttp11">HTTP/2 and HTTP/1.1</MudSelectItem>
-        <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http11Only">HTTP/1.1 only</MudSelectItem>
-    </InheritSelect>
-
-    <InheritSelect T="bool" Value="_current.Tls?.Http3" ValueChanged="@(value => Update(WithTls(tls => tls with { Http3 = value }), "/tls"))"
-                  Inherited="@Resolved.Tls!.Http3!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                  Title="HTTP/3" Help="Serve over QUIC as well, when the HTTP/3 listener is on. Browsers find it through Alt-Svc."
-                  Label="HTTP/3" Field="http3" Error="@E("/tls")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-    </InheritSelect>
-
-    <InheritSelect T="bool" Value="_current.Hsts?.Enabled" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Enabled = value }), "/hsts"))"
-                  Inherited="@Resolved.Hsts!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                  Title="HSTS" Help="Tell browsers to reach this host over HTTPS only, for as long as it is remembered." Label="HSTS" Field="hsts-enabled" Error="@E("/hsts")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-    </InheritSelect>
-
-    <div class="pdk-setting-children">
-        <HstsMaxAgeField Value="_current.Hsts" ValueChanged="@(value => Update(WithHsts(_ => value ?? new HstsSettings()), "/hsts/maxAge"))"
-                         Inherited="@Resolved.Hsts!.MaxAge!.Value" HstsOn="HstsOn" InheritWord="@InheritWord" Error="@E("/hsts/maxAge")" ReadOnly="@ReadOnly" />
-
-        @if (HstsOn)
+        @if (ShowForceHttps)
         {
-            <InheritSelect T="bool" Value="_current.Hsts?.IncludeSubDomains" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { IncludeSubDomains = value }), "/hsts/includeSubDomains"))"
-                          Inherited="@Resolved.Hsts!.IncludeSubDomains!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                          Title="Every subdomain" HelpContent="@SubdomainHelp" Label="Every subdomain" Field="hsts-include-subdomains"
-                          Error="@E("/hsts/includeSubDomains")" ReadOnly="@ReadOnly">
-                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-            </InheritSelect>
-
-            <InheritSelect T="bool" Value="_current.Hsts?.Preload" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Preload = value }), "/hsts/preload"))"
-                          Inherited="@Resolved.Hsts!.Preload!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                          Title="Preload list" HelpContent="@PreloadHelp" Label="Preload list" Field="hsts-preload" Error="@E("/hsts/preload")" ReadOnly="@ReadOnly">
-                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+            <InheritSelect T="bool" Value="_current.ForceHttps" ValueChanged="@(value => Update(_current with { ForceHttps = value }, "/forceHttps"))"
+                          Inherited="@Resolved.ForceHttps!.Value" Format="@(value => value ? "redirect" : "don't redirect")"
+                          InheritWord="@InheritWord" Title="HTTPS redirect"
+                          Help="Send plain-HTTP requests to HTTPS before anything else. A host without a certificate can't redirect."
+                          Label="HTTPS redirect" Field="force-https" Error="@E("/forceHttps")" ReadOnly="@ReadOnly" Disabled="@ForceHttpsDisabled">
+                <MudSelectItem T="bool?" Value="true">Redirect to HTTPS</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Don't redirect</MudSelectItem>
             </InheritSelect>
         }
-    </div>
 
-    <h4 class="pdk-setting-section">Access</h4>
+        <InheritSelect T="TlsMinimumVersion" Value="_current.Tls?.MinimumVersion" ValueChanged="@(value => Update(WithTls(tls => tls with { MinimumVersion = value }), "/tls"))"
+                      Inherited="@Resolved.Tls!.MinimumVersion!.Value" Format="@(value => SettingsSummary.TlsText(value))" InheritWord="@InheritWord"
+                      Title="Minimum TLS version" Help="The oldest TLS a client may use over TCP. HTTP/3 always uses TLS 1.3."
+                      Label="Minimum TLS version" Field="minimum-tls" Error="@E("/tls")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls12">TLS 1.2</MudSelectItem>
+            <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls13">TLS 1.3</MudSelectItem>
+        </InheritSelect>
 
-    <SettingRow Title="Access list" Help="Who may reach it: the addresses a list allows or denies, and the users it asks a password of.">
-        <AccessListField Value="_current.AccessList" ValueChanged="SetAccessList" Inherited="@(Resolved.AccessList ?? new AccessListSettings())"
-                         Lists="AccessLists" Staged="StagedAccessLists" InheritWord="@InheritWord" OnNew="OnNewAccessList"
-                         Error="@AccessListError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
+        <InheritSelect T="TcpAlpn" Value="_current.Tls?.TcpAlpn" ValueChanged="@(value => Update(WithTls(tls => tls with { TcpAlpn = value }), "/tls"))"
+                      Inherited="@Resolved.Tls!.TcpAlpn!.Value" Format="@(value => SettingsSummary.AlpnText(value))" InheritWord="@InheritWord"
+                      Title="Protocols over TCP" Help="What is offered in the TLS handshake. HTTP/1.1 only helps an old client or a picky upstream."
+                      Label="Protocols over TCP" Field="tcp-alpn" Error="@E("/tls")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http2AndHttp11">HTTP/2 and HTTP/1.1</MudSelectItem>
+            <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http11Only">HTTP/1.1 only</MudSelectItem>
+        </InheritSelect>
 
-    <SettingRow Title="Rules" Help="Refuse, drop or allow requests by path, method and user agent. Asked before a password, so a refused request costs no check.">
-        <RuleSetField Value="_current.RuleSet" ValueChanged="SetRuleSet" Inherited="@(Resolved.RuleSet ?? new RuleSetSettings())"
-                      Sets="RuleSets" Staged="StagedRuleSets" InheritWord="@InheritWord" OnNew="OnNewRuleSet"
-                      Error="@RuleSetError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
+        <InheritSelect T="bool" Value="_current.Tls?.Http3" ValueChanged="@(value => Update(WithTls(tls => tls with { Http3 = value }), "/tls"))"
+                      Inherited="@Resolved.Tls!.Http3!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                      Title="HTTP/3" Help="Serve over QUIC as well, when the HTTP/3 listener is on. Browsers find it through Alt-Svc."
+                      Label="HTTP/3" Field="http3" Error="@E("/tls")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </InheritSelect>
 
-    <SettingRow Title="Sign-in" Help="Ask an auth provider (authentik, Authelia, oauth2-proxy) who the request is before it is forwarded. Route the provider's own sign-in pages with sign-in off.">
-        <AuthProviderField Value="_current.AuthProvider" ValueChanged="SetAuthProvider" Inherited="@(Resolved.AuthProvider ?? new AuthProviderSettings())"
-                           Providers="AuthProviders" Staged="StagedAuthProviders" InheritWord="@InheritWord" OnNew="OnNewAuthProvider"
-                           Error="@AuthProviderError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
+        <InheritSelect T="bool" Value="_current.Hsts?.Enabled" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Enabled = value }), "/hsts"))"
+                      Inherited="@Resolved.Hsts!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                      Title="HSTS" Help="Tell browsers to reach this host over HTTPS only, for as long as it is remembered." Label="HSTS" Field="hsts-enabled" Error="@E("/hsts")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </InheritSelect>
 
-    <SettingRow Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately.">
-        <RateLimitField Value="_current.RateLimit" ValueChanged="SetRateLimit" Inherited="@(Resolved.RateLimit ?? new RateLimitSettings())"
-                        Policies="Policies" Staged="StagedRateLimits" InheritWord="@InheritWord" OnNew="OnNewRateLimit"
-                        Error="@RateLimitError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
+        <div class="pdk-setting-children">
+            <HstsMaxAgeField Value="_current.Hsts" ValueChanged="@(value => Update(WithHsts(_ => value ?? new HstsSettings()), "/hsts/maxAge"))"
+                             Inherited="@Resolved.Hsts!.MaxAge!.Value" HstsOn="HstsOn" InheritWord="@InheritWord" Error="@E("/hsts/maxAge")" ReadOnly="@ReadOnly" />
 
-    <InheritSelect T="bool" Value="_current.ProofOfWork?.Enabled" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Enabled = value }), "/proofOfWork/enabled"))"
-                   Inherited="@Resolved.ProofOfWork!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                   Title="Browser check" Help="A browser solves a small proof of work once and keeps a signed cookie, so a plain scraper never gets in."
-                   Label="Browser check" Field="proof-of-work-enabled" Error="@E("/proofOfWork/enabled")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-    </InheritSelect>
-
-    <div class="pdk-setting-children">
-        <InheritSelect T="int" Value="_current.ProofOfWork?.Difficulty" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Difficulty = value }), "/proofOfWork/difficulty"))"
-                       Inherited="@Resolved.ProofOfWork!.Difficulty!.Value" Format="@(value => $"{value} bits ({SettingsSummary.DifficultyText(value)})")" InheritWord="@InheritWord"
-                       Title="Difficulty" Help="Leading zero bits a solution needs. Each extra bit doubles the work, for the visitor and for a bot."
-                       Label="Difficulty" Field="proof-of-work-difficulty" Error="@E("/proofOfWork/difficulty")" ReadOnly="@ReadOnly">
-            @for (var bits = 8; bits <= 28; bits++)
+            @if (HstsOn)
             {
-                var value = bits;
-                <MudSelectItem T="int?" Value="value">@value bits (@SettingsSummary.DifficultyText(value))</MudSelectItem>
+                <InheritSelect T="bool" Value="_current.Hsts?.IncludeSubDomains" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { IncludeSubDomains = value }), "/hsts/includeSubDomains"))"
+                              Inherited="@Resolved.Hsts!.IncludeSubDomains!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                              Title="Every subdomain" HelpContent="@SubdomainHelp" Label="Every subdomain" Field="hsts-include-subdomains"
+                              Error="@E("/hsts/includeSubDomains")" ReadOnly="@ReadOnly">
+                    <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+                </InheritSelect>
+
+                <InheritSelect T="bool" Value="_current.Hsts?.Preload" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Preload = value }), "/hsts/preload"))"
+                              Inherited="@Resolved.Hsts!.Preload!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                              Title="Preload list" HelpContent="@PreloadHelp" Label="Preload list" Field="hsts-preload" Error="@E("/hsts/preload")" ReadOnly="@ReadOnly">
+                    <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+                </InheritSelect>
             }
+        </div>
+
+        <h4 class="pdk-setting-section">Access</h4>
+
+        <SettingRow Title="Access list" Help="Who may reach it: the addresses a list allows or denies, and the users it asks a password of.">
+            <AccessListField Value="_current.AccessList" ValueChanged="SetAccessList" Inherited="@(Resolved.AccessList ?? new AccessListSettings())"
+                             Lists="AccessLists" Staged="StagedAccessLists" InheritWord="@InheritWord" OnNew="OnNewAccessList"
+                             Error="@AccessListError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <SettingRow Title="Rules" Help="Refuse, drop or allow requests by path, method and user agent. Asked before a password, so a refused request costs no check.">
+            <RuleSetField Value="_current.RuleSet" ValueChanged="SetRuleSet" Inherited="@(Resolved.RuleSet ?? new RuleSetSettings())"
+                          Sets="RuleSets" Staged="StagedRuleSets" InheritWord="@InheritWord" OnNew="OnNewRuleSet"
+                          Error="@RuleSetError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <SettingRow Title="Sign-in" Help="Ask an auth provider (authentik, Authelia, oauth2-proxy) who the request is before it is forwarded. Route the provider's own sign-in pages with sign-in off.">
+            <AuthProviderField Value="_current.AuthProvider" ValueChanged="SetAuthProvider" Inherited="@(Resolved.AuthProvider ?? new AuthProviderSettings())"
+                               Providers="AuthProviders" Staged="StagedAuthProviders" InheritWord="@InheritWord" OnNew="OnNewAuthProvider"
+                               Error="@AuthProviderError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <SettingRow Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately.">
+            <RateLimitField Value="_current.RateLimit" ValueChanged="SetRateLimit" Inherited="@(Resolved.RateLimit ?? new RateLimitSettings())"
+                            Policies="Policies" Staged="StagedRateLimits" InheritWord="@InheritWord" OnNew="OnNewRateLimit"
+                            Error="@RateLimitError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <InheritSelect T="bool" Value="_current.ProofOfWork?.Enabled" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Enabled = value }), "/proofOfWork/enabled"))"
+                       Inherited="@Resolved.ProofOfWork!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                       Title="Browser check" Help="A browser solves a small proof of work once and keeps a signed cookie, so a plain scraper never gets in."
+                       Label="Browser check" Field="proof-of-work-enabled" Error="@E("/proofOfWork/enabled")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
         </InheritSelect>
 
-        <ProofOfWorkLifetimeField Value="_current.ProofOfWork" ValueChanged="@(value => Update(WithProofOfWork(_ => value ?? new ProofOfWorkSettings()), "/proofOfWork/tokenLifetimeHours"))"
-                                  Inherited="@Resolved.ProofOfWork!.TokenLifetimeHours!.Value" InheritWord="@InheritWord"
-                                  Error="@E("/proofOfWork/tokenLifetimeHours")" ReadOnly="@ReadOnly" />
-    </div>
+        <div class="pdk-setting-children">
+            <InheritSelect T="int" Value="_current.ProofOfWork?.Difficulty" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Difficulty = value }), "/proofOfWork/difficulty"))"
+                           Inherited="@Resolved.ProofOfWork!.Difficulty!.Value" Format="@(value => $"{value} bits ({SettingsSummary.DifficultyText(value)})")" InheritWord="@InheritWord"
+                           Title="Difficulty" Help="Leading zero bits a solution needs. Each extra bit doubles the work, for the visitor and for a bot."
+                           Label="Difficulty" Field="proof-of-work-difficulty" Error="@E("/proofOfWork/difficulty")" ReadOnly="@ReadOnly">
+                @for (var bits = 8; bits <= 28; bits++)
+                {
+                    var value = bits;
+                    <MudSelectItem T="int?" Value="value">@value bits (@SettingsSummary.DifficultyText(value))</MudSelectItem>
+                }
+            </InheritSelect>
 
-    <InheritSelect T="RobotsMode" Value="_current.Robots?.Mode" ValueChanged="SetRobotsMode"
-                   Inherited="@Resolved.Robots!.Mode!.Value" Format="@(mode => SettingsSummary.RobotsModeText(mode))" InheritWord="@InheritWord"
-                   Title="robots.txt" Help="The file a crawler reads at /robots.txt. It is cached for an hour, so a change is picked up within the hour."
-                   Label="robots.txt" Field="robots-mode" Error="@E("/robots/mode")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="RobotsMode?" Value="RobotsMode.Passthrough">Pass through to the upstream</MudSelectItem>
-        <MudSelectItem T="RobotsMode?" Value="RobotsMode.DisallowAll">Disallow all crawlers</MudSelectItem>
-        <MudSelectItem T="RobotsMode?" Value="RobotsMode.BlockAiCrawlers">Block AI crawlers</MudSelectItem>
-        <MudSelectItem T="RobotsMode?" Value="RobotsMode.Custom">Custom</MudSelectItem>
-    </InheritSelect>
+            <ProofOfWorkLifetimeField Value="_current.ProofOfWork" ValueChanged="@(value => Update(WithProofOfWork(_ => value ?? new ProofOfWorkSettings()), "/proofOfWork/tokenLifetimeHours"))"
+                                      Inherited="@Resolved.ProofOfWork!.TokenLifetimeHours!.Value" InheritWord="@InheritWord"
+                                      Error="@E("/proofOfWork/tokenLifetimeHours")" ReadOnly="@ReadOnly" />
+        </div>
 
-    <div class="pdk-setting-children">
-        @if (EffectiveRobotsMode == RobotsMode.Custom)
+        <InheritSelect T="RobotsMode" Value="_current.Robots?.Mode" ValueChanged="SetRobotsMode"
+                       Inherited="@Resolved.Robots!.Mode!.Value" Format="@(mode => SettingsSummary.RobotsModeText(mode))" InheritWord="@InheritWord"
+                       Title="robots.txt" Help="The file a crawler reads at /robots.txt. It is cached for an hour, so a change is picked up within the hour."
+                       Label="robots.txt" Field="robots-mode" Error="@E("/robots/mode")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="RobotsMode?" Value="RobotsMode.Passthrough">Pass through to the upstream</MudSelectItem>
+            <MudSelectItem T="RobotsMode?" Value="RobotsMode.DisallowAll">Disallow all crawlers</MudSelectItem>
+            <MudSelectItem T="RobotsMode?" Value="RobotsMode.BlockAiCrawlers">Block AI crawlers</MudSelectItem>
+            <MudSelectItem T="RobotsMode?" Value="RobotsMode.Custom">Custom</MudSelectItem>
+        </InheritSelect>
+
+        <div class="pdk-setting-children">
+            @if (EffectiveRobotsMode == RobotsMode.Custom)
+            {
+                <SettingRow Title="Custom text" Help="Served as typed, with a final newline. Left empty, an inherited text is used if there is one." Wide="true">
+                    <MudTextField T="string" Value="@(_current.Robots?.CustomText ?? string.Empty)"
+                                  ValueChanged="@(value => Update(WithRobots(robots => robots with { CustomText = string.IsNullOrEmpty(value) ? null : value }), "/robots/customText"))"
+                                  Label="Text" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="8" ReadOnly="@ReadOnly"
+                                  Class="pdk-mono-input" Error="@(E("/robots/customText") is not null)" ErrorText="@E("/robots/customText")"
+                                  data-field="robots-custom-text" data-paste="decode-url" />
+                </SettingRow>
+            }
+            else if (EffectiveRobotsMode == RobotsMode.BlockAiCrawlers)
+            {
+                <SettingRow Title="Blocked crawlers" Help="Each gets Disallow: /; every other crawler is allowed." Wide="true">
+                    <div class="pdk-robots">
+                        <details data-field="robots-crawlers">
+                            <summary>@RobotsText.AiCrawlers.Count user agents</summary>
+                            <div class="pdk-robots-agents">
+                                @foreach (var crawler in RobotsText.AiCrawlers)
+                                {
+                                    <code>@crawler</code>
+                                }
+                            </div>
+                        </details>
+                        <details data-field="robots-preview">
+                            <summary>Preview the served file</summary>
+                            <pre class="pdk-robots-preview">@RobotsText.BlockAiCrawlers</pre>
+                        </details>
+                    </div>
+                </SettingRow>
+            }
+        </div>
+
+        @if (NeedsCloudflareMode)
         {
-            <SettingRow Title="Custom text" Help="Served as typed, with a final newline. Left empty, an inherited text is used if there is one." Wide="true">
-                <MudTextField T="string" Value="@(_current.Robots?.CustomText ?? string.Empty)"
-                              ValueChanged="@(value => Update(WithRobots(robots => robots with { CustomText = string.IsNullOrEmpty(value) ? null : value }), "/robots/customText"))"
-                              Label="Text" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="8" ReadOnly="@ReadOnly"
-                              Class="pdk-mono-input" Error="@(E("/robots/customText") is not null)" ErrorText="@E("/robots/customText")"
-                              data-field="robots-custom-text" data-paste="decode-url" />
-            </SettingRow>
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="pdk-setting-note" data-field="cloudflare-needs-mode">
+                The two Cloudflare settings below do nothing until client addresses are set to Cloudflare proxy or Cloudflare Tunnel (Global defaults).
+            </MudAlert>
         }
-        else if (EffectiveRobotsMode == RobotsMode.BlockAiCrawlers)
+
+        <InheritSelect T="OriginLockdownMode" Value="_current.Cloudflare?.OriginLockdown" ValueChanged="@(value => Update(WithCloudflare(cloudflare => cloudflare with { OriginLockdown = value }), "/cloudflare/originLockdown"))"
+                       Inherited="@Resolved.Cloudflare!.OriginLockdown!.Value" Format="@(mode => SettingsSummary.LockdownText(mode))" InheritWord="@InheritWord"
+                       Title="Only allow Cloudflare"
+                       Help="Refuse a connection that doesn't come from Cloudflare, before anything else the host does. It covers the admin host when it is served here, not the admin port."
+                       Label="Only allow Cloudflare" Field="cloudflare-lockdown" Error="@E("/cloudflare/originLockdown")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Off">Off</MudSelectItem>
+            <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Forbid">Refuse with 403</MudSelectItem>
+            <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Drop">Drop connection</MudSelectItem>
+        </InheritSelect>
+
+        <InheritSelect T="bool" Value="_current.Cloudflare?.AuthenticatedOriginPulls" ValueChanged="@(value => Update(WithCloudflare(cloudflare => cloudflare with { AuthenticatedOriginPulls = value }), "/cloudflare/authenticatedOriginPulls"))"
+                       Inherited="@Resolved.Cloudflare!.AuthenticatedOriginPulls!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                       Title="Authenticated Origin Pulls"
+                       Help="Only take Cloudflare's client certificate. Turn it on for the zone in Cloudflare too, or every request is refused. The host leaves HTTP/3."
+                       Label="Authenticated Origin Pulls" Field="cloudflare-aop" Error="@E("/cloudflare/authenticatedOriginPulls")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </InheritSelect>
+
+        <h4 class="pdk-setting-section">Request limits</h4>
+
+        <SettingRow Title="Body size" Help="Refused with 413 above this: at once when the request declares its size, mid-upload when it doesn't. A route can set its own.">
+            <SizeField Value="_current.RequestLimits?.MaxBodySize" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxBodySize = value }), "/requestLimits/maxBodySize"))"
+                       Inherited="@Resolved.RequestLimits!.MaxBodySize!.Value" Presets="BodyPresets" AllowUnlimited="true" InheritWord="@InheritWord"
+                       Label="Body size" Field="max-body-size" Error="@E("/requestLimits/maxBodySize")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <SettingRow Title="Header lines" Help="Most header lines a request may carry, a cookie header included. More gets a 431.">
+            <CountField Value="_current.RequestLimits?.MaxHeaderCount" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxHeaderCount = value }), "/requestLimits/maxHeaderCount"))"
+                        Inherited="@Resolved.RequestLimits!.MaxHeaderCount!.Value" InheritWord="@InheritWord" Label="Header lines" Field="max-header-count"
+                        Error="@E("/requestLimits/maxHeaderCount")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <SettingRow Title="Header size" Help="Header names and values together. More gets a 431; large cookies are the usual cause.">
+            <SizeField Value="_current.RequestLimits?.MaxHeaderBytes" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxHeaderBytes = SizeText.ToInt(value) }), "/requestLimits/maxHeaderBytes"))"
+                       Inherited="@Resolved.RequestLimits!.MaxHeaderBytes!.Value" Presets="HeaderPresets" InheritWord="@InheritWord"
+                       Label="Header size" Field="max-header-bytes" Error="@E("/requestLimits/maxHeaderBytes")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <SettingRow Title="URL length" Help="The path and query as sent. Longer gets a 414.">
+            <SizeField Value="_current.RequestLimits?.MaxUrlLength" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxUrlLength = SizeText.ToInt(value) }), "/requestLimits/maxUrlLength"))"
+                       Inherited="@Resolved.RequestLimits!.MaxUrlLength!.Value" Presets="UrlPresets" InheritWord="@InheritWord"
+                       Label="URL length" Field="max-url-length" Error="@E("/requestLimits/maxUrlLength")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <h4 class="pdk-setting-section">Error pages</h4>
+
+        @foreach (var (key, help) in ErrorPageRows)
         {
-            <SettingRow Title="Blocked crawlers" Help="Each gets Disallow: /; every other crawler is allowed." Wide="true">
-                <div class="pdk-robots">
-                    <details data-field="robots-crawlers">
-                        <summary>@RobotsText.AiCrawlers.Count user agents</summary>
-                        <div class="pdk-robots-agents">
-                            @foreach (var crawler in RobotsText.AiCrawlers)
-                            {
-                                <code>@crawler</code>
-                            }
-                        </div>
-                    </details>
-                    <details data-field="robots-preview">
-                        <summary>Preview the served file</summary>
-                        <pre class="pdk-robots-preview">@RobotsText.BlockAiCrawlers</pre>
-                    </details>
-                </div>
-            </SettingRow>
+            var page = key;
+            var name = ErrorPageStatuses.NameOf(page);
+            <ErrorPageField Key="page" Title="@StatusText(key)" Help="@help" Label="@($"{name} page")" Field="@($"error-page-{name}")"
+                            Value="_current.ErrorPages?.Entry(page)" ValueChanged="@(value => SetPage(page, value))"
+                            Inherited="Resolved.ErrorPages?.Entry(page)" InheritWord="@InheritWord" PreviewStatus="page"
+                            Errors="@(field => E($"/errorPages/{name}/{field}"))" OnChanged="@(field => PageChanged(page, field))" ReadOnly="@ReadOnly" />
         }
-    </div>
 
-    @if (NeedsCloudflareMode)
-    {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="pdk-setting-note" data-field="cloudflare-needs-mode">
-            The two Cloudflare settings below do nothing until client addresses are set to Cloudflare proxy or Cloudflare Tunnel (Global defaults).
-        </MudAlert>
+        <InheritSelect T="UpstreamErrorReplacement" Value="_current.ErrorPages?.ReplaceUpstream" ValueChanged="@(value => Update(WithErrorPages(pages => pages with { ReplaceUpstream = value }), "/errorPages/replaceUpstream"))"
+                       Inherited="@Resolved.ErrorPages!.ReplaceUpstream!.Value" Format="@(mode => SettingsSummary.ReplaceUpstreamText(mode))" InheritWord="@InheritWord"
+                       Title="Upstream errors"
+                       Help="Answer with these pages in place of the upstream's own error. Its body is dropped unread; upgrades, event streams and gRPC are never touched. Replacing every error also replaces an API's JSON errors."
+                       Label="Upstream errors" Field="error-pages-replace-upstream" Error="@E("/errorPages/replaceUpstream")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Off">Keep the upstream's</MudSelectItem>
+            <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Html">Replace its HTML error pages</MudSelectItem>
+            <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Any">Replace every error</MudSelectItem>
+        </InheritSelect>
+
     }
-
-    <InheritSelect T="OriginLockdownMode" Value="_current.Cloudflare?.OriginLockdown" ValueChanged="@(value => Update(WithCloudflare(cloudflare => cloudflare with { OriginLockdown = value }), "/cloudflare/originLockdown"))"
-                   Inherited="@Resolved.Cloudflare!.OriginLockdown!.Value" Format="@(mode => SettingsSummary.LockdownText(mode))" InheritWord="@InheritWord"
-                   Title="Only allow Cloudflare"
-                   Help="Refuse a connection that doesn't come from Cloudflare, before anything else the host does. It covers the admin host when it is served here, not the admin port."
-                   Label="Only allow Cloudflare" Field="cloudflare-lockdown" Error="@E("/cloudflare/originLockdown")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Off">Off</MudSelectItem>
-        <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Forbid">Refuse with 403</MudSelectItem>
-        <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Drop">Drop connection</MudSelectItem>
-    </InheritSelect>
-
-    <InheritSelect T="bool" Value="_current.Cloudflare?.AuthenticatedOriginPulls" ValueChanged="@(value => Update(WithCloudflare(cloudflare => cloudflare with { AuthenticatedOriginPulls = value }), "/cloudflare/authenticatedOriginPulls"))"
-                   Inherited="@Resolved.Cloudflare!.AuthenticatedOriginPulls!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                   Title="Authenticated Origin Pulls"
-                   Help="Only take Cloudflare's client certificate. Turn it on for the zone in Cloudflare too, or every request is refused. The host leaves HTTP/3."
-                   Label="Authenticated Origin Pulls" Field="cloudflare-aop" Error="@E("/cloudflare/authenticatedOriginPulls")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-    </InheritSelect>
-
-    <h4 class="pdk-setting-section">Request limits</h4>
-
-    <SettingRow Title="Body size" Help="Refused with 413 above this: at once when the request declares its size, mid-upload when it doesn't. A route can set its own.">
-        <SizeField Value="_current.RequestLimits?.MaxBodySize" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxBodySize = value }), "/requestLimits/maxBodySize"))"
-                   Inherited="@Resolved.RequestLimits!.MaxBodySize!.Value" Presets="BodyPresets" AllowUnlimited="true" InheritWord="@InheritWord"
-                   Label="Body size" Field="max-body-size" Error="@E("/requestLimits/maxBodySize")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
-
-    <SettingRow Title="Header lines" Help="Most header lines a request may carry, a cookie header included. More gets a 431.">
-        <CountField Value="_current.RequestLimits?.MaxHeaderCount" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxHeaderCount = value }), "/requestLimits/maxHeaderCount"))"
-                    Inherited="@Resolved.RequestLimits!.MaxHeaderCount!.Value" InheritWord="@InheritWord" Label="Header lines" Field="max-header-count"
-                    Error="@E("/requestLimits/maxHeaderCount")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
-
-    <SettingRow Title="Header size" Help="Header names and values together. More gets a 431; large cookies are the usual cause.">
-        <SizeField Value="_current.RequestLimits?.MaxHeaderBytes" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxHeaderBytes = SizeText.ToInt(value) }), "/requestLimits/maxHeaderBytes"))"
-                   Inherited="@Resolved.RequestLimits!.MaxHeaderBytes!.Value" Presets="HeaderPresets" InheritWord="@InheritWord"
-                   Label="Header size" Field="max-header-bytes" Error="@E("/requestLimits/maxHeaderBytes")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
-
-    <SettingRow Title="URL length" Help="The path and query as sent. Longer gets a 414.">
-        <SizeField Value="_current.RequestLimits?.MaxUrlLength" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxUrlLength = SizeText.ToInt(value) }), "/requestLimits/maxUrlLength"))"
-                   Inherited="@Resolved.RequestLimits!.MaxUrlLength!.Value" Presets="UrlPresets" InheritWord="@InheritWord"
-                   Label="URL length" Field="max-url-length" Error="@E("/requestLimits/maxUrlLength")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
-    </SettingRow>
-
-    <h4 class="pdk-setting-section">Error pages</h4>
-
-    @foreach (var (key, help) in ErrorPageRows)
-    {
-        var page = key;
-        var name = ErrorPageStatuses.NameOf(page);
-        <ErrorPageField Key="page" Title="@StatusText(key)" Help="@help" Label="@($"{name} page")" Field="@($"error-page-{name}")"
-                        Value="_current.ErrorPages?.Entry(page)" ValueChanged="@(value => SetPage(page, value))"
-                        Inherited="Resolved.ErrorPages?.Entry(page)" InheritWord="@InheritWord" PreviewStatus="page"
-                        Errors="@(field => E($"/errorPages/{name}/{field}"))" OnChanged="@(field => PageChanged(page, field))" ReadOnly="@ReadOnly" />
-    }
-
-    <InheritSelect T="UpstreamErrorReplacement" Value="_current.ErrorPages?.ReplaceUpstream" ValueChanged="@(value => Update(WithErrorPages(pages => pages with { ReplaceUpstream = value }), "/errorPages/replaceUpstream"))"
-                   Inherited="@Resolved.ErrorPages!.ReplaceUpstream!.Value" Format="@(mode => SettingsSummary.ReplaceUpstreamText(mode))" InheritWord="@InheritWord"
-                   Title="Upstream errors"
-                   Help="Answer with these pages in place of the upstream's own error. Its body is dropped unread; upgrades, event streams and gRPC are never touched. Replacing every error also replaces an API's JSON errors."
-                   Label="Upstream errors" Field="error-pages-replace-upstream" Error="@E("/errorPages/replaceUpstream")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Off">Keep the upstream's</MudSelectItem>
-        <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Html">Replace its HTML error pages</MudSelectItem>
-        <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Any">Replace every error</MudSelectItem>
-    </InheritSelect>
 
     <h4 class="pdk-setting-section">Maintenance</h4>
 
@@ -288,47 +292,50 @@
                         Errors="@(field => E($"/errorPages/maintenance/{field}"))" OnChanged="@(field => PageChanged(ErrorPageStatuses.MaintenanceKey, field))" ReadOnly="@ReadOnly" />
     </div>
 
-    <h4 class="pdk-setting-section">Headers and logging</h4>
+    @if (!MaintenanceOnly)
+    {
+        <h4 class="pdk-setting-section">Headers and logging</h4>
 
-    <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
-                  InheritWord="@InheritWord" Title="Server header" Help="Hiding the upstream's header stops it advertising its software and version." Label="Server header" Field="server-header-mode"
-                  Error="@E("/serverHeader/mode")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Custom">Custom value</MudSelectItem>
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Upstream">The upstream's header</MudSelectItem>
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Remove">Remove</MudSelectItem>
-    </InheritSelect>
+        <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
+                      InheritWord="@InheritWord" Title="Server header" Help="Hiding the upstream's header stops it advertising its software and version." Label="Server header" Field="server-header-mode"
+                      Error="@E("/serverHeader/mode")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Custom">Custom value</MudSelectItem>
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Upstream">The upstream's header</MudSelectItem>
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Remove">Remove</MudSelectItem>
+        </InheritSelect>
 
-    <div class="pdk-setting-children">
-        @if (ServerValueVisible)
-        {
-            <SettingRow Title="Custom value">
-                <MudTextField T="string" Value="@(_current.ServerHeader?.Value ?? string.Empty)"
-                              ValueChanged="@(value => Update(WithServerHeader(server => server with { Value = string.IsNullOrEmpty(value) ? null : value }), "/serverHeader/value"))"
-                              Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="128"
-                              HelperText="1-128 visible ASCII characters" Class="pdk-mono-input"
-                              Error="@(E("/serverHeader/value") is not null)" ErrorText="@E("/serverHeader/value")" data-field="server-header-value" />
-            </SettingRow>
-        }
-    </div>
+        <div class="pdk-setting-children">
+            @if (ServerValueVisible)
+            {
+                <SettingRow Title="Custom value">
+                    <MudTextField T="string" Value="@(_current.ServerHeader?.Value ?? string.Empty)"
+                                  ValueChanged="@(value => Update(WithServerHeader(server => server with { Value = string.IsNullOrEmpty(value) ? null : value }), "/serverHeader/value"))"
+                                  Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="128"
+                                  HelperText="1-128 visible ASCII characters" Class="pdk-mono-input"
+                                  Error="@(E("/serverHeader/value") is not null)" ErrorText="@E("/serverHeader/value")" data-field="server-header-value" />
+                </SettingRow>
+            }
+        </div>
 
-    <InheritSelect T="RequestIdPropagation" Value="_current.RequestIdPropagation" ValueChanged="@(value => Update(_current with { RequestIdPropagation = value }, "/requestIdPropagation"))"
-                  Inherited="@Resolved.RequestIdPropagation!.Value" Format="@(value => SettingsSummary.PropagationText(value))" InheritWord="@InheritWord"
-                  Title="Request ID" Help="One ID ties a line in the access log to the same request in the app's own log."
-                  Label="Request ID" Field="request-id-propagation" Error="@E("/requestIdPropagation")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamAndResponse">Upstream and the client</MudSelectItem>
-        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamOnly">Upstream only</MudSelectItem>
-        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.ResponseOnly">The client only</MudSelectItem>
-        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.Off">Off</MudSelectItem>
-    </InheritSelect>
+        <InheritSelect T="RequestIdPropagation" Value="_current.RequestIdPropagation" ValueChanged="@(value => Update(_current with { RequestIdPropagation = value }, "/requestIdPropagation"))"
+                      Inherited="@Resolved.RequestIdPropagation!.Value" Format="@(value => SettingsSummary.PropagationText(value))" InheritWord="@InheritWord"
+                      Title="Request ID" Help="One ID ties a line in the access log to the same request in the app's own log."
+                      Label="Request ID" Field="request-id-propagation" Error="@E("/requestIdPropagation")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamAndResponse">Upstream and the client</MudSelectItem>
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamOnly">Upstream only</MudSelectItem>
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.ResponseOnly">The client only</MudSelectItem>
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.Off">Off</MudSelectItem>
+        </InheritSelect>
 
-    <InheritSelect T="bool" Value="_current.AccessLog" ValueChanged="@(value => Update(_current with { AccessLog = value }, "/accessLog"))"
-                  Inherited="@Resolved.AccessLog!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                  Title="Access log" Help="One line per request, whatever answered it. Turn it off for a host whose app keeps its own log."
-                  Label="Access log" Field="access-log" Error="@E("/accessLog")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-    </InheritSelect>
+        <InheritSelect T="bool" Value="_current.AccessLog" ValueChanged="@(value => Update(_current with { AccessLog = value }, "/accessLog"))"
+                      Inherited="@Resolved.AccessLog!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                      Title="Access log" Help="One line per request, whatever answered it. Turn it off for a host whose app keeps its own log."
+                      Label="Access log" Field="access-log" Error="@E("/accessLog")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </InheritSelect>
+    }
 </div>
 
 @code {
@@ -370,6 +377,10 @@
 
     [Parameter]
     public bool ReadOnly { get; set; }
+
+    /// <summary>Only the maintenance settings, for the step that puts a host in maintenance from the list.</summary>
+    [Parameter]
+    public bool MaintenanceOnly { get; set; }
 
     /// <summary>False leaves out the HTTPS redirect (the admin host, which is always HTTPS).</summary>
     [Parameter]

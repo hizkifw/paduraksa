@@ -301,7 +301,7 @@ else
 
     private void Open(HostConfig host) => Navigation.NavigateTo(DashboardRoutes.Host(host.Id));
 
-    /// <summary>The switch in the list: the host on or off, through review like every change.</summary>
+    /// <summary>The switch in the list: the host on or off, through the review sheet like every change (where it can also go into the draft).</summary>
     private async Task ToggleAsync(HostConfig host)
     {
         if (!_mayWrite)
@@ -313,16 +313,18 @@ else
         var on = !host.Enabled;
         await Drawers.ReviewAsync(new ReviewRequest($"{(on ? "Switch on" : "Switch off")} {name}", new UpsertHostCommand(host with { Enabled = on }))
         {
-            ApplyLabel = on ? "Switch on" : "Switch off",
             SuccessMessage = $"{(on ? "Switched on" : "Switched off")} {name}",
             SampleHost = host.Names.FirstOrDefault(n => !n.StartsWith('*')),
         });
 
-        // The switches show what is stored: made again, one that was flipped and then not applied flips back.
+        // The switches show what is stored (or drafted): made again, one that was flipped and then not applied flips back.
         _toggles++;
     }
 
-    /// <summary>The wrench in the list: maintenance on or off for the host, through review like every change. A host that inherits the setting gets its own value.</summary>
+    /// <summary>
+    /// The wrench in the list. Switching it on asks for the mode's options first (the same review follows); ending it is the review at once.
+    /// A host that inherits the setting gets its own value.
+    /// </summary>
     private async Task ToggleMaintenanceAsync(HostRow row)
     {
         if (!_mayWrite)
@@ -331,13 +333,17 @@ else
         }
 
         var host = row.Host;
-        var name = ChangeView.HostTitle(host);
-        var on = !row.InMaintenance;
-        var changed = host with { Settings = HostSettingsEdit.WithMaintenance(host.Settings, maintenance => maintenance with { Enabled = on }) };
-        await Drawers.ReviewAsync(new ReviewRequest($"{(on ? "Put in maintenance" : "End maintenance of")} {name}", new UpsertHostCommand(changed))
+        if (!row.InMaintenance)
         {
-            ApplyLabel = on ? "Put in maintenance" : "End maintenance",
-            SuccessMessage = on ? $"{name} is in maintenance" : $"{name} is out of maintenance",
+            await Drawers.OpenAsync<MaintenanceDrawer>(new Dictionary<string, object?> { [nameof(MaintenanceDrawer.Id)] = host.Id }, DrawerWidth.Medium);
+            return;
+        }
+
+        var name = ChangeView.HostTitle(host);
+        var changed = host with { Settings = HostSettingsEdit.WithMaintenance(host.Settings, maintenance => maintenance with { Enabled = false }) };
+        await Drawers.ReviewAsync(new ReviewRequest($"End maintenance of {name}", new UpsertHostCommand(changed))
+        {
+            SuccessMessage = $"{name} is out of maintenance",
             SampleHost = host.Names.FirstOrDefault(n => !n.StartsWith('*')),
         });
     }

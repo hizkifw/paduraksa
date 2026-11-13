@@ -1,0 +1,128 @@
+@using Paduraksa.Application.Compilation
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject ILogger<MaintenanceDrawer> Logger
+@* Putting a host in maintenance from the list: the options the mode needs (status, Retry-After, who is let through, the page), prefilled from what the host
+   inherits, then the review sheet like any change. Ending maintenance needs no options and goes straight to the review. *@
+
+<DrawerShell Title="@Title" Icon="@Icons.Material.Outlined.Construction" Name="maintenance" OnSubmit="SubmitAsync">
+    <ChildContent>
+        <div class="pdk-form">
+            @if (_host is null)
+            {
+                @if (_failed)
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">The host couldn't be read. The details are in the server log.</MudAlert>
+                }
+                else if (_missing)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.WrongLocation" Title="Host not found" Description="It may have been deleted." />
+                }
+                else
+                {
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" />
+                }
+            }
+            else
+            {
+                <HostSettingsFields Settings="_settings" SettingsChanged="OnChanged" Inherited="_inherited" InheritWord="Inherit" PathPrefix="/settings" Errors="_errors"
+                                    ShowAll="_attempted" ReadOnly="false" MaintenanceOnly="true" AccessLists="_accessLists" />
+            }
+        </div>
+    </ChildContent>
+    <Footer>
+        <DrawerActions OnCancel="Cancel" PrimaryLabel="Review changes" PrimaryAction="review" Submit="true" EndIcon="@Icons.Material.Rounded.ArrowForward" PrimaryDisabled="@(_host is null)" />
+    </Footer>
+</DrawerShell>
+
+@code {
+    private HostConfig? _host;
+    private HostSettings _settings = new();
+    private HostSettings _inherited = HostSettingsLayers.BuiltIn;
+    private IReadOnlyList<AccessListConfig> _accessLists = [];
+    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
+    private bool _attempted;
+    private bool _missing;
+    private bool _failed;
+    private bool _reviewing;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    [Parameter, EditorRequired]
+    public HostId Id { get; set; }
+
+    private string Title => _host is null ? "Put in maintenance" : $"Put {ChangeView.HostTitle(_host)} in maintenance";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Caller.CheckAsync() is not { } user || !user.Has(Permission.ConfigWrite))
+        {
+            _missing = true;
+            return;
+        }
+
+        try
+        {
+            var document = (await Config.GetWorkingAsync()).Document;
+            _host = document.Hosts.FirstOrDefault(host => host.Id == Id);
+            _missing = _host is null;
+            if (_host is null)
+            {
+                return;
+            }
+
+            var profile = document.Profiles.FirstOrDefault(p => p.Id == _host.ProfileId)?.Settings;
+            _inherited = HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, document.Settings.Defaults, profile);
+            _accessLists = document.AccessLists;
+            _settings = HostSettingsEdit.WithMaintenance(_host.Settings, maintenance => maintenance with { Enabled = true });
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't read the host for its maintenance options.");
+            _failed = true;
+        }
+    }
+
+    private void OnChanged(HostSettings settings)
+    {
+        _settings = settings;
+        if (Level is not null)
+        {
+            Level.IsDirty = true;
+        }
+    }
+
+    private void Cancel() => Level?.RequestClose();
+
+    private async Task SubmitAsync()
+    {
+        if (_host is null || _reviewing)
+        {
+            return;
+        }
+
+        _attempted = true;
+        _reviewing = true;
+        try
+        {
+            var name = ChangeView.HostTitle(_host);
+            var outcome = await Drawers.ReviewAsync(new ReviewRequest($"Put {name} in maintenance", new UpsertHostCommand(_host with { Settings = _settings }))
+            {
+                SuccessMessage = $"{name} is in maintenance",
+                SampleHost = _host.Names.FirstOrDefault(n => !n.StartsWith('*')),
+                OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, errors => _errors = InlineValidation.Relative(errors, string.Empty)),
+            });
+            if (outcome.Applied is not null || outcome.Drafted is not null)
+            {
+                Level?.Close(outcome);
+            }
+        }
+        finally
+        {
+            _reviewing = false;
+        }
+    }
+}

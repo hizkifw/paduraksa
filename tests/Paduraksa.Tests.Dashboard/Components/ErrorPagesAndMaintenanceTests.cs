@@ -224,8 +224,11 @@ public sealed class ErrorPagesAndMaintenanceTests
         await page.WaitForStateAsync(() => page.FindAll(".pdk-hosts-table").Count == 1);
         Assert.DoesNotContain("Maintenance", page.Find("[data-host='app.example.com'] .pdk-dt-status").TextContent, StringComparison.Ordinal);
 
-        var clicked = page.Find("[data-action=maintenance]").ClickAsync(new());
-        await drawers.WaitForStateAsync(() => drawers.Markup.Contains("Put in maintenance app.example.com", StringComparison.Ordinal));
+        // Switching it on asks for the mode's options first, prefilled, and then the review sheet follows.
+        _ = page.Find("[data-action=maintenance]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=maintenance] [data-field=maintenance-status]").Count == 1);
+        _ = drawers.Find("[data-drawer=maintenance] [data-action=review]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.Markup.Contains("Put app.example.com in maintenance", StringComparison.Ordinal) && drawers.FindAll("[data-drawer=review]").Count == 1);
         var reviewed = Assert.IsType<UpsertHostCommand>(Assert.Single(config.Executed));
         Assert.Equal(new MaintenanceSettings { Enabled = true }, reviewed.Host.Settings.Maintenance);
     }
