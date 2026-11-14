@@ -15,6 +15,7 @@ A script authenticates with an **API token**: `Authorization: Bearer pdk_...`. C
 - A token has a name, an optional expiry and **scopes**: permission names such as `config:read`. The drawer offers *Read-only*, *All you can* and *None* as starting points.
 - A token never exceeds its owner. Its effective permissions are the intersection of its scopes and the owner's **current** permissions, checked on every use. Demote the owner and the token shrinks with them.
 - The secret is shown once. Paduraksa stores only a hash. A revoked or expired token stops working at once.
+- **A read-only token is not literally state-free.** Every authenticated request records when the token was last used (at most once a minute), as a session records when it was last seen, so the token list can show it. It changes nothing else, and no read writes the config, the audit log or the vault.
 - **A token cannot manage tokens or sessions.** Every `tokens` and `sessions` endpoint answers a token with `403`, so a leaked token cannot mint a longer life for itself.
 - A token's `pdk_` prefix and checksum let secret scanners find a leaked one.
 

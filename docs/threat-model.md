@@ -401,7 +401,7 @@ permission metadata and a test checks every mapped `/api/*` endpoint declares on
 
 | Token scope | What a thief gets |
 |---|---|
-| read-only (`config:read`, `logs:read`, `metrics:read`, `certificates:read`) | Full topology and traffic metadata; access-log contents (client IPs, paths, user agents) with `logs:read`. No changes, no secrets. |
+| read-only (`config:read`, `logs:read`, `metrics:read`, `certificates:read`) | Full topology and traffic metadata; access-log contents (client IPs, paths, user agents) with `logs:read`. No changes, no secrets. Not literally state-free: each use writes the token's `LastUsedAt` (as a session's use writes `LastSeenAt`), at most once a minute; by design, so the token list shows it. |
 | `config:write` | Everything an Operator can do (4.2), including taking the site down or exposing internal services. Reversible through revisions and rollback, and visible in History and Audit. |
 | `certificates:write` | Upload or replace certificates, order ACME certificates, issue from the local CA. Can serve a different certificate for a name; cannot read keys. |
 | `providers:write` | Replace DNS credentials, create notification channels pointing at any address (SSRF accepted, B6), change ACME accounts. |
