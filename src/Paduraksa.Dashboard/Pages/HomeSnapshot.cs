@@ -4,6 +4,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Identity;
+using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Dashboard.Certificates;
@@ -29,9 +30,6 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
 
     /// <summary>How many hosts the overview lists (the ones that need attention first).</summary>
     public const int HostLines = 6;
-
-    /// <summary>The install guide on the project's site: the dashboard has nowhere of its own for what only the person running the server can change.</summary>
-    internal const string InstallGuide = "https://github.com/hizkifw/paduraksa/blob/main/docs/install.md";
 
     /// <summary>What needs the person, most serious first, each with where to fix it.</summary>
     public IReadOnlyList<AttentionItem> Attention { get; init; } = [];
@@ -119,9 +117,7 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
 
         if (vault?.KekBesideDatabase == true)
         {
-            items.Add(new AttentionItem(Tone.Warning, "The master key is stored beside the vault",
-                "A copy of the data directory is a copy of every certificate key and secret in it. Keep the key in a Docker secret or a systemd credential, outside the data directory.",
-                $"{InstallGuide}#the-master-key", "How to move it"));
+            items.Add(new AttentionItem(Tone.Warning, MasterKeyAdvice.BesideTitle, MasterKeyAdvice.BesideDetail, MasterKeyAdvice.BesideGuide, "How to move it"));
         }
 
         if (document is not null)
