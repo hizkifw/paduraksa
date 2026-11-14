@@ -108,7 +108,9 @@ public sealed class CustomHeadersAllocationTests
         Assert.Equal(["homelab"], applied.ProxyRequest.Headers.GetValues("X-Tenant"));
         Assert.Equal(["client", "proxy"], applied.ProxyRequest.Headers.GetValues("X-Trace"));
 
-        Assert.True(rules.BytesPerCall <= writes.BytesPerCall, $"{rules.BytesPerCall:F1} B a request with the rules, {writes.BytesPerCall:F1} B for the writes alone");
+        // A byte a call of slack: the per-thread counter can jump once by a few KiB under parallel load (AllocAssert.MeasureSettled), which
+        // averages to under a byte here, while a real extra allocation is at least an object (24 B) on every call.
+        Assert.True(rules.BytesPerCall <= writes.BytesPerCall + 1, $"{rules.BytesPerCall:F2} B a request with the rules, {writes.BytesPerCall:F2} B for the writes alone");
     }
 
     /// <summary>A request as YARP hands it to the transforms: the client's headers already copied, the names the rules touch among them.</summary>
