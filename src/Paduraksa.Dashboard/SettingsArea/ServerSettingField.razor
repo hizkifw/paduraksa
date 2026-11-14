@@ -42,7 +42,8 @@
                 Applies after a restart
                 @if (View?.RestartPending == true)
                 {
-                    <span class="pdk-chip pdk-chip-warning ml-1" data-state="restart-pending" title="@($"Running with {ServerSettingText.Describe(Setting.Kind, View.Running ?? string.Empty)}")">Restart pending</span>
+                    <StatusChip Tone="Tone.Warning" Text="Restart pending" Name="restart-pending" Class="ml-1"
+                                Detail="@($"Running with {ServerSettingText.Describe(Setting.Kind, View.Running ?? string.Empty)}")" />
                 }
             </MudText>
         }

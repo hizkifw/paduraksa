@@ -60,7 +60,7 @@ Durations are written `[d.]hh:mm:ss` in the environment (`90.00:00:00` is 90 day
 | Integrations: Cloudflare, Refresh every | `Paduraksa__Cloudflare__RangeRefresh__Interval` | 1 day (`1.00:00:00`) | 1 minute to 7 days | live |
 | Integrations: ACME, Check DNS-01 records | `Paduraksa__Acme__DnsPropagation__Enabled` | on (`true`) | on or off | live |
 | Integrations: ACME, Fixed DNS-01 wait | `Paduraksa__Acme__DnsPropagationDelay` | 30 seconds (`00:00:30`) | 0 seconds to 1 hour | live |
-| Integrations: MCP, MCP | `Paduraksa__Mcp__Enabled` | off (`false`) | on or off | live |
+| Integrations: MCP, Serve /mcp | `Paduraksa__Mcp__Enabled` | off (`false`) | on or off | live |
 | Integrations: MCP, Sandbox idle timeout | `Paduraksa__Mcp__IdleTimeout` | 10 minutes (`00:10:00`) | 10 seconds to 1 day | live |
 | Connections: Slow clients, Request headers | `Paduraksa__Limits__RequestHeadersTimeout` | 15 seconds (`00:00:15`) | 1 second to 1 hour | live |
 | Connections: Slow clients, Keep-alive | `Paduraksa__Limits__KeepAliveTimeout` | 2 minutes (`00:02:00`) | 1 second to 1 day | live |

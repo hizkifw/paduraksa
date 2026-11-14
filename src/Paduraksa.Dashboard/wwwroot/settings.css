@@ -1076,3 +1076,15 @@
         grid-row: 2;
     }
 }
+
+/* ---------- Settings, Server: a heading per part of a card, with room above it after the first ---------- */
+
+.pdk-server-section {
+    margin-top: 20px;
+    padding-bottom: 6px;
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-card-head + .pdk-server-section {
+    margin-top: 0;
+}

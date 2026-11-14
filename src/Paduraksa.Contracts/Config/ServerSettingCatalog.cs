@@ -246,8 +246,8 @@ public static class ServerSettingCatalog
 
     public static readonly ServerSetting<bool> McpEnabled = new(
         "mcpEnabled", "Mcp:Enabled", ServerSettingGroup.Integrations, "MCP", ServerSettingApply.Live,
-        "MCP",
-        "Serve /mcp, where an AI assistant with an API token calls the admin API from a sandbox. Off, /mcp answers 404 and the sandbox stops.",
+        "Serve /mcp",
+        "The endpoint an AI assistant with an API token uses to call the admin API from a sandbox. Off, it answers 404 and the sandbox stops.",
         static s => s.McpEnabled, static (s, v) => s with { McpEnabled = v },
         false)
     {
