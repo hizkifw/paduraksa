@@ -84,6 +84,39 @@ Paduraksa__AccessLog__LogQueryString=false
 Paduraksa__AccessLog__SensitiveQueryKeys=token,api_key,pin
 ```
 
+**The line.** One request per line, fields separated by one space, text fields in double quotes (`\"`, `\\` and `\xNN`
+escapes inside), and `-` for a value that isn't there:
+
+```
+2026-01-31T12:34:56.789Z 198.51.100.7 "app.example" "GET /a/b?token=REDACTED HTTP/2" 200 512 1.234 0.987 "http://10.0.0.2:8080/" "0k3m9x2p-00000000000abc" "8f2a1c3d4e5f6789" "https://example.com/" "Mozilla/5.0" 2.101 1 0.000 0.012 0.000 0.105
+```
+
+| # | Field | What |
+|---|---|---|
+| 1 | time | When the request ended, UTC, to the millisecond |
+| 2 | client | The client's address (behind a trusted proxy, the one its header carried) |
+| 3 | host | The `Host` as received |
+| 4 | request | Method, path with its query (sensitive values redacted) and protocol |
+| 5 | status | What the client got; `-` when the connection was dropped without an answer |
+| 6 | bytes | Response body bytes sent |
+| 7 | total | The whole request, in milliseconds with three decimals |
+| 8 | upstream | The forward to the upstream (connect, send, wait for its headers); `-` when Paduraksa answered itself |
+| 9 | upstream address | The destination the request went to |
+| 10 | request ID | `X-Request-Id` |
+| 11 | CF-Ray | Only from a trusted Cloudflare edge or tunnel |
+| 12 | referer | |
+| 13 | user agent | |
+| 14 | TLS | The connection's TLS handshake, on its first request only; `-` on plain HTTP and on a connection's later requests |
+| 15 | connection request | Which request of its connection this is, from 1: above 1 on TLS, the handshake was reused |
+| 16 | body | From the first to the last request body byte read; `0.000` without a body |
+| 17 | gate | From the top of the request to the gate's hand-off (to the upstream, or to its own answer): access lists, rules, rate limits, auth, proof of work |
+| 18 | connect | The upstream connect (DNS, TCP, TLS) inside field 8; `0.000` on a reused connection, `-` when nothing was forwarded |
+| 19 | send | From the response's headers to its last byte handed to the client; a slow reader or a streamed answer shows here |
+
+Durations are milliseconds. The stages overlap (a body is read while the forward runs), so they don't add up to the
+total. Fields 14 to 19 came after the first 13; a reader of the first 13 reads them unchanged. The same figures, with the
+upstream's wait split out, are in the **Live tail**'s entry as a waterfall.
+
 ## Metrics
 
 Every request is counted (by host, route, upstream and destination) and timed, whether or not its host writes an access
@@ -127,6 +160,8 @@ no host has are the `(unmatched)` host. The families:
 | `paduraksa_response_size_bytes_total`, `paduraksa_request_size_bytes_total` | host | Body bytes sent to clients and read from them, counted as they passed (a chunked or streamed body counts, an upstream's gzip counts compressed, a WebSocket's frames count when it closes) |
 | `paduraksa_request_duration_seconds` | host | Histogram of the whole request |
 | `paduraksa_host_upstream_duration_seconds` | host | Histogram of the upstream's share; the difference is the proxy's own time |
+| `paduraksa_tls_handshake_duration_seconds` | host | Histogram of client TLS handshakes (TCP and QUIC), each counted once, against the host of its connection's first request |
+| `paduraksa_response_send_duration_seconds` | host | Histogram of the time from a response's headers to its last byte written: slow readers and streamed answers |
 | `paduraksa_route_*` | host, route_id, path | The same counters per route |
 | `paduraksa_upstream_requests_total`, `_errors_total` (kind), `paduraksa_upstream_duration_seconds` | upstream_id | Forwards, YARP's failures by kind, and upstream time |
 | `paduraksa_upstream_response_size_bytes_total`, `_request_size_bytes_total` | upstream_id | Body bytes of the requests forwarded to the upstream, as the client sent and got them |

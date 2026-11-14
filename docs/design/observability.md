@@ -7,6 +7,7 @@ Contents:
 - [The log files](#the-log-files-m6)
 - [The access log pipeline](#the-access-log-pipeline-m6)
 - [Counted body bytes](#counted-body-bytes)
+- [Request timing](#request-timing)
 - [Metrics](#metrics-m9)
 - [The live tail](#the-live-tail-m9)
 - [Traffic analytics](#traffic-analytics)
@@ -128,6 +129,7 @@ It references only strings the request already holds:
 - status;
 - the response and request body bytes (counted, see [Counted body bytes](#counted-body-bytes));
 - the total and upstream durations, and YARP's destination address;
+- the stages (see [Request timing](#request-timing)): the connection's TLS handshake and the request's index on its connection, the body read, the gate, the upstream connect and the response send;
 - the request ID;
 - `CF-Ray` (only when `CloudflareHeadersTrusted`, so a client cannot forge it);
 - referer and user agent.
@@ -154,17 +156,17 @@ Kestrel keeps the callback stack per connection (or pooled H2/H3 stream) and cle
 - A forward that ends without a response (YARP's own 502) is measured up to the failure, in the middleware, from the same timestamp, and still names the destination YARP had chosen.
 - It is `-` when nothing was forwarded at all (an answered request).
 
-**Bytes** are the response body bytes written to the client, counted as they passed (see [Counted body bytes](#counted-body-bytes)). Until then the field was the declared `Content-Length`, `-` without one. The line keeps its 13 fields. The request's body bytes have no place in that order without breaking every parser of it, so they reach the live tail, the counters and the analytics, but not the file.
+**Bytes** are the response body bytes written to the client, counted as they passed (see [Counted body bytes](#counted-body-bytes)). Until then the field was the declared `Content-Length`, `-` without one. The request's body bytes reach the live tail, the counters and the analytics, but not the file.
 
 ### The line (`AccessLogFormatter`)
 
 It runs off the request path, into a reused 8 KiB buffer:
 
 ```
-time client "host" "METHOD path[?query] protocol" status bytes total upstream "upstream" "request-id" "cf-ray" "referer" "user-agent"
+time client "host" "METHOD path[?query] protocol" status bytes total upstream "upstream" "request-id" "cf-ray" "referer" "user-agent" tls conn-request body gate connect send
 ```
 
-That is 13 space-separated fields.
+That is 19 space-separated fields. The first 13 are the line as it was before the stages; the six stages are appended after them (see [Request timing](#request-timing)), so a reader of the first 13 reads them as before.
 - Time is ISO-8601 UTC with milliseconds. Durations are milliseconds with three decimals (microsecond resolution).
 - Missing values are a bare `-`, the status included when the gate dropped the request.
 - **Escaping.** Inside a quoted field `"` becomes `\"`, `\` becomes `\\`, and a C0 control, 0x7F or a C1 control (NEL among them) becomes `\xNN`. U+2028 and U+2029 become `\u2028` and `\u2029`. A hostile path, user agent or referer cannot forge or break a line. Non-ASCII stays readable (the sink writes UTF-8).
@@ -224,7 +226,7 @@ Everything is passed through, and the bytes written to the client and read from 
 **What "written" means.** The bytes handed to the server for the client. A client that leaves mid-body has been counted what the proxy wrote before it noticed. That can include what still sat in Kestrel's and the kernel's send buffers (a test reads 256 KiB of a 64 MiB body and requires a count at least that and well under half the body). Nothing more exact is visible to a process. A request that reads `HttpRequest.BodyReader` gets Kestrel's pipe reader over the counting stream, which allocates. Nothing on the public pipeline reads that way.
 
 **Where the numbers go.**
-- The access log's bytes field (the 13-field line is unchanged, see above). Request bytes reach the live tail's entry, whose drawer shows the request size when there was a body.
+- The access log's bytes field. Request bytes reach the live tail's entry, whose drawer shows the request size when there was a body.
 - The counters: `RequestMetric.BytesOut` and the new `BytesIn` for hosts and routes, and `UpstreamMetric.BytesOut` and `BytesIn` for upstreams.
 - The sampler's points and the minute rollups (`MetricRollups.BytesIn`, migration `MetricRollupBytesIn`).
 - Prometheus: `paduraksa_response_size_bytes_total` keeps its name with a corrected HELP, plus `paduraksa_request_size_bytes_total` and the route's and the upstream's pairs. OpenTelemetry: `paduraksa.request.size`.
@@ -261,6 +263,51 @@ Throughput, mean of the two runs:
 - Proxy CPU per request rose 1 to 1.5 % (h1 19.2 vs 19.5 microseconds, h2-tls 23.05 vs 23.4).
 - The cost is one more virtual call on every body write, read and flush, and the feature swaps at the start of a request. HTTP/2 pays the most because its responses are more, smaller writes and flushes.
 - A second set an hour later, against the rebased `main`, was taken while another session's builds and tests ran on the same cores (some runs had the proxy on one CPU). It is not used.
+
+## Request timing
+
+Built in `request-timing`. Until then a request had two times: the total and the upstream leg. Now each stage is timed, so a slow request says where its time went. Every figure is a pair of monotonic `Stopwatch` timestamps, kept on the pooled request state (`GateRequestState`), the body counter or a per-connection object, and turned into `TimeSpan` ticks on `AccessLogEntry` when the request ends.
+
+### The stages
+
+| Stage | Starts | Ends | Not known (`-`) |
+|---|---|---|---|
+| TLS handshake | TCP: the connection middleware just before Kestrel's `UseHttps` (after PROXY protocol, the lockdown and the connection limits). QUIC: the TLS callback, once the ClientHello is in (`TlsHandshakeSelector.SelectQuic`, after the connection gate). | TCP: the middleware just after `UseHttps`. QUIC: the multiplexed middleware, which Kestrel runs once the connection is established. | Plain HTTP, and every request but a connection's first. |
+| Request index | A count, not a time: the access log's start counts the request on its connection (`ConnectionTimings`, an atomic shared by an H2/H3 connection's streams), from 1. | | A connection without the feature (a test app). |
+| Request body | The first read of the request body that returned bytes completed. | The last read that returned bytes completed (the read that finds the end of the body is not counted, so a reader that comes back for it late does not stretch the figure). | 0 when no byte was read; `-` when the body was not counted. |
+| Gate | The top of the public pipeline (the access log's start, the same timestamp as the total). | The gate hands the request on: `GateMiddleware.FinishAsync`, after the decision and its last header stage, to the forward or to its own answer (a refusal, a redirect, the proof-of-work page, robots.txt). A deferred policy's wait (a password check) is inside it. | No gate ran. |
+| Upstream connect | The handler's connect callback, for the request whose wait made the pool open a connection. | The handler's plaintext-stream filter, which runs once TLS to the upstream is up and before the first byte of HTTP. So it is DNS, TCP and TLS. | Not forwarded. 0 on a pooled connection. |
+| Upstream wait | The connect's end (the forward's start, on a pooled connection). | YARP's response transform: the response headers are in. | Not forwarded. Derived (the upstream leg minus the connect), not stored. |
+| Response send | Kestrel's response-start callback (the headers go out). | The completion callback, the same timestamp as the total's end. | No response (a dropped request). |
+
+**The stages overlap and don't add up to the total.** A body is read while the forward is under way, and a streamed answer is sent while the upstream is still writing it, so its send includes the upstream's own streaming. A WebSocket's send runs from the 101 to the close. "Sent" means handed to Kestrel and flushed past its output buffer: up to about 64 KiB, and the kernel's socket buffers, can still be on their way to a slow reader when the callback runs.
+
+**Request headers are left out.** Kestrel exposes no timestamp of a request's first byte. The connection's own start would include an idle keep-alive's wait, and a parser hook would mean replacing Kestrel's. So the time from the first header byte to the top of the pipeline is not measured.
+
+### How each is taken
+
+- **TLS** (`Net.ConnectionTimings`): one small object per connection, set as a connection feature by `UseConnectionTimings` (plain HTTP), `UseTimedHttps` (TCP, the two middlewares around `UseHttps`) or the QUIC callback and `UseQuicHandshakeTiming`. The handshake is written once, before the connection's first request can start, and read by the request whose index is 1. The pooled request state caches the feature, since the state never leaves its connection (it lives on the H1 connection, or on an H2/H3 stream Kestrel pools per connection).
+- **Body** (`Http.BodyCounter`): the request stream it already wraps takes a timestamp per read that returned bytes. The upgraded stream's reads are a WebSocket's frames, not the body, and are not timed.
+- **Gate**: one timestamp in `FinishAsync`.
+- **Upstream connect** (`Yarp.UpstreamConnects`): the forwarder's handlers get a connect callback (the handler's own connect, or the admin cluster's, wrapped) and a plaintext-stream filter. Both get the request message that made the pool open the connection; a `ConditionalWeakTable` keyed by it holds the start and the end. The request's message is kept on the pooled state by the access-log transform, and its completion looks it up.
+- **Send**: a response-start callback, registered next to the completion one, whose state is the pooled request state.
+
+### Decisions
+
+- **Reused, not repeated.** A later request on a TLS connection reports no handshake: the entry says "reused" (`AccessLogEntry.HandshakeReused`), the file writes `-` and its request index tells the reader which request it was. The file writes no word in a number field, so a reader parses each stage field as a number or `-`.
+- **QUIC is measured.** Its start is the ClientHello rather than the first packet, which on QUIC carry the same flight; the end is the established connection. The HTTP/3 end-to-end test in Docker checks both transports report one.
+- **The connect is the pool's, attributed to a request.** The pool opens a connection on behalf of a waiting request, but hands that request whichever connection frees up first. When a pooled one wins, the request that triggered the connect is still reported with it though it didn't wait for all of it, and the request that later gets the new connection reports none. The figure is capped at the request's upstream time. Under steady keep-alive traffic both are rare. A connect that never finished (refused, timed out) is the whole forward.
+- **The default connect is ours now.** A connect callback replaces the handler's own TCP connect, so `UpstreamConnects` does what the handler did without one: a dual-mode socket, Nagle off, `ConnectAsync` over the name's addresses in turn. The admin cluster's callback is wrapped, not replaced.
+- **YARP's and HttpClient's telemetry are not used.** Their `EventSource` and `Activity` paths allocate per request and need a listener; the two callbacks run only when a connection is opened.
+- **Histograms, not rollups.** The TLS handshake and the response send are histograms per host on `/metrics` (`paduraksa_tls_handshake_duration_seconds`, `paduraksa_response_send_duration_seconds`), in a table of their own beside the latency one, plus their sums in the host's counters. They are not sampled into the 10-second points or the minute rollups: that would widen the stored point and the rollup rows (a migration) for figures nothing on the dashboard draws over time yet. The handshake counts once per connection, against the host of its first request. OpenTelemetry does not offer them.
+- **The log's six fields are appended.** The 13 fields before them keep their order and format.
+
+### Cost
+
+- On the request path: an atomic and a field read per request on the connection object, three more `Stopwatch` reads (the gate's end, the response's start, the end now shared by the total, the send and the counters, so the recorder no longer reads its own), one per body read that returned bytes, one more callback registration, one `ConditionalWeakTable` lookup at the end of a forward, and two more interlocked adds for the send's histogram and sum (four on a TLS connection's first request, with the handshake's). All 0 B, no lock.
+- Per connection: one 40-byte object; per upstream connection: one more and the table's lock to add it, on a path that waits on the network anyway.
+- The ring's slot stays 192 bytes: the entry grew from 136 to 176 bytes and the padding shrank to 8.
+- **Tests.** `GateAllocationTests` (h1, h2c, TLS h1 and h2), `BodyBytesTests.CountingAllocatesNothingOnKestrel` (TLS uploads included) and `AccessLogAllocationTests` (the completion, response-start and reapply callbacks on h1, h2c and TLS) hold the request at 0 B; `UpstreamConnectsTests` and `ConnectionTimingsTests` measure the lookup and the count alone. `RequestTimingTests` checks each stage against a known delay on a real listener: a client that waits 300 ms before its ClientHello (h1 and h2 over TLS), a body trickled over 300 ms, an upstream whose TLS handshake a relay holds for 300 ms (and a second request on the pooled connection with no connect), an upstream that waits 300 ms before its first byte, and a client that stops reading a 16 MiB answer for 600 ms. The bench numbers are in [hot-path.md](hot-path.md#request-timing).
 
 ## Metrics (M9)
 
@@ -330,7 +377,7 @@ How an outcome is chosen: the policy that refuses records its kind on the pooled
 - Counters per host: `paduraksa_requests_total{host,host_id,status_class}`, `paduraksa_gate_outcomes_total`, `paduraksa_response_size_bytes_total`, `paduraksa_request_size_bytes_total`.
 - Per route: the same two byte counters.
 - Per upstream: `_errors_total{kind}`, `_response_size_bytes_total`, `_request_size_bytes_total`. And per destination.
-- Real histograms: `paduraksa_request_duration_seconds`, `paduraksa_host_upstream_duration_seconds` and `paduraksa_upstream_duration_seconds`, with `_sum` and `_count`.
+- Real histograms: `paduraksa_request_duration_seconds`, `paduraksa_host_upstream_duration_seconds` and `paduraksa_upstream_duration_seconds`, with `_sum` and `_count`. Per host also `paduraksa_tls_handshake_duration_seconds` and `paduraksa_response_send_duration_seconds` (see [Request timing](#request-timing)).
 - The process counters, `paduraksa_config_generation` and `paduraksa_hosts`.
 
 **Histogram edges.** They are cumulative at the octave edges, which are bucket edges, so the counts are exact. `le` is 2^e - 1 microseconds (`0.000015` to `67.108863`), since Prometheus's `le` means "at most" and the counts are of observations below 2^e.

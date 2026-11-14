@@ -552,6 +552,8 @@ The page reads `LogTailService` (Application): the hub described in [observabili
 - status and matched host as chips;
 - the request ID in the copy control `SecretValue` gives (clipboard through `DashboardBrowser`);
 - the request line, host, client, time taken, upstream with its time, response size, `CF-Ray`, referer and user agent;
+- which request of its connection it was ("Request 1, TLS handshake 3.4 ms", "Request 14, TLS reused", "Request 2" on plain HTTP);
+- under the time taken, a **waterfall** of the stages (`RequestWaterfallView`, laid out by `RequestWaterfall`): a row each for the gate, the request body (when there was one), the upstream connect ("Reused" and no bar on a pooled connection) and wait, and the response send, with a bar on a track as long as the request's total and the stage's time through `DisplayFormat`. Only the lengths are measured. The starts follow the pipeline's order: the gate from the top, the forward's connect and wait from the gate's end, the body from when it can first be read (once the upstream connection is up, or after the gate for an answer), the send ending with the request. The tracks share one grid (a subgrid per row), so every bar starts at the same x. Its geometry is the one other file the formatting guard lets spell a number (a CSS offset and width);
 - a **Simulate this request** button (for a role that may simulate) linking to `/simulator?url=https://<host><path><query>&clientIp=<client>&method=<method>`.
 
 The simulator learned two query parameters for this (`clientIp`, and `method` when it is one the form offers, next to the `url` it already took). The link's scheme is always `https`, since the entry does not say. The query is the redacted one, so a simulation of a redacted token runs with the literal `REDACTED`.
@@ -560,7 +562,7 @@ The simulator learned two query parameters for this (`clientIp`, and `method` wh
 
 **The stream** (`GET /api/v1/logs/tail`, `logs:read`): `text/event-stream`, `Cache-Control: no-store`, `X-Accel-Buffering: no`.
 - The first line is the comment `: open`, so a client knows the stream is live before the first request ends.
-- Each entry is a default (`message`) event: `id:` its sequence and `data:` one `LogTailEntry` JSON on one line. The fields are `sequence`, `time`, `clientAddress`, `host`, `matchedHost`, `method`, `path`, `query`, `protocol`, `status`, `responseBytes`, `totalMs`, `upstreamMs`, `upstream`, `requestIdentifier`, `cloudflareRay`, `referer`, `userAgent`. Nulls are omitted. The request ID is `requestIdentifier`, because the architecture rule keeps any `*Id` property of a contract a typed ID.
+- Each entry is a default (`message`) event: `id:` its sequence and `data:` one `LogTailEntry` JSON on one line. The fields are `sequence`, `time`, `clientAddress`, `host`, `matchedHost`, `method`, `path`, `query`, `protocol`, `status`, `responseBytes`, `requestBytes`, `totalMs`, `upstreamMs`, `upstream`, `requestIdentifier`, `cloudflareRay`, `referer`, `userAgent`, and `timing` (`connectionRequest`, `tlsHandshakeMs`, `tlsReused`, `requestBodyMs`, `gateMs`, `upstreamConnectMs`, `upstreamWaitMs`, `responseSendMs`; see [observability.md](observability.md#request-timing)). Nulls are omitted. The request ID is `requestIdentifier`, because the architecture rule keeps any `*Id` property of a contract a typed ID.
 - A reader that falls behind gets `event: skipped` with `{"count":N}`.
 - A comment `: heartbeat` goes out every 15 seconds of silence (`LogTailService.Heartbeat`, which a test shortens), so an idle proxy or client does not time the stream out and a vanished client fails the write.
 - Query parameters: `host` (a configured host's name), `unmatched=true`, `statusClass` (`5` or `5xx`), `status`, `ip` (prefix), `method`, `path`, and `backlog` (0 to 1000, default 0, the newest matching entries first).
@@ -576,6 +578,8 @@ The simulator learned two query parameters for this (`clientIp`, and `method` wh
 - a hidden "Clear filters" button reserving a row of the filter card (it moved to the status line, shown only when a filter is set);
 - the drawer's facts stretching to fill the drawer on a phone (the page's own list instead of the chip-style `.pdk-facts`);
 - the simulate button crowding the drawer's title (it moved to the footer).
+
+The waterfall's visual pass (a throwaway tour, not committed: a forwarded upload with a handshake, a pooled forward on a reused TLS connection and a refusal, in dark, light and 390 px) found nothing to fix. At 390 px the tracks are narrow (about 60 px) but every row stays one line and nothing scrolls sideways.
 
 ### The security overview (M7)
 

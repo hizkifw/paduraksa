@@ -12,6 +12,7 @@ Contents:
 - [The connection stage](#the-connection-stage)
 - [The listeners' limits](#the-listeners-limits)
 - [Upstream timeouts](#upstream-timeouts)
+- [Request timing](#request-timing)
 - [HTTP/3 strategy](#http3-strategy)
 - [Request simulator](#request-simulator-why-was-this-blocked)
 
@@ -479,6 +480,25 @@ Validator codes: `upstream.timeouts.connect.invalid` and `upstream.timeouts.idle
 **Left out.**
 - **A time to the response headers (first byte).** YARP has no setting for it: the activity timeout also restarts at the headers, and a separate one would be a timer of our own on the forward path (a `CancellationTokenSource` per request), against the budget. Decided against for now.
 - **Separate idle times for a request and a tunnel.** The one value would need a per-route or per-protocol split YARP does not offer.
+
+## Request timing
+
+What timing every request by stage costs (what the stages are: "Request timing" in [observability.md](observability.md#request-timing)).
+
+- **Per request, 0 B, no lock:** an atomic increment and a field read on the connection's `ConnectionTimings` (the feature lookup happens once per pooled request state), three more `Stopwatch` reads (the gate's end, the response's start, and one end shared by the total, the send and the counters, which saves the recorder's own read), a timestamp per body read that returned bytes, one more response callback registration (Kestrel reuses its callback stack), a lock-free `ConditionalWeakTable` lookup at the end of a forward, and two more interlocked adds (the send's histogram and sum; two more on a TLS connection's first request).
+- **Per connection:** one 40-byte object. **Per upstream connection:** one more, and the table's lock to add it, while the connect waits on the network.
+- **Allocation tests:** `GateAllocationTests` now runs on TLS h1 and h2 as well as h1 and h2c, `BodyBytesTests.CountingAllocatesNothingOnKestrel` on TLS uploads, and `AccessLogAllocationTests` measures the response-start callback with the completion and reapply ones on h1, h2c and TLS.
+- **Bench** (`bench/run-baseline.sh`, Paduraksa only, h1 and h2-tls at a fixed concurrency of 64, this branch against `main`, alternated). The box was shared with other sessions' builds, test runs and a browser for the whole hour, at a load of 15 to 50 on 20 CPUs. Of twelve runs, the ones that kept the proxy on at least 3.5 of its 4 CPUs were two pairs of h2-tls; no branch h1 run was quiet.
+
+| h2-tls, quiet runs | `main` | Branch |
+|---|---|---|
+| Requests/s | 146.2k, 144.1k (mean 145.2k) | 140.3k, 151.9k (mean 146.1k) |
+| Proxy CPU per request | 24.7, 24.8 microseconds | 25.2, 23.8 microseconds |
+| Bytes per request | 4 510, 4 876 | 4 662 |
+
+- h2-tls: within the runs' own spread, about +0.6 % throughput and -1 % CPU per request on the means; the cost is below what this box can resolve, and inside the 3 % budget.
+- h1: `main`'s three runs at 3.25 to 3.37 CPUs gave 160.9k to 164.6k requests/s and 20.2 to 20.5 microseconds a request. The branch's best h1 run had the proxy on 3.09 CPUs (148.1k, 20.9 microseconds, +3 % CPU per request against `main`'s median) and is not a clean pair, so the h1 delta is **not measured** here. It should be re-run on a quiet box before the v0.1 bench.
+- Bytes per request did not move beyond the runs' spread (h1 4 055 to 4 083 on `main`, 4 165 on the branch's contended run), as the allocation tests say.
 
 ## HTTP/3 strategy
 
