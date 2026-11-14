@@ -444,6 +444,7 @@ It starts the child with `DOTNET_GCHeapHardLimit` 256 MiB, workstation non-concu
 | Protocol | a frame that is malformed, oversized or not what the protocol allows there |
 | Liveness | the child exiting or closing its pipe, or the caller going away |
 
+- **Why both clocks.** CPU time catches a script that computes (a loop, a backtracking regex, a native that grinds), however the wall clock is shared with other work. Wall time catches a run that waits without computing: a blocked read, a stopped or descheduled child, a wait inside the engine. `Atomics.wait` was one (a red-team report): the script is the only agent, so nothing can notify it, and it blocked without CPU until the wall limit. The engine now refuses it (`AgentCanSuspend = false`, the spec's host switch: a `TypeError`), but the wall clock stays because a wait the engine does not refuse would otherwise never end. `SandboxHostileChildTests` holds it with a child that sleeps.
 - The caller always gets a short fixed message, `The script was stopped: <reason>.`. The parent never relays the child's stderr or a stack, and relays a script's own error message only after bounding it (600 characters, control characters replaced).
 - A child that reports out-of-memory or an unexpected exception is replaced rather than reused.
 - The output cap (64 KiB of UTF-8, cut with a note) is applied by the parent to the result frame.

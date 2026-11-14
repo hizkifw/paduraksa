@@ -209,7 +209,9 @@ the same process. The design leans on three structural decisions, each of which 
   and `LD_LIBRARY_PATH` (*code*: `src/Paduraksa.Mcp/ChildProcess.cs`), so the master key and setup token are not in it. It
   holds no token, configuration or data directory. It talks length-prefixed JSON over stdin/stdout; every frame is bound to
   a per-run random ID.
-- **The parent is the guard:** wall time 10 s, CPU 5 s, resident 384 MiB, 50 requests, 64 KiB result, a watchdog that kills
+- **The parent is the guard:** wall time 10 s (for a run that blocks without computing, which the CPU limit never ends: `Atomics.wait` did until the engine
+  was told to refuse it), CPU 5 s (for one that computes inside a single native call, which `MaxStatements` never counts: regex backtracking, now also cut
+  by a 1 s regex timeout), resident 384 MiB, 50 requests, 64 KiB result, a watchdog that kills
   the process tree, a pool of at most 4 children, replacement after any breach ([admin-surfaces.md, MCP in code mode (M10)](design/admin-surfaces.md#mcp-in-code-mode-m10)). The child also applies
   `RLIMIT_CPU`, `RLIMIT_NOFILE`, `RLIMIT_CORE`, `PR_SET_NO_NEW_PRIVS`, `PR_SET_PDEATHSIG` and **Landlock for the file
   system** (*code*: `src/Paduraksa.Mcp/ProcessHardening.cs`); cgroup v2 limits where delegated.

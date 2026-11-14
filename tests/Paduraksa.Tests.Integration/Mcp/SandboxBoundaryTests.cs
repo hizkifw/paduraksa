@@ -116,6 +116,19 @@ public sealed class SandboxBoundaryTests
         Assert.Equal(pid, Assert.Single(tools.Pool.ChildProcessIds));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AtomicsWaitIsATypeErrorNotABlockThatOnlyTheWallClockWouldEnd(bool constraints)
+    {
+        await using var tools = SandboxFixture.Create(new SandboxLimits { EngineConstraints = constraints });
+        var started = Stopwatch.StartNew();
+        var outcome = await tools.SearchAsync("async () => { const i = new Int32Array(new SharedArrayBuffer(4)); try { Atomics.wait(i, 0, 0); return 'returned'; } catch (e) { return e.name; } }", Ct);
+        Assert.Equal("\"TypeError\"", outcome.Text);
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(3), started.Elapsed.ToString());
+        Assert.Equal("[\"function\",\"function\"]", (await tools.SearchAsync("async () => [typeof Atomics.notify, typeof SharedArrayBuffer]", Ct)).Text);
+    }
+
     [Fact]
     public async Task AStackOverflowInTheChildKillsOnlyTheChild()
     {

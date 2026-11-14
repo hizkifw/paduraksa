@@ -204,6 +204,10 @@ public static class SandboxChild
             using var engine = new Engine(options =>
             {
                 options.Strict();
+
+                // The script is the only agent, so nothing can notify a wait: Atomics.wait could only block, without CPU, until the wall-clock watchdog kills
+                // the child. The spec's own host switch makes it a TypeError instead.
+                options.AgentCanSuspend = false;
                 if (limits.EngineConstraints)
                 {
                     options.MaxStatements(limits.EngineMaxStatements);

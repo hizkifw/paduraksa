@@ -102,6 +102,22 @@ public sealed class SandboxHostileChildTests
         Assert.Equal(0, tools.Pool.ChildCount);
     }
 
+    /// <summary>
+    /// A run that blocks without using CPU (what <c>Atomics.wait</c> did before the engine refused it, and what a child stuck on anything but its script does) is ended by the
+    /// wall-clock limit: the CPU limit alone would wait for it forever.
+    /// </summary>
+    [Fact]
+    public async Task AChildThatBlocksWithoutUsingCpuIsKilledByTheWallClockLimit()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "a shell stands in for the child");
+        await using var tools = FakeChild.Tools("exec sleep 30.3", new SandboxLimits { ScriptTime = TimeSpan.FromSeconds(1), CpuTime = TimeSpan.FromSeconds(1) });
+        var started = Stopwatch.StartNew();
+        var outcome = await tools.SearchAsync("async () => 1", Ct);
+        Assert.Equal("The script was stopped: it ran for more than 1 s.", outcome.Text);
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(5), started.Elapsed.ToString());
+        Assert.Equal(0, tools.Pool.ChildCount);
+    }
+
     [Fact]
     public async Task ACallerWhoGivesUpWhileTheChildStartsDoesNotLeaveItRunning()
     {
