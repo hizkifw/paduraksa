@@ -17,7 +17,7 @@
 # cap_net_bind_service (setcap below).
 
 # Base images are pinned by digest (Dependabot bumps them), so a rebuild of the same commit gets the same bases.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:212fe4cb74627d5adf9817a4088906ae3edff1bd853bb27565d4b46731efe61e AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
 ARG TARGETARCH
 ARG PADURAKSA_READYTORUN=true
 # The commit the image is built from, for GET /api/v1/version: the build context has no .git for the SDK to read it from.
@@ -64,7 +64,7 @@ RUN set -eux; \
         -nologo; \
     setcap cap_net_bind_service=+ep /app/paduraksa
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:1a48394b6f29d3a32c79d9edecd4abda0ecbe8776d567dbfc4590ed6979c740c AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e AS runtime
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # libmsquic, pinned, from Microsoft's Ubuntu 24.04 feed: Kestrel's HTTP/3 transport loads it at runtime. The signing key

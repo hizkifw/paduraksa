@@ -14,6 +14,22 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: Microsoft.CodeAnalysis.Analyzers
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # The app targets .NET 10: its runtime packages and dotnet-ef move to 11 together with the SDK and the base
+      # images, by hand, not as part of a weekly group.
+      - dependency-name: Microsoft.EntityFrameworkCore.*
+        update-types: ["version-update:semver-major"]
+      - dependency-name: Microsoft.AspNetCore.*
+        update-types: ["version-update:semver-major"]
+      - dependency-name: Microsoft.Extensions.*
+        update-types: ["version-update:semver-major"]
+      - dependency-name: dotnet-ef
+        update-types: ["version-update:semver-major"]
+      # Paduraksa.ProxyProtocol also targets net8.0, which System.IO.Pipelines 9 and later don't support.
+      - dependency-name: System.IO.Pipelines
+        update-types: ["version-update:semver-major"]
+      # 3.0 changes the API the CLI is built on: a migration of its own.
+      - dependency-name: System.CommandLine
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
