@@ -340,17 +340,28 @@
 
     private void Close() => Level?.RequestClose();
 
-    private async Task RemoveAsync(DraftEntry entry)
+    /// <summary>Takes the entry out of the draft; whether it is out (a draft that is already gone has no entry either).</summary>
+    private async Task<bool> RemoveAsync(DraftEntry entry)
     {
         if (_busy)
         {
-            return;
+            return false;
         }
 
         _busy = true;
         try
         {
-            await Logger.TryAsync(Snackbar, "The change couldn't be taken out of the draft.", async () => await Drafts.RemoveAsync(entry.Number));
+            const string Failure = "The change couldn't be taken out of the draft.";
+            var removed = false;
+            var completed = await Logger.TryAsync(Snackbar, Failure, async () =>
+            {
+                removed = (await Drafts.RemoveAsync(entry.Number)).Status is DraftStatus.Succeeded or DraftStatus.NoDraft;
+                if (!removed)
+                {
+                    Snackbar.Add(StoreFailures.Message(Failure), Severity.Error);
+                }
+            });
+            return completed && removed;
         }
         finally
         {
@@ -358,11 +369,15 @@
         }
     }
 
-    /// <summary>The entry goes, and the object's form opens on the config as it is now, to be edited and added again.</summary>
+    /// <summary>The entry goes, and the object's form opens on the config as it is now, to be edited and added again. If it can't go, the drawer stays with the refusal.</summary>
     private async Task ReloadAsync(DraftEntry entry)
     {
         var route = DraftRoutes.Of(entry);
-        await RemoveAsync(entry);
+        if (!await RemoveAsync(entry))
+        {
+            return;
+        }
+
         Level?.Cancel();
         Navigation.NavigateTo(route);
     }

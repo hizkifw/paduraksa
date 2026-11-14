@@ -414,6 +414,26 @@ public sealed class DraftTests
     }
 
     [Fact]
+    public async Task ReloadingAnEntryTheStoreCouldNotTakeOut_StaysInTheDrawerAndKeepsTheEntry()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument(Upstreams: [App]);
+        config.Draft = DraftOf(Entry(1, new UpsertUpstreamCommand(App with { Name = "mine" }), DraftEntryState.ChangedElsewhere) with { Reason = "Its object was changed or removed elsewhere since you added it." });
+        config.RemoveFails = true;
+        var (drawers, _) = await OpenReviewAsync(context);
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-entry='1'] [data-action=reload-entry]").Count == 1);
+        var before = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri;
+
+        await drawers.Find("[data-entry='1'] [data-action=reload-entry]").ClickAsync(new());
+
+        Assert.Single(drawers.FindAll("[data-drawer=draft]"));
+        Assert.Single(drawers.FindAll("[data-entry='1']"));
+        Assert.Equal([1], config.Draft!.Entries.Select(e => e.Number));
+        Assert.Equal(before, context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+    }
+
+    [Fact]
     public async Task ABlockedEntry_DisablesApplyAndEachOneLinksToItsReload()
     {
         await using DashboardTestContext context = new();

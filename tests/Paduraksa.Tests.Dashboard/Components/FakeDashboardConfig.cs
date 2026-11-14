@@ -126,8 +126,16 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
         return Task.FromResult(new DraftResult(DraftStatus.Succeeded, Draft));
     }
 
+    /// <summary>A store that fails when an entry is taken out.</summary>
+    public bool RemoveFails { get; set; }
+
     public Task<DraftResult> RemoveDraftEntryAsync(DraftId draft, int number, CancellationToken cancellationToken = default)
     {
+        if (RemoveFails)
+        {
+            throw new InvalidOperationException("The store is unavailable.");
+        }
+
         if (Draft is null)
         {
             return Task.FromResult(new DraftResult(DraftStatus.NoDraft));
