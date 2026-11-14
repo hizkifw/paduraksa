@@ -328,7 +328,7 @@ internal static class BackupCommands
                 await output.WriteLineAsync($"Restored. Config: {revision}{(pending > 0 ? $" ({pending.ToString(System.Globalization.CultureInfo.InvariantCulture)} schema update(s) applied)" : string.Empty)}. The vault is under this machine's master key ({Source(status.KekSource)}).").ConfigureAwait(false);
                 if (!hadMasterKey && status.KekSource == KekSourceKind.GeneratedFile)
                 {
-                    await output.WriteLineAsync($"This machine had no master key, so {masterKeyPath} was generated: keep a copy of it apart from the data (docs/design/vault-and-certificates.md, Backup and restore (M10)); the backup does not hold it.").ConfigureAwait(false);
+                    await output.WriteLineAsync($"This machine had no master key, so {masterKeyPath} was generated: keep a copy of it apart from the data (see Backups and restore in the docs); the backup does not hold it.").ConfigureAwait(false);
                 }
 
                 if (moved.Count > 0)

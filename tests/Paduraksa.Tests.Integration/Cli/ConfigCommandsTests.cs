@@ -11,6 +11,7 @@ using Paduraksa.Application.Yaml;
 using Paduraksa.Server.Cli;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Admin;
+using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Cli;
 
@@ -229,6 +230,25 @@ public sealed class ConfigCommandsTests
         Assert.Contains("Couldn't read", missing.Error, StringComparison.Ordinal);
         Assert.Equal(1, tooLarge.Exit);
         Assert.Contains("largest", tooLarge.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvalidLocalSettingsExitThreeLikeEveryOtherCommandWhenNoUrlNamesTheServer()
+    {
+        using TempDirectory directory = new();
+        var tokenFile = Path.Combine(directory.Path, "token");
+        await File.WriteAllTextAsync(tokenFile, "x\n", Ct);
+        RestrictToOwner(tokenFile);
+        // Port 0 is only valid for tests that say so, so the installation's own settings are invalid.
+        var invalid = TestHost.CreateOptions(allowEphemeralPorts: false);
+
+        var export = await ExportAsync(new ConfigClientOptions(null, tokenFile, invalid));
+        var import = await ImportAsync(new ConfigClientOptions(null, tokenFile, invalid), Path.Combine(directory.Path, "none.yaml"));
+
+        Assert.Equal(ExitCodes.InvalidConfiguration, export.Exit);
+        Assert.Contains("Invalid configuration", export.Error, StringComparison.Ordinal);
+        // The file is read first, so a missing one is the failure there; the exit for the settings is the export's.
+        Assert.Equal(ExitCodes.Failure, import.Exit);
     }
 
     [Fact]

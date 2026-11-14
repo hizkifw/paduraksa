@@ -127,10 +127,10 @@ internal static class ConfigCommands
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
-        var target = await ResolveAsync(client, error, cancellationToken).ConfigureAwait(false);
+        var (target, refusal) = await ResolveAsync(client, error, cancellationToken).ConfigureAwait(false);
         if (target is null)
         {
-            return ExitCodes.Failure;
+            return refusal;
         }
 
         using (target.Client)
@@ -189,10 +189,10 @@ internal static class ConfigCommands
             return ExitCodes.Failure;
         }
 
-        var target = await ResolveAsync(client, error, cancellationToken).ConfigureAwait(false);
+        var (target, refusal) = await ResolveAsync(client, error, cancellationToken).ConfigureAwait(false);
         if (target is null)
         {
-            return ExitCodes.Failure;
+            return refusal;
         }
 
         using (target.Client)
@@ -355,13 +355,14 @@ internal static class ConfigCommands
 
     private sealed record Target(HttpClient Client, Uri Base, string Token);
 
-    private static async Task<Target?> ResolveAsync(ConfigClientOptions options, TextWriter error, CancellationToken cancellationToken)
+    /// <summary>The target, or null with the exit code to give: <see cref="ExitCodes.InvalidConfiguration"/> when the installation's own settings are invalid (as in every other command), else <see cref="ExitCodes.Failure"/>.</summary>
+    private static async Task<(Target? Target, int ExitCode)> ResolveAsync(ConfigClientOptions options, TextWriter error, CancellationToken cancellationToken)
     {
         var environment = options.Environment ?? System.Environment.GetEnvironmentVariable;
         var token = await ReadTokenAsync(options, environment, error, cancellationToken).ConfigureAwait(false);
         if (token is null)
         {
-            return null;
+            return (null, ExitCodes.Failure);
         }
 
         var address = options.Url ?? (environment(UrlVariable) is { Length: > 0 } fromEnvironment && Uri.TryCreate(fromEnvironment, UriKind.Absolute, out var parsed) ? parsed : null);
@@ -374,23 +375,23 @@ internal static class ConfigCommands
             catch (OptionsValidationException ex)
             {
                 await error.WriteLineAsync("Invalid configuration: " + string.Join("; ", ex.Failures)).ConfigureAwait(false);
-                return null;
+                return (null, ExitCodes.InvalidConfiguration);
             }
         }
 
         if (!address.IsAbsoluteUri || address.Scheme is not ("http" or "https"))
         {
             await error.WriteLineAsync($"The address {address} must be http or https.").ConfigureAwait(false);
-            return null;
+            return (null, ExitCodes.Failure);
         }
 
         if (address.Scheme == Uri.UriSchemeHttp && !IsLoopback(address) && !options.AllowInsecureHttp)
         {
             await error.WriteLineAsync($"Refusing to send the API token over plain HTTP to {address.Host}: use https://, or pass --allow-insecure-http if the path to it is trusted.").ConfigureAwait(false);
-            return null;
+            return (null, ExitCodes.Failure);
         }
 
-        return new Target(CreateClient(address), address, token);
+        return (new Target(CreateClient(address), address, token), ExitCodes.Success);
     }
 
     private static async Task<string?> ReadTokenAsync(ConfigClientOptions options, Func<string, string?> environment, TextWriter error, CancellationToken cancellationToken)
