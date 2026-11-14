@@ -94,6 +94,37 @@ public sealed class McpDraftTests
         Assert.Equal(0, (await DraftsAsync(client)).GetArrayLength());
     }
 
+    [Fact]
+    public async Task AScriptOpensADraftAddsAnEntryAndSimulatesAgainstItWithoutAConfirm()
+    {
+        await using var api = await AdminApiHarness.StartAsync(Ct);
+        await using var client = await McpTestClient.ConnectAsync(api, "admin", cancellationToken: Ct);
+        var host = ConfigTestSupport.RespondHost("agent-sim", "agent-sim.test", "from the draft");
+        var entries = JsonSerializer.Serialize(new AddDraftEntriesRequest([new UpsertHostCommand(host)]), AdminJsonContext.Default.AddDraftEntriesRequest);
+        var probe = "{ request: { url: 'http://agent-sim.test/', clientIp: '203.0.113.9' }, target: { kind: 'draft', draft: id } }";
+
+        var result = await client.CallAsync("execute", $$"""
+            async () => {
+              const opened = await paduraksa.request({ method: 'POST', path: '/api/v1/drafts', confirm: true });
+              const id = opened.body.id;
+              await paduraksa.request({ method: 'POST', path: `/api/v1/drafts/${id}/entries`, body: {{entries}}, confirm: true });
+              const drafted = await paduraksa.request({ method: 'POST', path: '/api/v1/simulate', body: {{probe}} });
+              const live = await paduraksa.request({ method: 'POST', path: '/api/v1/simulate', body: { request: { url: 'http://agent-sim.test/', clientIp: '203.0.113.9' } } });
+              return { drafted, live };
+            }
+            """, Ct);
+
+        Assert.False(result.IsError, result.Text);
+        var drafted = result.Json.GetProperty("drafted");
+        Assert.Equal(200, drafted.GetProperty("status").GetInt32());
+        Assert.False(drafted.TryGetProperty("dryRun", out _));
+        Assert.Equal("draft", drafted.GetProperty("body").GetProperty("source").GetProperty("kind").GetString());
+        Assert.Equal("fixedAnswer", drafted.GetProperty("body").GetProperty("outcome").GetProperty("kind").GetString());
+        Assert.NotEqual("fixedAnswer", result.Json.GetProperty("live").GetProperty("body").GetProperty("outcome").GetProperty("kind").GetString());
+        using var live = await api.GetAsync($"/api/v1/hosts/{host.Id}");
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, live.StatusCode);
+    }
+
     private static async Task<JsonElement> DraftsAsync(McpClient client) =>
         (await client.RequestAsync("{ method: 'GET', path: '/api/v1/drafts' }", Ct)).GetProperty("body").GetProperty("items").Clone();
 }

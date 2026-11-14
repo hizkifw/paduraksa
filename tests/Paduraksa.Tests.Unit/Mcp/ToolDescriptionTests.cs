@@ -47,4 +47,16 @@ public sealed class ToolDescriptionTests
         Assert.Contains("x-recursive-ref", search, StringComparison.Ordinal);
         Assert.Contains("is stopped", search, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void TheInstructionsTellAnAgentToSimulateItsDraftAndToSimulateBeforeApplyingDirectly()
+    {
+        var text = ToolDescriptions.ServerInstructions;
+        foreach (var part in new[] { "/api/v1/drafts/{id}/review", "/api/v1/simulate", "kind: \"draft\"", "fix the draft first", "one line per simulated outcome", "simulate first", "draftCommand" })
+        {
+            Assert.Contains(part, text, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("/api/v1/simulate", ToolDescriptions.Execute(SandboxLimits.Default), StringComparison.Ordinal);
+    }
 }
