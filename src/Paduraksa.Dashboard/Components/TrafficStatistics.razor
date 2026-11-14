@@ -1,4 +1,4 @@
-@implements IAsyncDisposable
+@inherits StatisticsTab<MetricsRange, MetricsOverview>
 @using Paduraksa.Application.Metrics
 @using Paduraksa.Contracts.Metrics
 @using Paduraksa.Contracts.Config
@@ -6,14 +6,13 @@
 @using Paduraksa.Dashboard.Pages
 @inject MetricsService Metrics
 @inject IDashboardConfig Config
-@inject TimeProvider Time
 @inject DisplayFormat Fmt
 @* The traffic over a range: requests per second and latency as charts, the busiest hosts and the upstreams' errors. The host page owns
    the range and the tab's visibility; this reads, polls and draws. The hour reads the sampler's memory every two seconds; longer ranges
    read the one-minute rollups, which only change once a minute, so they are read a tenth as often. *@
 
 <section class="pdk-traffic" data-section="traffic" aria-label="Traffic">
-    @if (_failed)
+    @if (Failed)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
             The traffic figures couldn't be read. The details are in the server log.
@@ -23,7 +22,7 @@
     else
     {
         // One markup for both states (a skeleton is this frame with placeholders), so the section keeps its size when the figures arrive.
-        var overview = _overview;
+        var overview = Overview;
         var pending = overview is null;
         var empty = !pending && overview!.Series.Count < 2;
         var drawn = !pending && !empty;
@@ -109,47 +108,21 @@
 </section>
 
 @code {
-    private MetricsOverview? _overview;
-    private MetricsRange? _loaded;
-    private bool _wasVisible = true;
-    private bool _failed;
-    private bool _started;
     private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
     private IReadOnlyList<TimeSeriesChart.ChartLine> _requestLines = [];
     private IReadOnlyList<TimeSeriesChart.ChartLine> _latencyLines = [];
     private Dictionary<UpstreamId, string> _upstreamNames = [];
-    private CancellationTokenSource? _stop;
 
-    /// <summary>
-    /// Show the frame and read nothing: the page is still prerendering or checking who is asking, and a read made for someone who may not see
-    /// the figures must not start. The frame is what the loaded tab looks like, so the page doesn't change size when this turns false.
-    /// </summary>
-    [Parameter]
-    public bool Hold { get; set; }
+    protected override MetricsRange CurrentKey => Range;
 
-    /// <summary>The range to read; the host page's picker.</summary>
-    [Parameter, EditorRequired]
-    public MetricsRange Range { get; set; }
+    protected override TimeSpan DefaultPollInterval => TimeSpan.FromSeconds(2);
 
-    /// <summary>Whether the tab is visible: the host page watches it, and polling pauses while it is hidden.</summary>
-    [Parameter]
-    public bool Visible { get; set; } = true;
+    // The one-minute rollups change once a minute, so the longer ranges wait ten times as long.
+    protected override int LongRangeEvery => 10;
 
-    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
-    [Parameter]
-    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+    protected override Task<MetricsOverview> ReadAsync(MetricsRange key, CancellationToken cancellationToken) => Metrics.ReadOverviewAsync(key, cancellationToken);
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (!RendererInfo.IsInteractive || Hold)
-        {
-            return;
-        }
-
-        await StartAsync();
-    }
-
-    private async Task StartAsync()
+    protected override async Task<bool> BeginAsync()
     {
         try
         {
@@ -160,87 +133,12 @@
             // Without the config the table names an upstream by its ID.
         }
 
-        _stop = new CancellationTokenSource();
-        _started = true;
-        _ = PollAsync(_stop);
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (!_started)
-        {
-            if (Hold || !RendererInfo.IsInteractive)
-            {
-                return;
-            }
-
-            await StartAsync();
-        }
-
-        // A new range starts over; a tab shown again reads at once.
-        if (_loaded != Range)
-        {
-            _overview = null;
-            await LoadAsync();
-        }
-        else if (Visible && !_wasVisible)
-        {
-            await LoadAsync();
-        }
-
-        _wasVisible = Visible;
-    }
-
-    private async Task LoadAsync()
-    {
-        var range = Range;
-        try
-        {
-            var overview = await Metrics.ReadOverviewAsync(range, _stop?.Token ?? CancellationToken.None);
-            if (range != Range)
-            {
-                return;
-            }
-
-            _overview = overview;
-            _failed = false;
-            Shape(overview);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _failed = true;
-        }
-
-        _loaded = range;
-        StateHasChanged();
-    }
-
-    private async Task PollAsync(CancellationTokenSource stop)
-    {
-        var token = stop.Token;
-        try
-        {
-            // The hour is read at the poll interval; the rollups change once a minute, so the longer ranges wait ten times as long.
-            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(2), Time);
-            var ticks = 0;
-            while (await timer.WaitForNextTickAsync(token))
-            {
-                ticks++;
-                if (Visible && !_failed && _overview is not null && (Range == MetricsRange.Hour || ticks % 10 == 0))
-                {
-                    await InvokeAsync(LoadAsync);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
-        {
-            // The panel is gone.
-        }
+        return true;
     }
 
     private string UpstreamName(UpstreamId id) => _upstreamNames.TryGetValue(id, out var name) ? name : id.ToString();
 
-    private void Shape(MetricsOverview overview)
+    protected override void Shape(MetricsOverview overview)
     {
         var series = overview.Series;
         _points = TrafficFigures.Points(series, Fmt);
@@ -256,14 +154,5 @@
             new("p99", "pdk-chart-err", TrafficFigures.Values(series, point => point.Total.P99Ms, timed: true)),
             new("Upstream p95", "pdk-chart-up", TrafficFigures.Values(series, point => point.Upstream.P95Ms, timed: true)),
         ];
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_stop is { } stop)
-        {
-            await stop.CancelAsync();
-            stop.Dispose();
-        }
     }
 }

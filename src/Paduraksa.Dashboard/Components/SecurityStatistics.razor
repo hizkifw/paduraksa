@@ -1,11 +1,10 @@
-@implements IAsyncDisposable
+@inherits StatisticsTab<MetricsRange, SecurityOverview>
 @using Paduraksa.Application.Security
 @using Paduraksa.Contracts.Metrics
 @using Paduraksa.Contracts.Security
 @using Paduraksa.Dashboard.Pages
 @inject SecurityOverviewService Service
 @inject DashboardCaller Caller
-@inject TimeProvider Time
 @inject DisplayFormat Fmt
 @* The gate's security counters over a range: the refusals over time stacked by reason, and a card per protection. The host page owns
    the range and the tab's visibility; this reads, polls and draws. The hour is the sampler's memory, read every poll; the longer
@@ -13,13 +12,13 @@
    they are not kept per host. *@
 
 <section class="pdk-security-stats" data-section="security" aria-label="Security">
-    @if (_denied)
+    @if (Denied)
     {
         <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
             <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
         </MudPaper>
     }
-    else if (_failed)
+    else if (Failed)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="security-failed">
             The security figures couldn't be read. The details are in the server log.
@@ -30,7 +29,7 @@
     {
         // One markup for both states (a skeleton is this frame with placeholders), so the tab keeps its size when the figures arrive. What
         // only exists once loaded is read inside the cards' content, which is not rendered while a card is pending.
-        var current = _overview;
+        var current = Overview;
         var pending = current is null;
         var empty = !pending && (current!.Series.Count < 2 || _lines.Count == 0);
         var drawn = !pending && !empty;
@@ -139,92 +138,28 @@
 </section>
 
 @code {
-    private SecurityOverview? _overview;
     private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
     private IReadOnlyList<TimeSeriesChart.ChartLine> _lines = [];
-    private MetricsRange? _loaded;
-    private bool _wasVisible = true;
-    private bool _denied;
-    private bool _failed;
-    private bool _started;
-    private CancellationTokenSource? _stop;
 
-    /// <summary>
-    /// Show the frame and read nothing: the page is still prerendering or checking who is asking, and a read made for someone who may not see
-    /// the figures must not start. The frame is what the loaded tab looks like, so the page doesn't change size when this turns false.
-    /// </summary>
-    [Parameter]
-    public bool Hold { get; set; }
+    protected override MetricsRange CurrentKey => Range;
 
-    /// <summary>The range to count over; the host page's picker.</summary>
-    [Parameter, EditorRequired]
-    public MetricsRange Range { get; set; }
+    protected override TimeSpan DefaultPollInterval => TimeSpan.FromSeconds(2);
 
-    /// <summary>Whether the tab is visible: the host page watches it, and polling pauses while it is hidden.</summary>
-    [Parameter]
-    public bool Visible { get; set; } = true;
+    // The rollups change once a minute, so the longer ranges wait ten times as long.
+    protected override int LongRangeEvery => 10;
 
-    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
-    [Parameter]
-    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+    protected override Task<SecurityOverview> ReadAsync(MetricsRange key, CancellationToken cancellationToken) => Service.ReadAsync(key, cancellationToken);
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (!RendererInfo.IsInteractive || Hold)
-        {
-            return;
-        }
-
-        await StartAsync();
-    }
-
-    private async Task StartAsync()
+    protected override async Task<bool> BeginAsync()
     {
         var user = await Caller.CheckAsync();
         if (user is null)
         {
-            return;
+            return false;
         }
 
-        if (!user.Has(Permission.ConfigRead))
-        {
-            _denied = true;
-            return;
-        }
-
-        _started = true;
-        _stop = new CancellationTokenSource();
-        _ = PollAsync(_stop);
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (!_started)
-        {
-            if (Hold || _denied || !RendererInfo.IsInteractive)
-            {
-                return;
-            }
-
-            await StartAsync();
-            if (!_started)
-            {
-                return;
-            }
-        }
-
-        // A new range starts over; a tab shown again reads at once.
-        if (_loaded != Range)
-        {
-            _overview = null;
-            await LoadAsync();
-        }
-        else if (Visible && !_wasVisible)
-        {
-            await LoadAsync();
-        }
-
-        _wasVisible = Visible;
+        Denied = !user.Has(Permission.ConfigRead);
+        return !Denied;
     }
 
     // The rows of a counter card, as bars: the card's own rows are a fixed number, so the skeleton is as tall as the loaded card.
@@ -252,54 +187,7 @@
 
     private string? Share(long part, long whole) => Fmt.ShareOrNull(part, whole) is { } share ? $" ({share})" : null;
 
-    private async Task LoadAsync()
-    {
-        var range = Range;
-        try
-        {
-            var overview = await Service.ReadAsync(range, _stop?.Token ?? CancellationToken.None);
-            if (range != Range)
-            {
-                return;
-            }
-
-            _overview = overview;
-            _loaded = range;
-            _failed = false;
-            Shape(overview);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _failed = true;
-            _loaded = range;
-        }
-
-        StateHasChanged();
-    }
-
-    private async Task PollAsync(CancellationTokenSource stop)
-    {
-        var token = stop.Token;
-        try
-        {
-            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(2), Time);
-            var ticks = 0;
-            while (await timer.WaitForNextTickAsync(token))
-            {
-                ticks++;
-                if (Visible && !_failed && _overview is not null && (Range == MetricsRange.Hour || ticks % 10 == 0))
-                {
-                    await InvokeAsync(LoadAsync);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
-        {
-            // The section is gone.
-        }
-    }
-
-    private void Shape(SecurityOverview overview)
+    protected override void Shape(SecurityOverview overview)
     {
         var series = overview.Series;
         _points = [.. series.Select(step => new TimeSeriesChart.ChartPoint(step.Start, TimeSpan.FromSeconds(step.WidthSeconds), step.CoveredSeconds == 0, TrafficFigures.Coverage(step.CoveredSeconds, step.WidthSeconds, Fmt)))];
@@ -313,14 +201,5 @@
                     kind.Css,
                     [.. series.Select(step => step.CoveredSeconds == 0 ? (double?)null : (double)kind.Of(step.Refused) / step.CoveredSeconds)])),
         ];
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_stop is { } stop)
-        {
-            await stop.CancelAsync();
-            stop.Dispose();
-        }
     }
 }

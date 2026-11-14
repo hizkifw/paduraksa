@@ -1,24 +1,23 @@
-@implements IAsyncDisposable
+@inherits StatisticsTab<(MetricsRange Range, HostId? Host, bool Unmatched), AnalyticsOverview>
 @using Paduraksa.Application.Analytics
 @using Paduraksa.Contracts.Analytics
 @using Paduraksa.Contracts.Metrics
 @using Paduraksa.Dashboard.Pages
 @inject AnalyticsService Service
-@inject TimeProvider Time
 @inject DisplayFormat Fmt
 @* Visitors and content, clients and bots for every host or one. The host page owns the range, the host and the tab's visibility; this
    reads, polls and draws. The figures come from the access-log drain, so a host with its access log off is not in them. The hour is
    the stored buckets plus the drain's open one, so it is live to within the drain's few seconds (the service keeps a result for 5 s);
    the longer ranges are mostly stored rows and are read a sixth as often. *@
 
-@if (_failed)
+@if (Failed)
 {
     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
         The analytics couldn't be read. The details are in the server log.
         <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
     </MudAlert>
 }
-else if (_overview is { Totals.Requests: 0 })
+else if (Overview is { Totals.Requests: 0 })
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="empty">
         <EmptyState Icon="@Icons.Material.Outlined.Insights" Title="No requests in this range"
@@ -29,7 +28,7 @@ else
 {
     // One markup for both states (a skeleton is this frame with placeholders), so the tab keeps its size when the figures arrive. What
     // only exists once loaded is read inside the cards' content, which is not rendered while a card is pending.
-    var overview = _overview;
+    var overview = Overview;
     var pending = overview is null;
     var totals = overview?.Totals;
     <div class="pdk-sec-tiles" data-part="tiles">
@@ -273,14 +272,8 @@ else
 
 
 @code {
-    private AnalyticsOverview? _overview;
-    private (MetricsRange Range, HostId? Host, bool Unmatched)? _loaded;
     private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
     private IReadOnlyList<ChartSpec> _charts = [];
-    private bool _wasVisible = true;
-    private bool _failed;
-    private bool _started;
-    private CancellationTokenSource? _stop;
 
     private sealed record ChartSpec(string Name, string Title, IReadOnlyList<TimeSeriesChart.ChartLine> Lines, Func<double, string>? Format);
 
@@ -291,17 +284,6 @@ else
         new("bandwidth", "Bandwidth", [], null),
         new("visitors", "Unique visitors", [], null),
     ];
-
-    /// <summary>
-    /// Show the frame and read nothing: the page is still prerendering or checking who is asking, and a read made for someone who may not see
-    /// the figures must not start. The frame is what the loaded tab looks like, so the page doesn't change size when this turns false.
-    /// </summary>
-    [Parameter]
-    public bool Hold { get; set; }
-
-    /// <summary>The range to read; the host page's picker.</summary>
-    [Parameter, EditorRequired]
-    public MetricsRange Range { get; set; }
 
     /// <summary>One host's figures; every host's when null.</summary>
     [Parameter]
@@ -315,105 +297,19 @@ else
     [Parameter]
     public string? HostName { get; set; }
 
-    /// <summary>Whether the tab is visible: the host page watches it, and polling pauses while it is hidden.</summary>
-    [Parameter]
-    public bool Visible { get; set; } = true;
+    private IReadOnlyList<AnalyticsCount> BotKindCounts => [.. Overview!.BotKinds.Select(static kind => new AnalyticsCount(kind.Kind, kind.Count, 0))];
 
-    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
-    [Parameter]
-    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(10);
+    protected override (MetricsRange Range, HostId? Host, bool Unmatched) CurrentKey => (Range, Host, Unmatched);
 
-    private IReadOnlyList<AnalyticsCount> BotKindCounts => [.. _overview!.BotKinds.Select(static kind => new AnalyticsCount(kind.Kind, kind.Count, 0))];
+    // The hour changes with every bucket the drain closes; the longer ranges are mostly stored rows, so they wait six times as long.
+    protected override TimeSpan DefaultPollInterval => TimeSpan.FromSeconds(10);
 
-    protected override void OnInitialized()
-    {
-        if (RendererInfo.IsInteractive && !Hold)
-        {
-            Start();
-        }
-    }
+    protected override int LongRangeEvery => 6;
 
-    private void Start()
-    {
-        _stop = new CancellationTokenSource();
-        _started = true;
-        _ = PollAsync(_stop);
-    }
+    protected override Task<AnalyticsOverview> ReadAsync((MetricsRange Range, HostId? Host, bool Unmatched) key, CancellationToken cancellationToken) =>
+        Service.ReadOverviewAsync(key.Range, key.Host, key.Unmatched, cancellationToken);
 
-    protected override async Task OnParametersSetAsync()
-    {
-        if (!_started)
-        {
-            if (Hold || !RendererInfo.IsInteractive)
-            {
-                return;
-            }
-
-            Start();
-        }
-
-        // A new range or host starts over; a tab shown again reads at once.
-        if (_loaded != (Range, Host, Unmatched))
-        {
-            _overview = null;
-            await LoadAsync();
-        }
-        else if (Visible && !_wasVisible)
-        {
-            await LoadAsync();
-        }
-
-        _wasVisible = Visible;
-    }
-
-    private async Task LoadAsync()
-    {
-        var read = (Range, Host, Unmatched);
-        try
-        {
-            var overview = await Service.ReadOverviewAsync(read.Range, read.Host, read.Unmatched, _stop?.Token ?? CancellationToken.None);
-            if (read != (Range, Host, Unmatched))
-            {
-                return;
-            }
-
-            _overview = overview;
-            _failed = false;
-            Shape(overview);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _failed = true;
-        }
-
-        _loaded = read;
-        StateHasChanged();
-    }
-
-    private async Task PollAsync(CancellationTokenSource stop)
-    {
-        var token = stop.Token;
-        try
-        {
-            // The hour changes with every bucket the drain closes; the longer ranges are mostly stored rows, so they wait six times as long.
-            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(10), Time);
-            var ticks = 0;
-            while (await timer.WaitForNextTickAsync(token))
-            {
-                ticks++;
-                if (Visible && !_failed && _overview is not null && (Range == MetricsRange.Hour || ticks % 6 == 0))
-                {
-                    await InvokeAsync(LoadAsync);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
-        {
-            // The tab is gone.
-        }
-    }
-
-    private void Shape(AnalyticsOverview overview)
+    protected override void Shape(AnalyticsOverview overview)
     {
         var series = overview.Series;
         _points = [.. series.Select(step => new TimeSeriesChart.ChartPoint(step.Start, TimeSpan.FromSeconds(step.WidthSeconds), step.CoveredSeconds == 0, AnalyticsFigures.Coverage(step, Fmt)))];
@@ -467,13 +363,4 @@ else
         builder.AddContent(4, path);
         builder.CloseElement();
     };
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_stop is { } stop)
-        {
-            await stop.CancelAsync();
-            stop.Dispose();
-        }
-    }
 }
