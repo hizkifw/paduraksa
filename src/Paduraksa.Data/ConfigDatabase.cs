@@ -36,7 +36,50 @@ public static class ConfigDatabase
             return new ConfigDatabaseInitialized(pending, observed) { RestrictedFiles = restricted.Changed, UnrestrictedFiles = [.. restricted.Failed.Select(f => new UnrestrictedFile(f.Path, f.Mode, f.Reason))] };
         }
     }
+
+    /// <summary>
+    /// Opens the database at <paramref name="databasePath"/> read-only: nothing is created, migrated, restricted or written, so this is safe beside a
+    /// running server. The file must exist.
+    /// </summary>
+    public static ConfigDbContext OpenReadOnly(string databasePath)
+    {
+        var builder = new DbContextOptionsBuilder<ConfigDbContext>();
+        builder.UsePaduraksaSqlite(PaduraksaSqlite.ReadOnlyConnectionString(databasePath));
+        return new ConfigDbContext(builder.Options);
+    }
+
+    /// <summary>
+    /// Reads the schema state without changing anything (<c>paduraksa doctor</c>): what the database has applied against this build's migrations.
+    /// A file that can't be opened or read is a <see cref="ConfigDatabaseInspection.Problem"/>, not an exception.
+    /// </summary>
+    public static async Task<ConfigDatabaseInspection> InspectAsync(string databasePath, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        if (!File.Exists(databasePath))
+        {
+            return new ConfigDatabaseInspection(false, new MigrationState([], [], []), null);
+        }
+
+        try
+        {
+            var context = OpenReadOnly(databasePath);
+            await using (context.ConfigureAwait(false))
+            {
+                return new ConfigDatabaseInspection(true, await MigrationInspector.InspectAsync(context, cancellationToken).ConfigureAwait(false), null);
+            }
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            return new ConfigDatabaseInspection(true, new MigrationState([], [], []), ex.Message);
+        }
+    }
 }
+
+/// <summary>What <see cref="ConfigDatabase.InspectAsync"/> found.</summary>
+/// <param name="Exists">Whether the file is there (a missing one is created by the next start).</param>
+/// <param name="Migrations">The schema against this build's migrations; empty when the file is missing.</param>
+/// <param name="Problem">Why it could not be opened or read, or null.</param>
+public sealed record ConfigDatabaseInspection(bool Exists, MigrationState Migrations, string? Problem);
 
 /// <summary>The outcome of <see cref="ConfigDatabase.InitializeAsync"/>.</summary>
 /// <param name="AppliedMigrations">Migrations applied by this start, oldest first (empty if the schema was current).</param>

@@ -26,6 +26,36 @@ public static class PaduraksaSqlite
     }
 
     /// <summary>
+    /// Connection string for a read-only look at an existing database file, safe beside a running server: it never creates the file, switches
+    /// nothing to WAL and takes no write lock. Not pooled, so no handle outlives the caller.
+    /// </summary>
+    /// <remarks>
+    /// Even a read-only connection to a WAL database creates its <c>-wal</c> and <c>-shm</c> files when they are missing, which would leave
+    /// files behind in a data directory nothing was running on. So when there is no <c>-wal</c> file (no server holds the database open, and
+    /// a clean close removes it) the file is opened <c>immutable</c>: SQLite then touches nothing but the main file. With a <c>-wal</c> file
+    /// present it is opened normally, since the WAL may hold commits the main file lacks.
+    /// </remarks>
+    public static string ReadOnlyConnectionString(string databasePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        var dataSource = databasePath;
+        if (!File.Exists(databasePath + "-wal"))
+        {
+            var full = Path.GetFullPath(databasePath);
+            dataSource = "file:" + string.Join('/', full.Split('/').Select(Uri.EscapeDataString)) + "?immutable=1";
+        }
+
+        return new SqliteConnectionStringBuilder
+        {
+            DataSource = dataSource,
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false,
+            ForeignKeys = true,
+            DefaultTimeout = (int)SqlitePragmas.BusyTimeout.TotalSeconds,
+        }.ToString();
+    }
+
+    /// <summary>
     /// Uses SQLite: the connection-string settings from <see cref="ConnectionString"/>, plus WAL,
     /// <c>synchronous=NORMAL</c> and <c>busy_timeout</c> applied once to every physical connection EF opens.
     /// </summary>
