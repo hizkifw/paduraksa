@@ -11,49 +11,43 @@
    the browser tab is visible. *@
 
 <section class="pdk-sec-tiles pdk-traffic-strip" data-section="traffic-strip" aria-label="Traffic in the last hour">
-    @if (_overview is null)
-    {
-        @for (var i = 0; i < 4; i++)
-        {
-            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="124px" />
-        }
+    @{
+        // The tiles are the same markup before and after the first read, so the strip never changes size when the figures arrive.
+        var now = _overview?.Now;
+        var pending = now is null;
     }
-    else
-    {
-        var now = _overview.Now;
-        <SecurityTile Name="requests" Label="Requests" Value="@Fmt.PerSecond(now.RequestsPerSecond)" Href="@Href" LinkTitle="@LinkTitle">
-            <Spark>
-                @if (_points.Count >= 2)
-                {
-                    <TimeSeriesChart Name="requests" Points="@_points" Lines="@_requests" Format="@Fmt.PerSecond" Compact="true" />
-                }
-            </Spark>
-        </SecurityTile>
-        <SecurityTile Name="errors" Label="Errors" Value="@Fmt.Percent(now.ErrorRate)" Detail="5xx answers" Href="@Href" LinkTitle="@LinkTitle">
-            <Spark>
-                @if (_points.Count >= 2)
-                {
-                    <TimeSeriesChart Name="errors" Points="@_points" Lines="@_errors" Format="@Fmt.Percent" Compact="true" />
-                }
-            </Spark>
-        </SecurityTile>
-        <SecurityTile Name="refused" Label="Refused" Value="@Fmt.PerSecond(now.RefusedPerSecond)" Detail="by a policy or limit" Href="@Href" LinkTitle="@LinkTitle">
-            <Spark>
-                @if (_points.Count >= 2)
-                {
-                    <TimeSeriesChart Name="refused" Points="@_points" Lines="@_refused" Format="@Fmt.PerSecond" Compact="true" />
-                }
-            </Spark>
-        </SecurityTile>
-        <SecurityTile Name="latency" Label="Latency p95" Value="@Fmt.Latency(now.Total.P95Ms)" Href="@Href" LinkTitle="@LinkTitle">
-            <Spark>
-                @if (_points.Count >= 2)
-                {
-                    <TimeSeriesChart Name="latency" Points="@_points" Lines="@_latency" Format="@Fmt.Latency" Compact="true" />
-                }
-            </Spark>
-        </SecurityTile>
-    }
+    <SecurityTile Name="requests" Label="Requests" Pending="@pending" Value="@(pending ? string.Empty : Fmt.PerSecond(now!.RequestsPerSecond))" Href="@Href" LinkTitle="@LinkTitle">
+        <Spark>
+            @if (_points.Count >= 2)
+            {
+                <TimeSeriesChart Name="requests" Points="@_points" Lines="@_requests" Format="@Fmt.PerSecond" Compact="true" />
+            }
+        </Spark>
+    </SecurityTile>
+    <SecurityTile Name="errors" Label="Errors" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Percent(now!.ErrorRate))" Detail="5xx answers" Href="@Href" LinkTitle="@LinkTitle">
+        <Spark>
+            @if (_points.Count >= 2)
+            {
+                <TimeSeriesChart Name="errors" Points="@_points" Lines="@_errors" Format="@Fmt.Percent" Compact="true" />
+            }
+        </Spark>
+    </SecurityTile>
+    <SecurityTile Name="refused" Label="Refused" Pending="@pending" Value="@(pending ? string.Empty : Fmt.PerSecond(now!.RefusedPerSecond))" Detail="by a policy or limit" Href="@Href" LinkTitle="@LinkTitle">
+        <Spark>
+            @if (_points.Count >= 2)
+            {
+                <TimeSeriesChart Name="refused" Points="@_points" Lines="@_refused" Format="@Fmt.PerSecond" Compact="true" />
+            }
+        </Spark>
+    </SecurityTile>
+    <SecurityTile Name="latency" Label="Latency p95" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Latency(now!.Total.P95Ms))" Href="@Href" LinkTitle="@LinkTitle">
+        <Spark>
+            @if (_points.Count >= 2)
+            {
+                <TimeSeriesChart Name="latency" Points="@_points" Lines="@_latency" Format="@Fmt.Latency" Compact="true" />
+            }
+        </Spark>
+    </SecurityTile>
 </section>
 
 @code {

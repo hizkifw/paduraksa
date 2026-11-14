@@ -1,22 +1,21 @@
-<MudPaper Class="pdk-card pdk-stat" Elevation="0" Outlined="true">
+<MudPaper Class="pdk-card pdk-stat" Elevation="0" Outlined="true" aria-busy="@(Loading ? "true" : null)">
     <div class="pdk-stat-head">
         <span class="pdk-stat-icon pdk-tone-@Tone.ToString().ToLowerInvariant()"><MudIcon Icon="@Icon" Size="Size.Small" /></span>
         <MudText Typo="Typo.subtitle2" Class="pdk-muted">@Label</MudText>
     </div>
-    @if (Loading)
-    {
-        <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="2.25rem" />
-        <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" />
-    }
-    else
-    {
-        <div class="pdk-stat-value">@Value</div>
-        @if (Detail is not null)
+    @* The value and detail lines are always there, so the card is one height before and after the read. *@
+    <div class="@("pdk-stat-value" + (Loading ? " pdk-pending" : null))">
+        @if (Loading)
         {
-            <MudText Typo="Typo.caption" Class="pdk-muted pdk-stat-detail">@Detail</MudText>
+            <text>0</text>
         }
-    }
-    @if (Href is not null && !Loading)
+        else
+        {
+            @Value
+        }
+    </div>
+    <MudText Typo="Typo.caption" Class="pdk-muted pdk-stat-detail">@(Loading ? null : Detail)</MudText>
+    @if (Href is not null)
     {
         <MudLink Href="@Href" Typo="Typo.caption" Class="pdk-stat-link">@LinkText <MudIcon Icon="@Icons.Material.Rounded.ArrowForward" Size="Size.Small" /></MudLink>
     }

@@ -1,0 +1,84 @@
+@* A card of the statistics pages. It is the same card before and after the figures arrive: the title is there, and the body is a
+   placeholder with the loaded body's size (below). While pending it carries data-pending instead of data-section, so what waits for the
+   loaded card (a test, a script) isn't satisfied by the skeleton.
+
+   A card's body is one of three things. A chart (Chart) renders its content in both states and the chart draws its own placeholder. A card
+   with a fixed number of rows gives its own Placeholder. Anything else is a table or a list whose length is the data's: its body keeps a
+   minimum height, and the skeleton fills exactly that, so an empty card and a short one match the skeleton and only a longer one grows. *@
+<MudPaper Class="@("pdk-card" + (Table ? " pdk-table-card" : null))" Elevation="0" Outlined="true"
+          data-section="@(Pending ? null : Name)" data-pending="@(Pending ? Name : null)" aria-busy="@(Pending ? "true" : null)">
+    @if (Table)
+    {
+        <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">@Title</MudText></div>
+    }
+    else if (Note is not null)
+    {
+        <div class="pdk-security-stats-title">
+            <MudText Typo="Typo.subtitle1" HtmlTag="h3">@Title</MudText>
+            @if (!Pending)
+            {
+                @Note
+            }
+        </div>
+    }
+    else
+    {
+        <MudText Typo="Typo.subtitle1" HtmlTag="h3">@Title</MudText>
+    }
+    @if (Chart)
+    {
+        @ChildContent
+    }
+    else if (Placeholder is not null)
+    {
+        @(Pending ? Placeholder : ChildContent)
+    }
+    else if (Pending)
+    {
+        <div class="@BodyClass pdk-stats-body-pending" aria-hidden="true">
+            @for (var i = 0; i < 5; i++)
+            {
+                <span class="pdk-pending">Loading</span>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="@BodyClass">@ChildContent</div>
+    }
+</MudPaper>
+
+@code {
+    /// <summary>The <c>data-section</c> of the loaded card; the skeleton's <c>data-pending</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>The card holds a table: its title sits in a padded head and the table runs to the card's edges.</summary>
+    [Parameter]
+    public bool Table { get; set; }
+
+    /// <summary>The body is a chart, which takes care of its own placeholder: the content is rendered in both states.</summary>
+    [Parameter]
+    public bool Chart { get; set; }
+
+    /// <summary>The figures have not been read yet.</summary>
+    [Parameter]
+    public bool Pending { get; set; }
+
+    /// <summary>What sits beside the title once loaded (a total); a title row is made for it.</summary>
+    [Parameter]
+    public RenderFragment? Note { get; set; }
+
+    /// <summary>The body while pending, for a card whose loaded body has a known size (a counter card with a fixed number of rows).</summary>
+    [Parameter]
+    public RenderFragment? Placeholder { get; set; }
+
+    /// <summary>The loaded body. Not rendered while pending, so it may read what only exists once loaded.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string BodyClass => "pdk-stats-body " + (Table ? "pdk-stats-body-table" : "pdk-stats-body-list");
+}

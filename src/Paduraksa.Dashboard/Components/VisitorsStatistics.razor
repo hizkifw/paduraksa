@@ -18,16 +18,7 @@
         <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
     </MudAlert>
 }
-else if (_overview is null)
-{
-    <div class="pdk-sec-tiles">
-        @for (var i = 0; i < 4; i++)
-        {
-            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
-        }
-    </div>
-}
-else if (_overview.Totals.Requests == 0)
+else if (_overview is { Totals.Requests: 0 })
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="empty">
         <EmptyState Icon="@Icons.Material.Outlined.Insights" Title="No requests in this range"
@@ -36,55 +27,50 @@ else if (_overview.Totals.Requests == 0)
 }
 else
 {
-    var totals = _overview.Totals;
+    // One markup for both states (a skeleton is this frame with placeholders), so the tab keeps its size when the figures arrive. What
+    // only exists once loaded is read inside the cards' content, which is not rendered while a card is pending.
+    var overview = _overview;
+    var pending = overview is null;
+    var totals = overview?.Totals;
     <div class="pdk-sec-tiles" data-part="tiles">
-        <SecurityTile Name="requests" Label="Requests" Value="@Fmt.Count(totals.Requests)"
-                      Detail="@(totals.BotRequests > 0 ? $"{Fmt.Share(totals.BotRequests, totals.Requests)} from bots" : null)" />
-        <SecurityTile Name="bandwidth" Label="Bandwidth" Value="@Fmt.Bytes(totals.BytesOut)"
-                      Detail="@(totals.BytesIn > 0 ? $"sent, {Fmt.Bytes(totals.BytesIn)} received" : "sent")" />
-        <SecurityTile Name="visitors" Label="Unique visitors" Value="@Fmt.Count(totals.Visitors)" Detail="@AnalyticsFigures.VisitorsAccuracy" />
-        <SecurityTile Name="errors" Label="Error rate" Value="@Fmt.Percent(totals.ErrorRate)" Detail="5xx answers" />
+        <SecurityTile Name="requests" Label="Requests" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Count(totals!.Requests))"
+                      Detail="@(!pending && totals!.BotRequests > 0 ? $"{Fmt.Share(totals.BotRequests, totals.Requests)} from bots" : null)" />
+        <SecurityTile Name="bandwidth" Label="Bandwidth" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Bytes(totals!.BytesOut))"
+                      Detail="@(!pending && totals!.BytesIn > 0 ? $"sent, {Fmt.Bytes(totals.BytesIn)} received" : "sent")" />
+        <SecurityTile Name="visitors" Label="Unique visitors" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Count(totals!.Visitors))" Detail="@AnalyticsFigures.VisitorsAccuracy" />
+        <SecurityTile Name="errors" Label="Error rate" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Percent(totals!.ErrorRate))" Detail="5xx answers" />
     </div>
 
     <section data-section="content" aria-labelledby="pdk-analytics-content">
         <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-content" Class="pdk-section-heading">Visitors and content</MudText>
         <div class="pdk-home-grid pdk-analytics-charts">
-            @foreach (var chart in Charts)
+            @foreach (var chart in pending ? PendingCharts : _charts)
             {
-                <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="@($"{chart.Name}-chart")">
-                    <MudText Typo="Typo.subtitle1" HtmlTag="h3">@chart.Title</MudText>
-                    @if (_overview.Series.Count < 2)
-                    {
-                        <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ShowChart" Title="Not enough time observed yet" />
-                    }
-                    else
-                    {
-                        <TimeSeriesChart Name="@chart.Name" Points="@_points" Lines="@chart.Lines" Format="@chart.Format" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
-                    }
-                </MudPaper>
+                var empty = !pending && overview!.Series.Count < 2;
+                var drawn = !pending && !empty;
+                <StatsCard Name="@($"{chart.Name}-chart")" Title="@chart.Title" Chart="true" Pending="@pending">
+                    <TimeSeriesChart Name="@chart.Name" Pending="@pending" EmptyMessage="@(empty ? "Not enough time observed yet" : null)" Points="@(drawn ? _points : [])" Lines="@(drawn ? chart.Lines : [])"
+                                     Format="@chart.Format" TimeFormat="@(overview is null ? "HH:mm" : TrafficFigures.TimeFormat(overview.Range))" />
+                </StatsCard>
             }
         </div>
 
         <div class="pdk-home-grid">
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="status">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Status codes</MudText>
-                <ShareList Name="status-classes" Items="@_overview.StatusClasses" Total="@totals.Requests" Tone="StatusTone" Label="AnalyticsFigures.Status" />
-                <ShareList Name="status-codes" Items="@_overview.Statuses" Total="@totals.Requests" Tone="StatusTone" Label="AnalyticsFigures.Status" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="methods">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Methods</MudText>
-                <ShareList Name="methods" Items="@_overview.Methods" Total="@totals.Requests" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="protocols">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">HTTP versions</MudText>
-                <ShareList Name="protocols" Items="@_overview.Protocols" Total="@totals.Requests" />
-            </MudPaper>
+            <StatsCard Name="status" Title="Status codes" Pending="@pending">
+                <ShareList Name="status-classes" Items="@overview!.StatusClasses" Total="@totals!.Requests" Tone="StatusTone" Label="AnalyticsFigures.Status" />
+                <ShareList Name="status-codes" Items="@overview!.Statuses" Total="@totals!.Requests" Tone="StatusTone" Label="AnalyticsFigures.Status" />
+            </StatsCard>
+            <StatsCard Name="methods" Title="Methods" Pending="@pending">
+                <ShareList Name="methods" Items="@overview!.Methods" Total="@totals!.Requests" />
+            </StatsCard>
+            <StatsCard Name="protocols" Title="HTTP versions" Pending="@pending">
+                <ShareList Name="protocols" Items="@overview!.Protocols" Total="@totals!.Requests" />
+            </StatsCard>
         </div>
 
         <div class="pdk-home-grid pdk-analytics-tables">
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="top-paths">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Top paths</MudText></div>
-                @if (_overview.TopPaths.Count == 0)
+            <StatsCard Name="top-paths" Title="Top paths" Table="true" Pending="@pending">
+                @if (overview!.TopPaths.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Route" Title="No paths in this range" />
                 }
@@ -96,7 +82,7 @@ else
                                 <tr><th scope="col">Path</th><th scope="col">Requests</th><th scope="col">Bandwidth</th><th scope="col">p95</th><th scope="col">Errors</th></tr>
                             </thead>
                             <tbody>
-                                @foreach (var path in _overview.TopPaths)
+                                @foreach (var path in overview!.TopPaths)
                                 {
                                     <tr data-path="@path.Path">
                                         <th scope="row" class="pdk-mono">@PathCell(path.Path)</th>
@@ -110,10 +96,9 @@ else
                         </table>
                     </div>
                 }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="referers">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Top referers</MudText></div>
-                @if (_overview.TopReferers.Count == 0)
+            </StatsCard>
+            <StatsCard Name="referers" Title="Top referers" Table="true" Pending="@pending">
+                @if (overview!.TopReferers.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.CallReceived" Title="No referers in this range" />
                 }
@@ -123,7 +108,7 @@ else
                         <table class="pdk-traffic-table">
                             <thead><tr><th scope="col">Source</th><th scope="col">Requests</th></tr></thead>
                             <tbody>
-                                @foreach (var referer in _overview.TopReferers)
+                                @foreach (var referer in overview!.TopReferers)
                                 {
                                     <tr data-referer="@referer.Label">
                                         <th scope="row" title="@referer.Label">@referer.Label</th>
@@ -134,10 +119,9 @@ else
                         </table>
                     </div>
                 }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="slowest">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Slowest paths</MudText></div>
-                @if (_overview.SlowestPaths.Count == 0)
+            </StatsCard>
+            <StatsCard Name="slowest" Title="Slowest paths" Table="true" Pending="@pending">
+                @if (overview!.SlowestPaths.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Timer" Title="No path has had enough requests yet" />
                 }
@@ -147,7 +131,7 @@ else
                         <table class="pdk-traffic-table">
                             <thead><tr><th scope="col">Path</th><th scope="col">p95</th><th scope="col">Requests</th></tr></thead>
                             <tbody>
-                                @foreach (var path in _overview.SlowestPaths)
+                                @foreach (var path in overview!.SlowestPaths)
                                 {
                                     <tr data-path="@path.Path">
                                         <th scope="row" class="pdk-mono">@PathCell(path.Path)</th>
@@ -159,10 +143,9 @@ else
                         </table>
                     </div>
                 }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="largest">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Largest responses</MudText></div>
-                @if (_overview.LargestResponses.Count == 0)
+            </StatsCard>
+            <StatsCard Name="largest" Title="Largest responses" Table="true" Pending="@pending">
+                @if (overview!.LargestResponses.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Download" Title="No response declared a size" />
                 }
@@ -172,7 +155,7 @@ else
                         <table class="pdk-traffic-table">
                             <thead><tr><th scope="col">Path</th><th scope="col">Bytes sent</th></tr></thead>
                             <tbody>
-                                @foreach (var path in _overview.LargestResponses)
+                                @foreach (var path in overview!.LargestResponses)
                                 {
                                     <tr data-path="@path.Label">
                                         <th scope="row" class="pdk-mono">@PathCell(path.Label)</th>
@@ -183,42 +166,37 @@ else
                         </table>
                     </div>
                 }
-            </MudPaper>
+            </StatsCard>
         </div>
     </section>
 
     <section data-section="clients" aria-labelledby="pdk-analytics-clients">
         <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-clients" Class="pdk-section-heading">Clients and bots</MudText>
         <div class="pdk-home-grid">
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="browsers">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Browsers</MudText>
-                <ShareList Name="browsers" Items="@_overview.Browsers" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="systems">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Operating systems</MudText>
-                <ShareList Name="systems" Items="@_overview.OperatingSystems" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="devices">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Devices</MudText>
-                <ShareList Name="devices" Items="@_overview.Devices" Total="@totals.Requests" Label="AnalyticsFigures.Device" />
-            </MudPaper>
+            <StatsCard Name="browsers" Title="Browsers" Pending="@pending">
+                <ShareList Name="browsers" Items="@overview!.Browsers" />
+            </StatsCard>
+            <StatsCard Name="systems" Title="Operating systems" Pending="@pending">
+                <ShareList Name="systems" Items="@overview!.OperatingSystems" />
+            </StatsCard>
+            <StatsCard Name="devices" Title="Devices" Pending="@pending">
+                <ShareList Name="devices" Items="@overview!.Devices" Total="@totals!.Requests" Label="AnalyticsFigures.Device" />
+            </StatsCard>
         </div>
 
         <div class="pdk-home-grid pdk-analytics-tables">
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="bot-kinds">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Bots by kind</MudText>
-                @if (totals.BotRequests == 0)
+            <StatsCard Name="bot-kinds" Title="Bots by kind" Pending="@pending">
+                @if (totals!.BotRequests == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SmartToy" Title="No bot made a request" />
                 }
                 else
                 {
-                    <ShareList Name="bot-kinds" Items="@BotKindCounts" Total="@totals.Requests" Label="AnalyticsFigures.Kind" />
+                    <ShareList Name="bot-kinds" Items="@BotKindCounts" Total="@totals!.Requests" Label="AnalyticsFigures.Kind" />
                 }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="top-bots">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Top bots</MudText></div>
-                @if (_overview.TopBots.Count == 0)
+            </StatsCard>
+            <StatsCard Name="top-bots" Title="Top bots" Table="true" Pending="@pending">
+                @if (overview!.TopBots.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SmartToy" Title="No bot made a request" />
                 }
@@ -228,7 +206,7 @@ else
                         <table class="pdk-traffic-table">
                             <thead><tr><th scope="col">Bot</th><th scope="col">Kind</th><th scope="col">Requests</th></tr></thead>
                             <tbody>
-                                @foreach (var bot in _overview.TopBots)
+                                @foreach (var bot in overview!.TopBots)
                                 {
                                     <tr data-bot="@bot.Name">
                                         <th scope="row" title="@bot.Name">@bot.Name</th>
@@ -240,10 +218,9 @@ else
                         </table>
                     </div>
                 }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="ignoring-robots">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Bots ignoring robots.txt</MudText></div>
-                @if (_overview.BotsIgnoringRobots.Count == 0)
+            </StatsCard>
+            <StatsCard Name="ignoring-robots" Title="Bots ignoring robots.txt" Table="true" Pending="@pending">
+                @if (overview!.BotsIgnoringRobots.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.GppGood" Title="No bot fetched what a robots.txt disallows"
                                 Description="Only hosts that serve a robots.txt (Settings, the host, robots.txt) are checked." />
@@ -254,7 +231,7 @@ else
                         <table class="pdk-traffic-table">
                             <thead><tr><th scope="col">Bot</th><th scope="col">Kind</th><th scope="col">Requests</th></tr></thead>
                             <tbody>
-                                @foreach (var bot in _overview.BotsIgnoringRobots)
+                                @foreach (var bot in overview!.BotsIgnoringRobots)
                                 {
                                     <tr data-bot="@bot.Name">
                                         <th scope="row" title="@bot.Name">@bot.Name</th>
@@ -266,10 +243,9 @@ else
                         </table>
                     </div>
                 }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="user-agents">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">User agents</MudText></div>
-                @if (_overview.TopUserAgents.Count == 0)
+            </StatsCard>
+            <StatsCard Name="user-agents" Title="User agents" Table="true" Pending="@pending">
+                @if (overview!.TopUserAgents.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Devices" Title="No user agents in this range" />
                 }
@@ -279,7 +255,7 @@ else
                         <table class="pdk-traffic-table pdk-analytics-agents">
                             <thead><tr><th scope="col">User agent</th><th scope="col">Requests</th></tr></thead>
                             <tbody>
-                                @foreach (var agent in _overview.TopUserAgents)
+                                @foreach (var agent in overview!.TopUserAgents)
                                 {
                                     <tr data-agent="@agent.Label">
                                         <th scope="row" class="pdk-mono" title="@agent.Label">@agent.Label</th>
@@ -290,7 +266,7 @@ else
                         </table>
                     </div>
                 }
-            </MudPaper>
+            </StatsCard>
         </div>
     </section>
 }
@@ -306,7 +282,22 @@ else
     private bool _started;
     private CancellationTokenSource? _stop;
 
-    private sealed record ChartSpec(string Name, string Title, IReadOnlyList<TimeSeriesChart.ChartLine> Lines, Func<double, string> Format);
+    private sealed record ChartSpec(string Name, string Title, IReadOnlyList<TimeSeriesChart.ChartLine> Lines, Func<double, string>? Format);
+
+    // The charts' names and titles are fixed, so the skeleton has the same three cards the loaded tab has.
+    private static readonly IReadOnlyList<ChartSpec> PendingCharts =
+    [
+        new("requests", "Requests", [], null),
+        new("bandwidth", "Bandwidth", [], null),
+        new("visitors", "Unique visitors", [], null),
+    ];
+
+    /// <summary>
+    /// Show the frame and read nothing: the page is still prerendering or checking who is asking, and a read made for someone who may not see
+    /// the figures must not start. The frame is what the loaded tab looks like, so the page doesn't change size when this turns false.
+    /// </summary>
+    [Parameter]
+    public bool Hold { get; set; }
 
     /// <summary>The range to read; the host page's picker.</summary>
     [Parameter, EditorRequired]
@@ -332,17 +323,18 @@ else
     [Parameter]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(10);
 
-    private IReadOnlyList<ChartSpec> Charts => _charts;
-
     private IReadOnlyList<AnalyticsCount> BotKindCounts => [.. _overview!.BotKinds.Select(static kind => new AnalyticsCount(kind.Kind, kind.Count, 0))];
 
     protected override void OnInitialized()
     {
-        if (!RendererInfo.IsInteractive)
+        if (RendererInfo.IsInteractive && !Hold)
         {
-            return;
+            Start();
         }
+    }
 
+    private void Start()
+    {
         _stop = new CancellationTokenSource();
         _started = true;
         _ = PollAsync(_stop);
@@ -352,7 +344,12 @@ else
     {
         if (!_started)
         {
-            return;
+            if (Hold || !RendererInfo.IsInteractive)
+            {
+                return;
+            }
+
+            Start();
         }
 
         // A new range or host starts over; a tab shown again reads at once.

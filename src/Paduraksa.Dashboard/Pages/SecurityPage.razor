@@ -21,9 +21,11 @@
         <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
     </MudPaper>
 }
-else if (_current is { } current)
+else
 {
-    var refused = current.Refusals.Refused;
+    // One markup before and after the first read (a skeleton is this frame with placeholders), so nothing moves when the figures arrive.
+    var current = _current;
+    var pending = current is null;
 
     @if (_dayFailed)
     {
@@ -32,8 +34,13 @@ else if (_current is { } current)
             <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
         </MudAlert>
     }
+    else if (current is null)
+    {
+        <p class="pdk-sec-since" data-pending="refused" aria-busy="true"><span class="pdk-pending">Nothing refused in the last 24 h</span></p>
+    }
     else
     {
+    var refused = current.Refusals.Refused;
     <p class="pdk-sec-since" data-part="refused">
         <a class="pdk-row-link" href="@SecurityStatisticsHref" title="The refusals over time and every counter, on Analytics">@(refused == 0 ? "Nothing refused in the last 24 h" : $"Refused in the last 24 h: {Fmt.Count(refused)}")</a>
         @if (refused > 0)
@@ -44,8 +51,8 @@ else if (_current is { } current)
     }
 
     <div class="pdk-sec-body">
-        <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="hosts">
-            @if (current.Hosts.Count == 0)
+        <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="@(pending ? null : "hosts")" data-pending="@(pending ? "hosts" : null)" aria-busy="@(pending ? "true" : null)">
+            @if (!pending && current!.Hosts.Count == 0)
             {
                 <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Language" Title="No hosts yet">
                     <Action>
@@ -73,7 +80,23 @@ else if (_current is { } current)
                         <span role="columnheader">Sign-in</span>
                         <span role="columnheader">Cloudflare</span>
                     </div>
-                    @foreach (var host in SecurityFigures.Ordered(current.Hosts))
+                    @if (pending)
+                    {
+                        @* Three rows of bars: how many hosts there are is the data's, and the table has nothing below it to move. *@
+                        @for (var i = 0; i < 3; i++)
+                        {
+                            <div class="pdk-dt-row" role="row" aria-hidden="true">
+                                <div role="cell" class="pdk-dt-main"><span class="pdk-pending">example.test</span></div>
+                                @for (var cell = 0; cell < 8; cell++)
+                                {
+                                    <div role="cell" class="pdk-dt-cell"><span class="pdk-pending">None</span></div>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                    @foreach (var host in SecurityFigures.Ordered(current!.Hosts))
                     {
                         <div class="pdk-dt-row" role="row" data-host="@host.Name" @key="host.Id">
                             <div role="cell" class="pdk-dt-main">
@@ -277,6 +300,7 @@ else if (_current is { } current)
                                 }
                             </div>
                         </div>
+                    }
                     }
                 </div>
             }

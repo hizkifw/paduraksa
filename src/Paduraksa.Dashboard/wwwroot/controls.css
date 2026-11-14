@@ -1,5 +1,11 @@
 /* The traffic overview and the segmented control. Loaded in order after app.css (App.razor): the order is the cascade. */
 
+/* The two heights a skeleton and its loaded component must share, so both read them from here: a sparkline in a tile, and a chart's plot. */
+:root {
+    --pdk-spark-height: 36px;
+    --pdk-chart-plot-height: 140px;
+}
+
 /* Traffic statistics (the Analytics tab): charts, tables. */
 .pdk-traffic {
     margin-bottom: 16px;
@@ -78,6 +84,7 @@
 }
 
 .pdk-chart {
+    position: relative;
     margin: 12px 0 0;
 }
 
@@ -100,7 +107,7 @@
 
 .pdk-chart-plot {
     width: 100%;
-    height: 140px;
+    height: var(--pdk-chart-plot-height);
     overflow: visible;
 }
 
@@ -115,7 +122,7 @@
 
 .pdk-chart-compact .pdk-chart-plot {
     display: block;
-    height: 36px;
+    height: var(--pdk-spark-height);
 }
 
 .pdk-chart-compact .pdk-chart-legend {
@@ -329,4 +336,97 @@
     .pdk-traffic-table th:first-child {
         max-width: 120px;
     }
+}
+
+/* ---------- Skeletons ----------
+   A skeleton is the loaded component's own markup with placeholder content, so it takes the box the loaded one takes. Text keeps its
+   line (it is a real glyph, hidden) and the bar is drawn over it; a block fills a box whose height something else fixes. */
+.pdk-pending {
+    position: relative;
+    color: transparent;
+    /* Beats a rule that colours the text of the element it is on (a counter's label, say). */
+    -webkit-text-fill-color: transparent;
+    user-select: none;
+}
+
+.pdk-pending::before,
+.pdk-pending-block {
+    border-radius: 6px;
+    background: var(--mud-palette-skeleton, var(--pdk-surface-2));
+    animation: pdk-pulse 1.5s ease-in-out infinite;
+}
+
+.pdk-pending::before {
+    content: "";
+    position: absolute;
+    inset: 14% 0;
+}
+
+.pdk-pending-block {
+    height: 100%;
+}
+
+@keyframes pdk-pulse {
+    50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pdk-pending::before,
+    .pdk-pending-block {
+        animation: none;
+    }
+}
+
+.pdk-chart-pending .pdk-chart-plot {
+    border-radius: 6px;
+    background: var(--mud-palette-skeleton, var(--pdk-surface-2));
+    animation: pdk-pulse 1.5s ease-in-out infinite;
+}
+
+/* An empty chart keeps its frame; the message sits over the plot. */
+.pdk-chart-empty {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    display: grid;
+    height: var(--pdk-chart-plot-height);
+    place-items: center;
+    color: var(--pdk-muted);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.pdk-chart-empty-legend {
+    visibility: hidden;
+}
+
+/* The body of a statistics card holding a table or a list: its length is the data's, so the card never shrinks below the box its
+   skeleton reserves (an empty one included) and only grows past it. */
+.pdk-stats-body {
+    min-height: var(--pdk-stats-body-min);
+}
+
+.pdk-stats-body-table {
+    --pdk-stats-body-min: 12rem;
+}
+
+.pdk-stats-body-list {
+    --pdk-stats-body-min: 8rem;
+}
+
+.pdk-stats-body-pending {
+    display: grid;
+    height: var(--pdk-stats-body-min);
+    align-content: start;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.pdk-stats-body-table.pdk-stats-body-pending {
+    padding: 12px 20px 0;
+}
+
+.pdk-stats-body-list.pdk-stats-body-pending {
+    padding-top: 12px;
 }

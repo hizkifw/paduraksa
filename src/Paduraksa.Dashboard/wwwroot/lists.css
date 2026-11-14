@@ -237,6 +237,10 @@
     line-height: 1.15;
 }
 
+.pdk-sec-value.pdk-pending {
+    min-width: 5ch;
+}
+
 .pdk-sec-rate {
     color: var(--mud-palette-text-secondary);
     font-size: 0.8125rem;
@@ -280,7 +284,7 @@
 
 .pdk-sec-spark {
     position: relative;
-    min-height: 36px;
+    height: var(--pdk-spark-height);
     margin-top: 6px;
 }
 
@@ -309,6 +313,10 @@
 
 .pdk-sec-reasons dt {
     color: var(--mud-palette-text-secondary);
+}
+
+.pdk-sec-reasons dd.pdk-pending {
+    min-width: 4ch;
 }
 
 .pdk-sec-reasons dd {

@@ -86,6 +86,16 @@
     line-height: 1.2;
 }
 
+/* The detail line is reserved even when the card has none, so a card is the same height with or without one. */
+.pdk-stat-detail {
+    min-height: 1lh;
+}
+
+.pdk-stat-value.pdk-pending {
+    align-self: flex-start;
+    min-width: 5ch;
+}
+
 .pdk-stat-link.mud-link {
     display: inline-flex;
     align-items: center;

@@ -20,43 +20,29 @@
             <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
         </MudAlert>
     }
-    else if (_overview is null)
-    {
-        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" />
-    }
     else
     {
+        // One markup for both states (a skeleton is this frame with placeholders), so the section keeps its size when the figures arrive.
+        var overview = _overview;
+        var pending = overview is null;
+        var empty = !pending && overview!.Series.Count < 2;
+        var drawn = !pending && !empty;
+        var timeFormat = overview is null ? "HH:mm" : TrafficFigures.TimeFormat(overview.Range);
+
         <div class="pdk-home-grid">
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="requests-chart">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Requests per second</MudText>
-                @if (_overview.Series.Count < 2)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ShowChart" Title="No traffic in this range yet" />
-                }
-                else
-                {
-                    <TimeSeriesChart Name="requests" Points="@_points" Lines="@_requestLines" Format="@Fmt.PerSecond" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
-                }
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="latency-chart">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Latency</MudText>
-                @if (_overview.Series.Count < 2)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ShowChart" Title="No traffic in this range yet" />
-                }
-                else
-                {
-                    <TimeSeriesChart Name="latency" Points="@_points" Lines="@_latencyLines" Format="@Fmt.Latency" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
-                }
-            </MudPaper>
+            <StatsCard Name="requests-chart" Title="Requests per second" Chart="true" Pending="@pending">
+                <TimeSeriesChart Name="requests" Pending="@pending" EmptyMessage="@(empty ? "No traffic in this range yet" : null)" Points="@(drawn ? _points : [])" Lines="@(drawn ? _requestLines : [])"
+                                 Format="@Fmt.PerSecond" TimeFormat="@timeFormat" />
+            </StatsCard>
+            <StatsCard Name="latency-chart" Title="Latency" Chart="true" Pending="@pending">
+                <TimeSeriesChart Name="latency" Pending="@pending" EmptyMessage="@(empty ? "No traffic in this range yet" : null)" Points="@(drawn ? _points : [])" Lines="@(drawn ? _latencyLines : [])"
+                                 Format="@Fmt.Latency" TimeFormat="@timeFormat" />
+            </StatsCard>
         </div>
 
         <div class="pdk-home-grid">
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="top-hosts">
-                <div class="pdk-card-head pdk-card-head-padded">
-                    <MudText Typo="Typo.subtitle1" HtmlTag="h3">Busiest hosts</MudText>
-                </div>
-                @if (_overview.Hosts.Count == 0)
+            <StatsCard Name="top-hosts" Title="Busiest hosts" Table="true" Pending="@pending">
+                @if (overview!.Hosts.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Language" Title="No requests in this range" />
                 }
@@ -68,7 +54,7 @@
                             <tr><th scope="col">Host</th><th scope="col">Requests</th><th scope="col">Errors</th><th scope="col">p95</th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var host in _overview.Hosts)
+                            @foreach (var host in overview.Hosts)
                             {
                                 <tr data-host="@host.Name">
                                     <th scope="row">
@@ -90,12 +76,9 @@
                     </table>
                     </div>
                 }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="upstream-errors">
-                <div class="pdk-card-head pdk-card-head-padded">
-                    <MudText Typo="Typo.subtitle1" HtmlTag="h3">Upstream errors</MudText>
-                </div>
-                @if (_overview.Upstreams.Count == 0)
+            </StatsCard>
+            <StatsCard Name="upstream-errors" Title="Upstream errors" Table="true" Pending="@pending">
+                @if (overview!.Upstreams.Count == 0)
                 {
                     <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Hub" Title="Nothing was forwarded in this range" />
                 }
@@ -107,7 +90,7 @@
                             <tr><th scope="col">Upstream</th><th scope="col">Forwarded</th><th scope="col">Failed</th><th scope="col">p95</th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var upstream in _overview.Upstreams)
+                            @foreach (var upstream in overview.Upstreams)
                             {
                                 <tr data-upstream="@upstream.Id">
                                     <th scope="row"><a href="@DashboardRoutes.Upstream(upstream.Id)">@UpstreamName(upstream.Id)</a></th>
@@ -120,7 +103,7 @@
                     </table>
                     </div>
                 }
-            </MudPaper>
+            </StatsCard>
         </div>
     }
 </section>
@@ -137,6 +120,13 @@
     private Dictionary<UpstreamId, string> _upstreamNames = [];
     private CancellationTokenSource? _stop;
 
+    /// <summary>
+    /// Show the frame and read nothing: the page is still prerendering or checking who is asking, and a read made for someone who may not see
+    /// the figures must not start. The frame is what the loaded tab looks like, so the page doesn't change size when this turns false.
+    /// </summary>
+    [Parameter]
+    public bool Hold { get; set; }
+
     /// <summary>The range to read; the host page's picker.</summary>
     [Parameter, EditorRequired]
     public MetricsRange Range { get; set; }
@@ -151,11 +141,16 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!RendererInfo.IsInteractive)
+        if (!RendererInfo.IsInteractive || Hold)
         {
             return;
         }
 
+        await StartAsync();
+    }
+
+    private async Task StartAsync()
+    {
         try
         {
             _upstreamNames = (await Config.GetCurrentAsync()).Document.Upstreams.ToDictionary(upstream => upstream.Id, upstream => upstream.Name);
@@ -174,7 +169,12 @@
     {
         if (!_started)
         {
-            return;
+            if (Hold || !RendererInfo.IsInteractive)
+            {
+                return;
+            }
+
+            await StartAsync();
         }
 
         // A new range starts over; a tab shown again reads at once.

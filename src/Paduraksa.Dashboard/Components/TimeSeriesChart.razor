@@ -9,14 +9,15 @@
    nobody observed. Every point has a transparent column over it that carries the point's text in data attributes, and paduraksa.js
    shows it as a tooltip at once (no round trip to the circuit, and nothing to fight Blazor's re-render): data-time, data-values (one
    string per line, in the legend's order) and data-note. The line names and swatches come from the legend. *@
-<figure class="pdk-chart@(Compact ? " pdk-chart-compact" : null)" data-chart="@Name" role="img" aria-label="@Summary">
+<figure class="@FigureClass" data-chart="@(Held ? null : Name)" data-pending="@(Pending ? Name : null)"
+        role="img" aria-label="@Summary" aria-busy="@(Pending ? "true" : null)">
     <div class="pdk-chart-body">
         @if (!Compact)
         {
             <div class="pdk-chart-axis" aria-hidden="true">
-                <span>@Show(_max)</span>
-                <span>@Show(_max / 2)</span>
-                <span>@Show(0)</span>
+                <span class="@PendingClass">@(Pending ? "0" : Show(_max))</span>
+                <span class="@PendingClass">@(Pending ? "0" : Show(_max / 2))</span>
+                <span class="@PendingClass">@(Pending ? "0" : Show(0))</span>
             </div>
         }
         <svg class="pdk-chart-plot" viewBox="0 0 @Width @Height" preserveAspectRatio="none" aria-hidden="true">
@@ -53,15 +54,25 @@
     </div>
     @if (!Compact)
     {
+        @* A held chart has no times, but its labels keep their line. *@
         <div class="pdk-chart-x" aria-hidden="true">
-            <span>@(Points.Count > 0 ? Fmt.Axis(Points[0].Start, TimeFormat) : string.Empty)</span>
-            <span>@(Points.Count > 0 ? Fmt.Axis(Points[^1].Start, TimeFormat) : string.Empty)</span>
+            <span class="@PendingClass">@(Points.Count > 0 ? Fmt.Axis(Points[0].Start, TimeFormat) : Pending ? "00:00" : "\u00A0")</span>
+            <span class="@PendingClass">@(Points.Count > 0 ? Fmt.Axis(Points[^1].Start, TimeFormat) : Pending ? "00:00" : "\u00A0")</span>
         </div>
+    }
+    @if (EmptyMessage is not null)
+    {
+        <div class="pdk-chart-empty" role="status">@EmptyMessage</div>
     }
     <figcaption class="pdk-chart-legend">
         @foreach (var line in Lines)
         {
             <span class="pdk-chart-key"><span class="pdk-chart-swatch @line.Css" aria-hidden="true"></span>@line.Name</span>
+        }
+        @if (Held && Lines.Count == 0)
+        {
+            @* One key's line, so the legend's row is there before the lines are known. *@
+            <span class="@("pdk-chart-key" + (Pending ? " pdk-pending" : " pdk-chart-empty-legend"))"><span class="pdk-chart-swatch" aria-hidden="true"></span>Requests</span>
         }
     </figcaption>
 </figure>
@@ -92,14 +103,14 @@
     [Parameter, EditorRequired]
     public string Name { get; set; } = string.Empty;
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public IReadOnlyList<ChartPoint> Points { get; set; } = [];
 
-    [Parameter, EditorRequired]
+    [Parameter]
     public IReadOnlyList<ChartLine> Lines { get; set; } = [];
 
     /// <summary>Writes a value with its unit, for the axis and the tooltips.</summary>
-    [Parameter, EditorRequired]
+    [Parameter]
     public Func<double, string>? Format { get; set; }
 
     /// <summary>
@@ -115,6 +126,23 @@
     /// </summary>
     [Parameter]
     public bool Compact { get; set; }
+
+    /// <summary>The data is not here yet: the chart's frame (axis, plot, time labels, legend row) with placeholders, the size the loaded chart is.</summary>
+    [Parameter]
+    public bool Pending { get; set; }
+
+    /// <summary>
+    /// There is nothing to draw: the frame stays, the same size as with data, and this message sits over the plot. A chart that shrank when
+    /// it had no data would move everything below it when the data came.
+    /// </summary>
+    [Parameter]
+    public string? EmptyMessage { get; set; }
+
+    private string FigureClass => "pdk-chart" + (Compact ? " pdk-chart-compact" : null) + (Pending ? " pdk-chart-pending" : null);
+
+    private bool Held => Pending || EmptyMessage is not null;
+
+    private string? PendingClass => Pending ? "pdk-pending" : null;
 
     private double?[][] _drawn = [];
     private double[][] _lower = [];

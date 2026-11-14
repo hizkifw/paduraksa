@@ -41,8 +41,9 @@
                     Description="An Owner can give you a role that reads the metrics." />
     </MudPaper>
 }
-else if (_started)
+else
 {
+    @* The tabs and the open tab's frame are there from the prerender, held until the circuit knows who is asking, so the page has its size from the first paint. *@
     <div class="pdk-analytics-tabs">
         <SegmentedControl T="AnalyticsTab" Options="AnalyticsView.TabOptions" Value="Current" ValueChanged="ChooseTab" AriaLabel="Analytics" DataField="tab" />
     </div>
@@ -50,13 +51,13 @@ else if (_started)
     @switch (Current)
     {
         case AnalyticsTab.Visitors:
-            <VisitorsStatistics Range="CurrentRange" Host="Host" Unmatched="@(_scope == NoHost)" HostName="@HostName" Visible="_visible" PollInterval="PollInterval" />
+            <VisitorsStatistics Hold="@(!_started)" Range="CurrentRange" Host="Host" Unmatched="@(_scope == NoHost)" HostName="@HostName" Visible="_visible" PollInterval="PollInterval" />
             break;
         case AnalyticsTab.Security:
-            <SecurityStatistics Range="CurrentRange" Visible="_visible" PollInterval="SecurityPollInterval" />
+            <SecurityStatistics Hold="@(!_started)" Range="CurrentRange" Visible="_visible" PollInterval="SecurityPollInterval" />
             break;
         default:
-            <TrafficStatistics Range="CurrentRange" Visible="_visible" PollInterval="TrafficPollInterval" />
+            <TrafficStatistics Hold="@(!_started)" Range="CurrentRange" Visible="_visible" PollInterval="TrafficPollInterval" />
             break;
     }
 }
