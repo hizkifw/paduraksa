@@ -556,8 +556,7 @@ The simulator learned two query parameters for this (`clientIp`, and `method` wh
 
 The first entry of the Security group (`/security`, `config:read`, "Security overview") answers "what is protecting my hosts, and is it working".
 
-**`SecurityOverviewService`** (`Paduraksa.Application.Security`) is registered as a shared singleton at startup, so its `Since` is the process start.
-- It reads `ProofOfWorkStats`, `RateLimitStats` and `AccessListStats` (a card of its own under the proof-of-work rejections: refused by address, wrong or missing password, passwords checked, queued, refused busy).
+**`SecurityOverviewService`** (`Paduraksa.Application.Security`) is a shared singleton. Since `security-history` it reads a range (`ReadAsync(MetricsRange)`) from the metric sampler and the rollups, so a restart doesn't reset it; how is in "Security counters" in [observability.md](observability.md).
 - Per enabled host it reads the *live compiled snapshot*, not the stored document. So it is what the gate is doing, and a revision the compiler rejected never shows.
 - It needed three small additions to the compiled model: `CompiledHost.Names`, `CompiledHost.RateLimit` (the host's own policy object, which an inheriting route's chain shares, so a route whose `RateLimitPolicy` has another ID, or none, is an override), and `RateLimitPolicy.PolicyId` and `PolicyName`. Nothing on the request path changed.
 
@@ -568,20 +567,36 @@ The first entry of the Security group (`/security`, `config:read`, "Security ove
 - **Access list:** read from `CompiledHost.AccessList` and `CompiledRoute.AccessList` (the compiled list each carries), not from the policies in the chain. The chains no longer reveal it once a host with routes on different lists holds only the address-only union. The column names the list, linked to its page, with what it asks of a visitor ("2 users" or "addresses only", from `CompiledAccessList.UserCount`). Routes on another list, or none, are grouped like the rate-limit column's, so "Off on 2 routes" is a route that lifted it.
 - `AccessListRef.AddressRanges` (merged ranges, `CidrSet.RangeCount`: `10.0.0.0/8` plus `10.1.0.0/16` is one range) rides along in the DTO for the API. The page does not print it.
 
-The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOverview`), read lock-free and stateless. `GET /api/v1/security/overview` returns it (`config:read`, in OpenAPI) for debugging with a token.
+The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOverview`): the range, the counters over it, the refusals by reason (`RefusalReasons`, with "unknown" for minutes stored before the reasons were kept) and over time (`RefusalStep`s), and the hosts with what each refused. `GET /api/v1/security/overview?range=` returns it (`config:read`, in OpenAPI).
 
-**Polling.**
-- The page polls every 2 s with a `PeriodicTimer` (a `PollInterval` parameter for tests) and shows per-second rates computed from the difference between two samples over their `SampledAt` times (blank until the second sample).
-- A small JS helper (`paduraksa.pageVisibility`) pauses polling while the tab is hidden. On return it starts over from a fresh sample, so a rate never spans the time away.
-- Four compact tiles: challenges served; solved, with solve rate; rejected (the sum of bad solutions, non-browsers and the four cookie reasons); rate-limited, with its share of the requests a limit checked.
-- The hosts table: protected hosts by name, then those with nothing on, each cell a muted "None" when empty. A stacked card per host on a phone.
-- The rejection reasons.
-- No persistence and no background service: rollups are M9.
+**Decision (owner, `security-history`): the page shows the protections, the counters over time live on Analytics.** A later branch turns Analytics into tabs (Traffic, Visitors, Security) under one range picker kept in the URL. So the counters are a self-contained component (below) that takes the range, and the page keeps only what answers "is it working" at a glance.
+
+**The page as built:**
+- One line under the title (counts through `Fmt`): "Refused in the last 24 h: 1,204 (rate limit 900 · access list 250 · ...)", the reasons that refused anything, most first, or "Nothing refused in the last 24 h". The count links to `/analytics#security` (whose range defaults to the same 24 hours).
+- The hosts table: protected hosts by name, then those with nothing on, each cell a muted "None" when empty. A stacked card per host on a phone. Its **Refused, 24 h** column is the host's refusals from the host series (cheap: the same summary the overview's busiest-hosts table reads). The Rules and Sign-in cells count over the same 24 hours.
+- It reads `ReadAsync(Day)` every 2 s (`PollInterval`): the protections are the live snapshot's on each read, the 24 hours come from the service's 30 s cache. Polling pauses while the tab is hidden (`paduraksa.pageVisibility`) and reads at once on return.
+- **Rollups that can't be read don't hide the protections.** The page falls back to the hour (memory) for the table, drops the line and the Refused column, and shows an alert with "Try again".
+- The tiles, the per-second rates between two samples and the counter cards are gone from the page.
 
 **Gaps:**
 - The permission is checked when the page opens, not on each tick (the session re-check still ends a revoked session's circuit).
 - The rate-limit share counts only requests on routes with a policy.
-- There is no per-host or per-route counter (the stats are process-wide).
+- The process counters are not kept per host; only the refusals (the gate outcomes) are.
+
+### The security statistics (`SecurityStatistics`)
+
+A component (`Components/SecurityStatistics.razor`) with no page of its own: it takes `Range`, `Visible` (the host page watches the tab) and `HostScoped`, and reads, polls and draws by itself, so the tabbed Analytics can mount it as a tab without change.
+- **Refused per second**, stacked by reason: a `TimeSeriesChart` with `Stacked` (each line a filled band on the lines before it, the top their sum; the tooltip gives each reason's own rate). Only the reasons that refused something in the range are drawn, so the legend is short. Unknown reason is a neutral grey; the reasons have `pdk-chart-r1` to `r9`. Gaps are shaded as on the overview's charts, and the total refused is beside the title.
+- Cards: proof of work (served, solved with its share, bad solution, not a browser, the four cookie reasons), rate limits (checked, limited with its share), access lists, connections (the live limit and deny list, what was refused, counted now, and table full once it happened), sign-in, and "Not served" (unknown host, no route, unavailable, dropped) once there are some.
+- Numbers and times go through `DisplayFormat` (`Fmt`): counts, shares, the chart's per-second axis and its tooltip times in the browser's zone, and the partly observed note.
+- Polling as the overview's: the hour every 2 s, the longer ranges a tenth as often, paused while hidden and read at once when shown. A range that can't be read is an alert with "Try again" (`data-part=security-failed`). A role without `config:read` sees a lock (every built-in role has it).
+- **On Analytics** it is the last section, under the page's own range picker (1 h, 24 h, 7 d, 30 d; 1 h reads the live ring). The host picker doesn't apply: with a host chosen the section says "All hosts: these are not counted per host". `id="security"` is the target of the security page's link, with a scroll margin for the app bar.
+
+**Tests.** bUnit: `SecurityPageTests` (the line and its link, per-host counts, the 24-hour cells, the fallback, hidden-tab polling, the protections), `SecurityStatisticsTests` (every card from the sampler's hour, the connection card, the stacked chart and its legend, a longer range from the rollups and a range switch, polling and a hidden tab, a range that can't be read), and `AnalyticsPageTests` (the section follows the page's range and host picker). They share `SecurityRig`: the gate's runtimes, a sampler, a real rollup database and a clock that steps.
+
+**Visual pass** (a throwaway Playwright tour, not committed: a week of seeded refusals and security minutes with an unknown-reason stretch and a gap; the security page and Analytics at 1 h and 7 d, dark and light, 1366 and 390 px) found and fixed:
+- the link to `#security` scrolling the section's heading under the app bar (a scroll margin);
+- short cards stretching to the tallest in their row, leaving empty boxes (aligned to the top).
 
 ### The Analytics page
 
@@ -610,6 +625,8 @@ Nothing is drawn for a range with no requests: one empty state says that a host 
 **Clients and bots.** Browsers (families, with versions in the API), operating systems and devices as bar lists with shares; bots by kind; the top bots with their kind; the bots ignoring robots.txt; and the raw user agents.
 - The ignoring-robots empty state says only hosts that serve a robots.txt are checked: the one consequence a person needs to act on.
 - The overview's Traffic card links to the page.
+
+**Security.** The last section is the security statistics over the page's range (see "The security statistics" above).
 
 **Updates.** The page reads every 10 s while the tab is visible (`paduraksa.pageVisibility`, as the overview) and the longer ranges six times less often. The service keeps a result for 5 s (30 s beyond the hour). A range that cannot be read is an alert with "Try again".
 

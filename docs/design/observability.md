@@ -310,7 +310,7 @@ How an outcome is chosen: the policy that refuses records its kind on the pooled
 
 **Recording** is `RequestMetricsRecorder`, called from `AccessLogMiddleware`'s completion callback for every request whether or not the host logs it. It reads the same two clocks the access log reads (the request's start timestamp and `AccessLogTransform`, which now also keeps YARP's destination key). The process's `RequestMetrics` struct goes in by `in`.
 - It is 0 B. `RecordRequest` has an allocation test, the in-process Kestrel test measures the recorder next to the registration, recording and reapply callbacks, and the gate test runs with metrics on.
-- The existing process totals (`ProofOfWorkStats`, `RateLimitStats`, `AccessListStats`) are not counted a second time. `ProcessCounters` exposes them where they live.
+- The existing process totals (`ProofOfWorkStats`, `RateLimitStats`, `AccessListStats`) are not counted a second time. `ProcessCounters` exposes them where they live, and the sampler keeps them as series (see "Security counters" below).
 
 ### Cost
 
@@ -348,8 +348,8 @@ How an outcome is chosen: the policy that refuses records its kind on the pooled
 `MetricSampler` (`MetricSamplerService`, a hosted service of the core host) reads each host's and upstream's counters and histograms, takes the gain since the tick before, and files it in a ten-second bucket and a minute window. A finished bucket goes into the series' ring: **360 buckets (an hour)**. A finished minute goes into `MetricRollupBacklog`.
 
 **Decision: 10 s buckets, not 1 s samples, in the hour.**
-- 1 s samples would cost 3 600 points of about 160 bytes (about 0.6 MB) per series.
-- The sampler still reads every second, and the headline is the last 30 s. But a ring holds the hour at 10 s resolution: 58 KB a series, hosts and upstreams only. Routes and destinations keep counters but no history, since nothing draws them over time.
+- 1 s samples would cost 3 600 points of about 256 bytes (about 0.9 MB) per series.
+- The sampler still reads every second, and the headline is the last 30 s. But a ring holds the hour at 10 s resolution: 92 KB a series, hosts and upstreams only (58 KB before a point carried the refusals by kind, `MetricPoint.Refusals`, twelve longs that an upstream's point leaves at 0). Routes and destinations keep counters but no history, since nothing draws them over time.
 - A bucket's percentiles come from the histogram of its own requests. A longer stretch combines them weighted by requests (`MetricPoints.Combine`): exact under steady load and an approximation otherwise, which the dashboard does not label.
 
 **Series follow the slot's owner.** When a slot is rented to another object, the old series' unfinished minute is flushed under its own typed ID, and the new owner starts at zero. A grace period of many ticks makes it unlikely that a count is lost. A tick that overlaps a rent is skipped: the sampler reads the slot's version before and after the owner and the counters, and files nothing if it changed, so a half-cleared read is never taken for a gain.
@@ -420,6 +420,12 @@ How an outcome is chosen: the policy that refuses records its kind on the pooled
 - A failed write puts the minutes back and logs a warning. The backlog is bounded (9 000 minutes), so a database that stays down loses the oldest, never memory.
 - Retention (`Paduraksa:Metrics:Retention`, default 14 days, range 1 hour to 5 years, validated like `Paduraksa:Logs:*`) deletes by age hourly.
 
+**The refusals by kind** (`security-history`, migration `MetricRollupRefusals`).
+- A row keeps `Refused` and, next to it, one column per gate outcome that turns a request away: the eight refusal kinds (`RefusedAccessList`, `RefusedRuleSet`, `RefusedRateLimit`, `RefusedProofOfWork`, `RefusedForwardAuth`, `RefusedRequestLimits`, `RefusedConnection`, `RefusedOther`) and the four answers the gate gives without a policy (`NoRoute`, `Unavailable`, `Dropped`, `UnknownHost`). Total and host rows fill them; upstream rows leave them at 0.
+- In memory they are `RefusalCounts` on `MetricPoint`, built from the slot's outcome counters when a window becomes a point, and added by `MetricPoints.Combine`, so a merge on collision, a grouped step and the hour's seed all carry them like any count.
+- **Decision: a column per kind, not a compact encoding.** The range reads are `SUM`s grouped in SQL; twelve more `SUM`s cost nothing there, where a blob or a packed integer would have to be read back and decoded per row. SQLite stores a 0 in no payload bytes, so the columns cost a header byte each on rows that have none.
+- **Rows from before the breakdown** get 0 in each column from the migration. Their `Refused` is then all of an unknown reason: `MetricPoint.UnknownRefused` is `Refused` less the kinds' sum, never negative, and the API and the chart show it as "unknown reason". Nothing guesses a split. A minute merged across the upgrade keeps the old half's refusals as unknown and the new half's by kind.
+
 **Decision: no hourly downsampling in v0.1.**
 - The longer ranges group minutes in memory (6 minutes a step for a day, 42 for a week, 3 hours for a month, 240 points each) from at most 43 200 rows of one series. At about 150 series a day is a few tens of MiB, and the retention default keeps the table in the low hundreds of MiB for a busy install.
 - A second, coarser table would add a job and a second query path for a saving nobody has asked for yet. The unique key and the typed-ID subject leave room for it.
@@ -466,6 +472,38 @@ The longer ranges are summed in SQL (`GROUP BY` the object or the step, `SUM`s o
 - *Health checks and notifications:* the registry's per-upstream error counters are the input. YARP's `IUpstreamHealth` is already read by the simulator.
 - *Route and destination history:* add a `MetricRollupSubject` value and a series kind in the sampler.
 - *Downsampling:* above.
+
+### Security counters
+
+Built in `security-history`. Before it, the security overview read the gate's process counters live, so every restart reset it to zero.
+
+**What is sampled** (`SecuritySources`, read by `MetricSampler.Tick` after the slots):
+- the process stats: `ProofOfWorkStats`, `RateLimitStats`, `AccessListStats`, `ConnectionStats` (not `Open`, which is a level);
+- every auth provider's `ForwardAuthCounters` and every rule set's `RuleSetCounters`. The runtimes now keep an append-only array of them (`ForwardAuthRuntime.AllCounters`, `RuleSetRuntime.All`), replaced under a lock when an ID is first seen, so the tick walks them with no enumerator and an entry keeps its index for good. Production compiles with `RuleSetRuntime.Default`, so that is the one the sources read.
+- The 32 counters are named by `SecurityCounter`; a `SecurityPoint` holds them, the start, the width and the seconds observed.
+
+**Series** (`SecuritySeries`):
+- one for the totals (the process stats plus every provider and set, so a deleted provider's counts stay in them), one per provider and one per rule set, keyed by the typed ID.
+- A provider's or set's counters never reset and are never handed to another ID, so a gain is a plain difference: there is no slot, no owner and no version to follow.
+- Gains are filed like the request series': the same tick interval, split in proportion at minute boundaries (`TickSplit` with 60 s buckets), the same coverage, and the same judgement of a long gap. A connection refused during a gap counts as having been served through it, like a request.
+- **Decision: minutes only, no ten-second ring.** Nothing draws the security counters at ten-second steps: the refusals chart is the request series' breakdown above. A series keeps the minutes it closed in the last hour (61 points) and the open one. An idle provider's or set's minute is not kept and allocates nothing.
+- The totals have a row for every minute the process observed, idle ones included (their coverage); a provider's and a set's rows are sparse, as hosts' are.
+
+**Storage** (`SecurityRollups`, migration `SecurityRollups`, Int64Ordered `SecurityRollupId`, `srl_`):
+- subject (`SecurityRollupSubject`: Total, AuthProvider, RuleSet), the typed-ID string, the minute, `CoveredSeconds` and a column per `SecurityCounter`. A unique index on (subject, ID, minute) and one on the minute, as for the request rollups.
+- **Decision: a table of its own, not a new `MetricRollupSubject`.** The two have no column in common beyond the key and the coverage. One table would make every request row carry 32 empty columns, every security row 20 unused ones, and the request aggregates read past them.
+- `SecurityRollupStore` mirrors `MetricRollupStore`: a minute written twice is merged (counts and seconds add, capped at 60), the seed reads the Minute index, and a range is `SUM`s grouped by the key in SQL (an `EXPLAIN QUERY PLAN` test pins it to the index).
+- The sampler queues finished minutes in `MetricSampler.SecurityRollups` (a second `RollupBacklog<T>`, bounded the same way). `MetricRollupJob` seeds both histories at startup, writes both queues every interval and at shutdown, and prunes both with `Paduraksa:Metrics:Retention`. A failed write puts that queue's minutes back without holding up the other.
+- `MetricSampler.Flush` closes the open security minutes with the request ones at shutdown, and `SeedSecurity` gives the sampler the hour before the boot, as `Seed` does.
+
+**Cost.** The tick reads about 32 counters per provider and set and diffs them into fixed arrays: 0 B in steady state (`ASteadyTickAllocatesNothingWithEverySecuritySourceAndAProviderAndASet`, ticks inside one minute with every source, a provider and a set). A closed minute allocates its point and its queue entry, once a minute per series that counted something.
+
+**Read** (`SecurityOverviewService.ReadAsync(range)`, the ranges of `MetricsService`):
+- The hour is the sampler's: the request series' timeline (`MetricTimeline.Hour`, the seed and the ring) for the refusals, `SummariseSecurity` (seeded minutes, this run's minutes, the open one) for the counters. It touches no store.
+- A longer range reads the rollups: the request series and host summaries through `MetricsService.ReadRangeAsync` (the overview's own read, which shares its 30 s cache), and the three security summaries, kept 30 s per range.
+- **Decision: a longer range's figures take their last hour from memory.** Rollups lag a minute plus the write interval, so a request made a moment ago (the auth-provider E2E asks for one on the security page) would show only later. `MetricsService.RecentFrom(at)` is the first whole minute of the last hour: from there the hosts', upstreams' and security summaries come from the sampler (seed, this run's minutes, the open one), and the rollups are read only to the minute before, so no minute is read twice. A cached rollup read is kept only while that split minute holds. The overview's busiest hosts and upstream errors get the same splice.
+- The chart's steps stay the rollups', so their last minute or two lag; a longer range's refusal totals are the hosts' (spliced), the hour's are its chart's. `From` is the first step observed inside the range; absent when none was.
+- A host deleted in the last hour drops out of the memory half once its slot goes to another host (its series is flushed and dropped); its minutes are in the rollups, which that half doesn't read. A rig that writes rollups for the last hour without seeding the sampler (a test) sees nothing of them in a longer range.
 
 ## The live tail (M9)
 

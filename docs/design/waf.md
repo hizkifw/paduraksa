@@ -32,6 +32,10 @@ Everything here is compiled per snapshot, so the gate does only lookups and arit
 | Error pages | Per status (and "upstream down", "blocked", "rate limited", "maintenance"). Templates are pre-split into byte segments at compile time. See [Error pages](#error-pages). |
 | Maintenance mode | Per host (layered like the rest): a toggle with a status, a page and a bypass named by an access list. See [Maintenance mode](#maintenance-mode-m8). |
 
+**What the blocks did, over time** (`security-history`). Every block counts in process counters and in the request's gate outcome. The metric sampler keeps both as history: the refusals by kind in the minute rollups, and the blocks' own counters (proof of work, rate limits, access lists, the connection stage, each auth provider and each rule set) in a `SecurityRollups` table. A restart no longer resets the security overview. See "Security counters" in [observability.md](observability.md).
+- The security overview (`GET /api/v1/security/overview?range=hour|day|week|month`) reads them over a range: the counters, the refusals by reason and over time, and per host what it refused. The protections stay the live snapshot's.
+- The dashboard's Security overview page shows the protections and the last 24 hours in one line; the counters over time are the Security section of Analytics. See "The security overview" in [dashboard.md](dashboard.md).
+
 ## Rate limiting
 
 ### The engine (M7, `src/Paduraksa.Proxy/RateLimiting`)
@@ -326,7 +330,7 @@ A cache miss no longer runs PBKDF2 inside the synchronous decision, and no longe
 - The allocation tests of the synchronous paths (`GateAllocationTests`, `AccessListPolicyTests`) include the deferring decision.
 - Not yet pinned by a test: a queued waiter cancelled while an identical-credential twin waits behind it. It is safe by construction, since the twin is served once the in-flight check exits.
 
-**Counters.** `AccessListStats` are process counters the security overview shows: allowed, address refused, 401, cache hits, verifications, **queued, queue-full refusals, timeouts**, and busy as the sum of the two refusals.
+**Counters.** `AccessListStats` are process counters the security statistics show over a range: allowed, address refused, 401, cache hits, verifications, **queued, queue-full refusals, timeouts**, and busy as the sum of the two refusals.
 
 **Gap.** A spray spread over many addresses (a botnet, or many /64s) can still fill the 256 places. First-time logins on every list then get 429 until it ends. Nothing throttles failed attempts per address over time. A credential already in the cache still gets through, since a hit needs no slot.
 
@@ -523,8 +527,9 @@ A **regex** is the one thing that may not be.
 ### Counters and the overview
 
 - `RuleSetCounters` (denied, dropped, allowed, regex timeouts) are process-lifetime `Interlocked` longs per set, kept by `RuleSetRuntime` and carried by the compiled set. They survive a publish, and a simulation counts nothing.
-- The security overview adds a **Rules** column: the set a host applies (a document set links to its page, a preset to the list that shows the presets), what it has refused or dropped, and the routes that apply another set, a preset or none.
-- There is no global rule tile. The counts are per set, and a set that is deleted takes its history with it.
+- The sampler keeps them as a series per set (by its ID), so a set's counts outlive a restart; a deleted set's rows stay until retention.
+- The security overview adds a **Rules** column: the set a host applies (a document set links to its page, a preset to the list that shows the presets), what it has refused or dropped in the last 24 hours, and the routes that apply another set, a preset or none.
+- There is no rule card. Rules are a reason in the refusals chart, and the counts are per set.
 
 ### Simulator
 
@@ -723,7 +728,7 @@ Until v0.25 the standard hints and the scheme were left out, on the reasoning th
 ### API, overview and dashboard
 
 - `/api/v1/auth-providers` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.auth_provider.*` audit actions and an OpenAPI entry that says what a preset fills in. A delete of a provider a host still resolves to is refused.
-- The security overview adds a **Sign-in** column: the provider a host asks, what it has let through and refused, its failed calls once there are some, and the routes that ask another provider or none. It also adds a card of the providers' summed counters.
+- The security overview adds a **Sign-in** column: the provider a host asks, what it has let through and refused in the last 24 hours, its failed calls once there are some, and the routes that ask another provider or none. The providers' summed counters are a card of the security statistics on Analytics.
 - The dashboard has Security > **Sign-in**: the providers with their endpoint and who asks them, and a drawer. The drawer's preset says what it fills in, and its empty fields say what they will use: the wait, the time an allow is remembered, the resolved endpoint, and the preset's headers (which the person's own list can replace, even an empty one).
 - The settings of a host, profile, the defaults and a route pick a provider by name in the Access section: inherit, none, a provider, or a staged "New auth provider..." that goes in with the host in one revision.
 - `AuthProvidersEndToEndTests` drives all of it in a real browser against a real host and a fake endpoint, including a real request through the public listener, at 1280 and 390 px in dark and light.
