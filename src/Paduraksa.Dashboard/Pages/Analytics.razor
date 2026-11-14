@@ -1,19 +1,15 @@
 @attribute [Route(DashboardRoutes.Analytics)]
 @implements IAsyncDisposable
-@using Paduraksa.Application.Analytics
-@using Paduraksa.Contracts.Analytics
 @using Paduraksa.Contracts.Config
 @using Paduraksa.Contracts.Metrics
 @using Paduraksa.Dashboard.Components
-@inject AnalyticsService Service
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
 @inject IJSRuntime JS
-@inject TimeProvider Time
-@inject DisplayFormat Fmt
-@* Visitors and content, clients and bots for every host or one, then the gate's security counters for the whole process. The traffic figures come from the access-log drain, so a host with its
-   access log off is not in them; the hour is read every few seconds while the tab is visible (the service keeps a result for
-   a few seconds), the longer ranges a tenth as often. *@
+@inject NavigationManager Navigation
+@* Every figure over time, in three tabs under one range: the traffic (the proxy's live counters), the visitors (the access-log drain's
+   analytics) and the gate's security counters. The tab and the range are in the address, so a view can be linked to and a range
+   survives a change of tab. Only the open tab is mounted, so only it polls; the page watches whether the browser tab is visible. *@
 
 <PageTitle>Analytics · Paduraksa</PageTitle>
 
@@ -21,16 +17,19 @@
     <Actions>
         @if (!_denied)
         {
-            <MudSelect T="string" Value="_scope" ValueChanged="ChooseScopeAsync" Label="Host" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="pdk-analytics-host"
-                       data-field="host">
-                <MudSelectItem T="string" Value="@AllHosts">All hosts</MudSelectItem>
-                @foreach (var host in _hosts)
-                {
-                    <MudSelectItem T="string" Value="@host.Id.ToString()">@host.Name</MudSelectItem>
-                }
-                <MudSelectItem T="string" Value="@NoHost">No host matched</MudSelectItem>
-            </MudSelect>
-            <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="_range" ValueChanged="ChooseRangeAsync" AriaLabel="Time range" DataField="range" />
+            @if (Current == AnalyticsTab.Visitors)
+            {
+                <MudSelect T="string" Value="_scope" ValueChanged="ChooseScope" Label="Host" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="pdk-analytics-host"
+                           data-field="host">
+                    <MudSelectItem T="string" Value="@AllHosts">All hosts</MudSelectItem>
+                    @foreach (var host in _hosts)
+                    {
+                        <MudSelectItem T="string" Value="@host.Id.ToString()">@host.Name</MudSelectItem>
+                    }
+                    <MudSelectItem T="string" Value="@NoHost">No host matched</MudSelectItem>
+                </MudSelect>
+            }
+            <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="CurrentRange" ValueChanged="ChooseRange" AriaLabel="Time range" DataField="range" />
         }
     </Actions>
 </PageHeader>
@@ -42,294 +41,24 @@
                     Description="An Owner can give you a role that reads the metrics." />
     </MudPaper>
 }
-else if (_failed)
+else if (_started)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
-        The analytics couldn't be read. The details are in the server log.
-        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
-    </MudAlert>
-}
-else if (_overview is null)
-{
-    <div class="pdk-sec-tiles">
-        @for (var i = 0; i < 4; i++)
-        {
-            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
-        }
-    </div>
-}
-else if (_overview.Totals.Requests == 0)
-{
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="empty">
-        <EmptyState Icon="@Icons.Material.Outlined.Insights" Title="No requests in this range"
-                    Description="A host with its access log off is never counted here." />
-    </MudPaper>
-}
-else
-{
-    var totals = _overview.Totals;
-    <div class="pdk-sec-tiles" data-part="tiles">
-        <SecurityTile Name="requests" Label="Requests" Value="@Fmt.Count(totals.Requests)"
-                      Detail="@(totals.BotRequests > 0 ? $"{Fmt.Share(totals.BotRequests, totals.Requests)} from bots" : null)" />
-        <SecurityTile Name="bandwidth" Label="Bandwidth" Value="@Fmt.Bytes(totals.BytesOut)"
-                      Detail="@(totals.BytesIn > 0 ? $"sent, {Fmt.Bytes(totals.BytesIn)} received" : "sent")" />
-        <SecurityTile Name="visitors" Label="Unique visitors" Value="@Fmt.Count(totals.Visitors)" Detail="@AnalyticsFigures.VisitorsAccuracy" />
-        <SecurityTile Name="errors" Label="Error rate" Value="@Fmt.Percent(totals.ErrorRate)" Detail="5xx answers" />
+    <div class="pdk-analytics-tabs">
+        <SegmentedControl T="AnalyticsTab" Options="AnalyticsView.TabOptions" Value="Current" ValueChanged="ChooseTab" AriaLabel="Analytics" DataField="tab" />
     </div>
 
-    <section data-section="content" aria-labelledby="pdk-analytics-content">
-        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-content" Class="pdk-section-heading">Visitors and content</MudText>
-        <div class="pdk-home-grid pdk-analytics-charts">
-            @foreach (var chart in Charts)
-            {
-                <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="@($"{chart.Name}-chart")">
-                    <MudText Typo="Typo.subtitle1" HtmlTag="h3">@chart.Title</MudText>
-                    @if (_overview.Series.Count < 2)
-                    {
-                        <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ShowChart" Title="Not enough time observed yet" />
-                    }
-                    else
-                    {
-                        <TimeSeriesChart Name="@chart.Name" Points="@_points" Lines="@chart.Lines" Format="@chart.Format" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
-                    }
-                </MudPaper>
-            }
-        </div>
-
-        <div class="pdk-home-grid">
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="status">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Status codes</MudText>
-                <ShareList Name="status-classes" Items="@_overview.StatusClasses" Total="@totals.Requests" Tone="StatusTone" Label="AnalyticsFigures.Status" />
-                <ShareList Name="status-codes" Items="@_overview.Statuses" Total="@totals.Requests" Tone="StatusTone" Label="AnalyticsFigures.Status" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="methods">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Methods</MudText>
-                <ShareList Name="methods" Items="@_overview.Methods" Total="@totals.Requests" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="protocols">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">HTTP versions</MudText>
-                <ShareList Name="protocols" Items="@_overview.Protocols" Total="@totals.Requests" />
-            </MudPaper>
-        </div>
-
-        <div class="pdk-home-grid pdk-analytics-tables">
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="top-paths">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Top paths</MudText></div>
-                @if (_overview.TopPaths.Count == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Route" Title="No paths in this range" />
-                }
-                else
-                {
-                    <div class="pdk-traffic-scroll">
-                        <table class="pdk-traffic-table">
-                            <thead>
-                                <tr><th scope="col">Path</th><th scope="col">Requests</th><th scope="col">Bandwidth</th><th scope="col">p95</th><th scope="col">Errors</th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var path in _overview.TopPaths)
-                                {
-                                    <tr data-path="@path.Path">
-                                        <th scope="row" class="pdk-mono">@PathCell(path.Path)</th>
-                                        <td title="@AnalyticsFigures.Range(path.Requests, path.Error, Fmt)">@AnalyticsFigures.Counted(path.Requests, path.Error, Fmt)</td>
-                                        <td>@Fmt.Bytes(path.BytesOut)</td>
-                                        <td>@Fmt.Latency(path.P95Ms)</td>
-                                        <td class="@(path.ErrorRate > 0 ? "pdk-traffic-bad" : null)">@Fmt.Percent(path.ErrorRate)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="referers">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Top referers</MudText></div>
-                @if (_overview.TopReferers.Count == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.CallReceived" Title="No referers in this range" />
-                }
-                else
-                {
-                    <div class="pdk-traffic-scroll">
-                        <table class="pdk-traffic-table">
-                            <thead><tr><th scope="col">Source</th><th scope="col">Requests</th></tr></thead>
-                            <tbody>
-                                @foreach (var referer in _overview.TopReferers)
-                                {
-                                    <tr data-referer="@referer.Label">
-                                        <th scope="row" title="@referer.Label">@referer.Label</th>
-                                        <td title="@AnalyticsFigures.Range(referer.Count, referer.Error, Fmt)">@AnalyticsFigures.Counted(referer.Count, referer.Error, Fmt)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="slowest">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Slowest paths</MudText></div>
-                @if (_overview.SlowestPaths.Count == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Timer" Title="No path has had enough requests yet" />
-                }
-                else
-                {
-                    <div class="pdk-traffic-scroll">
-                        <table class="pdk-traffic-table">
-                            <thead><tr><th scope="col">Path</th><th scope="col">p95</th><th scope="col">Requests</th></tr></thead>
-                            <tbody>
-                                @foreach (var path in _overview.SlowestPaths)
-                                {
-                                    <tr data-path="@path.Path">
-                                        <th scope="row" class="pdk-mono">@PathCell(path.Path)</th>
-                                        <td>@Fmt.Latency(path.P95Ms)</td>
-                                        <td title="@AnalyticsFigures.Range(path.Requests, path.Error, Fmt)">@AnalyticsFigures.Counted(path.Requests, path.Error, Fmt)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="largest">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Largest responses</MudText></div>
-                @if (_overview.LargestResponses.Count == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Download" Title="No response declared a size" />
-                }
-                else
-                {
-                    <div class="pdk-traffic-scroll">
-                        <table class="pdk-traffic-table">
-                            <thead><tr><th scope="col">Path</th><th scope="col">Bytes sent</th></tr></thead>
-                            <tbody>
-                                @foreach (var path in _overview.LargestResponses)
-                                {
-                                    <tr data-path="@path.Label">
-                                        <th scope="row" class="pdk-mono">@PathCell(path.Label)</th>
-                                        <td title="@(path.Error > 0 ? $"Between {Fmt.Bytes(Math.Max(0, path.Count - path.Error))} and {Fmt.Bytes(path.Count)}" : null)">@(path.Error > 0 ? $"{AnalyticsFigures.Approximately} " : null)@Fmt.Bytes(path.Count)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </MudPaper>
-        </div>
-    </section>
-
-    <section data-section="clients" aria-labelledby="pdk-analytics-clients">
-        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-clients" Class="pdk-section-heading">Clients and bots</MudText>
-        <div class="pdk-home-grid">
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="browsers">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Browsers</MudText>
-                <ShareList Name="browsers" Items="@_overview.Browsers" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="systems">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Operating systems</MudText>
-                <ShareList Name="systems" Items="@_overview.OperatingSystems" />
-            </MudPaper>
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="devices">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Devices</MudText>
-                <ShareList Name="devices" Items="@_overview.Devices" Total="@totals.Requests" Label="AnalyticsFigures.Device" />
-            </MudPaper>
-        </div>
-
-        <div class="pdk-home-grid pdk-analytics-tables">
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="bot-kinds">
-                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Bots by kind</MudText>
-                @if (totals.BotRequests == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SmartToy" Title="No bot made a request" />
-                }
-                else
-                {
-                    <ShareList Name="bot-kinds" Items="@BotKindCounts" Total="@totals.Requests" Label="AnalyticsFigures.Kind" />
-                }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="top-bots">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Top bots</MudText></div>
-                @if (_overview.TopBots.Count == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SmartToy" Title="No bot made a request" />
-                }
-                else
-                {
-                    <div class="pdk-traffic-scroll">
-                        <table class="pdk-traffic-table">
-                            <thead><tr><th scope="col">Bot</th><th scope="col">Kind</th><th scope="col">Requests</th></tr></thead>
-                            <tbody>
-                                @foreach (var bot in _overview.TopBots)
-                                {
-                                    <tr data-bot="@bot.Name">
-                                        <th scope="row" title="@bot.Name">@bot.Name</th>
-                                        <td>@AnalyticsFigures.Kind(bot.Kind)</td>
-                                        <td>@Fmt.Count(bot.Count)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="ignoring-robots">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">Bots ignoring robots.txt</MudText></div>
-                @if (_overview.BotsIgnoringRobots.Count == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.GppGood" Title="No bot fetched what a robots.txt disallows"
-                                Description="Only hosts that serve a robots.txt (Settings, the host, robots.txt) are checked." />
-                }
-                else
-                {
-                    <div class="pdk-traffic-scroll">
-                        <table class="pdk-traffic-table">
-                            <thead><tr><th scope="col">Bot</th><th scope="col">Kind</th><th scope="col">Requests</th></tr></thead>
-                            <tbody>
-                                @foreach (var bot in _overview.BotsIgnoringRobots)
-                                {
-                                    <tr data-bot="@bot.Name">
-                                        <th scope="row" title="@bot.Name">@bot.Name</th>
-                                        <td>@AnalyticsFigures.Kind(bot.Kind)</td>
-                                        <td class="pdk-traffic-bad">@Fmt.Count(bot.Count)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </MudPaper>
-            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="user-agents">
-                <div class="pdk-card-head pdk-card-head-padded"><MudText Typo="Typo.subtitle1" HtmlTag="h3">User agents</MudText></div>
-                @if (_overview.TopUserAgents.Count == 0)
-                {
-                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Devices" Title="No user agents in this range" />
-                }
-                else
-                {
-                    <div class="pdk-traffic-scroll">
-                        <table class="pdk-traffic-table pdk-analytics-agents">
-                            <thead><tr><th scope="col">User agent</th><th scope="col">Requests</th></tr></thead>
-                            <tbody>
-                                @foreach (var agent in _overview.TopUserAgents)
-                                {
-                                    <tr data-agent="@agent.Label">
-                                        <th scope="row" class="pdk-mono" title="@agent.Label">@agent.Label</th>
-                                        <td title="@AnalyticsFigures.Range(agent.Count, agent.Error, Fmt)">@AnalyticsFigures.Counted(agent.Count, agent.Error, Fmt)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </MudPaper>
-        </div>
-    </section>
-}
-
-@if (!_denied && _started)
-{
-    @* The gate's counters are the whole process's, whatever host the picker names; the range and the tab's visibility are this page's. *@
-    <SecurityStatistics Range="_range" Visible="_visible" HostScoped="@(_scope != AllHosts)" PollInterval="SecurityPollInterval" />
+    @switch (Current)
+    {
+        case AnalyticsTab.Visitors:
+            <VisitorsStatistics Range="CurrentRange" Host="Host" Unmatched="@(_scope == NoHost)" HostName="@HostName" Visible="_visible" PollInterval="PollInterval" />
+            break;
+        case AnalyticsTab.Security:
+            <SecurityStatistics Range="CurrentRange" Visible="_visible" PollInterval="SecurityPollInterval" />
+            break;
+        default:
+            <TrafficStatistics Range="CurrentRange" Visible="_visible" PollInterval="TrafficPollInterval" />
+            break;
+    }
 }
 
 @code {
@@ -339,32 +68,38 @@ else
 
     private sealed record HostChoice(HostId Id, string Name);
 
-    private sealed record ChartSpec(string Name, string Title, IReadOnlyList<TimeSeriesChart.ChartLine> Lines, Func<double, string> Format);
-
-    private AnalyticsOverview? _overview;
-    private MetricsRange _range = MetricsRange.Day;
     private string _scope = AllHosts;
     private IReadOnlyList<HostChoice> _hosts = [];
-    private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
-    private IReadOnlyList<ChartSpec> _charts = [];
     private bool _denied;
-    private bool _failed;
     private bool _visible = true;
     private bool _started;
     private DotNetObjectReference<Analytics>? _self;
-    private CancellationTokenSource? _stop;
 
-    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
+    /// <summary>The tab the address names (<c>?tab=traffic|visitors|security</c>).</summary>
+    [SupplyParameterFromQuery(Name = AnalyticsView.TabParameter)]
+    public string? TabQuery { get; set; }
+
+    /// <summary>The range the address names (<c>?range=1h|24h|7d|30d</c>).</summary>
+    [SupplyParameterFromQuery(Name = AnalyticsView.RangeParameter)]
+    public string? RangeQuery { get; set; }
+
+    /// <summary>How often the visitors' hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
     [Parameter]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(10);
 
-    /// <summary>How often the security section reads the hour. A test shortens it.</summary>
+    /// <summary>How often the traffic tab reads the hour. A test shortens it.</summary>
+    [Parameter]
+    public TimeSpan TrafficPollInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>How often the security tab reads the hour. A test shortens it.</summary>
     [Parameter]
     public TimeSpan SecurityPollInterval { get; set; } = TimeSpan.FromSeconds(2);
 
-    private IReadOnlyList<ChartSpec> Charts => _charts;
+    private AnalyticsTab Current => AnalyticsView.ParseTab(TabQuery);
 
-    private IReadOnlyList<AnalyticsCount> BotKindCounts => [.. _overview!.BotKinds.Select(static kind => new AnalyticsCount(kind.Kind, kind.Count, 0))];
+    private MetricsRange CurrentRange => AnalyticsView.ParseRange(RangeQuery);
+
+    private HostId? Host => _scope != AllHosts && _scope != NoHost && HostId.TryParse(_scope, null, out var id) ? id : null;
 
     private string? HostName => _scope == NoHost ? "(no host matched)" : _hosts.FirstOrDefault(host => host.Id.ToString() == _scope)?.Name;
 
@@ -399,10 +134,7 @@ else
             }
         }
 
-        await LoadAsync();
         _started = true;
-        _stop = new CancellationTokenSource();
-        _ = PollAsync(_stop);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -416,152 +148,32 @@ else
             }
             catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
             {
-                // The circuit is gone; nothing watches, and the page polls until it is disposed.
+                // The circuit is gone; nothing watches, and the tab polls until it is disposed.
             }
         }
     }
 
-    /// <summary>The tab was hidden or shown: the polling pauses while it is hidden and reads at once when it is shown.</summary>
+    /// <summary>The browser tab was hidden or shown: the open tab's polling pauses while it is hidden and reads at once when it is shown.</summary>
     [JSInvokable]
     public async Task PageVisibilityChangedAsync(bool visible)
     {
-        await InvokeAsync(async () =>
+        await InvokeAsync(() =>
         {
             _visible = visible;
-            if (visible)
-            {
-                await LoadAsync();
-            }
+            StateHasChanged();
         });
     }
 
-    private async Task ChooseRangeAsync(MetricsRange range)
-    {
-        if (range == _range)
-        {
-            return;
-        }
+    // Both choices rewrite the address and leave the page to read it back, so there is one source for the view. Replacing the entry keeps
+    // Back for leaving the page, not for stepping through the ranges.
+    private void ChooseTab(AnalyticsTab tab) => Navigation.NavigateTo(AnalyticsView.Href(tab, CurrentRange), replace: true);
 
-        _range = range;
-        _overview = null;
-        await LoadAsync();
-    }
+    private void ChooseRange(MetricsRange range) => Navigation.NavigateTo(AnalyticsView.Href(Current, range), replace: true);
 
-    private async Task ChooseScopeAsync(string scope)
-    {
-        if (scope == _scope)
-        {
-            return;
-        }
-
-        _scope = scope;
-        _overview = null;
-        await LoadAsync();
-    }
-
-    private async Task LoadAsync()
-    {
-        try
-        {
-            HostId? host = _scope != AllHosts && _scope != NoHost && HostId.TryParse(_scope, null, out var id) ? id : null;
-            _overview = await Service.ReadOverviewAsync(_range, host, _scope == NoHost, _stop?.Token ?? CancellationToken.None);
-            _failed = false;
-            Shape(_overview);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _failed = true;
-        }
-
-        StateHasChanged();
-    }
-
-    private async Task PollAsync(CancellationTokenSource stop)
-    {
-        var token = stop.Token;
-        try
-        {
-            // The hour changes with every bucket the drain closes; the longer ranges are mostly stored rows, so they wait six times as long.
-            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(10), Time);
-            var ticks = 0;
-            while (await timer.WaitForNextTickAsync(token))
-            {
-                ticks++;
-                if (_visible && !_failed && (_range == MetricsRange.Hour || ticks % 6 == 0))
-                {
-                    await InvokeAsync(LoadAsync);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
-        {
-            // The page is gone.
-        }
-    }
-
-    private void Shape(AnalyticsOverview overview)
-    {
-        var series = overview.Series;
-        _points = [.. series.Select(step => new TimeSeriesChart.ChartPoint(step.Start, TimeSpan.FromSeconds(step.WidthSeconds), step.CoveredSeconds == 0, AnalyticsFigures.Coverage(step, Fmt)))];
-        _charts =
-        [
-            new("requests", "Requests", [new("Requests", "pdk-chart-a", Values(series, step => step.Requests), Area: true), new("5xx", "pdk-chart-err", Values(series, step => step.ServerErrors))], Fmt.Compact),
-            new("bandwidth", "Bandwidth", Bandwidth(overview), Fmt.Bytes),
-            new("visitors", "Unique visitors", [new("Visitors", "pdk-chart-c", Values(series, step => step.Visitors), Area: true)], Fmt.Compact),
-        ];
-    }
-
-    // Received only when something was: a flat zero under every download says nothing.
-    private static TimeSeriesChart.ChartLine[] Bandwidth(AnalyticsOverview overview)
-    {
-        TimeSeriesChart.ChartLine sent = new("Bytes sent", "pdk-chart-b", Values(overview.Series, step => step.BytesOut), Area: true);
-        return overview.Totals.BytesIn > 0
-            ? [sent, new("Bytes received", "pdk-chart-a", Values(overview.Series, step => step.BytesIn))]
-            : [sent];
-    }
-
-    // A step nobody observed has no value and breaks the line; an observed step with nothing in it is a real zero.
-    private static double?[] Values(IReadOnlyList<AnalyticsStep> series, Func<AnalyticsStep, long> value) =>
-        [.. series.Select(step => step.CoveredSeconds == 0 ? (double?)null : value(step))];
-
-    private static string? StatusTone(string label) => label switch
-    {
-        "2xx" => "pdk-share-ok",
-        "3xx" => "pdk-share-info",
-        "4xx" => "pdk-share-warn",
-        "5xx" => "pdk-share-bad",
-        "none" => "pdk-share-none",
-        _ when label.Length == 3 && label[0] == '2' => "pdk-share-ok",
-        _ when label.Length == 3 && label[0] == '3' => "pdk-share-info",
-        _ when label.Length == 3 && label[0] == '4' => "pdk-share-warn",
-        _ when label.Length == 3 && label[0] == '5' => "pdk-share-bad",
-        _ => null,
-    };
-
-    private RenderFragment PathCell(string path) => builder =>
-    {
-        var link = AnalyticsFigures.TailLink(path, HostName);
-        if (link is null)
-        {
-            builder.AddContent(0, path);
-            return;
-        }
-
-        builder.OpenElement(1, "a");
-        builder.AddAttribute(2, "href", link);
-        builder.AddAttribute(3, "title", $"{path}: open it in the live tail");
-        builder.AddContent(4, path);
-        builder.CloseElement();
-    };
+    private void ChooseScope(string scope) => _scope = scope;
 
     public async ValueTask DisposeAsync()
     {
-        if (_stop is { } stop)
-        {
-            await stop.CancelAsync();
-            stop.Dispose();
-        }
-
         if (_self is not null)
         {
             try

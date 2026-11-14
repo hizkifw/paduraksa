@@ -71,7 +71,11 @@ internal sealed class SecurityRig : IAsyncDisposable
 
     public SecurityOverviewService Service { get; }
 
-    public void Register(IServiceCollection services) => services.AddSingleton(Service);
+    public void Register(IServiceCollection services)
+    {
+        services.AddSingleton(Service);
+        services.AddSingleton(Metrics);
+    }
 
     public void Publish(ProxyConfigModel model)
     {

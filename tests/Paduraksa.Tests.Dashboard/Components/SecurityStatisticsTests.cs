@@ -44,11 +44,10 @@ public sealed class SecurityStatisticsTests
         return (context, rig, time);
     }
 
-    private static IRenderedComponent<SecurityStatistics> Render(DashboardTestContext context, MetricsRange range, bool visible = true, bool scoped = false) =>
+    private static IRenderedComponent<SecurityStatistics> Render(DashboardTestContext context, MetricsRange range, bool visible = true) =>
         context.Render<SecurityStatistics>(parameters => parameters
             .Add(p => p.Range, range)
             .Add(p => p.Visible, visible)
-            .Add(p => p.HostScoped, scoped)
             .Add(p => p.PollInterval, TimeSpan.FromSeconds(2)));
 
     [Fact]
@@ -213,16 +212,14 @@ public sealed class SecurityStatisticsTests
     }
 
     [Fact]
-    public async Task RollupsThatCantBeReadAreAnAlertAndAHostScopedPageSaysTheseAreEveryHosts()
+    public async Task RollupsThatCantBeReadAreAnAlert()
     {
         var (context, rig, _) = await StartAsync(database: false);
         await using var _1 = context;
         await using var _2 = rig;
 
-        var section = Render(context, MetricsRange.Day, scoped: true);
+        var section = Render(context, MetricsRange.Day);
 
         Assert.Contains("couldn't be read", section.Find("[data-part=security-failed]").TextContent, StringComparison.Ordinal);
-        Assert.Equal("All hosts: these are not counted per host", section.Find("[data-part=scope]").TextContent);
-        Assert.Equal("security", section.Find("section").Id);
     }
 }

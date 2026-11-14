@@ -1,6 +1,6 @@
 /* The traffic overview and the segmented control. Loaded in order after app.css (App.razor): the order is the cascade. */
 
-/* Traffic overview (home page): range switch, charts, tables. */
+/* Traffic statistics (the Analytics tab): charts, tables. */
 .pdk-traffic {
     margin-bottom: 16px;
 }

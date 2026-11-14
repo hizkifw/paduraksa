@@ -37,7 +37,7 @@ public sealed class ChartTooltipEndToEndTests
         await AnalyticsEndToEndTests.SetUpAsync(page, host);
         AnalyticsEndToEndTests.Seed(host);
 
-        await page.GotoAsync("/analytics");
+        await page.GotoAsync("/analytics?tab=visitors");
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         var columns = page.Locator("[data-chart=requests] rect.pdk-chart-hit");
         await Expect(columns.Last).ToBeAttachedAsync(new() { Timeout = 15_000 });
@@ -71,7 +71,7 @@ public sealed class ChartTooltipEndToEndTests
 
         // A phone: a tap shows it, a tap elsewhere hides it, and it still fits.
         await page.SetViewportSizeAsync(390, 844);
-        await page.GotoAsync("/analytics");
+        await page.GotoAsync("/analytics?tab=visitors");
         var phoneColumns = page.Locator("[data-chart=requests] rect.pdk-chart-hit");
         await Expect(phoneColumns.Last).ToBeAttachedAsync(new() { Timeout = 15_000 });
         await Expect(tip).ToBeHiddenAsync();

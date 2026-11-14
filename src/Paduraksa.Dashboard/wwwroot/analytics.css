@@ -119,14 +119,9 @@
     align-items: center;
 }
 
-/* The overview's range switch and the Analytics link share one row: the switch at the start, the link at the end. */
-.pdk-traffic-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 12px;
-    margin-bottom: 12px;
+/* The Analytics tabs sit under the page header, above whichever tab is open. */
+.pdk-analytics-tabs {
+    margin-bottom: 16px;
 }
 
 /* A control row above a table card (a segmented filter). */
@@ -174,33 +169,14 @@
     .pdk-filter-bar .pdk-hidden {
         display: none;
     }
-
-    /* The switch fills a row on a phone, so the link goes to the end of the next. */
-    .pdk-traffic-bar > a {
-        margin-left: auto;
-    }
 }
 
-/* The security statistics: the refusals chart across, then a grid of counter cards, each as tall as its rows. A link to the section
-   lands with its heading below the sticky app bar. */
-.pdk-security-stats {
-    scroll-margin-top: 80px;
-}
-
-.pdk-security-stats-head,
+/* The security statistics: the refusals chart across, then a grid of counter cards, each as tall as its rows. */
 .pdk-security-stats-title {
     display: flex;
     align-items: baseline;
     flex-wrap: wrap;
     gap: 4px 12px;
-}
-
-.pdk-security-stats-head {
-    margin: 24px 0 12px;
-}
-
-.pdk-security-stats-head .pdk-section-heading {
-    margin: 0;
 }
 
 .pdk-security-stats-note {

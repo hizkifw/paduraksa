@@ -12,15 +12,7 @@
    ranges are the rollups, which change once a minute, so they are read a tenth as often. The counters are the whole process's:
    they are not kept per host. *@
 
-<section class="pdk-security-stats" id="security" data-section="security" aria-labelledby="pdk-security-stats-title">
-    <div class="pdk-security-stats-head">
-        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-security-stats-title" Class="pdk-section-heading">Security</MudText>
-        @if (HostScoped)
-        {
-            <span class="pdk-security-stats-note" data-part="scope">All hosts: these are not counted per host</span>
-        }
-    </div>
-
+<section class="pdk-security-stats" data-section="security" aria-label="Security">
     @if (_denied)
     {
         <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
@@ -165,10 +157,6 @@
     /// <summary>Whether the tab is visible: the host page watches it, and polling pauses while it is hidden.</summary>
     [Parameter]
     public bool Visible { get; set; } = true;
-
-    /// <summary>The host page shows one host's figures: these are still every host's, and the section says so.</summary>
-    [Parameter]
-    public bool HostScoped { get; set; }
 
     /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
     [Parameter]

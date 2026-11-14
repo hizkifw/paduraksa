@@ -127,7 +127,7 @@ public sealed class AnalyticsEndToEndTests
         await SetUpAsync(page, host);
         Seed(host);
 
-        await page.GotoAsync("/analytics");
+        await page.GotoAsync("/analytics?tab=visitors");
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await Expect(page.Locator(".pdk-nav-link[aria-current=page]")).ToHaveTextAsync(new Regex("Analytics"));
         await Expect(page.Locator("[data-tile]")).ToHaveCountAsync(4, new() { Timeout = 15_000 });
@@ -158,13 +158,23 @@ public sealed class AnalyticsEndToEndTests
         await Expect(page.Locator("[data-field=range] [data-value=week]")).ToHaveAttributeAsync("aria-checked", "true");
         await Expect(page.Locator("[data-tile]")).ToHaveCountAsync(4, new() { Timeout = 15_000 });
 
+        // The tab and the range are in the address, so a switch of tab keeps the range and the view can be linked to.
+        await Expect(page).ToHaveURLAsync(new Regex("/analytics\\?tab=visitors&range=7d$"));
+        await page.Locator("[data-field=tab] [data-value=security]").ClickAsync();
+        await Expect(page).ToHaveURLAsync(new Regex("/analytics\\?tab=security&range=7d$"));
+        await Expect(page.Locator("[data-section=refusals-chart]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        await page.Locator("[data-field=tab] [data-value=traffic]").ClickAsync();
+        await Expect(page.Locator("[data-section=requests-chart]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        await page.GotoAsync("/analytics?tab=visitors&range=7d");
+        await Expect(page.Locator("[data-field=range] [data-value=week]")).ToHaveAttributeAsync("aria-checked", "true", new() { Timeout = 15_000 });
+
         await page.Locator("[data-section=top-paths] tbody tr a", new() { HasTextString = "/products/0" }).ClickAsync();
         await Expect(page).ToHaveURLAsync(new Regex("/logs/live\\?path=%2Fproducts%2F0"));
         await Expect(page.Locator("input[data-field=path]")).ToHaveValueAsync("/products/0", new() { Timeout = 15_000 });
 
         // Phone width: the page fits without scrolling sideways.
         await page.SetViewportSizeAsync(390, 844);
-        await page.GotoAsync("/analytics");
+        await page.GotoAsync("/analytics?tab=visitors");
         await Expect(page.Locator("[data-tile]")).ToHaveCountAsync(4, new() { Timeout = 15_000 });
         await PlaywrightBrowser.ScreenshotAsync(page, "analytics-phone");
         Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"), "/analytics scrolls sideways at 390 px");

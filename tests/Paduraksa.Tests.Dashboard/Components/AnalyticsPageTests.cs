@@ -1,5 +1,6 @@
 using Bunit;
 
+using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -180,8 +181,14 @@ public sealed class AnalyticsPageTests
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
     }
 
-    private static IRenderedComponent<Analytics> Render(DashboardTestContext context) =>
-        context.Render<Analytics>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+    /// <summary>The page opened at an address (the visitors tab, unless a test says otherwise); only the tab being tested polls.</summary>
+    private static IRenderedComponent<Analytics> Render(DashboardTestContext context, string query = "?tab=visitors")
+    {
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(DashboardRoutes.Analytics + query);
+        return context.Render<Analytics>(parameters => parameters
+            .Add(p => p.PollInterval, TimeSpan.FromHours(1))
+            .Add(p => p.TrafficPollInterval, TimeSpan.FromHours(1)));
+    }
 
     /// <summary>Two hours of five-minute buckets for the app and the blog, with traffic of every kind the page tells apart.</summary>
     private static async Task FillAsync(Rig rig)
@@ -493,30 +500,118 @@ public sealed class AnalyticsPageTests
     }
 
     [Fact]
-    public async Task TheSecuritySectionIsUnderTheContentAndFollowsThePagesRangeAndHost()
+    public async Task TheRangeAndTheHostPickerOnlyReachTheTabsThatUseThem()
+    {
+        await using Rig rig = new();
+        await rig.UseDatabaseAsync();
+        await using var context = rig.SignIn();
+
+        var page = Render(context, "?tab=traffic");
+        Assert.Empty(page.FindAll("[data-field=host]"));
+
+        await page.Find("[data-field=tab] [data-value=visitors]").ClickAsync(new());
+        await page.WaitForStateAsync(() => page.FindAll("[data-field=host]").Count == 1);
+
+        await page.Find("[data-field=tab] [data-value=security]").ClickAsync(new());
+        await page.WaitForStateAsync(() => page.FindAll("[data-field=host]").Count == 0);
+    }
+
+    [Fact]
+    public async Task WithNothingInTheAddressItIsTheTrafficTabOverTheDay()
+    {
+        await using Rig rig = new();
+        await rig.UseDatabaseAsync();
+        await using var context = rig.SignIn();
+
+        var page = Render(context, string.Empty);
+        await page.WaitForStateAsync(() => page.FindComponents<TrafficStatistics>().Count == 1);
+
+        Assert.Equal(AnalyticsTab.Traffic, Chosen<AnalyticsTab>(page, "tab"));
+        Assert.Equal(MetricsRange.Day, Chosen<MetricsRange>(page, "range"));
+        Assert.Equal(MetricsRange.Day, page.FindComponent<TrafficStatistics>().Instance.Range);
+        Assert.Empty(page.FindComponents<VisitorsStatistics>());
+        Assert.Empty(page.FindComponents<SecurityStatistics>());
+    }
+
+    [Theory]
+    [InlineData("?tab=traffic&range=1h", AnalyticsTab.Traffic, MetricsRange.Hour)]
+    [InlineData("?tab=visitors&range=7d", AnalyticsTab.Visitors, MetricsRange.Week)]
+    [InlineData("?range=30d&tab=security", AnalyticsTab.Security, MetricsRange.Month)]
+    [InlineData("?tab=nonsense&range=forever", AnalyticsTab.Traffic, MetricsRange.Day)]
+    [InlineData("?tab=SECURITY&range=24H", AnalyticsTab.Security, MetricsRange.Day)]
+    public async Task TheTabAndTheRangeAreReadFromTheAddressAndOnlyTheOpenTabIsMounted(string query, AnalyticsTab tab, MetricsRange range)
+    {
+        await using Rig rig = new();
+        await rig.UseDatabaseAsync();
+        await using var context = rig.SignIn();
+
+        var page = Render(context, query);
+        await page.WaitForStateAsync(() => page.FindComponents<TrafficStatistics>().Count + page.FindComponents<VisitorsStatistics>().Count + page.FindComponents<SecurityStatistics>().Count == 1);
+
+        Assert.Equal(tab, Chosen<AnalyticsTab>(page, "tab"));
+        Assert.Equal(range, Chosen<MetricsRange>(page, "range"));
+        Assert.Equal(tab == AnalyticsTab.Traffic ? 1 : 0, page.FindComponents<TrafficStatistics>().Count);
+        Assert.Equal(tab == AnalyticsTab.Visitors ? 1 : 0, page.FindComponents<VisitorsStatistics>().Count);
+        Assert.Equal(tab == AnalyticsTab.Security ? 1 : 0, page.FindComponents<SecurityStatistics>().Count);
+    }
+
+    [Fact]
+    public async Task ChoosingATabOrARangeWritesItToTheAddressAndKeepsTheOther()
+    {
+        await using Rig rig = new();
+        await rig.UseDatabaseAsync();
+        await using var context = rig.SignIn();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        var page = Render(context, "?tab=traffic&range=7d");
+
+        await page.Find("[data-field=tab] [data-value=visitors]").ClickAsync(new());
+        await page.WaitForStateAsync(() => page.FindComponents<VisitorsStatistics>().Count == 1);
+        Assert.EndsWith("/analytics?tab=visitors&range=7d", navigation.Uri, StringComparison.Ordinal);
+        Assert.Equal(MetricsRange.Week, page.FindComponent<VisitorsStatistics>().Instance.Range);
+
+        await page.Find("[data-field=range] [data-value=hour]").ClickAsync(new());
+        await page.WaitForStateAsync(() => page.FindComponent<VisitorsStatistics>().Instance.Range == MetricsRange.Hour);
+        Assert.EndsWith("/analytics?tab=visitors&range=1h", navigation.Uri, StringComparison.Ordinal);
+
+        await page.Find("[data-field=tab] [data-value=security]").ClickAsync(new());
+        await page.WaitForStateAsync(() => page.FindComponents<SecurityStatistics>().Count == 1);
+        Assert.EndsWith("/analytics?tab=security&range=1h", navigation.Uri, StringComparison.Ordinal);
+        Assert.Equal(MetricsRange.Hour, page.FindComponent<SecurityStatistics>().Instance.Range);
+        Assert.Empty(page.FindComponents<VisitorsStatistics>());
+    }
+
+    [Theory]
+    [InlineData(AnalyticsTab.Traffic, MetricsRange.Hour, "/analytics?tab=traffic&range=1h")]
+    [InlineData(AnalyticsTab.Visitors, MetricsRange.Day, "/analytics?tab=visitors&range=24h")]
+    [InlineData(AnalyticsTab.Security, MetricsRange.Week, "/analytics?tab=security&range=7d")]
+    [InlineData(AnalyticsTab.Security, MetricsRange.Month, "/analytics?tab=security&range=30d")]
+    public void TheAddressOfAViewReadsBackAsTheSameView(AnalyticsTab tab, MetricsRange range, string href)
+    {
+        Assert.Equal(href, AnalyticsView.Href(tab, range));
+        Assert.Equal(tab, AnalyticsView.ParseTab(AnalyticsView.Token(tab)));
+        Assert.Equal(range, AnalyticsView.ParseRange(AnalyticsView.Token(range)));
+    }
+
+    [Fact]
+    public async Task OnlyTheOpenTabReadsAndAHiddenBrowserTabPausesIt()
     {
         await using Rig rig = new();
         await rig.UseDatabaseAsync();
         await FillAsync(rig);
         await using var context = rig.SignIn();
-        var page = Render(context);
+        var page = Render(context, "?tab=visitors");
         await page.WaitForStateAsync(() => page.FindAll("[data-tile]").Count == 4);
+        Assert.True(page.FindComponent<VisitorsStatistics>().Instance.Visible);
 
-        var section = page.FindComponent<SecurityStatistics>();
-        Assert.Equal(MetricsRange.Day, section.Instance.Range);
-        Assert.False(section.Instance.HostScoped);
-        Assert.Equal("security", page.FindAll("section")[^1].Id);
+        await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(false));
+        Assert.False(page.FindComponent<VisitorsStatistics>().Instance.Visible);
 
-        await page.Find("[data-field=range] [data-value=hour]").ClickAsync(new());
-        await page.WaitForStateAsync(() => section.Instance.Range == MetricsRange.Hour);
-        // The hour is the sampler's memory: it is there with the rollup database down.
-        await page.WaitForStateAsync(() => page.FindAll("[data-section=proof-of-work]").Count == 1);
-
-        var picker = page.FindComponent<MudSelect<string>>();
-        await page.InvokeAsync(() => picker.Instance.ValueChanged.InvokeAsync(Blog.ToString()));
-        await page.WaitForStateAsync(() => section.Instance.HostScoped);
-        Assert.NotNull(page.Find("[data-part=scope]"));
+        await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(true));
+        Assert.True(page.FindComponent<VisitorsStatistics>().Instance.Visible);
     }
+
+    private static T Chosen<T>(IRenderedComponent<Analytics> page, string field) =>
+        page.FindComponents<SegmentedControl<T>>().Single(control => control.Find("[data-field]").GetAttribute("data-field") == field).Instance.Value!;
 
     [Fact]
     public async Task APathThatWasCutAtItsCapIsNotALink()

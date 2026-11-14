@@ -19,7 +19,7 @@ using Paduraksa.Storage.Sqlite;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-public sealed class TrafficOverviewTests
+public sealed class TrafficStatisticsTests
 {
     private static readonly DateTimeOffset Start = new(2026, 11, 12, 12, 0, 0, TimeSpan.Zero);
     private static readonly HostId App = HostId.New();
@@ -27,38 +27,10 @@ public sealed class TrafficOverviewTests
     private static readonly UpstreamId Web = UpstreamId.New();
     private static readonly UpstreamId Media = UpstreamId.New();
 
-    [Fact]
-    public async Task TheTilesShowThePaceOfTheLastHalfMinute()
-    {
-        await using Rig rig = new();
-        var context = rig.SignIn();
-        rig.Publish();
-        rig.Record(App, 270, status: 200, micros: 2_000, upstreamMicros: 1_500);
-        rig.Record(App, 30, status: 502, micros: 4_000, upstreamMicros: 3_500, error: 10);
-        rig.TickAt(5);
-
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
-
-        Assert.Equal("60/s", page.Find("[data-tile=requests] [data-part=value]").TextContent);
-        Assert.Equal("10%", page.Find("[data-tile=errors] [data-part=value]").TextContent);
-        Assert.Equal("0/s", page.Find("[data-tile=refused] [data-part=value]").TextContent);
-        Assert.EndsWith(" ms", page.Find("[data-tile=latency] [data-part=value]").TextContent, StringComparison.Ordinal);
-        Assert.Contains("p95", page.Find("[data-tile=latency] [data-part=detail]").TextContent, StringComparison.Ordinal);
-        Assert.EndsWith(" ms", page.Find("[data-tile=upstream-latency] [data-part=value]").TextContent, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheOverviewLinksToTheAnalytics()
-    {
-        await using Rig rig = new();
-        var context = rig.SignIn();
-        rig.Publish();
-        rig.TickAt(2);
-
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
-
-        Assert.Equal("/analytics", page.Find("[data-link=analytics]").GetAttribute("href"));
-    }
+    private static IRenderedComponent<TrafficStatistics> Render(DashboardTestContext context, MetricsRange range = MetricsRange.Hour, TimeSpan? poll = null) =>
+        context.Render<TrafficStatistics>(parameters => parameters
+            .Add(p => p.Range, range)
+            .Add(p => p.PollInterval, poll ?? TimeSpan.FromHours(1)));
 
     [Fact]
     public async Task ThereAreNoChartsUntilTheRangeHasTwoPoints_ThenBothAreDrawn()
@@ -69,7 +41,7 @@ public sealed class TrafficOverviewTests
         rig.Record(App, 10, status: 200, micros: 1_000);
         rig.TickAt(2);
 
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromMilliseconds(20)));
+        var page = Render(context, poll: TimeSpan.FromMilliseconds(20));
 
         Assert.Empty(page.FindAll("[data-chart]"));
         Assert.Contains("No traffic in this range yet", page.Find("[data-section=requests-chart]").TextContent, StringComparison.Ordinal);
@@ -98,7 +70,7 @@ public sealed class TrafficOverviewTests
         rig.Record(App, 30, status: 200, micros: 2_000);
         rig.TickEverySecondTo(150);
 
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+        var page = Render(context);
 
         Assert.Equal(2, page.FindAll("[data-chart=requests] polyline.pdk-chart-a").Count);
         Assert.Equal(2, page.FindAll("[data-chart=requests] polyline.pdk-chart-err").Count);
@@ -119,7 +91,7 @@ public sealed class TrafficOverviewTests
         rig.TickAt(30);
         rig.TickEverySecondTo(60);
 
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+        var page = Render(context);
 
         Assert.Single(page.FindAll("[data-chart=requests] polyline.pdk-chart-a"));
         Assert.Empty(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
@@ -135,7 +107,7 @@ public sealed class TrafficOverviewTests
         rig.Publish();
         rig.TickEverySecondTo(95);
 
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+        var page = Render(context);
 
         Assert.Single(page.FindAll("[data-chart=requests] polyline.pdk-chart-a"));
         Assert.Empty(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
@@ -155,7 +127,7 @@ public sealed class TrafficOverviewTests
         rig.RecordUnmatched(7);
         rig.TickAt(5);
 
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+        var page = Render(context);
 
         var rows = page.FindAll("[data-section=top-hosts] tbody tr");
         Assert.Equal(["blog.test", "app.test", "No host matched"], rows.Select(row => row.GetAttribute("data-host")));
@@ -177,7 +149,7 @@ public sealed class TrafficOverviewTests
         rig.Record(Blog, 5, status: 502, micros: 1_000, upstream: Media, upstreamMicros: 800, error: 10);
         rig.TickAt(5);
 
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+        var page = Render(context);
 
         var rows = page.FindAll("[data-section=upstream-errors] tbody tr");
         Assert.Equal([Media.ToString(), Web.ToString()], rows.Select(row => row.GetAttribute("data-upstream")));
@@ -195,16 +167,14 @@ public sealed class TrafficOverviewTests
         var context = rig.SignIn();
         rig.Publish();
 
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+        var page = Render(context);
 
         Assert.Contains("No requests in this range", page.Find("[data-section=top-hosts]").TextContent, StringComparison.Ordinal);
         Assert.Contains("Nothing was forwarded in this range", page.Find("[data-section=upstream-errors]").TextContent, StringComparison.Ordinal);
-        Assert.Equal("0/s", page.Find("[data-tile=requests] [data-part=value]").TextContent);
-        Assert.Equal("-", page.Find("[data-tile=latency] [data-part=value]").TextContent);
     }
 
     [Fact]
-    public async Task ALongerRangeReadsTheRollupsAndTheButtonShowsWhichIsChosen()
+    public async Task ALongerRangeReadsTheRollupsAndTheTablesFollowIt()
     {
         await using Rig rig = new();
         var context = rig.SignIn();
@@ -218,13 +188,12 @@ public sealed class TrafficOverviewTests
         // Over an hour back: a longer range's tables take the last hour from the sampler, which this rig doesn't seed.
         await rig.StoreMinuteAsync(MetricRollupSubject.Host, App.ToString(), Start.AddMinutes(-70), requests: 900);
         await rig.StoreMinuteAsync(MetricRollupSubject.Upstream, Web.ToString(), Start.AddMinutes(-70), requests: 900, errors: 9);
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
-        Assert.Equal("true", page.Find("[data-field=range] [data-value=hour]").GetAttribute("aria-checked"));
+        var page = Render(context);
+        Assert.Empty(page.FindAll("[data-section=top-hosts] tbody tr"));
 
-        await page.Find("[data-field=range] [data-value=day]").ClickAsync(new());
+        page.Render(parameters => parameters.Add(p => p.Range, MetricsRange.Day).Add(p => p.PollInterval, TimeSpan.FromHours(1)));
 
-        await page.WaitForStateAsync(() => page.Find("[data-field=range] [data-value=day]").GetAttribute("aria-checked") == "true" && page.FindAll("[data-chart]").Count == 2);
-        Assert.Equal("false", page.Find("[data-field=range] [data-value=hour]").GetAttribute("aria-checked"));
+        await page.WaitForStateAsync(() => page.FindAll("[data-chart]").Count == 2);
         Assert.Equal("app.test", page.Find("[data-section=top-hosts] tbody tr").GetAttribute("data-host"));
         Assert.Equal(Web.ToString(), page.Find("[data-section=upstream-errors] tbody tr").GetAttribute("data-upstream"));
         Assert.Contains("MMM", TrafficFigures.TimeFormat(MetricsRange.Week), StringComparison.Ordinal);
@@ -236,9 +205,8 @@ public sealed class TrafficOverviewTests
         await using Rig rig = new();
         var context = rig.SignIn();
         rig.Publish();
-        var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
         // No database is open, so the rollup store fails.
-        await page.Find("[data-field=range] [data-value=week]").ClickAsync(new());
+        var page = Render(context, MetricsRange.Week);
 
         await page.WaitForStateAsync(() => page.FindAll("[data-part=failed]").Count == 1);
         Assert.Contains("couldn't be read", page.Find("[data-part=failed]").TextContent, StringComparison.Ordinal);
@@ -247,20 +215,28 @@ public sealed class TrafficOverviewTests
         await page.Find("[data-part=failed] button").ClickAsync(new());
 
         await page.WaitForStateAsync(() => page.FindAll("[data-part=failed]").Count == 0);
-        Assert.NotEmpty(page.FindAll("[data-part=tiles]"));
+        Assert.NotEmpty(page.FindAll("[data-section=requests-chart]"));
     }
 
     [Fact]
-    public async Task TheHomePageShowsTheTrafficPanel()
+    public async Task ThePanelDoesNotReadWhileTheTabIsHiddenAndReadsAtOnceWhenItIsShown()
     {
         await using Rig rig = new();
         var context = rig.SignIn();
         rig.Publish();
-        context.ComponentFactories.AddStub<Paduraksa.Dashboard.Setup.SetupChecklist>();
+        rig.TickAt(2);
+        var page = Render(context, poll: TimeSpan.FromMilliseconds(20));
+        Assert.Empty(page.FindAll("[data-chart]"));
 
-        var page = context.Render<Home>();
+        page.Render(parameters => parameters.Add(p => p.Visible, false).Add(p => p.Range, MetricsRange.Hour).Add(p => p.PollInterval, TimeSpan.FromMilliseconds(20)));
+        rig.Record(App, 10, status: 200, micros: 1_000);
+        rig.TickEverySecondTo(22);
+        await Task.Delay(150, Xunit.TestContext.Current.CancellationToken);
+        Assert.Empty(page.FindAll("[data-chart]"));
 
-        await page.WaitForStateAsync(() => page.FindAll("[data-section=traffic]").Count == 1);
+        page.Render(parameters => parameters.Add(p => p.Visible, true).Add(p => p.Range, MetricsRange.Hour).Add(p => p.PollInterval, TimeSpan.FromHours(1)));
+
+        await page.WaitForStateAsync(() => page.FindAll("[data-chart]").Count == 2);
     }
 
     [Theory]

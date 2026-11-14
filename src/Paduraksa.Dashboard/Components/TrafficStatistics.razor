@@ -7,19 +7,12 @@
 @inject MetricsService Metrics
 @inject IDashboardConfig Config
 @inject TimeProvider Time
-@inject IJSRuntime JS
 @inject DisplayFormat Fmt
-@* The live traffic: the pace over the last half minute, two charts over the chosen range, the busiest hosts and the upstreams'
-   errors. The hour reads the sampler's memory every two seconds while the tab is visible; longer ranges read the one-minute
-   rollups, which only change once a minute, so they are read less often. *@
+@* The traffic over a range: requests per second and latency as charts, the busiest hosts and the upstreams' errors. The host page owns
+   the range and the tab's visibility; this reads, polls and draws. The hour reads the sampler's memory every two seconds; longer ranges
+   read the one-minute rollups, which only change once a minute, so they are read a tenth as often. *@
 
 <section class="pdk-traffic" data-section="traffic" aria-label="Traffic">
-    <div class="pdk-traffic-bar">
-        <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="_range" ValueChanged="ChooseAsync" AriaLabel="Time range" DataField="range" />
-        <MudButton Href="@DashboardRoutes.Analytics" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight"
-                   data-link="analytics">Analytics</MudButton>
-    </div>
-
     @if (_failed)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
@@ -29,26 +22,10 @@
     }
     else if (_overview is null)
     {
-        <div class="pdk-sec-tiles">
-            @for (var i = 0; i < 5; i++)
-            {
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
-            }
-        </div>
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" />
     }
     else
     {
-        var now = _overview.Now;
-        <div class="pdk-sec-tiles" data-part="tiles">
-            <SecurityTile Name="requests" Label="Requests" Value="@Fmt.PerSecond(now.RequestsPerSecond)" />
-            <SecurityTile Name="errors" Label="Errors" Value="@Fmt.Percent(now.ErrorRate)" Detail="5xx answers" />
-            <SecurityTile Name="refused" Label="Refused" Value="@Fmt.PerSecond(now.RefusedPerSecond)" Detail="by a policy or limit" />
-            <SecurityTile Name="latency" Label="Latency p50" Value="@Fmt.Latency(now.Total.P50Ms)"
-                          Detail="@(now.Total.P99Ms > 0 ? $"p95 {Fmt.Latency(now.Total.P95Ms)} · p99 {Fmt.Latency(now.Total.P99Ms)}" : null)" />
-            <SecurityTile Name="upstream-latency" Label="Upstream p50" Value="@Fmt.Latency(now.Upstream.P50Ms)"
-                          Detail="@(now.Upstream.P99Ms > 0 ? $"p95 {Fmt.Latency(now.Upstream.P95Ms)} · p99 {Fmt.Latency(now.Upstream.P99Ms)}" : null)" />
-        </div>
-
         <div class="pdk-home-grid">
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="requests-chart">
                 <MudText Typo="Typo.subtitle1" HtmlTag="h3">Requests per second</MudText>
@@ -150,16 +127,23 @@
 
 @code {
     private MetricsOverview? _overview;
-    private MetricsRange _range = MetricsRange.Hour;
+    private MetricsRange? _loaded;
+    private bool _wasVisible = true;
     private bool _failed;
-    private bool _visible = true;
     private bool _started;
     private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
     private IReadOnlyList<TimeSeriesChart.ChartLine> _requestLines = [];
     private IReadOnlyList<TimeSeriesChart.ChartLine> _latencyLines = [];
     private Dictionary<UpstreamId, string> _upstreamNames = [];
-    private DotNetObjectReference<TrafficOverview>? _self;
     private CancellationTokenSource? _stop;
+
+    /// <summary>The range to read; the host page's picker.</summary>
+    [Parameter, EditorRequired]
+    public MetricsRange Range { get; set; }
+
+    /// <summary>Whether the tab is visible: the host page watches it, and polling pauses while it is hidden.</summary>
+    [Parameter]
+    public bool Visible { get; set; } = true;
 
     /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
     [Parameter]
@@ -181,67 +165,53 @@
             // Without the config the table names an upstream by its ID.
         }
 
-        await LoadAsync();
-        _started = true;
         _stop = new CancellationTokenSource();
+        _started = true;
         _ = PollAsync(_stop);
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnParametersSetAsync()
     {
-        if (firstRender && _started)
-        {
-            _self = DotNetObjectReference.Create(this);
-            try
-            {
-                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", _self);
-            }
-            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
-            {
-                // The circuit is gone; nothing watches, and the panel polls until it is disposed.
-            }
-        }
-    }
-
-    /// <summary>The tab was hidden or shown: the polling pauses while it is hidden and reads at once when it is shown.</summary>
-    [JSInvokable]
-    public async Task PageVisibilityChangedAsync(bool visible)
-    {
-        await InvokeAsync(async () =>
-        {
-            _visible = visible;
-            if (visible)
-            {
-                await LoadAsync();
-            }
-        });
-    }
-
-    private async Task ChooseAsync(MetricsRange range)
-    {
-        if (range == _range)
+        if (!_started)
         {
             return;
         }
 
-        _range = range;
-        _overview = null;
-        await LoadAsync();
+        // A new range starts over; a tab shown again reads at once.
+        if (_loaded != Range)
+        {
+            _overview = null;
+            await LoadAsync();
+        }
+        else if (Visible && !_wasVisible)
+        {
+            await LoadAsync();
+        }
+
+        _wasVisible = Visible;
     }
 
     private async Task LoadAsync()
     {
+        var range = Range;
         try
         {
-            _overview = await Metrics.ReadOverviewAsync(_range, _stop?.Token ?? CancellationToken.None);
+            var overview = await Metrics.ReadOverviewAsync(range, _stop?.Token ?? CancellationToken.None);
+            if (range != Range)
+            {
+                return;
+            }
+
+            _overview = overview;
             _failed = false;
-            Shape(_overview);
+            Shape(overview);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _failed = true;
         }
 
+        _loaded = range;
         StateHasChanged();
     }
 
@@ -256,7 +226,7 @@
             while (await timer.WaitForNextTickAsync(token))
             {
                 ticks++;
-                if (_visible && !_failed && (_range == MetricsRange.Hour || ticks % 10 == 0))
+                if (Visible && !_failed && _overview is not null && (Range == MetricsRange.Hour || ticks % 10 == 0))
                 {
                     await InvokeAsync(LoadAsync);
                 }
@@ -298,20 +268,6 @@
         {
             await stop.CancelAsync();
             stop.Dispose();
-        }
-
-        if (_self is not null)
-        {
-            try
-            {
-                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach");
-            }
-            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
-            {
-                // The circuit is gone.
-            }
-
-            _self.Dispose();
         }
     }
 }
