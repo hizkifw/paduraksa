@@ -34,11 +34,12 @@ WORKDIR /src
 
 # Restore from the project files alone, so the restore layer (packages included: NUGET_PACKAGES is inside it, not a cache
 # mount, which a CI layer cache wouldn't carry) survives a source-only change. TARGETARCH is Docker's architecture name
-# ("amd64"), not the .NET RID ("linux-x64").
+# ("amd64"), not the .NET RID ("linux-x64"). The HTTP cache mount is locked: a multi-platform build restores for each
+# architecture at once, and two restores sharing NuGet's HTTP cache race on its files ("Could not find file .../http-cache/...").
 ENV NUGET_PACKAGES=/nuget
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY --parents src/*/*.csproj ./
-RUN --mount=type=cache,target=/root/.local/share/NuGet/http-cache \
+RUN --mount=type=cache,target=/root/.local/share/NuGet/http-cache,sharing=locked \
     set -eux; \
     arch="${TARGETARCH:-$(uname -m)}"; \
     case "$arch" in \
