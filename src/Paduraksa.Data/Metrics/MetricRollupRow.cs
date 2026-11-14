@@ -42,6 +42,32 @@ internal sealed class MetricRollupRow
 
     public long Refused { get; set; }
 
+    // The refusals by kind (MetricPoint.Refusals). A row from before they were kept has 0 in each, and its Refused is all of an unknown reason.
+
+    public long RefusedAccessList { get; set; }
+
+    public long RefusedRuleSet { get; set; }
+
+    public long RefusedRateLimit { get; set; }
+
+    public long RefusedProofOfWork { get; set; }
+
+    public long RefusedForwardAuth { get; set; }
+
+    public long RefusedRequestLimits { get; set; }
+
+    public long RefusedConnection { get; set; }
+
+    public long RefusedOther { get; set; }
+
+    public long NoRoute { get; set; }
+
+    public long Unavailable { get; set; }
+
+    public long Dropped { get; set; }
+
+    public long UnknownHost { get; set; }
+
     public long Errors { get; set; }
 
     /// <summary>Response body bytes written to clients. Rows from before counted body bytes hold the declared <c>Content-Length</c>s instead.</summary>

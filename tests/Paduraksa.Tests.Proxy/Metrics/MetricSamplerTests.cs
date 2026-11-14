@@ -261,6 +261,51 @@ public sealed class MetricSamplerTests
 
         Assert.Equal(2, point.Refused);
         Assert.Equal(4, point.Requests);
+        Assert.Equal(new RefusalCounts { RateLimit = 1, AccessList = 1, NoRoute = 1 }, point.Refusals);
+    }
+
+    [Fact]
+    public void EveryRefusalKindIsKeptInTheRingTheMinuteAndTheTotals()
+    {
+        Rig rig = new();
+        var host = rig.Host(HostA);
+        var outcomes = new[]
+        {
+            GateOutcome.RefusedAccessList, GateOutcome.RefusedRuleSet, GateOutcome.RefusedRateLimit, GateOutcome.RefusedProofOfWork, GateOutcome.RefusedForwardAuth,
+            GateOutcome.RefusedRequestLimits, GateOutcome.RefusedConnection, GateOutcome.RefusedOther, GateOutcome.NoRoute, GateOutcome.Unavailable,
+            GateOutcome.Dropped, GateOutcome.UnknownHost,
+        };
+        for (var i = 0; i < outcomes.Length; i++)
+        {
+            for (var n = 0; n <= i; n++)
+            {
+                rig.Request(host, 403, outcome: outcomes[i]);
+            }
+        }
+
+        rig.TickAt(1);
+        rig.TickEverySecondTo(60);
+
+        RefusalCounts expected = new()
+        {
+            AccessList = 1,
+            RuleSet = 2,
+            RateLimit = 3,
+            ProofOfWork = 4,
+            ForwardAuth = 5,
+            RequestLimits = 6,
+            Connection = 7,
+            Other = 8,
+            NoRoute = 9,
+            Unavailable = 10,
+            Dropped = 11,
+            UnknownHost = 12,
+        };
+        Assert.Equal(expected, rig.Sampler.Read(MetricRollupSubject.Host, HostA)!.Value.Points[0].Refusals);
+        Assert.Equal(expected, rig.Sampler.Read(MetricRollupSubject.Total, Guid.Empty)!.Value.Points[0].Refusals);
+        var minutes = rig.Queue.Drain();
+        Assert.All(minutes, minute => Assert.Equal(expected, minute.Point.Refusals));
+        Assert.All(minutes, minute => Assert.Equal(36, minute.Point.Refused));
     }
 
     [Fact]

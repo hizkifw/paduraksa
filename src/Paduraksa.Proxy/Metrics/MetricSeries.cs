@@ -91,14 +91,7 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
             requests += _counters[RequestMetric.Status + c];
         }
 
-        long refused = 0;
-        foreach (var outcome in MetricNames.CountedOutcomes)
-        {
-            if (MetricNames.IsRefusal(outcome))
-            {
-                refused += _counters[RequestMetric.Outcome + (int)outcome];
-            }
-        }
+        var refusals = RefusalCounts.FromSlot(_counters);
 
         return new MetricPoint
         {
@@ -112,7 +105,8 @@ internal sealed class MetricWindow(MetricRollupSubject kind)
             Status4xx = _counters[RequestMetric.Status + 3],
             Status5xx = _counters[RequestMetric.Status + 4],
             NoResponse = _counters[RequestMetric.Status + RequestMetric.NoResponse],
-            Refused = refused,
+            Refused = refusals.Policy,
+            Refusals = refusals,
             BytesOut = _counters[RequestMetric.BytesOut],
             BytesIn = _counters[RequestMetric.BytesIn],
             TotalMicrosSum = _counters[RequestMetric.TotalMicros],

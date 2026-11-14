@@ -721,6 +721,9 @@ namespace Paduraksa.Data.Migrations
                     b.Property<int>("CoveredSeconds")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long>("Dropped")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("Errors")
                         .HasColumnType("INTEGER");
 
@@ -730,7 +733,34 @@ namespace Paduraksa.Data.Migrations
                     b.Property<long>("NoResponse")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long>("NoRoute")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("Refused")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedAccessList")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedConnection")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedForwardAuth")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedOther")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedProofOfWork")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedRateLimit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedRequestLimits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RefusedRuleSet")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("Requests")
@@ -769,6 +799,12 @@ namespace Paduraksa.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("TotalP99")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Unavailable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UnknownHost")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("UpstreamMicrosSum")

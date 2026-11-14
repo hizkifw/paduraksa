@@ -156,6 +156,18 @@ public sealed class MetricRollupStore
             Status5xx = group.Sum(row => row.Status5xx),
             NoResponse = group.Sum(row => row.NoResponse),
             Refused = group.Sum(row => row.Refused),
+            RefusedAccessList = group.Sum(row => row.RefusedAccessList),
+            RefusedRuleSet = group.Sum(row => row.RefusedRuleSet),
+            RefusedRateLimit = group.Sum(row => row.RefusedRateLimit),
+            RefusedProofOfWork = group.Sum(row => row.RefusedProofOfWork),
+            RefusedForwardAuth = group.Sum(row => row.RefusedForwardAuth),
+            RefusedRequestLimits = group.Sum(row => row.RefusedRequestLimits),
+            RefusedConnection = group.Sum(row => row.RefusedConnection),
+            RefusedOther = group.Sum(row => row.RefusedOther),
+            NoRoute = group.Sum(row => row.NoRoute),
+            Unavailable = group.Sum(row => row.Unavailable),
+            Dropped = group.Sum(row => row.Dropped),
+            UnknownHost = group.Sum(row => row.UnknownHost),
             Errors = group.Sum(row => row.Errors),
             BytesOut = group.Sum(row => row.BytesOut),
             BytesIn = group.Sum(row => row.BytesIn),
@@ -192,6 +204,30 @@ public sealed class MetricRollupStore
         public long NoResponse { get; set; }
 
         public long Refused { get; set; }
+
+        public long RefusedAccessList { get; set; }
+
+        public long RefusedRuleSet { get; set; }
+
+        public long RefusedRateLimit { get; set; }
+
+        public long RefusedProofOfWork { get; set; }
+
+        public long RefusedForwardAuth { get; set; }
+
+        public long RefusedRequestLimits { get; set; }
+
+        public long RefusedConnection { get; set; }
+
+        public long RefusedOther { get; set; }
+
+        public long NoRoute { get; set; }
+
+        public long Unavailable { get; set; }
+
+        public long Dropped { get; set; }
+
+        public long UnknownHost { get; set; }
 
         public long Errors { get; set; }
 
@@ -231,6 +267,21 @@ public sealed class MetricRollupStore
         Status5xx = sums.Status5xx,
         NoResponse = sums.NoResponse,
         Refused = sums.Refused,
+        Refusals = new RefusalCounts
+        {
+            AccessList = sums.RefusedAccessList,
+            RuleSet = sums.RefusedRuleSet,
+            RateLimit = sums.RefusedRateLimit,
+            ProofOfWork = sums.RefusedProofOfWork,
+            ForwardAuth = sums.RefusedForwardAuth,
+            RequestLimits = sums.RefusedRequestLimits,
+            Connection = sums.RefusedConnection,
+            Other = sums.RefusedOther,
+            NoRoute = sums.NoRoute,
+            Unavailable = sums.Unavailable,
+            Dropped = sums.Dropped,
+            UnknownHost = sums.UnknownHost,
+        },
         Errors = sums.Errors,
         BytesOut = sums.BytesOut,
         BytesIn = sums.BytesIn,
@@ -271,6 +322,21 @@ public sealed class MetricRollupStore
         Status5xx = row.Status5xx,
         NoResponse = row.NoResponse,
         Refused = row.Refused,
+        Refusals = new RefusalCounts
+        {
+            AccessList = row.RefusedAccessList,
+            RuleSet = row.RefusedRuleSet,
+            RateLimit = row.RefusedRateLimit,
+            ProofOfWork = row.RefusedProofOfWork,
+            ForwardAuth = row.RefusedForwardAuth,
+            RequestLimits = row.RefusedRequestLimits,
+            Connection = row.RefusedConnection,
+            Other = row.RefusedOther,
+            NoRoute = row.NoRoute,
+            Unavailable = row.Unavailable,
+            Dropped = row.Dropped,
+            UnknownHost = row.UnknownHost,
+        },
         Errors = row.Errors,
         BytesOut = row.BytesOut,
         BytesIn = row.BytesIn,
@@ -296,6 +362,18 @@ public sealed class MetricRollupStore
         row.Status5xx = point.Status5xx;
         row.NoResponse = point.NoResponse;
         row.Refused = point.Refused;
+        row.RefusedAccessList = point.Refusals.AccessList;
+        row.RefusedRuleSet = point.Refusals.RuleSet;
+        row.RefusedRateLimit = point.Refusals.RateLimit;
+        row.RefusedProofOfWork = point.Refusals.ProofOfWork;
+        row.RefusedForwardAuth = point.Refusals.ForwardAuth;
+        row.RefusedRequestLimits = point.Refusals.RequestLimits;
+        row.RefusedConnection = point.Refusals.Connection;
+        row.RefusedOther = point.Refusals.Other;
+        row.NoRoute = point.Refusals.NoRoute;
+        row.Unavailable = point.Refusals.Unavailable;
+        row.Dropped = point.Refusals.Dropped;
+        row.UnknownHost = point.Refusals.UnknownHost;
         row.Errors = point.Errors;
         row.BytesOut = point.BytesOut;
         row.BytesIn = point.BytesIn;

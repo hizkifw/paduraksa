@@ -99,6 +99,33 @@ public sealed class MetricRollupStoreTests
     }
 
     [Fact]
+    public async Task TheRefusalsByKindAreStoredMergedOnACollisionAndSummedByTheRangeReads()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        MetricRollupStore store = new(database.Factory);
+        var first = Minute(MetricRollupSubject.Host, App.ToString(), Noon, 10, covered: 20);
+        first = first with { Point = first.Point with { Refused = 5, Refusals = new RefusalCounts { RateLimit = 3, ProofOfWork = 2, NoRoute = 1 } } };
+        var second = Minute(MetricRollupSubject.Host, App.ToString(), Noon, 10, covered: 30);
+        second = second with { Point = second.Point with { Refused = 4, Refusals = new RefusalCounts { RateLimit = 1, AccessList = 3, UnknownHost = 2 } } };
+        var next = Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddMinutes(1), 10);
+        next = next with { Point = next.Point with { Refused = 1, Refusals = new RefusalCounts { Other = 1 } } };
+
+        // The process stopped inside the minute, and the next one went on to fill it.
+        await store.WriteAsync([first], Ct);
+        await store.WriteAsync([second, next], Ct);
+
+        var minute = Assert.Single(await store.ReadSeriesAsync(MetricRollupSubject.Host, App.ToString(), Noon, Noon, 1, Ct));
+        Assert.Equal(new RefusalCounts { RateLimit = 4, ProofOfWork = 2, AccessList = 3, NoRoute = 1, UnknownHost = 2 }, minute.Refusals);
+        Assert.Equal(9, minute.Refused);
+        Assert.Equal(0, minute.UnknownRefused);
+        var summary = (await store.SummariseAsync(MetricRollupSubject.Host, Noon, Noon.AddMinutes(1), Ct))[App.ToString()];
+        Assert.Equal(new RefusalCounts { RateLimit = 4, ProofOfWork = 2, AccessList = 3, Other = 1, NoRoute = 1, UnknownHost = 2 }, summary.Refusals);
+        Assert.Equal(10, summary.Refused);
+        var step = Assert.Single(await store.ReadSeriesAsync(MetricRollupSubject.Host, App.ToString(), Noon, Noon.AddMinutes(1), 2, Ct));
+        Assert.Equal(summary.Refusals, step.Refusals);
+    }
+
+    [Fact]
     public async Task AMergedMinuteNeverClaimsMoreThanSixtySeconds()
     {
         await using var database = await TestConfigDatabase.CreateAsync();

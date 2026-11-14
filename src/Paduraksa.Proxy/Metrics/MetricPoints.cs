@@ -13,6 +13,7 @@ public static class MetricPoints
     {
         long covered = 0;
         long requests = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0, none = 0, refused = 0, errors = 0, bytes = 0, bytesIn = 0, total = 0, upstream = 0, timed = 0;
+        RefusalCounts refusals = default;
         double t50 = 0, t95 = 0, t99 = 0, u50 = 0, u95 = 0, u99 = 0;
         foreach (var point in points)
         {
@@ -25,6 +26,7 @@ public static class MetricPoints
             s5 += point.Status5xx;
             none += point.NoResponse;
             refused += point.Refused;
+            refusals += point.Refusals;
             errors += point.Errors;
             bytes += point.BytesOut;
             bytesIn += point.BytesIn;
@@ -52,6 +54,7 @@ public static class MetricPoints
             Status5xx = s5,
             NoResponse = none,
             Refused = refused,
+            Refusals = refusals,
             Errors = errors,
             BytesOut = bytes,
             BytesIn = bytesIn,

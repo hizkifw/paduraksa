@@ -43,6 +43,15 @@ public readonly record struct MetricPoint
     /// <summary>Requests the gate refused by a policy or a limit (<see cref="MetricNames.IsRefusal"/>).</summary>
     public long Refused { get; init; }
 
+    /// <summary>
+    /// What the gate turned away, by kind; host and total series only. A minute stored before the breakdown was kept has none, and its
+    /// <see cref="Refused"/> is all <see cref="UnknownRefused"/>.
+    /// </summary>
+    public RefusalCounts Refusals { get; init; }
+
+    /// <summary>The part of <see cref="Refused"/> no kind accounts for: minutes stored before the breakdown was kept. Never a guessed split.</summary>
+    public long UnknownRefused => Math.Max(0, Refused - Refusals.Policy);
+
     /// <summary>Forwards that failed on the upstream's side (<see cref="ForwarderErrors.IsUpstreamFault"/>); upstream series only.</summary>
     public long Errors { get; init; }
 
