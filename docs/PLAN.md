@@ -349,6 +349,9 @@ Detail: [design/milestones.md](design/milestones.md).
 **Open items inside done milestones:** a local country database, bcrypt `htpasswd` import, native OIDC, a forward-auth trace that makes the real call, a warning for a rule no request can reach, per-route error pages, local CA root renewal, the browser H3 upgrade test.
 
 **Later:**
+- **Response caching** per host and route: RFC 9111 semantics, memory with an optional disk tier, cache keys and bypass rules, stale-while-revalidate, purge from the dashboard and API, and hit and miss figures in the metrics.
+- **Browser fingerprinting for the proof-of-work gate:** TLS, HTTP/2 and in-page fingerprints with behaviour scoring, so a crawler fleet running one setup through residential proxies gets harder challenges, a reload check or a block.
+- **The forwarder seam:** YARP behind a forwarding interface on the snapshot, so it can be replaced later.
 - Native OIDC for the admin and per host.
 - Bot heuristics and header rules.
 - Per-tag RBAC.
