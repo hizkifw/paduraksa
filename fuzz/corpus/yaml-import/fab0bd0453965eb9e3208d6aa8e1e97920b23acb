@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: m.KKKIIIIIIIIII
+  - name: ttIig
+ruleSets:
+  - name: scIIIIIIIIIIIII
+  - name: MttttttttIIIIIII00000222222-22211111wnIIIII
+  - name: MttttK0KAsssss6
+hosts:
+  - names: [examp1e.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

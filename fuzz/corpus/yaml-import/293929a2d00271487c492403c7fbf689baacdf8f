@@ -1,0 +1,30 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb22222222222222200000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb3\22222?222222222222222222222222222222222222222227879102"""&"""""""""""""""""""""22222222222222222222222222222222222200000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb0000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbb\\\\2bbbbbb4\22222?222222222222222222222222222222222222222227879102"""&"""""""""""""""""""""2222222222222222222222222222222551822\pppppppppppppppppppppp#222222222222222222200000000-000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb4\22222?222222222222222222222222222222222222222227879102"""&"""""""""""""22222=2222Apppppppppppppppppppppppppppppppppppppppppppppwebbbbbbbbbbbbb#bbbbbbbbbcb

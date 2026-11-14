@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&000ice
+    ip: {allow: [10.0.0.0/8], countries: {allow: [Xx, I*]}}
+    basicAuth:
+      users:
+        - username: dAf]
+    #: Co*siuo #text/[htAl8rLFlB

@@ -1,0 +1,18 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so~CCC x,`x, x~,@xCCom]
+    kind: respond
+   #   kinLLL media
+    routes:
+      - upstream: jellyfin
+        path: /om]
+  - names: [so*o~CC"\u00e5CCC x, xCCCom]
+    kind: respond
+   #: onfig
+ruleSets:
+  - name: scars
+    rules:
+      - action: deny
+       
+  - name: stri.....................LLoon}

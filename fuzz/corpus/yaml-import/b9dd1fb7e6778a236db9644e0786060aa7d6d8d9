@@ -1,0 +1,32 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # credentialIdlIdwndAAHBs:
+  - name: offic   #    {allow: [N ,OID]}}
+    basicAuth:
+      users:
+      # cre  # credentialId: pwc_02wndAAHBs:
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# office
+    # creden4f4Al8rl5  - name: office
+    # credentialIdlIdwndAAHBs:
+  - name: offic   #    {allow: [N ,OID]}}
+    basicAuth:
+      users:
+      # cre  # credentialId: pwc_02wndAAHBs:
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# office
+    # creden4f4Al8rl5f4credentame: office
+    # credentialIdlIdwndAAHBs:
+  - name: offic   #    {allow: [N ,OID]}}
+    basicAuth:
+      users:
+      # cre  # credentialId: pwc_02wndAAHBs:
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# office
+    # creden4f4Al8rl5iC95f4Alf4credentame: office
+    # credentialIdlIdwndAAHBs:
+  - name: offic   #    {allow: [N ,OID]}}
+    basicAuth:
+      users:
+      # cre  # credentialId: pwc_02wndAAHBs:
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,ON ,OID]}}# office
+    # creden4f4Al8rl5iC95f4Al8rl5f4Al8rNFlB

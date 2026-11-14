@@ -1,0 +1,23 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.ex::::::::::::::::::::::::::::::::::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       :::::sts:
+  - names: [a.ex::::::::::::::::::::::::::::::::::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       :::::%/ht%/html

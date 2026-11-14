@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+       				 <p>no38888888siu/s:[]e *bjetojetos.sys: Co[]e ts:
+  - names: [aҙ`ample.com]
+    kind: respond
+    respond:
+      statusCode: 404
+      body: |
+       			p>no7777777777777777777kqa.   contentTy/e: text/[hs:* []jec.sys:    contentTy/e: #text/[html

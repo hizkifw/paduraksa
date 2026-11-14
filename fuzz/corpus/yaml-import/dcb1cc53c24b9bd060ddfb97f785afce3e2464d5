@@ -1,0 +1,4 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: Off  #  creden4f4Al8l8rl5f4Al8rNFlB

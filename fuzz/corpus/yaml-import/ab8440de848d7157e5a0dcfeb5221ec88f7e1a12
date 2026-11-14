@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+#false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFl8
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst_01wndAAHBC95f4Al8rNFlB
+        address: http:// path+ /

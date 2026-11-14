@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offi}
+    basicAuth:
+      users:
+        - username: alice
+          credentialId: pw&
+hosts:
+  - names: [tv.eom]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: ш8rNFlB

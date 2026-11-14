@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: 3E41D4
+hosts:
+  - names: [Nv.example.co ]
+    profile: media
+    routes:
+   

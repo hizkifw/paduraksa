@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: uonfig
+accessLists:
+  - name: off
+  - name: office
+    ip: {allow: [10<0.0.1/8], }
+   
+hosts:
+  - names: [j			excum]
+    profile: media
+    routes:
