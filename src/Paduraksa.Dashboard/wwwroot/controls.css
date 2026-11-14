@@ -122,6 +122,11 @@
     display: none;
 }
 
+/* At sparkline size a shaded stretch reads as a solid block; the broken line already says nobody was looking. */
+.pdk-chart-compact .pdk-chart-gap {
+    display: none;
+}
+
 .pdk-chart-grid {
     stroke: var(--pdk-line);
     stroke-width: 1;
