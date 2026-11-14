@@ -428,7 +428,10 @@ Found by the soak (`h2-hang`): about one HTTP/2 response in a million was never 
 
 **The regression test** (`Http2StreamReuseTests`) makes the race happen every time.
 - It uses a hand-written HTTP/2 client and a connection whose output flushes the test holds. Kestrel's scheduler is set to inline, a test-only reach into its internals that Kestrel's own tests also use, so the first resume runs the writer up to the held flush and the second always lands after it.
-- Plain Kestrel loses exactly one of the follow-up responses, and the workaround answers them all. If Kestrel ever has the fix, the first test expects no loss, and the class says the workaround can go.
+- Each step waits on an ordering, not on time. Kestrel's writer takes its queue in order, so a headers-only "marker" response that arrives after a step means the writer has finished that step. A marker whose flush ran inside its own request means the writer was parked, which the double resume needs.
+- The follow-ups hold their streams open until all have started, so one of them must take `/big`'s pooled stream. A last marker, queued after all their responses, tells a lost response from a slow one.
+- The first version waited for the client to see the first 64 KiB. On CI the stream WINDOW_UPDATE then overtook the writer, which was still finishing that write, and the race didn't happen. The markers make the order certain: 50 runs on 4 cores, 20 under CPU stress and 10 on a single loaded core, all reproduced it.
+- Plain Kestrel loses exactly one of the follow-up responses, and the workaround answers them all. Without the workaround, the second test fails. If Kestrel ever has the fix, the first test expects no loss, and the class says the workaround can go.
 - In the soak, two 15-minute runs on the same machine compare. Without the workaround: 3 hung HTTP/2 requests. With it: none, and `h2_healed=1`.
 
 **How it was placed.**
