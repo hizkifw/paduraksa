@@ -199,4 +199,31 @@ public sealed class ServerSettingsApiTests : IAsyncLifetime
         var error = Assert.Single((await AdminApiHarness.ProblemAsync(response, Ct)).Errors!);
         Assert.Equal(("/server/adminSessionIdleTimeout", "server.settings.conflict"), (error.Path, error.Code));
     }
+
+    [Fact]
+    public async Task TheNotificationTimingTheDashboardAddressAndTheQueryStringSwitchApplyLive()
+    {
+        var (_, etag) = await ReadAsync();
+
+        using var put = await PutAsync(
+            new ServerSettings { NotificationAdminUrl = "https://admin.example.com", NotificationHealthHold = TimeSpan.FromSeconds(30), AccessLogQueryString = false },
+            etag);
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var bindings = _api.Host.Shared.ServerSettingsBindings;
+        Assert.Equal(new Uri("https://admin.example.com/"), bindings.Notifications.Current.AdminUrl);
+        Assert.Equal(TimeSpan.FromSeconds(30), bindings.Notifications.Current.HealthHold);
+        Assert.False(bindings.AccessLogFormat.Current.LogQueryString);
+    }
+
+    [Fact]
+    public async Task ADashboardAddressWithAQueryIsRefused()
+    {
+        var (_, etag) = await ReadAsync();
+
+        using var response = await PutAsync(new ServerSettings { NotificationAdminUrl = "https://admin.example.com/?x=1" }, etag);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("/server/notificationAdminUrl", Assert.Single((await AdminApiHarness.ProblemAsync(response, Ct)).Errors!).Path);
+    }
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Core.Hosting;
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
@@ -70,10 +71,10 @@ public static class ProxyHostingExtensions
         // which replaces the defaults here with the configured ones; without a core host the ring fills and nothing reads
         // it, which is what a test app wants.
         services.TryAddSingleton(new AccessLogRing());
-        services.TryAddSingleton(AccessLogFormatOptions.Default);
+        services.TryAddSingleton(new LiveOptions<AccessLogFormatOptions>(AccessLogFormatOptions.Default));
         services.TryAddSingleton<IAccessLogSink>(NullAccessLogSink.Instance);
         services.TryAddSingleton(static provider => new AccessLogTail(
-            AccessLogTail.DefaultCapacity, provider.GetRequiredService<AccessLogFormatOptions>(), provider.GetRequiredService<SnapshotStore>()));
+            AccessLogTail.DefaultCapacity, provider.GetRequiredService<LiveOptions<AccessLogFormatOptions>>(), provider.GetRequiredService<SnapshotStore>()));
         services.TryAddSingleton(metrics ?? new MetricsRegistry());
         services.TryAddSingleton<UpgradedConnections>();
         services.TryAddSingleton<AccessLogMiddleware>();

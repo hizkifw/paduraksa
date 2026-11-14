@@ -168,12 +168,55 @@ public static class ServerSettingCatalog
         static s => s.AdminRateLimitWindow, static (s, v) => s with { AdminRateLimitWindow = v },
         TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));
 
+    public static readonly TextServerSetting NotificationAdminUrl = new(
+        "notificationAdminUrl", "Notifications:AdminUrl", ServerSettingGroup.Notifications, "Messages", ServerSettingApply.Live,
+        "Dashboard address",
+        "Where messages link to (https://admin.example.com, no path or query). Empty sends no link: the server can't know the name its admin is reached by.",
+        static s => s.NotificationAdminUrl, static (s, v) => s with { NotificationAdminUrl = v },
+        string.Empty,
+        static value => value.Length == 0
+            || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0)
+                ? null
+                : "must be an http or https address without credentials, a query or a fragment");
+
+    public static readonly ServerSetting<TimeSpan> NotificationHealthHold = new(
+        "notificationHealthHold", "Notifications:HealthHold", ServerSettingGroup.Notifications, "Timing", ServerSettingApply.Live,
+        "Health hold",
+        "How long a destination's new health state must hold before it is reported, so one failed probe sends nothing.",
+        static s => s.NotificationHealthHold, static (s, v) => s with { NotificationHealthHold = v },
+        TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));
+
+    public static readonly ServerSetting<TimeSpan> NotificationCoalesceWindow = new(
+        "notificationCoalesceWindow", "Notifications:CoalesceWindow", ServerSettingGroup.Notifications, "Timing", ServerSettingApply.Live,
+        "Digest window",
+        "How long a channel waits after a message for more of the same kind, so a storm is one digest. 0 sends each at once.",
+        static s => s.NotificationCoalesceWindow, static (s, v) => s with { NotificationCoalesceWindow = v },
+        TimeSpan.FromSeconds(3), TimeSpan.Zero, TimeSpan.FromMinutes(1));
+
+    public static readonly ServerSetting<TimeSpan> NotificationMaxDeliveryAge = new(
+        "notificationMaxDeliveryAge", "Notifications:MaxDeliveryAge", ServerSettingGroup.Notifications, "Timing", ServerSettingApply.Live,
+        "Oldest message sent",
+        "A delivery still waiting for an event older than this is expired, not sent, so a long outage doesn't end in a burst of stale messages.",
+        static s => s.NotificationMaxDeliveryAge, static (s, v) => s with { NotificationMaxDeliveryAge = v },
+        TimeSpan.FromHours(1), TimeSpan.FromMinutes(1), TimeSpan.FromDays(7))
+    {
+        LoweredNote = "deliveries waiting for an older event are expired at the next pass and not sent.",
+    };
+
+    public static readonly ServerSetting<bool> AccessLogQueryString = new(
+        "accessLogQueryString", "AccessLog:LogQueryString", ServerSettingGroup.Retention, "Access log", ServerSettingApply.Live,
+        "Query strings",
+        "Whether the access log and the live tail keep a request's query string (sensitive parameters are always redacted). Off keeps the path alone.",
+        static s => s.AccessLogQueryString, static (s, v) => s with { AccessLogQueryString = v },
+        true);
+
     /// <summary>Every declaration, in the order the page shows them.</summary>
     public static IReadOnlyList<ServerSettingDefinition> All { get; } =
     [
-        MetricsRetention, AnalyticsRetention, NotificationHistoryRetention, LogRetainedFiles, LogMaxAge, LogMaxTotalSize, LogMaxFileSize,
+        MetricsRetention, AnalyticsRetention, NotificationHistoryRetention, LogRetainedFiles, LogMaxAge, LogMaxTotalSize, LogMaxFileSize, AccessLogQueryString,
         AdminMaxFailedAttempts, AdminLockoutDuration, AdminSessionLifetime, AdminSessionIdleTimeout, AdminPartialSessionLifetime,
         AdminMinPasswordLength, AdminTotpIssuer, AdminRateLimitPermitsPerIp, AdminRateLimitPermitsPerUser, AdminRateLimitWindow,
+        NotificationAdminUrl, NotificationHealthHold, NotificationCoalesceWindow, NotificationMaxDeliveryAge,
     ];
 
     /// <summary>

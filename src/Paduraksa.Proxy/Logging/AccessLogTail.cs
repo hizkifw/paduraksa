@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.Logging;
@@ -46,7 +47,7 @@ public sealed class AccessLogTail
 
     private readonly Lock _gate = new();
     private readonly AccessLogEntry[] _entries;
-    private readonly AccessLogFormatOptions _options;
+    private readonly LiveOptions<AccessLogFormatOptions> _options;
     private readonly SnapshotStore? _snapshots;
     private AccessLogTailSubscription[] _subscribers = [];
     private long _sequence;
@@ -54,7 +55,7 @@ public sealed class AccessLogTail
     /// <param name="capacity">Entries kept.</param>
     /// <param name="options">The file formatter's options: the tail redacts the way the file does.</param>
     /// <param name="snapshots">Resolves the host that owned a request; null leaves every request unmatched.</param>
-    public AccessLogTail(int capacity, AccessLogFormatOptions options, SnapshotStore? snapshots = null)
+    public AccessLogTail(int capacity, LiveOptions<AccessLogFormatOptions> options, SnapshotStore? snapshots = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(capacity, MaximumCapacity);
@@ -182,7 +183,7 @@ public sealed class AccessLogTail
     private AccessLogTailEntry Convert(in AccessLogEntry raw)
     {
         var names = _snapshots?.Current.Hosts.Find(raw.Host) is { } host ? host.Names : null;
-        return AccessLogTailEntry.From(in raw, _options, names);
+        return AccessLogTailEntry.From(in raw, _options.Current, names);
     }
 
     /// <summary>Under the lock: the buffer's entries oldest first, and the sequence of the newest. Plain struct copies, no conversion.</summary>

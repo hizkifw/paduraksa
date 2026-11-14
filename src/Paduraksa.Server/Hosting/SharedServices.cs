@@ -340,7 +340,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // bindings hand each change to the consumers' live options.
             var serverSettings = builder.Add(new ServerSettingsState(options.ServerSettingEnvironment));
             var settingsBindings = builder.Add(new ServerSettingsBindings(
-                serverSettings, logFiles, new PaduraksaOptionsSnapshot(options.Metrics.ToOptions(), options.Analytics.ToOptions(), options.Notifications.ToOptions(), options.Admin.ToIdentityOptions())));
+                serverSettings, logFiles, new PaduraksaOptionsSnapshot(options.Metrics.ToOptions(), options.Analytics.ToOptions(), options.Notifications.ToOptions(), options.Admin.ToIdentityOptions(), options.AccessLog.ToFormatOptions())));
 
             var health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
@@ -400,7 +400,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // one reader, and it writes the lines into access.log through the writer above. Built after the log files, so
             // the writers outlive the drain's last flush (they are disposed after the hosts have stopped).
             builder.Add(new AccessLogRing(options.AccessLog.RingSize));
-            var accessLogFormat = builder.Add(options.AccessLog.ToFormatOptions());
+            var accessLogFormat = builder.Add(settingsBindings.AccessLogFormat);
             builder.Add<IAccessLogSink>(new AccessLogFileSink(logFiles));
             // The dashboard's live tail is fed by that same drain, after the file; it keeps copies redacted with the file's options.
             var accessLogTail = builder.Add(new AccessLogTail(options.AccessLog.TailSize, accessLogFormat, snapshots));

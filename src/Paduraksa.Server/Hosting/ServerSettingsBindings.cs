@@ -5,6 +5,7 @@ using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Settings;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Options;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Server.Logging;
 
 namespace Paduraksa.Server.Hosting;
@@ -29,6 +30,7 @@ internal sealed class ServerSettingsBindings
         Analytics = new(startup.Analytics);
         Notifications = new(startup.Notifications);
         Identity = new(startup.Identity);
+        AccessLogFormat = new(startup.AccessLogFormat);
         _touchInterval = startup.Identity.TouchInterval;
         Apply(state.Current);
         state.Changed += Apply;
@@ -42,6 +44,8 @@ internal sealed class ServerSettingsBindings
 
     public LiveOptions<IdentityOptions> Identity { get; }
 
+    public LiveOptions<AccessLogFormatOptions> AccessLogFormat { get; }
+
     private void Apply(ServerSettings values)
     {
         MetricRollups.Set(MetricRollups.Current with { Retention = ServerSettingCatalog.MetricsRetention.Resolve(values) });
@@ -49,7 +53,12 @@ internal sealed class ServerSettingsBindings
         Notifications.Set(Notifications.Current with
         {
             HistoryRetention = ServerSettingCatalog.NotificationHistoryRetention.Resolve(values),
+            AdminUrl = ServerSettingCatalog.NotificationAdminUrl.Resolve(values) is { Length: > 0 } url ? new Uri(url.TrimEnd('/') + "/") : null,
+            HealthHold = ServerSettingCatalog.NotificationHealthHold.Resolve(values),
+            CoalesceWindow = ServerSettingCatalog.NotificationCoalesceWindow.Resolve(values),
+            MaxDeliveryAge = ServerSettingCatalog.NotificationMaxDeliveryAge.Resolve(values),
         });
+        AccessLogFormat.Set(AccessLogFormat.Current with { LogQueryString = ServerSettingCatalog.AccessLogQueryString.Resolve(values) });
         var idle = ServerSettingCatalog.AdminSessionIdleTimeout.Resolve(values);
         Identity.Set(Identity.Current with
         {
@@ -74,4 +83,4 @@ internal sealed class ServerSettingsBindings
 }
 
 /// <summary>The consumers' options as the bootstrap configuration has them, before the server settings are laid over them.</summary>
-internal sealed record PaduraksaOptionsSnapshot(MetricRollupOptions MetricRollups, AnalyticsOptions Analytics, NotificationOptions Notifications, IdentityOptions Identity);
+internal sealed record PaduraksaOptionsSnapshot(MetricRollupOptions MetricRollups, AnalyticsOptions Analytics, NotificationOptions Notifications, IdentityOptions Identity, AccessLogFormatOptions AccessLogFormat);

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Analytics;
 
 namespace Paduraksa.Proxy.Logging;
@@ -35,7 +36,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
 
     private readonly AccessLogRing _ring;
     private readonly IAccessLogSink _sink;
-    private readonly AccessLogFormatOptions _options;
+    private readonly LiveOptions<AccessLogFormatOptions> _options;
     private readonly ILogger<AccessLogDrainService> _logger;
     private readonly AccessLogTail? _tail;
     private readonly TrafficAnalytics? _analytics;
@@ -47,7 +48,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
     private long _lastFailureReport;
     private long _pendingDrops;
 
-    public AccessLogDrainService(AccessLogRing ring, IAccessLogSink sink, AccessLogFormatOptions options, ILogger<AccessLogDrainService> logger, AccessLogTail? tail = null, TrafficAnalytics? analytics = null)
+    public AccessLogDrainService(AccessLogRing ring, IAccessLogSink sink, LiveOptions<AccessLogFormatOptions> options, ILogger<AccessLogDrainService> logger, AccessLogTail? tail = null, TrafficAnalytics? analytics = null)
     {
         ArgumentNullException.ThrowIfNull(ring);
         ArgumentNullException.ThrowIfNull(sink);
@@ -109,7 +110,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
     {
         while (_ring.TryRead(out var entry))
         {
-            var length = AccessLogFormatter.Format(in entry, _options, _buffer);
+            var length = AccessLogFormatter.Format(in entry, _options.Current, _buffer);
             if (length < 0)
             {
                 // Only reachable with a buffer smaller than MaxLineLength.

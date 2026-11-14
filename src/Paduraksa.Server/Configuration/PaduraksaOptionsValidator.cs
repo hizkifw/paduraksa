@@ -375,15 +375,14 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             return;
         }
 
-        if (notifications.AdminUrl is { Length: > 0 } url
-            && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0))
+        if (notifications.AdminUrl is { Length: > 0 } url && ServerSettingCatalog.NotificationAdminUrl.Check(url) is not null)
         {
             failures.Add($"{Key}:AdminUrl must be an http or https address without credentials, a query or a fragment, was '{url}'.");
         }
 
-        Bound(notifications.HealthHold, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:HealthHold", failures);
-        Bound(notifications.CoalesceWindow, TimeSpan.Zero, TimeSpan.FromMinutes(1), $"{Key}:CoalesceWindow", failures);
-        Bound(notifications.MaxDeliveryAge, TimeSpan.FromMinutes(1), TimeSpan.FromDays(7), $"{Key}:MaxDeliveryAge", failures);
+        Bound(ServerSettingCatalog.NotificationHealthHold, notifications.HealthHold, $"{Key}:HealthHold", failures);
+        Bound(ServerSettingCatalog.NotificationCoalesceWindow, notifications.CoalesceWindow, $"{Key}:CoalesceWindow", failures);
+        Bound(ServerSettingCatalog.NotificationMaxDeliveryAge, notifications.MaxDeliveryAge, $"{Key}:MaxDeliveryAge", failures);
         Bound(ServerSettingCatalog.NotificationHistoryRetention, notifications.HistoryRetention, $"{Key}:HistoryRetention", failures);
     }
 

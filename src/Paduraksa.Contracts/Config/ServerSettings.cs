@@ -48,6 +48,16 @@ public sealed record ServerSettings
 
     public TimeSpan? AdminRateLimitWindow { get; init; }
 
+    public string? NotificationAdminUrl { get; init; }
+
+    public TimeSpan? NotificationHealthHold { get; init; }
+
+    public TimeSpan? NotificationCoalesceWindow { get; init; }
+
+    public TimeSpan? NotificationMaxDeliveryAge { get; init; }
+
+    public bool? AccessLogQueryString { get; init; }
+
     /// <summary>Whether no field is set: canonical JSON then writes no <c>server</c> key, so a stored revision keeps its bytes.</summary>
     [JsonIgnore]
     public bool SetsNothing => ServerSettingCatalog.All.All(setting => !setting.IsSet(this));
