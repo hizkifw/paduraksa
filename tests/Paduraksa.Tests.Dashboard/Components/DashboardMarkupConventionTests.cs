@@ -28,6 +28,48 @@ public sealed partial class DashboardMarkupConventionTests
         Assert.True(shown.Count == 0, "Number fields show no up and down arrows (a field beside text fields would be the only one with them):\n" + string.Join('\n', shown));
     }
 
+    // The statistics surfaces: each draws its loading state from the shared frame (a tile with Pending, a StatsCard, a chart with Pending), never
+    // from a free-standing box whose height is a number in the call site, which is what made the page jump when the figures arrived.
+    private static readonly string[] StatisticsSurfaces =
+    [
+        "Components/TrafficStrip.razor",
+        "Components/TrafficStatistics.razor",
+        "Components/VisitorsStatistics.razor",
+        "Components/SecurityStatistics.razor",
+        "Components/StatCard.razor",
+        "Pages/SecurityPage.razor",
+    ];
+
+    [Fact]
+    public void AStatisticsSurfaceHasNoSkeletonBoxOfItsOwn()
+    {
+        var boxes = Markup()
+            .Where(file => StatisticsSurfaces.Any(surface => file.Path.EndsWith(surface, StringComparison.Ordinal)))
+            .Where(file => file.Text.Contains("<MudSkeleton", StringComparison.Ordinal))
+            .Select(file => file.Path)
+            .ToList();
+
+        Assert.True(boxes.Count == 0, "These draw a skeleton box of their own; render the loaded markup with Pending (SecurityTile, StatsCard, TimeSeriesChart) so both share one size:\n" + string.Join('\n', boxes));
+    }
+
+    [Fact]
+    public void EveryStatisticsComponentLoadsThroughTheSharedFrame()
+    {
+        var files = Markup().ToDictionary(file => file.Path, file => file.Text);
+        var missing = new[]
+            {
+                ("Components/TrafficStrip.razor", "<SecurityTile"),
+                ("Components/TrafficStatistics.razor", "<StatsCard"),
+                ("Components/VisitorsStatistics.razor", "<StatsCard"),
+                ("Components/SecurityStatistics.razor", "<StatsCard"),
+            }
+            .Where(use => !files.Single(file => file.Key.EndsWith(use.Item1, StringComparison.Ordinal)).Value.Contains(use.Item2 + " ", StringComparison.Ordinal))
+            .Select(use => $"{use.Item1} should use {use.Item2}")
+            .ToList();
+
+        Assert.True(missing.Count == 0, string.Join('\n', missing));
+    }
+
     // What is allowed to spell a number or a time itself: machine values and geometry, never something a person reads. Everything a person
     // reads goes through DisplayFormat, so the zone, culture and clock they chose apply everywhere.
     private static readonly (string File, string Why)[] MayFormatItself =
