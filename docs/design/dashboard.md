@@ -29,7 +29,7 @@ Contents:
 - Keyboard-first forms, dark and light themes, a mobile-friendly host list.
 
 **Pages:**
-1. **Overview:** what needs the person, the counts, a live strip of the last hour (requests, errors, refused, latency p95), the hosts and the recent changes. The traffic over a range is on Analytics.
+1. **Overview:** what needs the person, a live strip of the last hour (requests, errors, refused, latency p95), the counts, the hosts and the recent changes. The traffic over a range is on Analytics.
 2. **Hosts:** a searchable, taggable list with live sparkline, health and cert status. As built, a host is edited in a drawer (see "Drawers" below), not on a tabbed detail page, and the list has no sparkline.
 3. **Request simulator ("Why was this blocked?"):** enter a URL, IP, UA and headers and see the exact decision chain (host match, each policy, route, upstream), against the live config, an old revision or the change being reviewed. The same function is exposed to the API and MCP, and access-log entries link straight into it (see [hot-path.md](hot-path.md)).
 4. **Certificates:** list, issue (wizard), upload, local CA, renewal timeline, ACME order logs.
@@ -462,13 +462,13 @@ A line of copy stays only if it says what the title, the navigation or the data 
 
 A missing second factor is not on the overview (threat model G4, the owner's call). The setup checklist's "Two-step sign-in" asks the viewer, and Users shows each account's two-step status. A link that leaves the dashboard (the install guide) opens in a tab of its own.
 
-Then come the counts (hosts online and off, upstreams, certificates, the live revision; two by two on a phone), the traffic strip (below), the first six hosts with where their requests go and their status (those that need attention first), and the latest five revisions, each linked. "Add host" sits in the header. It reads through `IDashboardConfig` now (testable), and the whole snapshot still travels from the first render into the circuit.
+Then come the traffic strip (below), the counts (hosts online and off, upstreams, certificates, the live revision; two by two on a phone), the first six hosts with where their requests go and their status (those that need attention first), and the latest five revisions, each linked. "Add host" sits in the header. It reads through `IDashboardConfig` now (testable), and the whole snapshot still travels from the first render into the circuit.
 
 **The traffic strip** (`Components/TrafficStrip.razor`, `metrics:read`) is the overview's only traffic: four tiles, always the live hour, with no range picker.
 - **Tiles:** requests per second, errors (the 5xx share), refused per second and latency p95. Each figure is the pace of the last 30 s (`MetricsService`'s "now"). Behind it is a sparkline of the last hour from the sampler's ring, which is a compact `TimeSeriesChart` (`Compact`: the line alone, with no axes, grid or time labels; the tooltip still gives each step's time and values, and gaps are still shaded).
 - **Link:** the whole tile is one link, over its label (`SecurityTile.Href`, stretched by CSS, with the sparkline above it so its tooltip works), to `/analytics?tab=traffic&range=1h`.
 - **Polling:** it reads the hour every 5 s while the browser tab is visible (`paduraksa.pageVisibility`) and reads at once on return. The hour is the sampler's memory and reads nothing that can fail, so the strip has no error state. A sparkline appears once the hour has two steps.
-- **Where it sits:** under the counts and above the hosts and recent changes, about 150 px tall (two rows of tiles on a phone). On a laptop the hosts list starts in the first screen when nothing needs the person.
+- **Where it sits:** first after what needs the person, above the counts (the owner wanted the charts at the top), then the hosts and recent changes; about 150 px tall (two rows of tiles on a phone). On a laptop the hosts list starts in the first screen when nothing needs the person.
 - **Moved to Analytics:** the requests and latency charts, the busiest hosts, the upstream errors, the range picker, and the "Analytics" link beside it. The upstream-latency tile is gone (the latency chart draws upstream p95).
 
 **Drawers instead of dialogs.**
