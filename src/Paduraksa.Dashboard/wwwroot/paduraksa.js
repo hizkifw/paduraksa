@@ -19,6 +19,26 @@
         // No Intl: the server shows UTC.
     }
 
+    // The overview's "Finish setting up" checklist is dismissed with a cookie, so the server can leave it out of the prerender. Until then the
+    // dismissal lived in local storage: it moves to the cookie on the first load, and this page hides the checklist at once (the server
+    // rendered it, not having the cookie yet) so nobody sees it come back.
+    const checklistCookie = "paduraksa-checklist";
+    const writeDismissed = () => {
+        document.cookie = `${checklistCookie}=dismissed; Path=/; Max-Age=315360000; SameSite=Strict${secure}`;
+        return document.cookie.split("; ").includes(`${checklistCookie}=dismissed`);
+    };
+    try {
+        const stored = window.localStorage.getItem("paduraksa-setup-checklist") === "dismissed";
+        if (stored && !document.cookie.split("; ").includes(`${checklistCookie}=dismissed`)) {
+            document.documentElement.dataset.checklistDismissed = "";
+            if (writeDismissed()) {
+                window.localStorage.removeItem("paduraksa-setup-checklist");
+            }
+        }
+    } catch {
+        // No storage: nothing to move.
+    }
+
     const light = window.matchMedia("(prefers-color-scheme: light)");
     const recordScheme = () => write("paduraksa-scheme", light.matches ? "light" : "dark");
     recordScheme();
@@ -727,6 +747,11 @@
         highlights,
         logPane,
         pageVisibility,
+
+        /** Remembers that the overview's checklist was dismissed in this browser. */
+        dismissSetupChecklist() {
+            writeDismissed();
+        },
 
         /** Stores the person's choice ("dark" or "light") and applies it to the plain-HTML pages' colours. */
         setTheme(value) {

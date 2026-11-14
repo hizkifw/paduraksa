@@ -21,7 +21,7 @@ public sealed class SkeletonShiftEndToEndTests
     private sealed record Pair(string Pending, string Loaded, bool Exact = true);
 
     /// <summary>Where an element sits below an anchor, which must not change: the column below a skeleton doesn't move when it is replaced.</summary>
-    private sealed record Below(string Anchor, string Pending, string Loaded);
+    private sealed record Below(string Anchor, string Pending, string Loaded, double? MaxOffset = null, bool FromBottom = false);
 
     private static Pair Tile(string name) => new($"[data-pending={name}]", $"[data-tile={name}]");
 
@@ -36,6 +36,27 @@ public sealed class SkeletonShiftEndToEndTests
         await VerifyAsync("/", "overview",
             [Same(strip), Tile("requests"), Tile("errors"), Tile("refused"), Tile("latency"), Same(".pdk-stats")],
             [new Below(strip, ".pdk-stats", ".pdk-stats"), new Below(strip, "[data-section=hosts]", "[data-section=hosts]")]);
+    }
+
+    [Fact]
+    public async Task OnAFreshInstallTheChecklistIsInThePrerenderAtItsFinalHeightAndNothingBelowItMoves()
+    {
+        var strip = "[data-section=traffic-strip]";
+        await VerifyAsync("/", "overview-checklist",
+            [Same(".pdk-checklist"), Same(".pdk-checklist-item[data-step=two-step]"), Same(strip), Same(".pdk-stats")],
+            [new Below(".pdk-page-header", strip, strip), new Below(".pdk-page-header", ".pdk-stats", ".pdk-stats"), new Below(".pdk-checklist", strip, strip)]);
+    }
+
+    [Fact]
+    public async Task ADismissedChecklistIsAbsentInBothStatesWithNoGapWhereItWas()
+    {
+        var strip = "[data-section=traffic-strip]";
+        await VerifyAsync("/", "overview-dismissed",
+            [Same(strip), Same(".pdk-stats")],
+            // What is above the strip (the attention card) ends a card margin from it: the checklist left no gap.
+            [new Below("[data-section=attention]", strip, strip, MaxOffset: 24, FromBottom: true)],
+            dismissed: true,
+            absent: [".pdk-checklist"]);
     }
 
     [Fact]
@@ -79,7 +100,7 @@ public sealed class SkeletonShiftEndToEndTests
             [new Below(".pdk-page-header", "[data-pending=hosts]", "[data-section=hosts]")]);
     }
 
-    private static async Task VerifyAsync(string path, string name, Pair[] pairs, Below[] below, bool seed = false)
+    private static async Task VerifyAsync(string path, string name, Pair[] pairs, Below[] below, bool seed = false, bool dismissed = false, string[]? absent = null)
     {
         var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
         using var ownedPlaywright = playwright;
@@ -94,6 +115,10 @@ public sealed class SkeletonShiftEndToEndTests
         }
 
         await setup.CloseAsync();
+        if (dismissed)
+        {
+            await context.AddCookiesAsync([new Cookie { Name = "paduraksa-checklist", Value = "dismissed", Url = host.Admin.ToString() }]);
+        }
 
         List<string> failures = [];
         foreach (var width in new[] { 1366, 390 })
@@ -103,16 +128,24 @@ public sealed class SkeletonShiftEndToEndTests
                 var label = $"{name}-{width}-{scheme.ToString().ToLowerInvariant()}";
                 var held = await OpenAsync(context, path, width, scheme, hold: true);
                 await Expect(held.Locator("[data-pending]").First).ToBeVisibleAsync(new() { Timeout = 15_000 });
-                var skeleton = await MeasureAsync(held, pairs.Select(p => p.Pending), below);
+                var skeleton = await MeasureAsync(held, pairs.Select(p => p.Pending).Concat(absent ?? []), below);
                 await PlaywrightBrowser.ScreenshotAsync(held, $"skeleton-{label}");
                 await held.CloseAsync();
 
                 var live = await OpenAsync(context, path, width, scheme, hold: false);
                 await Expect(live.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
                 await Expect(live.Locator("[data-pending]")).ToHaveCountAsync(0, new() { Timeout = 20_000 });
-                var loaded = await MeasureAsync(live, pairs.Select(p => p.Loaded), below);
+                var loaded = await MeasureAsync(live, pairs.Select(p => p.Loaded).Concat(absent ?? []), below);
                 await PlaywrightBrowser.ScreenshotAsync(live, $"loaded-{label}");
                 await live.CloseAsync();
+
+                foreach (var selector in absent ?? [])
+                {
+                    if (skeleton.Boxes[selector] is not null || loaded.Boxes[selector] is not null)
+                    {
+                        failures.Add($"{label}: {selector} should be absent in both states");
+                    }
+                }
 
                 foreach (var pair in pairs)
                 {
@@ -144,6 +177,10 @@ public sealed class SkeletonShiftEndToEndTests
                     if (before is null || after is null || Math.Abs(before.Value - after.Value) > Tolerance)
                     {
                         failures.Add($"{label}: {item.Loaded} sits {after:0.#} px below {item.Anchor} loaded, {before:0.#} px in the skeleton");
+                    }
+                    else if (item.MaxOffset is { } max && after > max)
+                    {
+                        failures.Add($"{label}: {item.Loaded} sits {after:0.#} px below {item.Anchor}, more than {max:0.#}: there is a gap");
                     }
                 }
             }
@@ -183,7 +220,7 @@ public sealed class SkeletonShiftEndToEndTests
         {
             var anchor = await BoxAsync(page, item.Anchor);
             var box = await BoxAsync(page, item.Pending) ?? await BoxAsync(page, item.Loaded);
-            offsets[item.Pending] = offsets[item.Loaded] = anchor is null || box is null ? null : box[1] - anchor[1];
+            offsets[item.Pending] = offsets[item.Loaded] = anchor is null || box is null ? null : box[1] - (item.FromBottom ? anchor[1] + anchor[3] : anchor[1]);
         }
 
         return new Measured(boxes, offsets);

@@ -1,5 +1,7 @@
 @* "Finish setting up" on the overview: the tasks that aren't done yet, each linking to the page that does it, until they
-   are done or the person dismisses the list. Nothing shows while it loads, so a finished setup never flashes it. *@
+   are done or the person dismisses the list. It is read while the page is prerendered (what is open comes from the data, and the
+   dismissal from a cookie) and carried into the circuit, so it is on the page, or not, from the first paint. *@
+@using Microsoft.Extensions.Logging
 @inject UserService Users
 @inject AcmeAccountService AcmeAccounts
 @inject DnsProviderService DnsProviders
@@ -7,10 +9,12 @@
 @inject ConfigService Config
 @inject DashboardCaller Caller
 @inject IJSRuntime JS
-@implements IAsyncDisposable
+@inject ChecklistPreference Preference
+@inject ILogger<SetupChecklist> Logger
 
-@if (_progress is { } progress && !_dismissed && Visible(progress) is { Count: > 0 } open)
+@if (!Preference.IsDismissed && State is { Open.Count: > 0 } state)
 {
+    var open = state.Open;
     <MudPaper Class="pdk-card pdk-checklist" Elevation="0" Outlined="true" role="region" aria-label="Finish setting up">
         <div class="pdk-card-head">
             <div class="pdk-card-head-main">
@@ -20,9 +24,10 @@
                     <MudText Typo="Typo.caption" Class="pdk-muted">@Wording.Plural(open.Count, "thing is", "things are") left to set up.</MudText>
                 </div>
             </div>
-            <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="DismissAsync" aria-label="Dismiss the checklist" Class="pdk-checklist-dismiss" />
+            @* Nothing is listening before the circuit is live: a click on it then would be lost. *@
+            <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" Disabled="@(!RendererInfo.IsInteractive)" OnClick="DismissAsync" aria-label="Dismiss the checklist" Class="pdk-checklist-dismiss" />
         </div>
-        <MudProgressLinear Value="Percent(progress, open.Count)" Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-3" />
+        <MudProgressLinear Value="state.Percent" Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-3" />
         <ul class="pdk-list">
             @foreach (var task in open)
             {
@@ -41,55 +46,36 @@
 }
 
 @code {
-    private const string ModulePath = "./_content/Paduraksa.Dashboard/setup-checklist.js";
-
-    private SetupProgress? _progress;
-    private bool _dismissed = true;
-    private IJSObjectReference? _module;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    /// <summary>What is left to do, carried from the prerender into the circuit.</summary>
+    public sealed record ChecklistView(IReadOnlyList<SetupTask> Open, int Total)
     {
-        if (!firstRender || !RendererInfo.IsInteractive)
+        public double Percent => Total == 0 ? 100 : 100.0 * (Total - Open.Count) / Total;
+    }
+
+    [PersistentState]
+    public ChecklistView? State { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // A dismissed checklist reads nothing, and a state carried from the prerender is not read again.
+        if (Preference.IsDismissed || State is not null)
         {
             return;
         }
 
         try
         {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", ModulePath);
-            _dismissed = await _module.InvokeAsync<bool>("isDismissed");
-        }
-        catch (JSException)
-        {
-            _dismissed = false;
-        }
-
-        if (_dismissed)
-        {
-            return;
-        }
-
-        var user = await Caller.CheckAsync();
-        if (user is not null)
-        {
-            _progress = await SetupProgress.LoadAsync(user, Users, AcmeAccounts, DnsProviders, CertificateInventory, Config);
-        }
-
-        StateHasChanged();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            try
+            var user = await Caller.CheckAsync();
+            if (user is not null)
             {
-                await _module.DisposeAsync();
+                var progress = await SetupProgress.LoadAsync(user, Users, AcmeAccounts, DnsProviders, CertificateInventory, Config);
+                State = new ChecklistView(Visible(progress), SetupTasks.All.Count(t => progress.IsDone(t.Task) is not null));
             }
-            catch (JSDisconnectedException)
-            {
-                // The circuit is gone.
-            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The checklist is a nicety: a store that can't be read leaves it out, and the overview reports that itself.
+            Logger.LogWarning(ex, "Couldn't read the setup checklist.");
         }
     }
 
@@ -97,18 +83,16 @@
     internal static IReadOnlyList<SetupTask> Visible(SetupProgress progress) =>
         [.. progress.Remaining.Where(task => task != SetupTask.DnsProvider || progress.HasAccount == true)];
 
-    private static double Percent(SetupProgress progress, int open)
-    {
-        var total = SetupTasks.All.Count(t => progress.IsDone(t.Task) is not null);
-        return total == 0 ? 100 : 100.0 * (total - open) / total;
-    }
-
     private async Task DismissAsync()
     {
-        _dismissed = true;
-        if (_module is not null)
+        Preference.Dismiss();
+        try
         {
-            await _module.InvokeVoidAsync("dismiss");
+            await JS.InvokeVoidAsync("paduraksa.dismissSetupChecklist");
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+        {
+            // The circuit is gone, or the browser refused the cookie: it shows again next load.
         }
     }
 }

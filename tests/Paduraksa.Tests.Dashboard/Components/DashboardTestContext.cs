@@ -29,6 +29,7 @@ internal sealed class DashboardTestContext : BunitContext
         Services.AddSingleton<AntiforgeryStateProvider>(new FixedAntiforgery());
         Services.AddSingleton(new DashboardOptions { MinPasswordLength = 12 });
         Services.AddScoped<ThemeState>();
+        Services.AddScoped<Paduraksa.Dashboard.Setup.ChecklistPreference>();
         Services.AddScoped<DisplayFormat>();
         Services.AddScoped<DrawerStack>();
         Services.AddScoped<DashboardBrowser>();

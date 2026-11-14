@@ -397,3 +397,8 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     font-family: var(--pdk-mono);
     font-size: 0.8125rem;
 }
+
+/* A checklist dismissed before its dismissal became a cookie: hidden until the next load, when the server leaves it out (paduraksa.js). */
+[data-checklist-dismissed] .pdk-checklist {
+    display: none;
+}

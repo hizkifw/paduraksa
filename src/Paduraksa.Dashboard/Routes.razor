@@ -1,5 +1,6 @@
 @inject ThemeState Theme
 @inject DisplayFormat Format
+@inject Setup.ChecklistPreference Checklist
 
 <Router AppAssembly="typeof(Routes).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
@@ -32,8 +33,13 @@
     [Parameter]
     public string? Locale { get; set; }
 
+    /// <summary>The checklist's cookie, as the request carried it: whether "Finish setting up" was dismissed in this browser.</summary>
+    [Parameter]
+    public string? ChecklistDismissed { get; set; }
+
     protected override void OnInitialized()
     {
+        Checklist.Initialize(ChecklistDismissed);
         Theme.Initialize(Preference, SystemPrefersLight);
         Format.Initialize(ZoneId, Locale);
     }
