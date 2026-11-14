@@ -44,7 +44,10 @@ internal static class ConnectionLimitSettings
                 return;
             }
 
-            // Plain stores of what Kestrel reads when a connection or request starts; a connection in progress keeps what it read.
+            // Plain property stores of what Kestrel reads when a connection or request starts; a connection in progress keeps what it read.
+            // They are KestrelServerLimits' setters, not fields, so there is nothing to Volatile.Write. Each is one aligned 64-bit word (a TimeSpan)
+            // or one reference (a MinDataRate), and this build is 64-bit only, so a reader sees the old value or the new, never a torn one.
+            // Which connection sees the new value first is not ordered, and needn't be: each takes whichever it reads when it starts.
             limits.RequestHeadersTimeout = next.RequestHeadersTimeout;
             limits.KeepAliveTimeout = next.KeepAliveTimeout;
             limits.MinRequestBodyDataRate = next.MinRequestBodyRate == 0 ? null : new MinDataRate(next.MinRequestBodyRate, next.MinRequestBodyGrace);
