@@ -26,6 +26,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
     private const int Connections = 4;
     private const int Warmup = 1_000;
     private const int Measured = 3_000;
+    private const int RefusedBodiesPerConnection = 200;
 
     [Theory]
     [InlineData("h1", "app.test", "/api/items", HttpStatusCode.OK)]
@@ -378,17 +379,28 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
             _ => request => request.Headers.TryAddWithoutValidation("X-Pad", "v"),
         };
 
-        await SendAsync(server, client, "limits.test", path, expected, Warmup, configure);
-        server.GateStats!.Reset();
-        await SendAsync(server, client, "limits.test", path, expected, Measured, configure);
+        var refusedBody = h2c && kind is "body" or "routeBody";
+        if (refusedBody)
+        {
+            await SendOnFreshConnectionsAsync(server, "limits.test", path, expected, Warmup, configure);
+            server.GateStats!.Reset();
+            await SendOnFreshConnectionsAsync(server, "limits.test", path, expected, Measured, configure);
+        }
+        else
+        {
+            await SendAsync(server, client, "limits.test", path, expected, Warmup, configure);
+            server.GateStats!.Reset();
+            await SendAsync(server, client, "limits.test", path, expected, Measured, configure);
+        }
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
         Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
 
         // A refused body over HTTP/2 (the host's limit or the route's) leaves the stream with unread data, and Kestrel resets rather than pools such a stream,
         // so a fresh one now and then is the protocol's doing, not a leak. How many depends on timing: 3 in 3000 here, 12 and
-        // once 113 on CI. The bound only keeps the measurement from being mostly fresh streams, where allocation is expected.
-        var freshAllowed = h2c && kind is "body" or "routeBody" ? Measured / 10 : 10;
+        // once 113 on CI. Each of the fresh connections adds its first streams, one per worker, on top. The bound only keeps the
+        // measurement from being mostly fresh streams, where allocation is expected.
+        var freshAllowed = refusedBody ? (Measured / 10) + (Measured / RefusedBodiesPerConnection * Connections) : 10;
         Assert.True(server.GateStats.FreshState <= freshAllowed, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -404,6 +416,24 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
     {
         request.Method = HttpMethod.Post;
         request.Content = new ByteArrayContent(new byte[length]);
+    }
+
+    /// <summary>
+    /// Refused bodies over HTTP/2, at most <see cref="RefusedBodiesPerConnection"/> to a connection. Kestrel answers before reading
+    /// the body and resets the stream with NO_ERROR, and HttpClient (like a browser, RFC 9113 §8.1) then stops sending without ending
+    /// the stream. Kestrel keeps such a stream tracked until the client ends it or for its 5 s body-drain timeout, and past
+    /// <c>MaxTrackedStreams</c> (twice the 100 streams a connection allows) it refuses every new stream with ENHANCE_YOUR_CALM, and
+    /// closes the connection after 100 of those in 5 s. How many bodies the client abandons is timing: 50-110 in 4000 locally, enough
+    /// more on a slow CI runner. 200 requests a connection can never track more than 200 streams, whatever the timing, and no
+    /// legitimate client sends 200 refused uploads to one connection in 5 s.
+    /// </summary>
+    private static async Task SendOnFreshConnectionsAsync(ProxyTestServer server, string host, string path, HttpStatusCode expected, int count, Action<HttpRequestMessage> configure)
+    {
+        for (var sent = 0; sent < count; sent += RefusedBodiesPerConnection)
+        {
+            using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+            await SendAsync(server, client, host, path, expected, Math.Min(RefusedBodiesPerConnection, count - sent), configure);
+        }
     }
 
     private static async Task SendAsync(ProxyTestServer server, HttpClient client, string host, string path, HttpStatusCode expected, int count, Action<HttpRequestMessage>? configure = null)
