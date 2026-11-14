@@ -27,6 +27,13 @@ public sealed class ReadOnlyInspectionTests
         await command.ExecuteNonQueryAsync(Ct);
     }
 
+    [Theory]
+    [InlineData("/var/lib/pad/vault.db", "file:///var/lib/pad/vault.db?immutable=1")]
+    [InlineData("/data/a b/v#1.db", "file:///data/a%20b/v%231.db?immutable=1")]
+    [InlineData("C:/data/vault.db", "file:///C:/data/vault.db?immutable=1")]
+    public void TheImmutableUriEscapesSegmentsAndKeepsAWindowsDrive(string path, string expected) =>
+        Assert.Equal(expected, PaduraksaSqlite.ImmutableUri(path));
+
     /// <summary>The database with every pooled connection closed, which removes its <c>-wal</c> and <c>-shm</c> files: a server that has stopped.</summary>
     private static async Task<TestConfigDatabase> StoppedAsync()
     {

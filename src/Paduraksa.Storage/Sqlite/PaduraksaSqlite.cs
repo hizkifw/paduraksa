@@ -33,7 +33,9 @@ public static class PaduraksaSqlite
     /// Even a read-only connection to a WAL database creates its <c>-wal</c> and <c>-shm</c> files when they are missing, which would leave
     /// files behind in a data directory nothing was running on. So when there is no <c>-wal</c> file (no server holds the database open, and
     /// a clean close removes it) the file is opened <c>immutable</c>: SQLite then touches nothing but the main file. With a <c>-wal</c> file
-    /// present it is opened normally, since the WAL may hold commits the main file lacks.
+    /// present it is opened normally, since the WAL may hold commits the main file lacks. A server that starts between that check and the
+    /// open is not seen: its writes can make the immutable read torn. The look is read-only, so nothing is damaged, and it is meant for
+    /// a data directory nothing is running on.
     /// </remarks>
     public static string ReadOnlyConnectionString(string databasePath)
     {
@@ -41,8 +43,7 @@ public static class PaduraksaSqlite
         var dataSource = databasePath;
         if (!File.Exists(databasePath + "-wal"))
         {
-            var full = Path.GetFullPath(databasePath);
-            dataSource = "file:" + string.Join('/', full.Split('/').Select(Uri.EscapeDataString)) + "?immutable=1";
+            dataSource = ImmutableUri(Path.GetFullPath(databasePath));
         }
 
         return new SqliteConnectionStringBuilder
@@ -53,6 +54,14 @@ public static class PaduraksaSqlite
             ForeignKeys = true,
             DefaultTimeout = (int)SqlitePragmas.BusyTimeout.TotalSeconds,
         }.ToString();
+    }
+
+    /// <summary>The <c>file:</c> URI of a full path, opened immutable: each segment escaped, and a Windows drive's colon kept.</summary>
+    internal static string ImmutableUri(string fullPath)
+    {
+        var path = fullPath.Replace(Path.DirectorySeparatorChar, '/');
+        var drive = path.Length > 1 && path[1] == ':' && char.IsAsciiLetter(path[0]) ? "/" + path[..2] : "";
+        return "file://" + drive + string.Join('/', path[(drive.Length > 0 ? 2 : 0)..].Split('/').Select(Uri.EscapeDataString)) + "?immutable=1";
     }
 
     /// <summary>
