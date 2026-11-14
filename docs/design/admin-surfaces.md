@@ -329,7 +329,7 @@ The descriptions are all the model knows. They name the global, the shape of the
 
 ### The sandbox: a killable child process
 
-`Paduraksa.Mcp`, **Jint 4.17.0** (pinned in `Directory.Packages.props`): a managed interpreter, no native V8.
+`Paduraksa.Mcp`, **Jint 4.18.0** (pinned in `Directory.Packages.props`): a managed interpreter, no native V8. On 4.18.0 `new RegExp` honours the engine's regex timeout (sebastienros/jint#3431: 4.17.0 gave every pattern built at run time the parser package's process-wide 5 s, past the 5 s CPU limit).
 
 **Decision, and what it replaced.**
 - The first version ran Jint inside the proxy with guards: removed globals, replacements for `JSON.stringify`, `join`, `toString`, `repeat`, `padStart`, `replace`, `concat` and `[Symbol.replace]`, a per-statement allocation count, a BigInt pre-check. It was measured against and it held.
