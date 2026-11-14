@@ -46,10 +46,24 @@
     </MudAlert>
 }
 
-<div class="pdk-home-grid pdk-cert-managed">
-    <TrustRootCard Root="_view?.Root?.Summary" PermittedNames="_status?.PermittedNames" ExpandHowTo="true" />
-    <AdminCertificateCard Admin="_view?.Admin" Now="_now" OnOpen="row => Navigation.NavigateTo(DashboardRoutes.Certificate(row.Id))" />
-</div>
+@if (_view is not null)
+{
+    <div class="pdk-home-grid pdk-cert-managed">
+        <TrustRootCard Root="_view.Root?.Summary" PermittedNames="_status?.PermittedNames" ExpandHowTo="true" />
+        <AdminCertificateCard Admin="_view.Admin" Now="_now" OnOpen="row => Navigation.NavigateTo(DashboardRoutes.Certificate(row.Id))" />
+    </div>
+}
+else if (!_failed)
+{
+    <div class="pdk-home-grid pdk-cert-managed">
+        @for (var i = 0; i < 2; i++)
+        {
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                <MudSkeleton Width="40%" /><MudSkeleton Width="70%" /><MudSkeleton Width="55%" />
+            </MudPaper>
+        }
+    </div>
+}
 @if (_status is { Retiring.Count: > 0 })
 {
     <RetiringRootsCard Roots="_status.Retiring" Pems="_retiringPems" MayWrite="_mayWrite" Busy="_busy" OnReissue="ReissueAsync" OnRetire="RetireAsync" />
@@ -68,6 +82,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Loads once the page is live (the prerender shows the skeleton): its buttons would otherwise be there to click before the
+        // circuit has a handler for them, and the click is lost.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
         _now = Time.GetUtcNow();
         var user = await Caller.CheckAsync();
         if (user is null)

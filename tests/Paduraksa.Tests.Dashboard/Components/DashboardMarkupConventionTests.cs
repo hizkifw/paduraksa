@@ -51,6 +51,29 @@ public sealed partial class DashboardMarkupConventionTests
         Assert.True(spelled.Count == 0, "These format a time or a number themselves; call DisplayFormat (inject it as Fmt) so the person's zone and culture apply:\n" + string.Join('\n', spelled));
     }
 
+    // Pages whose prerender may load: a redirect, and one that only has links (which work without a circuit).
+    private static readonly (string File, string Why)[] MayLoadWhilePrerendering =
+    [
+        ("Pages/Settings.razor", "it only redirects"),
+        ("Pages/Home.razor", "the overview has links, no handler to lose, and its numbers are better prerendered"),
+    ];
+
+    [Fact]
+    public void NoPageLoadsItsDataWhilePrerendering()
+    {
+        var loading = Markup()
+            .Where(file => file.Path.Contains("/Pages/", StringComparison.Ordinal) && !file.Path.Contains("/Pages/Account/", StringComparison.Ordinal))
+            .Where(file => LifecycleLoad().Matches(file.Text).Any(method => !method.Value.Contains("!RendererInfo.IsInteractive", StringComparison.Ordinal)))
+            .Where(file => !MayLoadWhilePrerendering.Any(allowed => file.Path.EndsWith(allowed.File, StringComparison.Ordinal)))
+            .Select(file => file.Path)
+            .ToList();
+
+        Assert.True(
+            loading.Count == 0,
+            "These load data before the circuit is live, so they show buttons that do nothing until it is (a click made then is lost). "
+            + "Return from the lifecycle method while !RendererInfo.IsInteractive, as Notifications does:\n" + string.Join('\n', loading));
+    }
+
     [Fact]
     public void TheScannerSeesTheMarkupItGuards()
     {
@@ -58,6 +81,7 @@ public sealed partial class DashboardMarkupConventionTests
         Assert.True(Markup().Sum(file => NumericField().Count(file.Text)) >= 15);
         Assert.True(Sources().Count() > 200);
         Assert.Contains(Sources(), file => DisplayFormatting().IsMatch(file.Text));
+        Assert.True(Markup().Count(file => LifecycleLoad().IsMatch(file.Text)) >= 20);
     }
 
     private static IEnumerable<(string Path, string Text)> Markup()
@@ -96,6 +120,9 @@ public sealed partial class DashboardMarkupConventionTests
 
     [GeneratedRegex("""\sStyle="[^"]*"|<[A-Za-z]+[^>]*\sstyle="[^"@]*"[^>]*>""", RegexOptions.None, matchTimeoutMilliseconds: 2000)]
     private static partial Regex InlineStyle();
+
+    [GeneratedRegex(@"override\s+(?:async\s+)?Task\s+(?:OnInitializedAsync|OnParametersSetAsync)\s*\(.*?\n    \}", RegexOptions.Singleline, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex LifecycleLoad();
 
     [GeneratedRegex(@"<MudNumericField\b.*?/>", RegexOptions.Singleline, matchTimeoutMilliseconds: 2000)]
     private static partial Regex NumericField();

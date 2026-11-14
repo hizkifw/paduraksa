@@ -117,6 +117,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // Loads once the page is live (the prerender shows the skeleton): its buttons would otherwise be there to click before the
+        // circuit has a handler for them, and the click is lost.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
         var user = await Caller.CheckAsync();
         if (user is null)
         {

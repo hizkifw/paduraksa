@@ -126,7 +126,13 @@ Conventions:
 
 `DashboardConfig` is the real one, per circuit. The bUnit tests swap in an in-memory one. Reads are not authorized by the services (as on the API): each page checks `config:read` (`certificates:read`, `simulate`) first. Commands and simulations carry the user's `CommandOrigin`, and the services decide.
 
-**Live.** Every page loads once its circuit is live (the prerender shows the skeleton) and re-reads on each commit through `Watch`. No timer polls. An open editor says when its object changed elsewhere (with Reload). The Apply would be a conflict anyway.
+**Live.** Every page loads once its circuit is live (the prerender shows the skeleton) and re-reads on each commit through `Watch`.
+
+**A page loads nothing while it is prerendered.** Its lifecycle method (`OnInitializedAsync` or `OnParametersSetAsync`) returns while `!RendererInfo.IsInteractive`, so the prerender is the skeleton and the header has no buttons. A page that loaded during the prerender showed an Edit or Add button before the circuit had a handler for it, and a click made then was lost (Notifications lost one that way; `DnsProviders`, `AcmeAccounts`, `LocalCa`, `Certificates` and `LogFiles` had the same flaw). A page with only links, which work without a circuit, may load (`Home`). Two tests hold this:
+- `DashboardMarkupConventionTests.NoPageLoadsItsDataWhilePrerendering` fails on a page whose lifecycle method has no such return.
+- `PrerenderEndToEndTests` loads the pages in Chromium with a watcher on every DOM change and fails if the prerendered document had a button, a `data-action` control or a clickable row. The check is not one read, which could land after the circuit went live.
+
+The Local CA page shows a skeleton in place of its two cards until it has loaded (they used to say "No local CA yet" before the read). No timer polls. An open editor says when its object changed elsewhere (with Reload). The Apply would be a conflict anyway.
 
 **Typed IDs at the edge.** `/hosts/{Key}` and `/upstreams/{Key}` take a string segment and parse it into a `HostId` or `UpstreamId`. Anything else, a wrong-type ID included, is "not found". `?revision=` parses into a `ConfigRevisionId`. Addresses are built from typed IDs (`DashboardRoutes.Host(id)`), and new objects get fresh typed IDs in the form models.
 

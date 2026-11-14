@@ -71,6 +71,38 @@ internal static class PlaywrightBrowser
     }
 
     /// <summary>
+    /// For every document the page loads from now on: records whether the prerendered page (before the circuit is live) held anything a person
+    /// could act on (a link with an href works without a circuit and doesn't count), which they would click before the circuit has a handler for it, and the click would be lost. Read it with
+    /// <see cref="PrerenderedControlsAsync"/>. It watches every DOM change instead of reading once, because a single read can land after the circuit went live.
+    /// </summary>
+    public static Task WatchPrerenderAsync(IPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        return page.AddInitScriptAsync("""
+            window.__prerender = { seen: false, controls: [] };
+            const check = () => {
+                const shell = document.querySelector('.pdk-shell');
+                if (!shell || shell.dataset.circuit !== 'prerendered') { return; }
+                window.__prerender.seen = true;
+                for (const control of document.querySelectorAll('.pdk-page button:not([disabled]), .pdk-page [data-action]:not(a[href]), .pdk-page [role=button]:not(a[href]), .pdk-page .pdk-dt-link')) {
+                    window.__prerender.controls.push(control.outerHTML.slice(0, 120));
+                }
+            };
+            new MutationObserver(check).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-circuit'] });
+            document.addEventListener('DOMContentLoaded', check);
+            """);
+    }
+
+    /// <summary>Whether the document was seen prerendered (<see cref="WatchPrerenderAsync"/>), and the controls it had then.</summary>
+    public static async Task<(bool Seen, IReadOnlyList<string> Controls)> PrerenderedControlsAsync(IPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        var seen = await page.EvaluateAsync<bool>("window.__prerender.seen");
+        var controls = await page.EvaluateAsync<string[]>("window.__prerender.controls");
+        return (seen, controls);
+    }
+
+    /// <summary>
     /// Waits until the page's finite animations (a drawer sliding in, a sheet opening) have finished, so a measurement or a
     /// screenshot sees where things settle: the signal is the animations' own state, not a guessed delay.
     /// </summary>
