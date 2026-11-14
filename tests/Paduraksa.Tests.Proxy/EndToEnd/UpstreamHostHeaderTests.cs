@@ -122,7 +122,17 @@ public sealed class UpstreamHostHeaderTests : IAsyncLifetime
     {
         // A connection is for one server name: a request for another Host must not ride a connection whose handshake named the first.
         var handshakes = new List<string?>();
-        var (upstream, address) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken, _certificate, name => { lock (handshakes) { handshakes.Add(name); } });
+        // Only the proxy's handshakes count: a machine's port prober can open its own to the new port (SNI "localhost").
+        var (upstream, address) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken, _certificate, name =>
+        {
+            if (name is "a.test" or "b.test")
+            {
+                lock (handshakes)
+                {
+                    handshakes.Add(name);
+                }
+            }
+        });
         await using var server = await ProxyTestServer.StartAsync(
             new ProxyConfigModel
             {
