@@ -20597,7 +20597,7 @@
               "number",
               "string"
             ],
-            "description": "The rest of the forward: sending the request and waiting for the upstream's response headers.",
+            "description": "Waiting for the upstream (TTFB, DevTools' \"Waiting for server response\"): from when the request was\n            sent upstream (its body's last byte, or its headers without a body) to the upstream's response headers, or to the failure of a\n            forward that got none. 0 when the upstream answered before the body was all sent.",
             "format": "double"
           },
           "responseSendMs": {
@@ -20609,10 +20609,50 @@
             ],
             "description": "The response's headers to its last byte written to the client.",
             "format": "double"
+          },
+          "requestBodyStartMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "description": "When the first request body byte was read; absent without a body.",
+            "format": "double"
+          },
+          "upstreamConnectStartMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "description": "When the upstream connect started; absent on a pooled connection.",
+            "format": "double"
+          },
+          "upstreamWaitStartMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "description": "When the wait started.",
+            "format": "double"
+          },
+          "responseSendStartMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "description": "When the response's headers went out.",
+            "format": "double"
           }
         },
         "additionalProperties": false,
-        "description": "One request's time by stage, in milliseconds. A stage that didn't happen, or wasn't measured, is absent. The stages overlap\n(the gate runs while the body may still be arriving; a streamed answer is sent while the upstream still writes it), so they don't\nadd up to the total."
+        "description": "One request's time by stage, in milliseconds, laid out as Chrome DevTools' Timing tab: each stage has a length and a start, in\nmilliseconds from the request's start (the gate always starts at 0). A stage that didn't happen, or wasn't measured, is absent. The\nstages overlap (the body is forwarded as it arrives; a streamed answer is sent while the upstream still writes it), so they don't\nadd up to the total, and the time between them is time no stage accounts for."
       },
       "LoginRequest": {
         "required": [

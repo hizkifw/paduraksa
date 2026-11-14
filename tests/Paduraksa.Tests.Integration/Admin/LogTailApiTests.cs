@@ -148,20 +148,26 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
     }
 
     [Fact]
-    public async Task AnEntryCarriesItsStagesAndTheForwardSplitIntoConnectAndWait()
+    public async Task AnEntryCarriesItsStagesWhereTheyStartAndTheWaitFromWhenTheRequestWasSent()
     {
         var (response, reader) = await OpenAsync();
         using (response)
         using (reader)
         {
             Assert.Equal(": open", await NextLineAsync(reader));
+            // The forward starts at 0.1 ms and connects from 0.15 ms to 3.15 ms; the body's one read is at 0.12 ms; the upstream answers at
+            // 10.1 ms, and the response goes out from 11 ms to the end at 12 ms.
             Hub.Offer(Entry("/timed") with
             {
+                TotalTicks = TimeSpan.FromMilliseconds(12).Ticks,
                 TlsHandshakeTicks = TimeSpan.FromMilliseconds(2).Ticks,
                 ConnectionRequest = 1,
                 RequestBodyTicks = 0,
+                RequestBodyStartMicros = 120,
                 GateTicks = TimeSpan.FromMicroseconds(50).Ticks,
+                ForwardStartMicros = 100,
                 UpstreamTicks = TimeSpan.FromMilliseconds(10).Ticks,
+                UpstreamConnectStartMicros = 150,
                 UpstreamConnectTicks = TimeSpan.FromMilliseconds(3).Ticks,
                 ResponseSendTicks = TimeSpan.FromMilliseconds(1).Ticks,
             });
@@ -174,8 +180,12 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
             Assert.Equal(0, first.GetProperty("requestBodyMs").GetDouble());
             Assert.Equal(0.05, first.GetProperty("gateMs").GetDouble(), 9);
             Assert.Equal(3, first.GetProperty("upstreamConnectMs").GetDouble());
-            Assert.Equal(7, first.GetProperty("upstreamWaitMs").GetDouble());
+            Assert.Equal(6.95, first.GetProperty("upstreamWaitMs").GetDouble(), 9);
             Assert.Equal(1, first.GetProperty("responseSendMs").GetDouble());
+            Assert.Equal(0.12, first.GetProperty("requestBodyStartMs").GetDouble(), 9);
+            Assert.Equal(0.15, first.GetProperty("upstreamConnectStartMs").GetDouble(), 9);
+            Assert.Equal(3.15, first.GetProperty("upstreamWaitStartMs").GetDouble(), 9);
+            Assert.Equal(11, first.GetProperty("responseSendStartMs").GetDouble(), 9);
 
             var again = (await NextEntryAsync(reader)).GetProperty("timing");
             Assert.True(again.GetProperty("tlsReused").GetBoolean());
@@ -183,6 +193,9 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
             // Not forwarded: neither half of the forward is there.
             Assert.False(again.TryGetProperty("upstreamConnectMs", out _));
             Assert.False(again.TryGetProperty("upstreamWaitMs", out _));
+            Assert.False(again.TryGetProperty("upstreamConnectStartMs", out _));
+            Assert.False(again.TryGetProperty("upstreamWaitStartMs", out _));
+            Assert.False(again.TryGetProperty("requestBodyStartMs", out _));
         }
     }
 

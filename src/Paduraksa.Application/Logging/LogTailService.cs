@@ -146,8 +146,14 @@ public sealed class LogTailFeed : IDisposable
             RequestBodyMs: Ms(entry.RequestBodyTicks),
             GateMs: Ms(entry.GateTicks),
             UpstreamConnectMs: entry.UpstreamTicks >= 0 ? Ms(entry.UpstreamConnectTicks) : null,
-            UpstreamWaitMs: entry.UpstreamTicks >= 0 ? Ms(entry.UpstreamTicks - Math.Max(0, entry.UpstreamConnectTicks)) : null,
-            ResponseSendMs: Ms(entry.ResponseSendTicks)));
+            UpstreamWaitMs: Ms(entry.UpstreamWaitTicks),
+            ResponseSendMs: Ms(entry.ResponseSendTicks),
+            RequestBodyStartMs: Ms(entry.RequestBodyStartMicros),
+            UpstreamConnectStartMs: entry.UpstreamConnectTicks > 0 ? Ms(entry.UpstreamConnectStartMicros) : null,
+            UpstreamWaitStartMs: Ms(RequestStages.WaitStartTicks(entry.ForwardStartMicros, entry.UpstreamTicks, entry.UpstreamWaitTicks)),
+            ResponseSendStartMs: entry.ResponseSendTicks >= 0 ? Ms(Math.Max(0, entry.TotalTicks - entry.ResponseSendTicks)) : null));
 
     private static double? Ms(long ticks) => ticks >= 0 ? ticks / (double)TimeSpan.TicksPerMillisecond : null;
+
+    private static double? Ms(int micros) => micros >= 0 ? micros / 1000.0 : null;
 }
