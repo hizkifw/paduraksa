@@ -780,6 +780,21 @@ Built in `m9-health-notify`. Active and passive checks themselves were built in 
 - YARP does not keep a probe's result. So `ProbeRecordingPolicy` wraps its registered active policy (same name, the verdict logic stays YARP's) and notes each result in a `ProbeLog` held weakly by destination state.
 - `Lookup` (the simulator's) is left as it was and **cannot say an upstream is down**. YARP's available-destinations list falls back to every destination when none is healthy (pinned by a test), which is why `ReadAll` reads verdicts.
 
+### Passive health
+
+The soak's flap (bench/soak/README.md, `soak-fixes`) found that a destination back from an outage stayed out about a minute, with `destination.up` as late. Two things in YARP's `TransportFailureRate` policy caused it:
+- **The period was raised.** YARP uses `max(reactivationPeriod, DetectionWindowSize)`, and the window is 60 s by default. So any shorter `passiveHealth.reactivationPeriod` was ignored: the period reached YARP's model and changed nothing.
+- **The history outlived the verdict.** YARP raises the period so that the failures still in its 60 s window cannot take the destination out again on its first request back. When the active check had the destination back first, they did exactly that.
+
+As built, `PassiveFailureRatePolicy` replaces YARP's policy under the same name, so the compiled config doesn't change. YARP's registration is removed, and a YARP that registers it differently fails at startup rather than running both.
+- **The verdict is YARP's.** It is the share of transport failures over the 60 s window, after 10 requests, against 30 %, read from the same `TransportFailureRateHealthPolicyOptions`. It uses the same failure classification, and a client that went away is not a failure.
+- **The upstream's period holds as configured.** An unset period is YARP's default, 60 s.
+- **The history is cleared when it takes a destination out.** Without the raise, that is what stops old failures from counting twice.
+- **Requests that end while the destination is out are ignored.** They were in flight when it was taken out, and recording them would carry the outage into the next window.
+- **The active check seeing a destination back is a recovery.** `ProbeRecordingPolicy` notes each destination's active verdict before YARP's policy runs. When one goes from Unhealthy to anything else, it clears the passive history and lifts a passive verdict from the same outage (Unknown, so it routes at once). So with probes on, a recovered destination is back within one probe interval whatever its period, and `destination.up` follows after the notification hold.
+- **The request path is lock-free and 0 B.** YARP's policy takes a lock per request. Here each destination has a fixed array of one-second buckets, one `long` each (the second in 28 bits, then requests and failures in 18 bits each, saturating), updated by compare-and-swap. Only a failure sums the window. Only a change of verdict calls YARP's updater, which allocates to refresh the cluster.
+- **Tests.** `PassiveFailureRatePolicyTests` checks the period, the clears, the window and the allocation on a clock the test moves. `PassiveHealthRecoveryTests` checks a 2 s period and a flap with probes through real YARP. Both fail on YARP's own policy.
+
 ### The watcher
 
 `HealthMonitor` (a core-host hosted service, never the request path) reads `ReadAll` every second into the pure `HealthTracker` and publishes the result to the `UpstreamHealthBoard`. The dashboard and `GET /api/v1/upstreams/health` (and `/upstreams/{id}/health`, `config:read`) read it.

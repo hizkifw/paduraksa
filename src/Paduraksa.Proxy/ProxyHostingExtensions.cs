@@ -105,6 +105,7 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton<TrustedProxyClientAddressSource>();
         services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();
+        PassiveFailureRatePolicy.Replace(services);
         services.RecordActiveProbes();
         UpstreamHostProbes.SendCustomHostWithProbes(services);
         services.TryAddSingleton<IUpstreamHealth>(static provider => new YarpUpstreamHealth(provider.GetRequiredService<IProxyStateLookup>(), provider.GetRequiredService<ProbeLog>()));

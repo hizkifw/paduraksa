@@ -120,21 +120,39 @@ public sealed class ProbeLog(TimeProvider? time = null)
 
 /// <summary>
 /// YARP's own active policy with a recorder in front of it: the verdict logic is YARP's (it is not public, so it is
-/// built from its registration), this only notes what each probe said, which YARP does not keep.
+/// built from its registration), this notes what each probe said, which YARP does not keep, and tells the passive policy when a
+/// destination the probes had down answers again (<see cref="PassiveFailureRatePolicy.ActiveRecovered"/>).
 /// </summary>
-internal sealed class ProbeRecordingPolicy(IActiveHealthCheckPolicy inner, ProbeLog log) : IActiveHealthCheckPolicy
+internal sealed class ProbeRecordingPolicy(IActiveHealthCheckPolicy inner, ProbeLog log, PassiveFailureRatePolicy? passive = null) : IActiveHealthCheckPolicy
 {
     public string Name => inner.Name;
 
     public void ProbingCompleted(ClusterState cluster, IReadOnlyList<DestinationProbingResult> probingResults)
     {
         // The monitor disposes each response once this returns, so what is wanted is read first.
-        foreach (var result in probingResults)
+        var wasDown = new bool[probingResults.Count];
+        for (var i = 0; i < probingResults.Count; i++)
         {
+            var result = probingResults[i];
             log.Record(result.Destination, result.Response, result.Exception);
+            wasDown[i] = result.Destination.Health.Active == DestinationHealth.Unhealthy;
         }
 
+        // YARP's policy sets the new verdicts before it returns.
         inner.ProbingCompleted(cluster, probingResults);
+        if (passive is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < probingResults.Count; i++)
+        {
+            var destination = probingResults[i].Destination;
+            if (wasDown[i] && destination.Health.Active != DestinationHealth.Unhealthy)
+            {
+                passive.ActiveRecovered(cluster, destination);
+            }
+        }
     }
 }
 
@@ -154,7 +172,8 @@ internal static class ProbeRecording
 
             services[i] = ServiceDescriptor.Singleton<IActiveHealthCheckPolicy>(provider => new ProbeRecordingPolicy(
                 (IActiveHealthCheckPolicy)ActivatorUtilities.CreateInstance(provider, implementation),
-                provider.GetRequiredService<ProbeLog>()));
+                provider.GetRequiredService<ProbeLog>(),
+                provider.GetService<PassiveFailureRatePolicy>()));
         }
 
         return services;
