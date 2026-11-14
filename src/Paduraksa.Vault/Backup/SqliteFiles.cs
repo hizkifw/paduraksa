@@ -8,6 +8,12 @@ internal static class SqliteFiles
     private static readonly byte[] DatabaseMagic = "SQLite format 3\0"u8.ToArray();
 
     /// <summary>
+    /// How long a snapshot waits for a lock it needs on a live database. Generous because a backup is deliberate and nobody is behind it;
+    /// the waits it covers (a writer rebuilding the log's index after the last connection closed, a checkpoint) last milliseconds.
+    /// </summary>
+    private const int SnapshotBusyMilliseconds = 30_000;
+
+    /// <summary>
     /// A consistent copy of <paramref name="sourcePath"/> made with SQLite's online backup API, while others read and write it: the
     /// whole database is read in one step inside one read transaction, so the copy is the state at one instant, whatever the write-ahead
     /// log holds. (A file copy of a live WAL database can miss pages that are only in the log, or tear.)
@@ -23,6 +29,12 @@ internal static class SqliteFiles
         using var destination = new SqliteConnection(Connection(destinationPath, SqliteOpenMode.ReadWriteCreate));
         source.Open();
         destination.Open();
+        using (var timeout = source.CreateCommand())
+        {
+            timeout.CommandText = $"PRAGMA busy_timeout = {SnapshotBusyMilliseconds}";
+            timeout.ExecuteNonQuery();
+        }
+
         source.BackupDatabase(destination);
     }
 
