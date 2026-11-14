@@ -51,6 +51,7 @@ public sealed class VaultContractTests
         typeof(ISecretHttpHandlerFactory),
         typeof(INotificationSecretSource),
         typeof(IVaultLifecycle),
+        typeof(IVaultInspection),
         typeof(IVaultKekRotation),
         typeof(IVaultBackup),
         typeof(IStagedBackup),

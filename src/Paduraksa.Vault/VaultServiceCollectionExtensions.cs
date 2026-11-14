@@ -52,6 +52,7 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<KekProvider>();
         services.AddSingleton<VaultRuntime>();
         services.AddSingleton<IVaultLifecycle>(p => p.GetRequiredService<VaultRuntime>());
+        services.AddSingleton<IVaultInspection, VaultInspector>();
         services.AddSingleton<SecretReader>();
         services.AddSingleton<MacKeyCache>();
         services.AddSingleton<KekRotation>();

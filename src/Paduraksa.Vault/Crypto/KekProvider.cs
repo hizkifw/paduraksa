@@ -69,7 +69,14 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger, int keyRe
 
     /// <summary>Resolves the KEK for the vault whose database is <paramref name="databasePath"/> in <paramref name="dataDirectory"/>.</summary>
     /// <exception cref="InvalidOperationException">The chosen source is missing, malformed or unsafe.</exception>
-    public ResolvedKek Resolve(Func<string, string?> getVariable, string dataDirectory, string databasePath)
+    public ResolvedKek Resolve(Func<string, string?> getVariable, string dataDirectory, string databasePath) =>
+        Resolve(getVariable, dataDirectory, databasePath, generate: true)!; // Only generate: false answers null.
+
+    /// <summary>
+    /// <see cref="Resolve(Func{string, string?}, string, string)"/> for a read-only look: with <paramref name="generate"/> false, a data directory
+    /// that has no <c>master.key</c> and no source set answers null (a first start would generate one) instead of writing it.
+    /// </summary>
+    public ResolvedKek? Resolve(Func<string, string?> getVariable, string dataDirectory, string databasePath, bool generate)
     {
         ArgumentNullException.ThrowIfNull(getVariable);
         var filePath = getVariable(KeyFileVariable);
@@ -99,8 +106,31 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger, int keyRe
         }
 
         var generatedPath = Path.GetFullPath(Path.Combine(dataDirectory, GeneratedFileName));
+        if (!generate && !File.Exists(generatedPath))
+        {
+            return HoldsData(databasePath) ? throw new InvalidOperationException(MissingKeyMessage(generatedPath, databasePath)) : null;
+        }
+
         return new(LoadOrGenerate(generatedPath, dataDirectory, databasePath), KekSourceKind.GeneratedFile, true);
     }
+
+    /// <summary>Where a key file is, for a read-only look: <c>PADURAKSA_MASTER_KEY_FILE</c>'s, else (no variable set) the data directory's generated one.</summary>
+    public static string? KeyFilePath(Func<string, string?> getVariable, string dataDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(getVariable);
+        if (getVariable(KeyFileVariable) is { } file && !string.IsNullOrWhiteSpace(file))
+        {
+            return Path.GetFullPath(file.Trim());
+        }
+
+        return string.IsNullOrWhiteSpace(getVariable(KeyVariable)) ? Path.GetFullPath(Path.Combine(dataDirectory, GeneratedFileName)) : null;
+    }
+
+    private static bool HoldsData(string databasePath) => File.Exists(databasePath) && new FileInfo(databasePath).Length > 0;
+
+    private static string MissingKeyMessage(string path, string databasePath) =>
+        $"The vault database {databasePath} exists but there is no master key: set {KeyFileVariable} or {KeyVariable}, or restore {path} from a backup. "
+        + "A new key is not generated, since it could not open the existing secrets (if the database holds none, delete it).";
 
     /// <summary>
     /// Writes <paramref name="kek"/> to <paramref name="path"/> if nothing is there yet (see the type's remarks).
@@ -270,11 +300,9 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger, int keyRe
             return ReadFile(path, GeneratedFileName, generated: true);
         }
 
-        if (File.Exists(databasePath) && new FileInfo(databasePath).Length > 0)
+        if (HoldsData(databasePath))
         {
-            throw new InvalidOperationException(
-                $"The vault database {databasePath} exists but there is no master key: set {KeyFileVariable} or {KeyVariable}, or restore {path} from a backup. "
-                + "A new key is not generated, since it could not open the existing secrets (if the database holds none, delete it).");
+            throw new InvalidOperationException(MissingKeyMessage(path, databasePath));
         }
 
         var kek = Kek.Generate();
