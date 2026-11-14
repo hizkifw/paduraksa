@@ -302,6 +302,30 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         Assert.True(started.Elapsed < TimeSpan.FromSeconds(8), $"closed after {started.Elapsed}");
     }
 
+    [Fact]
+    public async Task LimitsValidBeforeTheyWereServerSettingsStillStart()
+    {
+        // Before the server settings, only positivity was checked: no ceiling, sub-second timeouts, any grace with its rate off.
+        await using var host = await StartAsync(new()
+        {
+            ["Paduraksa:Limits:RequestHeadersTimeout"] = "00:00:00.5",
+            ["Paduraksa:Limits:KeepAliveTimeout"] = "60.00:00:00",
+            ["Paduraksa:Limits:TlsHandshakeTimeout"] = "2.00:00:00",
+            ["Paduraksa:Limits:MinRequestBodyRate"] = "0",
+            ["Paduraksa:Limits:MinRequestBodyGrace"] = "00:00:00",
+            ["Paduraksa:Limits:MinResponseRate"] = "5000000000",
+            ["Paduraksa:Limits:MinResponseGrace"] = "45.00:00:00",
+            ["Paduraksa:Limits:MaxConnections"] = "50000000000",
+            ["Paduraksa:Limits:MaxUpgradedConnections"] = "20000000000",
+        });
+
+        var limits = host.Public.Services.GetRequiredService<IOptions<KestrelServerOptions>>().Value.Limits;
+        Assert.Equal(TimeSpan.FromMilliseconds(500), limits.RequestHeadersTimeout);
+        Assert.Equal(TimeSpan.FromDays(60), limits.KeepAliveTimeout);
+        Assert.Equal(50_000_000_000, limits.MaxConcurrentConnections);
+        Assert.Equal(ServerSettingSource.Environment, host.Shared.ServerSettings.SourceOf(ServerSettingCatalog.LimitsKeepAliveTimeout));
+    }
+
     [Theory]
     [InlineData("Paduraksa:Limits:RequestHeadersTimeout", "00:00:00", "RequestHeadersTimeout must be positive")]
     [InlineData("Paduraksa:Limits:KeepAliveTimeout", "-00:00:01", "KeepAliveTimeout must be positive")]

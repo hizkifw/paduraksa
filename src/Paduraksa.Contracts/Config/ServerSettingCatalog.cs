@@ -269,68 +269,100 @@ public static class ServerSettingCatalog
     // handshake timeout and the connection caps are taken when the listeners bind. The defaults are ServerLimits.Default's (a test pins them).
     private const string NewConnections = "Applies to new connections; open ones keep what they started with.";
 
+    // The limits had no ceiling and only a positive floor before they were settings, so an environment that started then still starts: a timeout
+    // is any positive span, a rate or cap any count from 0, and a grace is held to Kestrel's own rule (ServerSettingCatalog.Rules) alone.
+    private static readonly TimeSpan Positive = TimeSpan.FromTicks(1);
+    private const string MorePositive = "more than 0 seconds";
+
     public static readonly ServerSetting<TimeSpan> LimitsRequestHeadersTimeout = new(
         "limitsRequestHeadersTimeout", "Limits:RequestHeadersTimeout", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Request headers",
         "From a request's first byte to the end of its headers; a slower client is closed. " + NewConnections,
         static s => s.LimitsRequestHeadersTimeout, static (s, v) => s with { LimitsRequestHeadersTimeout = v },
-        TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(1), TimeSpan.FromHours(1));
+        TimeSpan.FromSeconds(15), Positive)
+    {
+        MinWords = MorePositive,
+    };
 
     public static readonly ServerSetting<TimeSpan> LimitsKeepAliveTimeout = new(
         "limitsKeepAliveTimeout", "Limits:KeepAliveTimeout", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Keep-alive",
         "How long an idle HTTP/1.1 or HTTP/2 connection waits for its next request. " + NewConnections,
         static s => s.LimitsKeepAliveTimeout, static (s, v) => s with { LimitsKeepAliveTimeout = v },
-        TimeSpan.FromSeconds(120), TimeSpan.FromSeconds(1), TimeSpan.FromDays(1));
+        TimeSpan.FromSeconds(120), Positive)
+    {
+        MinWords = MorePositive,
+    };
 
     public static readonly ServerSetting<TimeSpan> LimitsTlsHandshakeTimeout = new(
         "limitsTlsHandshakeTimeout", "Limits:TlsHandshakeTimeout", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Restart,
         "TLS handshake",
         "The TLS handshake on TCP, from the first byte.",
         static s => s.LimitsTlsHandshakeTimeout, static (s, v) => s with { LimitsTlsHandshakeTimeout = v },
-        TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5));
+        TimeSpan.FromSeconds(10), Positive)
+    {
+        MinWords = MorePositive,
+    };
 
     public static readonly ServerSetting<long> LimitsMinRequestBodyRate = new(
         "limitsMinRequestBodyRate", "Limits:MinRequestBodyRate", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Slowest upload (bytes per second)",
         "Below this, after the grace, a request body is cut off. 0 turns it off. " + NewConnections,
         static s => s.LimitsMinRequestBodyRate, static (s, v) => s with { LimitsMinRequestBodyRate = v },
-        120, 0, 1024 * Mebibyte);
+        120, 0)
+    {
+        Accepted = "0 (off) or more",
+    };
 
     public static readonly ServerSetting<TimeSpan> LimitsMinRequestBodyGrace = new(
         "limitsMinRequestBodyGrace", "Limits:MinRequestBodyGrace", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Upload grace",
         "How long a body may arrive slower than that before the limit applies; longer than a second.",
         static s => s.LimitsMinRequestBodyGrace, static (s, v) => s with { LimitsMinRequestBodyGrace = v },
-        TimeSpan.FromSeconds(10), TimeSpan.Zero, TimeSpan.FromHours(1));
+        TimeSpan.FromSeconds(10))
+    {
+        Accepted = "longer than 1 second while the rate is set",
+    };
 
     public static readonly ServerSetting<long> LimitsMinResponseRate = new(
         "limitsMinResponseRate", "Limits:MinResponseRate", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Slowest download (bytes per second)",
         "Below this, after the grace, a client that won't take the response is closed. 0 turns it off. " + NewConnections,
         static s => s.LimitsMinResponseRate, static (s, v) => s with { LimitsMinResponseRate = v },
-        240, 0, 1024 * Mebibyte);
+        240, 0)
+    {
+        Accepted = "0 (off) or more",
+    };
 
     public static readonly ServerSetting<TimeSpan> LimitsMinResponseGrace = new(
         "limitsMinResponseGrace", "Limits:MinResponseGrace", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Download grace",
         "How long a client may take a response slower than that before the limit applies; longer than a second.",
         static s => s.LimitsMinResponseGrace, static (s, v) => s with { LimitsMinResponseGrace = v },
-        TimeSpan.FromSeconds(10), TimeSpan.Zero, TimeSpan.FromHours(1));
+        TimeSpan.FromSeconds(10))
+    {
+        Accepted = "longer than 1 second while the rate is set",
+    };
 
     public static readonly ServerSetting<long> LimitsMaxConnections = new(
         "limitsMaxConnections", "Limits:MaxConnections", ServerSettingGroup.Connections, "Connection caps", ServerSettingApply.Restart,
         "Open connections",
         "The public listeners stop accepting at this many open connections together. 0 is unlimited.",
         static s => s.LimitsMaxConnections, static (s, v) => s with { LimitsMaxConnections = v },
-        10_000, 0, 10_000_000);
+        10_000, 0)
+    {
+        Accepted = "0 (unlimited) or more",
+    };
 
     public static readonly ServerSetting<long> LimitsMaxUpgradedConnections = new(
         "limitsMaxUpgradedConnections", "Limits:MaxUpgradedConnections", ServerSettingGroup.Connections, "Connection caps", ServerSettingApply.Restart,
         "WebSockets",
         "The upgraded (WebSocket) share of the open connections; a new upgrade over it is refused. 0 is unlimited.",
         static s => s.LimitsMaxUpgradedConnections, static (s, v) => s with { LimitsMaxUpgradedConnections = v },
-        2_000, 0, 10_000_000);
+        2_000, 0)
+    {
+        Accepted = "0 (unlimited) or more",
+    };
 
     /// <summary>Every declaration, in the order the page shows them.</summary>
     public static IReadOnlyList<ServerSettingDefinition> All { get; } =

@@ -100,6 +100,12 @@ public abstract class ServerSettingDefinition
 
     public string Help { get; }
 
+    /// <summary>What the setting accepts, in words, for the guide's table; when null it is said from the bounds.</summary>
+    public string? Accepted { get; init; }
+
+    /// <summary>What the setting accepts in words: <see cref="Accepted"/>, or its bounds.</summary>
+    public virtual string AcceptedText => Accepted ?? "text";
+
     /// <summary>What the review says when a change lowers the value in force (a retention: what is deleted, and that it can't be recovered).</summary>
     public string? LoweredNote { get; init; }
 
@@ -199,10 +205,24 @@ public sealed class ServerSetting<T> : ServerSettingDefinition
     /// <summary>Whether <paramref name="value"/> is inside the bounds.</summary>
     public bool InBounds(T value) => (Min is not { } min || value.CompareTo(min) >= 0) && (Max is not { } max || value.CompareTo(max) <= 0);
 
+    /// <summary>The least value in words when its own form says it badly (the smallest positive span is a tick: "more than 0 seconds").</summary>
+    public string? MinWords { get; init; }
+
+    public override string AcceptedText => Accepted ?? Bounds() ?? (Kind == ServerSettingKind.Boolean ? "on or off" : "any");
+
     public override string? Problem(ServerSettings settings) =>
         _get(settings) is { } value && !InBounds(value)
-            ? $"must be from {ServerSettingText.Describe(Kind, MinText!)} to {ServerSettingText.Describe(Kind, MaxText!)}, was {ServerSettingText.Describe(Kind, Format(value))}"
+            ? $"must be {Bounds()}, was {ServerSettingText.Describe(Kind, Format(value))}"
             : null;
+
+    // A bound left out is the type's own: the server's options validator held these values to no more than that before they were settings.
+    private string? Bounds() => (MinText, MaxText) switch
+    {
+        ({ } min, { } max) => $"from {MinWords ?? ServerSettingText.Describe(Kind, min)} to {ServerSettingText.Describe(Kind, max)}",
+        ({ } min, null) => MinWords ?? $"at least {ServerSettingText.Describe(Kind, min)}",
+        (null, { } max) => $"at most {ServerSettingText.Describe(Kind, max)}",
+        _ => null,
+    };
 
     public override (ServerSettings Settings, string? Problem) WithText(ServerSettings settings, string? text)
     {
@@ -290,9 +310,6 @@ public sealed class TextServerSetting : ServerSettingDefinition
     }
 
     public string Default { get; }
-
-    /// <summary>What its rule accepts, in words, for the guide's table.</summary>
-    public string Accepted { get; init; } = "text";
 
     public string? Get(ServerSettings settings) => _get(settings);
 

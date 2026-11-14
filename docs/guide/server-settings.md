@@ -34,43 +34,43 @@ Durations are written `[d.]hh:mm:ss` in the environment (`90.00:00:00` is 90 day
 
 | Setting | Environment variable | Default | Accepted | Applies |
 |---|---|---|---|---|
-| Data retention: Metrics, Traffic and security history | `Paduraksa__Metrics__Retention` | 90 days (`90.00:00:00`) | 1 hour to 5 years | live |
-| Data retention: Analytics, Visitors, clients and paths | `Paduraksa__Analytics__Retention` | 90 days (`90.00:00:00`) | 1 hour to 5 years | live |
-| Data retention: Notifications, Notification history | `Paduraksa__Notifications__HistoryRetention` | 14 days (`14.00:00:00`) | 1 hour to 5 years | live |
-| Data retention: Log files, Rotated files kept | `Paduraksa__Logs__RetainedFiles` | 30 (`30`) | 1 to 10,000 | live |
-| Data retention: Log files, Oldest rotated file | `Paduraksa__Logs__MaxAge` | 30 days (`30.00:00:00`) | 1 minute to 10 years | live |
-| Data retention: Log files, Rotated files in total | `Paduraksa__Logs__MaxTotalSize` | 1 GiB (`1073741824`) | 1 MiB to 1 TiB | live |
-| Data retention: Log files, Rotate at | `Paduraksa__Logs__MaxFileSize` | 64 MiB (`67108864`) | 1 KiB to 16 GiB | live |
+| Data retention: Metrics, Traffic and security history | `Paduraksa__Metrics__Retention` | 90 days (`90.00:00:00`) | from 1 hour to 5 years | live |
+| Data retention: Analytics, Visitors, clients and paths | `Paduraksa__Analytics__Retention` | 90 days (`90.00:00:00`) | from 1 hour to 5 years | live |
+| Data retention: Notifications, Notification history | `Paduraksa__Notifications__HistoryRetention` | 14 days (`14.00:00:00`) | from 1 hour to 5 years | live |
+| Data retention: Log files, Rotated files kept | `Paduraksa__Logs__RetainedFiles` | 30 (`30`) | from 1 to 10,000 | live |
+| Data retention: Log files, Oldest rotated file | `Paduraksa__Logs__MaxAge` | 30 days (`30.00:00:00`) | from 1 minute to 10 years | live |
+| Data retention: Log files, Rotated files in total | `Paduraksa__Logs__MaxTotalSize` | 1 GiB (`1073741824`) | from 1 MiB to 1 TiB | live |
+| Data retention: Log files, Rotate at | `Paduraksa__Logs__MaxFileSize` | 64 MiB (`67108864`) | from 1 KiB to 16 GiB | live |
 | Data retention: Access log, Query strings | `Paduraksa__AccessLog__LogQueryString` | on (`true`) | on or off | live |
-| Sign-in: Lockout, Failed attempts before a lockout | `Paduraksa__Admin__MaxFailedAttempts` | 5 (`5`) | 2 to 100 | live |
-| Sign-in: Lockout, Lockout | `Paduraksa__Admin__LockoutDuration` | 15 minutes (`00:15:00`) | 1 minute to 1 day | live |
-| Sign-in: Sessions, Session lifetime | `Paduraksa__Admin__SessionLifetime` | 12 hours (`12:00:00`) | 5 minutes to 30 days | live |
-| Sign-in: Sessions, Idle timeout | `Paduraksa__Admin__SessionIdleTimeout` | 2 hours (`02:00:00`) | 1 minute to 30 days | live |
-| Sign-in: Sessions, Time for the second factor | `Paduraksa__Admin__PartialSessionLifetime` | 5 minutes (`00:05:00`) | 30 seconds to 30 minutes | live |
-| Sign-in: Passwords, Shortest password | `Paduraksa__Admin__MinPasswordLength` | 12 (`12`) | 8 to 128 | live |
+| Sign-in: Lockout, Failed attempts before a lockout | `Paduraksa__Admin__MaxFailedAttempts` | 5 (`5`) | from 2 to 100 | live |
+| Sign-in: Lockout, Lockout | `Paduraksa__Admin__LockoutDuration` | 15 minutes (`00:15:00`) | from 1 minute to 1 day | live |
+| Sign-in: Sessions, Session lifetime | `Paduraksa__Admin__SessionLifetime` | 12 hours (`12:00:00`) | from 5 minutes to 30 days | live |
+| Sign-in: Sessions, Idle timeout | `Paduraksa__Admin__SessionIdleTimeout` | 2 hours (`02:00:00`) | from 1 minute to 30 days | live |
+| Sign-in: Sessions, Time for the second factor | `Paduraksa__Admin__PartialSessionLifetime` | 5 minutes (`00:05:00`) | from 30 seconds to 30 minutes | live |
+| Sign-in: Passwords, Shortest password | `Paduraksa__Admin__MinPasswordLength` | 12 (`12`) | from 8 to 128 | live |
 | Sign-in: Passwords, Authenticator name | `Paduraksa__Admin__TotpIssuer` | Paduraksa (`Paduraksa`) | 1 to 64 characters, no colon | live |
-| Sign-in: Sign-in rate limit, Attempts per address | `Paduraksa__Admin__RateLimit__PermitsPerIp` | 20 (`20`) | 1 to 10,000 | live |
-| Sign-in: Sign-in rate limit, Failures per username | `Paduraksa__Admin__RateLimit__PermitsPerUser` | 10 (`10`) | 1 to 1,000 | live |
-| Sign-in: Sign-in rate limit, Window | `Paduraksa__Admin__RateLimit__Window` | 1 minute (`00:01:00`) | 1 second to 10 minutes | live |
+| Sign-in: Sign-in rate limit, Attempts per address | `Paduraksa__Admin__RateLimit__PermitsPerIp` | 20 (`20`) | from 1 to 10,000 | live |
+| Sign-in: Sign-in rate limit, Failures per username | `Paduraksa__Admin__RateLimit__PermitsPerUser` | 10 (`10`) | from 1 to 1,000 | live |
+| Sign-in: Sign-in rate limit, Window | `Paduraksa__Admin__RateLimit__Window` | 1 minute (`00:01:00`) | from 1 second to 10 minutes | live |
 | Notifications: Messages, Dashboard address | `Paduraksa__Notifications__AdminUrl` | none (`""`) | an http or https address, or empty | live |
-| Notifications: Timing, Health hold | `Paduraksa__Notifications__HealthHold` | 10 seconds (`00:00:10`) | 1 second to 10 minutes | live |
-| Notifications: Timing, Digest window | `Paduraksa__Notifications__CoalesceWindow` | 3 seconds (`00:00:03`) | 0 seconds to 1 minute | live |
-| Notifications: Timing, Oldest message sent | `Paduraksa__Notifications__MaxDeliveryAge` | 1 hour (`01:00:00`) | 1 minute to 7 days | live |
+| Notifications: Timing, Health hold | `Paduraksa__Notifications__HealthHold` | 10 seconds (`00:00:10`) | from 1 second to 10 minutes | live |
+| Notifications: Timing, Digest window | `Paduraksa__Notifications__CoalesceWindow` | 3 seconds (`00:00:03`) | from 0 seconds to 1 minute | live |
+| Notifications: Timing, Oldest message sent | `Paduraksa__Notifications__MaxDeliveryAge` | 1 hour (`01:00:00`) | from 1 minute to 7 days | live |
 | Integrations: Cloudflare, Refresh the edge ranges | `Paduraksa__Cloudflare__RangeRefresh__Enabled` | on (`true`) | on or off | live |
-| Integrations: Cloudflare, Refresh every | `Paduraksa__Cloudflare__RangeRefresh__Interval` | 1 day (`1.00:00:00`) | 1 minute to 7 days | live |
+| Integrations: Cloudflare, Refresh every | `Paduraksa__Cloudflare__RangeRefresh__Interval` | 1 day (`1.00:00:00`) | from 1 minute to 7 days | live |
 | Integrations: ACME, Check DNS-01 records | `Paduraksa__Acme__DnsPropagation__Enabled` | on (`true`) | on or off | live |
-| Integrations: ACME, Fixed DNS-01 wait | `Paduraksa__Acme__DnsPropagationDelay` | 30 seconds (`00:00:30`) | 0 seconds to 1 hour | live |
+| Integrations: ACME, Fixed DNS-01 wait | `Paduraksa__Acme__DnsPropagationDelay` | 30 seconds (`00:00:30`) | from 0 seconds to 1 hour | live |
 | Integrations: MCP, Serve /mcp | `Paduraksa__Mcp__Enabled` | off (`false`) | on or off | live |
-| Integrations: MCP, Sandbox idle timeout | `Paduraksa__Mcp__IdleTimeout` | 10 minutes (`00:10:00`) | 10 seconds to 1 day | live |
-| Connections: Slow clients, Request headers | `Paduraksa__Limits__RequestHeadersTimeout` | 15 seconds (`00:00:15`) | 1 second to 1 hour | live |
-| Connections: Slow clients, Keep-alive | `Paduraksa__Limits__KeepAliveTimeout` | 2 minutes (`00:02:00`) | 1 second to 1 day | live |
-| Connections: Slow clients, TLS handshake | `Paduraksa__Limits__TlsHandshakeTimeout` | 10 seconds (`00:00:10`) | 1 second to 5 minutes | after a restart |
-| Connections: Slow clients, Slowest upload (bytes per second) | `Paduraksa__Limits__MinRequestBodyRate` | 120 (`120`) | 0 to 1,073,741,824 | live |
-| Connections: Slow clients, Upload grace | `Paduraksa__Limits__MinRequestBodyGrace` | 10 seconds (`00:00:10`) | 0 seconds to 1 hour | live |
-| Connections: Slow clients, Slowest download (bytes per second) | `Paduraksa__Limits__MinResponseRate` | 240 (`240`) | 0 to 1,073,741,824 | live |
-| Connections: Slow clients, Download grace | `Paduraksa__Limits__MinResponseGrace` | 10 seconds (`00:00:10`) | 0 seconds to 1 hour | live |
-| Connections: Connection caps, Open connections | `Paduraksa__Limits__MaxConnections` | 10,000 (`10000`) | 0 to 10,000,000 | after a restart |
-| Connections: Connection caps, WebSockets | `Paduraksa__Limits__MaxUpgradedConnections` | 2,000 (`2000`) | 0 to 10,000,000 | after a restart |
+| Integrations: MCP, Sandbox idle timeout | `Paduraksa__Mcp__IdleTimeout` | 10 minutes (`00:10:00`) | from 10 seconds to 1 day | live |
+| Connections: Slow clients, Request headers | `Paduraksa__Limits__RequestHeadersTimeout` | 15 seconds (`00:00:15`) | more than 0 seconds | live |
+| Connections: Slow clients, Keep-alive | `Paduraksa__Limits__KeepAliveTimeout` | 2 minutes (`00:02:00`) | more than 0 seconds | live |
+| Connections: Slow clients, TLS handshake | `Paduraksa__Limits__TlsHandshakeTimeout` | 10 seconds (`00:00:10`) | more than 0 seconds | after a restart |
+| Connections: Slow clients, Slowest upload (bytes per second) | `Paduraksa__Limits__MinRequestBodyRate` | 120 (`120`) | 0 (off) or more | live |
+| Connections: Slow clients, Upload grace | `Paduraksa__Limits__MinRequestBodyGrace` | 10 seconds (`00:00:10`) | longer than 1 second while the rate is set | live |
+| Connections: Slow clients, Slowest download (bytes per second) | `Paduraksa__Limits__MinResponseRate` | 240 (`240`) | 0 (off) or more | live |
+| Connections: Slow clients, Download grace | `Paduraksa__Limits__MinResponseGrace` | 10 seconds (`00:00:10`) | longer than 1 second while the rate is set | live |
+| Connections: Connection caps, Open connections | `Paduraksa__Limits__MaxConnections` | 10,000 (`10000`) | 0 (unlimited) or more | after a restart |
+| Connections: Connection caps, WebSockets | `Paduraksa__Limits__MaxUpgradedConnections` | 2,000 (`2000`) | 0 (unlimited) or more | after a restart |
 
 <!-- server-settings:end -->
 

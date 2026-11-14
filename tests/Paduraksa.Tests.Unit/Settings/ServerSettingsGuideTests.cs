@@ -30,9 +30,7 @@ public sealed class ServerSettingsGuideTests
         {
             foreach (var setting in group)
             {
-                var range = setting.MinText is { } min && setting.MaxText is { } max
-                    ? $"{ServerSettingText.Describe(setting.Kind, min)} to {ServerSettingText.Describe(setting.Kind, max)}"
-                    : setting is TextServerSetting words ? words.Accepted : "on or off";
+                var range = setting.AcceptedText;
                 var applies = setting.Apply == ServerSettingApply.Live ? "live" : "after a restart";
                 text.Append($"| {GroupTitle(group.Key)}: {setting.Section}, {setting.Title} | `{setting.EnvironmentVariable}` | {ServerSettingText.Describe(setting.Kind, setting.DefaultText)} (`{(setting.DefaultText.Length == 0 ? "\"\"" : setting.DefaultText)}`) | {range} | {applies} |\n");
             }
