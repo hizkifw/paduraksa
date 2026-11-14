@@ -129,7 +129,7 @@ It references only strings the request already holds:
 - status;
 - the response and request body bytes (counted, see [Counted body bytes](#counted-body-bytes));
 - the total and upstream durations, and YARP's destination address;
-- the stages (see [Request timing](#request-timing)): the connection's TLS handshake and the request's index on its connection, the body read, the gate, the upstream connect and the response send;
+- the stages (see [Request timing](#request-timing)): the connection's TLS handshake and the request's index on its connection, the body read, the gate, the upstream connect and the response send, where the forward, the connect and the body started, and whether the body was cut off;
 - the request ID;
 - `CF-Ray` (only when `CloudflareHeadersTrusted`, so a client cannot forge it);
 - referer and user agent.
@@ -163,10 +163,10 @@ Kestrel keeps the callback stack per connection (or pooled H2/H3 stream) and cle
 It runs off the request path, into a reused 8 KiB buffer:
 
 ```
-time client "host" "METHOD path[?query] protocol" status bytes total upstream "upstream" "request-id" "cf-ray" "referer" "user-agent" tls conn-request body gate connect send
+time client "host" "METHOD path[?query] protocol" status bytes total upstream "upstream" "request-id" "cf-ray" "referer" "user-agent" tls conn-request body gate connect send wait
 ```
 
-That is 19 space-separated fields. The first 13 are the line as it was before the stages; the six stages are appended after them (see [Request timing](#request-timing)), so a reader of the first 13 reads them as before.
+That is 20 space-separated fields. The first 13 are the line as it was before the stages; the six stages are appended after them (see [Request timing](#request-timing)), so a reader of the first 13 reads them as before, and the upstream wait came last, on `timing-waterfall`. A line written before has 19 fields.
 - Time is ISO-8601 UTC with milliseconds. Durations are milliseconds with three decimals (microsecond resolution).
 - Missing values are a bare `-`, the status included when the gate dropped the request.
 - **Escaping.** Inside a quoted field `"` becomes `\"`, `\` becomes `\\`, and a C0 control, 0x7F or a C1 control (NEL among them) becomes `\xNN`. U+2028 and U+2029 become `\u2028` and `\u2029`. A hostile path, user agent or referer cannot forge or break a line. Non-ASCII stays readable (the sink writes UTF-8).
@@ -266,28 +266,44 @@ Throughput, mean of the two runs:
 
 ## Request timing
 
-Built in `request-timing`. Until then a request had two times: the total and the upstream leg. Now each stage is timed, so a slow request says where its time went. Every figure is a pair of monotonic `Stopwatch` timestamps, kept on the pooled request state (`GateRequestState`), the body counter or a per-connection object, and turned into `TimeSpan` ticks on `AccessLogEntry` when the request ends.
+Built in `request-timing`; where each stage starts, and the DevTools-like waterfall, in `timing-waterfall`. Until then a request had two times: the total and the upstream leg. Now each stage is timed and placed, so a slow request says where its time went. Every figure is a pair of monotonic `Stopwatch` timestamps, kept on the pooled request state (`GateRequestState`), the body counter or a per-connection object, and turned into `TimeSpan` ticks (a length) or microseconds from the request's start (a start) on `AccessLogEntry` when the request ends.
 
 ### The stages
 
-| Stage | Starts | Ends | Not known (`-`) |
-|---|---|---|---|
-| TLS handshake | TCP: the connection middleware just before Kestrel's `UseHttps` (after PROXY protocol, the lockdown and the connection limits). QUIC: the TLS callback, once the ClientHello is in (`TlsHandshakeSelector.SelectQuic`, after the connection gate). | TCP: the middleware just after `UseHttps`. QUIC: the multiplexed middleware, which Kestrel runs once the connection is established. | Plain HTTP, and every request but a connection's first. |
-| Request index | A count, not a time: the access log's start counts the request on its connection (`ConnectionTimings`, an atomic shared by an H2/H3 connection's streams), from 1. | | A connection without the feature (a test app). |
-| Request body | The first read of the request body that returned bytes completed. | The last read that returned bytes completed (the read that finds the end of the body is not counted, so a reader that comes back for it late does not stretch the figure). | 0 when no byte was read; `-` when the body was not counted. |
-| Gate | The top of the public pipeline (the access log's start, the same timestamp as the total). | The gate hands the request on: `GateMiddleware.FinishAsync`, after the decision and its last header stage, to the forward or to its own answer (a refusal, a redirect, the proof-of-work page, robots.txt). A deferred policy's wait (a password check) is inside it. | No gate ran. |
-| Upstream connect | The handler's connect callback, for the request whose wait made the pool open a connection. | The handler's plaintext-stream filter, which runs once TLS to the upstream is up and before the first byte of HTTP. So it is DNS, TCP and TLS. | Not forwarded. 0 on a pooled connection. |
-| Upstream wait | The connect's end (the forward's start, on a pooled connection). | YARP's response transform: the response headers are in. | Not forwarded. Derived (the upstream leg minus the connect), not stored. |
-| Response send | Kestrel's response-start callback (the headers go out). | The completion callback, the same timestamp as the total's end. | No response (a dropped request). |
+| Stage | Starts | Ends | Where it starts on the axis | Not known (`-`) |
+|---|---|---|---|---|
+| TLS handshake | TCP: the connection middleware just before Kestrel's `UseHttps` (after PROXY protocol, the lockdown and the connection limits). QUIC: the TLS callback, once the ClientHello is in (`TlsHandshakeSelector.SelectQuic`, after the connection gate). | TCP: the middleware just after `UseHttps`. QUIC: the multiplexed middleware, which Kestrel runs once the connection is established. | Before the request: not on its axis. | Plain HTTP, and every request but a connection's first. |
+| Request index | A count, not a time: the access log's start counts the request on its connection (`ConnectionTimings`, an atomic shared by an H2/H3 connection's streams), from 1. | | | A connection without the feature (a test app). |
+| Gate | The top of the public pipeline (the access log's start, the same timestamp as the total). | The gate hands the request on: `GateMiddleware.FinishAsync`, after the decision and its last header stage, to the forward or to its own answer (a refusal, a redirect, the proof-of-work page, robots.txt). A deferred policy's wait (a password check) is inside it. | 0. | No gate ran. |
+| Upstream connect | The handler's connect callback, for the request whose wait made the pool open a connection. | The handler's plaintext-stream filter, which runs once TLS to the upstream is up and before the first byte of HTTP. So it is DNS, TCP and TLS. | Stored: `UpstreamConnectStartMicros`. | Not forwarded. 0 on a pooled connection, with no start. |
+| Request body | The first read of the request body that returned bytes completed. | The last read that returned bytes completed (the read that finds the end of the body is not counted, so a reader that comes back for it late does not stretch the figure). | Stored: `RequestBodyStartMicros`. | 0 and no start when no byte was read; `-` when the body was not counted. |
+| Upstream wait | Our side was sent: the later of the request's headers going out (the connect's end on a new connection, the forward's start, YARP's first request transform, on a pooled one) and the body's last byte read. | The upstream's response headers (YARP's response transform), or, for a forward that got none, its failure. | Derived: the answer (the stored `ForwardStartMicros` plus the upstream leg) minus the wait. | Not forwarded. Derived (`RequestStages.WaitTicks`), not stored. |
+| Response send | Kestrel's response-start callback (the headers go out). | The completion callback, the same timestamp as the total's end. | Derived: the total minus the send. | No response (a dropped request). |
 
-**The stages overlap and don't add up to the total.** A body is read while the forward is under way, and a streamed answer is sent while the upstream is still writing it, so its send includes the upstream's own streaming. A WebSocket's send runs from the 101 to the close. "Sent" means handed to Kestrel and flushed past its output buffer: up to about 64 KiB, and the kernel's socket buffers, can still be on their way to a slow reader when the callback runs.
+**Lengths and starts.** A length is `TimeSpan` ticks, as before. A start is an `int` of microseconds from the request's start (`RequestStages.Offset`), `-1` when the stage did not happen; it holds about 35 minutes, past which a start reads as unknown. The entry stores only the starts its lengths cannot give: the forward's, the upstream connect's and the body's. The rest follow: the gate starts at 0, the body ends at its start plus its length, the upstream answered at the forward's start plus the upstream leg, the wait starts at the answer minus the wait, and the send starts at the total minus its length.
+
+**The stages overlap and don't add up to the total.** A body is forwarded as it is read, and a streamed answer is sent while the upstream is still writing it, so its send includes the upstream's own streaming. A WebSocket's send runs from the 101 to the close. "Sent" means handed to Kestrel and flushed past its output buffer: up to about 64 KiB, and the kernel's socket buffers, can still be on their way to a slow reader when the callback runs.
+
+### Chrome DevTools' Timing tab
+
+The live tail's waterfall (see [dashboard.md](dashboard.md)) reads like DevTools' Timing tab for the proxy's side of a request:
+
+| DevTools | Here |
+|---|---|
+| Connection start: Initial connection, SSL | The connection line above the waterfall ("Request 1, TLS handshake 3.4 ms", "Request 14, TLS reused"): it happened before the request, so it is not on its axis. |
+| Queueing, Stalled | Gate: the proxy's own work before the request can go upstream. |
+| (The upstream's) Initial connection, SSL | Upstream connect, only when the forward opened one. |
+| Request sent | Request body: the upload going upstream. A request without a body has no row; its headers going out takes no measurable time. |
+| Waiting for server response (TTFB) | Waiting for upstream (TTFB), with the same definition: from the request being sent to the first byte of the answer. |
+| Content Download | Response send: the answer going to the client. |
 
 **Request headers are left out.** Kestrel exposes no timestamp of a request's first byte. The connection's own start would include an idle keep-alive's wait, and a parser hook would mean replacing Kestrel's. So the time from the first header byte to the top of the pipeline is not measured.
 
 ### How each is taken
 
 - **TLS** (`Net.ConnectionTimings`): one small object per connection, set as a connection feature by `UseConnectionTimings` (plain HTTP), `UseTimedHttps` (TCP, the two middlewares around `UseHttps`) or the QUIC callback and `UseQuicHandshakeTiming`. The handshake is written once, before the connection's first request can start, and read by the request whose index is 1. The pooled request state caches the feature, since the state never leaves its connection (it lives on the H1 connection, or on an H2/H3 stream Kestrel pools per connection).
-- **Body** (`Http.BodyCounter`): the request stream it already wraps takes a timestamp per read that returned bytes. The upgraded stream's reads are a WebSocket's frames, not the body, and are not timed.
+- **Body** (`Http.BodyCounter`): the request stream it already wraps takes a timestamp per read that returned bytes, and notes a read that found the end of the body (a read for some bytes that returned none; a zero-byte read, a reader waiting for data without a buffer, is not one). The upgraded stream's reads are a WebSocket's frames, not the body, and are not timed.
+- **Starts**: the completion turns the forward's start (the access-log transform's timestamp), the connect's start (kept with its end in `UpstreamConnects`' table) and the body's first read into microseconds from the request's start.
 - **Gate**: one timestamp in `FinishAsync`.
 - **Upstream connect** (`Yarp.UpstreamConnects`): the forwarder's handlers get a connect callback (the handler's own connect, or the admin cluster's, wrapped) and a plaintext-stream filter. Both get the request message that made the pool open the connection; a `ConditionalWeakTable` keyed by it holds the start and the end. The request's message is kept on the pooled state by the access-log transform, and its completion looks it up.
 - **Send**: a response-start callback, registered next to the completion one, whose state is the pooled request state.
@@ -301,13 +317,20 @@ Built in `request-timing`. Until then a request had two times: the total and the
 - **YARP's and HttpClient's telemetry are not used.** Their `EventSource` and `Activity` paths allocate per request and need a listener; the two callbacks run only when a connection is opened.
 - **Histograms, not rollups.** The TLS handshake and the response send are histograms per host on `/metrics` (`paduraksa_tls_handshake_duration_seconds`, `paduraksa_response_send_duration_seconds`), in a table of their own beside the latency one, plus their sums in the host's counters. They are not sampled into the 10-second points or the minute rollups: that would widen the stored point and the rollup rows (a migration) for figures nothing on the dashboard draws over time yet. The handshake counts once per connection, against the host of its first request. OpenTelemetry does not offer them.
 - **The log's six fields are appended.** The 13 fields before them keep their order and format.
+- **The wait is DevTools' "Waiting for server response".** Until `timing-waterfall` the tail's wait was the upstream leg minus the connect, so it held the upload. Now it runs from when our side was sent to the upstream's answer, and the access log (field 20), the live tail and the API read it from one place (`RequestStages.WaitTicks`), so they agree.
+- **The last byte read stands in for the last byte forwarded.** YARP copies the body read by read, writing each read upstream before the next, so the last read is within one write of the last byte sent. A forwarded-side timestamp would mean wrapping YARP's request content.
+- **An answer before the body is all sent waits 0.** If the upstream answers while the body is still going up, the body bar overlaps the answer. If it cut the body off (YARP stops copying and the proxy drops the rest), no read found the body's end (`AccessLogEntry.RequestBodyUnfinished`, unless the bytes read reach the declared `Content-Length`), so the last read is not when the body was sent, and the wait is 0 too.
+- **Early answers show only for 3xx and up.** `HttpClient` hands back a 2xx answer only once it has sent the whole body, on HTTP/1.1 and HTTP/2 alike (an upstream that answers 200 and then reads the body is seen as answering after it); an early refusal (a 413, a redirect) comes back at once on HTTP/2. On HTTP/1.1 it waits for the body either way. So the wait of a forward with a body never includes the upload.
+- **A failed forward waits until it failed.** With no response headers, the wait ends where the forward failed. A refused connect is the whole forward and waits 0. YARP runs its response transform for a failed forward too, with no response, so "answered" is the forwarder's error feature being unset, not the transform having run (until `timing-waterfall` a refused connect was reported as no connect and all wait).
+- **192 bytes still.** The three starts and the cut-off flag fit the ring's slot by holding the TLS handshake in an `int` of ticks (up to about 214 s, far past Kestrel's handshake timeout; a longer one reads as that) and the status in a `short`. The slot is now exactly the sequence number and the entry, with no padding left, so the next field grows it to 256 bytes.
 
 ### Cost
 
 - On the request path: an atomic and a field read per request on the connection object, three more `Stopwatch` reads (the gate's end, the response's start, the end now shared by the total, the send and the counters, so the recorder no longer reads its own), one per body read that returned bytes, one more callback registration, one `ConditionalWeakTable` lookup at the end of a forward, and two more interlocked adds for the send's histogram and sum (four on a TLS connection's first request, with the handshake's). All 0 B, no lock.
 - Per connection: one 40-byte object; per upstream connection: one more and the table's lock to add it, on a path that waits on the network anyway.
-- The ring's slot stays 192 bytes: the entry grew from 136 to 176 bytes and the padding shrank to 8.
-- **Tests.** `GateAllocationTests` (h1, h2c, TLS h1 and h2), `BodyBytesTests.CountingAllocatesNothingOnKestrel` (TLS uploads included) and `AccessLogAllocationTests` (the completion, response-start and reapply callbacks on h1, h2c and TLS) hold the request at 0 B; `UpstreamConnectsTests` and `ConnectionTimingsTests` measure the lookup and the count alone. `RequestTimingTests` checks each stage against a known delay on a real listener: a client that waits 300 ms before its ClientHello (h1 and h2 over TLS), a body trickled over 300 ms, an upstream whose TLS handshake a relay holds for 300 ms (and a second request on the pooled connection with no connect), an upstream that waits 300 ms before its first byte, and a client that stops reading a 16 MiB answer for 600 ms. The bench numbers are in [hot-path.md](hot-path.md#request-timing).
+- The ring's slot stays 192 bytes: the entry grew from 136 to 176 bytes and the padding shrank to 8; with the starts (`timing-waterfall`) it is 184 bytes and the padding is gone.
+- The starts add two field reads, a table entry's field read (the connect's start, from the lookup the connect already made), three subtractions and one feature lookup (the forwarder's error feature) at the end of a request, all 0 B; the body counter checks one more condition per read. `AccessLogAllocationTests` now records each probed request as an answered forward, so the starts and the wait are inside its measured bytes.
+- **Tests.** `GateAllocationTests` (h1, h2c, TLS h1 and h2), `BodyBytesTests.CountingAllocatesNothingOnKestrel` (TLS uploads included) and `AccessLogAllocationTests` (the completion, response-start and reapply callbacks on h1, h2c and TLS) hold the request at 0 B; `UpstreamConnectsTests` and `ConnectionTimingsTests` measure the lookup and the count alone. `RequestTimingTests` checks each stage against a known delay on a real listener: a client that waits 300 ms before its ClientHello (h1 and h2 over TLS), a body trickled over 300 ms, an upstream whose TLS handshake a relay holds for 300 ms (and a second request on the pooled connection with no connect), an upstream that waits 300 ms before its first byte, and a client that stops reading a 16 MiB answer for 600 ms. Each also checks every stage sits inside the request in the pipeline's order (the gate before the forward, the connect inside it, the wait ending at the answer, the send after it), the trickled body's wait starts at its last byte and is not the trickle, the pooled connection has no connect start, and an upstream that refuses a body with a 413 after its first byte (HTTP/2, so the answer comes back at once) waits 0 with the body unfinished. `RequestStagesTests` covers the wait's definition case by case. The bench numbers are in [hot-path.md](hot-path.md#request-timing).
 
 ## Metrics (M9)
 

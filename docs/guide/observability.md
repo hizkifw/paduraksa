@@ -88,7 +88,7 @@ Paduraksa__AccessLog__SensitiveQueryKeys=token,api_key,pin
 escapes inside), and `-` for a value that isn't there:
 
 ```
-2026-01-31T12:34:56.789Z 198.51.100.7 "app.example" "GET /a/b?token=REDACTED HTTP/2" 200 512 1.234 0.987 "http://10.0.0.2:8080/" "0k3m9x2p-00000000000abc" "8f2a1c3d4e5f6789" "https://example.com/" "Mozilla/5.0" 2.101 1 0.000 0.012 0.000 0.105
+2026-01-31T12:34:56.789Z 198.51.100.7 "app.example" "GET /a/b?token=REDACTED HTTP/2" 200 512 1.234 0.987 "http://10.0.0.2:8080/" "0k3m9x2p-00000000000abc" "8f2a1c3d4e5f6789" "https://example.com/" "Mozilla/5.0" 2.101 1 0.000 0.012 0.000 0.105 0.987
 ```
 
 | # | Field | What |
@@ -112,10 +112,13 @@ escapes inside), and `-` for a value that isn't there:
 | 17 | gate | From the top of the request to the gate's hand-off (to the upstream, or to its own answer): access lists, rules, rate limits, auth, proof of work |
 | 18 | connect | The upstream connect (DNS, TCP, TLS) inside field 8; `0.000` on a reused connection, `-` when nothing was forwarded |
 | 19 | send | From the response's headers to its last byte handed to the client; a slow reader or a streamed answer shows here |
+| 20 | wait | Waiting for the upstream, as browsers' "Waiting for server response" (TTFB): from when the request was sent upstream (its body's last byte, or its headers without a body) to the upstream's response headers; `0.000` when the upstream answered before the body was all sent, `-` when nothing was forwarded |
 
 Durations are milliseconds. The stages overlap (a body is read while the forward runs), so they don't add up to the
-total. Fields 14 to 19 came after the first 13; a reader of the first 13 reads them unchanged. The same figures, with the
-upstream's wait split out, are in the **Live tail**'s entry as a waterfall.
+total. Fields 14 to 19 came after the first 13, and field 20 after them; a reader of the first fields reads them unchanged.
+Lines written before field 20 existed have 19 fields. The live tail showed a wait then too, but it was field 8 minus field
+18, so it included the time the body took to go up; field 20 doesn't. The same figures are in the **Live tail**'s entry as
+a waterfall, each stage drawn where it started, like a browser's network timing.
 
 ## Metrics
 
