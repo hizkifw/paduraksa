@@ -6,6 +6,7 @@
 #   bench/soak/run-soak.sh --quick                  # 5 minutes: validates the harness and every event once, scaled down
 #   bench/soak/run-soak.sh                          # 60 minutes
 #   bench/soak/run-soak.sh --duration 1800 --rate 3000
+#   bench/soak/run-soak.sh --duration 7200 --restart-at 6400   # one process for nearly two hours (a leak fit over a long life), the restart near the end
 #   bench/soak/run-soak.sh --analyze-only DIR       # judge a run again
 #   bench/soak/run-soak.sh --quick --keep-logs      # keep the server's access log (big: for chasing one request in a short run)
 #   bench/soak/run-soak.sh --watch-hangs            # write each request the server holds over 10 s to hangs.txt, with where it stopped, and dump the first
@@ -30,6 +31,7 @@ BUILD=true
 KEEP_LOGS=false
 WATCH_HANGS=false
 OUT=""
+RESTART_AT=0
 ANALYZE_ONLY=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//' >&2; }
@@ -38,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --quick) DURATION=300 ;;
         --duration) DURATION=$2; shift ;;
+        --restart-at) RESTART_AT=$2; shift ;;
         --rate) RATE=$2; shift ;;
         --out) OUT=$2; shift ;;
         --server-cpus) SERVER_CPUS=$2; shift ;;
@@ -160,7 +163,7 @@ PIN=()
 if command -v taskset >/dev/null; then PIN=(taskset -c "$LOAD_CPUS"); fi
 "${PIN[@]}" dotnet "$DRIVER_DLL" \
     --out "$OUT" --server-dll "$SERVER_DLL" --probe-dll "$PROBE_DLL" \
-    --duration "$DURATION" --rate "$RATE" --server-cpus "$SERVER_CPUS" --websockets "$WEBSOCKETS" \
+    --duration "$DURATION" --restart-at "$RESTART_AT" --rate "$RATE" --server-cpus "$SERVER_CPUS" --websockets "$WEBSOCKETS" \
     --browser "$BROWSER" --chromium "$CHROMIUM" --mcp "$MCP" --http3 "$HTTP3" --keep-logs "$KEEP_LOGS" \
     > >(tee "$OUT/driver.log") 2>&1 &
 DRIVER_PID=$!

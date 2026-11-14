@@ -10,7 +10,7 @@ using Paduraksa.Bench.Soak;
 // The soak test's driver. bench/soak/run-soak.sh builds it and runs it; bench/soak/README.md says what it does and why.
 var options = SoakOptions.Parse(args);
 Directory.CreateDirectory(options.OutDirectory);
-var plan = SoakPlan.For(options.DurationSeconds);
+var plan = SoakPlan.For(options.DurationSeconds, options.RestartAt);
 using Events events = new(Path.Combine(options.OutDirectory, "events.jsonl"));
 var config = SoakConfig.Build(options);
 var dataDirectory = Path.Combine(Path.GetTempPath(), "paduraksa-soak-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));

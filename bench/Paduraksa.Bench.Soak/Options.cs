@@ -13,6 +13,9 @@ internal sealed class SoakOptions
 
     public int DurationSeconds { get; init; } = 3600;
 
+    /// <summary>When the graceful restart happens, in seconds from the load's start; 0 is halfway. Late in the run, one process lives through almost all of it, which is what a leak fit over a long run needs.</summary>
+    public int RestartAt { get; init; }
+
     public int Rate { get; init; } = 4000;
 
     public string ServerCpus { get; init; } = "0-3";
@@ -68,6 +71,7 @@ internal sealed class SoakOptions
             ServerDll = Path.GetFullPath(values.TryGetValue("server-dll", out var s) ? s : throw new ArgumentException("--server-dll is required")),
             ProbeDll = Path.GetFullPath(values.TryGetValue("probe-dll", out var p) ? p : throw new ArgumentException("--probe-dll is required")),
             DurationSeconds = GetInt("duration", 3600),
+            RestartAt = GetInt("restart-at", 0),
             Rate = GetInt("rate", 4000),
             ServerCpus = Get("server-cpus", "0-3"),
             ChromiumPath = values.TryGetValue("chromium", out var c) && c.Length > 0 ? c : null,
@@ -107,13 +111,16 @@ internal sealed record SoakPlan(
     /// <summary>How long after the restart's stop signal errors are expected: the downtime, the clients' reconnects and the pools' first cold requests.</summary>
     public const int RestartGraceSeconds = 15;
 
-    public static SoakPlan For(int duration)
+    public static SoakPlan For(int duration, int restartAt = 0)
     {
         var warmup = Math.Min(300, (int)(duration * 0.2));
         var window = Math.Min(600, (int)(duration * 0.17));
         var flap = Math.Clamp((int)(duration * 0.1), 30, 60);
         var burst = Math.Clamp((int)(duration * 0.1), 30, 60);
         var flapStart = duration / 3;
-        return new SoakPlan(duration, warmup, flapStart, flap, flapStart + 5, burst, duration / 2, warmup, warmup + window, duration - window, duration);
+        // A restart after the final window's start would land in the window the drift checks compare, so it is kept before it.
+        int earliest = flapStart + Math.Max(flap, burst) + 30, latest = duration - window - 120;
+        var restart = restartAt > 0 && earliest <= latest ? Math.Clamp(restartAt, earliest, latest) : duration / 2;
+        return new SoakPlan(duration, warmup, flapStart, flap, flapStart + 5, burst, restart, warmup, warmup + window, duration - window, duration);
     }
 }

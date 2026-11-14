@@ -77,7 +77,9 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
             kestrel.AddServerHeader = false;
         });
         var app = builder.Build();
-        app.UseWebSockets();
+        // No server pings: ASP.NET's default of one every 2 minutes is traffic, so on a silent socket it raced the proxy's 120-second idle timeout and
+        // some were cut only at 240, 360 or 840 s (the 2-hour run). The chatty sockets don't need them.
+        app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.Zero });
         app.Run(HandleAsync);
         await app.StartAsync();
         _app = app;
