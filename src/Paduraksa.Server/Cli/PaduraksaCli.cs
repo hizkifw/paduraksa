@@ -51,7 +51,6 @@ internal static class PaduraksaCli
         root.Subcommands.Add(ConfigCommands.Build());
         root.Subcommands.Add(McpSandboxCommand.Build());
 
-        // TODO: the migrate command, and the full doctor (ports, permissions, libmsquic, DNS, clock skew).
         return root;
     }
 

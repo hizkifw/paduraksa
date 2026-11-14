@@ -86,33 +86,24 @@ public sealed class DoctorCommandsTests
     }
 
     [Fact]
-    public async Task DoctorWithoutLivenessExplainsAndFails()
+    public async Task LivenessIsStillTheOnlyThingTheFlagDoes()
     {
-        using StringWriter output = new();
-        using StringWriter error = new();
-
-        var exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(
-            TestHost.CreateOptions(), liveness: false, output, error, Ct);
-
-        Assert.Equal(1, exitCode);
-        Assert.Contains("--liveness", error.ToString(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task DoctorWithoutTheOptionParsesAndExplains()
-    {
-        // GetRequiredValue on an absent bool option threw; GetValue keeps `paduraksa doctor` a parse-level success that
-        // exits 1 with the usage line.
+        // --liveness prints "healthy" or fails and runs none of the full doctor's checks, whatever else the host has wrong.
         var root = Paduraksa.Server.Cli.PaduraksaCli.BuildRootCommand();
-        var parse = root.Parse(["doctor"]);
+        using var dead = TestPorts.ReserveDeadPort();
+        Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Paduraksa:Listen:Admin"] = dead.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
+        };
+        var parse = root.Parse(["doctor", "--liveness"]);
         Assert.Empty(parse.Errors);
 
-        using StringWriter output = new();
-        using StringWriter error = new();
-        var exitCode = await parse.InvokeAsync(new InvocationConfiguration { Output = output, Error = error, ProcessTerminationTimeout = null }, Ct);
+        var (exitCode, output, error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
 
         Assert.Equal(1, exitCode);
-        Assert.Contains("--liveness", error.ToString(), StringComparison.Ordinal);
+        Assert.Empty(output.Trim());
+        Assert.StartsWith("Unhealthy:", error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -186,7 +177,7 @@ public sealed class DoctorCommandsTests
         using StringWriter output = new();
         using StringWriter error = new();
         // The probe's own 3 s budget is the product's contract and is not what these tests check; a loaded runner can spend that on one cold TLS handshake.
-        var exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(options, liveness: true, output, error, Ct, TimeSpan.FromSeconds(30));
+        var exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(options, output, error, Ct, TimeSpan.FromSeconds(30));
         return (exitCode, output.ToString(), error.ToString());
     }
 }
