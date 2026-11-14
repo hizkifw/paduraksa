@@ -92,8 +92,13 @@ public sealed class FirstRunEndToEndTests
         await page.ClickAsync(".pdk-sheet[data-top] .pdk-local-submit");
         var row = page.Locator(".pdk-certs-table .pdk-dt-row", new() { HasText = HostName });
         await Expect(row).ToContainTextAsync("Local CA", new() { Timeout = 15_000 });
+
+        // Issuing closes the form and opens the new certificate's drawer in its place; the list shows the row before that, so Escape waits for the drawer.
+        await Expect(page.Locator(".pdk-sheet[data-top] .pdk-detail")).ToBeVisibleAsync();
+        await Expect(page).ToHaveURLAsync(new Regex("/certificates/crt_"));
         await page.Keyboard.PressAsync("Escape");
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0);
+        await Expect(page).ToHaveURLAsync(new Regex("/certificates$"));
         await row.ClickAsync();
         await Expect(page.Locator(".pdk-sheet[data-top] .pdk-detail")).ToBeVisibleAsync();
         await Expect(page).ToHaveURLAsync(new Regex("/certificates/crt_"));

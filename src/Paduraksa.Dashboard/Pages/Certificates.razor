@@ -287,10 +287,13 @@
         var result = await Drawers.OpenAsync<CertificateCreateDrawer>(
             new Dictionary<string, object?> { [nameof(CertificateCreateDrawer.Method)] = kind },
             DrawerWidth.Medium);
-        await LoadAsync();
+        // The new certificate's drawer opens before the list is read again: the read waits on the vault, and for that long nothing would be
+        // open and an Escape would be lost, then the drawer would appear anyway.
         if (result.As<CertificateSummary>() is { } created)
         {
             Navigation.NavigateTo(DashboardRoutes.Certificate(created.Id));
         }
+
+        await RefreshAsync();
     }
 }

@@ -155,6 +155,9 @@ leaves the thing unprotected. What has caused them so far:
 - **Playwright.** Each browser test starts its own Chromium and server; run in parallel on 4 cores they starve one another (page loads over 30 s). Every one is in the
   `[Collection(PlaywrightBrowser.CollectionName)]`, which runs alone, one class after another, and `Expect` waits 15 s. Never read a response body after the page has navigated away: use a plain
   API request.
+- **A click or key before the page can take it.** A page that loads its data in `OnInitializedAsync` prerenders its buttons, and a click before the circuit is live is lost
+  (the Notifications page now loads once live; `NotificationHistoryEndToEndTests` checks that the prerender has no Edit button). A key pressed while one drawer closes and the next opens (an Escape after a certificate is issued)
+  finds nothing to close: wait for the state the key acts on (the new drawer visible), not for something the list shows earlier. `.pdk-sheet` also matches a sheet sliding out for 280 ms.
 - **A cold first call.** The first request of a boot runs cold code, and a probe or client with a contract timeout of its own (the 3 s of `doctor --liveness`) takes a longer
   one in tests (`LivenessAsync`'s `timeout`), as the timeout is not what the test checks.
 - **A local port prober.** On the dev machine a Node tool sends `GET /` to every new localhost port within seconds. A fake or a log that counts requests must count only what

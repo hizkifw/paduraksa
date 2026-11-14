@@ -376,6 +376,7 @@ With `OnSubmit` the drawer is one form, so Enter submits. A form that brings its
 
 - A certificate opens in `CertificateDrawer`. It reads the inventory itself and follows its changes, so its address opens it from anywhere. Renew now stacks the progress on it. Re-issue and delete ask in a dialog over it.
 - "Add certificate" opens `CertificateCreateDrawer` with a choice of where it comes from: an ACME CA, the local CA, self-signed, or upload. The "More" menu goes straight to one, and creates the local CA. While an issuance shows its progress, the drawer ends only with Done or Continue in the background.
+- A certificate made from the drawer closes it and opens that certificate's own drawer (its address) before the list is read again; the read waits on the vault, and nothing would be open for that long.
 - In the ACME form, the account and the DNS provider are pickers with "New ACME account..." and "New DNS provider..." (or a button when there is none). They stack `AcmeAccountDrawer` and `DnsProviderDrawer` (also what the settings pages open) and come back selected.
 
 ### Addresses
