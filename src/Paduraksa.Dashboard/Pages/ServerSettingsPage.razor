@@ -21,9 +21,10 @@
 else if (_document is null || _view is null)
 {
     <div class="pdk-form-grid" aria-busy="true">
-        @for (var i = 0; i < 3; i++)
+        @* One card per group, as the loaded page has, so it doesn't grow when the settings arrive. *@
+        @foreach (var group in ServerSettingCatalog.All.Select(s => s.Group).Distinct())
         {
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-skeleton="@GroupKey(group)">
                 <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" Height="28px" />
                 <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" Class="mt-3" />
             </MudPaper>

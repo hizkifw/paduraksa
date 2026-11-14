@@ -2,7 +2,7 @@
 <div class="@("pdk-size-custom " + Class)">
     <MudNumericField T="double?" Value="_number" ValueChanged="SetNumberAsync" Label="@Label" Placeholder="@Placeholder" Min="0"
                      Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" HideSpinButtons="true" Clearable="@(!ReadOnly)"
-                     Class="pdk-mono-input" Error="@(Error is not null)" ErrorText="@Error" data-field="@Field" />
+                     Class="pdk-mono-input" Error="@(Error is not null || _tooLong)" ErrorText="@(Error ?? (_tooLong ? "Too long to store." : null))" data-field="@Field" />
     <MudSelect T="string" Value="_unit" ValueChanged="SetUnitAsync" Label="Unit" Variant="Variant.Outlined" Margin="Margin.Dense"
                Dense="true" ReadOnly="@ReadOnly" data-field="@(Field + "-unit")">
         @foreach (var unit in DurationText.Units)
@@ -17,6 +17,7 @@
     private string _unit = "d";
     private TimeSpan? _seen;
     private bool _initialised;
+    private bool _tooLong;
 
     /// <summary>The span; null takes the default.</summary>
     [Parameter]
@@ -72,17 +73,30 @@
     private Task SetNumberAsync(double? number)
     {
         _number = number;
-        return EmitAsync(number is { } typed ? DurationText.ToSpan(typed, _unit) : null);
+        return EmitAsync();
     }
 
     private Task SetUnitAsync(string unit)
     {
         _unit = unit;
-        return _number is { } number ? EmitAsync(DurationText.ToSpan(number, unit)) : Task.CompletedTask;
+        return _number is null ? Task.CompletedTask : EmitAsync();
     }
 
-    private Task EmitAsync(TimeSpan? span)
+    // A number past what a span holds is said at the field and not emitted: null would mean "the default", and the review would show nothing changed.
+    private Task EmitAsync()
     {
+        TimeSpan? span = null;
+        if (_number is { } number)
+        {
+            span = DurationText.ToSpan(number, _unit);
+        }
+
+        _tooLong = _number is not null && span is null;
+        if (_tooLong)
+        {
+            return Task.CompletedTask;
+        }
+
         _seen = span;
         return ValueChanged.InvokeAsync(span);
     }

@@ -1,5 +1,6 @@
 using Bunit;
 
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 using MudBlazor;
@@ -24,6 +25,21 @@ public sealed class ServerSettingsPageTests
         var page = context.Render<ServerSettingsPage>();
         await page.WaitForStateAsync(() => page.FindAll("[data-form=server-settings]").Count == 1);
         return page;
+    }
+
+    [Fact]
+    public async Task TheSkeletonHasACardForEveryGroupTheLoadedPageHas()
+    {
+        await using DashboardTestContext context = new();
+        IdentityPages.SignIn(context, Role.Admin);
+        context.SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        var skeleton = context.Render<ServerSettingsPage>().FindAll("[data-skeleton]").Count;
+
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var page = await RenderAsync(context);
+
+        Assert.Equal(page.FindAll("[data-card]").Count, skeleton);
+        Assert.True(skeleton > 3);
     }
 
     [Fact]
