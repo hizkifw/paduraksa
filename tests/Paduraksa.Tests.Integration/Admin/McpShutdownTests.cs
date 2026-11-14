@@ -120,6 +120,28 @@ public sealed class McpShutdownTests
         Assert.Equal(second, Toolkit(api)!.ChildProcessIds);
     }
 
+    [Fact]
+    public async Task ACallThatPassedTheSwitchBeforeItWentOffLeavesNoPoolBehind()
+    {
+        await using var api = await AdminApiHarness.StartAsync(Ct, settings: new Dictionary<string, string?> { ["Paduraksa:Mcp:Enabled"] = null });
+        await SetAsync(api, enabled: true);
+        await SetAsync(api, enabled: false);
+
+        // Straight to the toolkit, as a request would that read the switch as on before the off: the middleware's 404 can't stop it now.
+        var toolkit = Toolkit(api)!;
+        var result = await toolkit.CallAsync(
+            new ModelContextProtocol.Protocol.CallToolRequestParams
+            {
+                Name = "search",
+                Arguments = new Dictionary<string, System.Text.Json.JsonElement> { ["code"] = System.Text.Json.JsonSerializer.SerializeToElement("async () => 1") },
+            },
+            Ct);
+
+        Assert.True(result.IsError);
+        Assert.Null(toolkit.Detach());
+        Assert.Empty(toolkit.ChildProcessIds);
+    }
+
     private static async Task SetAsync(AdminApiHarness api, bool enabled)
     {
         using var read = await api.GetAsync("/api/v1/server-settings");

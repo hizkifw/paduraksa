@@ -67,6 +67,19 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
             }
 
             var tools = await ToolsAsync().ConfigureAwait(false);
+
+            // The switch went off after this request passed the 404 and before the pool was published: the off's detach found nothing to
+            // stop, so this call's pool is stopped here rather than left to idle (and cached) with MCP off.
+            if (mcpSwitch is { Enabled: false })
+            {
+                if (Detach() is { } dispose)
+                {
+                    await dispose().ConfigureAwait(false);
+                }
+
+                return Failure("MCP is switched off.");
+            }
+
             SandboxOutcome outcome;
             if (request.Name == ToolDescriptions.SearchName)
             {
@@ -145,13 +158,8 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
     }
 
     /// <summary>
-    /// Stops the sandbox pool and kills its children (MCP switched off, or its idle timeout changed): the next call, once allowed, builds a new one
-    /// with the settings then in force. A call running now finishes or fails with the pool.
-    /// </summary>
-    public Task StopAsync() => Detach() is { } dispose ? dispose() : Task.CompletedTask;
-
-    /// <summary>
-    /// Takes the current pool out at once, so the next call builds a new one, and returns what disposes the old one (null when there was none).
+    /// Takes the current pool out at once, so the next call builds a new one, and returns what disposes the old one (null when there was none):
+    /// MCP switched off, or its idle timeout changed. A call running now finishes or fails with the pool.
     /// Split from the disposal so a caller can detach in the order the changes came and dispose later: a disposal that runs late then only
     /// ever kills the pool that was current when it was asked for, never a newer one.
     /// </summary>
