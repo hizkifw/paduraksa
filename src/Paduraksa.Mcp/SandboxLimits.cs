@@ -26,6 +26,9 @@ public sealed record SandboxLimits
 
     public int MaxRequestBodyBytes { get; init; } = 256 * 1024;
 
+    /// <summary>How deep a request body may nest (an object or array as the body is level 1); half the API's own JSON limit of 64, and deeper than any of its bodies.</summary>
+    public const int MaxBodyDepth = 32;
+
     /// <summary>The API's answer is read up to this size; a larger one comes back as a note, not a body.</summary>
     public int MaxResponseBytes { get; init; } = 1024 * 1024;
 

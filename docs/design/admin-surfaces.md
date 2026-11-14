@@ -473,10 +473,12 @@ It starts the child with `DOTNET_GCHeapHardLimit` 256 MiB, workstation non-concu
 ### The request path across the boundary
 
 The request policy never moves into the child. `paduraksa.request` in the child sends its options as JSON (`JSON.stringify`) in a `request` frame. The parent's `RequestBridge`:
-1. validates every field by name. A script's mistakes are TypeErrors it raises in the script: an unknown option, a body on a GET, a `dryRun` of its own, a malformed `ifMatch`;
+1. validates every field by name. A script's mistakes are TypeErrors it raises in the script: an unknown option, a body on a GET, a `dryRun` of its own, a malformed `ifMatch`, a body over 256 KiB or nested deeper than 32 levels (`SandboxLimits.MaxBodyDepth`, an object or array as the body is level 1: half the API's own JSON limit of 64);
 2. applies the policy (below);
 3. dispatches;
 4. answers with a `response` frame the child turns back into `{ status, body, etag?, dryRun?, note? }` or into a rejection.
+
+- **The depth is measured before the parse** with a reader that keeps no recursion, so a body one level too deep says `The request body is nested deeper than 32 levels.`. It used to be parsed with a `MaxDepth` of 32 on the whole options object, which failed with the generic `request takes one object` (a red-team agent's report).
 
 Nothing the child sends is used before it is checked. A compromised child can ask for exactly what a script could, and no more. The fuzz target feeds the parent's run protocol arbitrary bytes as the child's output to hold that.
 

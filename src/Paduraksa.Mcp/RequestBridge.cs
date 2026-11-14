@@ -52,10 +52,22 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
 
     private (ApiCall Call, bool Confirm) Parse(string optionsJson)
     {
+        // Measured before the parse, so a body that is too deep is told so: with the depth left to the parser it failed as "request takes one object".
+        if (Depths(optionsJson) is not var (depth, bodyDepth))
+        {
+            throw Invalid("request takes one object: { method, path, query?, body?, confirm?, ifMatch? }.");
+        }
+
+        if (bodyDepth > SandboxLimits.MaxBodyDepth)
+        {
+            throw Invalid(BodyTooDeep);
+        }
+
+        // The rest of the options are a string, a boolean or a query of scalars: anything deeper is malformed, and the reader below says where.
         JsonDocument document;
         try
         {
-            document = JsonDocument.Parse(optionsJson, new JsonDocumentOptions { MaxDepth = 32 });
+            document = JsonDocument.Parse(optionsJson, new JsonDocumentOptions { MaxDepth = Math.Min(depth, SandboxLimits.MaxBodyDepth + 1) + 1 });
         }
         catch (JsonException)
         {
@@ -124,6 +136,46 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
             root.TryGetProperty("query", out var query);
             return (new ApiCall(verb, path.GetString()!, Query(query), bodyJson, ifMatch), confirm);
         }
+    }
+
+    internal static readonly string BodyTooDeep = $"The request body is nested deeper than {SandboxLimits.MaxBodyDepth} levels.";
+
+    /// <summary>
+    /// The options' nesting and the body's own (an object or array as the body is level 1), or <c>null</c> for text that is not JSON. The reader keeps no stack of its own beyond
+    /// a bit per level, so a megabyte of brackets costs no recursion here.
+    /// </summary>
+    private static (int Depth, int BodyDepth)? Depths(string optionsJson)
+    {
+        var reader = new Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(optionsJson), new JsonReaderOptions { MaxDepth = int.MaxValue });
+        var depth = 0;
+        var bodyDepth = 0;
+        var inBody = false;
+        try
+        {
+            while (reader.Read())
+            {
+                switch (reader.TokenType)
+                {
+                    case JsonTokenType.PropertyName when reader.CurrentDepth == 1:
+                        inBody = reader.ValueTextEquals("body"u8);
+                        break;
+                    case JsonTokenType.StartObject or JsonTokenType.StartArray:
+                        depth = Math.Max(depth, reader.CurrentDepth + 1);
+                        if (inBody)
+                        {
+                            bodyDepth = Math.Max(bodyDepth, reader.CurrentDepth);
+                        }
+
+                        break;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return (depth, bodyDepth);
     }
 
     private static List<KeyValuePair<string, string>> Query(JsonElement query)

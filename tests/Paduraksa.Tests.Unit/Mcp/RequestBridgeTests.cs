@@ -155,4 +155,34 @@ public sealed class RequestBridgeTests
         using var message = Messages.Parse(RequestBridge.DispatchFailed(4));
         Assert.Equal("The request failed inside the server; nothing more is known.", message.RootElement.GetProperty("error").GetProperty("message").GetString());
     }
+
+    [Theory]
+    [InlineData("[", "]")]
+    [InlineData("{\"a\":", "}")]
+    public async Task ABodyNestedToTheLimitIsSentAndOneLevelMoreIsRefusedByName(string open, string close)
+    {
+        static string Nested(string open, string close, int levels) => string.Concat(Enumerable.Repeat(open, levels)) + (open == "[" ? "" : "1") + string.Concat(Enumerable.Repeat(close, levels));
+
+        ScriptedDispatcher dispatcher = new();
+        var atLimit = Nested(open, close, SandboxLimits.MaxBodyDepth);
+        var sent = await AskAsync($$"""{"method":"POST","path":"/api/v1/simulate","body":{{atLimit}}}""", dispatcher);
+        Assert.Equal(200, sent.GetProperty("status").GetInt32());
+        Assert.Equal(atLimit, Assert.Single(dispatcher.Calls).BodyJson);
+
+        foreach (var levels in new[] { SandboxLimits.MaxBodyDepth + 1, 10_000 })
+        {
+            var refused = await AskAsync($$"""{"method":"POST","path":"/api/v1/simulate","confirm":true,"body":{{Nested(open, close, levels)}}}""", dispatcher);
+            Assert.Equal("TypeError", refused.GetProperty("error").GetProperty("type").GetString());
+            Assert.Equal("The request body is nested deeper than 32 levels.", refused.GetProperty("error").GetProperty("message").GetString());
+        }
+
+        Assert.Single(dispatcher.Calls);
+    }
+
+    [Fact]
+    public async Task DeepOptionsOutsideTheBodyAreStillTheShapeError()
+    {
+        var reply = await AskAsync("{\"method\":\"GET\",\"path\":\"/api/v1/hosts\",\"query\":" + new string('[', 100) + new string(']', 100) + "}", new ScriptedDispatcher());
+        Assert.StartsWith("request takes one object", reply.GetProperty("error").GetProperty("message").GetString(), StringComparison.Ordinal);
+    }
 }

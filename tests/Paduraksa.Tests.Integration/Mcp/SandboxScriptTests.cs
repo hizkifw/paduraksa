@@ -240,4 +240,16 @@ public sealed class SandboxScriptTests(SandboxFixture fixture) : IClassFixture<S
             Ct);
         Assert.Equal("{\"keys\":[\"request\"],\"source\":\"function request() { [native code] }\",\"globals\":[]}", outcome.Text);
     }
+
+    [Fact]
+    public async Task ABodyTooDeepIsRefusedInTheScriptWithTheLimitItBroke()
+    {
+        ScriptedDispatcher dispatcher = new();
+        var outcome = await Tools.ExecuteAsync(
+            "async () => { const nest = (n) => n === 0 ? 1 : [nest(n - 1)]; const ok = await paduraksa.request({ method: 'POST', path: '/api/v1/simulate', body: nest(32) }); try { await paduraksa.request({ method: 'POST', path: '/api/v1/simulate', body: nest(33) }); return 'sent'; } catch (e) { return [ok.status, e.name + ': ' + e.message]; } }",
+            dispatcher,
+            Ct);
+        Assert.Equal("[200,\"TypeError: The request body is nested deeper than 32 levels.\"]", outcome.Text);
+        Assert.Single(dispatcher.Calls);
+    }
 }
