@@ -310,7 +310,8 @@ def check_s6(report, plan, facts, publishes, samples, events):
     timeline = health["flapNodeTimeline"]
     flap = facts.get("flap")
     if flap and timeline:
-        stop_t, start_t = flap["stopT"], flap["startT"]
+        stop_t = flap["stopT"]
+        start_t = flap["startT"] if flap["startT"] is not None else float("inf")  # still down when the run ended
         down = [e for e in timeline if e["State"] not in ("healthy", "unknown") and stop_t <= e["T"] <= start_t + 1]
         came_back_early = [e for e in timeline if e["State"] == "healthy" and down and down[0]["T"] < e["T"] < start_t - 1]
         publishes_while_down = [r for r in publishes if down and down[0]["T"] <= r["T"] <= start_t and not r["Error"]]
@@ -322,6 +323,20 @@ def check_s6(report, plan, facts, publishes, samples, events):
               f"{health['downVerdictsOnLiveDestinations']} down verdicts, {health['flappingFlags']} flapping flags on live destinations", "0", f"{health['polls']} health polls")
 
 
+def flap_from_events(events):
+    """The flap as the driver's event log has it. The driver writes facts["flap"] only after it has waited 45 s past the restart for the outbox and the traffic, so a run that ends or
+    fails before then has the flap in its events and nothing in facts.json: it was reported as "no flap in this run". The quick plan restarts the server at 2:30, between the flap's start (2:10) and that check (2:55)."""
+    when = {e["kind"]: e for e in events if e["kind"].startswith("flap.")}
+    if "flap.stop" not in when:
+        return None
+    checked = when.get("flap.checked")
+    return {
+        "stopT": when["flap.stop"]["t"],
+        "startT": when["flap.start"]["t"] if "flap.start" in when else None,
+        "requestsAfterRestart": checked["detail"]["afterRestartRequests"] if checked else None,
+    }
+
+
 def check_flap(report, plan, facts):
     flap = facts.get("flap")
     timeline = facts["health"]["flapNodeTimeline"]
@@ -330,10 +345,16 @@ def check_flap(report, plan, facts):
         return
     stop_t, start_t = flap["stopT"], flap["startT"]
     down = next((e for e in timeline if e["State"] not in ("healthy", "unknown") and e["T"] >= stop_t), None)
-    up = next((e for e in timeline if e["State"] == "healthy" and e["T"] > start_t), None)
     report.ok("Flap", "the stopped destination was marked down", down is not None and down["T"] - stop_t <= T["flap_detect_seconds"], f"{down['T'] - stop_t:.1f} s" if down else "never", f"<= {T['flap_detect_seconds']:g} s", down["Reason"] if down else "")
-    report.ok("Flap", "it was marked healthy again and got traffic", up is not None and up["T"] - start_t <= T["flap_recover_seconds"] and flap["requestsAfterRestart"] > 0,
-              f"{up['T'] - start_t:.1f} s, {flap['requestsAfterRestart']} requests since" if up else "never", f"<= {T['flap_recover_seconds']:g} s")
+    if start_t is None:
+        report.skip("Flap", "it was marked healthy again and got traffic", "the run ended before the destination was started again")
+    else:
+        up = next((e for e in timeline if e["State"] == "healthy" and e["T"] > start_t), None)
+        after = flap["requestsAfterRestart"]
+        # Without the driver's own count (the run ended first) the recovery is judged alone, and the note says the traffic wasn't counted.
+        report.ok("Flap", "it was marked healthy again and got traffic", up is not None and up["T"] - start_t <= T["flap_recover_seconds"] and (after is None or after > 0),
+                  (f"{up['T'] - start_t:.1f} s, {after} requests since" if after is not None else f"{up['T'] - start_t:.1f} s") if up else "never", f"<= {T['flap_recover_seconds']:g} s",
+                  "" if after is not None else "the run ended before the traffic after the restart was counted")
     items = []
     for history in (flap.get("history"), facts.get("notificationsFinal")):
         for item in history.get("items", []) if isinstance(history, dict) else []:
@@ -344,7 +365,8 @@ def check_flap(report, plan, facts):
     came_up = [i for i, t in zip(items, texts) if "recover" in t or ".up" in t or "healthy again" in t or "is up" in t or " up" in t]
     down_events = [i for i in items if "down" in str(i.get("kind", "")).lower()]
     up_events = [i for i in items if str(i.get("kind", "")).lower().endswith("up") or ".up" in str(i.get("kind", "")).lower()]
-    report.ok("Flap", "the notification outbox recorded down and up", bool(down_events) and bool(up_events), f"{len(down_events)} down, {len(up_events)} up of {len(items)} events", ">= 1 each",
+    report.ok("Flap", "the notification outbox recorded down and up", bool(down_events) and (bool(up_events) or start_t is None), f"{len(down_events)} down, {len(up_events)} up of {len(items)} events",
+              ">= 1 down" if start_t is None else ">= 1 each",
               ", ".join(sorted({str(i.get('kind')) for i in items})))
     _ = (went_down, came_up)
 
@@ -506,6 +528,8 @@ def main(argv):
         print(__doc__)
         return 2
     run, plan, facts, samples, publishes, events, log = load(argv[1])
+    if not facts.get("flap") and (flap := flap_from_events(events)):
+        facts["flap"] = flap
     report = Report()
     findings = scan_log(log, events, plan)
     check_errors(report, plan, facts, findings)
