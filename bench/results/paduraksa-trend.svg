@@ -33,20 +33,20 @@
 <line class="grid" x1="60" y1="122.00" x2="414" y2="122.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="125.00">200k</text>
 <line class="axis" x1="60" y1="122" x2="60" y2="206"/>
-<polyline class="line" points="60.00,130.93 130.80,137.99 201.60,130.99 272.40,131.15 343.20,134.17 414.00,135.87"><title>Paduraksa h1: 6 runs, 178,734 to 166,986 req/s</title></polyline>
+<polyline class="line" points="60.00,130.93 130.80,137.99 201.60,130.99 272.40,131.15 343.20,134.17 414.00,135.11"><title>Paduraksa h1: 6 runs, 178,734 to 168,782 req/s</title></polyline>
 <circle class="marker" cx="60.00" cy="130.93" r="4"><title>2026-11-07T04:00:33Z (commit 57e3c8a9): 178,734 req/s</title></circle>
 <circle class="marker" cx="130.80" cy="137.99" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 161,923 req/s</title></circle>
 <circle class="marker" cx="201.60" cy="130.99" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 178,585 req/s</title></circle>
 <circle class="marker" cx="272.40" cy="131.15" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 178,206 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="134.17" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 171,033 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="135.87" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 166,986 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="135.11" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 168,782 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="222">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="222">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="222">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="222">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="222">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="222">11-14 16:01</text>
-<text class="text value" x="422.00" y="127.87">167k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="222">11-14 20:07</text>
+<text class="text value" x="422.00" y="127.11">168.8k</text>
 <text class="text panel-title" x="492" y="112">h1-tls</text>
 <line class="grid" x1="536" y1="206.00" x2="890" y2="206.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="209.00">0</text>
@@ -55,20 +55,20 @@
 <line class="grid" x1="536" y1="122.00" x2="890" y2="122.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="125.00">150k</text>
 <line class="axis" x1="536" y1="122" x2="536" y2="206"/>
-<polyline class="line" points="536.00,126.31 606.80,130.85 677.60,125.85 748.40,126.25 819.20,128.82 890.00,129.85"><title>Paduraksa h1-tls: 6 runs, 142,310 to 135,991 req/s</title></polyline>
+<polyline class="line" points="536.00,126.31 606.80,130.85 677.60,125.85 748.40,126.25 819.20,128.82 890.00,131.22"><title>Paduraksa h1-tls: 6 runs, 142,310 to 133,543 req/s</title></polyline>
 <circle class="marker" cx="536.00" cy="126.31" r="4"><title>2026-11-07T04:00:33Z (commit 57e3c8a9): 142,310 req/s</title></circle>
 <circle class="marker" cx="606.80" cy="130.85" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 134,197 req/s</title></circle>
 <circle class="marker" cx="677.60" cy="125.85" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 143,121 req/s</title></circle>
 <circle class="marker" cx="748.40" cy="126.25" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 142,414 req/s</title></circle>
 <circle class="marker" cx="819.20" cy="128.82" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 137,827 req/s</title></circle>
-<circle class="marker" cx="890.00" cy="129.85" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 135,991 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="131.22" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 133,543 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="222">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="222">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="222">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="222">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="222">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="222">11-14 16:01</text>
-<text class="text value" x="898.00" y="121.85">136k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="222">11-14 20:07</text>
+<text class="text value" x="898.00" y="123.22">133.5k</text>
 <text class="text panel-title" x="16" y="266">h2-tls</text>
 <line class="grid" x1="60" y1="360.00" x2="414" y2="360.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="363.00">0</text>
@@ -77,20 +77,20 @@
 <line class="grid" x1="60" y1="276.00" x2="414" y2="276.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="279.00">200k</text>
 <line class="axis" x1="60" y1="276" x2="60" y2="360"/>
-<polyline class="line" points="60.00,291.02 130.80,298.64 201.60,293.70 272.40,293.65 343.20,296.82 414.00,298.79"><title>Paduraksa h2-tls: 6 runs, 164,249 to 145,731 req/s</title></polyline>
+<polyline class="line" points="60.00,291.02 130.80,298.64 201.60,293.70 272.40,293.65 343.20,296.82 414.00,297.71"><title>Paduraksa h2-tls: 6 runs, 164,249 to 148,311 req/s</title></polyline>
 <circle class="marker" cx="60.00" cy="291.02" r="4"><title>2026-11-07T04:00:33Z (commit 57e3c8a9): 164,249 req/s</title></circle>
 <circle class="marker" cx="130.80" cy="298.64" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 146,099 req/s</title></circle>
 <circle class="marker" cx="201.60" cy="293.70" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 157,865 req/s</title></circle>
 <circle class="marker" cx="272.40" cy="293.65" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 157,976 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="296.82" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 150,430 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="298.79" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 145,731 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="297.71" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 148,311 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="376">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="376">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="376">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="376">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="376">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="376">11-14 16:01</text>
-<text class="text value" x="422.00" y="290.79">145.7k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="376">11-14 20:07</text>
+<text class="text value" x="422.00" y="289.71">148.3k</text>
 <text class="text panel-title" x="492" y="266">browser</text>
 <line class="grid" x1="536" y1="360.00" x2="890" y2="360.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="363.00">0</text>
@@ -99,20 +99,20 @@
 <line class="grid" x1="536" y1="276.00" x2="890" y2="276.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="279.00">150k</text>
 <line class="axis" x1="536" y1="276" x2="536" y2="360"/>
-<polyline class="line" points="536.00,284.41 606.80,291.81 677.60,285.63 748.40,285.73 819.20,290.14 890.00,309.20"><title>Paduraksa browser: 6 runs, 134,975 to 90,706 req/s</title></polyline>
+<polyline class="line" points="536.00,284.41 606.80,291.81 677.60,285.63 748.40,285.73 819.20,290.14 890.00,308.69"><title>Paduraksa browser: 6 runs, 134,975 to 91,616 req/s</title></polyline>
 <circle class="marker" cx="536.00" cy="284.41" r="4"><title>2026-11-07T04:00:33Z (commit 57e3c8a9): 134,975 req/s</title></circle>
 <circle class="marker" cx="606.80" cy="291.81" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 121,776 req/s</title></circle>
 <circle class="marker" cx="677.60" cy="285.63" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 132,806 req/s</title></circle>
 <circle class="marker" cx="748.40" cy="285.73" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 132,620 req/s</title></circle>
 <circle class="marker" cx="819.20" cy="290.14" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 124,759 req/s</title></circle>
-<circle class="marker" cx="890.00" cy="309.20" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 90,706 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="308.69" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 91,616 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="376">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="376">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="376">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="376">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="376">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="376">11-14 16:01</text>
-<text class="text value" x="898.00" y="301.20">90.7k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="376">11-14 20:07</text>
+<text class="text value" x="898.00" y="300.69">91.6k</text>
 <text class="text panel-title" x="16" y="420">body-64k</text>
 <line class="grid" x1="60" y1="514.00" x2="414" y2="514.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="517.00">0</text>
@@ -121,19 +121,19 @@
 <line class="grid" x1="60" y1="430.00" x2="414" y2="430.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="433.00">80k</text>
 <line class="axis" x1="60" y1="430" x2="60" y2="514"/>
-<polyline class="line" points="130.80,441.03 201.60,435.22 272.40,434.45 343.20,436.00 414.00,440.85"><title>Paduraksa body-64k: 5 runs, 69,491 to 69,663 req/s</title></polyline>
+<polyline class="line" points="130.80,441.03 201.60,435.22 272.40,434.45 343.20,436.00 414.00,436.52"><title>Paduraksa body-64k: 5 runs, 69,491 to 73,795 req/s</title></polyline>
 <circle class="marker" cx="130.80" cy="441.03" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 69,491 req/s</title></circle>
 <circle class="marker" cx="201.60" cy="435.22" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 75,033 req/s</title></circle>
 <circle class="marker" cx="272.40" cy="434.45" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 75,757 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="436.00" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 74,281 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="440.85" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 69,663 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="436.52" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 73,795 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="530">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="530">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="530">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="530">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="530">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="530">11-14 16:01</text>
-<text class="text value" x="422.00" y="432.85">69.7k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="530">11-14 20:07</text>
+<text class="text value" x="422.00" y="428.52">73.8k</text>
 <text class="text panel-title" x="492" y="420">upload-64k</text>
 <line class="grid" x1="536" y1="514.00" x2="890" y2="514.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="517.00">0</text>
@@ -142,16 +142,16 @@
 <line class="grid" x1="536" y1="430.00" x2="890" y2="430.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="433.00">80k</text>
 <line class="axis" x1="536" y1="430" x2="536" y2="514"/>
-<polyline class="line" points="819.20,445.31 890.00,447.67"><title>Paduraksa upload-64k: 2 runs, 65,421 to 63,169 req/s</title></polyline>
+<polyline class="line" points="819.20,445.31 890.00,446.62"><title>Paduraksa upload-64k: 2 runs, 65,421 to 64,174 req/s</title></polyline>
 <circle class="marker" cx="819.20" cy="445.31" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 65,421 req/s</title></circle>
-<circle class="marker" cx="890.00" cy="447.67" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 63,169 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="446.62" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 64,174 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="530">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="530">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="530">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="530">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="530">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="530">11-14 16:01</text>
-<text class="text value" x="898.00" y="439.67">63.2k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="530">11-14 20:07</text>
+<text class="text value" x="898.00" y="438.62">64.2k</text>
 <text class="text panel-title" x="16" y="574">handshake</text>
 <line class="grid" x1="60" y1="668.00" x2="414" y2="668.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="671.00">0</text>
@@ -160,19 +160,19 @@
 <line class="grid" x1="60" y1="584.00" x2="414" y2="584.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="587.00">15k</text>
 <line class="axis" x1="60" y1="584" x2="60" y2="668"/>
-<polyline class="line" points="130.80,627.75 201.60,610.83 272.40,611.86 343.20,611.79 414.00,612.45"><title>Paduraksa handshake: 5 runs, 7,187 to 9,920 req/s</title></polyline>
+<polyline class="line" points="130.80,627.75 201.60,610.83 272.40,611.86 343.20,611.79 414.00,611.84"><title>Paduraksa handshake: 5 runs, 7,187 to 10,028 req/s</title></polyline>
 <circle class="marker" cx="130.80" cy="627.75" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 7,187 req/s</title></circle>
 <circle class="marker" cx="201.60" cy="610.83" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 10,208 req/s</title></circle>
 <circle class="marker" cx="272.40" cy="611.86" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 10,025 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="611.79" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 10,038 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="612.45" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 9,920 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="611.84" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 10,028 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="684">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="684">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="684">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="684">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="684">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="684">11-14 16:01</text>
-<text class="text value" x="422.00" y="604.45">9.9k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="684">11-14 20:07</text>
+<text class="text value" x="422.00" y="603.84">10k</text>
 <text class="text panel-title" x="492" y="574">websocket</text>
 <line class="grid" x1="536" y1="668.00" x2="890" y2="668.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="671.00">0</text>
@@ -181,16 +181,16 @@
 <line class="grid" x1="536" y1="584.00" x2="890" y2="584.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="587.00">300k</text>
 <line class="axis" x1="536" y1="584" x2="536" y2="668"/>
-<polyline class="line" points="819.20,597.60 890.00,605.86"><title>Paduraksa websocket: 2 runs, 251,423 to 221,915 req/s</title></polyline>
+<polyline class="line" points="819.20,597.60 890.00,595.16"><title>Paduraksa websocket: 2 runs, 251,423 to 260,131 req/s</title></polyline>
 <circle class="marker" cx="819.20" cy="597.60" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 251,423 req/s</title></circle>
-<circle class="marker" cx="890.00" cy="605.86" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 221,915 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="595.16" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 260,131 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="684">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="684">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="684">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="684">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="684">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="684">11-14 16:01</text>
-<text class="text value" x="898.00" y="597.86">221.9k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="684">11-14 20:07</text>
+<text class="text value" x="898.00" y="587.16">260.1k</text>
 <text class="text panel-title" x="16" y="728">answered</text>
 <line class="grid" x1="60" y1="822.00" x2="414" y2="822.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="825.00">0</text>
@@ -199,20 +199,20 @@
 <line class="grid" x1="60" y1="738.00" x2="414" y2="738.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="741.00">500k</text>
 <line class="axis" x1="60" y1="738" x2="60" y2="822"/>
-<polyline class="line" points="60.00,751.53 130.80,753.65 201.60,754.00 272.40,754.61 343.20,757.22 414.00,758.43"><title>Paduraksa answered: 6 runs, 419,452 to 378,387 req/s</title></polyline>
+<polyline class="line" points="60.00,751.53 130.80,753.65 201.60,754.00 272.40,754.61 343.20,757.22 414.00,757.51"><title>Paduraksa answered: 6 runs, 419,452 to 383,897 req/s</title></polyline>
 <circle class="marker" cx="60.00" cy="751.53" r="4"><title>2026-11-07T04:00:33Z (commit 57e3c8a9): 419,452 req/s</title></circle>
 <circle class="marker" cx="130.80" cy="753.65" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 406,828 req/s</title></circle>
 <circle class="marker" cx="201.60" cy="754.00" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 404,741 req/s</title></circle>
 <circle class="marker" cx="272.40" cy="754.61" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 401,129 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="757.22" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 385,590 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="758.43" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 378,387 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="757.51" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 383,897 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="838">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="838">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="838">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="838">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="838">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="838">11-14 16:01</text>
-<text class="text value" x="422.00" y="750.43">378.4k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="838">11-14 20:07</text>
+<text class="text value" x="422.00" y="749.51">383.9k</text>
 <text class="text panel-title" x="492" y="728">access-log</text>
 <line class="grid" x1="536" y1="822.00" x2="890" y2="822.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="825.00">0</text>
@@ -221,17 +221,17 @@
 <line class="grid" x1="536" y1="738.00" x2="890" y2="738.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="741.00">200k</text>
 <line class="axis" x1="536" y1="738" x2="536" y2="822"/>
-<polyline class="line" points="748.40,753.34 819.20,760.02 890.00,763.68"><title>Paduraksa access-log: 3 runs, 163,485 to 138,861 req/s</title></polyline>
+<polyline class="line" points="748.40,753.34 819.20,760.02 890.00,761.19"><title>Paduraksa access-log: 3 runs, 163,485 to 144,775 req/s</title></polyline>
 <circle class="marker" cx="748.40" cy="753.34" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 163,485 req/s</title></circle>
 <circle class="marker" cx="819.20" cy="760.02" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 147,562 req/s</title></circle>
-<circle class="marker" cx="890.00" cy="763.68" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 138,861 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="761.19" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 144,775 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="838">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="838">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="838">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="838">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="838">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="838">11-14 16:01</text>
-<text class="text value" x="898.00" y="755.68">138.9k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="838">11-14 20:07</text>
+<text class="text value" x="898.00" y="753.19">144.8k</text>
 <text class="text panel-title" x="16" y="882">rate-limit</text>
 <line class="grid" x1="60" y1="976.00" x2="414" y2="976.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="979.00">0</text>
@@ -240,17 +240,17 @@
 <line class="grid" x1="60" y1="892.00" x2="414" y2="892.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="895.00">200k</text>
 <line class="axis" x1="60" y1="892" x2="60" y2="976"/>
-<polyline class="line" points="272.40,902.10 343.20,904.77 414.00,907.44"><title>Paduraksa rate-limit: 3 runs, 175,950 to 163,235 req/s</title></polyline>
+<polyline class="line" points="272.40,902.10 343.20,904.77 414.00,905.32"><title>Paduraksa rate-limit: 3 runs, 175,950 to 168,281 req/s</title></polyline>
 <circle class="marker" cx="272.40" cy="902.10" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 175,950 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="904.77" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 169,585 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="907.44" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 163,235 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="905.32" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 168,281 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="992">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="992">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="992">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="992">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="992">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="992">11-14 16:01</text>
-<text class="text value" x="422.00" y="899.44">163.2k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="992">11-14 20:07</text>
+<text class="text value" x="422.00" y="897.32">168.3k</text>
 <text class="text panel-title" x="492" y="882">rate-limited</text>
 <line class="grid" x1="536" y1="976.00" x2="890" y2="976.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="979.00">0</text>
@@ -259,17 +259,17 @@
 <line class="grid" x1="536" y1="892.00" x2="890" y2="892.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="895.00">400k</text>
 <line class="axis" x1="536" y1="892" x2="536" y2="976"/>
-<polyline class="line" points="748.40,892.92 819.20,893.01 890.00,898.11"><title>Paduraksa rate-limited: 3 runs, 395,616 to 370,912 req/s</title></polyline>
+<polyline class="line" points="748.40,892.92 819.20,893.01 890.00,895.49"><title>Paduraksa rate-limited: 3 runs, 395,616 to 383,363 req/s</title></polyline>
 <circle class="marker" cx="748.40" cy="892.92" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 395,616 req/s</title></circle>
 <circle class="marker" cx="819.20" cy="893.01" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 395,167 req/s</title></circle>
-<circle class="marker" cx="890.00" cy="898.11" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 370,912 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="895.49" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 383,363 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="992">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="992">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="992">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="992">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="992">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="992">11-14 16:01</text>
-<text class="text value" x="898.00" y="890.11">370.9k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="992">11-14 20:07</text>
+<text class="text value" x="898.00" y="887.49">383.4k</text>
 <text class="text panel-title" x="16" y="1036">browser-check</text>
 <line class="grid" x1="60" y1="1130.00" x2="414" y2="1130.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1133.00">0</text>
@@ -278,36 +278,36 @@
 <line class="grid" x1="60" y1="1046.00" x2="414" y2="1046.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1049.00">200k</text>
 <line class="axis" x1="60" y1="1046" x2="60" y2="1130"/>
-<polyline class="line" points="272.40,1066.16 343.20,1066.41 414.00,1067.97"><title>Paduraksa browser-check: 3 runs, 151,991 to 147,701 req/s</title></polyline>
+<polyline class="line" points="272.40,1066.16 343.20,1066.41 414.00,1066.24"><title>Paduraksa browser-check: 3 runs, 151,991 to 151,798 req/s</title></polyline>
 <circle class="marker" cx="272.40" cy="1066.16" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 151,991 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="1066.41" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 151,396 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="1067.97" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 147,701 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="1066.24" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 151,798 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="1146">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="1146">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="1146">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="1146">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="1146">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="1146">11-14 16:01</text>
-<text class="text value" x="422.00" y="1059.97">147.7k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="1146">11-14 20:07</text>
+<text class="text value" x="422.00" y="1058.24">151.8k</text>
 <text class="text panel-title" x="492" y="1036">error-page</text>
 <line class="grid" x1="536" y1="1130.00" x2="890" y2="1130.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="1133.00">0</text>
 <line class="grid" x1="536" y1="1088.00" x2="890" y2="1088.00"/>
-<text class="axis-label tick" text-anchor="end" x="530" y="1091.00">10k</text>
+<text class="axis-label tick" text-anchor="end" x="530" y="1091.00">12.5k</text>
 <line class="grid" x1="536" y1="1046.00" x2="890" y2="1046.00"/>
-<text class="axis-label tick" text-anchor="end" x="530" y="1049.00">20k</text>
+<text class="axis-label tick" text-anchor="end" x="530" y="1049.00">25k</text>
 <line class="axis" x1="536" y1="1046" x2="536" y2="1130"/>
-<polyline class="line" points="748.40,1046.16 819.20,1048.26 890.00,1061.14"><title>Paduraksa error-page: 3 runs, 19,962 to 16,394 req/s</title></polyline>
-<circle class="marker" cx="748.40" cy="1046.16" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 19,962 req/s</title></circle>
-<circle class="marker" cx="819.20" cy="1048.26" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 19,462 req/s</title></circle>
-<circle class="marker" cx="890.00" cy="1061.14" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 16,394 req/s</title></circle>
+<polyline class="line" points="748.40,1062.93 819.20,1064.61 890.00,1062.46"><title>Paduraksa error-page: 3 runs, 19,962 to 20,101 req/s</title></polyline>
+<circle class="marker" cx="748.40" cy="1062.93" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 19,962 req/s</title></circle>
+<circle class="marker" cx="819.20" cy="1064.61" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 19,462 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="1062.46" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 20,101 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="1146">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="1146">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="1146">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="1146">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="1146">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="1146">11-14 16:01</text>
-<text class="text value" x="898.00" y="1053.14">16.4k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="1146">11-14 20:07</text>
+<text class="text value" x="898.00" y="1054.46">20.1k</text>
 <text class="text panel-title" x="16" y="1190">compressed</text>
 <line class="grid" x1="60" y1="1284.00" x2="414" y2="1284.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1287.00">0</text>
@@ -316,30 +316,30 @@
 <line class="grid" x1="60" y1="1200.00" x2="414" y2="1200.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1203.00">80k</text>
 <line class="axis" x1="60" y1="1200" x2="60" y2="1284"/>
-<circle class="marker" cx="414.00" cy="1218.81" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 62,086 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="1217.78" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 63,067 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="1300">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="1300">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="1300">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="1300">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="1300">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="1300">11-14 16:01</text>
-<text class="text value" x="422.00" y="1210.81">62.1k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="1300">11-14 20:07</text>
+<text class="text value" x="422.00" y="1209.78">63.1k</text>
 <text class="text panel-title" x="492" y="1190">headers</text>
 <line class="grid" x1="536" y1="1284.00" x2="890" y2="1284.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="1287.00">0</text>
 <line class="grid" x1="536" y1="1242.00" x2="890" y2="1242.00"/>
-<text class="axis-label tick" text-anchor="end" x="530" y="1245.00">75k</text>
+<text class="axis-label tick" text-anchor="end" x="530" y="1245.00">100k</text>
 <line class="grid" x1="536" y1="1200.00" x2="890" y2="1200.00"/>
-<text class="axis-label tick" text-anchor="end" x="530" y="1203.00">150k</text>
+<text class="axis-label tick" text-anchor="end" x="530" y="1203.00">200k</text>
 <line class="axis" x1="536" y1="1200" x2="536" y2="1284"/>
-<circle class="marker" cx="890.00" cy="1202.26" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 145,969 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="1219.97" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 152,442 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="1300">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="1300">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="1300">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="1300">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="1300">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="1300">11-14 16:01</text>
-<text class="text value" x="898.00" y="1194.26">146k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="1300">11-14 20:07</text>
+<text class="text value" x="898.00" y="1211.97">152.4k</text>
 <text class="text panel-title" x="16" y="1344">rewrite</text>
 <line class="grid" x1="60" y1="1438.00" x2="414" y2="1438.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1441.00">0</text>
@@ -348,30 +348,30 @@
 <line class="grid" x1="60" y1="1354.00" x2="414" y2="1354.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1357.00">200k</text>
 <line class="axis" x1="60" y1="1354" x2="60" y2="1438"/>
-<circle class="marker" cx="414.00" cy="1372.92" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 154,962 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="1370.51" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 160,689 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="1454">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="1454">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="1454">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="1454">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="1454">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="1454">11-14 16:01</text>
-<text class="text value" x="422.00" y="1364.92">155k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="1454">11-14 20:07</text>
+<text class="text value" x="422.00" y="1362.51">160.7k</text>
 <text class="text panel-title" x="492" y="1344">rewrite-redirect</text>
 <line class="grid" x1="536" y1="1438.00" x2="890" y2="1438.00"/>
 <text class="axis-label tick" text-anchor="end" x="530" y="1441.00">0</text>
 <line class="grid" x1="536" y1="1396.00" x2="890" y2="1396.00"/>
-<text class="axis-label tick" text-anchor="end" x="530" y="1399.00">75k</text>
+<text class="axis-label tick" text-anchor="end" x="530" y="1399.00">100k</text>
 <line class="grid" x1="536" y1="1354.00" x2="890" y2="1354.00"/>
-<text class="axis-label tick" text-anchor="end" x="530" y="1357.00">150k</text>
+<text class="axis-label tick" text-anchor="end" x="530" y="1357.00">200k</text>
 <line class="axis" x1="536" y1="1354" x2="536" y2="1438"/>
-<circle class="marker" cx="890.00" cy="1357.03" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 144,582 req/s</title></circle>
+<circle class="marker" cx="890.00" cy="1371.92" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 157,341 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="536.00" y="1454">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="606.80" y="1454">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="677.60" y="1454">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="748.40" y="1454">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="819.20" y="1454">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="890.00" y="1454">11-14 16:01</text>
-<text class="text value" x="898.00" y="1349.03">144.6k</text>
+<text class="axis-label tick" text-anchor="middle" x="890.00" y="1454">11-14 20:07</text>
+<text class="text value" x="898.00" y="1363.92">157.3k</text>
 <text class="text panel-title" x="16" y="1498">cf</text>
 <line class="grid" x1="60" y1="1592.00" x2="414" y2="1592.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1595.00">0</text>
@@ -380,18 +380,18 @@
 <line class="grid" x1="60" y1="1508.00" x2="414" y2="1508.00"/>
 <text class="axis-label tick" text-anchor="end" x="54" y="1511.00">200k</text>
 <line class="axis" x1="60" y1="1508" x2="60" y2="1592"/>
-<polyline class="line" points="60.00,1523.47 130.80,1528.60 201.60,1523.37 272.40,1523.90 343.20,1527.12 414.00,1529.45"><title>Paduraksa cf: 6 runs, 163,176 to 148,919 req/s</title></polyline>
+<polyline class="line" points="60.00,1523.47 130.80,1528.60 201.60,1523.37 272.40,1523.90 343.20,1527.12 414.00,1527.23"><title>Paduraksa cf: 6 runs, 163,176 to 154,205 req/s</title></polyline>
 <circle class="marker" cx="60.00" cy="1523.47" r="4"><title>2026-11-07T04:00:33Z (commit 57e3c8a9): 163,176 req/s</title></circle>
 <circle class="marker" cx="130.80" cy="1528.60" r="4"><title>2026-11-10T09:22:48Z (commit b6a7979a): 150,940 req/s</title></circle>
 <circle class="marker" cx="201.60" cy="1523.37" r="4"><title>2026-11-10T11:42:41Z (commit e9ea546f): 163,412 req/s</title></circle>
 <circle class="marker" cx="272.40" cy="1523.90" r="4"><title>2026-11-10T17:06:32Z (commit ba02cad5): 162,153 req/s</title></circle>
 <circle class="marker" cx="343.20" cy="1527.12" r="4"><title>2026-11-13T05:47:39Z (commit 98ccf765): 154,485 req/s</title></circle>
-<circle class="marker" cx="414.00" cy="1529.45" r="4"><title>2026-11-14T16:01:27Z (commit f1545cbb): 148,919 req/s</title></circle>
+<circle class="marker" cx="414.00" cy="1527.23" r="4"><title>2026-11-14T20:07:09Z (commit b600490e): 154,205 req/s</title></circle>
 <text class="axis-label tick" text-anchor="middle" x="60.00" y="1608">11-07 04:00</text>
 <text class="axis-label tick" text-anchor="middle" x="130.80" y="1608">11-10 09:22</text>
 <text class="axis-label tick" text-anchor="middle" x="201.60" y="1608">11-10 11:42</text>
 <text class="axis-label tick" text-anchor="middle" x="272.40" y="1608">11-10 17:06</text>
 <text class="axis-label tick" text-anchor="middle" x="343.20" y="1608">11-13 05:47</text>
-<text class="axis-label tick" text-anchor="middle" x="414.00" y="1608">11-14 16:01</text>
-<text class="text value" x="422.00" y="1521.45">148.9k</text>
+<text class="axis-label tick" text-anchor="middle" x="414.00" y="1608">11-14 20:07</text>
+<text class="text value" x="422.00" y="1519.23">154.2k</text>
 </svg>
