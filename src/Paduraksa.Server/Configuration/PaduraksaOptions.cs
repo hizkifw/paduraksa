@@ -63,8 +63,9 @@ internal sealed class PaduraksaOptions
     public PaduraksaMcpOptions Mcp { get; set; } = new();
 
     /// <summary>
-    /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core).
-    /// When it elapses, Kestrel aborts the remaining connections and the rest stops without waiting.
+    /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core). A third of it,
+    /// at most 10 s, is kept for core's last flush; when the rest elapses, Kestrel aborts the remaining connections and admin
+    /// stops without waiting (docs/design/hosting.md "Shutdown").
     /// Keep the supervisor's grace period above this, or the process gets killed mid-drain: Docker's default
     /// is 10 s, so set <c>stop_grace_period: 35s</c> in compose (or <c>docker stop -t 35</c>); systemd's
     /// <c>TimeoutStopSec</c> defaults to 90 s.

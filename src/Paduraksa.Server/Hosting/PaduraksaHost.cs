@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -18,8 +19,10 @@ namespace Paduraksa.Server.Hosting;
 /// <para><b>Stop:</b> readiness flips to "not ready", then public (drains in-flight proxied requests), then admin, then core.
 /// Public goes first because it is the traffic-bearing side: the admin still answers <c>/readyz</c> with 503 while it drains,
 /// operators keep the dashboard, and requests proxied to the admin's internal listener can still complete. Core goes last
-/// because its background services serve both apps. All three share one budget, <see cref="PaduraksaOptions.ShutdownTimeout"/>;
-/// the shared singletons are disposed after all three containers.</para>
+/// because its background services serve both apps. Upgraded connections (WebSockets) are closed as the public drain starts.
+/// <see cref="PaduraksaOptions.ShutdownTimeout"/> bounds the whole stop: the drain gets it less <see cref="CoreFlushReserve"/>, and
+/// core gets what is left but never less than that reserve, so a drain that runs out never costs core's last flush. The shared
+/// singletons are disposed after all three containers.</para>
 /// </summary>
 internal sealed partial class PaduraksaHost : IAsyncDisposable
 {
@@ -170,8 +173,8 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     /// <item><b>Created</b> (never started), <b>Stopping</b> (another stop is in progress and isn't awaited),
     /// <b>Stopped</b>, <b>Faulted</b>: no-op.</item>
     /// </list>
-    /// In both stopping cases <paramref name="cancellationToken"/> cuts the graceful drain short: the hosts still
-    /// stop, without waiting. It never makes this method throw.
+    /// In both stopping cases <paramref name="cancellationToken"/> cuts the graceful drain short: public and admin still
+    /// stop, without waiting, and core still gets its flush (<see cref="CoreFlushReserve"/>). It never makes this method throw.
     /// </summary>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
@@ -492,18 +495,64 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     private async Task StopHostsAsync(CancellationToken cancellationToken)
     {
         Shared.Health.MarkStopping();
+        var started = Stopwatch.GetTimestamp();
+        var flushReserve = CoreFlushReserve(Options.ShutdownTimeout);
 
-        // One budget for the whole stop, not one per host: the public drain may use most of it. Once it's spent,
-        // admin and core still stop, just without waiting (Kestrel aborts the remaining connections).
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(Options.ShutdownTimeout);
+        // The drain (scheduler, public, admin) gets the budget less the core's reserve. Once it's spent, admin and public still
+        // stop, just without waiting (Kestrel aborts the remaining connections).
+        using var drain = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        drain.CancelAfter(Options.ShutdownTimeout - flushReserve);
 
         // The renewal scheduler first: a certificate it is working on (an HTTP-01 validation needs the public listener to answer) gets a
         // bounded time to finish, and nothing new starts, before the public drain closes the listener.
-        await DrainSchedulerAsync(budget.Token).ConfigureAwait(false);
-        await StopHostAsync(Public, HostRole.Public, budget.Token).ConfigureAwait(false);
-        await StopHostAsync(Admin, HostRole.Admin, budget.Token).ConfigureAwait(false);
-        await StopHostAsync(Core, HostRole.Core, budget.Token).ConfigureAwait(false);
+        await DrainSchedulerAsync(drain.Token).ConfigureAwait(false);
+
+        // Upgraded connections (WebSockets) never end on their own, so without this the public drain would always run to its budget.
+        // They're closed while Kestrel drains the ordinary requests.
+        var upgraded = CloseUpgradedConnectionsAsync(drain.Token);
+        await StopHostAsync(Public, HostRole.Public, drain.Token).ConfigureAwait(false);
+        await upgraded.ConfigureAwait(false);
+        await StopHostAsync(Admin, HostRole.Admin, drain.Token).ConfigureAwait(false);
+
+        // Core's own budget, which neither a slow drain nor the caller's token can take: a cancelled stop token makes a
+        // BackgroundService return before its last flush (metrics rollups, analytics, the access log), and that data is lost.
+        var flushBudget = Options.ShutdownTimeout - Stopwatch.GetElapsedTime(started);
+        using var flush = new CancellationTokenSource(flushBudget > flushReserve ? flushBudget : flushReserve);
+        await StopHostAsync(Core, HostRole.Core, flush.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>The share of <see cref="PaduraksaOptions.ShutdownTimeout"/> kept for the core host's flush: a third, at most 10 s.</summary>
+    internal static TimeSpan CoreFlushReserve(TimeSpan shutdownTimeout)
+    {
+        var third = shutdownTimeout / 3;
+        return third < MaxCoreFlushReserve ? third : MaxCoreFlushReserve;
+    }
+
+    private static readonly TimeSpan MaxCoreFlushReserve = TimeSpan.FromSeconds(10);
+
+    private async Task CloseUpgradedConnectionsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (Public.Services.GetService<Paduraksa.Proxy.Http.UpgradedConnections>() is not { } upgraded)
+            {
+                return;
+            }
+
+            var open = upgraded.Count;
+            if (open > 0)
+            {
+                LogClosingUpgraded(_logger, open);
+            }
+
+            await upgraded.CloseAllAsync(cancellationToken).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // Closing them is a courtesy: the drain's budget, then Kestrel's abort, ends them regardless.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogCloseUpgradedFailed(_logger, ex);
+        }
     }
 
     /// <summary>How long the scheduler's current certificate may take to finish when the process stops (within the shutdown budget).</summary>
@@ -528,7 +577,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     {
         try
         {
-            // Bounded by the shared Paduraksa:ShutdownTimeout budget (the hosts' own timeout is disabled).
+            // Bounded by StopHostsAsync's budgets (the hosts' own timeout is disabled).
             await host.StopAsync(cancellationToken).ConfigureAwait(false);
         }
 #pragma warning disable CA1031 // One host failing to stop must not keep the others running.
@@ -622,6 +671,12 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Configuration: {Warning}")]
     private static partial void LogConfigurationWarning(ILogger logger, string warning);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Closing {Count} upgraded connections (WebSockets) for the stop")]
+    private static partial void LogClosingUpgraded(ILogger logger, int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Closing the upgraded connections failed; the drain ends them")]
+    private static partial void LogCloseUpgradedFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The {App} host failed to stop cleanly")]
     private static partial void LogStopFailed(ILogger logger, string app, Exception exception);

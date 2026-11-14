@@ -44,14 +44,17 @@ public sealed class AccessLogMiddleware
 {
     private readonly AccessLogRing _ring;
     private readonly MetricsRegistry? _metrics;
+    private readonly Http.UpgradedConnections? _upgraded;
 
     /// <param name="ring">Where the lines go.</param>
     /// <param name="metrics">The request counters, which this completion callback also feeds (docs/design/observability.md "Metrics (M9)"); null: none are kept.</param>
-    public AccessLogMiddleware(AccessLogRing ring, MetricsRegistry? metrics = null)
+    /// <param name="upgraded">Where accepted upgrades are tracked for the stop to close; null: not tracked.</param>
+    public AccessLogMiddleware(AccessLogRing ring, MetricsRegistry? metrics = null, Http.UpgradedConnections? upgraded = null)
     {
         ArgumentNullException.ThrowIfNull(ring);
         _ring = ring;
         _metrics = metrics;
+        _upgraded = upgraded;
     }
 
     /// <summary>For <c>app.Use(accessLog.InvokeAsync)</c>, before the gate.</summary>
@@ -75,7 +78,7 @@ public sealed class AccessLogMiddleware
         state.AccessLogRing = _ring;
         state.Metrics = _metrics;
         state.RequestStartedTimestamp = Stopwatch.GetTimestamp();
-        state.CountBody(context);
+        state.CountBody(context, _upgraded);
         RegisterCompletion(context);
     }
 

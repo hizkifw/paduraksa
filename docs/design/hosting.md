@@ -41,7 +41,22 @@ All of this lives in `src/Paduraksa.Server/Hosting` (built in M0).
 - **Core host.** A non-web host owns every once-per-process `IHostedService` (ACME scheduler, metric sampler and so on). It starts first, so a snapshot exists before any port opens, and stops last. Web apps must not register once-per-process background services.
 - **Startup.** If any host fails to start, the others are stopped and the process exits 2. A stop, a signal or a cancelled start token that arrives during startup aborts the start instead: whatever had started is stopped again and the process exits 0. A requested abort is logged at Information, never as an error.
 - **Data directory.** A relative `Paduraksa:DataDirectory` resolves against the content root (where appsettings live, by default the app's base directory), never the working directory. A leading `~` is rejected because nothing expands it. The directory holds the config database `paduraksa.db` and `last-good.json` (see [config.md](config.md)). It is created at startup if missing.
-- **Shutdown.** `/readyz` switches to 503, then public drains, then admin stops, then core stops, then shared singletons are disposed. One `ShutdownTimeout` (30 s) is shared by all three, so compose files need `stop_grace_period: 35s`.
+- **Shutdown.** `/readyz` switches to 503, then public drains, then admin stops, then core stops, then shared singletons are disposed. `ShutdownTimeout` (30 s) bounds the whole stop, so compose files need `stop_grace_period: 35s`. The order and budgets are below.
+
+**The stop, as built** (`soak-fixes`, from the soak's restart: bench/soak/README.md). Before this, the three hosts shared one budget. An open WebSocket held the public drain for the whole 30 s, and core then stopped on a cancelled token. `BackgroundService.StopAsync` returns at once on a cancelled token, before the rollup jobs' last flush, so the analytics and metrics still in memory were lost.
+1. **Readiness** goes to 503.
+2. **The drain budget** is `ShutdownTimeout` less core's reserve (a third of it, at most 10 s: 20 s of the default 30). The caller's stop token cuts it short too. It covers the scheduler's drain, the public drain and the admin stop.
+3. **The ACME scheduler** finishes the certificate it is working on (10 s at most).
+4. **Upgraded connections are closed** as the public drain starts, at the same time as Kestrel drains the ordinary requests. Every upgrade the public app accepted is tracked (`UpgradedConnections`, through the `BodyCounter` that already wraps the upgraded stream), and so is one accepted during the stop.
+   - A WebSocket (HTTP/1.1 `Upgrade: websocket`, or HTTP/2 extended `CONNECT` with `:protocol websocket`) gets a close frame, 1001 Going Away. The stream follows the upstream's frame headers, so the frame goes out between two of the upstream's frames, never inside one. A frame still unfinished after 1 s means no close frame.
+   - After the close frame, what the upstream still sends is dropped. The client's answering close goes through to the upstream, which closes, and the forward ends. If that takes more than 2 s, the request is aborted.
+   - Any other upgrade is aborted at once, because there is no protocol to close it with.
+   - Ordinary in-flight requests still get the drain.
+   - Everything here runs once per upgrade or at the stop. A WebSocket message costs a compare-and-swap and a few header bytes read, and allocates nothing.
+5. **Admin stops** on what is left of the drain budget.
+6. **Core stops** on a budget of its own: what is left of `ShutdownTimeout`, but never less than the reserve, whatever the drain or the caller's token did. So a slow drain never costs persisted data. The stop can run about a reserve past `ShutdownTimeout` when the drain used everything; the 5 s of `stop_grace_period` beyond it covers Kestrel's abort and a quick flush.
+
+`ShutdownBudgetTests` has a proxied WebSocket over HTTP/1.1 and HTTP/2: the stop takes under 5 s of a 30 s budget, the client gets 1001, the upstream sees the close, and the analytics are in the database. It also has a request that never finishes: core still gets an uncancelled token, and the analytics are stored. `UpgradedStreamTests` pins the frame boundaries for every write size, the drop after the close, the aborts and the 0 B write. Both fail on the old stop.
 - **Signals.** Handled only in `PaduraksaHost.RunAsync`. A second signal hard-kills.
 - **Listener pinning.** The web apps get a last config source that blanks `urls`, `http_ports` and `https_ports` and sets `preferHostingUrls=false`. Env vars and appsettings cannot rebind listeners behind our back.
 

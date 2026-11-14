@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Pages;
@@ -74,6 +75,7 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton(static provider => new AccessLogTail(
             AccessLogTail.DefaultCapacity, provider.GetRequiredService<AccessLogFormatOptions>(), provider.GetRequiredService<SnapshotStore>()));
         services.TryAddSingleton(metrics ?? new MetricsRegistry());
+        services.TryAddSingleton<UpgradedConnections>();
         services.TryAddSingleton<AccessLogMiddleware>();
 
         services.AddReverseProxy()

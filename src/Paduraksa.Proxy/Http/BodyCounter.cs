@@ -24,8 +24,8 @@ namespace Paduraksa.Proxy.Http;
 /// <para><b>Upgraded connections.</b> A WebSocket's frames don't pass through the response body: they go through the stream
 /// the upgrade (HTTP/1.1) or the extended <c>CONNECT</c> (HTTP/2) returns. On a request that can be upgraded the counter also
 /// stands in for that feature, and the stream it returns counts reads as bytes in and writes as bytes out; the request is
-/// counted when it ends, so a WebSocket's bytes land when it closes. Accepting the upgrade allocates once (Kestrel's own
-/// task), never per message.</para>
+/// counted when it ends, so a WebSocket's bytes land when it closes. Accepting the upgrade allocates a little (Kestrel's own
+/// task, and the <see cref="UpgradedConnections"/> entry the stop closes it through), never per message.</para>
 /// <para><b>Lifetime.</b> Like the state it hangs on, nothing may hold it past the request: the next request on the connection
 /// or stream re-points it. A request that reads <see cref="HttpRequest.BodyReader"/> gets Kestrel's own pipe reader over the
 /// counting stream (Kestrel builds one whenever the body stream was replaced), which allocates; nothing on the public pipeline
@@ -41,6 +41,8 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     private IHttpResponseBodyFeature? _response;
     private IHttpUpgradeFeature? _upgrade;
     private IHttpExtendedConnectFeature? _connect;
+    private UpgradedConnections? _connections;
+    private HttpContext? _upgradable;
     private long _bytesOut;
     private long _bytesIn;
     private bool _discardsBody;
@@ -63,9 +65,11 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     /// Zeroes the counts and stands in for the request's body features. Must run before anything has touched the body, so the
     /// public pipeline's outermost middleware calls it; a second call for the same request changes nothing.
     /// </summary>
+    /// <param name="context">The request.</param>
+    /// <param name="connections">Where an accepted upgrade is tracked, so the stop can end it; null: not tracked.</param>
     /// <returns>Whether the counter stands in for this request's body: false only on a server without a response body feature,
     /// whose bytes are then not known.</returns>
-    public bool Begin(HttpContext context)
+    public bool Begin(HttpContext context, UpgradedConnections? connections = null)
     {
         var features = context.Features;
         var response = features.Get<IHttpResponseBodyFeature>();
@@ -80,6 +84,8 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
         _bytesOut = 0;
         _bytesIn = 0;
         _discardsBody = HttpMethods.IsHead(context.Request.Method);
+        _connections = connections;
+        _upgradable = null;
         _response = response;
         _responseStream.Inner = response.Stream;
         _responseWriter.Inner = response.Writer;
@@ -95,12 +101,14 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
         if (_upgrade is not null)
         {
             features.Set<IHttpUpgradeFeature>(this);
+            _upgradable = context;
         }
 
         _connect = features.Get<IHttpExtendedConnectFeature>() is { IsExtendedConnect: true } connect ? connect : null;
         if (_connect is not null)
         {
             features.Set<IHttpExtendedConnectFeature>(this);
+            _upgradable = context;
         }
 
         return true;
@@ -131,7 +139,7 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     async Task<Stream> IHttpUpgradeFeature.UpgradeAsync()
     {
         _upgradedStream.Inner = await _upgrade!.UpgradeAsync().ConfigureAwait(false);
-        return _upgradedStream;
+        return Tracked(string.Equals(_upgradable!.Request.Headers.Upgrade, "websocket", StringComparison.OrdinalIgnoreCase));
     }
 
     bool IHttpExtendedConnectFeature.IsExtendedConnect => _connect?.IsExtendedConnect ?? false;
@@ -142,8 +150,12 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     async ValueTask<Stream> IHttpExtendedConnectFeature.AcceptAsync()
     {
         _upgradedStream.Inner = await _connect!.AcceptAsync().ConfigureAwait(false);
-        return _upgradedStream;
+        return Tracked(string.Equals(_connect.Protocol, "websocket", StringComparison.OrdinalIgnoreCase));
     }
+
+    // The closer writes through the counting stream, so a close frame the stop sends is counted like any other byte out.
+    private Stream Tracked(bool webSocket) =>
+        _connections is { } connections ? connections.Track(_upgradable!, _upgradedStream, webSocket) : _upgradedStream;
 
     /// <summary>A stream that passes everything to <see cref="Inner"/> and counts what was read and written through it.</summary>
     private sealed class CountingStream(BodyCounter owner) : Stream

@@ -149,7 +149,7 @@ One process runs **two web apps** plus a non-web **core host**, all sharing one 
 Decisions worth knowing:
 - A wrong, missing or unsafe master key **stops the process** (exit 2). Running without the vault would only move the failure to the first certificate that needs a key.
 - Exit codes: 0 stopped on request, 1 a host failed on its own, 2 startup failed, 3 invalid config.
-- Shutdown order: `/readyz` goes 503, public drains, admin stops, core stops. One 30 s timeout (so compose needs `stop_grace_period: 35s`).
+- Shutdown order: `/readyz` goes 503, public drains (WebSockets get a 1001 close), admin stops, core stops. One 30 s timeout, with a share kept for core's flush (so compose needs `stop_grace_period: 35s`).
 - The admin certificate is issued from the vault's local CA and kept current. Trusting the root once makes the admin UI trusted in the owner's browsers.
 - The admin UI can optionally be exposed through the proxy itself (an internal Unix-socket listener, an authenticated hop, a lock-out guard that refuses changes that would cut the caller off).
 

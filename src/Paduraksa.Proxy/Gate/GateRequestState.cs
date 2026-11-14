@@ -149,10 +149,10 @@ public sealed class GateRequestState : IGateFeature
 
     /// <summary>Stands the pooled body counter in for the request's body features (<see cref="Http.BodyCounter.Begin"/>). It is
     /// created with the state, once per connection or pooled stream.</summary>
-    internal void CountBody(HttpContext context)
+    internal void CountBody(HttpContext context, Http.UpgradedConnections? upgraded = null)
     {
         var counter = _bodyCounter ??= new Http.BodyCounter();
-        CountedBody = counter.Begin(context) ? counter : null;
+        CountedBody = counter.Begin(context, upgraded) ? counter : null;
     }
 
     /// <summary>Clears every field at the start of a request.</summary>
