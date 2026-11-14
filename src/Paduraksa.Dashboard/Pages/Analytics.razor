@@ -145,7 +145,7 @@ else
             _self = DotNetObjectReference.Create(this);
             try
             {
-                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", _self);
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", "analytics", _self);
             }
             catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
             {
@@ -179,7 +179,7 @@ else
         {
             try
             {
-                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach");
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach", "analytics");
             }
             catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
             {

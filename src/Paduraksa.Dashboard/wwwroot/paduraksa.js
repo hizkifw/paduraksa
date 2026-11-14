@@ -326,11 +326,13 @@
         },
     });
 
-    // The security page samples every couple of seconds only while its tab is shown: it is told when the tab is hidden or shown again.
-    let visibilityListener = null;
+    // The pages that poll or follow do it only while the browser tab is shown: each is told when the tab is hidden or shown again. One
+    // listener per owner (a name the page picks), so two watchers coexist, and a page that is leaving can only take down its own: its
+    // async disposal can run after the next page has begun to watch.
+    const visibilityListeners = new Map();
     const pageVisibility = Object.freeze({
-        watch(dotNet) {
-            pageVisibility.detach();
+        watch(owner, dotNet) {
+            pageVisibility.detach(owner);
             const report = () => {
                 try {
                     dotNet.invokeMethodAsync("PageVisibilityChangedAsync", document.visibilityState === "visible").catch(() => {});
@@ -344,14 +346,12 @@
             }
 
             document.addEventListener("visibilitychange", report);
-            visibilityListener = () => document.removeEventListener("visibilitychange", report);
+            visibilityListeners.set(owner, () => document.removeEventListener("visibilitychange", report));
         },
 
-        detach() {
-            if (visibilityListener) {
-                visibilityListener();
-                visibilityListener = null;
-            }
+        detach(owner) {
+            visibilityListeners.get(owner)?.();
+            visibilityListeners.delete(owner);
         },
     });
 
