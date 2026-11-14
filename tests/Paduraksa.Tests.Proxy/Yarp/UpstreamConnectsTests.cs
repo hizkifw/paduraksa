@@ -37,10 +37,10 @@ public sealed class UpstreamConnectsTests
         }
 
         await serving;
-        Assert.InRange(UpstreamConnects.TicksFor(first, long.MaxValue), 1, long.MaxValue);
-        Assert.Equal(0, UpstreamConnects.TicksFor(second, long.MaxValue));
+        Assert.InRange(UpstreamConnects.TicksFor(first, long.MaxValue, answered: true), 1, long.MaxValue);
+        Assert.Equal(0, UpstreamConnects.TicksFor(second, long.MaxValue, answered: true));
         // Never more than the forward it is part of.
-        Assert.Equal(1, UpstreamConnects.TicksFor(first, 1));
+        Assert.Equal(1, UpstreamConnects.TicksFor(first, 1, answered: true));
     }
 
     [Fact]
@@ -57,14 +57,18 @@ public sealed class UpstreamConnectsTests
         using HttpRequestMessage refused = new(HttpMethod.Get, "http://127.0.0.1:9/");
         await Assert.ThrowsAsync<HttpRequestException>(() => client.SendAsync(refused, ct));
 
-        Assert.Equal(12_345, UpstreamConnects.TicksFor(refused, 12_345));
+        Assert.Equal(12_345, UpstreamConnects.TicksFor(refused, 12_345, answered: false));
+
+        // The same unfinished connect on a forward that was answered anyway: the pool served it on a connection that freed up
+        // while its own was still opening, so it paid no connect.
+        Assert.Equal(0, UpstreamConnects.TicksFor(refused, 12_345, answered: true));
     }
 
     [Fact]
     public void LookingARequestUpAllocatesNothing()
     {
         using HttpRequestMessage message = new();
-        AllocAssert.Zero(message, static m => _ = UpstreamConnects.TicksFor(m, 1_000), "UpstreamConnects.TicksFor");
+        AllocAssert.Zero(message, static m => _ = UpstreamConnects.TicksFor(m, 1_000, answered: true), "UpstreamConnects.TicksFor");
     }
 
     // Answers each request on one kept-alive connection with an empty 200.

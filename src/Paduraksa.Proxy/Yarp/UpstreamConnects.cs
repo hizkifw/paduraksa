@@ -18,6 +18,9 @@ namespace Paduraksa.Proxy.Yarp;
 /// connection is free first. When a pooled connection frees up before the new one is ready, the request that triggered the connect
 /// is reported with it though it didn't wait for all of it, and the request that does get the new connection reports none. The
 /// figure is capped at the request's upstream time. Under steady keep-alive traffic both are rare.</para>
+/// <para><b>HTTP/3 upstreams</b> are not timed: the pool runs the plaintext filter only for HTTP/1.1 and HTTP/2 connections, so an
+/// HTTP/3 connect would never stop the clock. No cluster asks for HTTP/3 to its upstream today; one that did would report its
+/// connects as unknown-and-answered (0) or, for a failed forward, the whole upstream time.</para>
 /// </remarks>
 internal static class UpstreamConnects
 {
@@ -48,10 +51,11 @@ internal static class UpstreamConnects
 
     /// <summary>
     /// The connect <paramref name="message"/> paid for, in <see cref="TimeSpan"/> ticks, at most <paramref name="upstreamTicks"/>: 0
-    /// when it went out on a pooled connection; all of <paramref name="upstreamTicks"/> when its connect never finished (the forward
-    /// failed while connecting).
+    /// when it went out on a pooled connection; when its connect never finished, 0 if the forward was <paramref name="answered"/>
+    /// anyway (the pool handed it a connection that freed up while its own was still opening) and all of
+    /// <paramref name="upstreamTicks"/> if not (the forward failed while connecting).
     /// </summary>
-    public static long TicksFor(HttpRequestMessage message, long upstreamTicks)
+    public static long TicksFor(HttpRequestMessage message, long upstreamTicks, bool answered)
     {
         if (!Started.TryGetValue(message, out var connect))
         {
@@ -59,7 +63,12 @@ internal static class UpstreamConnects
         }
 
         var ticks = connect.Ticks;
-        return ticks < 0 || ticks > upstreamTicks ? upstreamTicks : ticks;
+        if (ticks < 0)
+        {
+            return answered ? 0 : upstreamTicks;
+        }
+
+        return ticks > upstreamTicks ? upstreamTicks : ticks;
     }
 
     // What SocketsHttpHandler does without a callback: a dual-mode socket, Nagle off, every address of the name tried in turn.

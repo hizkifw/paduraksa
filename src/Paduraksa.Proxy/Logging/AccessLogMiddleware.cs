@@ -158,6 +158,7 @@ public sealed class AccessLogMiddleware
         var userAgent = request.Headers.UserAgent;
         var referer = request.Headers.Referer;
         var upstreamTicks = state?.UpstreamTicks ?? AccessLogEntry.Unknown;
+        var answered = upstreamTicks >= 0;
         var upstreamAddress = state?.UpstreamAddress;
         if (state is { UpstreamStartedTimestamp: not 0 } && upstreamTicks < 0)
         {
@@ -170,7 +171,7 @@ public sealed class AccessLogMiddleware
             }
         }
 
-        var connectTicks = state is { UpstreamRequest: { } sent } && upstreamTicks >= 0 ? Yarp.UpstreamConnects.TicksFor(sent, upstreamTicks) : AccessLogEntry.Unknown;
+        var connectTicks = state is { UpstreamRequest: { } sent } && upstreamTicks >= 0 ? Yarp.UpstreamConnects.TicksFor(sent, upstreamTicks, answered) : AccessLogEntry.Unknown;
 
         AccessLogEntry entry = new()
         {
