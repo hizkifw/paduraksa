@@ -16,7 +16,7 @@ namespace Paduraksa.Admin.Mcp;
 /// The two tools of the MCP endpoint over the transport (docs/design/admin-surfaces.md "MCP in code mode (M10)"): lists them, and runs a call as the caller authentication set on the request.
 /// A failure of any kind is a tool result with <c>isError</c>, never an exception into the MCP host.
 /// </summary>
-internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipeline pipeline, IServiceScopeFactory scopes, IHttpContextAccessor accessor, ILogger<McpToolkit> logger, AdminMcpOptions options)
+internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipeline pipeline, IServiceScopeFactory scopes, IHttpContextAccessor accessor, ILogger<McpToolkit> logger, AdminMcpOptions options, McpSwitch? mcpSwitch = null)
     : IAsyncDisposable
 {
     private static readonly JsonElement CodeSchema = JsonDocument.Parse(
@@ -120,7 +120,7 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
     private async Task<CodeModeTools> BuildAsync()
     {
         var openApi = await document.GetAsync(CancellationToken.None).ConfigureAwait(false);
-        return CodeModeTools.Create(openApi, options.ChildCommand, options.IdleTimeout, log: message => LogSandbox(logger, message));
+        return CodeModeTools.Create(openApi, options.ChildCommand, mcpSwitch?.IdleTimeout ?? options.IdleTimeout, log: message => LogSandbox(logger, message));
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The MCP tool {Tool} failed.")]
@@ -143,6 +143,35 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
             return tools is { IsCompletedSuccessfully: true } ? tools.Result.Pool.ChildProcessIds : [];
         }
     }
+
+    /// <summary>
+    /// Stops the sandbox pool and kills its children (MCP switched off, or its idle timeout changed): the next call, once allowed, builds a new one
+    /// with the settings then in force. A call running now finishes or fails with the pool.
+    /// </summary>
+    public async Task StopAsync()
+    {
+        Task<CodeModeTools>? tools;
+        lock (_gate)
+        {
+            tools = _tools;
+            _tools = null;
+        }
+
+        if (tools is not null)
+        {
+            try
+            {
+                await (await tools.ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                LogStopFailed(logger, ex);
+            }
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Stopping the MCP sandbox pool failed; its children are killed with the process.")]
+    private static partial void LogStopFailed(ILogger logger, Exception exception);
 
     /// <summary>Stopping the app kills every child: none outlives the server.</summary>
     public async ValueTask DisposeAsync()

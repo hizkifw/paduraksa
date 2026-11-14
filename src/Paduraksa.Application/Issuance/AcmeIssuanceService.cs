@@ -14,6 +14,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Acme;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Data.Issuance;
@@ -74,13 +75,16 @@ public sealed partial class AcmeIssuanceService
     private readonly IDnsProviderFactory? _dns;
     private readonly IDnsPropagationCheck? _propagation;
     private readonly IDnsChallengeNames? _challengeNames;
-    private readonly AcmeIssuanceOptions _options;
+    private readonly LiveOptions<AcmeIssuanceOptions> _live;
     private readonly TimeProvider _time;
     private readonly Func<double> _random;
     private readonly ILogger _logger;
     private readonly IPermissionEvaluator _permissions;
 
     private readonly INotificationEvents? _notifications;
+
+    // Read where it is used: the DNS-01 wait and check are server settings.
+    private AcmeIssuanceOptions Options => _live.Current;
 
     internal AcmeIssuanceService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -90,7 +94,7 @@ public sealed partial class AcmeIssuanceService
         ICertificateIssuance vault,
         IAcmeChallengeStore challenges,
         IDnsProviderFactory? dns,
-        AcmeIssuanceOptions options,
+        LiveOptions<AcmeIssuanceOptions> options,
         TimeProvider time,
         ILogger<AcmeIssuanceService> logger,
         IPermissionEvaluator permissions,
@@ -122,7 +126,7 @@ public sealed partial class AcmeIssuanceService
         _dns = dns;
         _propagation = propagation;
         _challengeNames = challengeNames;
-        _options = options;
+        _live = options;
         _time = time;
         _random = random;
         _notifications = notifications;
@@ -313,7 +317,7 @@ public sealed partial class AcmeIssuanceService
         catch (AcmeException ex)
         {
             LogRenewalInfoFailed(id, ex.GetType().Name);
-            await UpdateAsync(row, r => r.AriCheckAt = now + _options.AriMinRecheck, cancellationToken).ConfigureAwait(false);
+            await UpdateAsync(row, r => r.AriCheckAt = now + Options.AriMinRecheck, cancellationToken).ConfigureAwait(false);
             return IssuanceMapping.ToSummary(row);
         }
 
@@ -327,14 +331,14 @@ public sealed partial class AcmeIssuanceService
                 r.AriWindowStart = info?.WindowStart;
                 r.AriWindowEnd = info?.WindowEnd;
                 r.AriExplanationUrl = info?.ExplanationUrl?.AbsoluteUri;
-                r.AriCheckAt = info is null ? null : RenewalSchedule.NextAriCheck(now, info.RetryAfter, _options);
+                r.AriCheckAt = info is null ? null : RenewalSchedule.NextAriCheck(now, info.RetryAfter, Options);
                 if (info is null)
                 {
-                    r.NextRenewalAt = RenewalSchedule.NextRenewalAt(notBefore, notAfter, null, random, _options);
+                    r.NextRenewalAt = RenewalSchedule.NextRenewalAt(notBefore, notAfter, null, random, Options);
                 }
                 else if (!RenewalSchedule.KeepsPick(r.NextRenewalAt, info))
                 {
-                    r.NextRenewalAt = RenewalSchedule.NextRenewalAt(notBefore, notAfter, info, random, _options);
+                    r.NextRenewalAt = RenewalSchedule.NextRenewalAt(notBefore, notAfter, info, random, Options);
                 }
             },
             cancellationToken).ConfigureAwait(false);
@@ -576,7 +580,7 @@ public sealed partial class AcmeIssuanceService
         var accountGone = ex is AcmeProblemException { Type: AcmeProblemTypes.AccountDoesNotExist };
         var now = _time.GetUtcNow();
         var attempts = row.Attempts + 1;
-        var retryAt = now + RenewalSchedule.Backoff(kind, attempts, retryAfter, _random(), _options);
+        var retryAt = now + RenewalSchedule.Backoff(kind, attempts, retryAfter, _random(), Options);
         // Work that cannot be continued (the staged key is gone, the CSR was refused) must not be resumed: start over next time.
         var dropOrder = row.AttachedInfo is null
                         && (ex is StagedKeyMismatchException or IssuanceFailureException { DropsOrder: true }

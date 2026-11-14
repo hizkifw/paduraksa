@@ -15,6 +15,12 @@ public sealed record AcmeIssuanceOptions
     /// </summary>
     public TimeSpan DnsPropagationDelay { get; init; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Whether the registered <c>IDnsPropagationCheck</c> and the <c>_acme-challenge</c> CNAME delegation are used. Off, the fixed
+    /// <see cref="DnsPropagationDelay"/> is waited instead and no DNS query is sent: for a host that can't reach the zone's name servers.
+    /// </summary>
+    public bool DnsPropagationCheck { get; init; } = true;
+
     /// <summary>How often the scheduler looks for work.</summary>
     public TimeSpan SchedulerPollInterval { get; init; } = TimeSpan.FromMinutes(1);
 

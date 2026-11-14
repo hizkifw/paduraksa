@@ -210,6 +210,55 @@ public static class ServerSettingCatalog
         static s => s.AccessLogQueryString, static (s, v) => s with { AccessLogQueryString = v },
         true);
 
+    public static readonly ServerSetting<bool> CloudflareRangeRefresh = new(
+        "cloudflareRangeRefresh", "Cloudflare:RangeRefresh:Enabled", ServerSettingGroup.Integrations, "Cloudflare", ServerSettingApply.Live,
+        "Refresh the edge ranges",
+        "Fetch Cloudflare's published address ranges, so the trusted list isn't the one this build shipped with. Off keeps the list in force.",
+        static s => s.CloudflareRangeRefresh, static (s, v) => s with { CloudflareRangeRefresh = v },
+        true);
+
+    public static readonly ServerSetting<TimeSpan> CloudflareRangeInterval = new(
+        "cloudflareRangeInterval", "Cloudflare:RangeRefresh:Interval", ServerSettingGroup.Integrations, "Cloudflare", ServerSettingApply.Live,
+        "Refresh every",
+        "The time between fetches, with up to an hour of jitter added.",
+        static s => s.CloudflareRangeInterval, static (s, v) => s with { CloudflareRangeInterval = v },
+        TimeSpan.FromDays(1), TimeSpan.FromMinutes(1), TimeSpan.FromDays(7));
+
+    public static readonly ServerSetting<bool> AcmeDnsPropagationCheck = new(
+        "acmeDnsPropagationCheck", "Acme:DnsPropagation:Enabled", ServerSettingGroup.Integrations, "ACME", ServerSettingApply.Live,
+        "Check DNS-01 records",
+        "Before the CA validates, ask the zone's own name servers until each has the TXT records, and follow an _acme-challenge CNAME. Off waits the fixed time below instead, for a server that can't reach them.",
+        static s => s.AcmeDnsPropagationCheck, static (s, v) => s with { AcmeDnsPropagationCheck = v },
+        true);
+
+    public static readonly ServerSetting<TimeSpan> AcmeDnsPropagationDelay = new(
+        "acmeDnsPropagationDelay", "Acme:DnsPropagationDelay", ServerSettingGroup.Integrations, "ACME", ServerSettingApply.Live,
+        "Fixed DNS-01 wait",
+        "How long to wait after publishing the TXT records when the check is off or can't be made.",
+        static s => s.AcmeDnsPropagationDelay, static (s, v) => s with { AcmeDnsPropagationDelay = v },
+        TimeSpan.FromSeconds(30), TimeSpan.Zero, TimeSpan.FromHours(1));
+
+    public static readonly ServerSetting<bool> McpEnabled = new(
+        "mcpEnabled", "Mcp:Enabled", ServerSettingGroup.Integrations, "MCP", ServerSettingApply.Live,
+        "MCP",
+        "Serve /mcp, where an AI assistant with an API token calls the admin API from a sandbox. Off, /mcp answers 404 and the sandbox stops.",
+        static s => s.McpEnabled, static (s, v) => s with { McpEnabled = v },
+        false)
+    {
+        Note = static (before, after) => !McpEnabled!.Resolve(before) && McpEnabled.Resolve(after)
+            ? "MCP goes on: an AI assistant holding an API token can call the admin API with that token's permissions, from a sandbox; its writes still ask for confirmation."
+            : McpEnabled.Resolve(before) && !McpEnabled.Resolve(after)
+                ? "MCP goes off: /mcp answers 404 and the running sandbox children are stopped."
+                : null,
+    };
+
+    public static readonly ServerSetting<TimeSpan> McpIdleTimeout = new(
+        "mcpIdleTimeout", "Mcp:IdleTimeout", ServerSettingGroup.Integrations, "MCP", ServerSettingApply.Live,
+        "Sandbox idle timeout",
+        "How long a sandbox child waits without a run before it is stopped; the next call starts a new one.",
+        static s => s.McpIdleTimeout, static (s, v) => s with { McpIdleTimeout = v },
+        TimeSpan.FromMinutes(10), TimeSpan.FromSeconds(10), TimeSpan.FromHours(24));
+
     /// <summary>Every declaration, in the order the page shows them.</summary>
     public static IReadOnlyList<ServerSettingDefinition> All { get; } =
     [
@@ -217,6 +266,7 @@ public static class ServerSettingCatalog
         AdminMaxFailedAttempts, AdminLockoutDuration, AdminSessionLifetime, AdminSessionIdleTimeout, AdminPartialSessionLifetime,
         AdminMinPasswordLength, AdminTotpIssuer, AdminRateLimitPermitsPerIp, AdminRateLimitPermitsPerUser, AdminRateLimitWindow,
         NotificationAdminUrl, NotificationHealthHold, NotificationCoalesceWindow, NotificationMaxDeliveryAge,
+        CloudflareRangeRefresh, CloudflareRangeInterval, AcmeDnsPropagationCheck, AcmeDnsPropagationDelay, McpEnabled, McpIdleTimeout,
     ];
 
     /// <summary>

@@ -39,11 +39,12 @@ public sealed class DnsProviderRegistrationTests
     }
 
     [Fact]
-    public void TheCheckCanBeLeftOutToKeepTheFixedDelay()
+    public void TheCheckIsRegisteredEvenWhenOffSoItCanBeSwitchedOnWithNoRestart()
     {
+        // Off is the issuance options' DnsPropagationCheck, a server setting; registering the check sends no DNS query.
         using var provider = Services(new FakeSecretHandlers(new FakeCloudflare().Handle)).AddPaduraksaDnsProviders(new DnsPropagationSettings { Enabled = false }).BuildServiceProvider();
 
-        Assert.Null(provider.GetService<IDnsPropagationCheck>());
+        Assert.NotNull(provider.GetService<IDnsPropagationCheck>());
         Assert.NotNull(provider.GetService<IDnsProviderFactory>());
     }
 

@@ -1,5 +1,7 @@
 using Paduraksa.Application.Analytics;
+using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Identity;
+using Paduraksa.Application.Issuance;
 using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Settings;
@@ -31,6 +33,8 @@ internal sealed class ServerSettingsBindings
         Notifications = new(startup.Notifications);
         Identity = new(startup.Identity);
         AccessLogFormat = new(startup.AccessLogFormat);
+        CloudflareRanges = new(startup.CloudflareRanges);
+        AcmeIssuance = new(startup.AcmeIssuance);
         _touchInterval = startup.Identity.TouchInterval;
         Apply(state.Current);
         state.Changed += Apply;
@@ -46,6 +50,10 @@ internal sealed class ServerSettingsBindings
 
     public LiveOptions<AccessLogFormatOptions> AccessLogFormat { get; }
 
+    public LiveOptions<CloudflareRangeRefreshOptions> CloudflareRanges { get; }
+
+    public LiveOptions<AcmeIssuanceOptions> AcmeIssuance { get; }
+
     private void Apply(ServerSettings values)
     {
         MetricRollups.Set(MetricRollups.Current with { Retention = ServerSettingCatalog.MetricsRetention.Resolve(values) });
@@ -57,6 +65,16 @@ internal sealed class ServerSettingsBindings
             HealthHold = ServerSettingCatalog.NotificationHealthHold.Resolve(values),
             CoalesceWindow = ServerSettingCatalog.NotificationCoalesceWindow.Resolve(values),
             MaxDeliveryAge = ServerSettingCatalog.NotificationMaxDeliveryAge.Resolve(values),
+        });
+        CloudflareRanges.Set(CloudflareRanges.Current with
+        {
+            Enabled = ServerSettingCatalog.CloudflareRangeRefresh.Resolve(values),
+            Interval = ServerSettingCatalog.CloudflareRangeInterval.Resolve(values),
+        });
+        AcmeIssuance.Set(AcmeIssuance.Current with
+        {
+            DnsPropagationDelay = ServerSettingCatalog.AcmeDnsPropagationDelay.Resolve(values),
+            DnsPropagationCheck = ServerSettingCatalog.AcmeDnsPropagationCheck.Resolve(values),
         });
         AccessLogFormat.Set(AccessLogFormat.Current with { LogQueryString = ServerSettingCatalog.AccessLogQueryString.Resolve(values) });
         var idle = ServerSettingCatalog.AdminSessionIdleTimeout.Resolve(values);
@@ -83,4 +101,4 @@ internal sealed class ServerSettingsBindings
 }
 
 /// <summary>The consumers' options as the bootstrap configuration has them, before the server settings are laid over them.</summary>
-internal sealed record PaduraksaOptionsSnapshot(MetricRollupOptions MetricRollups, AnalyticsOptions Analytics, NotificationOptions Notifications, IdentityOptions Identity, AccessLogFormatOptions AccessLogFormat);
+internal sealed record PaduraksaOptionsSnapshot(MetricRollupOptions MetricRollups, AnalyticsOptions Analytics, NotificationOptions Notifications, IdentityOptions Identity, AccessLogFormatOptions AccessLogFormat, CloudflareRangeRefreshOptions CloudflareRanges, AcmeIssuanceOptions AcmeIssuance);

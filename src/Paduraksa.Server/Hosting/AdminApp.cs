@@ -126,15 +126,19 @@ internal static partial class AdminApp
         builder.Services.AddSingleton(sources);
         builder.Services.AddPaduraksaAdminAuth(
             context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
-        builder.Services.AddPaduraksaAdminApi(context.Options.Mcp.Enabled
-            ? new AdminMcpOptions(Paduraksa.Mcp.SandboxChildCommand.ForThisServer(), context.Options.Mcp.IdleTimeout)
-            : null);
+        // Always mapped: whether /mcp answers is a server setting the switch reads on every request (404 while off).
+        var settings = context.Shared.ServerSettings;
+        builder.Services.AddSingleton(new McpSwitch(
+            () => ServerSettingCatalog.McpEnabled.Resolve(settings.Current),
+            () => ServerSettingCatalog.McpIdleTimeout.Resolve(settings.Current)));
+        builder.Services.AddPaduraksaAdminApi(new AdminMcpOptions(Paduraksa.Mcp.SandboxChildCommand.ForThisServer(), context.Options.Mcp.IdleTimeout));
         builder.Services.AddPaduraksaAdminWeb(DashboardWeb);
         builder.Services.AddPaduraksaDashboard(new DashboardOptions
         {
             MinPasswordLength = context.Options.Admin.MinPasswordLength,
             LiveMinPasswordLength = () => (int)ServerSettingCatalog.AdminMinPasswordLength.Resolve(context.Shared.ServerSettings.Current),
             McpEnabled = context.Options.Mcp.Enabled,
+            LiveMcpEnabled = () => ServerSettingCatalog.McpEnabled.Resolve(settings.Current),
             SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
         });
         // The dashboard's password checks (change password, TOTP, recovery codes) share the API's derivation slots.
@@ -168,14 +172,33 @@ internal static partial class AdminApp
         return app;
     }
 
-    /// <summary>The admin app's own consumers of the server settings: the sign-in rate limits, taken from the next attempt.</summary>
+    /// <summary>
+    /// The admin app's own consumers of the server settings: the sign-in rate limits, taken from the next attempt, and MCP, whose sandbox pool is
+    /// stopped and drained when it is switched off or its idle timeout changes (the next allowed call starts a new one).
+    /// </summary>
     private static void FollowServerSettings(WebApplication app, ServerSettingsState state)
     {
         var throttle = app.Services.GetRequiredService<AdminThrottle>();
-        void Apply(ServerSettings values) => throttle.Reconfigure(
-            (int)ServerSettingCatalog.AdminRateLimitPermitsPerIp.Resolve(values),
-            (int)ServerSettingCatalog.AdminRateLimitPermitsPerUser.Resolve(values),
-            ServerSettingCatalog.AdminRateLimitWindow.Resolve(values));
+        var mcp = app.Services.GetRequiredService<McpSwitch>();
+        var mcpEnabled = ServerSettingCatalog.McpEnabled.Resolve(state.Current);
+        var mcpIdle = ServerSettingCatalog.McpIdleTimeout.Resolve(state.Current);
+        void Apply(ServerSettings values)
+        {
+            throttle.Reconfigure(
+                (int)ServerSettingCatalog.AdminRateLimitPermitsPerIp.Resolve(values),
+                (int)ServerSettingCatalog.AdminRateLimitPermitsPerUser.Resolve(values),
+                ServerSettingCatalog.AdminRateLimitWindow.Resolve(values));
+            var enabled = ServerSettingCatalog.McpEnabled.Resolve(values);
+            var idle = ServerSettingCatalog.McpIdleTimeout.Resolve(values);
+            if ((mcpEnabled && !enabled) || idle != mcpIdle)
+            {
+                // Under the config's writer lock: the pool's children are killed off this thread.
+                _ = Task.Run(mcp.ChangedAsync);
+            }
+
+            (mcpEnabled, mcpIdle) = (enabled, idle);
+        }
+
         Apply(state.Current);
         state.Changed += Apply;
         app.Lifetime.ApplicationStopped.Register(() => state.Changed -= Apply);

@@ -3,6 +3,9 @@ namespace Paduraksa.Application.Cloudflare;
 /// <summary>How the job that keeps Cloudflare's edge ranges current fetches and paces itself.</summary>
 public sealed record CloudflareRangeRefreshOptions
 {
+    /// <summary>Whether the job fetches at all. Off, it waits until it is turned on (a server setting) and the list in force stays.</summary>
+    public bool Enabled { get; init; } = true;
+
     /// <summary>The published list as JSON (<c>result.ipv4_cidrs</c>, <c>result.ipv6_cidrs</c>).</summary>
     public Uri ApiUrl { get; init; } = new("https://api.cloudflare.com/client/v4/ips");
 

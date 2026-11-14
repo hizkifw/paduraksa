@@ -224,7 +224,7 @@ public sealed partial class AcmeIssuanceService
                 else
                 {
                     var name = AcmeChallenges.Dns01RecordName(authorization.Identifier);
-                    var target = _challengeNames is null ? name : await _challengeNames.ResolveAsync(name, cancellationToken).ConfigureAwait(false);
+                    var target = _challengeNames is null || !Options.DnsPropagationCheck ? name : await _challengeNames.ResolveAsync(name, cancellationToken).ConfigureAwait(false);
                     if (!string.Equals(target, name, StringComparison.Ordinal))
                     {
                         delegated.Add(name);
@@ -298,7 +298,7 @@ public sealed partial class AcmeIssuanceService
     /// </summary>
     private async Task WaitForDnsAsync(CertificateId certificate, List<(string Name, string Value)> records, CancellationToken cancellationToken)
     {
-        if (_propagation is not null)
+        if (_propagation is not null && Options.DnsPropagationCheck)
         {
             try
             {
@@ -322,9 +322,9 @@ public sealed partial class AcmeIssuanceService
             }
         }
 
-        if (_options.DnsPropagationDelay > TimeSpan.Zero)
+        if (Options.DnsPropagationDelay > TimeSpan.Zero)
         {
-            await Task.Delay(_options.DnsPropagationDelay, _time, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(Options.DnsPropagationDelay, _time, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -551,9 +551,9 @@ public sealed partial class AcmeIssuanceService
 
         var now = _time.GetUtcNow();
         var wasFailing = row.Attempts > 0;
-        var renewAt = RenewalSchedule.NextRenewalAt(info.NotBefore, info.NotAfter, renewalInfo, _random(), _options);
-        DateTimeOffset? ariCheckAt = renewalInfo is not null ? RenewalSchedule.NextAriCheck(now, renewalInfo.RetryAfter, _options)
-            : renewalInfoFailed ? now + _options.AriMinRecheck
+        var renewAt = RenewalSchedule.NextRenewalAt(info.NotBefore, info.NotAfter, renewalInfo, _random(), Options);
+        DateTimeOffset? ariCheckAt = renewalInfo is not null ? RenewalSchedule.NextAriCheck(now, renewalInfo.RetryAfter, Options)
+            : renewalInfoFailed ? now + Options.AriMinRecheck
             : null;
         await _config.ApplyOperationalChangeAsync(
             async context =>

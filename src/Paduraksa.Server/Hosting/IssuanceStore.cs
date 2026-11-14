@@ -6,6 +6,7 @@ using Paduraksa.Acme;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Core.Acme;
+using Paduraksa.Core.Options;
 using Paduraksa.Server.Configuration;
 
 namespace Paduraksa.Server.Hosting;
@@ -32,6 +33,20 @@ namespace Paduraksa.Server.Hosting;
 /// </remarks>
 internal static class IssuanceStore
 {
+    /// <summary>The issuance options the bootstrap configuration gives; the DNS-01 wait and check are then server settings over them.</summary>
+    public static AcmeIssuanceOptions IssuanceOptions(PaduraksaOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var acme = options.Acme;
+        return new()
+        {
+            SchedulerStartDelay = acme.SchedulerStartDelay,
+            SchedulerPollInterval = acme.SchedulerPollInterval,
+            DnsPropagationDelay = acme.DnsPropagationDelay,
+            DnsPropagationCheck = acme.DnsPropagation.Enabled,
+        };
+    }
+
     public static void AddTo(
         SharedServices.Builder builder,
         PaduraksaOptions options,
@@ -39,6 +54,7 @@ internal static class IssuanceStore
         VaultCapabilities vault,
         IAcmeChallengeStore challenges,
         IProcessReadiness readiness,
+        LiveOptions<AcmeIssuanceOptions> issuance,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory)
     {
@@ -51,12 +67,7 @@ internal static class IssuanceStore
 
         var acme = options.Acme;
         AcmeClientOptions clientOptions = new() { AllowInsecureHttp = options.Development.AcmeInsecureHttp };
-        AcmeIssuanceOptions issuanceOptions = new()
-        {
-            SchedulerStartDelay = acme.SchedulerStartDelay,
-            SchedulerPollInterval = acme.SchedulerPollInterval,
-            DnsPropagationDelay = acme.DnsPropagationDelay,
-        };
+        var issuanceOptions = issuance.Current;
 
         // Created before the container, so disposed after it: the clients are done with it by then.
         var transport = builder.Own(CreateTransport(acme.TrustedRootsFile));
@@ -79,6 +90,7 @@ internal static class IssuanceStore
             .AddSingleton(readiness)
             .AddSingleton(clientOptions)
             .AddSingleton(issuanceOptions)
+            .AddSingleton(issuance)
             .AddSingleton<IAcmeClientProvider>(sp => new AcmeClientProvider(
                 vault.Signer,
                 vault.MacKeys,

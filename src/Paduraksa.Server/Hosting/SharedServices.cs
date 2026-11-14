@@ -77,7 +77,7 @@ internal sealed class SharedServices : IAsyncDisposable
         Metrics = Get<MetricsRegistry>();
         EdgeRanges = Get<CloudflareEdgeRangeSource>();
         RangeReport = Get<CloudflareRangeReport>();
-        RangeRefresher = _registrations.FirstOrDefault(static r => r.Key == typeof(CloudflareRangeRefresher)).Value as CloudflareRangeRefresher;
+        RangeRefresher = Get<CloudflareRangeRefresher>();
         AccessLists = Get<AccessListRuntime>();
         LogFiles = Get<ServerLogFiles>();
         ServerSettings = Get<ServerSettingsState>();
@@ -192,9 +192,9 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>What the dashboard says about the edge ranges (public facts).</summary>
     public CloudflareRangeReport RangeReport { get; }
 
-    /// <summary>The job that keeps the edge ranges current; null when <c>Paduraksa:Cloudflare:RangeRefresh:Enabled</c> is off. A
+    /// <summary>The job that keeps the edge ranges current; idle while <c>Paduraksa:Cloudflare:RangeRefresh:Enabled</c> (a server setting) is off. A
     /// hosted service of the core host (see <see cref="CoreHost"/>).</summary>
-    public CloudflareRangeRefresher? RangeRefresher { get; }
+    public CloudflareRangeRefresher RangeRefresher { get; }
 
     /// <summary>The rate-limit engine's table, slots and counters; the compiler, the publisher and the public app share it.</summary>
     public RateLimitRuntime RateLimits { get; }
@@ -340,7 +340,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // bindings hand each change to the consumers' live options.
             var serverSettings = builder.Add(new ServerSettingsState(options.ServerSettingEnvironment));
             var settingsBindings = builder.Add(new ServerSettingsBindings(
-                serverSettings, logFiles, new PaduraksaOptionsSnapshot(options.Metrics.ToOptions(), options.Analytics.ToOptions(), options.Notifications.ToOptions(), options.Admin.ToIdentityOptions(), options.AccessLog.ToFormatOptions())));
+                serverSettings, logFiles, new PaduraksaOptionsSnapshot(options.Metrics.ToOptions(), options.Analytics.ToOptions(), options.Notifications.ToOptions(), options.Admin.ToIdentityOptions(), options.AccessLog.ToFormatOptions(), options.Cloudflare.RangeRefresh.ToOptions(), IssuanceStore.IssuanceOptions(options))));
 
             var health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
@@ -446,16 +446,15 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add(new AnalyticsService(configStore.AnalyticsRollups, analytics, timeProvider));
 
             // After the config store, which it asks to compile the live config again when Cloudflare's ranges change: disposed
-            // before it. The core host runs it (CoreHost) only when it is enabled.
+            // before it. It runs in the core host whether or not it is enabled: switched off (a server setting) it idles until switched on.
             builder.Add(new CloudflareRangeReport(edgeRanges));
-            if (options.Cloudflare.RangeRefresh.Enabled)
             {
                 var rangeClient = builder.Own(CreateRangeClient());
                 builder.Add(new CloudflareRangeRefresher(
                     edgeRanges,
                     rangeFile,
                     rangeClient,
-                    options.Cloudflare.RangeRefresh.ToOptions(),
+                    settingsBindings.CloudflareRanges,
                     snapshots,
                     configStore.Config.RepublishLiveAsync,
                     timeProvider,
@@ -463,7 +462,7 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
-            IssuanceStore.AddTo(builder, options, configStore, vault, challenges, health, timeProvider, coreLoggers);
+            IssuanceStore.AddTo(builder, options, configStore, vault, challenges, health, settingsBindings.AcmeIssuance, timeProvider, coreLoggers);
 
             // The admin API stores DNS credentials and ACME binding keys through it (write-only: there is no get).
             builder.AddOwnedElsewhere(vault.Secrets);

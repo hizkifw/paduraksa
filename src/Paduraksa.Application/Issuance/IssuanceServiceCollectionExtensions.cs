@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Paduraksa.Acme;
 using Paduraksa.Acme.Dns;
 using Paduraksa.Application.Certificates;
@@ -12,6 +11,7 @@ using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Core.Acme;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 
@@ -37,6 +37,8 @@ public static class IssuanceServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton(new AcmeIssuanceOptions());
+        // The issuance service reads these live (the DNS-01 wait is a server setting); a composition that fixes them registers the plain options.
+        services.TryAddSingleton(static sp => new LiveOptions<AcmeIssuanceOptions>(sp.GetRequiredService<AcmeIssuanceOptions>()));
         services.TryAddSingleton(sp => new AcmeAccountService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
@@ -63,7 +65,7 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<ICertificateIssuance>(),
             sp.GetRequiredService<IAcmeChallengeStore>(),
             sp.GetService<IDnsProviderFactory>(),
-            sp.GetRequiredService<AcmeIssuanceOptions>(),
+            sp.GetRequiredService<LiveOptions<AcmeIssuanceOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeIssuanceService>(sp),
             sp.GetRequiredService<IPermissionEvaluator>(),

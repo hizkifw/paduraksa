@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -61,7 +62,7 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
         _store.Publish(result.Snapshot!.Bind(_store.Current.Generation + 1, []));
     }
 
-    private CloudflareRangeRefresher Refresher(CloudflareRangeRefreshOptions? options = null) => new(
+    private CloudflareRangeRefresher Refresher(LiveOptions<CloudflareRangeRefreshOptions>? options = null) => new(
         _source,
         _file,
         new HttpClient(_cloudflare),
@@ -264,6 +265,22 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
         _cloudflare.Throw(Api, new InvalidOperationException("the handler blew up"));
         await refresher.StartAsync(TestContext.Current.CancellationToken);
         await WaitUntilAsync(() => _source.LastFailure?.StartsWith("InvalidOperationException: the handler blew up", StringComparison.Ordinal) == true);
+        await refresher.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task SwitchedOffTheJobFetchesNothingUntilItIsSwitchedOnAgain()
+    {
+        _cloudflare.Serve(Api, Json(ListV4, ListV6));
+        LiveOptions<CloudflareRangeRefreshOptions> options = new(Options() with { Enabled = false });
+        using var refresher = Refresher(options);
+
+        await refresher.StartAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Assert.Empty(_cloudflare.Requests);
+
+        options.Set(options.Current with { Enabled = true });
+        await WaitUntilAsync(() => _cloudflare.Requests.Count > 0);
         await refresher.StopAsync(TestContext.Current.CancellationToken);
     }
 

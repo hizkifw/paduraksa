@@ -23869,6 +23869,45 @@
               "null",
               "boolean"
             ]
+          },
+          "cloudflareRangeRefresh": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "cloudflareRangeInterval": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acmeDnsPropagationDelay": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acmeDnsPropagationCheck": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "mcpEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "mcpIdleTimeout": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false,

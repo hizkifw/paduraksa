@@ -58,6 +58,18 @@ public sealed record ServerSettings
 
     public bool? AccessLogQueryString { get; init; }
 
+    public bool? CloudflareRangeRefresh { get; init; }
+
+    public TimeSpan? CloudflareRangeInterval { get; init; }
+
+    public TimeSpan? AcmeDnsPropagationDelay { get; init; }
+
+    public bool? AcmeDnsPropagationCheck { get; init; }
+
+    public bool? McpEnabled { get; init; }
+
+    public TimeSpan? McpIdleTimeout { get; init; }
+
     /// <summary>Whether no field is set: canonical JSON then writes no <c>server</c> key, so a stored revision keeps its bytes.</summary>
     [JsonIgnore]
     public bool SetsNothing => ServerSettingCatalog.All.All(setting => !setting.IsSet(this));

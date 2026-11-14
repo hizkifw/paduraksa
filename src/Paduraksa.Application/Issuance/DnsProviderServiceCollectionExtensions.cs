@@ -17,7 +17,7 @@ public static class DnsProviderServiceCollectionExtensions
     /// <param name="services">The collection.</param>
     /// <param name="propagation">
     /// The check's settings (bind <c>Paduraksa:Acme:DnsPropagation</c> into <see cref="DnsPropagationSettings"/>); the defaults when
-    /// null. <see cref="DnsPropagationSettings.Enabled"/> false does not register the check, which keeps the fixed
+    /// null. Its <see cref="DnsPropagationSettings.Enabled"/> is the starting value of <see cref="AcmeIssuanceOptions.DnsPropagationCheck"/>; off keeps the fixed
     /// <see cref="AcmeIssuanceOptions.DnsPropagationDelay"/>, for a host that cannot send DNS queries to the zone's name servers.
     /// </param>
     public static IServiceCollection AddPaduraksaDnsProviders(this IServiceCollection services, DnsPropagationSettings? propagation = null)
@@ -31,7 +31,9 @@ public static class DnsProviderServiceCollectionExtensions
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<ILoggerFactory>()));
         propagation ??= new DnsPropagationSettings();
-        if (propagation.Enabled)
+
+        // Registered whatever Enabled says: the issuance service asks its live options whether to use it, so the check can be switched on from
+        // the dashboard. Nothing queries DNS until it is used.
         {
             services.TryAddSingleton(propagation.ToOptions());
             services.TryAddSingleton<IDnsPropagationCheck>(sp => new AuthoritativeDnsPropagationCheck(

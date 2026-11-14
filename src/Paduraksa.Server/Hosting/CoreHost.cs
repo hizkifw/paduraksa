@@ -79,12 +79,9 @@ internal static class CoreHost
             builder.Services.AddHostedService(static services => services.GetRequiredService<AcmeRenewalScheduler>());
         }
 
-        if (context.Shared.RangeRefresher is not null)
-        {
-            // Its first fetch waits StartDelay, long after the config store is up: it asks that store to compile again when the
-            // list changes, and the stored list is already in force from the first compile.
-            builder.Services.AddHostedService(static services => services.GetRequiredService<CloudflareRangeRefresher>());
-        }
+        // Its first fetch waits StartDelay, long after the config store is up: it asks that store to compile again when the
+        // list changes, and the stored list is already in force from the first compile.
+        builder.Services.AddHostedService(static services => services.GetRequiredService<CloudflareRangeRefresher>());
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Core);
         return builder.Build();

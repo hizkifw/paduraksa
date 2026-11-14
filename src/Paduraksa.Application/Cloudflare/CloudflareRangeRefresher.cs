@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 
@@ -37,7 +38,8 @@ public sealed partial class CloudflareRangeRefresher : BackgroundService
     private readonly CloudflareEdgeRangeSource _source;
     private readonly CloudflareRangeFile _file;
     private readonly CloudflareRangeFetcher _fetcher;
-    private readonly CloudflareRangeRefreshOptions _options;
+    private readonly LiveOptions<CloudflareRangeRefreshOptions> _live;
+    private readonly SemaphoreSlim _changed = new(0, 1);
     private readonly SnapshotStore _snapshots;
     private readonly Func<Task<bool>> _republishLive;
     private readonly TimeProvider _time;
@@ -50,7 +52,7 @@ public sealed partial class CloudflareRangeRefresher : BackgroundService
         CloudflareEdgeRangeSource source,
         CloudflareRangeFile file,
         HttpClient http,
-        CloudflareRangeRefreshOptions options,
+        LiveOptions<CloudflareRangeRefreshOptions> options,
         SnapshotStore snapshots,
         Func<Task<bool>> republishLive,
         TimeProvider time,
@@ -66,8 +68,9 @@ public sealed partial class CloudflareRangeRefresher : BackgroundService
         ArgumentNullException.ThrowIfNull(logger);
         _source = source;
         _file = file;
-        _fetcher = new CloudflareRangeFetcher(http, options, time);
-        _options = options;
+        _fetcher = new CloudflareRangeFetcher(http, options.Current, time);
+        _live = options;
+        _live.Changed += OnOptionsChanged;
         _snapshots = snapshots;
         _republishLive = republishLive;
         _time = time;
@@ -76,6 +79,9 @@ public sealed partial class CloudflareRangeRefresher : BackgroundService
         // What the startup compile saw: the warning only matters again once it differs from it.
         _publishedWarning = source.Status().Warning;
     }
+
+    // Read where it is used: the server settings may switch the job off or change its interval while it runs.
+    private CloudflareRangeRefreshOptions Options => _live.Current;
 
     /// <summary>One fetch, with what follows from it: store, count, and a publish when the live config should change.</summary>
     public async Task<RangeRefreshResult> RefreshOnceAsync(CancellationToken cancellationToken)
@@ -167,9 +173,15 @@ public sealed partial class CloudflareRangeRefresher : BackgroundService
     {
         try
         {
-            await Task.Delay(_options.StartDelay, _time, stoppingToken).ConfigureAwait(false);
+            await Task.Delay(Options.StartDelay, _time, stoppingToken).ConfigureAwait(false);
             while (!stoppingToken.IsCancellationRequested)
             {
+                // Switched off: nothing is fetched until it is switched on again, which wakes this.
+                while (!Options.Enabled)
+                {
+                    await _changed.WaitAsync(stoppingToken).ConfigureAwait(false);
+                }
+
                 RangeRefreshResult result;
                 try
                 {
@@ -196,13 +208,72 @@ public sealed partial class CloudflareRangeRefresher : BackgroundService
                     await PublishPendingAsync().ConfigureAwait(false);
                 }
 
-                await Task.Delay(Pause(result, _source.ConsecutiveFailures), _time, stoppingToken).ConfigureAwait(false);
+                await PauseAsync(result, stoppingToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Shutting down.
         }
+    }
+
+    /// <summary>
+    /// The pause before the next fetch, from the end of this one. A changed setting wakes it: switched off, the loop goes idle; a new interval
+    /// is measured from the same start, so shortening it can make the next fetch due at once.
+    /// </summary>
+    private async Task PauseAsync(RangeRefreshResult result, CancellationToken stoppingToken)
+    {
+        var start = _time.GetUtcNow();
+        var pause = Pause(result, _source.ConsecutiveFailures);
+        var interval = Options.Interval;
+        while (Options.Enabled)
+        {
+            var left = start + pause - _time.GetUtcNow();
+            if (left <= TimeSpan.Zero)
+            {
+                return;
+            }
+
+            using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            var woken = _changed.WaitAsync(wait.Token);
+            var elapsed = Task.Delay(left, _time, wait.Token);
+            var first = await Task.WhenAny(woken, elapsed).ConfigureAwait(false);
+            await wait.CancelAsync().ConfigureAwait(false);
+            if (first == elapsed)
+            {
+                stoppingToken.ThrowIfCancellationRequested();
+                return;
+            }
+
+            stoppingToken.ThrowIfCancellationRequested();
+            if (Options.Interval != interval && result != RangeRefreshResult.Failed)
+            {
+                pause = Pause(result, _source.ConsecutiveFailures);
+                interval = Options.Interval;
+            }
+        }
+    }
+
+    private void OnOptionsChanged(CloudflareRangeRefreshOptions options)
+    {
+        try
+        {
+            if (_changed.CurrentCount == 0)
+            {
+                _changed.Release();
+            }
+        }
+        catch (Exception ex) when (ex is SemaphoreFullException or ObjectDisposedException)
+        {
+            // Already signalled, or stopped.
+        }
+    }
+
+    public override void Dispose()
+    {
+        _live.Changed -= OnOptionsChanged;
+        _changed.Dispose();
+        base.Dispose();
     }
 
     /// <summary>The wait before the next fetch: the interval after a good one, else a doubling retry capped at
@@ -214,15 +285,15 @@ public sealed partial class CloudflareRangeRefresher : BackgroundService
         if (result == RangeRefreshResult.Failed)
         {
             var doublings = Math.Min(Math.Max(failures - 1, 0), 20);
-            baseline = TimeSpan.FromTicks(Math.Min(_options.MinRetry.Ticks << doublings, _options.MaxRetry.Ticks));
+            baseline = TimeSpan.FromTicks(Math.Min(Options.MinRetry.Ticks << doublings, Options.MaxRetry.Ticks));
 
             // A retry's jitter is a tenth of its pause, so the first retries stay close to what was asked.
             jitter = baseline / 10;
         }
         else
         {
-            baseline = _options.Interval;
-            jitter = _options.Jitter;
+            baseline = Options.Interval;
+            jitter = Options.Jitter;
         }
 
         return baseline + TimeSpan.FromTicks((long)(jitter.Ticks * Random.Shared.NextDouble()));

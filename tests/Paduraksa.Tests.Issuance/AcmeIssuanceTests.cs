@@ -145,6 +145,24 @@ public sealed partial class AcmeIssuanceTests
     }
 
     [Fact]
+    public async Task WithTheCheckSwitchedOffTheFixedDelayIsWaitedAndNoDnsQueryIsSent()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var check = new FakePropagationCheck();
+        h.Propagation = check;
+        h.Options = h.Options with { DnsPropagationDelay = TimeSpan.FromSeconds(41), DnsPropagationCheck = false };
+        var issuance = h.NewIssuance();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+
+        var result = await issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Issued, result.Outcome);
+        Assert.Empty(check.Asked);
+        Assert.Contains(TimeSpan.FromSeconds(41), h.Time.Delays);
+    }
+
+    [Fact]
     public async Task ACnameAtTheChallengeNameSendsTheRecordTheCheckAndTheCleanupToItsTarget()
     {
         await using var h = await IssuanceHarness.CreateAsync();

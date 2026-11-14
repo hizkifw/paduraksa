@@ -19,12 +19,18 @@ public sealed class LiveOptions<T>
     /// <summary>The options in force; replaced as a whole, so one read sees one consistent set.</summary>
     public T Current => Volatile.Read(ref _current);
 
-    /// <summary>Raised after <see cref="Set"/> replaced the options, on the caller's thread; a handler must not block.</summary>
+    /// <summary>Raised after <see cref="Set"/> replaced the options with different ones, on the caller's thread; a handler must not block.</summary>
     public event Action<T>? Changed;
 
     public void Set(T value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        if (Equals(Volatile.Read(ref _current), value))
+        {
+            // The same options (a record with the same values): nothing to tell the consumer.
+            return;
+        }
+
         Volatile.Write(ref _current, value);
         Changed?.Invoke(value);
     }

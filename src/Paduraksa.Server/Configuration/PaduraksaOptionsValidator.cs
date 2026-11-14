@@ -190,7 +190,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         Bound(acme.SchedulerStartDelay, TimeSpan.Zero, TimeSpan.FromHours(1), $"{key}:SchedulerStartDelay", failures);
         Bound(acme.SchedulerPollInterval, TimeSpan.FromSeconds(1), TimeSpan.FromDays(1), $"{key}:SchedulerPollInterval", failures);
-        Bound(acme.DnsPropagationDelay, TimeSpan.Zero, TimeSpan.FromHours(1), $"{key}:DnsPropagationDelay", failures);
+        Bound(ServerSettingCatalog.AcmeDnsPropagationDelay, acme.DnsPropagationDelay, $"{key}:DnsPropagationDelay", failures);
         ValidateDnsPropagation(acme.DnsPropagation, $"{key}:DnsPropagation", failures);
 
         if (!string.IsNullOrWhiteSpace(acme.TrustedRootsFile))

@@ -30,7 +30,12 @@ public static class McpExtensions
         services.AddSingleton(options);
         services.AddHttpContextAccessor();
         services.AddSingleton<McpPipeline>();
-        services.AddSingleton<McpToolkit>();
+        services.AddSingleton(static sp =>
+        {
+            var toolkit = ActivatorUtilities.CreateInstance<McpToolkit>(sp);
+            sp.GetService<McpSwitch>()?.Attach(toolkit.StopAsync);
+            return toolkit;
+        });
         services
             .AddMcpServer(options =>
             {

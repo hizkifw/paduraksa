@@ -51,6 +51,53 @@ public sealed class McpShutdownTests
         Assert.Empty(Toolkit(api)!.ChildProcessIds);
 
         await using var off = await AdminApiHarness.StartAsync(Ct, settings: new Dictionary<string, string?> { ["Paduraksa:Mcp:Enabled"] = "false" });
-        Assert.Null(Toolkit(off));
+        Assert.Empty(Toolkit(off)!.ChildProcessIds);
+    }
+
+    [Fact]
+    public async Task SwitchingMcpOnAndOffLiveOpensTheEndpointAndThenStopsTheChildren()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "reads /proc");
+
+        // Nothing in the environment: the server setting decides, and its default is off.
+        await using var api = await AdminApiHarness.StartAsync(Ct, settings: new Dictionary<string, string?> { ["Paduraksa:Mcp:Enabled"] = null });
+        using (var before = await api.Client.GetAsync(new Uri(api.BaseAddress, "/mcp"), Ct))
+        {
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, before.StatusCode);
+        }
+
+        await SetAsync(api, enabled: true);
+        await using (var client = await McpTestClient.ConnectAsync(api, cancellationToken: Ct))
+        {
+            Assert.Equal("1", (await client.CallAsync("search", "async () => 1", Ct)).Text);
+        }
+
+        var children = Toolkit(api)!.ChildProcessIds;
+        Assert.NotEmpty(children);
+
+        await SetAsync(api, enabled: false);
+        using (var after = await api.Client.GetAsync(new Uri(api.BaseAddress, "/mcp"), Ct))
+        {
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, after.StatusCode);
+        }
+
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (children.Any(pid => Directory.Exists($"/proc/{pid}")) && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50, Ct);
+        }
+
+        Assert.All(children, pid => Assert.False(Directory.Exists($"/proc/{pid}"), $"child {pid} outlived switching MCP off"));
+        Assert.Empty(Toolkit(api)!.ChildProcessIds);
+    }
+
+    private static async Task SetAsync(AdminApiHarness api, bool enabled)
+    {
+        using var read = await api.GetAsync("/api/v1/server-settings");
+        var view = await AdminApiHarness.ReadAsync(read, Paduraksa.Admin.Json.AdminJsonContext.Default.ServerSettingsView, Ct);
+        using var put = await api.SendJsonAsync(
+            HttpMethod.Put, "/api/v1/server-settings", view.Stored with { McpEnabled = enabled }, Paduraksa.Admin.Json.AdminJsonContext.Default.ServerSettings,
+            ifMatch: AdminApiHarness.ETag(read));
+        Assert.Equal(System.Net.HttpStatusCode.OK, put.StatusCode);
     }
 }

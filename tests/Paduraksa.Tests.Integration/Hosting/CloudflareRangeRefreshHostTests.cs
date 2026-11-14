@@ -79,7 +79,7 @@ public sealed class CloudflareRangeRefreshHostTests
             settings: new Dictionary<string, string?> { ["Paduraksa:Cloudflare:RangeRefresh:Enabled"] = "false" },
             dataDirectory: dataDirectory);
         await again.StartAsync(ct);
-        Assert.Null(again.Shared.RangeRefresher);
+        Assert.False(again.Shared.ServerSettingsBindings.CloudflareRanges.Current.Enabled);
         Assert.Equal(EdgeRangeOrigin.Fetched, again.Shared.EdgeRanges.Current.Origin);
         Assert.Equal(EdgeRangeOrigin.Fetched, again.Shared.SnapshotStore.Current.EdgeRanges!.Origin);
         Assert.True(again.Shared.SnapshotStore.Current.TrustedProxies.IsTrustedPeer(IpKey.Parse("198.51.100.9")));

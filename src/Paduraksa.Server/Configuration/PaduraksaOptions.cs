@@ -237,7 +237,7 @@ internal sealed class PaduraksaRangeRefreshOptions
 {
     private static readonly CloudflareRangeRefreshOptions Defaults = new();
 
-    /// <summary>Run the job. On by default; off keeps the list this build shipped with (or the last one stored). Not reloadable.</summary>
+    /// <summary>Run the job. On by default; off keeps the list this build shipped with (or the last one stored). Also a server setting, applied live.</summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>The JSON endpoint: an <c>https</c> URL (an <c>http</c> one only for a loopback host).</summary>
@@ -257,6 +257,7 @@ internal sealed class PaduraksaRangeRefreshOptions
 
     internal CloudflareRangeRefreshOptions ToOptions() => new()
     {
+        Enabled = Enabled,
         ApiUrl = ApiUrl,
         TextV4Url = TextV4Url,
         TextV6Url = TextV6Url,

@@ -40,7 +40,9 @@ public static class AdminApiExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
         McpPipeline.Capture(app);
-        return app.UseMiddleware<ApiPipelineMiddleware>();
+        app.UseMiddleware<ApiPipelineMiddleware>();
+        McpSwitch.Use(app);
+        return app;
     }
 
     /// <summary>
