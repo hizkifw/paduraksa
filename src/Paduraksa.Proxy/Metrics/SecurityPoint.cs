@@ -38,7 +38,8 @@ public sealed class SecurityPoint
     /// <summary>Whether any counter moved.</summary>
     public bool HasCounts => _counts.AsSpan().ContainsAnyExcept(0L);
 
-    /// <summary>One point for all of <paramref name="points"/>: the counts and the observed seconds add up.</summary>
+    /// <summary>One point for all of <paramref name="points"/>: the counts and the observed seconds add up, the seconds capped at a positive
+    /// <paramref name="width"/> (a width of 0 is a sum over a range, not a timeline point, and is not capped).</summary>
     public static SecurityPoint Combine(IEnumerable<SecurityPoint> points, long start, int width)
     {
         ArgumentNullException.ThrowIfNull(points);
@@ -53,7 +54,7 @@ public sealed class SecurityPoint
             }
         }
 
-        return new SecurityPoint(start, width, (int)Math.Min(covered, int.MaxValue), sum);
+        return new SecurityPoint(start, width, (int)Math.Min(covered, width > 0 ? width : int.MaxValue), sum);
     }
 
     /// <summary>A stretch with nothing counted and nothing observed.</summary>

@@ -95,7 +95,7 @@ public sealed class SecurityOverviewService(
         // As the request figures: the last hour from the sampler, what is before it from the rollups (cached while the split minute holds).
         var recent = MetricsService.RecentFrom(at);
         var stored = await StoredAsync(range, at, span, recent, cancellationToken).ConfigureAwait(false);
-        var memory = SecurityRead.Of(at, sampler, at - recent);
+        var memory = SecurityRead.Of(at, sampler, at - recent, recent);
         return new SecurityRead(
             at,
             SecurityPoint.Combine([stored.Total, memory.Total], 0, 0),
@@ -155,11 +155,11 @@ public sealed class SecurityOverviewService(
     private sealed record SecurityRead(DateTimeOffset At, SecurityPoint Total, IReadOnlyDictionary<AuthProviderId, SecurityPoint> Providers, IReadOnlyDictionary<RuleSetId, SecurityPoint> Sets)
     {
         /// <summary>What the sampler holds for the last <paramref name="window"/> (at most its hour).</summary>
-        public static SecurityRead Of(DateTimeOffset at, MetricSampler sampler, TimeSpan window) => new(
+        public static SecurityRead Of(DateTimeOffset at, MetricSampler sampler, TimeSpan window, DateTimeOffset? notBefore = null) => new(
             at,
-            sampler.SummariseSecurity(SecurityRollupSubject.Total, window).GetValueOrDefault(Guid.Empty) ?? SecurityPoint.Empty(0, 0),
-            sampler.SummariseSecurity(SecurityRollupSubject.AuthProvider, window).ToDictionary(static pair => AuthProviderId.FromValue(pair.Key), static pair => pair.Value),
-            sampler.SummariseSecurity(SecurityRollupSubject.RuleSet, window).ToDictionary(static pair => RuleSetId.FromValue(pair.Key), static pair => pair.Value));
+            sampler.SummariseSecurity(SecurityRollupSubject.Total, window, notBefore).GetValueOrDefault(Guid.Empty) ?? SecurityPoint.Empty(0, 0),
+            sampler.SummariseSecurity(SecurityRollupSubject.AuthProvider, window, notBefore).ToDictionary(static pair => AuthProviderId.FromValue(pair.Key), static pair => pair.Value),
+            sampler.SummariseSecurity(SecurityRollupSubject.RuleSet, window, notBefore).ToDictionary(static pair => RuleSetId.FromValue(pair.Key), static pair => pair.Value));
 
         public SecurityPoint Provider(AuthProviderId id) => Providers.GetValueOrDefault(id) ?? SecurityPoint.Empty(0, 0);
 

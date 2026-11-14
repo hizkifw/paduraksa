@@ -246,10 +246,19 @@ public sealed class MetricSampler
     /// the ring's hour), keyed by owner GUID (the totals under <see cref="Guid.Empty"/>): the minutes the sampler was seeded with, the
     /// minutes this run closed and the open one. The totals are there whenever the sampler has security sources, even before a tick.
     /// </summary>
-    public Dictionary<Guid, SecurityPoint> SummariseSecurity(SecurityRollupSubject subject, TimeSpan window)
+    /// <param name="subject">Which objects: the totals, each auth provider or each rule set.</param>
+    /// <param name="window">How far back, at most the ring's hour.</param>
+    /// <param name="notBefore">Where a caller's rollup half ends: the window never reaches back past it, so a wall clock stepped back between
+    /// the caller's read and this one cannot count a stored minute twice.</param>
+    public Dictionary<Guid, SecurityPoint> SummariseSecurity(SecurityRollupSubject subject, TimeSpan window, DateTimeOffset? notBefore = null)
     {
         var now = _time.GetUtcNow().ToUnixTimeSeconds();
         var since = now - (long)Math.Min(window.TotalSeconds, RingSeconds);
+        if (notBefore is { } floor)
+        {
+            since = Math.Min(now, Math.Max(since, floor.ToUnixTimeSeconds()));
+        }
+
         var width = (int)(now - since);
         Dictionary<Guid, SecurityPoint> summaries = [];
         if (_security is null)
