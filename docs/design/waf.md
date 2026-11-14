@@ -934,6 +934,18 @@ Checked on:
 - When the gate or Kestrel answers while the client is still sending, the server closes the connection with data unread. A client may see the reset before the 413. A client that sends `Expect: 100-continue` gets the refusal first, since Kestrel sends the final status instead of `100`.
 - A cut-off body logs a Warning from YARP's forwarder (the whole `BadHttpRequestException`), once per refused upload.
 
+### A refused body over HTTP/2
+
+Found on CI (`h2-calm`): `GateAllocationTests` sends thousands of oversized POSTs on one h2c connection, and one run had a stream reset with `ENHANCE_YOUR_CALM`. That is Kestrel's accounting (10.0.14, decompiled), and the gate does nothing wrong.
+- **The answer.** The gate answers 413 without reading the body. Kestrel then sends `RST_STREAM(NO_ERROR)`, as RFC 9113 8.1 has it, and HttpClient stops sending the body without ending the stream (browsers do the same).
+- **The tracked stream.** Kestrel keeps a completed stream in its table until the client ends or resets it, or for `RequestBodyDrainTimeout` (5 s). A stream whose body the client abandoned therefore stays for 5 s. A body that arrived whole before the answer (a small one usually does) leaves at once.
+- **The limit.** Past `MaxTrackedStreams` (twice `Http2MaxStreamsPerConnection`, so 200) every new stream on the connection is reset with `ENHANCE_YOUR_CALM`. After 100 of those within 5 heartbeats (`MaxEnhanceYourCalmCount` 20 times 5) the whole connection is closed.
+- **Why timing.** Whether the client has sent the whole body before the reset reaches it is a race. Locally 50 to 110 bodies in 4000 are abandoned on 8 KiB uploads, and 470 to 810 on 64 KiB, which reproduces the reset every time. A slow CI runner abandons more of the 8 KiB ones.
+- **Not a product problem.** Reaching it takes more than 200 refused unfinished uploads on one connection within 5 s, 40 a second. A browser that gets 403, 413 or 429 mid-upload costs one tracked stream for 5 s. One client sending sequentially abandoned 0 to 2 bodies in 2000. A client that does reach the limit is abusive, and Kestrel's answer is the right one.
+- **Nothing to change in the gate.** The alternative is reading the refused body to its end, which waits on I/O on the request path and makes the proxy take an abuser's upload. Kestrel has no setting for the drain timeout.
+- **Not today's merges.** The same probe gives the same counts before `KestrelHttp2StreamReuse`, and CI already saw 113 fresh streams in 3000 the day before it. The workaround only clears an output flag on a reused stream, and a stream reset with unread data is never reused.
+- **The test.** The h2c refused-body cases open a fresh connection every 200 requests, so Kestrel can never track more than 200 streams, whatever the timing. Their fresh-stream allowance adds each connection's first streams.
+
 ### Allocation
 
 The checks allocate 0 B on every path, on Kestrel (`GateAllocationTests.RequestLimitsAllocateNothingOnKestrel`: allowed, with a body, and each refusal, on HTTP/1.1 and HTTP/2) and on `DefaultHttpContext` (`RequestLimitsGateTests.TheChecksAllocateNothing`).
