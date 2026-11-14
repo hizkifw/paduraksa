@@ -406,6 +406,36 @@ Bench (`bench/run-baseline.sh`, Paduraksa only, two quiet runs each of this bran
 - The rate limits are more forgiving than Kestrel's (a longer grace) because a person on a poor mobile link is the slow client worth keeping. The headers timeout is stricter because headers are tiny.
 - **Long-lived connections.** Kestrel stops enforcing the request-body rate on an upgraded connection, and times the response rate only while a write waits for the client. An idle WebSocket or an event stream is therefore not cut by Kestrel (the upstream's idle timeout is a different limit; see [Upstream timeouts](#upstream-timeouts)). `ServerLimitsKestrelTests` runs both with rates and graces far stricter than any default, together with a slowloris (headers never finished: 408), a byte-by-byte header dribble and a slow upload (both cut).
 
+## Kestrel's lost HTTP/2 responses
+
+Found by the soak (`h2-hang`): about one HTTP/2 response in a million was never sent. The proxy had answered (its access log has the `200`), the connection stayed up and kept serving other requests, and the client gave up after 30 s. The cause is a Kestrel bug, not Paduraksa's: [dotnet/aspnetcore#69690](https://github.com/dotnet/aspnetcore/pull/69690), merged on `main` on 2026-10-29. The 10.0 backport ([#70100](https://github.com/dotnet/aspnetcore/pull/70100)) is not merged yet, so 10.0.14 has it.
+
+**The bug.**
+- A stream's output producer is queued to the connection's frame writer by `Schedule()`, which sets `_isScheduled` so it is queued once. Only the writer clears the flag, when it takes the producer.
+- A response that used up both its stream's and the connection's send window waits for the connection's window twice: as the window's last consumer, and again after a stream WINDOW_UPDATE finds the connection's window still shut. A 64 KiB download (one byte more than HTTP/2's initial 65 535) does this routinely.
+- The connection's WINDOW_UPDATE then resumes it twice. If the writer has taken the first entry and is flushing the response's last frame when the second comes, the producer is queued once more. The writer drops that entry, because the response is complete, without clearing the flag.
+- The stream goes back to Kestrel's per-connection pool with the flag still set (`StreamReset` doesn't clear it). The next request that reuses it runs normally, but every `Schedule()` returns at once: its response waits in the stream's pipe for good.
+- That stream never completes, so its connection never finishes closing. Once the client drops the connection, nothing holds it and the GC collects it: Kestrel's `crit ... application never completed`, about a minute after the soak client retires its connections at 10 minutes.
+
+**The workaround** (`KestrelHttp2StreamReuse`, `Proxy/Http`).
+- At the start of every HTTP/2 request it clears the reused producer's `_isScheduled`. The access log's `Begin` calls it (the public pipeline's first step), and so does the first middleware of the admin app, which serves the dashboard over HTTP/2 too.
+- Clearing is safe whatever the state. A flag set with no entry queued is the bug. A flag set with an entry still queued lets one more entry in, and the writer, with nothing new to write, writes nothing (a zero-length write without END_STREAM sends no frame).
+- It reaches Kestrel's internals through `UnsafeAccessor`: `HttpProtocol.Output` (the stream's producer) and `Http2OutputProducer._isScheduled`. That is 0 B: two type checks, a property read and a field reference. The h2c runs of `GateAllocationTests` measure it with the rest of `Begin`.
+- It turns itself off when the running Kestrel has upstream's fix (the producer has `TryUnscheduleCompletedResponse`) or lacks the fields it reaches. A servicing release therefore retires it with no change here. Delete it once the image's runtime has the fix.
+- `KestrelHttp2StreamReuse.Healed` counts the requests it put right. The soak's startup hook writes it to `probe.log` as `h2_healed`.
+- The choice: Kestrel has no switch to turn stream pooling off (the pool size is a constant), so the alternatives were waiting for the backport or turning HTTP/2 off. A one-field reset that disables itself is the least intrusive, and it is consistent with the hook upstream added (upstream clears the flag where the writer drops the entry; this clears it where the stream is reused).
+
+**The regression test** (`Http2StreamReuseTests`) makes the race happen every time.
+- It uses a hand-written HTTP/2 client and a connection whose output flushes the test holds. Kestrel's scheduler is set to inline, a test-only reach into its internals that Kestrel's own tests also use, so the first resume runs the writer up to the held flush and the second always lands after it.
+- Plain Kestrel loses exactly one of the follow-up responses, and the workaround answers them all. If Kestrel ever has the fix, the first test expects no loss, and the class says the workaround can go.
+- In the soak, two 15-minute runs on the same machine compare. Without the workaround: 3 hung HTTP/2 requests. With it: none, and `h2_healed=1`.
+
+**How it was placed.**
+- The soak's client trace (`System.Net.Http` events: the headers were written, on a connection that stayed open, and no response headers were read).
+- The upstream's arrival time (within a millisecond).
+- The server-side hang watch (`--watch-hangs`: no request held in the server), which put the loss between Kestrel's app and its frame writer.
+- The decompiled 10.0.14 frame writer showed how.
+
 ## Upstream timeouts
 
 Built in the upstream-timeouts branch. The listeners' limits above judge the client; these judge the upstream, and each upstream has its own.

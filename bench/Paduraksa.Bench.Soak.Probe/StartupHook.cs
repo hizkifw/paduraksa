@@ -71,6 +71,12 @@ internal static class StartupHook
         Add(line, "tp_completed", ThreadPool.CompletedWorkItemCount);
         Add(line, "lock_contention", Monitor.LockContentionCount);
         Add(line, "timers", Timer.ActiveCount);
+        // The proxy's workaround for Kestrel's lost HTTP/2 responses (KestrelHttp2StreamReuse): how many requests it put right.
+        if (Type.GetType("Paduraksa.Proxy.Http.KestrelHttp2StreamReuse, Paduraksa.Proxy")?.GetProperty("Healed")?.GetValue(null) is long healed)
+        {
+            Add(line, "h2_healed", healed);
+        }
+
         return line.ToString().TrimEnd();
     }
 

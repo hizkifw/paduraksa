@@ -145,6 +145,12 @@ internal static partial class AdminApp
         var app = builder.Build();
         app.Lifetime.ApplicationStarted.Register(() =>
             CompleteInternalListener(internalListener, internalListenOptions, logger));
+        // First, before anything writes a response: the dashboard and the API are served over HTTP/2 too.
+        app.Use(static (context, next) =>
+        {
+            Paduraksa.Proxy.Http.KestrelHttp2StreamReuse.BeforeRequest(context);
+            return next(context);
+        });
         app.UsePaduraksaAdminApi();
         app.UsePaduraksaAdminAuth();
         app.UsePaduraksaAdminWeb();

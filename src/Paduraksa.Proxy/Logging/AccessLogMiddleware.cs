@@ -70,6 +70,7 @@ public sealed class AccessLogMiddleware
     /// </summary>
     internal void Begin(HttpContext context)
     {
+        Http.KestrelHttp2StreamReuse.BeforeRequest(context);
         var state = GateMiddleware.BeginRequest(context);
         state.AccessLogRing = _ring;
         state.Metrics = _metrics;

@@ -142,9 +142,18 @@ the canary never went backwards, the counters never regressed in 361 scrapes, th
    back, but it was out of rotation for 63 s. The first request it got after recovery evaluated YARP's passive transport-failure window, which still held the outage's failures, marked it unhealthy again, and
    YARP logged "scheduled for a reactivation in 00:01:00" although the upstream's `passiveHealth.reactivationPeriod` is 10 s. The period reaches YARP's cluster model (`SnapshotPublisherTests` builds it) and does not
    change what YARP does: a unit test with a 2 s period still had the destination passively unhealthy after 5 s and healthy only after about a minute. The notification outbox's `destination.up` therefore arrives a minute late.
-4. **About 15 HTTP/2 requests an hour never get a response** (15 of 14.9 million in each run; none on HTTP/1.1 or plain HTTP): the client gives up after 30 s. In 13 of the 15 the upstream had answered. In a 5-minute
-   run that kept the access log, the proxy's own log has the hung request as a normal completed `200 420 B` in 0.27 ms. So the response was lost between Kestrel's HTTP/2 write and the .NET client, or is a client-side
-   fault; the soak can't tell which. Kestrel also logged `crit ... application never completed` for 9 connections, in groups of two or three, a few minutes apart. Unresolved: it needs a packet capture or a second client (`h2load`) to place it.
+4. **About 15 HTTP/2 requests an hour never get a response** (15 of 14.9 million in each run; none on HTTP/1.1 or plain HTTP): the client gives up after 30 s. It is a Kestrel bug, now worked around
+   (`KestrelHttp2StreamReuse`; the whole account is "Kestrel's lost HTTP/2 responses" in [hot-path.md](../../docs/design/hot-path.md#kestrels-lost-http2-responses)). A 64 KiB download that uses up both HTTP/2 send windows can
+   leave its pooled stream unable to send, and the next request on that stream is answered by the proxy (its access log has the `200`) but never written to the client. That stream never completes, which is
+   also Kestrel's `crit ... application never completed`. Fixed upstream in [dotnet/aspnetcore#69690](https://github.com/dotnet/aspnetcore/pull/69690); the 10.0 backport is not out yet.
+   Placing it took three things the harness now has:
+   - The client's own trace: each hung request says whether it queued, when its headers were written, on which connection (and whether that connection closed), and whether response headers were awaited.
+   - The time each upstream saw a traced request.
+   - `--watch-hangs`: a startup hook in the server tracks every request in flight, writes any held over 10 s to `hangs.txt` with the YARP and upstream-client steps it reached, and takes a heap dump (`hang.dmp`, for `dotnet-dump analyze`'s `dumpasync`) of the first stuck HTTP/2 one.
+
+   With the hangs, the client had written the headers on a connection that stayed open and served other requests, the upstream had the request within a millisecond, and the server held no request.
+   So the response was lost between the app's completion and Kestrel's frame writer.
+   Two 15-minute runs (`--duration 900 --watch-hangs`) compare: 3 hangs without the workaround, none with it (and `h2_healed=1` in `probe.log`).
 5. **RSS grows while the managed heap does not.** The anonymous RSS of the first process rose about 217 MiB/h over its quiet minutes and the second's about 93 MiB/h; GC heap retained after collections stayed near 150 MiB and
    the managed heap's committed size rose from about 240 to 300 MiB. RSS moves in steps (522 to 571 MiB in the first six minutes, 580 to 675 MiB at 50 minutes in the first run) and the burst costs about
    150 MiB that the collector gives back minutes later, so one hour cannot tell a plateau from a leak. The thresholds make this a failure on purpose: the second process's slope is measured over only 19 minutes. A two-hour run, or one with a
