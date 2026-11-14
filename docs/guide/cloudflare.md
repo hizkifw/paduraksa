@@ -25,7 +25,7 @@ In **Cloudflare proxy** mode, Paduraksa trusts Cloudflare's edge ranges. A list 
 - A refresh is accepted only if it looks right: strict CIDRs, at least three IPv4 and three IPv6 blocks, nothing wider than /8 (IPv4) or /12 (IPv6).
 - A failed or refused refresh keeps the last good list. The review and the Overview warn when the list in use is more than 30 days old or three refreshes in a row failed.
 - The list is stored in `<data dir>/cloudflare-ranges.json`. A changed list republishes the live config without making a revision.
-- Turn the job off with `Paduraksa__Cloudflare__RangeRefresh__Enabled=false`. The URLs, start delay and interval are settable under `Paduraksa__Cloudflare__RangeRefresh__*` too.
+- Turn the job off, or change how often it runs, under Settings, Server, Integrations, Cloudflare (live; see [Server settings](server-settings.md)). The same keys in the environment (`Paduraksa__Cloudflare__RangeRefresh__Enabled`, `__Interval`) win and lock the dashboard's fields. The URLs and the start delay stay in the environment (`Paduraksa__Cloudflare__RangeRefresh__*`).
 
 ## Origin lockdown
 

@@ -7,7 +7,7 @@ These are settings for the **process** (ports, files, limits, retention). Everyt
 - Invalid settings stop the start with `Invalid configuration:` and one line per problem on standard error, and exit code 3. Any other failure to start is `Paduraksa failed to start: ...` with exit code 2. `PADURAKSA_DEBUG=1` adds the stack trace.
 - A relative `Paduraksa__DataDirectory` resolves against the application's directory (`/data` in the image). A leading `~` is refused.
 - Durations are `[d.]hh:mm:ss`, for example `00:00:15` or `30.00:00:00`.
-- Settings are read once at start. Change them and restart.
+- Settings are read once at start. Change them and restart, except the ones that are also [server settings](../guide/server-settings.md): those are managed in the dashboard and mostly apply live. A value set here wins over the dashboard's.
 - **Server settings.** Retention, the admin sign-in policy, the notification timing, the access log's query strings, the Cloudflare range
   refresh, the DNS-01 check and wait, MCP and the public connection limits can also be set in the dashboard (Settings, Server), mostly live.
   A value set here, in `appsettings.json` or the environment, wins and shows read-only there. The list, with which apply live, is in the
@@ -98,6 +98,8 @@ Paduraksa__Limits__MaxConnections=20000
 
 ## Admin sign-in and sessions: `Paduraksa__Admin__*`
 
+The lockout, the session timings, the password length, the authenticator name and the sign-in rate limit are also [server settings](../guide/server-settings.md): Settings, Server, Sign-in changes them live, and a value set here wins and locks the dashboard's field.
+
 | Setting | Default | What |
 |---|---|---|
 | `MaxFailedAttempts` | `5` | Consecutive wrong passwords or codes before an account is locked (2 to 100) |
@@ -119,6 +121,8 @@ Paduraksa__Limits__MaxConnections=20000
 An account that fails sign-in `MaxFailedAttempts` times in a row is locked for `LockoutDuration`, and every refusal reads as the same "invalid credentials". The lockout ends sessions only where the attacker already holds the password.
 
 ## ACME and DNS-01
+
+The DNS-01 check's switch and the fixed wait are also [server settings](../guide/server-settings.md) (Settings, Server, Integrations, ACME); a value set here wins.
 
 Settings of `Paduraksa__Acme__*` and `Paduraksa__Certificates__*`.
 
@@ -146,6 +150,8 @@ Settings of `Paduraksa__Acme__*` and `Paduraksa__Certificates__*`.
 
 ## Cloudflare: `Paduraksa__Cloudflare__*`
 
+`RangeRefresh__Enabled` and `RangeRefresh__Interval` are also [server settings](../guide/server-settings.md) (Settings, Server, Integrations, Cloudflare); a value set here wins.
+
 | Setting | Default | What |
 |---|---|---|
 | `RangeRefresh__Enabled` | `true` | Refresh Cloudflare's edge ranges daily. Off keeps the list that shipped, or the last stored one |
@@ -168,7 +174,7 @@ These are documented with what they configure, on [Logs, metrics and notificatio
 
 ## MCP
 
-`Paduraksa__Mcp__Enabled` (default `false`) and `Paduraksa__Mcp__IdleTimeout` (default `00:10:00`). See [MCP](../automation/mcp.md).
+`Paduraksa__Mcp__Enabled` (default `false`) and `Paduraksa__Mcp__IdleTimeout` (default `00:10:00`). Both are also [server settings](../guide/server-settings.md): Settings, Server, Integrations, MCP turns it on live, without a restart. See [MCP](../automation/mcp.md).
 
 ## Development switches
 

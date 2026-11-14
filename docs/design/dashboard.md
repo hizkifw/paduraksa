@@ -1002,6 +1002,16 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - Sign-in keeps the password-reset commands behind a muted "Forgot password?" button that opens a native popover (`popovertarget`): light dismiss, Escape and the close button need no circuit. The copy buttons inside answer to the same `paduraksa.js` listener, since a popover stays in the document.
 - Inline `<code>` stays for a name inside a sentence (a setting, a flag), never for something to run.
 
+**Linking to a field** (`settings-links`). An element with an `id` and `data-highlight-target` is a place an address's fragment can name, and `paduraksa.js` (`highlights`) does the rest.
+- It watches for the element, since a page loads its data after the circuit starts and Blazor scrolls to a fragment only when the element is already there. It waits up to 8 seconds.
+- It runs on a full load with a fragment, on a navigation inside the app (it wraps `history.pushState`) and on back and forward. Blazor takes a navigation to another fragment of the same page in the browser alone and tells the circuit nothing, so a hook in the layout would miss it.
+- It scrolls the element just under the app bar and the open draft's bar (`scroll-margin-top` in `settings.css`), moves focus to its first control, and adds `.pdk-highlight` for 2 seconds: a soft ring and tint in the accent colour, drawn by a layer over the element, so nothing moves.
+- The router's own `FocusOnNavigate` moves focus to the page's `h1` a few milliseconds later on a page that has its data at once. For a second a heading that takes focus hands it back, unless the person pressed a key or clicked.
+- With `prefers-reduced-motion` the ring appears at once, holds and fades, with no pulse.
+- `SettingRow` takes the two attributes. `ServerSettingField` sets them from `ServerSettingDefinition.Anchor`, the key in kebab-case (`mcpEnabled` is `mcp-enabled`), and `SettingsRoutes.SettingLink(setting)` builds the address (`/settings/server#mcp-enabled`). A hint that sends a person to a setting uses it, so no caller writes the fragment by hand.
+- Another page adopts it by putting the two attributes on a row. Nothing else is needed.
+- `SettingLinkEndToEndTests` holds it: a full load, a navigation from the API tokens page, a navigation to another setting on the same page, reduced motion and a phone. `ServerSettingsPageTests` holds an anchor for every setting of the catalogue.
+
 **Pills.**
 - `.pdk-chip` and `.pdk-pill` are status (one look, tone by meaning: success, warning, error, info, default).
 - `.pdk-badge` is the smaller label or count. An icon inside it is sized by the badge, never by a `Style=`; there is no inline style in the dashboard.

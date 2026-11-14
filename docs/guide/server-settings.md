@@ -7,6 +7,9 @@ drawer like any other: Apply now or Add to draft, a revision in History, an audi
 
 Changing them needs the Owner or the Admin role (the `server:write` permission). Every role that reads the config can see them.
 
+Each setting has an address of its own, its key in kebab-case after `#`: `/settings/server#mcp-enabled` opens the page at *Serve /mcp*, moves focus to it and
+highlights it for a moment. The dashboard's own hints link this way, and so can your notes and runbooks.
+
 ## Where a value comes from
 
 1. **The server's environment.** A value set in `appsettings.json` or as an environment variable (`Paduraksa__Metrics__Retention=7.00:00:00`)

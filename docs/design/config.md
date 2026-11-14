@@ -322,6 +322,13 @@ Everything else walks the catalogue:
 - **Simulations aren't checked.** A simulation never commits.
 - **Staging in a draft isn't checked either.** Adding an entry to a draft is a check of the entry, not a commit, so an Operator can stage a server-settings change. The draft's apply runs the pipeline as the person applying it, and that is where it is refused. This was kept as it is, on review: a draft holds nothing until it is applied.
 
+### Pointing at a setting
+
+- **Anchors.** Each setting's row on the page has the id `ServerSettingDefinition.Anchor` (the key in kebab-case), so `/settings/server#mcp-enabled` scrolls to it, focuses it and highlights it (dashboard.md, "Linking to a field"). A locked setting keeps its anchor: the link lands on the note that names the variable.
+- **Hints use the link, not the variable.** A dashboard hint for a setting in the catalogue links to it with `SettingsRoutes.SettingLink`. The API tokens page's "MCP is off" says to turn on *Serve /mcp* in the server settings. Someone without `server:write` is told that an Owner or Admin can, and still gets the link, since the page shows them the value read-only. When the environment keeps it off, the hint says so, names the variable and links to the row.
+- **What the sweep found.** `McpConnect` was the only hint in the dashboard that told a person to set a variable. The other settings are never mentioned by a hint.
+- **Kept:** the server's own error and warning texts name settings that are not in the catalogue (`Paduraksa:Listen:AdminAllowedSources` in the forwarded-headers refusal, `Paduraksa:Listen:AdminInternal` in the compiler's warning). The OpenAPI description of the notification history names `Paduraksa:Notifications:HistoryRetention`: left alone, to keep the API's description stable.
+
 ### Adding a server setting
 
 1. The property at the end of `ServerSettings`.

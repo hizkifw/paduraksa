@@ -79,9 +79,9 @@ Add a provider under **DNS providers**: Cloudflare or deSEC, a label and an API 
 
 ### Propagation check
 
-Before the CA is told to validate, Paduraksa asks the zone's own name servers directly until each returns the TXT records. A name server that does not answer authoritatively for three rounds is left out. A check that cannot run falls back to a fixed wait (`Paduraksa__Acme__DnsPropagationDelay`, 30 seconds). A check that times out with no server holding any record fails the attempt and asks nothing of the CA, because a failed validation counts against the CA's limits.
+Before the CA is told to validate, Paduraksa asks the zone's own name servers directly until each returns the TXT records. A name server that does not answer authoritatively for three rounds is left out. A check that cannot run falls back to a fixed wait (30 seconds; Settings, Server, Integrations, ACME, or `Paduraksa__Acme__DnsPropagationDelay`). A check that times out with no server holding any record fails the attempt and asks nothing of the CA, because a failed validation counts against the CA's limits.
 
-Tune it with `Paduraksa__Acme__DnsPropagation__*`: see [Server settings](../operating/settings.md#acme-and-dns-01).
+Switch the check off, or change the wait, under Settings, Server, Integrations, ACME ([Server settings](server-settings.md)). Its timings and resolvers are environment settings, `Paduraksa__Acme__DnsPropagation__*`: see [Server settings](../operating/settings.md#acme-and-dns-01).
 
 ### CNAME delegation
 
