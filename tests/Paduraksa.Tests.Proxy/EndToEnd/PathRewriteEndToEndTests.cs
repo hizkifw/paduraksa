@@ -333,6 +333,17 @@ public sealed class PathRewriteEndToEndTests(TestUpstream upstream) : IClassFixt
     }
 
     [Fact]
+    public void TheSimulatorSaysWhyAnEscapeCantBeRewrittenAndDoesNotCallItADotSegment()
+    {
+        var run = GateSimulator.Run(Bound(Model()), new GateProbe { Host = "app.test", Path = "/both/foo%2520bar", ClientAddress = IPAddress.Loopback });
+
+        var step = Assert.Single(run.Steps, s => s is { Kind: GateStepKind.RouteMatch, Verdict: GateStepVerdict.Stopped });
+        Assert.Contains("escape", step.Summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("dot segment", step.Summary, StringComparison.Ordinal);
+        Assert.DoesNotContain(run.Steps, s => s.Kind == GateStepKind.Upstream);
+    }
+
+    [Fact]
     public void TheSimulatorSaysWhyAPrefixCantBeStripped()
     {
         var run = GateSimulator.Run(Bound(Model()), new GateProbe { Host = "app.test", Path = "/app;v=1/x", ClientAddress = IPAddress.Loopback });

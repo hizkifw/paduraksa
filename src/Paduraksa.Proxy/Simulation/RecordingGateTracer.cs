@@ -560,16 +560,23 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             route.Id));
     }
 
-    public void PathNotStrippable(CompiledRoute route, ReadOnlySpan<char> rawPath) =>
+    public void PathNotStrippable(CompiledRoute route, ReadOnlySpan<char> rawPath)
+    {
+        var rewrite = route.Rewrite!;
+        var end = rewrite.StripPrefix ? rewrite.PrefixEnd(rawPath) : 0;
+        var summary = end < 0
+            ? $"the route strips {rewrite.RoutePrefix}, and {rawPath} spells it another way (encoded, '//' or ';'): 404"
+            : PathRewrite.HasDotSegment(rawPath[end..])
+                ? $"the route rewrites the path, and {rawPath} has a dot segment ('.', '..' or '%2e' in any spelling) the upstream could resolve outside it: 404"
+                : $"the route rewrites the path, and {rawPath} has an escape the upstream could decode into something else ('%25', '%00'-'%1f', '%7f', '%u', an overlong '%c0'/'%c1'): 404";
         steps.Add(new GateStep(
             GateStepKind.RouteMatch,
             GateStepVerdict.Stopped,
-            route.Rewrite!.StripPrefix && route.Rewrite.PrefixEnd(rawPath) < 0
-                ? $"the route strips {route.Rewrite.RoutePrefix}, and {rawPath} spells it another way (encoded, '//' or ';'): 404"
-                : $"the route rewrites the path, and {rawPath} has a dot segment ('.', '..' or '%2e' in any spelling) the upstream could resolve outside it: 404",
-            [new("rawPath", rawPath.ToString()), new("strip", route.Rewrite.RoutePrefix)],
+            summary,
+            [new("rawPath", rawPath.ToString()), new("strip", rewrite.RoutePrefix)],
             null,
             route.Id));
+    }
 
     public void Forward(HttpContext context, RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent)
     {
