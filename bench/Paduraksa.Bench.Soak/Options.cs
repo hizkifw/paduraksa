@@ -42,6 +42,9 @@ internal sealed class SoakOptions
     /// <summary>Set the server up, print the API token and wait: for trying the config by hand.</summary>
     public bool Hold { get; init; }
 
+    /// <summary>Keep the server's log directory (the access log of every request) in the run's output: for chasing one request, and far too big for a full run.</summary>
+    public bool KeepLogs { get; init; }
+
     public static SoakOptions Parse(string[] args)
     {
         Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
@@ -79,6 +82,7 @@ internal sealed class SoakOptions
             AuthPort = GetInt("auth-port", 19900),
             Seed = GetInt("seed", 20261114),
             Hold = GetBool("hold", false),
+            KeepLogs = GetBool("keep-logs", false),
         };
     }
 }

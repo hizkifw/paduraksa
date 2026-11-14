@@ -7,6 +7,7 @@
 #   bench/soak/run-soak.sh                          # 60 minutes
 #   bench/soak/run-soak.sh --duration 1800 --rate 3000
 #   bench/soak/run-soak.sh --analyze-only DIR       # judge a run again
+#   bench/soak/run-soak.sh --quick --keep-logs      # keep the server's access log (big: for chasing one request in a short run)
 #
 # Needs: the .NET SDK from global.json, python3, ss (iproute2), curl is not needed. taskset pins the server and the load to separate CPUs when it is there. Chromium
 # (PADURAKSA_E2E_CHROMIUM, /usr/bin/chromium) gives the two dashboard tabs; without it the dashboard is left out and the report says so. libmsquic turns HTTP/3 on.
@@ -25,6 +26,7 @@ BROWSER=auto
 MCP=true
 HTTP3=auto
 BUILD=true
+KEEP_LOGS=false
 OUT=""
 ANALYZE_ONLY=""
 
@@ -43,6 +45,7 @@ while [[ $# -gt 0 ]]; do
         --no-mcp) MCP=false ;;
         --http3) HTTP3=$2; shift ;;
         --skip-build) BUILD=false ;;
+        --keep-logs) KEEP_LOGS=true ;;
         --analyze-only) ANALYZE_ONLY=$2; shift ;;
         -h | --help) usage; exit 0 ;;
         *) echo "unknown option '$1'" >&2; usage; exit 2 ;;
@@ -150,7 +153,7 @@ if command -v taskset >/dev/null; then PIN=(taskset -c "$LOAD_CPUS"); fi
 "${PIN[@]}" dotnet "$DRIVER_DLL" \
     --out "$OUT" --server-dll "$SERVER_DLL" --probe-dll "$PROBE_DLL" \
     --duration "$DURATION" --rate "$RATE" --server-cpus "$SERVER_CPUS" --websockets "$WEBSOCKETS" \
-    --browser "$BROWSER" --chromium "$CHROMIUM" --mcp "$MCP" --http3 "$HTTP3" \
+    --browser "$BROWSER" --chromium "$CHROMIUM" --mcp "$MCP" --http3 "$HTTP3" --keep-logs "$KEEP_LOGS" \
     > >(tee "$OUT/driver.log") 2>&1 &
 DRIVER_PID=$!
 set +e

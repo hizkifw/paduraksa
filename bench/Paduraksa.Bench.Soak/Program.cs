@@ -44,6 +44,11 @@ finally
 
     try
     {
+        if (options.KeepLogs && Directory.Exists(Path.Combine(dataDirectory, "logs")))
+        {
+            Directory.Move(Path.Combine(dataDirectory, "logs"), Path.Combine(options.OutDirectory, "server-logs"));
+        }
+
         Directory.Delete(dataDirectory, recursive: true);
     }
     catch (IOException)

@@ -72,9 +72,14 @@ internal sealed class LongLived(SoakOptions options, Recorder recorder, Events e
         return Task.WhenAll(tasks);
     }
 
-    private async Task<ClientWebSocket?> ConnectAsync(CancellationToken ct)
+    private async Task<ClientWebSocket?> ConnectAsync(CancellationToken ct, bool silent = false)
     {
         ClientWebSocket socket = new();
+        if (silent)
+        {
+            socket.Options.KeepAliveInterval = TimeSpan.Zero;
+        }
+
         socket.Options.CollectHttpResponseDetails = false;
         try
         {
@@ -200,11 +205,12 @@ internal sealed class LongLived(SoakOptions options, Recorder recorder, Events e
     /// <summary>A WebSocket that never speaks: the upstream's idle timeout is what ends it, and the time it took is the fact.</summary>
     private async Task SilentAsync(CancellationToken ct)
     {
+        // No pings: ClientWebSocket sends one every 30 s by default, and a ping is data in both directions, so the upstream's idle timer would never run out.
         await Delay(Random.Shared.Next(1000, 15_000), ct);
         var buffer = new byte[16];
         while (!ct.IsCancellationRequested)
         {
-            var socket = await ConnectAsync(ct);
+            var socket = await ConnectAsync(ct, silent: true);
             if (socket is null)
             {
                 await Delay(2000, ct);

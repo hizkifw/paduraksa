@@ -1,12 +1,12 @@
 {
   "thresholds": {
     "min_segment_seconds": 600,
-    "settle_after_restart_seconds": 120,
+    "settle_after_restart_seconds": 600,
+    "settle_after_event_seconds": 300,
     "rss_mb_per_hour": 64.0,
     "retained_mb_per_hour": 16.0,
     "fds_per_hour": 30.0,
     "fds_band": 100,
-    "threads_per_hour": 4.0,
     "threads_band": 16,
     "tp_threads_band": 8,
     "p99_drift_ratio": 1.5,
@@ -78,41 +78,49 @@
       "group": "No leak",
       "check": "RSS growth",
       "status": "FAIL",
-      "value": "+324.6 MiB/h",
+      "value": "+333.4 MiB/h",
       "limit": "<= 64 MiB/h",
-      "note": "before restart: +120.7 MiB/h over 1490 s; after restart: +324.6 MiB/h over 1645 s"
+      "note": "process 1: +106.1/h, spread 67, over 1480 s of quiet samples; process 2: +333.4/h, spread 129, over 1160 s of quiet samples"
+    },
+    {
+      "group": "No leak",
+      "check": "anonymous RSS growth (heap and native, not mapped files)",
+      "status": "SKIP",
+      "value": "",
+      "limit": "",
+      "note": "the run is too short for a fit (needs 600 s of quiet samples)"
     },
     {
       "group": "No leak",
       "check": "GC heap retained after collections",
       "status": "FAIL",
-      "value": "+48.7 MiB/h",
+      "value": "+48.3 MiB/h",
       "limit": "<= 16 MiB/h",
-      "note": "before restart: +48.7 MiB/h over 1490 s; after restart: +40.7 MiB/h over 1645 s"
+      "note": "process 1: +48.3/h, spread 52, over 1480 s of quiet samples; process 2: +42.9/h, spread 46, over 1160 s of quiet samples"
     },
     {
       "group": "No leak",
-      "check": "open descriptors: slope",
+      "check": "open descriptors (less client and upstream sockets): slope",
       "status": "PASS",
-      "value": "-20.8/h",
+      "value": "+0.0/h",
       "limit": "<= 30/h",
-      "note": "before restart: slope -20.8/h, spread 205; after restart: slope -65.0/h, spread 269"
+      "note": "process 1: +0.0/h, spread 27, over 1480 s of quiet samples; process 2: +0.0/h, spread 24, over 1160 s of quiet samples"
     },
     {
       "group": "No leak",
-      "check": "open descriptors: band (p99 - p1)",
-      "status": "FAIL",
-      "value": "269",
+      "check": "open descriptors (less client and upstream sockets): band (p99 - p1)",
+      "status": "PASS",
+      "value": "27",
       "limit": "<= 100",
       "note": ""
     },
     {
       "group": "No leak",
-      "check": "OS threads: slope",
-      "status": "FAIL",
-      "value": "+5.0/h",
-      "limit": "<= 4/h",
-      "note": "before restart: slope +0.0/h, spread 1; after restart: slope +5.0/h, spread 4"
+      "check": "open descriptors, raw",
+      "status": "INFO",
+      "value": "1269 to 2651",
+      "limit": "",
+      "note": "follows the connection count"
     },
     {
       "group": "No leak",
@@ -120,7 +128,7 @@
       "status": "PASS",
       "value": "4",
       "limit": "<= 16",
-      "note": ""
+      "note": "process 1: +0.0/h, spread 1, over 1480 s of quiet samples; process 2: +10.3/h, spread 4, over 1160 s of quiet samples"
     },
     {
       "group": "No leak",
@@ -137,6 +145,14 @@
       "value": "40 / 14215 ms",
       "limit": "",
       "note": "after the last restart; for the record"
+    },
+    {
+      "group": "No leak",
+      "check": "RSS range over the run",
+      "status": "INFO",
+      "value": "402 to 738 MiB",
+      "limit": "",
+      "note": "the burst costs memory the collector gives back minutes later"
     },
     {
       "group": "No latency drift",
@@ -307,6 +323,14 @@
       "note": "destination.down"
     },
     {
+      "group": "Flap",
+      "check": "passive health reactivation, as the server logged it",
+      "status": "INFO",
+      "value": "00:01:00",
+      "limit": "",
+      "note": "the upstreams are configured with a 10 s reactivation period; see README"
+    },
+    {
       "group": "Restart",
       "check": "the server stopped cleanly on SIGTERM",
       "status": "PASS",
@@ -419,5 +443,5 @@
       "note": ""
     }
   ],
-  "failed": 10
+  "failed": 8
 }

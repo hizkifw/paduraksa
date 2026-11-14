@@ -1,0 +1,23 @@
+2026-11-14T04:08:08.825Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: http://[::]:18081
+2026-11-14T04:08:08.826Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: https://[::]:18443
+2026-11-14T04:08:09.466Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: https://127.0.0.1:18943
+2026-11-14T04:08:09.466Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: http://unix:/tmp/paduraksa-soak-444046/run/admin.sock
+2026-11-14T04:19:35.997Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ20JI9A8CA" application never completed.
+2026-11-14T04:19:35.999Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ20JI9A8CG" application never completed.
+2026-11-14T04:19:35.999Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ20JI9A8DI" application never completed.
+2026-11-14T04:28:23.960Z warn: Yarp.ReverseProxy.Health.DestinationHealthUpdater[49] => app=public Active health state of destination `dst_034xFACAzbP8nMztM6tu28` on cluster `ups_034xFACAhWKRkRRzzUnet4` is set to 'Unhealthy'.
+2026-11-14T04:28:28.928Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ20JI9ABEQ" application never completed.
+2026-11-14T04:28:28.928Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ20JI9ABG1" application never completed.
+2026-11-14T04:29:21.022Z warn: Yarp.ReverseProxy.Health.DestinationHealthUpdater[19] => ConnectionId:0HNQ20JI9ADVU => RequestPath:/p/795 RequestId:0HNQ20JI9ADVU:00001B19 => app=public Destination `dst_034xFACAzbP8nMztM6tu28` marked as 'Unhealthy` by the passive health check is scheduled for a reacti
+2026-11-14T04:38:19.052Z info: Paduraksa.Server.Hosting.PaduraksaHost[441110529] => app=core Shutting down (reason: Signal, initiated by: process)
+2026-11-14T04:38:49.143Z info: Paduraksa.Server.Hosting.PaduraksaHost[112729106] => app=core Paduraksa stopped
+2026-11-14T04:38:51.063Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: http://[::]:18081
+2026-11-14T04:38:51.063Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: https://[::]:18443
+2026-11-14T04:38:51.698Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: https://127.0.0.1:18943
+2026-11-14T04:38:51.698Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: http://unix:/tmp/paduraksa-soak-444046/run/admin.sock
+2026-11-14T04:50:01.170Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ214N6IJG7" application never completed.
+2026-11-14T04:50:01.171Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ214N6IJGS" application never completed.
+2026-11-14T04:50:01.171Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ214N6IJJN" application never completed.
+2026-11-14T04:59:38.241Z crit: Microsoft.AspNetCore.Server.Kestrel[23] => app=public Connection id "0HNQ214N6IMID" application never completed.
+2026-11-14T05:08:30.208Z info: Paduraksa.Server.Hosting.PaduraksaHost[441110529] => app=core Shutting down (reason: Signal, initiated by: process)
+2026-11-14T05:09:01.263Z info: Paduraksa.Server.Hosting.PaduraksaHost[112729106] => app=core Paduraksa stopped

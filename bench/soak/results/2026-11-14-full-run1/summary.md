@@ -7,14 +7,16 @@
 | Errors | server log warnings outside the expected ones | INFO | 0 |  |  |
 | Errors | generator kept up (no skipped requests) | PASS | 0 | 0 |  |
 | Load | the generator held the rate | PASS | 4,134 req/s | >= 3,800 | server CPU median 162% of 4 cores' worth |
-| No leak | RSS growth | FAIL | +324.6 MiB/h | <= 64 MiB/h | before restart: +120.7 MiB/h over 1490 s; after restart: +324.6 MiB/h over 1645 s |
-| No leak | GC heap retained after collections | FAIL | +48.7 MiB/h | <= 16 MiB/h | before restart: +48.7 MiB/h over 1490 s; after restart: +40.7 MiB/h over 1645 s |
-| No leak | open descriptors: slope | PASS | -20.8/h | <= 30/h | before restart: slope -20.8/h, spread 205; after restart: slope -65.0/h, spread 269 |
-| No leak | open descriptors: band (p99 - p1) | FAIL | 269 | <= 100 |  |
-| No leak | OS threads: slope | FAIL | +5.0/h | <= 4/h | before restart: slope +0.0/h, spread 1; after restart: slope +5.0/h, spread 4 |
-| No leak | OS threads: band (p99 - p1) | PASS | 4 | <= 16 |  |
+| No leak | RSS growth | FAIL | +333.4 MiB/h | <= 64 MiB/h | process 1: +106.1/h, spread 67, over 1480 s of quiet samples; process 2: +333.4/h, spread 129, over 1160 s of quiet samples |
+| No leak | anonymous RSS growth (heap and native, not mapped files) | SKIP |  |  | the run is too short for a fit (needs 600 s of quiet samples) |
+| No leak | GC heap retained after collections | FAIL | +48.3 MiB/h | <= 16 MiB/h | process 1: +48.3/h, spread 52, over 1480 s of quiet samples; process 2: +42.9/h, spread 46, over 1160 s of quiet samples |
+| No leak | open descriptors (less client and upstream sockets): slope | PASS | +0.0/h | <= 30/h | process 1: +0.0/h, spread 27, over 1480 s of quiet samples; process 2: +0.0/h, spread 24, over 1160 s of quiet samples |
+| No leak | open descriptors (less client and upstream sockets): band (p99 - p1) | PASS | 27 | <= 100 |  |
+| No leak | open descriptors, raw | INFO | 1269 to 2651 |  | follows the connection count |
+| No leak | OS threads: band (p99 - p1) | PASS | 4 | <= 16 | process 1: +0.0/h, spread 1, over 1480 s of quiet samples; process 2: +10.3/h, spread 4, over 1160 s of quiet samples |
 | No leak | thread-pool threads stay put | PASS | max 7 | <= 23 | warm-up max 15; queue max 24 |
 | No leak | gen2 collections / GC pause total | INFO | 40 / 14215 ms |  | after the last restart; for the record |
+| No leak | RSS range over the run | INFO | 402 to 738 MiB |  | the burst costs memory the collector gives back minutes later |
 | No latency drift | small requests: p99, last window vs baseline | PASS | 10.12 ms vs 10.74 ms (0.94x) | <= 1.5x + 0.25 ms | minutes 5-15 vs 50-60 |
 | No latency drift | small requests: p50 | INFO | 1.769 vs 1.769 ms |  | minutes 5-15 vs 50-60 |
 | No latency drift | small requests: p99.9 | INFO | 16.728 vs 19.392 ms |  | minutes 5-15 vs 50-60 |
@@ -36,6 +38,7 @@
 | Flap | the stopped destination was marked down | PASS | 6.5 s | <= 20 s | active probe: connection refused |
 | Flap | it was marked healthy again and got traffic | FAIL | 63.5 s, 19 requests since | <= 20 s |  |
 | Flap | the notification outbox recorded down and up | FAIL | 1 down, 0 up of 1 events | >= 1 each | destination.down |
+| Flap | passive health reactivation, as the server logged it | INFO | 00:01:00 |  | the upstreams are configured with a 10 s reactivation period; see README |
 | Restart | the server stopped cleanly on SIGTERM | PASS | exit 0 after 31.11 s | exit 0 | with WebSockets open the drain runs to the ShutdownTimeout (30 s); see README |
 | Restart | healthy again within N seconds of the stop signal | PASS | 34.37 s | <= 50 s | /readyz |
 | Restart | first proxied 200 | PASS | 34.38 s | <= 55 s |  |
@@ -51,4 +54,4 @@
 | Admin, dashboard and MCP | admin API polling had no errors | FAIL | 2,633 calls, 1 errors | 0 |  |
 | Admin, dashboard and MCP | dashboard tabs (overview, analytics) stayed live | PASS | 240 checks, 0 stale, 0 console problems | 0 |  |
 
-**31 passed, 10 failed, 1 skipped**, 6 informational.
+**32 passed, 8 failed, 2 skipped**, 9 informational.

@@ -102,9 +102,12 @@ Built on `soak`: `bench/soak/run-soak.sh` runs one real Paduraksa for an hour (`
 - **The leak fit is a Theil-Sen slope** over each process's post-warm-up stretch, so one GC or hiccup does not move it; stretches under 10 minutes are skipped, so `--quick` reports none.
 - **One client IP.** Everything is loopback, so the per-IP limits see one client; the connection cap and the deny list are set high.
 
-**What it found** (see the dated results under `bench/soak/results/`):
-- A rate-limit bucket was evicted by the same client's buckets on other hosts, and a bucket that is evicted starts full: past eight rate-limited hosts a 20/s limit let 88/s through. Fixed in `RateLimitTable` (the probe start mixes in the slot), with a regression test.
-- A restart with WebSockets open waits out the whole 30 s `ShutdownTimeout`, and the analytics and metrics that were still in memory are lost, because the stop's flush runs on the budget the drain used up. Not fixed; see `bench/soak/README.md`.
+**What it found** (two 60-minute runs on 2026-11-14, `bench/soak/results/2026-11-14-full*`; details and data in `bench/soak/README.md`):
+- A rate-limit bucket was evicted by the same client's buckets on other hosts, and an evicted bucket starts full: past eight rate-limited hosts a 20/s limit let 88/s through. **Fixed** in `RateLimitTable` (the probe start mixes in the slot), with a regression test.
+- A restart with WebSockets open waits out the whole 30 s `ShutdownTimeout` and loses the analytics and metrics still in memory: core stops on a budget the public drain has used up. **Open.**
+- A destination that comes back after a flap stays out for a minute: YARP's passive window holds the outage's failures, and its 60 s reactivation ignores the upstream's configured period (reproduced in a unit test). **Open.**
+- About 15 HTTP/2 requests an hour (of 14.9 million) get no response; the proxy logged them as completed. **Open, unplaced.**
+- RSS rose in steps while the managed heap stayed flat; one hour could not tell a plateau from a leak. **Open.**
 
 ## Security
 

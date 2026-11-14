@@ -86,7 +86,8 @@ Events are scaled to the length of the run (`SoakPlan`): the 60-minute plan warm
 | `facts.json` | what the checks read: error kinds and the first few errors, latency windows, the limited host's 200s and 429s per second, counter regressions, health timeline, flap and restart facts, WebSocket and slow-client results, MCP calls |
 | `publishes.json`, `events.jsonl` | every publish with its time and latency; every phase and notable event, in seconds from the load's start |
 | `plan.json`, `env.txt`, `config.yaml` | the plan, the machine and versions, the config that was imported |
-| `server.log`, `probe.log`, `driver.log` | the server's output, the startup hook's lines, the driver's output |
+| `server.log`, `probe.log`, `driver.log`, `server-log-notable.txt` | the server's output (10 MB and more, not committed), the startup hook's lines, the driver's output, and the few server log lines worth keeping (errors, health verdicts, lifecycle) |
+| `server-logs/` | with `--keep-logs`: the server's own log directory, the access log of every request (not committed; for a short run) |
 
 ## The checks and their thresholds
 
@@ -116,6 +117,39 @@ All of them are in `THRESHOLDS` at the top of `analyze.py`. The reasoning:
 
 The Prometheus counters are the process's own, so they start again from zero with the restart (the table shows the totals before and after). What carries across is the persisted rollups: the
 metrics overview and analytics.
+
+## What the first full runs found
+
+Two 60-minute runs on 2026-11-14 (`results/2026-11-14-full-run1`, `results/2026-11-14-full`; the second used a harness with the diagnostics the first run showed it needed). They agree
+closely, which is itself a finding: the problems below are not noise. Both ran 14.9 million requests at 4 134 requests a second with no skipped request, the server using about 40 % of its four CPUs.
+
+**Passed:** no latency drift (p99 of minutes 50 to 60 was 0.94x and 1.09x that of minutes 5 to 15), every publish succeeded (957; p50 17 ms, p99 49 ms, command to live 22 ms at p50),
+the canary never went backwards, the counters never regressed in 361 scrapes, the limit held through the burst (19.7 a second against a policy of 20), a destination marked down stayed down through
+542 publishes, no live destination was reported down, descriptors less sockets flat, OS threads flat (30 to 34), thread-pool threads at most 7, MCP, the admin API and the dashboard tabs clean.
+
+**Failed, each a finding:**
+
+1. **Rate limits stopped limiting once a client met more than eight rate-limited hosts** (found in a first 5-minute run, fixed in `RateLimitTable`: see the waf.md note). A 20/s policy let 88/s through under the
+   mixed load; a bucket evicted from the probe window starts full. The check `the rate limit holds under the mixed load` is what keeps it fixed.
+2. **A restart with WebSockets open takes the whole `ShutdownTimeout` (30.1 s) and loses the analytics and metrics buckets that were still in memory.** The restart reached `/readyz` after 33 s (3 s with no
+   WebSocket open, where the same stop took 0.11 s). The hour's analytics total fell from 7 427 229 to 6 906 897 requests in the full run (and from 618 000 to 152 000 in the 5-minute runs, whose
+   whole history was the open bucket), where the control run without WebSockets carried all of it (618 854 to 767 901). `PaduraksaHost.StopHostsAsync` gives the public drain, admin and core one shared
+   budget; once the drain has spent it, core stops "without waiting", and `BackgroundService.StopAsync` given a cancelled token returns before the rollup jobs' final flush (which uses `CancellationToken.None`) has run.
+   Not fixed here: closing upgraded connections when the drain starts, or giving core a budget of its own, are both small and the manager's call.
+3. **A destination that recovers after a flap stays out for a minute.** The 60 s outage was seen by the active check at 6 s and the destination was healthy again to the active check 3 s after it came
+   back, but it was out of rotation for 63 s. The first request it got after recovery evaluated YARP's passive transport-failure window, which still held the outage's failures, marked it unhealthy again, and
+   YARP logged "scheduled for a reactivation in 00:01:00" although the upstream's `passiveHealth.reactivationPeriod` is 10 s. The period reaches YARP's cluster model (`SnapshotPublisherTests` builds it) and does not
+   change what YARP does: a unit test with a 2 s period still had the destination passively unhealthy after 5 s and healthy only after about a minute. The notification outbox's `destination.up` therefore arrives a minute late.
+4. **About 15 HTTP/2 requests an hour never get a response** (15 of 14.9 million in each run; none on HTTP/1.1 or plain HTTP): the client gives up after 30 s. In 13 of the 15 the upstream had answered. In a 5-minute
+   run that kept the access log, the proxy's own log has the hung request as a normal completed `200 420 B` in 0.27 ms. So the response was lost between Kestrel's HTTP/2 write and the .NET client, or is a client-side
+   fault; the soak can't tell which. Kestrel also logged `crit ... application never completed` for 9 connections, in groups of two or three, a few minutes apart. Unresolved: it needs a packet capture or a second client (`h2load`) to place it.
+5. **RSS grows while the managed heap does not.** The anonymous RSS of the first process rose about 217 MiB/h over its quiet minutes and the second's about 93 MiB/h; GC heap retained after collections stayed near 150 MiB and
+   the managed heap's committed size rose from about 240 to 300 MiB. RSS moves in steps (522 to 571 MiB in the first six minutes, 580 to 675 MiB at 50 minutes in the first run) and the burst costs about
+   150 MiB that the collector gives back minutes later, so one hour cannot tell a plateau from a leak. The thresholds make this a failure on purpose: the second process's slope is measured over only 19 minutes. A two-hour run, or one with a
+   restart at a third, would settle it.
+
+The silent WebSocket check was skipped in both runs: `ClientWebSocket` pings every 30 s by default, a ping is traffic, and so the 120-second idle timeout never ran out. The harness now disables the pings for those
+five sockets; 5-minute runs after the change show them cut at exactly 120 s.
 
 ## Known limits of the test
 

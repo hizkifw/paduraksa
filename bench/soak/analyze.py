@@ -490,6 +490,17 @@ def scan_log(log, events, plan):
     return {"unexpected_errors": errors, "unexpected_warnings": warnings}
 
 
+def write_notable(run, log, events, plan):
+    """The few server log lines worth keeping beside a result (the full log is 10 MB and more, mostly the slow clients' own warnings): errors, the health checks' verdicts, the lifecycle."""
+    keep = re.compile(r" (fail|crit): |passive health|Active health state|Shutting down|Paduraksa stopped|Now listening|never completed")
+    lines = [line[:300] for line in log if keep.search(line)]
+    (run / "server-log-notable.txt").write_text("\n".join(lines[:600]) + ("\n" if lines else ""))
+
+
+def passive_periods(log):
+    return sorted({m.group(1) for line in log for m in [re.search(r"scheduled for a reactivation in `([\d:.]+)`", line)] if m})
+
+
 def main(argv):
     if len(argv) != 2:
         print(__doc__)
@@ -504,6 +515,10 @@ def main(argv):
     check_publishes(report, plan, facts, publishes)
     check_s6(report, plan, facts, publishes, samples, events)
     check_flap(report, plan, facts)
+    periods = passive_periods(log)
+    if periods:
+        report.info("Flap", "passive health reactivation, as the server logged it", ", ".join(periods), "the upstreams are configured with a 10 s reactivation period; see README")
+    write_notable(run, log, events, plan)
     check_restart(report, plan, facts)
     check_long_lived(report, plan, facts)
     check_admin(report, plan, facts)
