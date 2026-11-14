@@ -29,7 +29,7 @@ internal static class DoctorRunner
         {
             if (check.NeedsOptions && context.Options is null)
             {
-                results.Add(CheckResult.Info(Slug(check.Name), $"The {check.Name} was not checked: the configuration is invalid (see above)."));
+                results.Add(CheckResult.Info(check.Id, $"The {check.Name} was not checked: the configuration is invalid (see above)."));
                 continue;
             }
 
@@ -41,15 +41,13 @@ internal static class DoctorRunner
             {
                 // One check that can't run must not hide the others' findings.
 #pragma warning disable CA1031 // Deliberate: a diagnostic tool reports what it could not check instead of dying on it.
-                results.Add(CheckResult.Warning(Slug(check.Name), $"The {check.Name} could not be checked: {ex.Message}", "Report this, with the message, if it persists."));
+                results.Add(CheckResult.Warning(check.Id, $"The {check.Name} could not be checked: {ex.Message}", "Report this, with the message, if it persists."));
 #pragma warning restore CA1031
             }
         }
 
         return new DoctorReport(context.Version, results);
     }
-
-    private static string Slug(string name) => name.Replace(' ', '-').Replace("/", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
 
     /// <summary>
     /// One line per finding, then what to do, indented, under a warning or a failure. ASCII, like every other line the CLI prints: the tags stand

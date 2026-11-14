@@ -11,6 +11,8 @@ internal sealed class ListenersCheck : IDoctorCheck
 {
     public string Name => "listeners";
 
+    public string Id => "listeners";
+
     public bool NeedsOptions => true;
 
     private sealed record Listener(string Id, string Label, IPAddress Address, int Port, bool Udp);

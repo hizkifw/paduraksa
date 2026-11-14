@@ -12,6 +12,8 @@ internal sealed class MasterKeyCheck : IDoctorCheck
 
     public string Name => "master key";
 
+    public string Id => "master-key";
+
     public bool NeedsOptions => true;
 
     public async Task<IReadOnlyList<CheckResult>> RunAsync(DoctorContext context, CancellationToken cancellationToken)

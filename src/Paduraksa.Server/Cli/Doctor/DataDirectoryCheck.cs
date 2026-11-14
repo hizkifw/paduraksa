@@ -26,6 +26,8 @@ internal sealed class DataDirectoryCheck : IDoctorCheck
 
     public string Name => "data directory";
 
+    public string Id => "data-directory";
+
     public bool NeedsOptions => true;
 
     public Task<IReadOnlyList<CheckResult>> RunAsync(DoctorContext context, CancellationToken cancellationToken)

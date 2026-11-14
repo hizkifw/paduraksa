@@ -9,6 +9,8 @@ internal sealed class DatabasesCheck : IDoctorCheck
 {
     public string Name => "databases";
 
+    public string Id => "databases";
+
     public bool NeedsOptions => true;
 
     public async Task<IReadOnlyList<CheckResult>> RunAsync(DoctorContext context, CancellationToken cancellationToken)

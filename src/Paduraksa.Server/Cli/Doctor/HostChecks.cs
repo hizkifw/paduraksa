@@ -8,6 +8,8 @@ internal sealed class Http3Check : IDoctorCheck
 {
     public string Name => "HTTP/3";
 
+    public string Id => "http3";
+
     public bool NeedsOptions => true;
 
     public Task<IReadOnlyList<CheckResult>> RunAsync(DoctorContext context, CancellationToken cancellationToken)
@@ -45,6 +47,8 @@ internal sealed class ClockCheck : IDoctorCheck
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
     public string Name => "clock";
+
+    public string Id => "clock";
 
     public bool NeedsOptions => false;
 
@@ -94,6 +98,8 @@ internal sealed class ClockCheck : IDoctorCheck
 internal sealed class RunningServerCheck : IDoctorCheck
 {
     public string Name => "running server";
+
+    public string Id => "server";
 
     public bool NeedsOptions => true;
 

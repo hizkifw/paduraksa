@@ -618,6 +618,8 @@ public sealed class DoctorChecksTests
     {
         public string Name => "crashing check";
 
+        public string Id => "crashing-check";
+
         public bool NeedsOptions => false;
 
         public Task<IReadOnlyList<CheckResult>> RunAsync(DoctorContext context, CancellationToken cancellationToken) => throw new InvalidOperationException("boom");
@@ -635,6 +637,9 @@ public sealed class DoctorChecksTests
         Assert.Equal(CheckStatus.Info, Assert.Single(report.Checks, c => c.Id == "listeners").Status);
         Assert.Contains("clock", report.Checks.Select(c => c.Id));
         Assert.Equal(CheckStatus.Info, Assert.Single(report.Checks, c => c.Id == "clock").Status);
+
+        // The skipped line carries the id the check's own results do, so a script keys on one name.
+        Assert.Equal(CheckStatus.Info, Assert.Single(report.Checks, c => c.Id == "server").Status);
     }
 
     [Fact]

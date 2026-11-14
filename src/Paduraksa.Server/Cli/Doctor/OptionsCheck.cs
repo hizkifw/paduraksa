@@ -8,6 +8,8 @@ internal sealed class OptionsCheck : IDoctorCheck
 {
     public string Name => "options";
 
+    public string Id => "options";
+
     public bool NeedsOptions => false;
 
     public async Task<IReadOnlyList<CheckResult>> RunAsync(DoctorContext context, CancellationToken cancellationToken)

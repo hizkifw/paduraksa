@@ -54,6 +54,9 @@ internal interface IDoctorCheck
     /// <summary>What the report says when the check could not run (<c>listeners</c>).</summary>
     string Name { get; }
 
+    /// <summary>The id of the report line that stands for the check when it could not run: the id its own results carry where it has one (<c>server</c>).</summary>
+    string Id { get; }
+
     /// <summary>True when the check reads the effective options: with an invalid configuration it is skipped, and the <c>options</c> check says why.</summary>
     bool NeedsOptions { get; }
 
