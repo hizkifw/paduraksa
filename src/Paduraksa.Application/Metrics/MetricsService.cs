@@ -45,87 +45,122 @@ public sealed class MetricsService(
 
     public async Task<MetricsOverview> ReadOverviewAsync(MetricsRange range, CancellationToken cancellationToken)
     {
-        var (span, bucket) = Reach(range);
+        var (_, bucket) = Reach(range);
         var at = time.GetUtcNow();
         var names = HostNames(snapshots.Current);
         var now = Figures(sampler.SummariseTotal(NowWindow));
-
-        List<MetricsSeriesPoint> series = [];
-        List<HostTraffic> hosts = [];
-        List<UpstreamTraffic> upstreams = [];
-        if (range == MetricsRange.Hour)
-        {
-            foreach (var point in MetricTimeline.Hour(sampler.History(MetricRollupSubject.Total, Guid.Empty), sampler.Read(MetricRollupSubject.Total, Guid.Empty), at))
-            {
-                series.Add(SeriesPoint(point));
-            }
-
-            foreach (var (owner, point) in sampler.Summarise(MetricRollupSubject.Host, span))
-            {
-                var id = owner == Guid.Empty ? default : HostId.FromValue(owner);
-                hosts.Add(HostRow(id, names, point));
-            }
-
-            foreach (var (owner, point) in sampler.Summarise(MetricRollupSubject.Upstream, span))
-            {
-                upstreams.Add(UpstreamRow(UpstreamId.FromValue(owner), point));
-            }
-        }
-        else
-        {
-            var read = await RollupsAsync(range, at, span, bucket, cancellationToken).ConfigureAwait(false);
-            foreach (var point in MetricTimeline.Steps(read.Series, (int)bucket.TotalSeconds))
-            {
-                series.Add(SeriesPoint(point));
-            }
-
-            foreach (var (text, point) in read.Hosts)
-            {
-                hosts.Add(HostRow(text.Length == 0 ? default : HostId.TryParse(text, null, out var host) ? host : default, names, point));
-            }
-
-            foreach (var (text, point) in read.Upstreams)
-            {
-                if (UpstreamId.TryParse(text, null, out var upstream))
-                {
-                    upstreams.Add(UpstreamRow(upstream, point));
-                }
-            }
-        }
+        var read = await ReadRangeAsync(range, at, cancellationToken).ConfigureAwait(false);
+        var hosts = read.Hosts.Select(pair => HostRow(pair.Key, names, pair.Value));
+        var upstreams = read.Upstreams.Select(static pair => UpstreamRow(pair.Key, pair.Value));
 
         return new MetricsOverview(
             at,
             range,
             bucket,
             now,
-            series,
+            [.. read.Series.Select(SeriesPoint)],
             [.. hosts.Where(static host => host.Requests > 0).OrderByDescending(static host => host.Requests).ThenBy(static host => host.Name, StringComparer.OrdinalIgnoreCase).Take(TopRows)],
             [.. upstreams.Where(static upstream => upstream.Requests > 0).OrderByDescending(static upstream => upstream.Errors).ThenByDescending(static upstream => upstream.Requests).Take(TopRows)]);
     }
+
+    /// <summary>
+    /// The range's figures as the sampler and the rollups have them: the totals' steps laid out in time (<see cref="MetricTimeline"/>),
+    /// and one point per host (the unmatched requests under the empty ID) and per upstream. The hour is the seed and the ring; the
+    /// longer ranges are the rollups, read at most once every 30 s. The overview and the security statistics both read this.
+    /// <para>A longer range's hosts and upstreams take their last hour from the sampler (<see cref="RecentFrom"/>) and only what is before
+    /// it from the rollups, so a request is in them at once rather than after its minute is written. The steps stay the rollups', and their
+    /// last minute or two lag by up to a minute plus the write interval.</para>
+    /// </summary>
+    internal async Task<RangeFigures> ReadRangeAsync(MetricsRange range, DateTimeOffset at, CancellationToken cancellationToken)
+    {
+        var (span, bucket) = Reach(range);
+        Dictionary<HostId, MetricPoint> hosts = [];
+        Dictionary<UpstreamId, MetricPoint> upstreams = [];
+        if (range == MetricsRange.Hour)
+        {
+            var series = MetricTimeline.Hour(sampler.History(MetricRollupSubject.Total, Guid.Empty), sampler.Read(MetricRollupSubject.Total, Guid.Empty), at);
+            foreach (var (owner, point) in sampler.Summarise(MetricRollupSubject.Host, span))
+            {
+                hosts[owner == Guid.Empty ? default : HostId.FromValue(owner)] = point;
+            }
+
+            foreach (var (owner, point) in sampler.Summarise(MetricRollupSubject.Upstream, span))
+            {
+                upstreams[UpstreamId.FromValue(owner)] = point;
+            }
+
+            return new RangeFigures(series, hosts, upstreams);
+        }
+
+        var recent = RecentFrom(at);
+        var read = await RollupsAsync(range, at, span, bucket, recent, cancellationToken).ConfigureAwait(false);
+        foreach (var (text, point) in read.Hosts)
+        {
+            // A key that isn't a host ID can only be the unmatched requests' empty one.
+            Add(hosts, text.Length > 0 && HostId.TryParse(text, null, out var parsed) ? parsed : default, point);
+        }
+
+        foreach (var (owner, point) in sampler.Summarise(MetricRollupSubject.Host, at - recent))
+        {
+            Add(hosts, owner == Guid.Empty ? default : HostId.FromValue(owner), point);
+        }
+
+        foreach (var (text, point) in read.Upstreams)
+        {
+            if (UpstreamId.TryParse(text, null, out var upstream))
+            {
+                Add(upstreams, upstream, point);
+            }
+        }
+
+        foreach (var (owner, point) in sampler.Summarise(MetricRollupSubject.Upstream, at - recent))
+        {
+            Add(upstreams, UpstreamId.FromValue(owner), point);
+        }
+
+        return new RangeFigures(MetricTimeline.Steps(read.Series, (int)bucket.TotalSeconds), hosts, upstreams);
+    }
+
+    /// <summary>
+    /// Where a longer range's figures switch from the rollups to the sampler: the first whole minute of the last hour. The sampler holds every
+    /// minute from there on (the seed reaches an hour before the boot, the ring and its minutes the rest), and the rollups are read only to
+    /// the minute before, so no minute comes from both.
+    /// </summary>
+    internal static DateTimeOffset RecentFrom(DateTimeOffset at) =>
+        DateTimeOffset.FromUnixTimeSeconds((at.ToUnixTimeSeconds() - MetricSampler.RingSeconds + 59) / 60 * 60);
+
+    private static void Add<TKey>(Dictionary<TKey, MetricPoint> points, TKey key, MetricPoint point)
+        where TKey : notnull =>
+        points[key] = points.TryGetValue(key, out var other) ? MetricPoints.Combine([other, point], other.Start, other.Width) : point;
+
+    internal sealed record RangeFigures(IReadOnlyList<MetricPoint> Series, IReadOnlyDictionary<HostId, MetricPoint> Hosts, IReadOnlyDictionary<UpstreamId, MetricPoint> Upstreams);
 
     /// <summary>How long a longer range's rollup read is kept. The rollups gain a row per series a minute, and a month is millions of rows to sum, so a page polling every twenty seconds must not read them every time.</summary>
     private static readonly TimeSpan RollupCacheFor = TimeSpan.FromSeconds(30);
 
     private readonly ConcurrentDictionary<MetricsRange, RollupRead> _rollupCache = new();
 
-    private async Task<RollupRead> RollupsAsync(MetricsRange range, DateTimeOffset at, TimeSpan span, TimeSpan bucket, CancellationToken cancellationToken)
+    // A cached read is kept only while its split minute is still the current one: past it, a minute would be in neither half.
+    private async Task<RollupRead> RollupsAsync(MetricsRange range, DateTimeOffset at, TimeSpan span, TimeSpan bucket, DateTimeOffset recent, CancellationToken cancellationToken)
     {
-        if (_rollupCache.TryGetValue(range, out var cached) && at - cached.At < RollupCacheFor && at >= cached.At)
+        if (_rollupCache.TryGetValue(range, out var cached) && at - cached.At < RollupCacheFor && at >= cached.At && cached.Recent == recent)
         {
             return cached;
         }
 
         var from = at - span;
+        var before = recent.AddMinutes(-1);
         var read = new RollupRead(
             at,
+            recent,
             await rollups.ReadSeriesAsync(MetricRollupSubject.Total, string.Empty, from, at, (int)bucket.TotalMinutes, cancellationToken).ConfigureAwait(false),
-            await rollups.SummariseAsync(MetricRollupSubject.Host, from, at, cancellationToken).ConfigureAwait(false),
-            await rollups.SummariseAsync(MetricRollupSubject.Upstream, from, at, cancellationToken).ConfigureAwait(false));
+            await rollups.SummariseAsync(MetricRollupSubject.Host, from, before, cancellationToken).ConfigureAwait(false),
+            await rollups.SummariseAsync(MetricRollupSubject.Upstream, from, before, cancellationToken).ConfigureAwait(false));
         _rollupCache[range] = read;
         return read;
     }
 
-    private sealed record RollupRead(DateTimeOffset At, IReadOnlyList<MetricPoint> Series, IReadOnlyDictionary<string, MetricPoint> Hosts, IReadOnlyDictionary<string, MetricPoint> Upstreams);
+    private sealed record RollupRead(DateTimeOffset At, DateTimeOffset Recent, IReadOnlyList<MetricPoint> Series, IReadOnlyDictionary<string, MetricPoint> Hosts, IReadOnlyDictionary<string, MetricPoint> Upstreams);
 
     private static Dictionary<HostId, string> HostNames(RuntimeSnapshot snapshot)
     {

@@ -1,9 +1,15 @@
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Metrics;
+using Paduraksa.Application.Security;
 using Paduraksa.Contracts.Metrics;
+using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
+using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Metrics;
+using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Data.Config;
 
@@ -25,12 +31,16 @@ internal sealed class MetricProcess : IAsyncDisposable
         _clock = clock;
         Registry = new MetricsRegistry(processors: 2, timeProvider: clock);
         Backlog = new MetricRollupBacklog();
-        Sampler = new MetricSampler(Registry, clock, Backlog);
+        // A process's security counters start at zero, as a restarted server's do.
+        Sampler = new MetricSampler(Registry, clock, Backlog, new SecuritySources(ProofOfWork, RateLimit, new AccessListStats(), Connections.Stats));
         Store = new MetricRollupStore(database.Factory);
+        SecurityStore = new SecurityRollupStore(database.Factory);
         // The write interval is long: the job writes when it starts, when it stops and when a test asks.
-        Job = new MetricRollupJob(Sampler, Store, new MetricRollupOptions { WriteInterval = TimeSpan.FromHours(10) }, clock, NullLogger<MetricRollupJob>.Instance);
+        Job = new MetricRollupJob(Sampler, Store, SecurityStore, new MetricRollupOptions { WriteInterval = TimeSpan.FromHours(10) }, clock, NullLogger<MetricRollupJob>.Instance);
         Service = new MetricSamplerService(Sampler, clock, NullLogger<MetricSamplerService>.Instance);
-        Metrics = new MetricsService(Registry, new SnapshotStore(), Sampler, Store, ProcessCounters.None, clock);
+        SnapshotStore snapshots = new();
+        Metrics = new MetricsService(Registry, snapshots, Sampler, Store, ProcessCounters.None, clock);
+        Security = new SecurityOverviewService(snapshots, Connections, Sampler, Metrics, SecurityStore, clock);
         // A test that ends with this run still up (or "crashed") must not leave it writing while the database's directory goes.
         database.Own(this);
     }
@@ -48,6 +58,18 @@ internal sealed class MetricProcess : IAsyncDisposable
     public MetricSamplerService Service { get; }
 
     public MetricsService Metrics { get; }
+
+    public ProofOfWorkStats ProofOfWork { get; } = new();
+
+    public RateLimitStats RateLimit { get; } = new();
+
+    public ConnectionRuntime Connections { get; } = new();
+
+    public SecurityRollupStore SecurityStore { get; }
+
+    public SecurityOverviewService Security { get; }
+
+    public Task<SecurityOverview> SecurityAsync(MetricsRange range) => Security.ReadAsync(range, Ct);
 
     /// <summary>The hosted services start in registration order: the job (which seeds the sampler) and then the sampler.</summary>
     public async Task StartAsync()
@@ -78,11 +100,11 @@ internal sealed class MetricProcess : IAsyncDisposable
 
     public MetricSlot Host(Guid id) => Registry.SlotFor(MetricSubject.Host, id);
 
-    public void Request(MetricSlot host, int count = 1, int status = 200, long totalMicros = 1_000)
+    public void Request(MetricSlot host, int count = 1, int status = 200, long totalMicros = 1_000, GateOutcome outcome = GateOutcome.Forwarded)
     {
         for (var i = 0; i < count; i++)
         {
-            Registry.RecordRequest(new RequestMetrics { Host = host, Status = status, Outcome = GateOutcome.Forwarded, TotalMicros = totalMicros, UpstreamMicros = -1 });
+            Registry.RecordRequest(new RequestMetrics { Host = host, Status = status, Outcome = outcome, TotalMicros = totalMicros, UpstreamMicros = -1 });
         }
     }
 

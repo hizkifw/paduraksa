@@ -1,5 +1,7 @@
 using Paduraksa.Contracts.Metrics;
+using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Tests.Data.Config;
 
 namespace Paduraksa.Tests.Data.Metrics;
@@ -78,6 +80,87 @@ public sealed class MetricTimelineTests
         // 20 s before the stop and 9.8 s of the same minute after the start; the 4.4 s between were nobody's.
         Assert.Equal([[minute, 140L, 30L], [minute + 1, 0L, 15L]], totals.Select(row => row.Select(value => (long)value!).ToArray()));
         Assert.Equal(140L, await database.ScalarAsync("SELECT SUM(\"Requests\") FROM \"MetricRollups\" WHERE \"Subject\" = 1"));
+    }
+
+    [Fact]
+    public async Task TheSecurityCountersAndTheRefusalsByReasonSurviveARestartInTheHourAndTheDay()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        ManualTimeProvider clock = new(Noon.AddSeconds(0.5));
+        MetricProcess first = new(database, clock);
+        await first.StartAsync();
+        var host = first.Host(HostA);
+        first.Request(host, 5, status: 429, outcome: GateOutcome.RefusedRateLimit);
+        for (var i = 0; i < 5; i++)
+        {
+            first.RateLimit.CountLimited();
+        }
+
+        first.ProofOfWork.CountChallengeServed();
+        await first.RunUntilAsync(Noon.AddSeconds(90));
+        await first.StopAsync();
+
+        clock.Now = Noon.AddSeconds(120.5);
+        MetricProcess second = new(database, clock);
+        await second.StartAsync();
+        second.Request(second.Host(HostA), 2, status: 403, outcome: GateOutcome.RefusedAccessList);
+        second.RateLimit.CountLimited();
+        await second.RunUntilAsync(Noon.AddSeconds(200));
+
+        // The hour: what the first run counted, from the seed, and this run's, from memory.
+        var hour = await second.SecurityAsync(MetricsRange.Hour);
+        Assert.Equal(6, hour.RateLimit.Limited);
+        Assert.Equal(1, hour.ProofOfWork.ChallengesServed);
+        Assert.Equal(5, hour.Refusals.RateLimit);
+        Assert.Equal(2, hour.Refusals.AccessList);
+        Assert.Equal(7, hour.Refusals.Refused);
+        Assert.Equal(Noon, hour.From);
+
+        // The day: the rollups once this run's minutes are written.
+        await second.Job.WriteAsync(Ct);
+        var day = await second.SecurityAsync(MetricsRange.Day);
+        Assert.Equal(6, day.RateLimit.Limited);
+        Assert.Equal(1, day.ProofOfWork.ChallengesServed);
+        Assert.Equal(new RefusalReasons(2, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), day.Refusals);
+        Assert.Equal(7, day.Series.Sum(step => step.Refused.Refused));
+    }
+
+    [Fact]
+    public async Task ADayReadTakesTheLastHourFromMemorySoACountIsThereBeforeItsMinuteIsWrittenAndNeverTwiceAfter()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        ManualTimeProvider clock = new(Noon.AddSeconds(0.5));
+        MetricProcess first = new(database, clock);
+        await first.StartAsync();
+        first.Request(first.Host(HostA), 5, status: 429, outcome: GateOutcome.RefusedRateLimit);
+        for (var i = 0; i < 5; i++)
+        {
+            first.RateLimit.CountLimited();
+        }
+
+        await first.RunUntilAsync(Noon.AddSeconds(90));
+        await first.StopAsync();
+
+        // Two hours later: the first run's minutes are only in the rollups, this run's only in memory.
+        clock.Now = Noon.AddHours(2).AddSeconds(0.5);
+        MetricProcess second = new(database, clock);
+        await second.StartAsync();
+        second.Request(second.Host(HostA), 2, status: 403, outcome: GateOutcome.RefusedAccessList);
+        second.RateLimit.CountLimited();
+        await second.RunUntilAsync(Noon.AddHours(2).AddSeconds(75));
+
+        var day = await second.SecurityAsync(MetricsRange.Day);
+        Assert.Equal(6, day.RateLimit.Limited);
+        Assert.Equal(7, day.Refusals.Refused);
+        // The overview's busiest hosts are spliced the same way.
+        Assert.Equal(7, Assert.Single((await second.OverviewAsync(MetricsRange.Day)).Hosts).Refused);
+
+        // Written, and past the 30 s the rollup reads are kept: the recent minutes are still read once.
+        await second.Job.WriteAsync(Ct);
+        await second.RunUntilAsync(Noon.AddHours(2).AddSeconds(120));
+        day = await second.SecurityAsync(MetricsRange.Day);
+        Assert.Equal(6, day.RateLimit.Limited);
+        Assert.Equal(new RefusalReasons(2, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), day.Refusals);
     }
 
     [Fact]

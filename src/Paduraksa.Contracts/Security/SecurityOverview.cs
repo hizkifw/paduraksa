@@ -1,30 +1,79 @@
+using Paduraksa.Contracts.Metrics;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Security;
 
 /// <summary>
-/// What protects the hosts and how much work it has done: the gate's counters since the process started, and each
-/// enabled host's protections as the live snapshot compiled them. Counters only grow, so two samples give a rate.
+/// What protects the hosts and how much work it has done: the gate's counters over a range, kept in the metrics' rollups so a restart
+/// doesn't reset them, the refusals by reason and over time, and each enabled host's protections as the live snapshot compiled them.
 /// </summary>
-/// <param name="Since">When the counters started: the process start.</param>
-/// <param name="SampledAt">When the counters were read.</param>
-/// <param name="ProofOfWork">The proof-of-work gate's counters.</param>
-/// <param name="RateLimit">The rate limiter's counters.</param>
-/// <param name="AccessLists">The access lists' counters.</param>
-/// <param name="Hosts">The enabled hosts, by name.</param>
-/// <param name="ForwardAuth">The auth providers' counters, summed; absent when the response comes from an older server.</param>
-/// <param name="Connections">The connection stage before TLS: its limit and deny list, and what it refused; absent when the response comes from an older server.</param>
+/// <param name="Range">How far back the counters reach: the hour is the sampler's memory (and the hour before a restart), the rest the one-minute rollups.</param>
+/// <param name="SampledAt">When it was read.</param>
+/// <param name="ProofOfWork">The proof-of-work gate's counters over the range.</param>
+/// <param name="RateLimit">The rate limiter's counters over the range.</param>
+/// <param name="AccessLists">The access lists' counters over the range.</param>
+/// <param name="Hosts">The enabled hosts, by name, with what each refused over the range.</param>
+/// <param name="ForwardAuth">Every auth provider's counters over the range, summed, a deleted provider's included.</param>
+/// <param name="Connections">The connection stage: its limit and deny list as configured now, what it refused over the range, and what it counts now.</param>
+/// <param name="Refusals">What the gate refused over the range, by reason.</param>
+/// <param name="Series">The refusals by reason over time, one step per <paramref name="Step"/> (the hour mixes minutes from before a restart with ten-second steps): every step from the first the server observed to the last, a step with <c>coveredSeconds</c> 0 being a time it was not running.</param>
+/// <param name="Step">The width of a step of <paramref name="Series"/>.</param>
+/// <param name="From">The first moment inside the range the server observed: the counters cover from here to <paramref name="SampledAt"/>, less any time it was down. Absent when it observed none of the range.</param>
 public sealed record SecurityOverview(
-    DateTimeOffset Since,
+    MetricsRange Range,
     DateTimeOffset SampledAt,
     ProofOfWorkCounters ProofOfWork,
     RateLimitCounters RateLimit,
     AccessListCounters AccessLists,
     IReadOnlyList<HostProtections> Hosts,
-    SignInCounters? ForwardAuth = null,
-    ConnectionCounters? Connections = null);
+    SignInCounters ForwardAuth,
+    ConnectionCounters Connections,
+    RefusalReasons Refusals,
+    IReadOnlyList<RefusalStep> Series,
+    TimeSpan Step,
+    DateTimeOffset? From = null);
 
-/// <summary>The connection stage: what runs before the TLS handshake and what it has refused since the process started, over TCP and QUIC.</summary>
+/// <summary>Requests the gate turned away, by reason. The first nine are the refusals the overview counts as refused; the last four are answers the gate gave without a policy.</summary>
+/// <param name="AccessList">An access list refused them by address, country or password.</param>
+/// <param name="RuleSet">A rule set blocked them.</param>
+/// <param name="RateLimit">A rate limit turned them away.</param>
+/// <param name="ProofOfWork">The proof-of-work page, or a refusal of its token.</param>
+/// <param name="SignIn">An auth provider refused, redirected or failed.</param>
+/// <param name="RequestLimits">Over a request target, header or body limit (413, 414, 431).</param>
+/// <param name="Connection">The connection could not serve the host: a 421, the origin lockdown or a missing client certificate.</param>
+/// <param name="Other">A policy with no kind of its own.</param>
+/// <param name="Unknown">Refusals stored before the reasons were kept: counted, but of an unknown reason.</param>
+/// <param name="NoRoute">The host has no route for the path.</param>
+/// <param name="Unavailable">The 503 of no live config or no endpoint.</param>
+/// <param name="Dropped">The connection was dropped without an answer.</param>
+/// <param name="UnknownHost">No host matched the name.</param>
+public sealed record RefusalReasons(
+    long AccessList,
+    long RuleSet,
+    long RateLimit,
+    long ProofOfWork,
+    long SignIn,
+    long RequestLimits,
+    long Connection,
+    long Other,
+    long Unknown,
+    long NoRoute,
+    long Unavailable,
+    long Dropped,
+    long UnknownHost)
+{
+    /// <summary>Everything refused: the first nine reasons.</summary>
+    public long Refused => AccessList + RuleSet + RateLimit + ProofOfWork + SignIn + RequestLimits + Connection + Other + Unknown;
+}
+
+/// <summary>One step of the refusals over time.</summary>
+/// <param name="Start">The step's first instant.</param>
+/// <param name="WidthSeconds">How long the step is.</param>
+/// <param name="CoveredSeconds">How many of its seconds the server observed; 0 is a time it was not running, not a step with no refusals.</param>
+/// <param name="Refused">What was refused in it, by reason (counts, not rates).</param>
+public sealed record RefusalStep(DateTimeOffset Start, int WidthSeconds, int CoveredSeconds, RefusalReasons Refused);
+
+/// <summary>The connection stage: what runs before the TLS handshake and what it has refused over the range, over TCP and QUIC.</summary>
 /// <param name="MaxPerIp">Open connections one client address may hold; 0 means the limit is off. Trusted proxies are exempt.</param>
 /// <param name="DenyList">The access list whose deny addresses are refused before TLS; absent when none is named.</param>
 /// <param name="DenyListRefused">Connections refused for being in the deny list.</param>
@@ -91,6 +140,7 @@ public sealed record SignInCounters(long Allowed, long Denied, long Redirected, 
 /// <param name="AuthenticatedOriginPulls">Whether the host's handshake requires Cloudflare's client certificate (the same condition).</param>
 /// <param name="RuleSet">The rule set that applies to the host, and the routes that differ from it; absent when the response comes from an older server.</param>
 /// <param name="AuthProvider">The auth provider that asks who a request is, and the routes that differ from it; absent when the response comes from an older server.</param>
+/// <param name="Refused">Requests to the host the gate refused over the range (any reason <see cref="RefusalReasons.Refused"/> counts).</param>
 public sealed record HostProtections(
     HostId Id,
     string Name,
@@ -101,7 +151,8 @@ public sealed record HostProtections(
     OriginLockdownMode OriginLockdown = OriginLockdownMode.Off,
     bool AuthenticatedOriginPulls = false,
     RuleSetProtection? RuleSet = null,
-    AuthProviderProtection? AuthProvider = null);
+    AuthProviderProtection? AuthProvider = null,
+    long Refused = 0);
 
 /// <summary>A host's proof-of-work setting.</summary>
 /// <param name="Enabled">The host's own switch.</param>
@@ -157,7 +208,7 @@ public sealed record RuleSetOverride(int Routes, RuleSetRef? Set = null);
 /// <param name="Name">Its name.</param>
 /// <param name="Rules">How many rules it has.</param>
 /// <param name="BuiltIn">It is one of the built-in presets, which have no page of their own to open.</param>
-/// <param name="Denied">Requests a rule refused with 403.</param>
+/// <param name="Denied">Requests a rule refused with 403 over the range, across every host that applies the set.</param>
 /// <param name="Dropped">Requests a rule dropped without an answer.</param>
 /// <param name="Allowed">Requests an allow rule took out of the set's later rules.</param>
 /// <param name="Timeouts">Regex matches that ran past their timeout and were decided by the rule's action (a deny or drop counts as a match, an allow as none); 0 in a healthy proxy.</param>
@@ -177,7 +228,7 @@ public sealed record AuthProviderOverride(int Routes, AuthProviderRef? Provider 
 /// <param name="Id">The provider.</param>
 /// <param name="Name">Its name.</param>
 /// <param name="Endpoint">Its endpoint.</param>
-/// <param name="Allowed">Requests it let through, from its answer or its decision cache.</param>
+/// <param name="Allowed">Requests it let through over the range, from its answer or its decision cache, across every host that asks it.</param>
 /// <param name="Refused">Requests it refused or sent to a sign-in page.</param>
 /// <param name="Failures">Calls that failed, timed out or were refused for being too many.</param>
 public sealed record AuthProviderRef(AuthProviderId Id, string Name, string Endpoint, long Allowed, long Refused, long Failures);

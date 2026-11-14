@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Proxy" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Issuance" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />

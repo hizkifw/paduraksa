@@ -302,7 +302,7 @@ public sealed class MetricRollupStoreTests
         ManualTimeProvider time = new(Noon);
         MetricRollupBacklog queue = new();
         MetricRollupStore store = new(database.Factory);
-        MetricRollupJob job = new(Sampler(queue, time), store, new MetricRollupOptions { Retention = TimeSpan.FromDays(7) }, time, NullLogger<MetricRollupJob>.Instance);
+        MetricRollupJob job = new(Sampler(queue, time), store, new SecurityRollupStore(database.Factory), new MetricRollupOptions { Retention = TimeSpan.FromDays(7) }, time, NullLogger<MetricRollupJob>.Instance);
         queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddDays(-8), 10));
         queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddMinutes(-1), 20));
 
@@ -321,7 +321,7 @@ public sealed class MetricRollupStoreTests
         await using var database = TestConfigDatabase.Empty();
         MetricRollupBacklog queue = new();
         ManualTimeProvider time = new(Noon);
-        MetricRollupJob job = new(Sampler(queue, time), new MetricRollupStore(database.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance);
+        MetricRollupJob job = new(Sampler(queue, time), new MetricRollupStore(database.Factory), new SecurityRollupStore(database.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance);
         queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon, 10));
 
         await job.WriteAsync(Ct);
@@ -383,14 +383,14 @@ public sealed class MetricRollupStoreTests
         ], Ct);
         var sampler = Sampler(new MetricRollupBacklog(), time);
 
-        await new MetricRollupJob(sampler, store, new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance).SeedAsync(Ct);
+        await new MetricRollupJob(sampler, store, new SecurityRollupStore(database.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance).SeedAsync(Ct);
 
         Assert.Equal(50, Assert.Single(sampler.History(MetricRollupSubject.Total, Guid.Empty)).Requests);
         Assert.Equal(40, Assert.Single(sampler.History(MetricRollupSubject.Host, App.Value)).Requests);
 
         await using var down = TestConfigDatabase.Empty();
         var cold = Sampler(new MetricRollupBacklog(), time);
-        await new MetricRollupJob(cold, new MetricRollupStore(down.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance).SeedAsync(Ct);
+        await new MetricRollupJob(cold, new MetricRollupStore(down.Factory), new SecurityRollupStore(down.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance).SeedAsync(Ct);
         Assert.Empty(cold.History(MetricRollupSubject.Total, Guid.Empty));
     }
 

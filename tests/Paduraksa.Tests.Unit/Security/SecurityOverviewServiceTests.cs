@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Http;
+using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Security;
+using Paduraksa.Contracts.Metrics;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
@@ -63,7 +66,7 @@ public sealed class SecurityOverviewServiceTests
     {
         var connections = new ConnectionRuntime(new ConnectionTable(64));
         var store = new SnapshotStore();
-        SecurityOverviewService service = new(store, new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), NewRuntime(), connections);
+        Reader service = new(store, new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), NewRuntime(), connections, new FakeTime(DateTimeOffset.UnixEpoch), Runtimes);
 
         // Before anything is published: the bootstrap snapshot has no stage, and the card says so.
         Assert.Equal(new ConnectionCounters(0, 0, 0, 0, 0), service.Read().Connections);
@@ -96,7 +99,7 @@ public sealed class SecurityOverviewServiceTests
     public void TheAccessListCountersAreReadAsTheyStand()
     {
         var accessLists = NewRuntime();
-        SecurityOverviewService service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), accessLists, new ConnectionRuntime());
+        Reader service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), accessLists, new ConnectionRuntime(), new FakeTime(DateTimeOffset.UnixEpoch), Runtimes);
         var stats = accessLists.Stats;
         stats.CountAddressRefused();
         stats.CountUnauthorized();
@@ -114,7 +117,7 @@ public sealed class SecurityOverviewServiceTests
     }
 
     [Fact]
-    public void SinceIsTheStartAndSampledAtIsTheReadTime()
+    public void TheReadSaysItsRangeAndWhenItWasTakenAndARangeNobodyObservedHasNoStart()
     {
         FakeTime time = new(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero));
         var (service, _, _, _) = Start(time);
@@ -122,8 +125,28 @@ public sealed class SecurityOverviewServiceTests
         time.Advance(TimeSpan.FromSeconds(90));
         var overview = service.Read();
 
-        Assert.Equal(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero), overview.Since);
+        Assert.Equal(MetricsRange.Hour, overview.Range);
+        Assert.Equal(TimeSpan.FromSeconds(10), overview.Step);
         Assert.Equal(new DateTimeOffset(2026, 11, 11, 8, 1, 30, TimeSpan.Zero), overview.SampledAt);
+        Assert.Null(overview.From);
+        Assert.Empty(overview.Series);
+        Assert.Equal(0, overview.Refusals.Refused);
+    }
+
+    [Fact]
+    public void AProvidersAndASetsCountsOutliveTheirDeletionInTheSummedCounters()
+    {
+        var (service, _, _, store) = Start();
+        RuleSetRuntime sets = new();
+        ForwardAuthRuntime providers = new();
+        sets.CountersFor(Id<RuleSetId>(9)).Count(RuleAction.Deny);
+        providers.CountersFor(Id<AuthProviderId>(9)).CountDenied();
+        Publish(store, Model(Host(1, "a.test")), sets, providers);
+
+        var overview = service.Read();
+
+        Assert.Equal(1, overview.ForwardAuth.Denied);
+        Assert.Null(Assert.Single(overview.Hosts).AuthProvider!.Provider);
     }
 
     [Fact]
@@ -428,12 +451,38 @@ public sealed class SecurityOverviewServiceTests
         Assert.Empty(host.RateLimit.Overrides);
     }
 
-    private static (SecurityOverviewService Service, ProofOfWorkRuntime ProofOfWork, RateLimitRuntime RateLimits, SnapshotStore Store) Start(FakeTime? time = null)
+    private RuleSetRuntime? _ruleSets;
+    private ForwardAuthRuntime? _forwardAuth;
+
+    private (RuleSetRuntime? RuleSets, ForwardAuthRuntime? ForwardAuth) Runtimes() => (_ruleSets, _forwardAuth);
+
+    private (Reader Service, ProofOfWorkRuntime ProofOfWork, RateLimitRuntime RateLimits, SnapshotStore Store) Start(FakeTime? time = null)
     {
         ProofOfWorkRuntime proofOfWork = new();
         RateLimitRuntime rateLimits = new(new RateLimitTable(64));
         SnapshotStore store = new();
-        return (new SecurityOverviewService(store, proofOfWork, rateLimits, time ?? new FakeTime(DateTimeOffset.UnixEpoch), NewRuntime(), new ConnectionRuntime()), proofOfWork, rateLimits, store);
+        return (new Reader(store, proofOfWork, rateLimits, NewRuntime(), new ConnectionRuntime(), time ?? new FakeTime(DateTimeOffset.UnixEpoch), Runtimes), proofOfWork, rateLimits, store);
+    }
+
+    /// <summary>
+    /// Reads the overview's hour the way the server does, through the metric sampler. Each read is a fresh sampler: its first tick takes
+    /// everything the counters hold as its gain, so the hour holds every count the test made. The hour never touches the rollup stores.
+    /// </summary>
+    private sealed class Reader(
+        SnapshotStore store, ProofOfWorkRuntime proofOfWork, RateLimitRuntime rateLimits, AccessListRuntime accessLists, ConnectionRuntime connections, TimeProvider time,
+        Func<(RuleSetRuntime? RuleSets, ForwardAuthRuntime? ForwardAuth)> runtimes)
+    {
+        public SecurityOverview Read()
+        {
+            var (ruleSets, forwardAuth) = runtimes();
+            MetricsRegistry registry = new(processors: 2, timeProvider: time);
+            MetricSampler sampler = new(registry, time, new MetricRollupBacklog(), new SecuritySources(proofOfWork.Stats, rateLimits.Stats, accessLists.Stats, connections.Stats, forwardAuth, ruleSets));
+            sampler.Tick();
+            MetricsService metrics = new(registry, store, sampler, new MetricRollupStore(null!), ProcessCounters.None, time);
+            var read = new SecurityOverviewService(store, connections, sampler, metrics, new SecurityRollupStore(null!), time).ReadAsync(MetricsRange.Hour, CancellationToken.None);
+            Assert.True(read.IsCompletedSuccessfully);
+            return read.Result;
+        }
     }
 
     private static AccessListRuntime NewRuntime() => new(TimeProvider.System, new TestPasswords().Verifier);
@@ -541,8 +590,10 @@ public sealed class SecurityOverviewServiceTests
         Assert.Equal(new SignInCounters(0, 0, 0, 0, 0, 0, 0, 0), overview.ForwardAuth);
     }
 
-    private static void Publish(SnapshotStore store, ProxyConfigModel model, RuleSetRuntime? ruleSets = null, ForwardAuthRuntime? forwardAuth = null)
+    private void Publish(SnapshotStore store, ProxyConfigModel model, RuleSetRuntime? ruleSets = null, ForwardAuthRuntime? forwardAuth = null)
     {
+        _ruleSets = ruleSets ?? _ruleSets;
+        _forwardAuth = forwardAuth ?? _forwardAuth;
         var result = SnapshotCompiler.Compile(
             model,
             new SnapshotCompilerOptions { RateLimits = new RateLimitRuntime(new RateLimitTable(64)), ProofOfWork = new ProofOfWorkRuntime(), RuleSets = ruleSets, ForwardAuth = forwardAuth });

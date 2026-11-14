@@ -65,7 +65,7 @@ internal static class MetricsEndpoints
         return EndpointSupport.Json(await service.ReadOverviewAsync(range, http.RequestAborted).ConfigureAwait(false), AdminJsonContext.Default.MetricsOverview);
     }
 
-    private static bool TryParseRange(string text, out MetricsRange range)
+    internal static bool TryParseRange(string text, out MetricsRange range)
     {
         switch (text)
         {

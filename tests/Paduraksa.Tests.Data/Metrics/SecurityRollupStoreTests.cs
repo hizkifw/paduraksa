@@ -87,7 +87,7 @@ public sealed class SecurityRollupStoreTests
         ManualTimeProvider time = new(Noon);
         SecurityRollupStore security = new(database.Factory);
         MetricSampler sampler = new(new MetricsRegistry(processors: 2, timeProvider: time), time, new MetricRollupBacklog());
-        MetricRollupJob job = new(sampler, new MetricRollupStore(database.Factory), new MetricRollupOptions { Retention = TimeSpan.FromDays(1) }, time, NullLogger<MetricRollupJob>.Instance, security);
+        MetricRollupJob job = new(sampler, new MetricRollupStore(database.Factory), security, new MetricRollupOptions { Retention = TimeSpan.FromDays(1) }, time, NullLogger<MetricRollupJob>.Instance);
         sampler.SecurityRollups.Enqueue(Minute(SecurityRollupSubject.Total, string.Empty, Noon.AddMinutes(-10), 60, (SecurityCounter.RateLimited, 3)));
         sampler.SecurityRollups.Enqueue(Minute(SecurityRollupSubject.AuthProvider, Provider.ToString(), Noon.AddMinutes(-10), 60, (SecurityCounter.SignInAllowed, 2)));
         await security.WriteAsync([Minute(SecurityRollupSubject.Total, string.Empty, Noon.AddDays(-3), 60, (SecurityCounter.RateLimited, 9))], Ct);
@@ -100,7 +100,7 @@ public sealed class SecurityRollupStoreTests
 
         // A restart: the new sampler starts from the hour before.
         MetricSampler next = new(new MetricsRegistry(processors: 2, timeProvider: time), time, new MetricRollupBacklog(), new SecuritySources(new(), new(), new()));
-        await new MetricRollupJob(next, new MetricRollupStore(database.Factory), new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance, security).SeedAsync(Ct);
+        await new MetricRollupJob(next, new MetricRollupStore(database.Factory), security, new MetricRollupOptions(), time, NullLogger<MetricRollupJob>.Instance).SeedAsync(Ct);
 
         Assert.Equal(3, next.SummariseSecurity(SecurityRollupSubject.Total, TimeSpan.FromHours(1))[Guid.Empty][SecurityCounter.RateLimited]);
         Assert.Equal(2, next.SummariseSecurity(SecurityRollupSubject.AuthProvider, TimeSpan.FromHours(1))[Provider.Value][SecurityCounter.SignInAllowed]);

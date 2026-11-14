@@ -215,8 +215,9 @@ public sealed class TrafficOverviewTests
             await rig.StoreMinuteAsync(MetricRollupSubject.Total, string.Empty, Start.AddMinutes(-60 + (i * 5)), requests: 600);
         }
 
-        await rig.StoreMinuteAsync(MetricRollupSubject.Host, App.ToString(), Start.AddMinutes(-10), requests: 900);
-        await rig.StoreMinuteAsync(MetricRollupSubject.Upstream, Web.ToString(), Start.AddMinutes(-10), requests: 900, errors: 9);
+        // Over an hour back: a longer range's tables take the last hour from the sampler, which this rig doesn't seed.
+        await rig.StoreMinuteAsync(MetricRollupSubject.Host, App.ToString(), Start.AddMinutes(-70), requests: 900);
+        await rig.StoreMinuteAsync(MetricRollupSubject.Upstream, Web.ToString(), Start.AddMinutes(-70), requests: 900, errors: 9);
         var page = context.Render<TrafficOverview>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromHours(1)));
         Assert.Equal("true", page.Find("[data-field=range] [data-value=hour]").GetAttribute("aria-checked"));
 

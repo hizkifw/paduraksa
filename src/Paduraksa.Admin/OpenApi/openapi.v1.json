@@ -13685,8 +13685,25 @@
           "Security"
         ],
         "summary": "Read the security overview",
-        "description": "Per-process counters of the proof-of-work gate and the rate limiter since Since, and each enabled host's protections as the live config compiled them. Counters only grow: sample twice and divide the difference by the elapsed time between sampledAt values for a rate.\n\nRequires the `config:read` permission.",
+        "description": "The gate's counters over the range (proof of work, rate limits, access lists, the connection stage, sign-in), what it refused by reason and over time, and each enabled host's protections as the live config compiled them, with what it refused over the range. The counters are kept in the metrics' rollups, so a restart doesn't reset them; from is the first moment of the range the server observed. A step of the series with coveredSeconds 0 is a time the server was not running, not a step with no refusals.\n\nRequires the `config:read` permission.",
         "operationId": "GetSecurityOverview",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "description": "How far back to count: hour is from memory and the last hour of rollups, the rest from the one-minute rollups.",
+            "schema": {
+              "enum": [
+                "hour",
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "default": "hour"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -13694,6 +13711,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SecurityOverview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
                 }
               }
             }
@@ -15958,7 +15985,7 @@
               "integer",
               "string"
             ],
-            "description": "Requests it let through, from its answer or its decision cache.",
+            "description": "Requests it let through over the range, from its answer or its decision cache, across every host that asks it.",
             "format": "int64"
           },
           "refused": {
@@ -18107,7 +18134,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The connection stage: what runs before the TLS handshake and what it has refused since the process started, over TCP and QUIC."
+        "description": "The connection stage: what runs before the TLS handshake and what it has refused over the range, over TCP and QUIC."
       },
       "ConnectionDenyListRef": {
         "required": [
@@ -19337,6 +19364,16 @@
                 "$ref": "#/components/schemas/AuthProviderProtection"
               }
             ]
+          },
+          "refused": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests to the host the gate refused over the range (any reason long RefusalReasons.Refused counts).",
+            "format": "int64",
+            "default": 0
           }
         },
         "additionalProperties": false,
@@ -22133,6 +22170,194 @@
         "additionalProperties": false,
         "description": "A Redirect host's target."
       },
+      "RefusalReasons": {
+        "required": [
+          "accessList",
+          "ruleSet",
+          "rateLimit",
+          "proofOfWork",
+          "signIn",
+          "requestLimits",
+          "connection",
+          "other",
+          "unknown",
+          "noRoute",
+          "unavailable",
+          "dropped",
+          "unknownHost"
+        ],
+        "type": "object",
+        "properties": {
+          "accessList": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "An access list refused them by address, country or password.",
+            "format": "int64"
+          },
+          "ruleSet": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "A rule set blocked them.",
+            "format": "int64"
+          },
+          "rateLimit": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "A rate limit turned them away.",
+            "format": "int64"
+          },
+          "proofOfWork": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The proof-of-work page, or a refusal of its token.",
+            "format": "int64"
+          },
+          "signIn": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "An auth provider refused, redirected or failed.",
+            "format": "int64"
+          },
+          "requestLimits": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Over a request target, header or body limit (413, 414, 431).",
+            "format": "int64"
+          },
+          "connection": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The connection could not serve the host: a 421, the origin lockdown or a missing client certificate.",
+            "format": "int64"
+          },
+          "other": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "A policy with no kind of its own.",
+            "format": "int64"
+          },
+          "unknown": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Refusals stored before the reasons were kept: counted, but of an unknown reason.",
+            "format": "int64"
+          },
+          "noRoute": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The host has no route for the path.",
+            "format": "int64"
+          },
+          "unavailable": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The 503 of no live config or no endpoint.",
+            "format": "int64"
+          },
+          "dropped": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The connection was dropped without an answer.",
+            "format": "int64"
+          },
+          "unknownHost": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "No host matched the name.",
+            "format": "int64"
+          },
+          "refused": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Everything refused: the first nine reasons.",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Requests the gate turned away, by reason. The first nine are the refusals the overview counts as refused; the last four are answers the gate gave without a policy."
+      },
+      "RefusalStep": {
+        "required": [
+          "start",
+          "widthSeconds",
+          "coveredSeconds",
+          "refused"
+        ],
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "The step's first instant.",
+            "format": "date-time"
+          },
+          "widthSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How long the step is.",
+            "format": "int32"
+          },
+          "coveredSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many of its seconds the server observed; 0 is a time it was not running, not a step with no refusals.",
+            "format": "int32"
+          },
+          "refused": {
+            "description": "What was refused in it, by reason (counts, not rates).",
+            "$ref": "#/components/schemas/RefusalReasons"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One step of the refusals over time."
+      },
       "ReissueRequest": {
         "type": "object",
         "properties": {
@@ -22859,7 +23084,7 @@
               "integer",
               "string"
             ],
-            "description": "Requests a rule refused with 403.",
+            "description": "Requests a rule refused with 403 over the range, across every host that applies the set.",
             "format": "int64"
           },
           "dropped": {
@@ -22963,35 +23188,39 @@
       },
       "SecurityOverview": {
         "required": [
-          "since",
+          "range",
           "sampledAt",
           "proofOfWork",
           "rateLimit",
           "accessLists",
-          "hosts"
+          "hosts",
+          "forwardAuth",
+          "connections",
+          "refusals",
+          "series",
+          "step"
         ],
         "type": "object",
         "properties": {
-          "since": {
-            "type": "string",
-            "description": "When the counters started: the process start.",
-            "format": "date-time"
+          "range": {
+            "description": "How far back the counters reach: the hour is the sampler's memory (and the hour before a restart), the rest the one-minute rollups.",
+            "$ref": "#/components/schemas/MetricsRange"
           },
           "sampledAt": {
             "type": "string",
-            "description": "When the counters were read.",
+            "description": "When it was read.",
             "format": "date-time"
           },
           "proofOfWork": {
-            "description": "The proof-of-work gate's counters.",
+            "description": "The proof-of-work gate's counters over the range.",
             "$ref": "#/components/schemas/ProofOfWorkCounters"
           },
           "rateLimit": {
-            "description": "The rate limiter's counters.",
+            "description": "The rate limiter's counters over the range.",
             "$ref": "#/components/schemas/RateLimitCounters"
           },
           "accessLists": {
-            "description": "The access lists' counters.",
+            "description": "The access lists' counters over the range.",
             "$ref": "#/components/schemas/AccessListCounters"
           },
           "hosts": {
@@ -22999,33 +23228,43 @@
             "items": {
               "$ref": "#/components/schemas/HostProtections"
             },
-            "description": "The enabled hosts, by name."
+            "description": "The enabled hosts, by name, with what each refused over the range."
           },
           "forwardAuth": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "description": "The auth providers' counters, summed; absent when the response comes from an older server.",
-                "$ref": "#/components/schemas/SignInCounters"
-              }
-            ]
+            "description": "Every auth provider's counters over the range, summed, a deleted provider's included.",
+            "$ref": "#/components/schemas/SignInCounters"
           },
           "connections": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "description": "The connection stage before TLS: its limit and deny list, and what it refused; absent when the response comes from an older server.",
-                "$ref": "#/components/schemas/ConnectionCounters"
-              }
-            ]
+            "description": "The connection stage: its limit and deny list as configured now, what it refused over the range, and what it counts now.",
+            "$ref": "#/components/schemas/ConnectionCounters"
+          },
+          "refusals": {
+            "description": "What the gate refused over the range, by reason.",
+            "$ref": "#/components/schemas/RefusalReasons"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RefusalStep"
+            },
+            "description": "The refusals by reason over time, one step per Step (the hour mixes minutes from before a restart with ten-second steps): every step from the first the server observed to the last, a step with `coveredSeconds` 0 being a time it was not running."
+          },
+          "step": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": "string",
+            "description": "The width of a step of Series."
+          },
+          "from": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The first moment inside the range the server observed: the counters cover from here to SampledAt, less any time it was down. Absent when it observed none of the range.",
+            "format": "date-time"
           }
         },
         "additionalProperties": false,
-        "description": "What protects the hosts and how much work it has done: the gate's counters since the process started, and each\nenabled host's protections as the live snapshot compiled them. Counters only grow, so two samples give a rate."
+        "description": "What protects the hosts and how much work it has done: the gate's counters over a range, kept in the metrics' rollups so a restart\ndoesn't reset them, the refusals by reason and over time, and each enabled host's protections as the live snapshot compiled them."
       },
       "SelfSignedCertificateRequest": {
         "required": [

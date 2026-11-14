@@ -1,9 +1,14 @@
+using System.Collections.Concurrent;
+
+using Paduraksa.Application.Metrics;
+using Paduraksa.Contracts.Metrics;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
@@ -12,107 +17,165 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Application.Security;
 
 /// <summary>
-/// The security overview: the gate's process counters and the protections the live snapshot applies per host. Reading
-/// takes no lock and touches no store, so a page can sample it every couple of seconds; nothing is kept between reads.
+/// The security overview over a range (docs/design/waf.md "Security overview"): the gate's counters and the refusals by reason, read
+/// from the metric sampler and the rollups so they outlive a restart, and the protections the live snapshot applies per host. The hour
+/// is the sampler's memory and costs no store read; the longer ranges read the rollups at most once every 30 s per range.
 /// </summary>
 /// <remarks>
-/// Protections come from the compiled snapshot rather than the stored document, so they are what the gate is doing:
-/// a revision the compiler rejected never shows. The counters start at zero with the process, which is why
-/// <see cref="SecurityOverview.Since"/> is the time this service was built at startup.
+/// Protections come from the compiled snapshot rather than the stored document, so they are what the gate is doing: a revision the
+/// compiler rejected never shows. A provider's or a set's counts over the range are its own series', which outlive its deletion; so do
+/// the summed sign-in counters, which therefore count providers the live config no longer names.
 /// </remarks>
-public sealed class SecurityOverviewService
+public sealed class SecurityOverviewService(
+    SnapshotStore snapshots, ConnectionRuntime connections, MetricSampler sampler, MetricsService metrics, SecurityRollupStore rollups, TimeProvider time)
 {
-    private readonly SnapshotStore _snapshots;
-    private readonly ProofOfWorkStats _proofOfWork;
-    private readonly RateLimitStats _rateLimit;
-    private readonly AccessListStats _accessLists;
-    private readonly ConnectionStats _connections;
-    private readonly TimeProvider _time;
-    private readonly DateTimeOffset _since;
+    private static readonly TimeSpan RollupCacheFor = TimeSpan.FromSeconds(30);
 
-    public SecurityOverviewService(SnapshotStore snapshots, ProofOfWorkRuntime proofOfWork, RateLimitRuntime rateLimits, TimeProvider time, AccessListRuntime accessLists, ConnectionRuntime connections)
-    {
-        ArgumentNullException.ThrowIfNull(snapshots);
-        ArgumentNullException.ThrowIfNull(proofOfWork);
-        ArgumentNullException.ThrowIfNull(rateLimits);
-        ArgumentNullException.ThrowIfNull(time);
-        ArgumentNullException.ThrowIfNull(accessLists);
-        _snapshots = snapshots;
-        _proofOfWork = proofOfWork.Stats;
-        _rateLimit = rateLimits.Stats;
-        _accessLists = accessLists.Stats;
-        ArgumentNullException.ThrowIfNull(connections);
-        _connections = connections.Stats;
-        _time = time;
-        _since = time.GetUtcNow();
-    }
+    private readonly ConcurrentDictionary<MetricsRange, CachedRead> _cache = new();
 
-    public SecurityOverview Read()
+    public async Task<SecurityOverview> ReadAsync(MetricsRange range, CancellationToken cancellationToken)
     {
-        var sampledAt = _time.GetUtcNow();
-        var pow = _proofOfWork;
-        ProofOfWorkCounters proofOfWork = new(
-            pow.ChallengesServed, pow.Solved, pow.VerifyRejected, pow.BlockedNonBrowser,
-            new TokenRejections(pow.Malformed, pow.BadTag, pow.Expired, pow.TooEasy));
-        RateLimitCounters rateLimit = new(_rateLimit.Allowed, _rateLimit.Limited);
-        var lists = _accessLists;
-        AccessListCounters accessLists = new(
-            lists.AddressRefused, lists.Unauthorized, lists.CacheHits, lists.Verifications, lists.Queued, lists.QueueFull, lists.QueueTimeouts);
-        var current = _snapshots.Current;
+        var (_, step) = MetricsService.Reach(range);
+        var at = time.GetUtcNow();
+        var figures = await metrics.ReadRangeAsync(range, at, cancellationToken).ConfigureAwait(false);
+        var security = await SecurityAsync(range, at, cancellationToken).ConfigureAwait(false);
+        var total = security.Total;
+        var current = snapshots.Current;
         var hosts = current.HostsByIndex
-            .Select(HostOf)
+            .Select(host => HostOf(host, security) with { Refused = figures.Hosts.TryGetValue(host.Id, out var point) ? point.Refused : 0 })
             .OrderBy(host => host.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(host => host.Id.ToString(), StringComparer.Ordinal)
             .ToArray();
-        return new SecurityOverview(_since, sampledAt, proofOfWork, rateLimit, accessLists, hosts, ForwardAuthOf(current), ConnectionsOf(current));
+        var observed = figures.Series.FirstOrDefault(static point => point.CoveredSeconds > 0);
+        // The hour's totals are its chart's. A longer range's are its hosts', whose last hour is the sampler's: the chart's last steps lag
+        // until their minutes are written, the figures do not.
+        var refused = range == MetricsRange.Hour
+            ? figures.Series.Count == 0 ? default : MetricPoints.Combine([.. figures.Series], 0, 0)
+            : figures.Hosts.Count == 0 ? default : MetricPoints.Combine([.. figures.Hosts.Values], 0, 0);
+        return new SecurityOverview(
+            range,
+            at,
+            new ProofOfWorkCounters(
+                total[SecurityCounter.ChallengesServed], total[SecurityCounter.Solved], total[SecurityCounter.VerifyRejected], total[SecurityCounter.BlockedNonBrowser],
+                new TokenRejections(total[SecurityCounter.TokenMalformed], total[SecurityCounter.TokenBadTag], total[SecurityCounter.TokenExpired], total[SecurityCounter.TokenTooEasy])),
+            new RateLimitCounters(total[SecurityCounter.RateLimitAllowed], total[SecurityCounter.RateLimited]),
+            new AccessListCounters(
+                total[SecurityCounter.AddressRefused], total[SecurityCounter.Unauthorized], total[SecurityCounter.PasswordCacheHits], total[SecurityCounter.Verifications],
+                total[SecurityCounter.Queued], total[SecurityCounter.QueueFull], total[SecurityCounter.QueueTimeouts]),
+            hosts,
+            new SignInCounters(
+                total[SecurityCounter.SignInAllowed], total[SecurityCounter.SignInDenied], total[SecurityCounter.SignInRedirected], total[SecurityCounter.SignInCacheHits],
+                total[SecurityCounter.SignInCalls], total[SecurityCounter.SignInErrors], total[SecurityCounter.SignInTimeouts], total[SecurityCounter.SignInBusy]),
+            ConnectionsOf(current, total),
+            ReasonsOf(refused),
+            [.. figures.Series.Select(static point => new RefusalStep(DateTimeOffset.FromUnixTimeSeconds(point.Start), point.Width, point.CoveredSeconds, ReasonsOf(point)))],
+            step,
+            observed.Width > 0 ? Later(DateTimeOffset.FromUnixTimeSeconds(observed.Start), at - MetricsService.Reach(range).Span) : null);
     }
 
-    private ConnectionCounters ConnectionsOf(RuntimeSnapshot snapshot)
+    // A step starts on its own grid, which can be before the range does.
+    private static DateTimeOffset Later(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
+
+    internal static RefusalReasons ReasonsOf(MetricPoint point)
+    {
+        var kinds = point.Refusals;
+        return new RefusalReasons(
+            kinds.AccessList, kinds.RuleSet, kinds.RateLimit, kinds.ProofOfWork, kinds.ForwardAuth, kinds.RequestLimits, kinds.Connection, kinds.Other, point.UnknownRefused,
+            kinds.NoRoute, kinds.Unavailable, kinds.Dropped, kinds.UnknownHost);
+    }
+
+    private async Task<SecurityRead> SecurityAsync(MetricsRange range, DateTimeOffset at, CancellationToken cancellationToken)
+    {
+        var (span, _) = MetricsService.Reach(range);
+        if (range == MetricsRange.Hour)
+        {
+            return SecurityRead.Of(at, sampler, span);
+        }
+
+        // As the request figures: the last hour from the sampler, what is before it from the rollups (cached while the split minute holds).
+        var recent = MetricsService.RecentFrom(at);
+        var stored = await StoredAsync(range, at, span, recent, cancellationToken).ConfigureAwait(false);
+        var memory = SecurityRead.Of(at, sampler, at - recent);
+        return new SecurityRead(
+            at,
+            SecurityPoint.Combine([stored.Total, memory.Total], 0, 0),
+            Merge(stored.Providers, memory.Providers),
+            Merge(stored.Sets, memory.Sets));
+    }
+
+    private static Dictionary<TKey, SecurityPoint> Merge<TKey>(IReadOnlyDictionary<TKey, SecurityPoint> stored, IReadOnlyDictionary<TKey, SecurityPoint> memory)
+        where TKey : notnull
+    {
+        Dictionary<TKey, SecurityPoint> merged = new(stored);
+        foreach (var (key, point) in memory)
+        {
+            merged[key] = merged.TryGetValue(key, out var other) ? SecurityPoint.Combine([other, point], 0, 0) : point;
+        }
+
+        return merged;
+    }
+
+    private async Task<SecurityRead> StoredAsync(MetricsRange range, DateTimeOffset at, TimeSpan span, DateTimeOffset recent, CancellationToken cancellationToken)
+    {
+        if (_cache.TryGetValue(range, out var cached) && at - cached.At < RollupCacheFor && at >= cached.At && cached.Recent == recent)
+        {
+            return cached.Read;
+        }
+
+        var from = at - span;
+        var before = recent.AddMinutes(-1);
+        var totals = await rollups.SummariseAsync(SecurityRollupSubject.Total, from, before, cancellationToken).ConfigureAwait(false);
+        var byProvider = await rollups.SummariseAsync(SecurityRollupSubject.AuthProvider, from, before, cancellationToken).ConfigureAwait(false);
+        var bySet = await rollups.SummariseAsync(SecurityRollupSubject.RuleSet, from, before, cancellationToken).ConfigureAwait(false);
+        Dictionary<AuthProviderId, SecurityPoint> provided = [];
+        foreach (var (text, point) in byProvider)
+        {
+            if (AuthProviderId.TryParse(text, null, out var id))
+            {
+                provided[id] = point;
+            }
+        }
+
+        Dictionary<RuleSetId, SecurityPoint> applied = [];
+        foreach (var (text, point) in bySet)
+        {
+            if (RuleSetId.TryParse(text, null, out var id))
+            {
+                applied[id] = point;
+            }
+        }
+
+        var read = new SecurityRead(at, totals.GetValueOrDefault(string.Empty) ?? SecurityPoint.Empty(0, 0), provided, applied);
+        _cache[range] = new CachedRead(at, recent, read);
+        return read;
+    }
+
+    private sealed record CachedRead(DateTimeOffset At, DateTimeOffset Recent, SecurityRead Read);
+
+    private sealed record SecurityRead(DateTimeOffset At, SecurityPoint Total, IReadOnlyDictionary<AuthProviderId, SecurityPoint> Providers, IReadOnlyDictionary<RuleSetId, SecurityPoint> Sets)
+    {
+        /// <summary>What the sampler holds for the last <paramref name="window"/> (at most its hour).</summary>
+        public static SecurityRead Of(DateTimeOffset at, MetricSampler sampler, TimeSpan window) => new(
+            at,
+            sampler.SummariseSecurity(SecurityRollupSubject.Total, window).GetValueOrDefault(Guid.Empty) ?? SecurityPoint.Empty(0, 0),
+            sampler.SummariseSecurity(SecurityRollupSubject.AuthProvider, window).ToDictionary(static pair => AuthProviderId.FromValue(pair.Key), static pair => pair.Value),
+            sampler.SummariseSecurity(SecurityRollupSubject.RuleSet, window).ToDictionary(static pair => RuleSetId.FromValue(pair.Key), static pair => pair.Value));
+
+        public SecurityPoint Provider(AuthProviderId id) => Providers.GetValueOrDefault(id) ?? SecurityPoint.Empty(0, 0);
+
+        public SecurityPoint Set(RuleSetId id) => Sets.GetValueOrDefault(id) ?? SecurityPoint.Empty(0, 0);
+    }
+
+    // The limit and the deny list are the live config's, and what it counts now is a level; what it refused is over the range.
+    private ConnectionCounters ConnectionsOf(RuntimeSnapshot snapshot, SecurityPoint total)
     {
         var policy = snapshot.Connections;
-        var stats = _connections;
         ConnectionDenyListRef? list = policy.DenyListId is { } id ? new(id, policy.DenyListName ?? string.Empty, policy.Deny.RangeCount) : null;
-        return new ConnectionCounters(policy.MaxPerIp, stats.Denied, stats.OverCap, stats.TableFull, stats.Open, list);
+        return new ConnectionCounters(
+            policy.MaxPerIp, total[SecurityCounter.ConnectionsDenied], total[SecurityCounter.ConnectionsOverLimit], total[SecurityCounter.ConnectionsUncounted], connections.Stats.Open, list);
     }
 
-    // Each provider the live config applies counts once, however many hosts and routes ask it.
-    private static SignInCounters ForwardAuthOf(RuntimeSnapshot snapshot)
-    {
-        Dictionary<AuthProviderId, CompiledAuthProvider> providers = [];
-        foreach (var host in snapshot.HostsByIndex)
-        {
-            if (host.AuthProvider is { } hostProvider)
-            {
-                providers.TryAdd(hostProvider.Id, hostProvider);
-            }
-
-            foreach (var route in host.Routes)
-            {
-                if (route.AuthProvider is { } routeProvider)
-                {
-                    providers.TryAdd(routeProvider.Id, routeProvider);
-                }
-            }
-        }
-
-        long allowed = 0, denied = 0, redirected = 0, cacheHits = 0, calls = 0, errors = 0, timeouts = 0, busy = 0;
-        foreach (var provider in providers.Values)
-        {
-            var counters = provider.Counters;
-            allowed += counters.Allowed;
-            denied += counters.Denied;
-            redirected += counters.Redirected;
-            cacheHits += counters.CacheHits;
-            calls += counters.Calls;
-            errors += counters.Errors;
-            timeouts += counters.Timeouts;
-            busy += counters.Busy;
-        }
-
-        return new SignInCounters(allowed, denied, redirected, cacheHits, calls, errors, timeouts, busy);
-    }
-
-    private static HostProtections HostOf(CompiledHost host)
+    private static HostProtections HostOf(CompiledHost host, SecurityRead security)
     {
         // Only a proxy host runs the gate on its routes; the other kinds carry the setting inertly.
         var powOn = host.Kind == HostKind.Proxy && host.ProofOfWork.Enabled;
@@ -138,14 +201,14 @@ public sealed class SecurityOverviewService
         var setOverrides = host.Routes
             .Where(route => route.RuleSet?.Id != hostSet?.Id)
             .GroupBy(route => route.RuleSet?.Id)
-            .Select(group => new RuleSetOverride(group.Count(), group.First().RuleSet is { } set ? SetRefOf(set) : null))
+            .Select(group => new RuleSetOverride(group.Count(), group.First().RuleSet is { } set ? SetRefOf(set, security) : null))
             .OrderBy(use => use.Set?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var hostProvider = host.AuthProvider;
         var providerOverrides = host.Routes
             .Where(route => route.AuthProvider?.Id != hostProvider?.Id)
             .GroupBy(route => route.AuthProvider?.Id)
-            .Select(group => new AuthProviderOverride(group.Count(), group.First().AuthProvider is { } provider ? ProviderRefOf(provider) : null))
+            .Select(group => new AuthProviderOverride(group.Count(), group.First().AuthProvider is { } provider ? ProviderRefOf(provider, security) : null))
             .OrderBy(use => use.Provider?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         return new HostProtections(
@@ -157,21 +220,32 @@ public sealed class SecurityOverviewService
             new AccessListProtection(listOverrides, hostList is null ? null : ListRefOf(hostList)),
             host.OriginLockdown,
             host.AuthenticatedOriginPulls,
-            new RuleSetProtection(setOverrides, hostSet is null ? null : SetRefOf(hostSet)),
-            new AuthProviderProtection(providerOverrides, hostProvider is null ? null : ProviderRefOf(hostProvider)));
+            new RuleSetProtection(setOverrides, hostSet is null ? null : SetRefOf(hostSet, security)),
+            new AuthProviderProtection(providerOverrides, hostProvider is null ? null : ProviderRefOf(hostProvider, security)));
     }
 
-    private static AuthProviderRef ProviderRefOf(CompiledAuthProvider provider)
+    private static AuthProviderRef ProviderRefOf(CompiledAuthProvider provider, SecurityRead security)
     {
-        var counters = provider.Counters;
-        return new(provider.Id, provider.Name, provider.Spec.Url, counters.Allowed, counters.Denied + counters.Redirected, counters.Errors + counters.Timeouts + counters.Busy);
+        var counts = security.Provider(provider.Id);
+        return new(
+            provider.Id,
+            provider.Name,
+            provider.Spec.Url,
+            counts[SecurityCounter.SignInAllowed],
+            counts[SecurityCounter.SignInDenied] + counts[SecurityCounter.SignInRedirected],
+            counts[SecurityCounter.SignInErrors] + counts[SecurityCounter.SignInTimeouts] + counts[SecurityCounter.SignInBusy]);
     }
 
     private static AccessListRef ListRefOf(CompiledAccessList list) =>
         new(list.Id, list.Name, list.UserCount, list.Allow.RangeCount + list.Deny.RangeCount, list.AllowCountries.Count + list.DenyCountries.Count);
 
-    private static RuleSetRef SetRefOf(CompiledRuleSet set) =>
-        new(set.Id, set.Name, set.RuleCount, Contracts.Config.RuleSetPresets.IsPreset(set.Id), set.Counters.Denied, set.Counters.Dropped, set.Counters.Allowed, set.Counters.Timeouts);
+    private static RuleSetRef SetRefOf(CompiledRuleSet set, SecurityRead security)
+    {
+        var counts = security.Set(set.Id);
+        return new(
+            set.Id, set.Name, set.RuleCount, Contracts.Config.RuleSetPresets.IsPreset(set.Id),
+            counts[SecurityCounter.RulesDenied], counts[SecurityCounter.RulesDropped], counts[SecurityCounter.RulesAllowed], counts[SecurityCounter.RulesTimeouts]);
+    }
 
     private static RateLimitPolicyRef RefOf(RateLimitPolicy policy) => new(policy.PolicyId, policy.PolicyName);
 }

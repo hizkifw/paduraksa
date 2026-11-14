@@ -173,12 +173,19 @@ public sealed class AuthProvidersEndToEndTests
         await Expect(page.Locator("[data-host='app.home.test'] [data-cell=sign-in]")).ToContainTextAsync("Authelia", new() { Timeout = 15_000 });
         await Expect(page.Locator("[data-host='app.home.test'] [data-cell=sign-in]")).ToContainTextAsync("1 allowed, 1 refused", new() { Timeout = 15_000 });
         await Expect(page.Locator("[data-host='app.home.test'] [data-cell=sign-in]")).ToContainTextAsync("Off on 1 route");
-        await Expect(page.Locator("[data-section=sign-in] [data-reason=sign-in-allowed]")).ToHaveTextAsync("1");
         await PlaywrightBrowser.ScreenshotAsync(page, "sign-in-security-1280");
         await page.SetViewportSizeAsync(390, 844);
         await PlaywrightBrowser.SettleAsync(page);
         await ExpectNoSidewaysScrollAsync(page, "The security overview");
         await PlaywrightBrowser.ScreenshotAsync(page, "sign-in-security-390");
+
+        // The providers' summed counters are a card of the security statistics on Analytics, where the page's link leads.
+        await page.Locator("[data-part=refused] a").ClickAsync();
+        await Expect(page.Locator("[data-section=sign-in] [data-reason=sign-in-allowed]")).ToHaveTextAsync("1", new() { Timeout = 15_000 });
+        await page.SetViewportSizeAsync(1280, 900);
+        await OpenFromNavigationAsync(page, "Security overview");
+        await Expect(page.Locator("[data-host='app.home.test'] [data-cell=sign-in]")).ToContainTextAsync("Authelia", new() { Timeout = 15_000 });
+        await page.SetViewportSizeAsync(390, 844);
 
         // Light: the same pages in the other theme.
         await page.EmulateMediaAsync(new PageEmulateMediaOptions { ColorScheme = ColorScheme.Light });

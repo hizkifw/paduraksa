@@ -1,14 +1,15 @@
 @attribute [Route(DashboardRoutes.Security)]
 @implements IAsyncDisposable
 @using Paduraksa.Application.Security
+@using Paduraksa.Contracts.Metrics
 @using Paduraksa.Contracts.Security
 @inject SecurityOverviewService Service
 @inject DashboardCaller Caller
 @inject TimeProvider Time
 @inject IJSRuntime JS
 @inject DisplayFormat Fmt
-@* What protects the hosts and whether it is working: the gate's counters with their live rates, and each enabled host's
-   protections from the live snapshot. A rate is the difference between two samples over the time between them. *@
+@* What protects the hosts: each enabled host's protections from the live snapshot, read every couple of seconds, and what the gate
+   refused over the last 24 hours (overall by reason, and per host). The counters over time are the security section of Analytics. *@
 
 <PageTitle>Security overview · Paduraksa</PageTitle>
 
@@ -22,21 +23,25 @@
 }
 else if (_current is { } current)
 {
-    var pow = current.ProofOfWork;
-    var rejected = SecurityFigures.Rejected(pow);
-    var requests = current.RateLimit.Allowed + current.RateLimit.Limited;
-    var lists = current.AccessLists;
+    var refused = current.Refusals.Refused;
 
-    <p class="pdk-sec-since" data-part="since">Counted since Paduraksa started @Fmt.Ago(current.Since, current.SampledAt).</p>
-
-    <div class="pdk-sec-tiles">
-        <SecurityTile Name="served" Label="Challenges served" Value="@Fmt.Count(pow.ChallengesServed)" Rate="@Fmt.RateText(_rates?.Served)" />
-        <SecurityTile Name="solved" Label="Solved" Value="@Fmt.Count(pow.Solved)" Rate="@Fmt.RateText(_rates?.Solved)"
-                      Detail="@(Fmt.ShareOrNull(pow.Solved, pow.ChallengesServed) is { } solveRate ? $"{solveRate} of served" : null)" />
-        <SecurityTile Name="rejected" Label="Rejected" Value="@Fmt.Count(rejected)" Rate="@Fmt.RateText(_rates?.Rejected)" />
-        <SecurityTile Name="limited" Label="Rate-limited" Value="@Fmt.Count(current.RateLimit.Limited)" Rate="@Fmt.RateText(_rates?.Limited)"
-                      Detail="@(Fmt.ShareOrNull(current.RateLimit.Limited, requests) is { } limitedShare ? $"{limitedShare} of checked requests" : null)" />
-    </div>
+    @if (_dayFailed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
+            The last 24 hours couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+    else
+    {
+    <p class="pdk-sec-since" data-part="refused">
+        <a class="pdk-row-link" href="@SecurityStatisticsHref" title="The refusals over time and every counter, on Analytics">@(refused == 0 ? "Nothing refused in the last 24 h" : $"Refused in the last 24 h: {Fmt.Count(refused)}")</a>
+        @if (refused > 0)
+        {
+            <span data-part="reasons"> (@SecurityFigures.ReasonsText(current.Refusals, Fmt))</span>
+        }
+    </p>
+    }
 
     <div class="pdk-sec-body">
         <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="hosts">
@@ -56,9 +61,13 @@ else if (_current is { } current)
             }
             else
             {
-                <div class="pdk-dt pdk-security-table" role="table" aria-label="Protections by host">
+                <div class="pdk-dt pdk-security-table @(_dayFailed ? "pdk-security-table-live" : null)" role="table" aria-label="Protections by host">
                     <div class="pdk-dt-row pdk-dt-head" role="row">
                         <span role="columnheader">Host</span>
+                        @if (!_dayFailed)
+                        {
+                            <span role="columnheader" title="Requests to the host the gate refused in the last 24 hours">Refused, 24 h</span>
+                        }
                         <span role="columnheader">Proof of work</span>
                         <span role="columnheader">Rate limit</span>
                         <span role="columnheader">robots.txt</span>
@@ -73,6 +82,19 @@ else if (_current is { } current)
                             <div role="cell" class="pdk-dt-main">
                                 <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@host.Name</a>
                             </div>
+                            @if (!_dayFailed)
+                            {
+                                <div role="cell" class="pdk-dt-cell" data-label="Refused, 24 h" data-cell="refused">
+                                    @if (host.Refused == 0)
+                                    {
+                                        <span class="pdk-muted">0</span>
+                                    }
+                                    else
+                                    {
+                                        @Fmt.Count(host.Refused)
+                                    }
+                                </div>
+                            }
                             <div role="cell" class="pdk-dt-cell" data-label="Proof of work" data-cell="pow">
                                 @if (host.ProofOfWork.Enabled)
                                 {
@@ -263,95 +285,26 @@ else if (_current is { } current)
             }
         </MudPaper>
 
-        <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="rejections">
-            <div class="pdk-card-head">
-                <MudText Typo="Typo.h6" HtmlTag="h2">Proof-of-work rejections</MudText>
-            </div>
-            <dl class="pdk-sec-reasons">
-                <div title="A wrong challenge or solution sent to the verify endpoint"><dt>Bad solution</dt><dd data-reason="verify">@Fmt.Count(pow.VerifyRejected)</dd></div>
-                <div title="No token, and not a browser: a script, or a method that can't show a page"><dt>Not a browser</dt><dd data-reason="non-browser">@Fmt.Count(pow.BlockedNonBrowser)</dd></div>
-                <div title="A cookie that is not a token this build issues"><dt>Malformed cookie</dt><dd data-reason="malformed">@Fmt.Count(pow.TokensRejected.Malformed)</dd></div>
-                <div title="Altered, or issued for another host or client address"><dt>Bad signature</dt><dd data-reason="bad-tag">@Fmt.Count(pow.TokensRejected.BadTag)</dd></div>
-                <div title="Valid, but past its lifetime"><dt>Expired</dt><dd data-reason="expired">@Fmt.Count(pow.TokensRejected.Expired)</dd></div>
-                <div title="Valid, but easier than the host's current difficulty"><dt>Too easy</dt><dd data-reason="too-easy">@Fmt.Count(pow.TokensRejected.TooEasy)</dd></div>
-            </dl>
-        </MudPaper>
-
-        <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="access-lists">
-            <div class="pdk-card-head">
-                <MudText Typo="Typo.h6" HtmlTag="h2">Access lists</MudText>
-            </div>
-            <dl class="pdk-sec-reasons">
-                <div title="Refused for their address: a 403, or dropped"><dt>Address refused</dt><dd data-reason="address-refused">@Fmt.Count(lists.AddressRefused)</dd></div>
-                <div title="Answered 401: no credentials, or a wrong password"><dt>Wrong or missing password</dt><dd data-reason="unauthorized">@Fmt.Count(lists.Unauthorized)</dd></div>
-                <div title="Checks run in full, right or wrong; a password accepted from the five-minute memory is not one"><dt>Passwords checked</dt><dd data-reason="checked">@Fmt.Count(lists.Verifications)</dd></div>
-                <div title="Waited for a password check to come free"><dt>Queued</dt><dd data-reason="queued">@Fmt.Count(lists.Queued)</dd></div>
-                <div title="Answered 429: the line for a check was full or this client already had its share of it, or the wait ran out"><dt>Refused, busy</dt><dd data-reason="busy">@Fmt.Count(lists.QueueFull + lists.QueueTimeouts)</dd></div>
-            </dl>
-        </MudPaper>
-
-        @if (current.Connections is { } connections)
-        {
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="connections">
-                <div class="pdk-card-head">
-                    <MudText Typo="Typo.h6" HtmlTag="h2">Connections</MudText>
-                </div>
-                <dl class="pdk-sec-reasons">
-                    <div title="Open connections one client address may hold; an IPv6 /64 counts as one address. Trusted proxies are not counted"><dt>Limit per address</dt><dd data-reason="connection-limit">@SecurityFigures.LimitText(connections.MaxPerIp, Fmt)</dd></div>
-                    <div title="The deny addresses of this access list are refused before TLS"><dt>Deny list</dt><dd data-reason="connection-deny-list">
-                        @if (connections.DenyList is { } denyList)
-                        {
-                            <a class="pdk-row-link" href="@DashboardRoutes.AccessList(denyList.Id)">@denyList.Name</a>
-                        }
-                        else
-                        {
-                            <span class="pdk-muted">None</span>
-                        }
-                    </dd></div>
-                    <div title="Closed before TLS because the address is in the deny list"><dt>Refused, deny list</dt><dd data-reason="connection-denied">@Fmt.Count(connections.DenyListRefused)</dd></div>
-                    <div title="Closed before TLS because the address already held its limit"><dt>Refused, over the limit</dt><dd data-reason="connection-over-limit">@Fmt.Count(connections.LimitRefused)</dd></div>
-                    <div title="Open connections the limit counts now"><dt>Counted now</dt><dd data-reason="connection-counted">@Fmt.Count(connections.Counted)</dd></div>
-                    @if (connections.Uncounted > 0)
-                    {
-                        <div title="Let through without being counted because the table had no room: a flood from very many addresses filled it"><dt>Not counted, table full</dt><dd data-reason="connection-uncounted">@Fmt.Count(connections.Uncounted)</dd></div>
-                    }
-                </dl>
-            </MudPaper>
-        }
-
-        @if (current.ForwardAuth is { } signIn)
-        {
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="sign-in">
-                <div class="pdk-card-head">
-                    <MudText Typo="Typo.h6" HtmlTag="h2">Sign-in</MudText>
-                </div>
-                <dl class="pdk-sec-reasons">
-                    <div title="Let through by an auth provider: from its answer, or from the allow it gave a moment ago"><dt>Allowed</dt><dd data-reason="sign-in-allowed">@Fmt.Count(signIn.Allowed)</dd></div>
-                    <div title="Refused with the provider's 401 or 403, or sent to a sign-in page"><dt>Refused or sent to sign in</dt><dd data-reason="sign-in-refused">@Fmt.Count(signIn.Denied + signIn.Redirected)</dd></div>
-                    <div title="Allows answered from the decision cache, with no call to the provider"><dt>Answered from memory</dt><dd data-reason="sign-in-cache-hits">@Fmt.Count(signIn.CacheHits)</dd></div>
-                    <div title="Calls made to the providers' endpoints"><dt>Calls made</dt><dd data-reason="sign-in-calls">@Fmt.Count(signIn.Calls)</dd></div>
-                    <div title="A call that failed or answered something the proxy won't act on (502), ran out of time (504), or found too many already running (503): the request was refused"><dt>Errors and timeouts</dt><dd data-reason="sign-in-errors">@Fmt.Count(signIn.Errors + signIn.Timeouts + signIn.Busy)</dd></div>
-                </dl>
-            </MudPaper>
-        }
     </div>
 }
 
 @code {
     private SecurityOverview? _current;
-    private SecurityOverview? _previous;
-    private Rates? _rates;
     private bool _denied;
+    private bool _dayFailed;
     private bool _mayWrite;
     private bool _visible = true;
     private bool _started;
     private DotNetObjectReference<SecurityPage>? _self;
     private CancellationTokenSource? _stop;
 
+    /// <summary>The security section of Analytics, whose range defaults to the same 24 hours.</summary>
+    private static string SecurityStatisticsHref => DashboardRoutes.Analytics + "#security";
+
     /// <summary>A set's page; a built-in preset has none of its own, so it goes to the list that shows the presets.</summary>
     private static string RuleSetHref(RuleSetRef set) => set.BuiltIn ? DashboardRoutes.RuleSets : DashboardRoutes.RuleSet(set.Id);
 
-    /// <summary>How often the counters are sampled while the page is visible. A test shortens it; the person never changes it.</summary>
+    /// <summary>How often the page reads while it is visible. A test shortens it; the person never changes it.</summary>
     [Parameter]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
 
@@ -375,9 +328,9 @@ else if (_current is { } current)
         }
 
         _mayWrite = user.Has(Permission.ConfigWrite);
-        Sample();
-        _started = true;
         _stop = new CancellationTokenSource();
+        await LoadAsync();
+        _started = true;
         _ = PollAsync(_stop);
     }
 
@@ -397,21 +350,37 @@ else if (_current is { } current)
         }
     }
 
-    /// <summary>The tab was hidden or shown. Hidden, the polling pauses; shown, it starts over from a fresh sample, so a rate never spans the time away.</summary>
+    /// <summary>The tab was hidden or shown: the polling pauses while it is hidden and reads at once when it is shown.</summary>
     [JSInvokable]
     public async Task PageVisibilityChangedAsync(bool visible)
     {
-        await InvokeAsync(() =>
+        await InvokeAsync(async () =>
         {
             _visible = visible;
             if (visible)
             {
-                _current = null;
-                Sample();
+                await LoadAsync();
             }
-
-            StateHasChanged();
         });
+    }
+
+    // The protections are the live snapshot's on every read; the 24 hours are the rollups, which the service reads at most every 30 s.
+    // Rollups that can't be read must not hide the protections: the hour is memory, so it stands in for them, without the 24-hour figures.
+    private async Task LoadAsync()
+    {
+        var token = _stop?.Token ?? CancellationToken.None;
+        try
+        {
+            _current = await Service.ReadAsync(MetricsRange.Day, token);
+            _dayFailed = false;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _dayFailed = true;
+            _current = await Service.ReadAsync(MetricsRange.Hour, token);
+        }
+
+        StateHasChanged();
     }
 
     private async Task PollAsync(CancellationTokenSource stop)
@@ -422,27 +391,16 @@ else if (_current is { } current)
             using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(2), Time);
             while (await timer.WaitForNextTickAsync(token))
             {
-                await InvokeAsync(() =>
+                if (_visible)
                 {
-                    if (_visible)
-                    {
-                        Sample();
-                        StateHasChanged();
-                    }
-                });
+                    await InvokeAsync(LoadAsync);
+                }
             }
         }
         catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
         {
             // The page is gone.
         }
-    }
-
-    private void Sample()
-    {
-        _previous = _current;
-        _current = Service.Read();
-        _rates = _previous is null ? null : Rates.Between(_previous, _current);
     }
 
     public async ValueTask DisposeAsync()
@@ -465,20 +423,6 @@ else if (_current is { } current)
             }
 
             _self.Dispose();
-        }
-    }
-
-    /// <summary>The per-second rates between two samples.</summary>
-    private sealed record Rates(double? Served, double? Solved, double? Rejected, double? Limited)
-    {
-        public static Rates Between(SecurityOverview before, SecurityOverview after)
-        {
-            var elapsed = after.SampledAt - before.SampledAt;
-            return new Rates(
-                SecurityFigures.Rate(before.ProofOfWork.ChallengesServed, after.ProofOfWork.ChallengesServed, elapsed),
-                SecurityFigures.Rate(before.ProofOfWork.Solved, after.ProofOfWork.Solved, elapsed),
-                SecurityFigures.Rate(SecurityFigures.Rejected(before.ProofOfWork), SecurityFigures.Rejected(after.ProofOfWork), elapsed),
-                SecurityFigures.Rate(before.RateLimit.Limited, after.RateLimit.Limited, elapsed));
         }
     }
 }

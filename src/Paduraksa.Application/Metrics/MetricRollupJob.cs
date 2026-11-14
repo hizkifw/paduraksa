@@ -13,9 +13,9 @@ namespace Paduraksa.Application.Metrics;
 /// the last hour of rollups, and it is registered before the sampler's service so that it stops after it: the minute the sampler
 /// closes as it stops is still in the queue when the job's last write runs.
 /// </summary>
-/// <remarks>The security series' minutes go to <paramref name="security"/> the same way, on the same schedule and retention; null leaves them unwritten (a test of the request rollups alone).</remarks>
+/// <remarks>The security series' minutes go to <paramref name="security"/> the same way, on the same schedule and retention.</remarks>
 public sealed partial class MetricRollupJob(
-    MetricSampler sampler, MetricRollupStore store, MetricRollupOptions options, TimeProvider time, ILogger<MetricRollupJob> logger, SecurityRollupStore? security = null) : BackgroundService
+    MetricSampler sampler, MetricRollupStore store, SecurityRollupStore security, MetricRollupOptions options, TimeProvider time, ILogger<MetricRollupJob> logger) : BackgroundService
 {
     private readonly MetricRollupBacklog _queue = sampler.Rollups;
     private readonly SecurityRollupBacklog _securityQueue = sampler.SecurityRollups;
@@ -38,10 +38,7 @@ public sealed partial class MetricRollupJob(
         try
         {
             sampler.Seed(await store.ReadMinutesAsync(from, now, cancellationToken).ConfigureAwait(false));
-            if (security is not null)
-            {
-                sampler.SeedSecurity(await security.ReadMinutesAsync(from, now, cancellationToken).ConfigureAwait(false));
-            }
+            sampler.SeedSecurity(await security.ReadMinutesAsync(from, now, cancellationToken).ConfigureAwait(false));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -82,10 +79,7 @@ public sealed partial class MetricRollupJob(
     public async Task WriteAsync(CancellationToken cancellationToken)
     {
         await WriteAsync(_queue, store.WriteAsync, cancellationToken).ConfigureAwait(false);
-        if (security is not null)
-        {
-            await WriteAsync(_securityQueue, security.WriteAsync, cancellationToken).ConfigureAwait(false);
-        }
+        await WriteAsync(_securityQueue, security.WriteAsync, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task WriteAsync<T>(RollupBacklog<T> queue, Func<IReadOnlyList<T>, CancellationToken, Task> write, CancellationToken cancellationToken)
@@ -119,10 +113,7 @@ public sealed partial class MetricRollupJob(
         {
             var cutoff = time.GetUtcNow() - options.Retention;
             var removed = await store.PruneAsync(cutoff, cancellationToken).ConfigureAwait(false);
-            if (security is not null)
-            {
-                removed += await security.PruneAsync(cutoff, cancellationToken).ConfigureAwait(false);
-            }
+            removed += await security.PruneAsync(cutoff, cancellationToken).ConfigureAwait(false);
 
             if (removed > 0)
             {

@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
+using Paduraksa.Application.Metrics;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Metrics;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Integration.Config;
@@ -67,7 +69,7 @@ public sealed class SecurityApiTests(SharedAdminApi shared) : IClassFixture<Shar
         var overview = await AdminApiHarness.ReadAsync(response, AdminJsonContext.Default.SecurityOverview, Ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(overview.SampledAt >= overview.Since);
+        Assert.Equal(MetricsRange.Hour, overview.Range);
         Assert.True(overview.ProofOfWork.ChallengesServed >= 0);
         Assert.True(overview.RateLimit.Allowed >= 0);
         var line = Assert.Single(overview.Hosts, h => h.Id == host.Id);
@@ -77,6 +79,32 @@ public sealed class SecurityApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.Null(line.RateLimit.Policy);
         Assert.Null(line.AccessList.List);
         Assert.Empty(line.AccessList.Overrides);
+    }
+
+    [Theory]
+    [InlineData("hour", MetricsRange.Hour)]
+    [InlineData("day", MetricsRange.Day)]
+    [InlineData("week", MetricsRange.Week)]
+    [InlineData("month", MetricsRange.Month)]
+    public async Task TheRangeIsReadFromTheQuery(string text, MetricsRange range)
+    {
+        using var response = await shared.Api.GetAsync("/api/v1/security/overview?range=" + text);
+        var overview = await AdminApiHarness.ReadAsync(response, AdminJsonContext.Default.SecurityOverview, Ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(range, overview.Range);
+        Assert.Equal(MetricsService.Reach(range).Bucket, overview.Step);
+    }
+
+    [Theory]
+    [InlineData("year")]
+    [InlineData("Hour")]
+    public async Task AnUnknownRangeIsAProblem(string range)
+    {
+        using var response = await shared.Api.GetAsync("/api/v1/security/overview?range=" + range);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
     private sealed class WithoutConfigRead(IPermissionEvaluator inner) : IPermissionEvaluator

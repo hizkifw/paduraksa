@@ -3,16 +3,25 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Dashboard.Pages;
 
-/// <summary>What the security page shows, worked out from the overview and the sample before it.</summary>
+/// <summary>What the security page and the security statistics show, worked out from the overview.</summary>
 internal static class SecurityFigures
 {
-    /// <summary>Everything the proof-of-work gate refused: bad solutions, non-browsers and each kind of bad cookie.</summary>
-    public static long Rejected(ProofOfWorkCounters pow) =>
-        pow.VerifyRejected + pow.BlockedNonBrowser + pow.TokensRejected.Malformed + pow.TokensRejected.BadTag + pow.TokensRejected.Expired + pow.TokensRejected.TooEasy;
+    /// <summary>A reason the gate refused requests, as the chart and the summary line name and colour it.</summary>
+    public sealed record RefusalKind(string Name, string Key, string Css, Func<RefusalReasons, long> Of);
 
-    /// <summary>Per-second change between two samples; null when there is no earlier sample or no time passed between them.</summary>
-    public static double? Rate(long before, long after, TimeSpan elapsed) =>
-        elapsed > TimeSpan.Zero ? Math.Max(0, after - before) / elapsed.TotalSeconds : null;
+    /// <summary>The refusal reasons in the order the chart stacks them, the unknown reason (minutes stored before the reasons were kept) last.</summary>
+    public static IReadOnlyList<RefusalKind> RefusalKinds { get; } =
+    [
+        new("Rate limit", "rate-limit", "pdk-chart-r1", static reasons => reasons.RateLimit),
+        new("Access list", "access-list", "pdk-chart-r2", static reasons => reasons.AccessList),
+        new("Rules", "rules", "pdk-chart-r3", static reasons => reasons.RuleSet),
+        new("Proof of work", "proof-of-work", "pdk-chart-r4", static reasons => reasons.ProofOfWork),
+        new("Sign-in", "sign-in", "pdk-chart-r5", static reasons => reasons.SignIn),
+        new("Request limits", "request-limits", "pdk-chart-r6", static reasons => reasons.RequestLimits),
+        new("Connection", "connection", "pdk-chart-r7", static reasons => reasons.Connection),
+        new("Other", "other", "pdk-chart-r8", static reasons => reasons.Other),
+        new("Unknown reason", "unknown", "pdk-chart-r9", static reasons => reasons.Unknown),
+    ];
 
     // The numbers are DisplayFormat's. These keep the names the pages and other branches call; they write the invariant default, and a page
     // that shows them to a person calls the injected DisplayFormat instead.
@@ -21,6 +30,12 @@ internal static class SecurityFigures
     public static string Count(long value) => DisplayFormat.Invariant.Count(value);
 
     public static string? Share(long part, long whole) => DisplayFormat.Invariant.ShareOrNull(part, whole);
+
+    /// <summary>"rate limit 900 · access list 250": the reasons that refused anything, most first.</summary>
+    public static string ReasonsText(RefusalReasons reasons, DisplayFormat? format = null) => string.Join(
+        " · ",
+        RefusalKinds.Select(kind => (kind, count: kind.Of(reasons))).Where(static pair => pair.count > 0).OrderByDescending(static pair => pair.count)
+            .Select(pair => $"{pair.kind.Name.ToLowerInvariant()} {(format ?? DisplayFormat.Invariant).Count(pair.count)}"));
 
     /// <summary>"256", or "Off" for the limit that is turned off.</summary>
     public static string LimitText(int limit, DisplayFormat? format = null) => limit == 0 ? "Off" : (format ?? DisplayFormat.Invariant).Count(limit);

@@ -349,8 +349,6 @@ internal sealed class SharedServices : IAsyncDisposable
             // The per-IP connection table and the connection stage's counters: the public listeners count into it, and the security
             // overview and the metrics read it.
             var connections = builder.Add(new ConnectionRuntime(new ConnectionTable(), coreLoggers.CreateLogger("Paduraksa.Proxy.Connections"), timeProvider));
-            // Built here so its start time is the process's: the counters it reports begin at zero with them.
-            builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider, accessLists, connections));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
@@ -416,7 +414,7 @@ internal sealed class SharedServices : IAsyncDisposable
             var sampler = builder.Add(new MetricSampler(metrics, timeProvider, new MetricRollupBacklog(), securitySources));
             var rollupStore = configStore.MetricRollups;
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
-            builder.Add(new MetricRollupJob(sampler, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>(), configStore.SecurityRollups));
+            builder.Add(new MetricRollupJob(sampler, rollupStore, configStore.SecurityRollups, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
             builder.Add(new DraftExpiryJob(configStore.Drafts, timeProvider, coreLoggers.CreateLogger<DraftExpiryJob>()));
             builder.Add(new AnalyticsRollupJob(configStore.AnalyticsRollups, options.Analytics.ToOptions(), timeProvider, coreLoggers.CreateLogger<AnalyticsRollupJob>()));
             var peerGone = builder.Add(new PeerGoneLogFilter());
@@ -427,7 +425,8 @@ internal sealed class SharedServices : IAsyncDisposable
                 new ProcessCounter("paduraksa.connection.errors", "Connection errors the logs leave out, by kind: peer_gone is a client that vanished mid-write.", "kind", "peer_gone", () => peerGone.Count),
             ]));
             builder.Add(new PaduraksaMeter(metrics, snapshots, processCounters));
-            builder.Add(new MetricsService(metrics, snapshots, sampler, rollupStore, processCounters, timeProvider));
+            var metricsService = builder.Add(new MetricsService(metrics, snapshots, sampler, rollupStore, processCounters, timeProvider));
+            builder.Add(new SecurityOverviewService(snapshots, connections, sampler, metricsService, configStore.SecurityRollups, timeProvider));
             builder.Add(new AnalyticsService(configStore.AnalyticsRollups, analytics, timeProvider));
 
             // After the config store, which it asks to compile the live config again when Cloudflare's ranges change: disposed

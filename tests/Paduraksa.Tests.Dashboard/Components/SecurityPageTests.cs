@@ -11,6 +11,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
@@ -35,148 +36,10 @@ public sealed class SecurityPageTests
     private static readonly AuthProviderId Sso = AuthProviderId.New();
 
     [Fact]
-    public async Task TheTilesShowTheCountersAndTheirRatesFromTwoSamples()
-    {
-        await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
-        shell.ProofOfWork.Stats.CountChallengeServed();
-        shell.ProofOfWork.Stats.CountSolved();
-
-        var page = context.Render<SecurityPage>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromSeconds(2)));
-
-        Assert.Equal("1", page.Find("[data-tile=served] [data-part=value]").TextContent);
-        Assert.Equal(string.Empty, page.Find("[data-tile=served] [data-part=rate]").TextContent.Trim());
-
-        for (var i = 0; i < 5; i++)
-        {
-            shell.ProofOfWork.Stats.CountChallengeServed();
-        }
-
-        shell.ProofOfWork.Stats.CountSolved();
-        shell.ProofOfWork.Stats.CountVerifyRejected();
-        shell.ProofOfWork.Stats.CountExpired();
-        shell.RateLimits.Stats.CountAllowed();
-        shell.RateLimits.Stats.CountAllowed();
-        shell.RateLimits.Stats.CountAllowed();
-        shell.RateLimits.Stats.CountLimited();
-        shell.Time.Advance(TimeSpan.FromSeconds(2));
-        await page.WaitForStateAsync(() => page.Find("[data-tile=served] [data-part=value]").TextContent == "6");
-
-        Assert.Equal("2.5/s", page.Find("[data-tile=served] [data-part=rate]").TextContent);
-        Assert.Equal("2", page.Find("[data-tile=solved] [data-part=value]").TextContent);
-        Assert.Equal("0.5/s", page.Find("[data-tile=solved] [data-part=rate]").TextContent);
-        Assert.Equal("33% of served", page.Find("[data-tile=solved] [data-part=detail]").TextContent);
-        Assert.Equal("2", page.Find("[data-tile=rejected] [data-part=value]").TextContent);
-        Assert.Equal("1", page.Find("[data-tile=rejected] [data-part=rate]").TextContent.Replace("/s", string.Empty, StringComparison.Ordinal));
-        Assert.Equal("1", page.Find("[data-tile=limited] [data-part=value]").TextContent);
-        Assert.Equal("25% of checked requests", page.Find("[data-tile=limited] [data-part=detail]").TextContent);
-        Assert.Equal("0.5/s", page.Find("[data-tile=limited] [data-part=rate]").TextContent);
-    }
-
-    [Fact]
-    public async Task TheConnectionsCardShowsTheLimitTheDenyListAndWhatWasRefusedBeforeTls()
-    {
-        await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
-        var scanners = new AccessListSpec { Id = AccessListId.New(), Name = "scanners", Realm = "scanners", Deny = ["203.0.113.0/24", "198.51.100.7"] };
-        var model = Hosts() with
-        {
-            AccessLists = [scanners],
-            Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 64, DenyList = scanners.Id } },
-        };
-        shell.Publish(model);
-        var runtime = shell.Connections;
-        var snapshot = shell.Store.Current;
-        _ = runtime.Admit(snapshot, IpKey.Parse("203.0.113.9"), ConnectionTransport.Tcp, out _);
-        _ = runtime.Admit(snapshot, IpKey.Parse("203.0.113.10"), ConnectionTransport.Quic, out _);
-        Assert.Equal(ConnectionDecision.Counted, runtime.Admit(snapshot, IpKey.Parse("192.0.2.1"), ConnectionTransport.Tcp, out _));
-
-        var page = context.Render<SecurityPage>();
-
-        var card = page.Find("[data-section=connections]");
-        Assert.Equal("64", card.QuerySelector("[data-reason=connection-limit]")!.TextContent);
-        Assert.Equal("scanners", card.QuerySelector("[data-reason=connection-deny-list]")!.TextContent.Trim());
-        Assert.EndsWith(DashboardRoutes.AccessList(scanners.Id), card.QuerySelector("[data-reason=connection-deny-list] a")!.GetAttribute("href"), StringComparison.Ordinal);
-        Assert.Equal("2", card.QuerySelector("[data-reason=connection-denied]")!.TextContent);
-        Assert.Equal("0", card.QuerySelector("[data-reason=connection-over-limit]")!.TextContent);
-        Assert.Equal("1", card.QuerySelector("[data-reason=connection-counted]")!.TextContent);
-        Assert.Null(card.QuerySelector("[data-reason=connection-uncounted]")); // only once the table has been full
-    }
-
-    [Fact]
-    public async Task TheConnectionsCardSaysOffAndNoneAndShowsTheTableFullLineOnlyOnceItHappened()
-    {
-        await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
-        shell.Publish(Hosts() with { Defaults = new DefaultsSpec { Connections = new ConnectionsSpec { MaxPerIp = 0 } } });
-
-        var page = context.Render<SecurityPage>();
-
-        var card = page.Find("[data-section=connections]");
-        Assert.Equal("Off", card.QuerySelector("[data-reason=connection-limit]")!.TextContent);
-        Assert.Equal("None", card.QuerySelector("[data-reason=connection-deny-list]")!.TextContent.Trim());
-        Assert.Null(card.QuerySelector("[data-reason=connection-uncounted]"));
-        Assert.Equal("Off", SecurityFigures.LimitText(0));
-        Assert.Equal("1,000", SecurityFigures.LimitText(1000));
-    }
-
-    [Fact]
-    public async Task RejectionsAreSummedInTheTileAndListedByReason()
-    {
-        await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
-        var stats = shell.ProofOfWork.Stats;
-        stats.CountVerifyRejected();
-        stats.CountBlockedNonBrowser();
-        stats.CountBlockedNonBrowser();
-        stats.CountMalformed();
-        stats.CountBadTag();
-        stats.CountExpired();
-        stats.CountTooEasy();
-
-        var page = context.Render<SecurityPage>();
-
-        Assert.Equal("7", page.Find("[data-tile=rejected] [data-part=value]").TextContent);
-        Assert.Equal("1", page.Find("[data-reason=verify]").TextContent);
-        Assert.Equal("2", page.Find("[data-reason=non-browser]").TextContent);
-        Assert.Equal("1", page.Find("[data-reason=malformed]").TextContent);
-        Assert.Equal("1", page.Find("[data-reason=bad-tag]").TextContent);
-        Assert.Equal("1", page.Find("[data-reason=expired]").TextContent);
-        Assert.Equal("1", page.Find("[data-reason=too-easy]").TextContent);
-        Assert.Contains("Counted since Paduraksa started", page.Find("[data-part=since]").TextContent, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheAccessListCountersAreListedWithRefusalsForBusyAddedUp()
-    {
-        await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
-        var stats = shell.AccessLists.Stats;
-        stats.CountAddressRefused();
-        stats.CountUnauthorized();
-        stats.CountUnauthorized();
-        stats.CountVerification();
-        stats.CountVerification();
-        stats.CountVerification();
-        stats.CountQueued();
-        stats.CountQueueFull();
-        stats.CountQueueFull();
-        stats.CountQueueTimeout();
-
-        var page = context.Render<SecurityPage>();
-
-        Assert.Equal("1", page.Find("[data-section=access-lists] [data-reason=address-refused]").TextContent);
-        Assert.Equal("2", page.Find("[data-section=access-lists] [data-reason=unauthorized]").TextContent);
-        Assert.Equal("3", page.Find("[data-section=access-lists] [data-reason=checked]").TextContent);
-        Assert.Equal("1", page.Find("[data-section=access-lists] [data-reason=queued]").TextContent);
-        Assert.Equal("3", page.Find("[data-section=access-lists] [data-reason=busy]").TextContent);
-    }
-
-    [Fact]
     public async Task TheCloudflareColumnSaysLockdownAndOriginPullsAndCountsAHostWithOnlyThemAsProtected()
     {
         await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
         HostSpec Plain(HostId id, string name, HostCloudflareSpec cloudflare) => new()
         {
             Id = id,
@@ -215,7 +78,7 @@ public sealed class SecurityPageTests
     public async Task TheHostsTableListsProtectedHostsByNameThenThoseWithNothing()
     {
         await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
         shell.Publish(Hosts());
 
         var page = context.Render<SecurityPage>();
@@ -241,7 +104,7 @@ public sealed class SecurityPageTests
     public async Task TheRulesColumnNamesTheSetWhatItRefusedAndTheRoutesThatApplyNoneOrAPreset()
     {
         await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
         shell.Publish(Hosts());
         var counters = shell.RuleSets.CountersFor(Scanners);
         counters.Count(RuleAction.Deny);
@@ -249,6 +112,7 @@ public sealed class SecurityPageTests
         counters.Count(RuleAction.Drop);
         counters.Count(RuleAction.Allow);
         counters.CountTimeout();
+        await SettleAsync(shell);
 
         var page = context.Render<SecurityPage>();
 
@@ -271,7 +135,7 @@ public sealed class SecurityPageTests
     public async Task TheSignInColumnNamesTheProviderWhatItDecidedAndTheRoutesThatAskNone()
     {
         await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
         shell.Publish(Hosts());
         var counters = shell.ForwardAuth.CountersFor(Sso);
         for (var i = 0; i < 1204; i++)
@@ -282,6 +146,7 @@ public sealed class SecurityPageTests
         counters.CountDenied();
         counters.CountRedirected();
         counters.CountTimeout();
+        await SettleAsync(shell);
 
         var page = context.Render<SecurityPage>();
 
@@ -297,43 +162,17 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
-    public async Task TheSignInCardCountsWhatTheProvidersDecidedAndRefusedForWantOfAnAnswer()
-    {
-        await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
-        shell.Publish(Hosts());
-        var counters = shell.ForwardAuth.CountersFor(Sso);
-        counters.CountAllowed();
-        counters.CountAllowed();
-        counters.CountCacheHit();
-        counters.CountDenied();
-        counters.CountRedirected();
-        counters.CountCall();
-        counters.CountCall();
-        counters.CountError();
-        counters.CountTimeout();
-        counters.CountBusy();
-
-        var page = context.Render<SecurityPage>();
-
-        var card = page.Find("[data-section=sign-in]");
-        Assert.Equal("2", card.QuerySelector("[data-reason=sign-in-allowed]")!.TextContent);
-        Assert.Equal("2", card.QuerySelector("[data-reason=sign-in-refused]")!.TextContent);
-        Assert.Equal("1", card.QuerySelector("[data-reason=sign-in-cache-hits]")!.TextContent);
-        Assert.Equal("2", card.QuerySelector("[data-reason=sign-in-calls]")!.TextContent);
-        Assert.Equal("3", card.QuerySelector("[data-reason=sign-in-errors]")!.TextContent);
-    }
-
-    [Fact]
     public async Task AHostWithNothingOnShowsMutedNoneInEveryCell()
     {
         await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
         shell.Publish(Hosts());
 
         var page = context.Render<SecurityPage>();
 
-        var cells = page.Find("[data-host='files.test']").QuerySelectorAll(".pdk-dt-cell");
+        var row = page.Find("[data-host='files.test']");
+        Assert.Equal("0", row.QuerySelector("[data-cell=refused] .pdk-muted")!.TextContent);
+        var cells = row.QuerySelectorAll(".pdk-dt-cell:not([data-cell=refused])");
         Assert.Equal(7, cells.Length);
         Assert.All(cells, cell =>
         {
@@ -346,7 +185,7 @@ public sealed class SecurityPageTests
     public async Task ARouteOnlyProofOfWorkAndARateLimitOnRoutesOnlyAreSaidSo()
     {
         await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
         shell.Publish(Hosts());
 
         var page = context.Render<SecurityPage>();
@@ -362,7 +201,7 @@ public sealed class SecurityPageTests
     public async Task WithNoHostsAnOperatorIsOfferedTheWayToAddOne()
     {
         await using DashboardTestContext context = new();
-        Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
 
         var page = context.Render<SecurityPage>();
 
@@ -375,7 +214,7 @@ public sealed class SecurityPageTests
     public async Task AViewerWithNoHostsIsNotOfferedTheLink()
     {
         await using DashboardTestContext context = new();
-        Start(context, Role.Viewer);
+        await using var shell = await StartAsync(context, Role.Viewer);
 
         var page = context.Render<SecurityPage>();
 
@@ -384,25 +223,77 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
-    public async Task AHiddenTabStopsSamplingAndAShownOneStartsOverWithoutARate()
+    public async Task TheLineSaysWhatWasRefusedInTheLast24HoursByReasonAndLinksToTheStatistics()
     {
         await using DashboardTestContext context = new();
-        var shell = Start(context, Role.Operator);
+        await using var shell = await StartAsync(context, Role.Operator);
+        shell.Publish(Hosts());
+        shell.Refuse(App, GateOutcome.RefusedRateLimit, 900);
+        shell.Refuse(Blog, GateOutcome.RefusedAccessList, 250);
+        shell.Refuse(App, GateOutcome.RefusedProofOfWork, 54);
+        shell.Refuse(App, GateOutcome.NoRoute, 3);
+        await SettleAsync(shell);
+
         var page = context.Render<SecurityPage>();
-        shell.ProofOfWork.Stats.CountChallengeServed();
-        shell.Time.Advance(TimeSpan.FromSeconds(2));
-        await page.WaitForStateAsync(() => page.Find("[data-tile=served] [data-part=value]").TextContent == "1");
-        Assert.Equal("0.5/s", page.Find("[data-tile=served] [data-part=rate]").TextContent);
+
+        var line = page.Find("[data-part=refused]");
+        Assert.Equal("Refused in the last 24 h: 1,204", line.QuerySelector("a")!.TextContent);
+        Assert.Equal(DashboardRoutes.Analytics + "#security", line.QuerySelector("a")!.GetAttribute("href"));
+        Assert.Equal("(rate limit 900 · access list 250 · proof of work 54)", line.QuerySelector("[data-part=reasons]")!.TextContent.Trim());
+        Assert.Equal("954", page.Find("[data-host='app.test'] [data-cell=refused]").TextContent.Trim());
+        Assert.Equal("250", page.Find("[data-host='blog.test'] [data-cell=refused]").TextContent.Trim());
+        Assert.Empty(page.FindAll("[data-tile]"));
+    }
+
+    [Fact]
+    public async Task NothingRefusedIsSaidSoWithNoReasons()
+    {
+        await using DashboardTestContext context = new();
+        await using var shell = await StartAsync(context, Role.Operator);
+        shell.Publish(Hosts());
+
+        var page = context.Render<SecurityPage>();
+
+        Assert.Equal("Nothing refused in the last 24 h", page.Find("[data-part=refused] a").TextContent);
+        Assert.Empty(page.FindAll("[data-part=reasons]"));
+    }
+
+    [Fact]
+    public async Task RollupsThatCantBeReadLeaveTheLiveProtectionsWithoutThe24HourFigures()
+    {
+        await using DashboardTestContext context = new();
+        await using var shell = await StartAsync(context, Role.Operator, database: false);
+        shell.Publish(Hosts());
+
+        var page = context.Render<SecurityPage>();
+
+        Assert.Contains("couldn't be read", page.Find("[data-part=failed]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll("[data-part=refused]"));
+        Assert.Empty(page.FindAll("[data-cell=refused]"));
+        Assert.Equal(3, page.FindAll("[data-host]").Count);
+        Assert.Contains("pdk-security-table-live", page.Find(".pdk-security-table").ClassName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheProtectionsAreReadAgainWhileTheTabIsVisibleAndNotWhileItIsHidden()
+    {
+        await using DashboardTestContext context = new();
+        await using var shell = await StartAsync(context, Role.Operator);
+        var page = context.Render<SecurityPage>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromSeconds(2)));
+        Assert.Empty(page.FindAll("[data-host]"));
 
         await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(false));
-        shell.ProofOfWork.Stats.CountChallengeServed();
-        shell.Time.Advance(TimeSpan.FromSeconds(10));
+        shell.Publish(Hosts());
+        Advance(shell, TimeSpan.FromSeconds(10));
         await page.InvokeAsync(() => { }); // Whatever the timer queued on the renderer has run once this does.
-        Assert.Equal("1", page.Find("[data-tile=served] [data-part=value]").TextContent);
+        Assert.Empty(page.FindAll("[data-host]"));
 
         await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(true));
-        Assert.Equal("2", page.Find("[data-tile=served] [data-part=value]").TextContent);
-        Assert.Equal(string.Empty, page.Find("[data-tile=served] [data-part=rate]").TextContent.Trim());
+        Assert.Equal(3, page.FindAll("[data-host]").Count);
+
+        shell.Publish(Hosts() with { Hosts = [.. Hosts().Hosts.Where(host => host.Id != Files)] });
+        Advance(shell, TimeSpan.FromSeconds(2));
+        await page.WaitForStateAsync(() => page.FindAll("[data-host]").Count == 2);
     }
 
     [Fact]
@@ -416,25 +307,6 @@ public sealed class SecurityPageTests
         Assert.Equal(DashboardNavigation.Entries.Single(entry => entry.Href == DashboardRoutes.Security), DashboardNavigation.ActiveFor("/security", DashboardNavigation.Entries));
     }
 
-    [Theory]
-    [InlineData(0, "0/s")]
-    [InlineData(0.04, "<0.1/s")]
-    [InlineData(0.4, "0.4/s")]
-    [InlineData(2.5, "2.5/s")]
-    [InlineData(9.96, "10/s")]
-    [InlineData(12.4, "12/s")]
-    public void RatesAreShownWithOneDecimalBelowTenAndWholeAboveIt(double rate, string expected) =>
-        Assert.Equal(expected, SecurityFigures.RateText(rate));
-
-    [Fact]
-    public void ARateNeedsTimeToHavePassedAndNeverGoesNegative()
-    {
-        Assert.Null(SecurityFigures.Rate(5, 9, TimeSpan.Zero));
-        Assert.Equal(0, SecurityFigures.Rate(9, 5, TimeSpan.FromSeconds(2)));
-        Assert.Equal(2, SecurityFigures.Rate(5, 9, TimeSpan.FromSeconds(2)));
-        Assert.Equal(string.Empty, SecurityFigures.RateText(null));
-    }
-
     [Fact]
     public void ASolveRateOfNothingServedIsBlank()
     {
@@ -442,13 +314,22 @@ public sealed class SecurityPageTests
         Assert.Equal("50%", SecurityFigures.Share(1, 2));
     }
 
-    private static Shell Start(DashboardTestContext context, Role role)
+    private static async Task<SecurityRig> StartAsync(DashboardTestContext context, Role role, bool database = true)
     {
-        Shell shell = new();
-        context.Services.AddSingleton(new SecurityOverviewService(shell.Store, shell.ProofOfWork, shell.RateLimits, shell.Time, shell.AccessLists, shell.Connections));
+        SecurityRig shell = new(new SteppedTime(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero)));
+        if (database)
+        {
+            await shell.UseDatabaseAsync();
+        }
+
+        shell.Register(context.Services);
         ConfigPages.SignIn(context, role, shell.Time);
         return shell;
     }
+
+    private static Task SettleAsync(SecurityRig shell) => shell.SettleAsync(((SteppedTime)shell.Time).Advance);
+
+    private static void Advance(SecurityRig shell, TimeSpan by) => ((SteppedTime)shell.Time).Advance(by);
 
     private static ProxyConfigModel Hosts()
     {
@@ -530,102 +411,5 @@ public sealed class SecurityPageTests
                 },
             ],
         };
-    }
-
-    private sealed class Shell
-    {
-        public ManualTime Time { get; } = new(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero));
-
-        public SnapshotStore Store { get; } = new();
-
-        public ProofOfWorkRuntime ProofOfWork { get; } = new();
-
-        public RateLimitRuntime RateLimits { get; } = new(new RateLimitTable(64));
-
-        public AccessListRuntime AccessLists { get; } = new(TimeProvider.System, new TestPasswords().Verifier);
-
-        public RuleSetRuntime RuleSets { get; } = new();
-
-        public ForwardAuthRuntime ForwardAuth { get; } = new();
-
-        public ConnectionRuntime Connections { get; } = new(new ConnectionTable(64));
-
-        public void Publish(ProxyConfigModel model)
-        {
-            var result = SnapshotCompiler.Compile(model, new SnapshotCompilerOptions { RateLimits = RateLimits, ProofOfWork = ProofOfWork, RuleSets = RuleSets, ForwardAuth = ForwardAuth });
-            Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
-            var snapshot = result.Snapshot!;
-            Store.Publish(snapshot.Bind(1, [.. snapshot.RouteIdBySlot.Select(_ => new Endpoint(null, null, "route"))]));
-        }
-    }
-
-    /// <summary>A clock that moves only when told, and fires the timers it passes: a <see cref="PeriodicTimer"/> ticks exactly when a test advances it.</summary>
-    private sealed class ManualTime(DateTimeOffset start) : TimeProvider
-    {
-        private readonly Lock _gate = new();
-        private readonly List<ManualTimer> _timers = [];
-        private DateTimeOffset _now = start;
-
-        public override DateTimeOffset GetUtcNow()
-        {
-            lock (_gate)
-            {
-                return _now;
-            }
-        }
-
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            lock (_gate)
-            {
-                ManualTimer timer = new(callback, state, _now + dueTime, period);
-                _timers.Add(timer);
-                return timer;
-            }
-        }
-
-        public void Advance(TimeSpan by)
-        {
-            List<ManualTimer> due = [];
-            lock (_gate)
-            {
-                _now += by;
-                foreach (var timer in _timers)
-                {
-                    while (timer.Due is { } at && at <= _now)
-                    {
-                        due.Add(timer);
-                        timer.Next();
-                    }
-                }
-            }
-
-            foreach (var timer in due)
-            {
-                timer.Fire();
-            }
-        }
-
-        private sealed class ManualTimer(TimerCallback callback, object? state, DateTimeOffset due, TimeSpan period) : ITimer
-        {
-            private DateTimeOffset? _due = due;
-            private bool _disposed;
-
-            public DateTimeOffset? Due => _disposed ? null : _due;
-
-            public void Next() => _due = period > TimeSpan.Zero && _due is { } at ? at + period : null;
-
-            public void Fire() => callback(state);
-
-            public bool Change(TimeSpan dueTime, TimeSpan newPeriod) => throw new NotSupportedException();
-
-            public void Dispose() => _disposed = true;
-
-            public ValueTask DisposeAsync()
-            {
-                _disposed = true;
-                return ValueTask.CompletedTask;
-            }
-        }
     }
 }
