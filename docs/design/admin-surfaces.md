@@ -43,6 +43,14 @@ The API was made consistent before v0.1 (branch `api-consistency`), because afte
 - **MCP.** A path that matches `EndpointRules.SensitivePath` is classified in `EndpointRules` (refused, or reviewed with the reason), or `McpRequestPolicyApiTests` fails.
 - **`GET /api/v1/version`** names the product version, the API version (`v1`) and, when the build was given `SourceRevisionId`, the commit. The container build takes it from the `PADURAKSA_COMMIT` build argument.
 
+### The server settings (`/api/v1/server-settings`)
+
+- **`GET`** (`config:read`): every declared setting with its default, its bounds, what the config stores, the value in force and its source (`environment`, `config` or `default`). A restart-only setting also has `running` and `restartPending`. The ETag is the global settings' version.
+- **`PUT`** (`server:write`): the body is `settings.server` as it should be, sent as an `UpdateSettingsCommand` over the current global settings. It needs `If-Match` with that version, and it takes `dryRun`, `force` and `message` like any config write.
+- **An environment-locked value** is accepted and stored, and isn't used while the environment sets it.
+- **The pipeline checks the permission,** not only the endpoint: a change to `settings.server` through `PUT /settings`, an import, a rollback or a draft needs `server:write` too (config.md, "Who may change them").
+- **MCP** reaches it like any config write: a dry run first, then `confirm`.
+
 ### The identity endpoints (M4)
 
 Code: `Paduraksa.Admin/Identity`. All are under `/api/v1`, and bodies and responses are the `Paduraksa.Contracts.Identity` DTOs.
@@ -236,10 +244,16 @@ The security-headers middleware (auth) adds its headers when the response starts
 
 ### Off by default
 
-- `Paduraksa:Mcp:Enabled` is `false` unless set. A bad value fails the start like any option. It maps `/mcp` and registers the MCP server.
-- While it is off, `/mcp` is not mapped: a GET is 404, and a POST reaches the dashboard's page routes and is 405. The authentication middleware leaves it alone, so no token is asked for. No sandbox child is ever started, and the dashboard's card says in one line how to turn it on.
+- `Paduraksa:Mcp:Enabled` is `false` unless set. A bad value fails the start like any option.
+- **Switched live** (since `server-settings`). It is a server setting (config.md, "Server settings"), so the Owner or an Admin can turn it on from Settings, Server. An environment value locks it.
+  - The MCP server and `/mcp` are always registered and mapped.
+  - `McpSwitch`, right behind the API's problem middleware and before authentication, answers `/mcp` with a bare 404 while it is off. No token is asked for, and nothing behind the switch sees the request.
+  - Switching it off, or changing the idle timeout, stops and drains the sandbox pool (`McpToolkit.StopAsync`, which kills the children). The next allowed call builds a new pool with the values then in force.
+  - The dashboard's card follows the switch, and turning MCP on says in the review drawer what it allows.
+  - **Decided by the owner:** someone holding a stolen Owner session could switch MCP on; such a session can do worse anyway.
+- While it is off, no sandbox child runs, and the dashboard's card says in one line how to turn it on.
 - **Why:** the sandbox is new and runs a model's code. The operator opts in for this release, and the default can be reconsidered once the isolation has run in the homelab for a while.
-- `Paduraksa:Mcp:IdleTimeout` (default 10 minutes, validated from 10 seconds to 24 hours) is how long an unused sandbox child lives.
+- `Paduraksa:Mcp:IdleTimeout` (default 10 minutes, validated from 10 seconds to 24 hours) is how long an unused sandbox child lives. It is a server setting too, and a new pool takes it.
 
 ### The decision: two tools
 

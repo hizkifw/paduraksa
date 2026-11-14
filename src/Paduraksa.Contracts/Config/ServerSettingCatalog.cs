@@ -145,7 +145,10 @@ public static class ServerSettingCatalog
         "Paduraksa",
         static value => value.Length is 0 or > 64 || value.Contains(':', StringComparison.Ordinal) || value.Any(char.IsControl)
             ? "must be 1 to 64 characters without a colon or control characters"
-            : null);
+            : null)
+    {
+        Accepted = "1 to 64 characters, no colon",
+    };
 
     public static readonly ServerSetting<long> AdminRateLimitPermitsPerIp = new(
         "adminRateLimitPermitsPerIp", "Admin:RateLimit:PermitsPerIp", ServerSettingGroup.SignIn, "Sign-in rate limit", ServerSettingApply.Live,
@@ -177,7 +180,10 @@ public static class ServerSettingCatalog
         static value => value.Length == 0
             || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 && uri.Query.Length == 0 && uri.Fragment.Length == 0)
                 ? null
-                : "must be an http or https address without credentials, a query or a fragment");
+                : "must be an http or https address without credentials, a query or a fragment")
+    {
+        Accepted = "an http or https address, or empty",
+    };
 
     public static readonly ServerSetting<TimeSpan> NotificationHealthHold = new(
         "notificationHealthHold", "Notifications:HealthHold", ServerSettingGroup.Notifications, "Timing", ServerSettingApply.Live,

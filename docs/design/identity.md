@@ -46,7 +46,9 @@ Roles are permission sets (`RolePermissions`):
 | Viewer | Reads and simulate. |
 | Auditor | Reads and audit. |
 
-Only Owner holds `users:write`, `vault:manage`, `tokens:all` and `sessions:all`.
+Only Owner holds `users:write`, `vault:manage`, `tokens:all` and `sessions:all`. `server:write` (the server settings: retention, the sign-in policy, MCP, the connection limits; see [config.md](config.md#server-settings)) is the Owner's and the Admin's, not the Operator's.
+
+**The sign-in policy is a server setting.** Lockout, the session lifetimes, the shortest password, the authenticator name and the sign-in rate limit can be changed from the dashboard and apply live. PBKDF2's iterations and the touch interval stay in the environment.
 
 A token's scopes are permission names (`config:write`). Its effective permissions are the intersection with its owner's current ones, evaluated on every use. A token cannot issue tokens.
 

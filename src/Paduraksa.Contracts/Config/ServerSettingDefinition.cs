@@ -291,6 +291,9 @@ public sealed class TextServerSetting : ServerSettingDefinition
 
     public string Default { get; }
 
+    /// <summary>What its rule accepts, in words, for the guide's table.</summary>
+    public string Accepted { get; init; } = "text";
+
     public string? Get(ServerSettings settings) => _get(settings);
 
     public string Resolve(ServerSettings settings) => _get(settings) ?? Default;

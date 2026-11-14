@@ -65,7 +65,7 @@ Refusals show in `/metrics` as `paduraksa_connections_events_total{event="refuse
 
 ## Slow clients and connection limits
 
-The public listeners set Kestrel's limits explicitly. They are server settings, applied when the process starts, not reloadable, and they do not apply to the admin listener. The table of settings is in [Server settings](../operating/settings.md#connection-and-timeout-limits). In short:
+The public listeners set Kestrel's limits explicitly, and they do not apply to the admin listener. They are [server settings](server-settings.md): Settings, Server, Connections changes the timeouts and data rates live (for new connections), while the TLS handshake timeout and the two connection caps apply after a restart. The table of settings is in [Server settings](../operating/settings.md#connection-and-timeout-limits). In short:
 
 - A client that takes more than 15 seconds to send its request headers gets a `408` and is closed (slowloris).
 - A request body slower than 120 bytes a second, or a response slower than 240, after a 10-second grace, is cut off. The rates are more forgiving than Kestrel's because the client worth keeping is a phone on a poor link.

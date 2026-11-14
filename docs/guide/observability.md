@@ -39,6 +39,9 @@ The first-run setup token's banner is logged at Warning, so on a fresh instance 
 exception documented in [PLAN section 2](../PLAN.md#2-development-rules-and-how-they-are-enforced)). Until an Owner exists it can therefore be found in the logs, rotated `.gz` files
 included; it is single-use and worthless once an Owner exists, and the process deletes the token file when setup completes.
 
+The rotation size and the three retention limits are [server settings](server-settings.md): Settings, Server changes them live, and a value set
+here wins over the dashboard's. The directory and the error level stay here.
+
 | Setting | Default | What |
 |---|---|---|
 | `Paduraksa__Logs__Directory` | empty (`/data/logs`) | Where the logs live; a relative path resolves against the data directory |
@@ -138,9 +141,11 @@ Histogram buckets end at 2^e - 1 microseconds for e from 4 to 26 (`le="0.000015"
 (`paduraksa.requests`, `paduraksa.gate.outcomes`, `paduraksa.response.size`, `paduraksa.request.size`, `paduraksa.upstream.errors`, ...), read only when a listener asks. A latency is
 a sum in seconds (`paduraksa.request.duration.sum`, and `paduraksa.request.upstream.duration.sum` for the upstream's share of it); the buckets are the Prometheus endpoint's.
 
+The retention is a [server setting](server-settings.md) (Settings, Server, live); the write interval stays here.
+
 | Setting | Default | What |
 |---|---|---|
-| `Paduraksa__Metrics__Retention` | `14.00:00:00` | How long a one-minute rollup is kept (1 hour to 5 years); older rows are deleted hourly |
+| `Paduraksa__Metrics__Retention` | `90.00:00:00` | How long a one-minute rollup is kept (1 hour to 5 years); older rows are deleted hourly |
 | `Paduraksa__Metrics__WriteInterval` | `00:00:15` | How often finished minutes are written to the database (1 second to 10 minutes) |
 
 Counters start from zero at every start, as Prometheus expects.
@@ -173,17 +178,19 @@ visitors, and every top-table figure has a documented bound ([observability.md, 
 Closed five-minute buckets are written to the config database every 15 seconds; an hour that has passed is rolled up into one row
 per host for the day and week ranges, and a day that has passed into one row per host for the month. The five-minute rows are kept two days once rolled up, the hourly rows for the retention.
 
+The retention is a [server setting](server-settings.md) (Settings, Server, live); the write interval stays here.
+
 | Setting | Default | What |
 |---|---|---|
-| `Paduraksa__Analytics__Retention` | `30.00:00:00` | How long an hour of analytics is kept (1 hour to 5 years); older rows are deleted hourly |
+| `Paduraksa__Analytics__Retention` | `90.00:00:00` | How long an hour of analytics is kept (1 hour to 5 years); older rows are deleted hourly |
 | `Paduraksa__Analytics__WriteInterval` | `00:00:15` | How often closed buckets are written to the database (1 second to 10 minutes) |
 
 A graceful stop writes the bucket in progress; a crash loses it and whatever was not yet written, and the time after it shows as a gap on the charts, not as zeros.
 
 ## Notifications
 
-The channels (ntfy, Gotify, Discord, a webhook, email) are added in the dashboard under Settings, Notifications; their secrets are in the vault. Five
-settings belong to the process, since only you know them:
+The channels (ntfy, Gotify, Discord, a webhook, email) are added in the dashboard under Settings, Notifications; their secrets are in the vault. These five
+are [server settings](server-settings.md): set them under Settings, Server, or in the environment, which then wins:
 
 | Setting | Default | What |
 |---|---|---|

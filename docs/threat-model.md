@@ -200,7 +200,9 @@ the same process. The design leans on three structural decisions, each of which 
 
 ### B5. The MCP child process
 
-- **Off by default** (`Paduraksa:Mcp:Enabled=false`): `/mcp` is not mapped, no child ever starts ([admin-surfaces.md, MCP in code mode (M10)](design/admin-surfaces.md#mcp-in-code-mode-m10)).
+- **Off by default** (`Paduraksa:Mcp:Enabled=false`, a server setting): `/mcp` answers 404 before authentication and no child starts; switching it off
+  stops the pool ([admin-surfaces.md, MCP in code mode (M10)](design/admin-surfaces.md#mcp-in-code-mode-m10)). Since `server-settings`, the Owner or an Admin can switch it
+  on from the dashboard. Decided by the owner: someone holding a stolen Owner session can do worse than that anyway. An environment value locks it either way.
 - **Transport:** stateless, bearer token only; a cookie, alone or with a token, is a 401 ([admin-surfaces.md, MCP in code mode (M10)](design/admin-surfaces.md#mcp-in-code-mode-m10)). Channel `mcp` in the audit
   log, the token as the actor.
 - **The child** is `paduraksa mcp-sandbox`, started with its environment cleared except `DOTNET_*` runtime paths, `PATH`

@@ -7,6 +7,7 @@ Contents:
 - [Data model](#data-model)
 - [Upstream Host header modes](#upstream-host-header-modes)
 - [Settings layers](#settings-layers)
+- [Server settings](#server-settings)
 - [Write path](#write-path)
 - [The runtime snapshot](#the-runtime-snapshot)
 - [State that survives a publish](#state-that-survives-a-publish)
@@ -270,6 +271,69 @@ Nothing else in the dashboard names a field. The form binds to the contract's re
 - A custom value is 1 to 128 visible ASCII characters or spaces, with no control characters and no leading or trailing space.
 - It is required once the resolved mode is `Custom` (`serverHeader.value.required`) and checked as a value (`serverHeader.value.invalid`). The shape is checked where it is set and the resolved pair at the host, like HSTS's preload pair. An inherited bad value names the profile or global defaults it came from.
 - Unknown hosts follow the global defaults' resolved mode. An admin host through the proxy uses its own like any host.
+
+## Server settings
+
+Values that tune the server itself (retention, the admin sign-in policy, notification timing, the integrations, the public connection limits) used to live only in the environment. Since the `server-settings` branch most of them are also in the config, under `settings.server`, and the dashboard edits them on Settings, Server.
+
+### Where they live, and why the config document
+
+- **`GlobalSettings.Server`** (`ServerSettings`), a flat record of nullable fields; null is the default. Canonical JSON writes no `server` key while it sets nothing, so stored revisions keep their bytes and hashes.
+- **Why the document, not a table.** It gets the review drawer (Apply now or Add to draft), the audit event, History and Undo by rollback, YAML export and import, and MCP's draft-first writes, all for free. A table would have needed each of those again.
+- **One version with the global defaults.** A change is an `UpdateSettingsCommand`, so editing the server settings and the global defaults at the same time is a conflict, like two edits of a host. That is rare enough on one node to accept.
+
+### One declaration per setting
+
+`ServerSettingCatalog` (Contracts) declares each setting once:
+- its property, its configuration key under `Paduraksa`, its group and heading on the page;
+- whether it applies live or after a restart, its title and help;
+- its default and bounds, and optional review notes.
+
+Everything else walks the catalogue:
+- the validator: each value against its bounds (`server.setting.invalid`), then `ServerSettingCatalog.Rules` between settings over the values in force (`server.settings.conflict`): an idle timeout no longer than the session lifetime, and a data rate's grace over a second;
+- the server's options validator, which holds the environment's values to the same bounds;
+- environment detection, the API view, the page's fields, the review notes and the user guide's table, which `ServerSettingsGuideTests` regenerates and checks.
+
+### Precedence
+
+- **An explicit configuration value wins.** `ServerSettingEnvironment` asks the configuration providers whether a key has a value (appsettings, an environment variable, a test's in-memory source), never whether it differs from the default. A value equal to the default is still the environment's. The shipped `appsettings.json` no longer sets the log retention keys, so they don't lock the dashboard out.
+- **Then the config, then the default.** `ServerSettingsState` resolves the three into the values in force and the source of each.
+- **A mix the validator can't see.** The validator only sees the stored values. If an environment value breaks a rule with a stored one (an environment session lifetime shorter than a stored idle timeout), the state drops the config's side and that setting falls back to its default.
+- **An environment-locked value is still stored.** The API accepts it and the page shows it read-only, so removing the variable makes the stored value apply at the next start.
+
+### Taking effect
+
+- **Following the queue.** The compiler copies the document's server settings onto `ConfigCompilation.Server`. `ConfigPublishing` raises them when a snapshot is queued, not when YARP confirms it. The revision is committed by then, and the startup values must be known before the public app binds, which is before the startup publish can complete.
+- **The consumers' live options.** `ServerSettingsBindings` (Server) hands the values in force to each consumer's `LiveOptions<T>` (Core). A consumer reads `Current` when it acts, never a copy taken at construction.
+  - Live: the rollup and analytics prunes, the notification dispatcher and health watcher, the identity services, the access-log drain and tail, the Cloudflare refresher and ACME issuance.
+  - The log files take `Retain`, which also queues a trim at once.
+  - The admin app reconfigures the sign-in throttle and switches MCP. The public app sets Kestrel's per-connection limits.
+- **Restart only.** Kestrel reads the TLS handshake timeout and the connection caps when the listeners bind. `ConfigStartup` seals the values once the startup snapshot is queued (`ServerSettingsState.Startup`). The public app's Kestrel callback runs after that, so a stored cap applies at the next start, and the page marks a stored value the process doesn't run with as *Restart pending*.
+- **Sessions.** A session is also checked against the lifetime in force from its creation, so a shortened lifetime ends existing sessions at their next check. A lengthened one never extends a session already issued. A completed session counts from the partial session's creation, so a shortening may end it up to the partial lifetime early: the safe side.
+- **Touch interval.** It stays an environment setting. If a stored idle timeout is shorter than it, the bindings write the last-seen time at half the idle timeout, so live sessions don't idle out.
+
+### Who may change them
+
+- **`server:write`** (`Permission.ServerWrite`) belongs to the Owner and Admin roles, never the Operator.
+- **Checked on what the plan does to the document,** not on the kind of command. `ConfigPipeline` requires it whenever `settings.server` differs between the head and the planned document. That covers `PUT /server-settings`, `PUT /settings`, an import, a rollback and a draft's entry alike.
+- **Simulations aren't checked.** A simulation never commits.
+
+### Adding a server setting
+
+1. The property at the end of `ServerSettings`.
+2. Its declaration in `ServerSettingCatalog` (key, configuration key, group and heading, live or restart, words, default, bounds, notes), and its place in `All`. `ServerSettingCatalogTests` fails for a property without one.
+3. Where its consumer takes it: a line in `ServerSettingsBindings.Apply` (or the admin or public app's follower) onto the consumer's `LiveOptions<T>`. A consumer that reads it once is declared `Restart`.
+4. The options validator's bound for the environment's value, from the declaration (`Bound(ServerSettingCatalog.X, ...)`). The option's default must be the declaration's: `ServerSettingOptionsTests` walks the configuration keys.
+5. Regenerate `openapi.v1.json` and the guide's table (`PADURAKSA_UPDATE_DOCS=1` on `ServerSettingsGuideTests`).
+
+The page, the API view, the review notes and the precedence need nothing.
+
+### Left out
+
+- **What stays in the environment:** the data directory, the listeners, the development switches, the trust files, the log directory, the timeouts of startup and shutdown, PBKDF2's iterations, the write intervals, the ring and tail sizes, the ACME scheduler and the test hooks.
+- **DNS-01's resolvers and timings.** Only the check's switch and the fixed wait moved; the resolvers stay in the environment.
+- **The storage-impact estimate and table sizes** on the page, which the brief called nice to have.
+- **The CLI.** `paduraksa user` and `backup` read the environment's sign-in policy, not the stored one.
 
 ## Write path
 

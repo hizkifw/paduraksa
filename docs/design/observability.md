@@ -40,7 +40,7 @@ Everything here sits behind the request path. A request records into fixed-size,
 - It rotates when the next line would pass `Logs:MaxFileSize` or the UTC date has changed. The live file is renamed aside (a `-2`, `-3`, ... suffix when two rotations land in the same second, checked and then renamed without overwriting).
 - A second thread gzips the rotated file (to a `.gz.tmp`, renamed into place, the `.log` deleted only afterwards) and trims the directory.
 
-**Retention** deletes rotated files oldest first until each log holds at most `Logs:RetainedFiles`, none is older than `Logs:MaxAge`, and the total is at most `Logs:MaxTotalSize`. The live file is never a candidate.
+**Retention** deletes rotated files oldest first until each log holds at most `Logs:RetainedFiles`, none is older than `Logs:MaxAge`, and the total is at most `Logs:MaxTotalSize`. The live file is never a candidate. The four limits (with `Logs:MaxFileSize`) are server settings: `RotatingLogFile.Retain` takes new ones live and queues a trim at once, so a lowered limit deletes without waiting for a rotation.
 
 **Startup.** The same thread removes stale `*.log.gz.tmp`, compresses rotated files a crash left uncompressed, and trims. A process that never logs creates no directory.
 
@@ -418,7 +418,7 @@ How an outcome is chosen: the policy that refuses records its kind on the pooled
 
 **Failure and retention.**
 - A failed write puts the minutes back and logs a warning. The backlog is bounded (9 000 minutes), so a database that stays down loses the oldest, never memory.
-- Retention (`Paduraksa:Metrics:Retention`, default 14 days, range 1 hour to 5 years, validated like `Paduraksa:Logs:*`) deletes by age hourly.
+- Retention (`Paduraksa:Metrics:Retention`, default 90 days since `server-settings` (was 14), a server setting read at every prune pass, range 1 hour to 5 years, validated like `Paduraksa:Logs:*`) deletes by age hourly.
 
 **The refusals by kind** (`security-history`, migration `MetricRollupRefusals`).
 - A row keeps `Refused` and, next to it, one column per gate outcome that turns a request away: the eight refusal kinds (`RefusedAccessList`, `RefusedRuleSet`, `RefusedRateLimit`, `RefusedProofOfWork`, `RefusedForwardAuth`, `RefusedRequestLimits`, `RefusedConnection`, `RefusedOther`) and the four answers the gate gives without a policy (`NoRoute`, `Unavailable`, `Dropped`, `UnknownHost`). Total and host rows fill them; upstream rows leave them at 0.
@@ -712,7 +712,7 @@ There is a unique index on (tier, subject, host, start) and one on (tier, start)
 - It then rolls **a day up once all its hours are rolled** (four times the size).
 - It prunes hourly.
 
-**Retention** is `Paduraksa:Analytics:Retention` (default 30 days, range 1 hour to 5 years, validated, in [the user guide](../guide/observability.md#analytics)). Five-minute rows are kept two days once their hour is rolled up. Hourly and daily rows are kept for the whole retention.
+**Retention** is `Paduraksa:Analytics:Retention` (default 90 days since `server-settings` (was 30), a server setting read at every prune pass, range 1 hour to 5 years, validated, in [the user guide](../guide/observability.md#analytics)). Five-minute rows are kept two days once their hour is rolled up. Hourly and daily rows are kept for the whole retention.
 
 **Decision: reads take the stored rows and the backlog's unconfirmed buckets under one gate with the writer.** A bucket is therefore in exactly one of the two: never missing, never doubled.
 
@@ -978,7 +978,7 @@ It then **claims the due `pending` rows**: `next attempt <= now`, in due order, 
 
 ### Retention
 
-`Paduraksa:Notifications:HistoryRetention` (14 days; 1 hour to 5 years, validated) prunes events **with** their deliveries once the event is older and **no delivery is pending**. Every other state is final, `failed` included, since it was given up.
+`Paduraksa:Notifications:HistoryRetention` (14 days; 1 hour to 5 years, validated; a server setting read at every prune) prunes events **with** their deliveries once the event is older and **no delivery is pending**. Every other state is final, `failed` included, since it was given up.
 - It runs hourly, `PruneBatchSize` (500) events at a time, each batch in its own transaction, with indexed reads and deletes.
 - A pending delivery keeps its event whatever its age, until a claim or the next start expires it.
 - **The prune is safe against a manual retry.** It chooses the events outside its transaction. Inside it deletes only deliveries that are not pending, and then only events left with no delivery at all. A delivery put back to pending in between, and its event, are never touched (a test races them).

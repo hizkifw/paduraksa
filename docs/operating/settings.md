@@ -8,6 +8,10 @@ These are settings for the **process** (ports, files, limits, retention). Everyt
 - A relative `Paduraksa__DataDirectory` resolves against the application's directory (`/data` in the image). A leading `~` is refused.
 - Durations are `[d.]hh:mm:ss`, for example `00:00:15` or `30.00:00:00`.
 - Settings are read once at start. Change them and restart.
+- **Server settings.** Retention, the admin sign-in policy, the notification timing, the access log's query strings, the Cloudflare range
+  refresh, the DNS-01 check and wait, MCP and the public connection limits can also be set in the dashboard (Settings, Server), mostly live.
+  A value set here, in `appsettings.json` or the environment, wins and shows read-only there. The list, with which apply live, is in the
+  [user guide](../guide/server-settings.md).
 
 ## List settings
 
@@ -60,7 +64,7 @@ indexed entries were ignored.
 
 ## Connection and timeout limits
 
-`Paduraksa__Limits__*` are applied when the process starts, not reloadable, public listeners only: the admin listener keeps Kestrel's own. Times are `hh:mm:ss`; a bad value stops the start with the reason.
+`Paduraksa__Limits__*` are public listeners only: the admin listener keeps Kestrel's own. All but `Http2MaxStreamsPerConnection` are also [server settings](../guide/server-settings.md); set here, they win over the dashboard's. Times are `hh:mm:ss`; a bad value stops the start with the reason.
 
 
 | Setting | Default | Kestrel's own | What |

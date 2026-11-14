@@ -88,6 +88,7 @@ nav:
       - Connections, limits and client addresses: guide/connections-and-limits.md
       - Behind Cloudflare: guide/cloudflare.md
       - Logs, metrics and notifications: guide/observability.md
+      - Server settings: guide/server-settings.md
   - Operating it:
       - Running with Docker: operating/docker.md
       - Exposing the admin port: operating/admin-access.md

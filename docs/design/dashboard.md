@@ -261,6 +261,17 @@ Which hosts use a certificate is `CertificateUsage` (Application): the compiler'
 
 Addresses are in `SettingsRoutes`. Every page has the "Settings" way back.
 
+**Server** (`/settings/server`, `config:read`; editable with `config:write` and `server:write`, the Owner and Admin). One card per group (data retention, sign-in, notifications, integrations, connections), a subtitle per heading where a group has several, one row per declared setting. The page builds itself from `ServerSettingCatalog`, so a new setting needs no markup.
+- **One field per kind** (`ServerSettingField`): a duration is a number and a unit (`DurationField`), a size is `SizeField`, a switch is a `SegmentedControl` of Default, On and Off, and text and numbers are plain fields. Empty is the default, which the placeholder names ("Default (90 days)").
+- **Set by the environment:** the field is read-only and shows the value in force, with one caption naming the variable (`Paduraksa__Metrics__Retention`).
+- **A restart-only setting** says "Applies after a restart", with a *Restart pending* pill while the stored value isn't the one running.
+- **The review drawer** (`ServerSettingCatalog.Notices`, added in `ReviewNotices`) says:
+  - what a lowered retention deletes, and that it can't be recovered;
+  - that shortened sessions end at their next check, and that a longer minimum password applies to new passwords only;
+  - what turning MCP on allows;
+  - which changes wait for a restart.
+- **Changed elsewhere:** a commit by someone else reloads the page, or shows the banner while there are edits, as Global defaults does.
+
 **Global defaults.** One form over `GlobalSettings`, applied through the review drawer as `UpdateSettingsCommand` with the version it opened with. It holds:
 - the bottom layer of host settings (HTTPS redirect, minimum TLS, protocols over TCP, HTTP/3, HSTS, an IP allow list; each "Built-in default (...)" or a value, `HostSettingsFields`);
 - what a request for an unknown name gets (404, 421, close);

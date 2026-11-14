@@ -2,9 +2,10 @@
 
 Paduraksa has an MCP endpoint so an AI assistant can read the API description and call the API by writing code, as the API token it connects with.
 
-**MCP is off until you turn it on**: set `Paduraksa__Mcp__Enabled=true` (default `false`) and restart. The tools run an assistant's JavaScript, so that is the
-operator's choice for now; while it is off `/mcp` is not served (404) and the dashboard says how to enable it. The default may change once the sandbox below
-has run in homelabs for a while.
+**MCP is off until you turn it on**: under Settings, Server, Integrations (the Owner or an Admin; it applies at once, no restart), or with
+`Paduraksa__Mcp__Enabled=true` in the environment, which then wins and locks the dashboard's switch. The tools run an assistant's JavaScript, so that is the
+operator's choice for now; while it is off `/mcp` answers 404 before any authentication and no sandbox process runs, and switching it off stops the running ones.
+The default may change once the sandbox below has run in homelabs for a while.
 
 | Setting | Default | What |
 |---|---|---|
