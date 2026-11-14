@@ -10,6 +10,7 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject ILogger<History> Logger
+@inject DisplayFormat Fmt
 
 <PageTitle>History · Paduraksa</PageTitle>
 
@@ -84,7 +85,7 @@ else
                                 <span class="pdk-timeline-meta">
                                     <span>@RevisionText.Actor(revision.Actor, _users, _me)</span>
                                     <span class="pdk-badge pdk-tone-default">@RevisionText.Channel(revision.Channel)</span>
-                                    <span title="@RevisionText.Exact(revision.CreatedAt)">@RevisionText.Ago(revision.CreatedAt, Time.GetUtcNow())</span>
+                                    <span title="@Fmt.Exact(revision.CreatedAt)">@Fmt.Ago(revision.CreatedAt, Time.GetUtcNow())</span>
                                 </span>
                             </span>
                             @if (revision.Id == _latest?.Id)
@@ -108,7 +109,7 @@ else
                     <div>
                         <MudText Typo="Typo.h6" HtmlTag="h2">Revision #@detail.Revision.Seq</MudText>
                         <MudText Typo="Typo.caption" Class="pdk-muted">
-                            @RevisionText.Actor(detail.Revision.Actor, _users, _me) · @RevisionText.Channel(detail.Revision.Channel) · @RevisionText.Exact(detail.Revision.CreatedAt)
+                            @RevisionText.Actor(detail.Revision.Actor, _users, _me) · @RevisionText.Channel(detail.Revision.Channel) · @Fmt.Exact(detail.Revision.CreatedAt)
                         </MudText>
                         @if (detail.Revision.Message is { } message)
                         {

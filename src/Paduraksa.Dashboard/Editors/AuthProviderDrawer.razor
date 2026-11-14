@@ -1,4 +1,5 @@
 @inherits DraftDrawer<AuthProviderEditModel, AuthProviderConfig>
+@inject DisplayFormat Fmt
 
 @* An auth provider in a drawer: the forward-auth endpoint a host or a route asks who a request is. The preset fills in what its project expects
    (the endpoint's path, the headers it returns, where a browser signs in) and each field says what it will use while it is left empty. On its own
@@ -102,11 +103,11 @@
                     <div class="pdk-field-grid">
                         <MudNumericField HideSpinButtons="true" T="int?" Value="Model.TimeoutSeconds" ValueChanged="@(value => Set(() => Model.TimeoutSeconds = value, "/forwardAuth/timeoutSeconds"))"
                                          Label="Wait for an answer (s)" Min="1" Max="ForwardAuthLimits.MaxTimeoutSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
-                                         HelperText="@($"Empty: {resolved.Timeout.TotalSeconds:0}. A timeout is a 504.")"
+                                         HelperText="@($"Empty: {Fmt.Count((long)resolved.Timeout.TotalSeconds)}. A timeout is a 504.")"
                                          Error="@(E("/forwardAuth/timeoutSeconds") is not null)" ErrorText="@E("/forwardAuth/timeoutSeconds")" data-field="timeout" />
                         <MudNumericField HideSpinButtons="true" T="int?" Value="Model.CacheSeconds" ValueChanged="@(value => Set(() => Model.CacheSeconds = value, "/forwardAuth/cacheSeconds"))"
                                          Label="Remember an allow (s)" Min="0" Max="ForwardAuthLimits.MaxCacheSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
-                                         HelperText="@($"Empty: {resolved.CacheTtl.TotalSeconds:0}; 0: never. A revoked session works this long.")"
+                                         HelperText="@($"Empty: {Fmt.Count((long)resolved.CacheTtl.TotalSeconds)}; 0: never. A revoked session works this long.")"
                                          Error="@(E("/forwardAuth/cacheSeconds") is not null)" ErrorText="@E("/forwardAuth/cacheSeconds")" data-field="cache-seconds" />
                     </div>
                     <MudSelect T="ForwardAuthCacheScope?" Value="Model.CacheScope" ValueChanged="@(value => Set(() => Model.CacheScope = value, "/forwardAuth/cacheScope"))"

@@ -10,6 +10,7 @@
 @inject DashboardCaller Caller
 @inject IJSRuntime JS
 @inject TimeProvider Time
+@inject DisplayFormat Fmt
 @* Visitors and content, and clients and bots, for every host or one. The figures come from the access-log drain, so a host with its
    access log off is not in them; the hour is read every few seconds while the tab is visible (the service keeps a result for
    a few seconds), the longer ranges a tenth as often. *@
@@ -68,12 +69,12 @@ else
 {
     var totals = _overview.Totals;
     <div class="pdk-sec-tiles" data-part="tiles">
-        <SecurityTile Name="requests" Label="Requests" Value="@AnalyticsFigures.Count(totals.Requests)"
-                      Detail="@(totals.BotRequests > 0 ? $"{AnalyticsFigures.Share(totals.BotRequests, totals.Requests)} from bots" : null)" />
-        <SecurityTile Name="bandwidth" Label="Bandwidth" Value="@AnalyticsFigures.Bytes(totals.BytesOut)"
-                      Detail="@(totals.BytesIn > 0 ? $"sent, {AnalyticsFigures.Bytes(totals.BytesIn)} received" : "sent")" />
-        <SecurityTile Name="visitors" Label="Unique visitors" Value="@AnalyticsFigures.Count(totals.Visitors)" Detail="@AnalyticsFigures.VisitorsAccuracy" />
-        <SecurityTile Name="errors" Label="Error rate" Value="@TrafficFigures.Percent(totals.ErrorRate)" Detail="5xx answers" />
+        <SecurityTile Name="requests" Label="Requests" Value="@Fmt.Count(totals.Requests)"
+                      Detail="@(totals.BotRequests > 0 ? $"{Fmt.Share(totals.BotRequests, totals.Requests)} from bots" : null)" />
+        <SecurityTile Name="bandwidth" Label="Bandwidth" Value="@Fmt.Bytes(totals.BytesOut)"
+                      Detail="@(totals.BytesIn > 0 ? $"sent, {Fmt.Bytes(totals.BytesIn)} received" : "sent")" />
+        <SecurityTile Name="visitors" Label="Unique visitors" Value="@Fmt.Count(totals.Visitors)" Detail="@AnalyticsFigures.VisitorsAccuracy" />
+        <SecurityTile Name="errors" Label="Error rate" Value="@Fmt.Percent(totals.ErrorRate)" Detail="5xx answers" />
     </div>
 
     <section data-section="content" aria-labelledby="pdk-analytics-content">
@@ -130,10 +131,10 @@ else
                                 {
                                     <tr data-path="@path.Path">
                                         <th scope="row" class="pdk-mono">@PathCell(path.Path)</th>
-                                        <td title="@AnalyticsFigures.Range(path.Requests, path.Error)">@AnalyticsFigures.Counted(path.Requests, path.Error)</td>
-                                        <td>@AnalyticsFigures.Bytes(path.BytesOut)</td>
-                                        <td>@TrafficFigures.Millis(path.P95Ms)</td>
-                                        <td class="@(path.ErrorRate > 0 ? "pdk-traffic-bad" : null)">@TrafficFigures.Percent(path.ErrorRate)</td>
+                                        <td title="@AnalyticsFigures.Range(path.Requests, path.Error, Fmt)">@AnalyticsFigures.Counted(path.Requests, path.Error, Fmt)</td>
+                                        <td>@Fmt.Bytes(path.BytesOut)</td>
+                                        <td>@Fmt.Latency(path.P95Ms)</td>
+                                        <td class="@(path.ErrorRate > 0 ? "pdk-traffic-bad" : null)">@Fmt.Percent(path.ErrorRate)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -157,7 +158,7 @@ else
                                 {
                                     <tr data-referer="@referer.Label">
                                         <th scope="row" title="@referer.Label">@referer.Label</th>
-                                        <td title="@AnalyticsFigures.Range(referer.Count, referer.Error)">@AnalyticsFigures.Counted(referer.Count, referer.Error)</td>
+                                        <td title="@AnalyticsFigures.Range(referer.Count, referer.Error, Fmt)">@AnalyticsFigures.Counted(referer.Count, referer.Error, Fmt)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -181,8 +182,8 @@ else
                                 {
                                     <tr data-path="@path.Path">
                                         <th scope="row" class="pdk-mono">@PathCell(path.Path)</th>
-                                        <td>@TrafficFigures.Millis(path.P95Ms)</td>
-                                        <td title="@AnalyticsFigures.Range(path.Requests, path.Error)">@AnalyticsFigures.Counted(path.Requests, path.Error)</td>
+                                        <td>@Fmt.Latency(path.P95Ms)</td>
+                                        <td title="@AnalyticsFigures.Range(path.Requests, path.Error, Fmt)">@AnalyticsFigures.Counted(path.Requests, path.Error, Fmt)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -206,7 +207,7 @@ else
                                 {
                                     <tr data-path="@path.Label">
                                         <th scope="row" class="pdk-mono">@PathCell(path.Label)</th>
-                                        <td title="@(path.Error > 0 ? $"Between {AnalyticsFigures.Bytes(Math.Max(0, path.Count - path.Error))} and {AnalyticsFigures.Bytes(path.Count)}" : null)">@(path.Error > 0 ? $"{AnalyticsFigures.Approximately} " : null)@AnalyticsFigures.Bytes(path.Count)</td>
+                                        <td title="@(path.Error > 0 ? $"Between {Fmt.Bytes(Math.Max(0, path.Count - path.Error))} and {Fmt.Bytes(path.Count)}" : null)">@(path.Error > 0 ? $"{AnalyticsFigures.Approximately} " : null)@Fmt.Bytes(path.Count)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -263,7 +264,7 @@ else
                                     <tr data-bot="@bot.Name">
                                         <th scope="row" title="@bot.Name">@bot.Name</th>
                                         <td>@AnalyticsFigures.Kind(bot.Kind)</td>
-                                        <td>@AnalyticsFigures.Count(bot.Count)</td>
+                                        <td>@Fmt.Count(bot.Count)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -289,7 +290,7 @@ else
                                     <tr data-bot="@bot.Name">
                                         <th scope="row" title="@bot.Name">@bot.Name</th>
                                         <td>@AnalyticsFigures.Kind(bot.Kind)</td>
-                                        <td class="pdk-traffic-bad">@AnalyticsFigures.Count(bot.Count)</td>
+                                        <td class="pdk-traffic-bad">@Fmt.Count(bot.Count)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -313,7 +314,7 @@ else
                                 {
                                     <tr data-agent="@agent.Label">
                                         <th scope="row" class="pdk-mono" title="@agent.Label">@agent.Label</th>
-                                        <td title="@AnalyticsFigures.Range(agent.Count, agent.Error)">@AnalyticsFigures.Counted(agent.Count, agent.Error)</td>
+                                        <td title="@AnalyticsFigures.Range(agent.Count, agent.Error, Fmt)">@AnalyticsFigures.Counted(agent.Count, agent.Error, Fmt)</td>
                                     </tr>
                                 }
                             </tbody>
@@ -491,12 +492,12 @@ else
     private void Shape(AnalyticsOverview overview)
     {
         var series = overview.Series;
-        _points = [.. series.Select(step => new TimeSeriesChart.ChartPoint(step.Start, TimeSpan.FromSeconds(step.WidthSeconds), step.CoveredSeconds == 0, AnalyticsFigures.Coverage(step)))];
+        _points = [.. series.Select(step => new TimeSeriesChart.ChartPoint(step.Start, TimeSpan.FromSeconds(step.WidthSeconds), step.CoveredSeconds == 0, AnalyticsFigures.Coverage(step, Fmt)))];
         _charts =
         [
-            new("requests", "Requests", [new("Requests", "pdk-chart-a", Values(series, step => step.Requests), Area: true), new("5xx", "pdk-chart-err", Values(series, step => step.ServerErrors))], AnalyticsFigures.Compact),
-            new("bandwidth", "Bandwidth", Bandwidth(overview), AnalyticsFigures.Bytes),
-            new("visitors", "Unique visitors", [new("Visitors", "pdk-chart-c", Values(series, step => step.Visitors), Area: true)], AnalyticsFigures.Compact),
+            new("requests", "Requests", [new("Requests", "pdk-chart-a", Values(series, step => step.Requests), Area: true), new("5xx", "pdk-chart-err", Values(series, step => step.ServerErrors))], Fmt.Compact),
+            new("bandwidth", "Bandwidth", Bandwidth(overview), Fmt.Bytes),
+            new("visitors", "Unique visitors", [new("Visitors", "pdk-chart-c", Values(series, step => step.Visitors), Area: true)], Fmt.Compact),
         ];
     }
 

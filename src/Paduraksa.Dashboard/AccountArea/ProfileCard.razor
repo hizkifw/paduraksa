@@ -4,6 +4,7 @@
 @inject DashboardCaller Caller
 @inject Microsoft.Extensions.Logging.ILogger<ProfileCard> Logger
 @inject ISnackbar Snackbar
+@inject DisplayFormat Fmt
 @* My account: who you are. Only a user who may change users (the Owner) can change the display name; the username never
    changes. *@
 <MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="profile">
@@ -37,7 +38,7 @@
             </div>
         }
     </form>
-    <MudText Typo="Typo.caption" Class="pdk-muted">Member since @RevisionText.Exact(User.CreatedAt).</MudText>
+    <MudText Typo="Typo.caption" Class="pdk-muted">Member since @Fmt.Exact(User.CreatedAt).</MudText>
 </MudPaper>
 
 @code {

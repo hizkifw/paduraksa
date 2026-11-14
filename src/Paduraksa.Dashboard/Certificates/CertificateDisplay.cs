@@ -216,7 +216,8 @@ public static class CertificateDisplay
         };
     }
 
-    public static string Date(DateTimeOffset value) => value.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+    // Dates are DisplayFormat's; these keep the names other branches call and write UTC.
+    public static string Date(DateTimeOffset value) => DisplayFormat.Invariant.Date(value);
 
-    public static string DateTime(DateTimeOffset value) => value.ToString("d MMM yyyy, HH:mm 'UTC'", CultureInfo.InvariantCulture);
+    public static string DateTime(DateTimeOffset value) => DisplayFormat.Invariant.DateTime(value);
 }

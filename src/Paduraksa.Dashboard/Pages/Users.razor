@@ -11,6 +11,7 @@
 @inject IDialogService Dialogs
 @inject DrawerStack Drawers
 @inject Microsoft.Extensions.Logging.ILogger<Users> Logger
+@inject DisplayFormat Fmt
 @* Settings: users and roles. The list needs users:read; adding, changing and deleting need users:write (the Owner). The
    services decide, the last-Owner guard included, and its refusal shows where the change was asked for. *@
 
@@ -132,7 +133,7 @@ else
                             <span role="cell" class="pdk-dt-cell" data-label="Last seen">
                                 @if (_lastSeen.TryGetValue(user.Id, out var seen))
                                 {
-                                    <span title="@RevisionText.Exact(seen)">@RevisionText.Ago(seen, _now)</span>
+                                    <span title="@Fmt.Exact(seen)">@Fmt.Ago(seen, _now)</span>
                                 }
                                 else
                                 {

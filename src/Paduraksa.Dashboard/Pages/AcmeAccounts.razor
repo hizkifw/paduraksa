@@ -16,6 +16,7 @@
 @inject DrawerStack Drawers
 @inject ISnackbar Snackbar
 @inject ILogger<AcmeAccounts> Logger
+@inject DisplayFormat Fmt
 
 <PageTitle>ACME accounts · Paduraksa</PageTitle>
 
@@ -86,7 +87,7 @@ else
                         {
                             <span> · @string.Join(", ", account.Contacts.Select(ProviderDisplay.Contact))</span>
                         }
-                        <span> · @account.KeyAlgorithm · added @CertificateDisplay.Date(account.CreatedAt)</span>
+                        <span> · @account.KeyAlgorithm · added @Fmt.Date(account.CreatedAt)</span>
                         @if (_inUse.GetValueOrDefault(account.Id) is > 0 and var count)
                         {
                             <span> · @Wording.Plural(count, "certificate", "certificates")</span>

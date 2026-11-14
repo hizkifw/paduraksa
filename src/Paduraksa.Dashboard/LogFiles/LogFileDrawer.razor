@@ -6,9 +6,10 @@
 @inject ILogFileStore Store
 @inject IJSRuntime JS
 @inject TimeProvider Time
+@inject DisplayFormat Fmt
 
 <DrawerShell Title="@File.Name" Name="log-file" Icon="@Icons.Material.Outlined.Article"
-            Subtitle="@($"Last written {RevisionText.Ago(_lastWritten, Time.GetUtcNow())}")">
+            Subtitle="@($"Last written {Fmt.Ago(_lastWritten, Time.GetUtcNow())}")">
     <ChildContent>
         <div class="pdk-log-viewer">
             <div class="pdk-log-toolbar">

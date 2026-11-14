@@ -11,6 +11,7 @@
 @inject TimeProvider Time
 @inject NavigationManager Navigation
 @inject ILogger<NotificationHistory> Logger
+@inject DisplayFormat Fmt
 @* Under Settings, Notifications rather than Insight: it is read with the same permission as the channels, offers their retry (as "Send test" is offered
    there), and the channel list links to it. The list is re-read every few seconds, since a retrying delivery changes state by itself. *@
 
@@ -94,7 +95,7 @@ else
                 {
                     var retryable = _mayRetry ? e.Deliveries.Where(DeliveryDisplay.CanRetry).ToList() : [];
                     <li @key="e.Id" class="pdk-nh-row" data-event="@e.Id" data-kind="@e.Kind.ToName()">
-                        <span class="pdk-nh-time" title="@RevisionText.Exact(e.CreatedAt)">@RevisionText.Ago(e.CreatedAt, _now)</span>
+                        <span class="pdk-nh-time" title="@Fmt.Exact(e.CreatedAt)">@Fmt.Ago(e.CreatedAt, _now)</span>
                         <span class="pdk-nh-what">
                             <span class="pdk-nh-title">@e.Title</span>
                             <span class="pdk-nh-meta">

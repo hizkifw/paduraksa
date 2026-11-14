@@ -11,6 +11,7 @@
 @inject IJSRuntime JS
 @inject TimeProvider Time
 @inject ILogger<LiveTail> Logger
+@inject DisplayFormat Fmt
 @* The requests as they end, newest first. The drain pushes entries into this page's own bounded channel; the page reads it on a
    timer and renders once per batch, so the traffic's rate never sets the render rate. *@
 
@@ -72,7 +73,7 @@ else
             <span class="pdk-muted" data-part="count">@Wording.Plural(_rows.Count, "request", "requests")@(_rows.Count == MaxRows ? $" (the newest {MaxRows})" : null)</span>
             @if (_pending > 0 && State != "following")
             {
-                <span class="pdk-badge pdk-tone-info" data-part="waiting">@_pending.ToString("N0") waiting</span>
+                <span class="pdk-badge pdk-tone-info" data-part="waiting">@Fmt.Count(_pending) waiting</span>
             }
             @if (Filtered)
             {
@@ -80,7 +81,7 @@ else
             }
             @if (_skipped > 0)
             {
-                <span class="pdk-badge pdk-tone-warning" data-part="skipped" title="Entries this page couldn't show: it fell behind, or paused while more arrived than it holds.">@_skipped.ToString("N0") @(_skipped == 1 ? "line" : "lines") skipped</span>
+                <span class="pdk-badge pdk-tone-warning" data-part="skipped" title="Entries this page couldn't show: it fell behind, or paused while more arrived than it holds.">@Fmt.Count(_skipped) @(_skipped == 1 ? "line" : "lines") skipped</span>
             }
         </div>
         @if (_busy)
@@ -110,7 +111,7 @@ else
         {
             <div class="pdk-dt pdk-tail-table" role="table" aria-label="Requests">
                 <div class="pdk-dt-row pdk-dt-head" role="row">
-                    <span role="columnheader">Time (UTC)</span>
+                    <span role="columnheader">Time</span>
                     <span role="columnheader">Status</span>
                     <span role="columnheader">Request</span>
                     <span role="columnheader">Host</span>

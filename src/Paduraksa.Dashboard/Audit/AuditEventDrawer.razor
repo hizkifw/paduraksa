@@ -1,6 +1,7 @@
 @using Paduraksa.Contracts.Audit
+@inject DisplayFormat Fmt
 
-<DrawerShell Title="@AuditText.Describe(Event.Action)" Subtitle="@RevisionText.Exact(Event.Timestamp)"
+<DrawerShell Title="@AuditText.Describe(Event.Action)" Subtitle="@Fmt.Exact(Event.Timestamp)"
              Icon="@Icons.Material.Outlined.FactCheck" IconTone="AuditText.ToneOf(Event.Outcome)" Name="audit-event">
     <ChildContent>
         <div class="pdk-audit-event" data-detail="@Event.Id">
@@ -10,7 +11,7 @@
             </div>
             <dl class="pdk-facts">
                 <div class="pdk-fact"><dt>Who</dt><dd>@Actor</dd></div>
-                <div class="pdk-fact"><dt>When</dt><dd>@RevisionText.Exact(Event.Timestamp)</dd></div>
+                <div class="pdk-fact"><dt>When</dt><dd>@Fmt.Exact(Event.Timestamp)</dd></div>
                 <div class="pdk-fact"><dt>Channel</dt><dd>@RevisionText.Channel(Event.Channel)</dd></div>
                 @if (Event.ClientIp is { } ip)
                 {

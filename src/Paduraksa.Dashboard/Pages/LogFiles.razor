@@ -9,6 +9,7 @@
 @inject DrawerStack Drawers
 @inject TimeProvider Time
 @inject ILogger<LogFiles> Logger
+@inject DisplayFormat Fmt
 @* The log files: what is in the logs directory, grouped by log, newest first. Downloading goes through the API's
    authenticated endpoint, which needs logs:read too. *@
 
@@ -66,7 +67,7 @@ else
             <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-log="@group.Key">
                 <div class="pdk-card-head pdk-card-head-padded">
                     <MudText Typo="Typo.h6" HtmlTag="h2">@LogTitle(group.Key)</MudText>
-                    <span class="pdk-muted pdk-log-total">@Wording.Plural(group.Count(), "file", "files") · @SizeText(group.Sum(file => file.Size))</span>
+                    <span class="pdk-muted pdk-log-total">@Wording.Plural(group.Count(), "file", "files") · @Fmt.FileSize(group.Sum(file => file.Size))</span>
                 </div>
                 <div class="pdk-dt pdk-logs-table" role="table" aria-label="@LogTitle(group.Key)">
                     <div class="pdk-dt-row pdk-dt-head" role="row">
@@ -85,10 +86,10 @@ else
                                     <span class="pdk-dt-note">@(Live(file) ? "Live: being written now" : file.Compressed ? "Rotated, compressed" : "Rotated")</span>
                                 </div>
                             </div>
-                            <div role="cell" class="pdk-dt-cell" data-label="Last written" title="@file.LastModified.ToString("u")">
-                                @RevisionText.Ago(file.LastModified, Time.GetUtcNow())
+                            <div role="cell" class="pdk-dt-cell" data-label="Last written" title="@Fmt.Exact(file.LastModified)">
+                                @Fmt.Ago(file.LastModified, Time.GetUtcNow())
                             </div>
-                            <div role="cell" class="pdk-dt-cell pdk-mono" data-label="Size">@SizeText(file.Size)</div>
+                            <div role="cell" class="pdk-dt-cell pdk-mono" data-label="Size">@Fmt.FileSize(file.Size)</div>
                             <div role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
                                 <MudTooltip Text="Read the last lines" Arrow="true">
                                     <MudIconButton Icon="@Icons.Material.Rounded.Subject" Size="Size.Small" OnClick="() => Open(file)"
@@ -166,19 +167,4 @@ else
     private static bool Live(LogFileSummary file) => LogFileNames.KindOfLive(file.Name) is not null;
 
     private static string LogTitle(string log) => log == "access" ? "Access log" : "Error log";
-
-    private static string SizeText(long bytes)
-    {
-        if (bytes < 1024)
-        {
-            return $"{bytes} B";
-        }
-
-        if (bytes < 1024 * 1024)
-        {
-            return $"{bytes / 1024.0:0.#} KB";
-        }
-
-        return bytes < 1024L * 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MB" : $"{bytes / (1024.0 * 1024 * 1024):0.#} GB";
-    }
 }

@@ -6,6 +6,7 @@
 @inject AcmeIssuanceService Issuance
 @inject AcmeAccountService AcmeAccounts
 @inject TimeProvider Time
+@inject DisplayFormat Fmt
 
 <div class="pdk-detail">
     <div class="pdk-detail-chips">
@@ -37,8 +38,8 @@
             <MudProgressLinear Value="CertificateDisplay.LifetimeUsed(S.NotBefore, S.NotAfter, Now)" Rounded="true" Size="Size.Small"
                                Color="@ToneColor(CertificateDisplay.ExpiryTone(S.NotAfter, Now))" Class="pdk-validity-bar" />
             <div class="pdk-validity-dates">
-                <span>From @CertificateDisplay.DateTime(S.NotBefore)</span>
-                <span>Until @CertificateDisplay.DateTime(S.NotAfter)</span>
+                <span>From @Fmt.DateTime(S.NotBefore)</span>
+                <span>Until @Fmt.DateTime(S.NotAfter)</span>
             </div>
         </div>
     </section>
@@ -107,7 +108,7 @@
                 </dd>
             }
             <dt>Added</dt>
-            <dd>@CertificateDisplay.DateTime(S.CreatedAt)</dd>
+            <dd>@Fmt.DateTime(S.CreatedAt)</dd>
         </dl>
     </section>
 
@@ -132,17 +133,17 @@
                     @if (order.NextRenewalAt is { } renewAt)
                     {
                         <dt>Next renewal</dt>
-                        <dd>@CertificateDisplay.DateTime(renewAt)</dd>
+                        <dd>@Fmt.DateTime(renewAt)</dd>
                     }
                     @if (order.AriWindowStart is { } windowStart && order.AriWindowEnd is { } windowEnd)
                     {
                         <dt>CA's window</dt>
-                        <dd>@CertificateDisplay.DateTime(windowStart) to @CertificateDisplay.DateTime(windowEnd) <span class="pdk-muted">(ARI)</span></dd>
+                        <dd>@Fmt.DateTime(windowStart) to @Fmt.DateTime(windowEnd) <span class="pdk-muted">(ARI)</span></dd>
                     }
                     @if (order.LastAttemptAt is { } last)
                     {
                         <dt>Last attempt</dt>
-                        <dd>@CertificateDisplay.DateTime(last)</dd>
+                        <dd>@Fmt.DateTime(last)</dd>
                     }
                 </dl>
                 @if (order.Status == AcmeOrderStatus.Failed && _progress is null)
@@ -151,7 +152,7 @@
                         <strong>Attempt @order.Attempts failed.</strong> @order.Error
                         @if (order.RetryAt is { } retry)
                         {
-                            <div class="pdk-progress-retry">Next try @CertificateDisplay.DateTime(retry); the wait grows after each failure.</div>
+                            <div class="pdk-progress-retry">Next try @Fmt.DateTime(retry); the wait grows after each failure.</div>
                         }
                     </MudAlert>
                 }

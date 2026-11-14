@@ -8,6 +8,7 @@
 @inject IDashboardConfig Config
 @inject TimeProvider Time
 @inject IJSRuntime JS
+@inject DisplayFormat Fmt
 @* The live traffic: the pace over the last half minute, two charts over the chosen range, the busiest hosts and the upstreams'
    errors. The hour reads the sampler's memory every two seconds while the tab is visible; longer ranges read the one-minute
    rollups, which only change once a minute, so they are read less often. *@
@@ -39,13 +40,13 @@
     {
         var now = _overview.Now;
         <div class="pdk-sec-tiles" data-part="tiles">
-            <SecurityTile Name="requests" Label="Requests" Value="@TrafficFigures.PerSecond(now.RequestsPerSecond)" />
-            <SecurityTile Name="errors" Label="Errors" Value="@TrafficFigures.Percent(now.ErrorRate)" Detail="5xx answers" />
-            <SecurityTile Name="refused" Label="Refused" Value="@TrafficFigures.PerSecond(now.RefusedPerSecond)" Detail="by a policy or limit" />
-            <SecurityTile Name="latency" Label="Latency p50" Value="@TrafficFigures.Millis(now.Total.P50Ms)"
-                          Detail="@(now.Total.P99Ms > 0 ? $"p95 {TrafficFigures.Millis(now.Total.P95Ms)} · p99 {TrafficFigures.Millis(now.Total.P99Ms)}" : null)" />
-            <SecurityTile Name="upstream-latency" Label="Upstream p50" Value="@TrafficFigures.Millis(now.Upstream.P50Ms)"
-                          Detail="@(now.Upstream.P99Ms > 0 ? $"p95 {TrafficFigures.Millis(now.Upstream.P95Ms)} · p99 {TrafficFigures.Millis(now.Upstream.P99Ms)}" : null)" />
+            <SecurityTile Name="requests" Label="Requests" Value="@Fmt.PerSecond(now.RequestsPerSecond)" />
+            <SecurityTile Name="errors" Label="Errors" Value="@Fmt.Percent(now.ErrorRate)" Detail="5xx answers" />
+            <SecurityTile Name="refused" Label="Refused" Value="@Fmt.PerSecond(now.RefusedPerSecond)" Detail="by a policy or limit" />
+            <SecurityTile Name="latency" Label="Latency p50" Value="@Fmt.Latency(now.Total.P50Ms)"
+                          Detail="@(now.Total.P99Ms > 0 ? $"p95 {Fmt.Latency(now.Total.P95Ms)} · p99 {Fmt.Latency(now.Total.P99Ms)}" : null)" />
+            <SecurityTile Name="upstream-latency" Label="Upstream p50" Value="@Fmt.Latency(now.Upstream.P50Ms)"
+                          Detail="@(now.Upstream.P99Ms > 0 ? $"p95 {Fmt.Latency(now.Upstream.P95Ms)} · p99 {Fmt.Latency(now.Upstream.P99Ms)}" : null)" />
         </div>
 
         <div class="pdk-home-grid">
@@ -57,7 +58,7 @@
                 }
                 else
                 {
-                    <TimeSeriesChart Name="requests" Points="@_points" Lines="@_requestLines" Format="@TrafficFigures.PerSecond" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
+                    <TimeSeriesChart Name="requests" Points="@_points" Lines="@_requestLines" Format="@Fmt.PerSecond" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
                 }
             </MudPaper>
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="latency-chart">
@@ -68,7 +69,7 @@
                 }
                 else
                 {
-                    <TimeSeriesChart Name="latency" Points="@_points" Lines="@_latencyLines" Format="@TrafficFigures.Millis" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
+                    <TimeSeriesChart Name="latency" Points="@_points" Lines="@_latencyLines" Format="@Fmt.Latency" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
                 }
             </MudPaper>
         </div>
@@ -103,9 +104,9 @@
                                             <a href="@DashboardRoutes.Host(host.Id)">@host.Name</a>
                                         }
                                     </th>
-                                    <td>@TrafficFigures.Count(host.Requests)</td>
-                                    <td class="@(host.ErrorRate > 0 ? "pdk-traffic-bad" : null)">@TrafficFigures.Percent(host.ErrorRate)</td>
-                                    <td>@TrafficFigures.Millis(host.P95Ms)</td>
+                                    <td>@Fmt.Count(host.Requests)</td>
+                                    <td class="@(host.ErrorRate > 0 ? "pdk-traffic-bad" : null)">@Fmt.Percent(host.ErrorRate)</td>
+                                    <td>@Fmt.Latency(host.P95Ms)</td>
                                 </tr>
                             }
                         </tbody>
@@ -133,9 +134,9 @@
                             {
                                 <tr data-upstream="@upstream.Id">
                                     <th scope="row"><a href="@DashboardRoutes.Upstream(upstream.Id)">@UpstreamName(upstream.Id)</a></th>
-                                    <td>@TrafficFigures.Count(upstream.Requests)</td>
-                                    <td class="@(upstream.Errors > 0 ? "pdk-traffic-bad" : null)" title="@TrafficFigures.Percent(upstream.ErrorRate) of forwards">@TrafficFigures.Count(upstream.Errors)</td>
-                                    <td>@TrafficFigures.Millis(upstream.P95Ms)</td>
+                                    <td>@Fmt.Count(upstream.Requests)</td>
+                                    <td class="@(upstream.Errors > 0 ? "pdk-traffic-bad" : null)" title="@Fmt.Percent(upstream.ErrorRate) of forwards">@Fmt.Count(upstream.Errors)</td>
+                                    <td>@Fmt.Latency(upstream.P95Ms)</td>
                                 </tr>
                             }
                         </tbody>
@@ -272,7 +273,7 @@
     private void Shape(MetricsOverview overview)
     {
         var series = overview.Series;
-        _points = [.. series.Select(point => new TimeSeriesChart.ChartPoint(point.Start, TimeSpan.FromSeconds(point.WidthSeconds), point.CoveredSeconds == 0, TrafficFigures.Coverage(point)))];
+        _points = [.. series.Select(point => new TimeSeriesChart.ChartPoint(point.Start, TimeSpan.FromSeconds(point.WidthSeconds), point.CoveredSeconds == 0, TrafficFigures.Coverage(point, Fmt)))];
         // A step nobody observed has no value; a step observed that timed nothing has a rate but no latency: both break a line.
         _requestLines =
         [

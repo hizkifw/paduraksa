@@ -1,4 +1,5 @@
 @inject ThemeState Theme
+@inject DisplayFormat Format
 
 <Router AppAssembly="typeof(Routes).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
@@ -23,5 +24,17 @@
     [Parameter]
     public bool SystemPrefersLight { get; set; }
 
-    protected override void OnInitialized() => Theme.Initialize(Preference, SystemPrefersLight);
+    /// <summary>The browser's time zone (an IANA id), as the page's script last recorded it; null until it has.</summary>
+    [Parameter]
+    public string? ZoneId { get; set; }
+
+    /// <summary>The browser's language tag, as the page's script last recorded it.</summary>
+    [Parameter]
+    public string? Locale { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Theme.Initialize(Preference, SystemPrefersLight);
+        Format.Initialize(ZoneId, Locale);
+    }
 }

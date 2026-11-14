@@ -9,6 +9,7 @@
 @inject DashboardBrowser Browser
 @inject ISnackbar Snackbar
 @inject ILogger<ConfigTransfer> Logger
+@inject DisplayFormat Fmt
 @* Settings: the config as YAML (docs/design/admin-surfaces.md "YAML import and export"). Export downloads the live config; import reads pasted text or a file, maps it onto the
    document, and hands the command to the review drawer, whose dry run is the diff and whose Apply is one revision. *@
 
@@ -57,12 +58,12 @@ else
                     @if (_file is { } file)
                     {
                         <span class="pdk-drop-title" data-field="import-file">@file.Name</span>
-                        <span class="pdk-drop-hint">@FileSize(file.Bytes.Length)</span>
+                        <span class="pdk-drop-hint">@Fmt.FileSize(file.Bytes.Length)</span>
                     }
                     else
                     {
                         <span class="pdk-drop-title">Choose a YAML file</span>
-                        <span class="pdk-drop-hint">At most @FileSize(ConfigImportService.MaxBytes), or paste it below.</span>
+                        <span class="pdk-drop-hint">At most @Fmt.FileSize(ConfigImportService.MaxBytes), or paste it below.</span>
                     }
                 </div>
                 @if (_file is not null)
@@ -209,7 +210,7 @@ else
         if (file.Size > ConfigImportService.MaxBytes)
         {
             _file = null;
-            _fileError = $"The file is larger than {FileSize(ConfigImportService.MaxBytes)}.";
+            _fileError = $"The file is larger than {Fmt.FileSize(ConfigImportService.MaxBytes)}.";
             return;
         }
 
@@ -307,5 +308,4 @@ else
         return Task.CompletedTask;
     }
 
-    private static string FileSize(int bytes) => bytes >= 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MiB" : bytes >= 1024 ? $"{bytes / 1024.0:0.#} KiB" : $"{bytes} B";
 }

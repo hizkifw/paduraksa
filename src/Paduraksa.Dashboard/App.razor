@@ -28,7 +28,7 @@
     <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 <body>
-    <Routes @rendermode="PageRenderMode" Preference="_preference" SystemPrefersLight="_systemPrefersLight" />
+    <Routes @rendermode="PageRenderMode" Preference="_preference" SystemPrefersLight="_systemPrefersLight" ZoneId="@_zoneId" Locale="@_locale" />
     @* Shown while the live connection is down, in place of Blazor's own dialog: Blazor puts a state class on it
        (components-reconnect-show, -retrying, -failed, ...) and paduraksa.js runs the buttons. *@
     <div id="components-reconnect-modal" class="pdk-reconnect">
@@ -62,6 +62,8 @@
     private ThemePreference _preference;
     private bool _systemPrefersLight;
     private string? _themeAttribute;
+    private string? _zoneId;
+    private string? _locale;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -73,6 +75,8 @@
     {
         _preference = ThemeState.ParsePreference(HttpContext.Request.Cookies[ThemeState.PreferenceCookie]);
         _systemPrefersLight = HttpContext.Request.Cookies[ThemeState.SystemSchemeCookie] == "light";
+        _zoneId = HttpContext.Request.Cookies[DisplayFormat.ZoneCookie];
+        _locale = HttpContext.Request.Cookies[DisplayFormat.LocaleCookie];
         _themeAttribute = _preference == ThemePreference.System ? null : ThemeState.ToCookieValue(_preference);
     }
 }

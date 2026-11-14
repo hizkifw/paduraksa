@@ -7,6 +7,7 @@
 @inject TimeProvider Time
 @inject DraftState Drafts
 @inject ISnackbar Snackbar
+@inject DisplayFormat Fmt
 @* Settings: the global defaults: the bottom layer of host settings, what a request for an unknown name gets, the default
    certificate and the trusted proxies, applied through the review drawer. *@
 
@@ -129,7 +130,7 @@ else
                 }
                 else
                 {
-                    <MudText Typo="Typo.caption" Class="pdk-muted d-block mt-2" data-field="cloudflare-ranges" data-state="ok">@CloudflareRangeText.Line(ranges, Time.GetUtcNow())</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted d-block mt-2" data-field="cloudflare-ranges" data-state="ok">@CloudflareRangeText.Line(ranges, Time.GetUtcNow(), Fmt)</MudText>
                 }
             }
 

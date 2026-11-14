@@ -52,30 +52,11 @@ public static class RevisionText
         _ => "System",
     };
 
-    /// <summary>"just now", "5 min ago", "3 h ago", "yesterday", else the date.</summary>
-    public static string Ago(DateTimeOffset at, DateTimeOffset now)
-    {
-        var age = now - at;
-        if (age < TimeSpan.FromMinutes(1))
-        {
-            return "just now";
-        }
+    /// <summary>"just now", "5 min ago", "3 h ago", "yesterday", else the date (<see cref="DisplayFormat.Ago"/>), in UTC.</summary>
+    public static string Ago(DateTimeOffset at, DateTimeOffset now) => DisplayFormat.Invariant.Ago(at, now);
 
-        if (age < TimeSpan.FromHours(1))
-        {
-            return $"{(int)age.TotalMinutes} min ago";
-        }
-
-        if (age < TimeSpan.FromDays(1))
-        {
-            return $"{(int)age.TotalHours} h ago";
-        }
-
-        return age < TimeSpan.FromDays(2) ? "yesterday" : at.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
-    }
-
-    /// <summary>A timestamp in full, for a tooltip (UTC, so every admin reads the same).</summary>
-    public static string Exact(DateTimeOffset at) => at.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+    /// <summary>A timestamp in full (<see cref="DisplayFormat.Exact"/>), in UTC.</summary>
+    public static string Exact(DateTimeOffset at) => DisplayFormat.Invariant.Exact(at);
 
     private static string Noun(ConfigChange change) => change switch
     {

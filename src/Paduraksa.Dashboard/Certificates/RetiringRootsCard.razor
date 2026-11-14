@@ -1,3 +1,4 @@
+@inject DisplayFormat Fmt
 @* The roots a rotation replaced: still trusted by devices that haven't installed the new one, so they stay downloadable until nothing
    they signed is left and they are retired. *@
 
@@ -23,7 +24,7 @@
             <li class="pdk-list-item" data-retiring-root="@retiring.Root.Id">
                 <div>
                     <strong>@CertificateDisplay.CommonName(retiring.Root.Subject)</strong>
-                    <span class="pdk-muted"> &middot; valid until @CertificateDisplay.Date(retiring.Root.NotAfter) &middot; @(retiring.Leaves == 0 ? "nothing it signed is left" : $"{retiring.Leaves} certificate{(retiring.Leaves == 1 ? string.Empty : "s")} still signed by it")</span>
+                    <span class="pdk-muted"> &middot; valid until @Fmt.Date(retiring.Root.NotAfter) &middot; @(retiring.Leaves == 0 ? "nothing it signed is left" : $"{retiring.Leaves} certificate{(retiring.Leaves == 1 ? string.Empty : "s")} still signed by it")</span>
                 </div>
                 <div class="pdk-trust-actions">
                     @if (Pem(retiring.Root.Id) is { } pem)

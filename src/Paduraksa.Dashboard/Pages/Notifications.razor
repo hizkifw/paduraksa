@@ -16,6 +16,7 @@
 @inject ISnackbar Snackbar
 @inject TimeProvider Time
 @inject ILogger<Notifications> Logger
+@inject DisplayFormat Fmt
 
 <PageTitle>Notifications · Paduraksa</PageTitle>
 
@@ -78,11 +79,11 @@ else
                         @if (channel.LastError is { Length: > 0 } error)
                         {
                             <StatusChip Tone="Tone.Error" Dot="true" Text="Last delivery failed" Name="last-error" />
-                            <span class="pdk-health-reason" title="@(channel.LastErrorAt is { } failedAt ? RevisionText.Exact(failedAt) : null)">@error</span>
+                            <span class="pdk-health-reason" title="@(channel.LastErrorAt is { } failedAt ? Fmt.Exact(failedAt) : null)">@error</span>
                         }
                         @if (channel.LastSentAt is { } sent)
                         {
-                            <span class="pdk-muted" title="@RevisionText.Exact(sent)">Last sent @RevisionText.Ago(sent, Time.GetUtcNow())</span>
+                            <span class="pdk-muted" title="@Fmt.Exact(sent)">Last sent @Fmt.Ago(sent, Time.GetUtcNow())</span>
                         }
                         else if (channel.LastError is null)
                         {

@@ -49,16 +49,17 @@ public static class DeliveryDisplay
     };
 
     /// <summary>What the chip says, after the channel's name (when it has one): the outcome, and for a delivery that is waiting, when it is tried next.</summary>
-    public static string Label(NotificationDeliverySummary delivery, bool withChannel)
+    public static string Label(NotificationDeliverySummary delivery, bool withChannel, DisplayFormat? format = null)
     {
         ArgumentNullException.ThrowIfNull(delivery);
+        format ??= DisplayFormat.Invariant;
         var outcome = delivery.State switch
         {
             NotificationDeliveryState.Sent => null,
             NotificationDeliveryState.Failed => "failed",
             NotificationDeliveryState.Expired => "expired",
             NotificationDeliveryState.Dropped => "dropped",
-            _ => delivery.Attempts == 0 ? "queued" : delivery.NextAttemptAt is { } next ? $"retrying, next {Time(next)}" : "retrying",
+            _ => delivery.Attempts == 0 ? "queued" : delivery.NextAttemptAt is { } next ? $"retrying, next {format.Time(next)}" : "retrying",
         };
         var channel = withChannel ? Channel(delivery) : null;
         return (channel, outcome) switch
@@ -71,15 +72,16 @@ public static class DeliveryDisplay
     }
 
     /// <summary>The tooltip: the error a failure ended with, when it was sent, how many times it was tried.</summary>
-    public static string Detail(NotificationDeliverySummary delivery)
+    public static string Detail(NotificationDeliverySummary delivery, DisplayFormat? format = null)
     {
         ArgumentNullException.ThrowIfNull(delivery);
-        var tries = delivery.Attempts == 1 ? "1 attempt" : $"{delivery.Attempts.ToString(CultureInfo.InvariantCulture)} attempts";
+        format ??= DisplayFormat.Invariant;
+        var tries = delivery.Attempts == 1 ? "1 attempt" : $"{format.Count(delivery.Attempts)} attempts";
         return delivery.State switch
         {
-            NotificationDeliveryState.Sent => delivery.SentAt is { } at ? $"Sent {RevisionText.Exact(at)} ({tries})" : "Sent",
+            NotificationDeliveryState.Sent => delivery.SentAt is { } at ? $"Sent {format.Exact(at)} ({tries})" : "Sent",
             NotificationDeliveryState.Pending when delivery.Attempts == 0 => "Waiting for its turn",
-            NotificationDeliveryState.Pending => $"{delivery.LastError ?? "The last try failed"} ({tries}; next {delivery.NextAttemptAt.Map(RevisionText.Exact)})",
+            NotificationDeliveryState.Pending => $"{delivery.LastError ?? "The last try failed"} ({tries}; next {delivery.NextAttemptAt.Map(format.Exact)})",
             _ => delivery.LastError is { Length: > 0 } error ? (delivery.Attempts > 0 ? $"{error} ({tries})" : error) : "Not sent",
         };
     }
@@ -90,8 +92,6 @@ public static class DeliveryDisplay
         ArgumentNullException.ThrowIfNull(delivery);
         return delivery.State is NotificationDeliveryState.Failed or NotificationDeliveryState.Expired && delivery.ChannelLabel is not null;
     }
-
-    public static string Time(DateTimeOffset at) => at.UtcDateTime.ToString("HH:mm", CultureInfo.InvariantCulture) + " UTC";
 
     private static string Map(this DateTimeOffset? value, Func<DateTimeOffset, string> format) => value is { } at ? format(at) : "soon";
 

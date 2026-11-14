@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using Paduraksa.Contracts.Analytics;
 using Paduraksa.Contracts.Logging;
 
@@ -17,58 +15,35 @@ internal static class AnalyticsFigures
     /// </summary>
     public const string VisitorsAccuracy = "±1.6%";
 
-    /// <summary>"950", "1.2k", "34k", "5.6M": for an axis, where a full count would only crowd it.</summary>
-    public static string Compact(double value) => value switch
-    {
-        < 1_000 => string.Create(CultureInfo.InvariantCulture, $"{value:0}"),
-        < 10_000 => string.Create(CultureInfo.InvariantCulture, $"{value / 1_000:0.0}k"),
-        < 1_000_000 => string.Create(CultureInfo.InvariantCulture, $"{value / 1_000:0}k"),
-        < 10_000_000 => string.Create(CultureInfo.InvariantCulture, $"{value / 1_000_000:0.0}M"),
-        < 1_000_000_000 => string.Create(CultureInfo.InvariantCulture, $"{value / 1_000_000:0}M"),
-        _ => string.Create(CultureInfo.InvariantCulture, $"{value / 1_000_000_000:0.0}G"),
-    };
+    // The numbers are DisplayFormat's. These keep the names the pages and other branches call; they write the invariant default, and a page
+    // that shows them to a person calls the injected DisplayFormat instead.
+    public static string Compact(double value) => DisplayFormat.Invariant.Compact(value);
 
-    /// <summary>"0 B", "512 B", "1.5 kB", "34 MB", "2.1 GB": decimal units, as a network is measured.</summary>
-    public static string Bytes(double bytes) => bytes switch
-    {
-        <= 0 => "0 B",
-        < 1_000 => string.Create(CultureInfo.InvariantCulture, $"{bytes:0} B"),
-        < 10_000 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1_000:0.0} kB"),
-        < 1_000_000 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1_000:0} kB"),
-        < 10_000_000 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1_000_000:0.0} MB"),
-        < 1_000_000_000 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1_000_000:0} MB"),
-        < 10_000_000_000 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1_000_000_000:0.0} GB"),
-        < 1_000_000_000_000 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1_000_000_000:0} GB"),
-        _ => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1_000_000_000_000:0.0} TB"),
-    };
+    public static string Bytes(double bytes) => DisplayFormat.Invariant.Bytes(bytes);
 
-    /// <summary>"0%", "&lt;1%", "12%": a share of a whole, whole percents.</summary>
-    public static string Share(long part, long whole) => whole <= 0 || part <= 0
-        ? "0%"
-        : part * 100.0 / whole < 1 ? "<1%" : string.Create(CultureInfo.InvariantCulture, $"{part * 100.0 / whole:0}%");
+    public static string Share(long part, long whole) => DisplayFormat.Invariant.Share(part, whole);
 
-    /// <summary>A count with thousands separators.</summary>
-    public static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+    public static string Count(long value) => DisplayFormat.Invariant.Count(value);
 
     /// <summary>A count a sketch may have overshot is marked; one that is exact (no error) is not.</summary>
-    public static string Counted(long count, long error) => error > 0 ? $"{Approximately} {Count(count)}" : Count(count);
+    public static string Counted(long count, long error, DisplayFormat? format = null) =>
+        error > 0 ? $"{Approximately} {(format ?? DisplayFormat.Invariant).Count(count)}" : (format ?? DisplayFormat.Invariant).Count(count);
 
     /// <summary>The tooltip of a row that may have been overcounted: the range the truth is in.</summary>
-    public static string? Range(long count, long error) => error > 0
-        ? string.Create(CultureInfo.InvariantCulture, $"Between {Count(Math.Max(0, count - error))} and {Count(count)}")
-        : null;
+    public static string? Range(long count, long error, DisplayFormat? format = null)
+    {
+        format ??= DisplayFormat.Invariant;
+        return error > 0 ? $"Between {format.Count(Math.Max(0, count - error))} and {format.Count(count)}" : null;
+    }
 
     /// <summary>A tooltip line for a step observed in part (the server started or stopped inside it); null when it saw all of it or none.</summary>
-    public static string? Coverage(AnalyticsStep step) => step.CoveredSeconds > 0 && step.CoveredSeconds < step.WidthSeconds
-        ? string.Create(CultureInfo.InvariantCulture, $"Observed {Span(step.CoveredSeconds)} of {Span(step.WidthSeconds)}")
-        : null;
-
-    private static string Span(int seconds) => seconds switch
+    public static string? Coverage(AnalyticsStep step, DisplayFormat? format = null)
     {
-        < 90 => string.Create(CultureInfo.InvariantCulture, $"{seconds} s"),
-        < 5_400 => string.Create(CultureInfo.InvariantCulture, $"{seconds / 60.0:0.#} min"),
-        _ => string.Create(CultureInfo.InvariantCulture, $"{seconds / 3600.0:0.#} h"),
-    };
+        format ??= DisplayFormat.Invariant;
+        return step.CoveredSeconds > 0 && step.CoveredSeconds < step.WidthSeconds
+            ? $"Observed {format.Seconds(step.CoveredSeconds)} of {format.Seconds(step.WidthSeconds)}"
+            : null;
+    }
 
     /// <summary>
     /// The live tail filtered to a path (and to a host when the analytics are for one), or null for a path the tail can't match whole:

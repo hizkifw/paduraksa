@@ -1,6 +1,7 @@
 @using System.Globalization
 @using Paduraksa.Contracts.Analytics
 @using Paduraksa.Dashboard.Pages
+@inject DisplayFormat Fmt
 @* A compact bar list: each row is a label, a bar as wide as its share of the whole, the count and the share in percent. A row with
    nothing in it is left out, so a list is only what happened. *@
 <ul class="pdk-share" data-share="@Name">
@@ -9,8 +10,8 @@
         <li class="pdk-share-row" data-label="@item.Label">
             <span class="pdk-share-label" title="@item.Label">@(Display(item.Label))</span>
             <span class="pdk-share-bar" aria-hidden="true"><span class="pdk-share-fill @ToneOf(item.Label)" style="width: @Width(item.Count)"></span></span>
-            <span class="pdk-share-count">@Format(item.Count)</span>
-            <span class="pdk-share-pct">@AnalyticsFigures.Share(item.Count, Whole)</span>
+            <span class="pdk-share-count">@(Format?.Invoke(item.Count) ?? Fmt.Count(item.Count))</span>
+            <span class="pdk-share-pct">@Fmt.Share(item.Count, Whole)</span>
         </li>
     }
 </ul>
@@ -28,7 +29,7 @@
 
     /// <summary>Writes a row's count; whole numbers by default.</summary>
     [Parameter]
-    public Func<long, string> Format { get; set; } = AnalyticsFigures.Count;
+    public Func<long, string>? Format { get; set; }
 
     /// <summary>The label as shown, when it should read differently from the data's (<c>mobile</c> as "Mobile").</summary>
     [Parameter]

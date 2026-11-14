@@ -1,3 +1,4 @@
+@inject DisplayFormat Fmt
 @* "Trust the local CA once": the root's fingerprint, the PEM and DER downloads (the admin's anonymous /api/v1/ca
    endpoints), and how to install it. Public data only. *@
 
@@ -23,7 +24,7 @@
             <dt>Name</dt>
             <dd>@CertificateDisplay.CommonName(Root.Subject)</dd>
             <dt>Valid until</dt>
-            <dd>@CertificateDisplay.Date(Root.NotAfter)</dd>
+            <dd>@Fmt.Date(Root.NotAfter)</dd>
             <dt>SHA-256</dt>
             <dd><CopyableCode Value="@CertificateDisplay.Fingerprint(Root.Sha256Fingerprint)" Block="true" CopyAction="copy-fingerprint" /></dd>
             @if (PermittedNames is not null)

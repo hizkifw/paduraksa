@@ -6,6 +6,7 @@
 @inject DashboardCaller Caller
 @inject TimeProvider Time
 @inject Microsoft.Extensions.Logging.ILogger<TokenDrawer> Logger
+@inject DisplayFormat Fmt
 @* A new API token, in a drawer: scopes only what the owner holds, never the token or session permissions. Its secret is
    shown once and the drawer then closes only through "I've copied it", which also takes the secret away. *@
 
@@ -164,7 +165,7 @@
         : null;
 
     private string ExpiryText => ExpiresAt is { } end
-        ? $"Stops working on {end.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}."
+        ? $"Stops working on {Fmt.Date(end)}."
         : "Works until you revoke it. An expiry limits the harm of a token that leaks.";
 
     protected override void OnInitialized()

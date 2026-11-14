@@ -61,7 +61,7 @@ public sealed class HomeSnapshotTests
     [InlineData(CloudflareRangeSource.Fetched, 3, "Cloudflare ranges: updated 3 days ago (22 ranges)")]
     [InlineData(CloudflareRangeSource.Fetched, 1, "Cloudflare ranges: updated 1 day ago (22 ranges)")]
     [InlineData(CloudflareRangeSource.Fetched, 0, "Cloudflare ranges: updated today (22 ranges)")]
-    [InlineData(CloudflareRangeSource.BuiltIn, 5, "Cloudflare ranges: built-in list from 2026-11-04 (22 ranges)")]
+    [InlineData(CloudflareRangeSource.BuiltIn, 5, "Cloudflare ranges: built-in list from 4 Nov 2026 (22 ranges)")]
     public void TheRangeLineSaysHowFreshTheListIs(CloudflareRangeSource source, int days, string expected)
     {
         CloudflareRangeStatus status = new(source, Now.AddDays(-days), 22, 0, null);

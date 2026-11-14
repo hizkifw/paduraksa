@@ -17,6 +17,7 @@
 @inject ISnackbar Snackbar
 @inject TimeProvider Time
 @inject ILogger<DnsProviders> Logger
+@inject DisplayFormat Fmt
 
 <PageTitle>DNS providers · Paduraksa</PageTitle>
 
@@ -70,7 +71,7 @@ else
                 <div class="pdk-provider-main">
                     <span class="pdk-provider-title">@provider.Label</span>
                     <span class="pdk-provider-sub">
-                        @ProviderDisplay.KindLabel(provider.Kind) · @DnsProviderService.ApiHostOf(provider.Kind) · token updated @CertificateDisplay.Date(provider.UpdatedAt)
+                        @ProviderDisplay.KindLabel(provider.Kind) · @DnsProviderService.ApiHostOf(provider.Kind) · token updated @Fmt.Date(provider.UpdatedAt)
                         @if (_inUse.GetValueOrDefault(provider.Id) is > 0 and var count)
                         {
                             <span> · @Wording.Plural(count, "certificate", "certificates")</span>

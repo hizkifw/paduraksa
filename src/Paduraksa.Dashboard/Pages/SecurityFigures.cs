@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
 
@@ -16,24 +14,16 @@ internal static class SecurityFigures
     public static double? Rate(long before, long after, TimeSpan elapsed) =>
         elapsed > TimeSpan.Zero ? Math.Max(0, after - before) / elapsed.TotalSeconds : null;
 
-    /// <summary>"0.4/s", "12/s", "0/s"; blank before a rate exists, so the tile keeps its height.</summary>
-    public static string RateText(double? rate) => rate switch
-    {
-        null => string.Empty,
-        0 => "0/s",
-        < 0.1 => "<0.1/s",
-        < 10 => string.Create(CultureInfo.InvariantCulture, $"{rate:0.#}/s"),
-        { } value => string.Create(CultureInfo.InvariantCulture, $"{value:0}/s"),
-    };
+    // The numbers are DisplayFormat's. These keep the names the pages and other branches call; they write the invariant default, and a page
+    // that shows them to a person calls the injected DisplayFormat instead.
+    public static string RateText(double? rate) => DisplayFormat.Invariant.RateText(rate);
+
+    public static string Count(long value) => DisplayFormat.Invariant.Count(value);
+
+    public static string? Share(long part, long whole) => DisplayFormat.Invariant.ShareOrNull(part, whole);
 
     /// <summary>"256", or "Off" for the limit that is turned off.</summary>
-    public static string LimitText(int limit) => limit == 0 ? "Off" : limit.ToString("N0", CultureInfo.InvariantCulture);
-
-    public static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
-
-    /// <summary>"81%" of <paramref name="whole"/>; null when there is nothing to take a share of.</summary>
-    public static string? Share(long part, long whole) =>
-        whole <= 0 ? null : string.Create(CultureInfo.InvariantCulture, $"{Math.Min(100, part * 100.0 / whole):0}%");
+    public static string LimitText(int limit, DisplayFormat? format = null) => limit == 0 ? "Off" : (format ?? DisplayFormat.Invariant).Count(limit);
 
     public static bool HasProtection(HostProtections host) =>
         host.ProofOfWork.Enabled || host.ProofOfWork.RouteOverrides > 0
@@ -60,22 +50,25 @@ internal static class SecurityFigures
         : "no rules";
 
     /// <summary>What a set has refused, in a few words: "1,204 refused", or nothing yet. A drop is a refusal too.</summary>
-    public static string? RefusedText(RuleSetRef set) =>
-        set.Denied + set.Dropped is var refused and > 0 ? $"{Count(refused)} refused" : null;
+    public static string? RefusedText(RuleSetRef set, DisplayFormat? format = null) =>
+        set.Denied + set.Dropped is var refused and > 0 ? $"{(format ?? DisplayFormat.Invariant).Count(refused)} refused" : null;
 
     /// <summary>A set's regex matches that timed out, said only once there are some: it should never happen, so it is worth a line.</summary>
-    public static string? TimeoutText(RuleSetRef set) =>
-        set.Timeouts > 0 ? $"{Count(set.Timeouts)} regex {(set.Timeouts == 1 ? "timeout" : "timeouts")}" : null;
+    public static string? TimeoutText(RuleSetRef set, DisplayFormat? format = null) =>
+        set.Timeouts > 0 ? $"{(format ?? DisplayFormat.Invariant).Count(set.Timeouts)} regex {(set.Timeouts == 1 ? "timeout" : "timeouts")}" : null;
 
     /// <summary>What a provider has decided, in a few words: "1,204 allowed, 12 refused", or that it hasn't been asked yet.</summary>
-    public static string DecidedText(AuthProviderRef provider) =>
-        provider.Allowed + provider.Refused == 0
+    public static string DecidedText(AuthProviderRef provider, DisplayFormat? format = null)
+    {
+        format ??= DisplayFormat.Invariant;
+        return provider.Allowed + provider.Refused == 0
             ? "not asked yet"
-            : provider.Refused == 0 ? $"{Count(provider.Allowed)} allowed" : $"{Count(provider.Allowed)} allowed, {Count(provider.Refused)} refused";
+            : provider.Refused == 0 ? $"{format.Count(provider.Allowed)} allowed" : $"{format.Count(provider.Allowed)} allowed, {format.Count(provider.Refused)} refused";
+    }
 
     /// <summary>A provider's failed calls, said only once there are some: they refuse requests, so they are worth a line.</summary>
-    public static string? FailureText(AuthProviderRef provider) =>
-        provider.Failures > 0 ? $"{Count(provider.Failures)} failed {(provider.Failures == 1 ? "call" : "calls")}" : null;
+    public static string? FailureText(AuthProviderRef provider, DisplayFormat? format = null) =>
+        provider.Failures > 0 ? $"{(format ?? DisplayFormat.Invariant).Count(provider.Failures)} failed {(provider.Failures == 1 ? "call" : "calls")}" : null;
 
     public static string LockdownText(OriginLockdownMode mode) => mode switch
     {

@@ -9,6 +9,7 @@
 @inject IVaultLifecycle VaultLifecycle
 @inject TimeProvider Time
 @inject ILogger<Home> Logger
+@inject DisplayFormat Fmt
 @* The overview: first what needs the person and where to fix it, then the live traffic, the counts, the hosts with where
    their requests go, and the latest changes. All but the traffic is read once and carried from the first render into the circuit;
    the traffic panel polls. *@
@@ -182,7 +183,7 @@
                                 <span class="pdk-seq">#@change.Seq</span>
                                 <span class="pdk-list-main">
                                     <span class="pdk-attention-title">@change.Title</span>
-                                    <span class="pdk-list-sub">@change.Who · <span title="@RevisionText.Exact(change.At)">@RevisionText.Ago(change.At, Time.GetUtcNow())</span></span>
+                                    <span class="pdk-list-sub">@change.Who · <span title="@Fmt.Exact(change.At)">@Fmt.Ago(change.At, Time.GetUtcNow())</span></span>
                                 </span>
                             </a>
                         </li>
@@ -221,8 +222,8 @@
     private int _upstreamsDegraded;
 
     private string? UpstreamDetail => _upstreamsDown > 0
-        ? $"{_upstreamsDown.ToString(CultureInfo.InvariantCulture)} down"
-        : _upstreamsDegraded > 0 ? $"{_upstreamsDegraded.ToString(CultureInfo.InvariantCulture)} degraded" : null;
+        ? $"{Fmt.Count(_upstreamsDown)} down"
+        : _upstreamsDegraded > 0 ? $"{Fmt.Count(_upstreamsDegraded)} degraded" : null;
 
     private void OnHealth(IReadOnlyList<UpstreamHealthView> views)
     {
@@ -234,7 +235,7 @@
 
     private string ExpiringDetail => ExpiringCount == 0
         ? (Snapshot?.ExpiringInUse == true ? "None in use expire soon" : "None expire soon")
-        : $"{ExpiringCount.ToString(CultureInfo.InvariantCulture)}{(Snapshot?.ExpiringInUse == true ? " in use" : string.Empty)} {(ExpiringCount == 1 ? "expires" : "expire")} within {HomeSnapshot.ExpiryHorizonDays} days";
+        : $"{Fmt.Count(ExpiringCount)}{(Snapshot?.ExpiringInUse == true ? " in use" : string.Empty)} {(ExpiringCount == 1 ? "expires" : "expire")} within {HomeSnapshot.ExpiryHorizonDays} days";
 
     protected override Task OnInitializedAsync() => LoadAsync(force: false);
 

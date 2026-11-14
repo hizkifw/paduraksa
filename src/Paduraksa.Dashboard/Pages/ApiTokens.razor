@@ -11,6 +11,7 @@
 @inject IDialogService Dialogs
 @inject DrawerStack Drawers
 @inject ILogger<ApiTokens> Logger
+@inject DisplayFormat Fmt
 @* Settings: API tokens. One's own, and everyone's with tokens:all. A new token is made in a drawer, which shows its
    secret once; the page never holds it. *@
 
@@ -97,7 +98,7 @@
                         <span class="pdk-list-icon pdk-tone-@tone.Css()"><MudIcon Icon="@Icons.Material.Outlined.Key" Size="Size.Small" /></span>
                         <span class="pdk-dt-titles" data-token="@row.Token.Name">
                             <span class="pdk-list-title">@row.Token.Name</span>
-                            <span class="pdk-dt-note" title="@RevisionText.Exact(row.Token.CreatedAt)">Created @RevisionText.Ago(row.Token.CreatedAt, _now)</span>
+                            <span class="pdk-dt-note" title="@Fmt.Exact(row.Token.CreatedAt)">Created @Fmt.Ago(row.Token.CreatedAt, _now)</span>
                         </span>
                     </div>
                     @if (_everyone)
@@ -119,14 +120,14 @@
                     <span role="cell" class="pdk-dt-cell" data-label="Last used">
                         @if (row.Token.LastUsedAt is { } used)
                         {
-                            <span title="@RevisionText.Exact(used)">@RevisionText.Ago(used, _now)</span>
+                            <span title="@Fmt.Exact(used)">@Fmt.Ago(used, _now)</span>
                         }
                         else
                         {
                             <span class="pdk-muted">Never</span>
                         }
                     </span>
-                    <span role="cell" class="pdk-dt-cell" data-label="Expires"><span class="@(row.Token.ExpiresAt is null ? "pdk-muted" : null)">@IdentityText.Until(row.Token.ExpiresAt, _now)</span></span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Expires"><span class="@(row.Token.ExpiresAt is null ? "pdk-muted" : null)">@IdentityText.Until(row.Token.ExpiresAt, _now, Fmt)</span></span>
                     <span role="cell" class="pdk-dt-cell" data-label="Status"><StatusChip Tone="tone" Dot="true" Text="@label" Name="status" /></span>
                     <span role="cell" class="pdk-dt-cell pdk-dt-actions">
                         @if (!row.Token.Revoked && (row.Mine || _mayAll))

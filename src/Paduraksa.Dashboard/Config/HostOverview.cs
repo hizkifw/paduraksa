@@ -137,8 +137,8 @@ public static class HostOverview
     }
 
     /// <summary>A certificate's name in a picker: its label, else its first name, with when it ends.</summary>
-    public static string CertificateTitle(CertificateSummary certificate) =>
-        $"{CertificateName(certificate)} · until {certificate.NotAfter.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}";
+    public static string CertificateTitle(CertificateSummary certificate, DisplayFormat? format = null) =>
+        $"{CertificateName(certificate)} · until {(format ?? DisplayFormat.Invariant).Date(certificate.NotAfter)}";
 
     /// <summary>A certificate's name: its label, else its first name, else its subject.</summary>
     public static string CertificateName(CertificateSummary certificate)

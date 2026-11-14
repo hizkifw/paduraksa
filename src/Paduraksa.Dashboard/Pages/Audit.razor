@@ -16,6 +16,7 @@
 @inject TimeProvider Time
 @inject ISnackbar Snackbar
 @inject ILogger<Audit> Logger
+@inject DisplayFormat Fmt
 
 <PageTitle>Audit · Paduraksa</PageTitle>
 
@@ -33,7 +34,7 @@
                 {
                     <MudIcon Icon="@Icons.Material.Outlined.Link" Size="Size.Small" Class="pdk-chain-ok" />
                     <span title="@(intact.HeadHash is { } hash ? $"Latest hash {hash}. Keep a copy elsewhere: it shows if the newest events are ever removed." : null)">
-                        Chain intact: @intact.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) @(intact.VerifiedEvents == 1 ? "event verifies" : "events verify")@(_verifiedAt is { } at ? $", checked {RevisionText.Ago(at, Time.GetUtcNow())}" : null)
+                        Chain intact: @Fmt.Count(intact.VerifiedEvents) @(intact.VerifiedEvents == 1 ? "event verifies" : "events verify")@(_verifiedAt is { } at ? $", checked {Fmt.Ago(at, Time.GetUtcNow())}" : null)
                     </span>
                 }
                 <MudTooltip Text="Verify the chain again" Arrow="true">
@@ -73,7 +74,7 @@ else
                 {
                     <span>@broken.Description</span>
                     <span class="pdk-muted">
-                        First bad event <span class="pdk-mono" data-break="@broken.EventId">@broken.EventId</span>; the @failed.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) before it verify.
+                        First bad event <span class="pdk-mono" data-break="@broken.EventId">@broken.EventId</span>; the @Fmt.Count(failed.VerifiedEvents) before it verify.
                     </span>
                 }
             </div>
@@ -97,9 +98,9 @@ else
         <div class="pdk-filter-fields">
             @if (_range == AuditRange.Custom)
             {
-                <MudTextField T="string" Value="_from" ValueChanged="@(value => SetAsync(() => _from = value))" InputType="InputType.DateTimeLocal" Label="From (UTC)"
+                <MudTextField T="string" Value="_from" ValueChanged="@(value => SetAsync(() => _from = value))" InputType="InputType.DateTimeLocal" Label="From"
                               Variant="Variant.Outlined" Margin="Margin.Dense" data-field="from" />
-                <MudTextField T="string" Value="_to" ValueChanged="@(value => SetAsync(() => _to = value))" InputType="InputType.DateTimeLocal" Label="Until (UTC)"
+                <MudTextField T="string" Value="_to" ValueChanged="@(value => SetAsync(() => _to = value))" InputType="InputType.DateTimeLocal" Label="Until"
                               Variant="Variant.Outlined" Margin="Margin.Dense" Error="@(RangeError is not null)" ErrorText="@RangeError" data-field="to" />
             }
             <MudSelect T="string" Value="_actor" ValueChanged="@(value => SetAsync(() => _actor = value))" Label="Who" Variant="Variant.Outlined" Margin="Margin.Dense"
@@ -185,7 +186,7 @@ else
                 {
                     <li @key="e.Id" class="pdk-audit-row" data-event="@e.Id" data-action="@e.Action" data-outcome="@e.Outcome.ToName()">
                         <button type="button" class="pdk-audit-summary" @onclick="() => OpenAsync(e)" aria-haspopup="dialog">
-                            <span class="pdk-audit-time" title="@RevisionText.Exact(e.Timestamp)">@RevisionText.Ago(e.Timestamp, _now)</span>
+                            <span class="pdk-audit-time" title="@Fmt.Exact(e.Timestamp)">@Fmt.Ago(e.Timestamp, _now)</span>
                             <span class="pdk-audit-what">
                                 <span class="pdk-audit-title">@AuditText.Describe(e.Action)</span>
                                 <span class="pdk-badge pdk-tone-@AuditText.AreaTone(e.Action).Css() pdk-mono">@e.Action</span>
@@ -389,11 +390,18 @@ else
             _outcome);
     }
 
-    /// <summary>A <c>datetime-local</c> value, read as UTC (the page shows UTC throughout, so every admin reads the same).</summary>
-    private static DateTimeOffset? ParseLocal(string? value) =>
-        DateTime.TryParseExact(value, ["yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
-            ? new DateTimeOffset(parsed, TimeSpan.Zero)
-            : null;
+    /// <summary>A <c>datetime-local</c> value is a wall clock time with no zone: read it in the zone the page shows times in, so the range matches the times in the list.</summary>
+    private DateTimeOffset? ParseLocal(string? value)
+    {
+        if (!DateTime.TryParseExact(value, ["yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            return null;
+        }
+
+        var zone = Fmt.Preferences.Zone;
+        // A wall clock time the zone skips (the hour spring forward leaves out) reads as the instant just after the gap.
+        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(zone.IsInvalidTime(parsed) ? parsed.AddHours(1) : parsed, zone), TimeSpan.Zero);
+    }
 
     private async Task SetAsync(Action apply)
     {
@@ -536,7 +544,7 @@ else
                 using MemoryStream content = new(output.WrittenMemory.ToArray());
                 if (await Browser.DownloadAsync(name, "application/x-ndjson", content))
                 {
-                    Snackbar.Add($"Exported {written.ToString("N0", CultureInfo.InvariantCulture)} {(written == 1 ? "event" : "events")}{(written >= ExportLimit ? " (the most one export holds)" : string.Empty)}.", Severity.Success);
+                    Snackbar.Add($"Exported {Fmt.Count(written)} {(written == 1 ? "event" : "events")}{(written >= ExportLimit ? " (the most one export holds)" : string.Empty)}.", Severity.Success);
                 }
             });
         }

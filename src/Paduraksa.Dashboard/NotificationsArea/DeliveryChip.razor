@@ -1,6 +1,7 @@
+@inject DisplayFormat Fmt
 @* One delivery as a chip: the channel and what became of the message, the error or the time in its tooltip. *@
-<StatusChip Tone="DeliveryDisplay.ToneOf(Delivery.State)" Icon="@DeliveryDisplay.IconOf(Delivery.State)" Text="@DeliveryDisplay.Label(Delivery, WithChannel)"
-            Detail="@DeliveryDisplay.Detail(Delivery)" Name="@("delivery-" + Delivery.State.ToName())" Class="pdk-nh-chip" />
+<StatusChip Tone="DeliveryDisplay.ToneOf(Delivery.State)" Icon="@DeliveryDisplay.IconOf(Delivery.State)" Text="@DeliveryDisplay.Label(Delivery, WithChannel, Fmt)"
+            Detail="@DeliveryDisplay.Detail(Delivery, Fmt)" Name="@("delivery-" + Delivery.State.ToName())" Class="pdk-nh-chip" />
 
 @code {
     [Parameter, EditorRequired]

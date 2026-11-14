@@ -1,6 +1,7 @@
 @using System.Globalization
 @using System.Text
 @using Paduraksa.Dashboard.Config
+@inject DisplayFormat Fmt
 @* A line and area chart as inline SVG: no script and no dependency, so it renders on the server like everything else.
    Points sit at their start times, so a minute wide point can stand among ten second ones. A line is broken wherever a value is
    missing, and a stretch the server wasn't running for is a shaded band: it never draws a line through, or a zero into, what
@@ -40,8 +41,8 @@
         </svg>
     </div>
     <div class="pdk-chart-x" aria-hidden="true">
-        <span>@(Points.Count > 0 ? Points[0].Start.ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
-        <span>@(Points.Count > 0 ? Points[^1].Start.ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
+        <span>@(Points.Count > 0 ? Fmt.Axis(Points[0].Start, TimeFormat) : string.Empty)</span>
+        <span>@(Points.Count > 0 ? Fmt.Axis(Points[^1].Start, TimeFormat) : string.Empty)</span>
     </div>
     <figcaption class="pdk-chart-legend">
         @foreach (var line in Lines)
@@ -86,7 +87,7 @@
     [Parameter, EditorRequired]
     public Func<double, string> Format { get; set; } = static value => value.ToString("0.##", CultureInfo.InvariantCulture);
 
-    /// <summary>The format of the two time labels under the plot (UTC).</summary>
+    /// <summary>The format of the two time labels under the plot on the person's clock.</summary>
     [Parameter]
     public string TimeFormat { get; set; } = "HH:mm";
 
@@ -109,7 +110,7 @@
             }
 
             var gaps = Points.Count(point => point.NoData);
-            return $"{Name}, {Points.Count} points from {RevisionText.Exact(Points[0].Start)} to {RevisionText.Exact(Points[^1].Start)}, highest {Format(peak)}"
+            return $"{Name}, {Points.Count} points from {Fmt.Exact(Points[0].Start)} to {Fmt.Exact(Points[^1].Start)}, highest {Format(peak)}"
                 + (gaps > 0 ? $", {gaps} with no data" : string.Empty);
         }
     }
@@ -251,7 +252,7 @@
     private string Tooltip(int index)
     {
         var point = Points[index];
-        StringBuilder text = new(RevisionText.Exact(point.Start));
+        StringBuilder text = new(Fmt.Exact(point.Start));
         if (point.NoData)
         {
             text.Append("\nNo data: Paduraksa was not running");

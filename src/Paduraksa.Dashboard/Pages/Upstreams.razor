@@ -9,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject TimeProvider Time
 @inject ILogger<Upstreams> Logger
+@inject DisplayFormat Fmt
 @* The upstreams: each one's addresses, how it spreads load and checks health, and which hosts send requests to it.
    /upstreams/ups_... is this list with that drawer open. *@
 
@@ -100,7 +101,7 @@ else
                                 <span class="pdk-dt-note">@Describe(upstream)</span>
                                 @if (live?.LastChange is { } change)
                                 {
-                                    <span class="pdk-dt-note pdk-health-change" title="@RevisionText.Exact(change.At)">@HealthDisplay.LastChange(change, Time.GetUtcNow())</span>
+                                    <span class="pdk-dt-note pdk-health-change" title="@Fmt.Exact(change.At)">@HealthDisplay.LastChange(change, Time.GetUtcNow(), Fmt)</span>
                                 }
                             </div>
                         </div>

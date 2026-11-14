@@ -9,6 +9,7 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject ILogger<SessionsCard> Logger
+@inject DisplayFormat Fmt
 @* My account: your sessions. An ended session's open page goes to the sign-in page within the re-check interval. *@
 <MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="sessions">
     <div class="pdk-card-head">
@@ -65,8 +66,8 @@
                         </span>
                         <span class="pdk-list-sub">
                             <span class="pdk-mono">@(session.ClientIp ?? "Unknown address")</span>
-                            · <span title="@RevisionText.Exact(session.LastSeenAt)">last seen @RevisionText.Ago(session.LastSeenAt, _now)</span>
-                            · <span title="@RevisionText.Exact(session.CreatedAt)">signed in @RevisionText.Ago(session.CreatedAt, _now)</span>
+                            · <span title="@Fmt.Exact(session.LastSeenAt)">last seen @Fmt.Ago(session.LastSeenAt, _now)</span>
+                            · <span title="@Fmt.Exact(session.CreatedAt)">signed in @Fmt.Ago(session.CreatedAt, _now)</span>
                         </span>
                     </span>
                     @if (!session.Current)

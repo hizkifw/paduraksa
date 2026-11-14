@@ -30,7 +30,7 @@ public sealed class LogFilesPageTests
         Assert.Single(page.FindAll("[data-log=access]"));
         Assert.Contains("Live: being written now", page.Markup, StringComparison.Ordinal);
         Assert.Contains("Rotated, compressed", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("2 KB", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("2 KiB", page.Markup, StringComparison.Ordinal);
         Assert.Contains("/api/v1/logs/error.log", page.Find("[data-file='error.log'] [data-action=download]").GetAttribute("href"), StringComparison.Ordinal);
         Assert.Equal(3, page.FindAll("[data-action=download]").Count);
     }

@@ -3,6 +3,7 @@
 @inject IDashboardNotificationHistory History
 @inject TimeProvider Time
 @inject ILogger<NotificationRecent> Logger
+@inject DisplayFormat Fmt
 
 <section class="pdk-nh-recent" data-section="recent-deliveries" aria-label="Recent deliveries">
     <div class="pdk-nh-recent-head">
@@ -27,7 +28,7 @@
             @foreach (var e in _recent)
             {
                 <li data-event="@e.Id">
-                    <span class="pdk-nh-time" title="@RevisionText.Exact(e.CreatedAt)">@RevisionText.Ago(e.CreatedAt, _now)</span>
+                    <span class="pdk-nh-time" title="@Fmt.Exact(e.CreatedAt)">@Fmt.Ago(e.CreatedAt, _now)</span>
                     <span class="pdk-nh-recent-title">@e.Title</span>
                     @foreach (var delivery in e.Deliveries)
                     {

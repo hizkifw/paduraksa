@@ -3,6 +3,7 @@
    sent. *@
 @using Microsoft.Extensions.Logging
 @inject ILogger<UploadCertificateForm> Logger
+@inject DisplayFormat Fmt
 
 <div class="pdk-form-stack">
     <div class="pdk-drop @(_file is not null ? "pdk-drop-filled" : null) @(_fileError is not null ? "pdk-drop-error" : null)">
@@ -11,7 +12,7 @@
             @if (_file is { } file)
             {
                 <span class="pdk-drop-title pdk-upload-file">@file.Name</span>
-                <span class="pdk-drop-hint">@FileSize(file.Size) · @(IsPfx(file.Name) ? "PKCS#12 (PFX)" : "PEM")</span>
+                <span class="pdk-drop-hint">@Fmt.FileSize(file.Size) · @(IsPfx(file.Name) ? "PKCS#12 (PFX)" : "PEM")</span>
             }
             else
             {
@@ -180,5 +181,4 @@
         _errors = [.. CertificateMessages.Errors(result), "Choose the file again to retry."];
     }
 
-    private static string FileSize(long bytes) => bytes >= 1024 ? $"{bytes / 1024.0:0.#} KiB" : $"{bytes} B";
 }

@@ -1,11 +1,12 @@
+@inject DisplayFormat Fmt
 @* The time a certificate has left, coloured by how soon it ends (green, amber inside 30 days, red inside 7 or after), with the date under it. *@
-<span class="pdk-expiry pdk-tone-@CertificateDisplay.ExpiryTone(NotAfter, Now)" title="@CertificateDisplay.DateTime(NotAfter)">
+<span class="pdk-expiry pdk-tone-@CertificateDisplay.ExpiryTone(NotAfter, Now)" title="@Fmt.DateTime(NotAfter)">
     <span class="pdk-expiry-dot" aria-hidden="true"></span>
     <span class="pdk-expiry-text">
         <span class="pdk-expiry-left">@CertificateDisplay.ExpiresIn(NotAfter, Now)</span>
         @if (ShowDate)
         {
-            <span class="pdk-expiry-date">@CertificateDisplay.Date(NotAfter)</span>
+            <span class="pdk-expiry-date">@Fmt.Date(NotAfter)</span>
         }
     </span>
 </span>

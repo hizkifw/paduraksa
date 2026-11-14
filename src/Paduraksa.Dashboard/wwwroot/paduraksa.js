@@ -10,6 +10,15 @@
         document.cookie = `${name}=${value}; Path=/; Max-Age=31536000; SameSite=Strict${secure}`;
     };
 
+    // The browser's time zone and language, for the server to write times and numbers the way this person reads them from the first byte.
+    // Written on every load, so a person who travels is followed. Neither is a secret.
+    try {
+        write("paduraksa-tz", Intl.DateTimeFormat().resolvedOptions().timeZone);
+        write("paduraksa-locale", navigator.language);
+    } catch {
+        // No Intl: the server shows UTC.
+    }
+
     const light = window.matchMedia("(prefers-color-scheme: light)");
     const recordScheme = () => write("paduraksa-scheme", light.matches ? "light" : "dark");
     recordScheme();

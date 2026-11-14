@@ -1,5 +1,6 @@
 @using Paduraksa.Application.Compilation
 @using Paduraksa.Contracts.Certificates
+@inject DisplayFormat Fmt
 @* The host form, in the host drawer: names and kind first, then what the kind needs, the certificate, the settings
    layers, tags and notes. Every reference is a picker of what exists with "New ..." last, which stacks a drawer and puts
    the new object in. Errors show at their fields, from the inline validator once a field is touched and from the dry
@@ -255,7 +256,7 @@
                 <MudSelectItem T="string" Value="@CertificateKey(certificate.Id)">
                     <span class="pdk-picker-item">
                         <span>@HostOverview.CertificateName(certificate)</span>
-                        <span class="pdk-picker-hint">until @certificate.NotAfter.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</span>
+                        <span class="pdk-picker-hint">until @Fmt.Date(certificate.NotAfter)</span>
                     </span>
                 </MudSelectItem>
             }
@@ -497,7 +498,7 @@
     private string? CertificateError => E("/certificate/certificateId") ?? E("/certificate");
 
     private IReadOnlyList<CertificateSummary> PickableCertificates =>
-        Certificates is null ? [] : [.. Certificates.Where(c => HostOverview.IsUsable(c) || c.Id == Model.CertificateId).OrderBy(HostOverview.CertificateTitle, StringComparer.Ordinal)];
+        Certificates is null ? [] : [.. Certificates.Where(c => HostOverview.IsUsable(c) || c.Id == Model.CertificateId).OrderBy(c => HostOverview.CertificateTitle(c), StringComparer.Ordinal)];
 
     private string? TagError => FirstUnder("/tags");
 
@@ -523,7 +524,7 @@
     {
         AutoChoice => "Automatic: one that covers the hostnames",
         NoneChoice => "None: HTTP only",
-        _ when Model.CertificateId is { } id => Certificates?.FirstOrDefault(c => c.Id == id) is { } certificate ? HostOverview.CertificateTitle(certificate) : id.ToString(),
+        _ when Model.CertificateId is { } id => Certificates?.FirstOrDefault(c => c.Id == id) is { } certificate ? HostOverview.CertificateTitle(certificate, Fmt) : id.ToString(),
         _ => key,
     };
 

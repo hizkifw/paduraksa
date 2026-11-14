@@ -1,6 +1,7 @@
 @using Paduraksa.Contracts.Logging
+@inject DisplayFormat Fmt
 @* One request of the live tail in full. What it shows is what access.log holds: redacted and capped the same way. *@
-<DrawerShell Title="@(Entry.Method + " " + (Entry.Path ?? "-"))" Subtitle="@(Entry.Time.ToString("yyyy-MM-dd HH:mm:ss.fff") + " UTC")" Icon="@Icons.Material.Outlined.Sensors"
+<DrawerShell Title="@(Entry.Method + " " + (Entry.Path ?? "-"))" Subtitle="@Fmt.Stamp(Entry.Time)" Icon="@Icons.Material.Outlined.Sensors"
              IconTone="LiveTailText.ToneOf(Entry.Status)" Name="tail-entry" Footer="@(CanSimulate ? SimulateButton : null)">
     <ChildContent>
         <div class="pdk-tail-entry" data-detail="@Entry.Sequence">
@@ -24,18 +25,18 @@
                 <dt>Request</dt><dd class="pdk-mono">@Entry.Method @LiveTailText.Target(Entry) @Entry.Protocol</dd>
                 <dt>Host</dt><dd class="pdk-mono">@(Entry.Host ?? "-")</dd>
                 <dt>Client</dt><dd class="pdk-mono">@(Entry.ClientAddress ?? "-")</dd>
-                <dt>Time taken</dt><dd class="pdk-mono">@LiveTailText.Duration(Entry.TotalMs)</dd>
+                <dt>Time taken</dt><dd class="pdk-mono">@Fmt.Duration(Entry.TotalMs)</dd>
                 @if (Entry.Upstream is { } upstream)
                 {
-                    <dt>Upstream</dt><dd class="pdk-mono">@upstream (@LiveTailText.Duration(Entry.UpstreamMs))</dd>
+                    <dt>Upstream</dt><dd class="pdk-mono">@upstream (@Fmt.Duration(Entry.UpstreamMs))</dd>
                 }
                 @if (Entry.ResponseBytes is { } bytes)
                 {
-                    <dt>Response size</dt><dd class="pdk-mono">@bytes.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) bytes</dd>
+                    <dt>Response size</dt><dd class="pdk-mono">@Fmt.Count(bytes) bytes</dd>
                 }
                 @if (Entry.RequestBytes is > 0 and var uploaded)
                 {
-                    <dt>Request size</dt><dd class="pdk-mono">@uploaded.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) bytes</dd>
+                    <dt>Request size</dt><dd class="pdk-mono">@Fmt.Count(uploaded) bytes</dd>
                 }
                 @if (Entry.CloudflareRay is { } ray)
                 {

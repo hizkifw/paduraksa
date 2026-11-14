@@ -1,3 +1,4 @@
+@inject DisplayFormat Fmt
 <div class="pdk-progress @(Failed ? "pdk-progress-failed" : Issued ? "pdk-progress-done" : null)" role="status" aria-live="polite">
     <div class="pdk-progress-head">
         @if (Failed)
@@ -61,7 +62,7 @@
             @if (failure.RetryAt is { } retry)
             {
                 <div class="pdk-progress-retry">
-                    The renewal scheduler tries again @(CertificateDisplay.DateTime(retry))@(Attempts is > 0 ? $" (attempt {Attempts + 1})" : null), backing off after each failure. You can also retry now.
+                    The renewal scheduler tries again @(Fmt.DateTime(retry))@(Attempts is > 0 ? $" (attempt {Attempts + 1})" : null), backing off after each failure. You can also retry now.
                 </div>
             }
         </MudAlert>

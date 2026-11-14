@@ -3,6 +3,7 @@
 @inject IServiceProvider Services
 @inject Microsoft.Extensions.Logging.ILogger<UpstreamDrawer> Logger
 @inherits DraftDrawer<UpstreamEditModel, UpstreamConfig>
+@inject DisplayFormat Fmt
 
 @* An upstream in a drawer: name, destinations (each checkable with a TCP connection), load balancing and health. On its
    own it goes through Review changes; opened from a host's form it is checked against that form's draft and handed back,
@@ -213,7 +214,7 @@
                                                 var certificate = group.Certificate;
                                                 <div class="pdk-probe-line" role="status" data-fetched="true">
                                                     <span class="pdk-mono">@Grouped(certificate.Sha256)</span>
-                                                    <span class="pdk-muted">@CommonName(certificate.Subject) &middot; @(certificate.SelfSigned ? "self-signed" : $"issued by {CommonName(certificate.Issuer)}") &middot; expires @certificate.NotAfter.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)@(group.Names.Count > 0 ? $" \u00b7 for {string.Join(", ", group.Names)}" : null)</span>
+                                                    <span class="pdk-muted">@CommonName(certificate.Subject) &middot; @(certificate.SelfSigned ? "self-signed" : $"issued by {CommonName(certificate.Issuer)}") &middot; expires @Fmt.Date(certificate.NotAfter)@(group.Names.Count > 0 ? $" \u00b7 for {string.Join(", ", group.Names)}" : null)</span>
                                                     @if (IsPinned(certificate.Sha256))
                                                     {
                                                         <StatusChip Tone="Tone.Success" Dot="true" Text="Pinned" />

@@ -1,4 +1,5 @@
 @inject TimeProvider Time
+@inject DisplayFormat Fmt
 @* An upstream's live health in its drawer: the whole state, each destination with its dot and why, and the last change. *@
 
 <UpstreamHealthFeed Updated="OnUpdated" PollInterval="PollInterval" />
@@ -10,7 +11,7 @@
             <StatusChip Tone="@HealthDisplay.ToneOf(view.State)" Dot="true" Text="@HealthDisplay.Word(view.State)" Name="upstream-health" />
             @if (view.LastChange is { } change)
             {
-                <span class="pdk-muted pdk-health-change" title="@RevisionText.Exact(change.At)">@HealthDisplay.LastChange(change, Time.GetUtcNow())</span>
+                <span class="pdk-muted pdk-health-change" title="@Fmt.Exact(change.At)">@HealthDisplay.LastChange(change, Time.GetUtcNow(), Fmt)</span>
             }
         </div>
         <ul class="pdk-health-dests">

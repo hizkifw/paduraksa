@@ -38,11 +38,11 @@ public static class HealthDisplay
     };
 
     /// <summary>"Last change: Down, 3 min ago (active probe: HTTP 503)"; the exact time is the tooltip's.</summary>
-    public static string LastChange(HealthChangeView change, DateTimeOffset now)
+    public static string LastChange(HealthChangeView change, DateTimeOffset now, DisplayFormat? format = null)
     {
         ArgumentNullException.ThrowIfNull(change);
         var reason = change.Reason is { Length: > 0 } why ? $" ({why})" : string.Empty;
-        return $"Last change: {change.Summary}, {RevisionText.Ago(change.At, now)}{reason}";
+        return $"Last change: {change.Summary}, {(format ?? DisplayFormat.Invariant).Ago(change.At, now)}{reason}";
     }
 
     /// <summary>Whether two readings say the same, so a poll that found nothing new renders nothing.</summary>

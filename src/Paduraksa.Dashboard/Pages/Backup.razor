@@ -9,6 +9,7 @@
 @inject DashboardBrowser Browser
 @inject ISnackbar Snackbar
 @inject ILogger<Backup> Logger
+@inject DisplayFormat Fmt
 @* Settings > Backup: the one full backup (the config and every key in the vault) as a download, encrypted under a passphrase that is
    never stored. Restoring replaces the databases and needs the server stopped, so it is a command; the page says which. *@
 
@@ -96,11 +97,6 @@
         };
     }
 
-    private static string SizeOf(long bytes) =>
-        bytes < 1024 * 1024
-            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Math.Max(1, bytes / 1024)} KB")
-            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{bytes / (1024.0 * 1024):0.#} MB");
-
     private async Task DownloadAsync()
     {
         _attempted = true;
@@ -129,7 +125,7 @@
                 {
                     if (await Browser.DownloadAsync(download.FileName, "application/octet-stream", download.Content))
                     {
-                        Snackbar.Add($"Backup downloaded ({SizeOf(download.Length)}). Keep it, and the passphrase, apart from this machine.", Severity.Success);
+                        Snackbar.Add($"Backup downloaded ({Fmt.FileSize(download.Length)}). Keep it, and the passphrase, apart from this machine.", Severity.Success);
                     }
                 }
             }

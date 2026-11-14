@@ -166,18 +166,19 @@ public static class IdentityText
     public const string CantChangeConfig = "Your role can't change the config. An Owner can give you the Operator, Admin or Owner role.";
 
     /// <summary>When something ends, from now: "in 5 days", "never".</summary>
-    public static string Until(DateTimeOffset? end, DateTimeOffset now)
+    public static string Until(DateTimeOffset? end, DateTimeOffset now, DisplayFormat? format = null)
     {
         if (end is not { } at)
         {
             return "Never";
         }
 
+        format ??= DisplayFormat.Invariant;
         var left = at - now;
-        return left <= TimeSpan.Zero ? $"Ended {Config.RevisionText.Ago(at, now)}"
+        return left <= TimeSpan.Zero ? $"Ended {format.Ago(at, now)}"
             : left < TimeSpan.FromHours(1) ? "Within the hour"
             : left < TimeSpan.FromDays(1) ? $"In {(int)left.TotalHours} h"
             : left < TimeSpan.FromDays(60) ? $"In {(int)left.TotalDays} days"
-            : at.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+            : format.Date(at);
     }
 }

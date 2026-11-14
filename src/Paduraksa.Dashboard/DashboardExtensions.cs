@@ -58,6 +58,7 @@ public static class DashboardExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<CircuitHandler, SessionCircuitHandler>());
         services.AddScoped<DashboardCaller>();
         services.AddScoped<ThemeState>();
+        services.AddScoped<DisplayFormat>();
         services.AddScoped<DashboardBrowser>();
         services.TryAddScoped<IDashboardConfig, DashboardConfig>();
         services.AddScoped<ConfigUndo>();
