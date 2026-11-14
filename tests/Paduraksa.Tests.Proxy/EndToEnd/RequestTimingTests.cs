@@ -138,14 +138,29 @@ public sealed class RequestTimingTests : IAsyncLifetime
     public async Task AnUpstreamThatAnswersBeforeTheBodyIsInWaitsForNothing()
     {
         // Over TLS the forward is HTTP/2, which hands YARP an early refusal at once; the proxy then answers and drops the rest of the body.
+        // The upstream refuses only once the proxy has read the body's first byte: the upstream can't wait to receive that byte itself,
+        // since the forwarder holds a lone byte of a body in its HTTP/2 stream until more of the body comes or it ends.
         await using var tlsUpstream = await TimingUpstream.StartAsync(_certificate);
-        await using var server = await ProxyTestServer.StartAsync(Model(tlsUpstream.Address, UpstreamTlsTrust.Any));
+        TaskCompletionSource firstByteRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = await ProxyTestServer.StartAsync(
+            Model(tlsUpstream.Address, UpstreamTlsTrust.Any),
+            new()
+            {
+                AfterGate = (context, next) =>
+                {
+                    // Over the counted body, so the signal comes after the proxy's own read has been counted and timed.
+                    context.Request.Body = new FirstReadSignal(context.Request.Body, firstByteRead);
+                    return next(context);
+                },
+            });
         var ct = TestContext.Current.CancellationToken;
         using TcpClient tcp = new();
         await tcp.ConnectAsync(IPAddress.Loopback, server.BaseAddress.Port, ct);
         var stream = tcp.GetStream();
         await stream.WriteAsync(Encoding.ASCII.GetBytes("POST /early/answer HTTP/1.1\r\nHost: app.test\r\nContent-Length: 3\r\n\r\nx"), ct);
 
+        await firstByteRead.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        tlsUpstream.ReleaseEarlyAnswer();
         Assert.Contains("413", await ReadHeadAsync(stream, ct), StringComparison.Ordinal);
 
         var entry = Assert.Single(await EntriesAsync(server, "/early/answer"));
@@ -346,7 +361,7 @@ public sealed class RequestTimingTests : IAsyncLifetime
 
     /// <summary>
     /// An upstream with known delays: <c>/slow/...</c> waits before its first byte, <c>/big/...</c> answers <see cref="BigBody"/> bytes,
-    /// <c>/upload/...</c> reads the whole body first, <c>/early/...</c> refuses the body with a 413 before reading it; anything else answers at once.
+    /// <c>/upload/...</c> reads the whole body first, <c>/early/...</c> refuses the body with a 413 without reading it, once <see cref="ReleaseEarlyAnswer"/> lets it; anything else answers at once.
     /// </summary>
     private sealed class TimingUpstream : IAsyncDisposable
     {
@@ -354,12 +369,18 @@ public sealed class RequestTimingTests : IAsyncLifetime
 
         private readonly IHost _host;
 
-        private TimingUpstream(IHost host, string address)
+        private readonly TaskCompletionSource _earlyAnswer;
+
+        private TimingUpstream(IHost host, string address, TaskCompletionSource earlyAnswer)
         {
             _host = host;
             Address = address;
             Port = new Uri(address).Port;
+            _earlyAnswer = earlyAnswer;
         }
+
+        /// <summary>Lets <c>/early/...</c> answer.</summary>
+        public void ReleaseEarlyAnswer() => _earlyAnswer.TrySetResult();
 
         public string Address { get; }
 
@@ -367,6 +388,7 @@ public sealed class RequestTimingTests : IAsyncLifetime
 
         public static async Task<TimingUpstream> StartAsync(X509Certificate2? certificate)
         {
+            TaskCompletionSource earlyAnswer = new(TaskCreationOptions.RunContinuationsAsynchronously);
             var host = new HostBuilder()
                 .ConfigureLogging(static logging => logging.ClearProviders())
                 .ConfigureWebHost(web => web
@@ -377,7 +399,7 @@ public sealed class RequestTimingTests : IAsyncLifetime
                             listen.UseHttps(certificate);
                         }
                     }))
-                    .Configure(static app => app.Run(static async context =>
+                    .Configure(app => app.Run(async context =>
                     {
                         var path = context.Request.Path.Value ?? string.Empty;
                         var ct = context.RequestAborted;
@@ -391,6 +413,7 @@ public sealed class RequestTimingTests : IAsyncLifetime
                         }
                         else if (path.StartsWith("/early/", StringComparison.Ordinal))
                         {
+                            await earlyAnswer.Task.WaitAsync(ct);
                             context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
                             return;
                         }
@@ -411,13 +434,59 @@ public sealed class RequestTimingTests : IAsyncLifetime
                 .Build();
             await host.StartAsync(TestContext.Current.CancellationToken);
             var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-            return new TimingUpstream(host, address + "/");
+            return new TimingUpstream(host, address + "/", earlyAnswer);
         }
 
         public async ValueTask DisposeAsync()
         {
             await _host.StopAsync(CancellationToken.None);
             _host.Dispose();
+        }
+    }
+
+    /// <summary>The request body as the proxy reads it, completing <paramref name="signal"/> once a read has returned bytes.</summary>
+    private sealed class FirstReadSignal(Stream inner, TaskCompletionSource signal) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            Signal(await inner.ReadAsync(buffer, cancellationToken));
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => Signal(inner.Read(buffer, offset, count));
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        private int Signal(int read)
+        {
+            if (read > 0)
+            {
+                signal.TrySetResult();
+            }
+
+            return read;
         }
     }
 
