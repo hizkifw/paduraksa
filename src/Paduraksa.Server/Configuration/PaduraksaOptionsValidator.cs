@@ -118,6 +118,20 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             failures.Add($"{PaduraksaOptions.SectionName}:Limits: {failure}.");
         }
 
+        if (options.Limits is { } limits)
+        {
+            const string Limits = PaduraksaOptions.SectionName + ":Limits";
+            Bound(ServerSettingCatalog.LimitsRequestHeadersTimeout, limits.RequestHeadersTimeout, $"{Limits}:RequestHeadersTimeout", failures);
+            Bound(ServerSettingCatalog.LimitsKeepAliveTimeout, limits.KeepAliveTimeout, $"{Limits}:KeepAliveTimeout", failures);
+            Bound(ServerSettingCatalog.LimitsTlsHandshakeTimeout, limits.TlsHandshakeTimeout, $"{Limits}:TlsHandshakeTimeout", failures);
+            Bound(ServerSettingCatalog.LimitsMinRequestBodyRate, limits.MinRequestBodyRate, $"{Limits}:MinRequestBodyRate", failures);
+            Bound(ServerSettingCatalog.LimitsMinRequestBodyGrace, limits.MinRequestBodyGrace, $"{Limits}:MinRequestBodyGrace", failures);
+            Bound(ServerSettingCatalog.LimitsMinResponseRate, limits.MinResponseRate, $"{Limits}:MinResponseRate", failures);
+            Bound(ServerSettingCatalog.LimitsMinResponseGrace, limits.MinResponseGrace, $"{Limits}:MinResponseGrace", failures);
+            Bound(ServerSettingCatalog.LimitsMaxConnections, limits.MaxConnections, $"{Limits}:MaxConnections", failures);
+            Bound(ServerSettingCatalog.LimitsMaxUpgradedConnections, limits.MaxUpgradedConnections, $"{Limits}:MaxUpgradedConnections", failures);
+        }
+
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
         ValidateProxyProtocol("HttpsProxyProtocol", listen.HttpsProxyProtocol, failures);
 

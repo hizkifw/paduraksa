@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Contracts.Commands;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
@@ -239,6 +241,65 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         Assert.Equal(expected.MaxConnections, limits.MaxConcurrentConnections);
         Assert.Equal(expected.MaxUpgradedConnections, limits.MaxConcurrentUpgradedConnections);
         Assert.Equal(expected.Http2MaxStreamsPerConnection, limits.Http2.MaxStreamsPerConnection);
+    }
+
+    private static async Task SetAsync(PaduraksaHost host, ServerSettings server)
+    {
+        var current = (await host.Shared.Config.GetCurrentAsync(TestContext.Current.CancellationToken)).Document.Settings;
+        await Config.ConfigTestSupport.CommitAsync(host, new UpdateSettingsCommand(current with { Server = server }), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task TheTimeoutsAndRatesFromTheServerSettingsApplyLiveAndTheCapsAtTheNextStart()
+    {
+        var dataDirectory = TestDataDirectories.NewPath();
+        await using (var host = TestHost.Create(dataDirectory: dataDirectory))
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
+            await SetAsync(host, new ServerSettings { LimitsRequestHeadersTimeout = TimeSpan.FromSeconds(4), LimitsMinResponseRate = 0, LimitsMaxConnections = 77 });
+
+            var limits = host.Public.Services.GetRequiredService<IOptions<KestrelServerOptions>>().Value.Limits;
+            Assert.Equal(TimeSpan.FromSeconds(4), limits.RequestHeadersTimeout);
+            Assert.Null(limits.MinResponseDataRate);
+            Assert.Equal(ServerLimits.Default.MaxConnections, limits.MaxConcurrentConnections);
+            Assert.True(host.Shared.ServerSettings.RestartPending(ServerSettingCatalog.LimitsMaxConnections));
+            Assert.False(host.Shared.ServerSettings.RestartPending(ServerSettingCatalog.LimitsRequestHeadersTimeout));
+            await host.StopAsync(TestContext.Current.CancellationToken);
+        }
+
+        // The next start binds with the stored caps, read before the listeners exist; nothing is pending any more.
+        await using var again = TestHost.Create(dataDirectory: dataDirectory);
+        await again.StartAsync(TestContext.Current.CancellationToken);
+        var restarted = again.Public.Services.GetRequiredService<IOptions<KestrelServerOptions>>().Value.Limits;
+        Assert.Equal(77, restarted.MaxConcurrentConnections);
+        Assert.Equal(TimeSpan.FromSeconds(4), restarted.RequestHeadersTimeout);
+        Assert.False(again.Shared.ServerSettings.RestartPending(ServerSettingCatalog.LimitsMaxConnections));
+    }
+
+    [Fact]
+    public async Task AHeadersTimeoutChangedLiveClosesTheNextSlowClientByItWithNoRestart()
+    {
+        await using var host = await StartAsync();
+        await SetAsync(host, new ServerSettings { LimitsRequestHeadersTimeout = TimeSpan.FromSeconds(1) });
+
+        // A new connection that never finishes its headers: the default would hold it 15 seconds.
+        using var tcp = await ConnectAsync(host);
+        await tcp.GetStream().WriteAsync(Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: app.test\r\n"), TestContext.Current.CancellationToken);
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        var buffer = new byte[512];
+        try
+        {
+            while (await tcp.GetStream().ReadAsync(buffer, TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken) > 0)
+            {
+                // A 408 may come first; the close is what ends the wait.
+            }
+        }
+        catch (Exception ex) when (ex is IOException or SocketException)
+        {
+            // Reset: closed too.
+        }
+
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(8), $"closed after {started.Elapsed}");
     }
 
     [Theory]

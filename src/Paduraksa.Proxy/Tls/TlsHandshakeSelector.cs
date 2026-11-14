@@ -46,7 +46,6 @@ public sealed class TlsHandshakeSelector
 
     private readonly ICertificateTableSource _tables;
     private readonly QuicConnectionGate? _quicGate;
-    private readonly TimeSpan? _tcpHandshakeTimeout;
 
     public TlsHandshakeSelector(ICertificateTableSource tables, QuicConnectionGate? quicConnectionGate = null, TimeSpan? tcpHandshakeTimeout = null)
     {
@@ -55,7 +54,7 @@ public sealed class TlsHandshakeSelector
             throw new ArgumentOutOfRangeException(nameof(tcpHandshakeTimeout), timeout, "The TLS handshake timeout must be positive.");
         }
 
-        _tcpHandshakeTimeout = tcpHandshakeTimeout;
+        TcpHandshakeTimeout = tcpHandshakeTimeout;
         ArgumentNullException.ThrowIfNull(tables);
         _tables = tables;
         _quicGate = quicConnectionGate;
@@ -64,9 +63,15 @@ public sealed class TlsHandshakeSelector
     /// <summary>Rejected handshakes by reason (process lifetime; read by metrics).</summary>
     public TlsHandshakeCounters Counters { get; } = new();
 
+    /// <summary>
+    /// The TCP handshake's timeout, taken by <see cref="CreateTcpCallbackOptions"/> when the listener binds: the composition may set it from the
+    /// server settings in force by then. Null is Kestrel's own.
+    /// </summary>
+    public TimeSpan? TcpHandshakeTimeout { get; set; }
+
     /// <summary>Options for the TCP (H1/H2) listener's <c>UseHttps</c>.</summary>
     public TlsHandshakeCallbackOptions CreateTcpCallbackOptions() =>
-        _tcpHandshakeTimeout is { } timeout
+        TcpHandshakeTimeout is { } timeout
             ? new() { OnConnection = TcpCallback, OnConnectionState = this, HandshakeTimeout = timeout }
             : new() { OnConnection = TcpCallback, OnConnectionState = this };
 

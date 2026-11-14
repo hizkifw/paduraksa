@@ -62,7 +62,10 @@ internal static partial class PublicApp
                         // would silently break the uploads people put behind this, so what the gate leaves unlimited stays so.
                         kestrel.Limits.MaxRequestBodySize = null;
                         RequestLimitsGate.ConfigureTransport(kestrel.Limits);
-                        listeners.Limits.Apply(kestrel.Limits);
+                        // Here, at bind, the startup config is known (the core host started first): the caps and the handshake timeout are the
+                        // server settings in force now, and the rest follow them live.
+                        var limits = ConnectionLimitSettings.ApplyAndFollow(kestrel.Limits, context.Shared.ServerSettings, listeners.Limits);
+                        listeners.Selector.TcpHandshakeTimeout = limits.TlsHandshakeTimeout;
                         kestrel.ListenPublicHttp(
                             address: null,
                             listen.Http,

@@ -70,6 +70,24 @@ public sealed record ServerSettings
 
     public TimeSpan? McpIdleTimeout { get; init; }
 
+    public TimeSpan? LimitsRequestHeadersTimeout { get; init; }
+
+    public TimeSpan? LimitsKeepAliveTimeout { get; init; }
+
+    public TimeSpan? LimitsTlsHandshakeTimeout { get; init; }
+
+    public long? LimitsMinRequestBodyRate { get; init; }
+
+    public TimeSpan? LimitsMinRequestBodyGrace { get; init; }
+
+    public long? LimitsMinResponseRate { get; init; }
+
+    public TimeSpan? LimitsMinResponseGrace { get; init; }
+
+    public long? LimitsMaxConnections { get; init; }
+
+    public long? LimitsMaxUpgradedConnections { get; init; }
+
     /// <summary>Whether no field is set: canonical JSON then writes no <c>server</c> key, so a stored revision keeps its bytes.</summary>
     [JsonIgnore]
     public bool SetsNothing => ServerSettingCatalog.All.All(setting => !setting.IsSet(this));
