@@ -286,7 +286,7 @@ internal static class ConfigPages
             sessions, new DashboardOptions(), TimeProvider.System, NullLogger<DashboardAuthenticationStateProvider>.Instance);
         auth.SetAuthenticationState(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(session))));
         context.Services.AddLogging();
-        context.Services.AddSingleton(time ?? TimeProvider.System);
+        context.Services.AddSingleton<TimeProvider>(new HeldDebounceTimeProvider(time ?? TimeProvider.System));
         context.Services.AddSingleton(sessions);
         // Factories, so the context disposes the provider (and its background re-check) with it.
         context.Services.AddSingleton(_ => auth);

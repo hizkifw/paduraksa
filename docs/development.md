@@ -152,6 +152,11 @@ leaves the thing unprotected. What has caused them so far:
   `AdminApiHarness.SendAsync(..., expectContinue: true)`, whose client waits 30 s for the answer), so the body goes only after it.
 - **Waiting a stretch of wall time for something to happen.** A child that must burn CPU, a timer that must fire: a loaded runner gives it a fraction of the time. Wait for the
   measured thing itself (`SandboxHostileChildTests` polls the child's CPU time), bounded.
+- **A typed value applied by a timer that races the leave.** MudBlazor applies a form field's text when its 250 ms debounce timer fires or the field is left. A test that types and leaves
+  meant the second, but on a loaded runner the timer can fire first: the value is then queued behind the leave, a re-render that runs before it sets the unfocused field's text back to the
+  old value, and the form stays invalid with nothing to say so (`DrawerStackTests` timed out waiting for a stacked drawer that never submitted). The page tests' clock (`ConfigPages.SignIn`)
+  is `HeldDebounceTimeProvider`, which never fires that timer, so leaving the field is the only way a typed value is applied. A test that needs the debounce itself (a search box, 300-400 ms)
+  is unaffected. `HandedBackAsync` names the stack, the form's errors and its fields when a stacked drawer doesn't hand back.
 - **Playwright.** Each browser test starts its own Chromium and server; run in parallel on 4 cores they starve one another (page loads over 30 s). Every one is in the
   `[Collection(PlaywrightBrowser.CollectionName)]`, which runs alone, one class after another, and `Expect` waits 15 s. Never read a response body after the page has navigated away: use a plain
   API request.

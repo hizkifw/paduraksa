@@ -262,6 +262,36 @@ public sealed class DrawerStackTests
     }
 
     [Fact]
+    public async Task AFormFieldTypedInto_IsAppliedWhenLeft_NotWhenItsDebounceTimerFires()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument();
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        var form = drawers.FindComponent<HostForm>().Instance;
+        var choosing = drawers.InvokeAsync(() => form.OnNewUpstream.InvokeAsync(Assert.Single(form.Model.Routes)));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=upstream] input[data-field=destination-0]").Count == 1);
+        var upstream = drawers.Services.GetRequiredService<DrawerStack>().Top!;
+        const string Address = "[data-drawer=upstream] input[data-field=destination-0]";
+
+        // The timer is held (see HeldDebounceTimeProvider): were it live, it would have applied the value (and marked the drawer dirty)
+        // within this window, and a leave that raced it would lose the text. Nothing can signal that a timer did not fire, so this waits.
+        await drawers.Find(Address).InputAsync(new() { Value = "http://10.0.0.7:8080" });
+        await Task.Delay(TimeSpan.FromMilliseconds(500), Xunit.TestContext.Current.CancellationToken);
+        Assert.False(upstream.IsDirty);
+
+        await drawers.Find(Address).BlurAsync(new());
+        Assert.True(upstream.IsDirty);
+        Assert.Equal("http://10.0.0.7:8080", drawers.Find(Address).GetAttribute("value"));
+
+        upstream.Cancel();
+        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task LeavingAPageWithADirtyRoutedDrawer_GoesWhereThePersonWent_NotBackToTheList()
     {
         await using DashboardTestContext context = new();
@@ -350,7 +380,7 @@ public sealed class DrawerStackTests
         Assert.Equal("Back to New host", drawers.Find("[data-drawer=rate-limit] [data-drawer-action=back]").GetAttribute("aria-label"));
         await TypeAsync(drawers, "[data-drawer=rate-limit] input[data-field=name]", "Strict API");
         await drawers.Find("form[data-drawer=rate-limit]").SubmitAsync();
-        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+        await HandedBackAsync(drawers, choosing);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -396,7 +426,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=access-list] input[data-field=name]", "Office");
         await TypeAsync(drawers, "[data-drawer=access-list] textarea[data-field=allowed]", "10.0.0.0/8");
         await drawers.Find("form[data-drawer=access-list]").SubmitAsync();
-        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+        await HandedBackAsync(drawers, choosing);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -446,7 +476,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=url]", "http://authelia:9091");
         Assert.Contains("Use this provider", drawers.Find("[data-drawer=auth-provider] [data-action=stage]").TextContent, StringComparison.Ordinal);
         await drawers.Find("form[data-drawer=auth-provider]").SubmitAsync();
-        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+        await HandedBackAsync(drawers, choosing);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -490,7 +520,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=name]", "Spare");
         await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=url]", "http://auth:9091");
         await drawers.Find("form[data-drawer=auth-provider]").SubmitAsync();
-        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+        await HandedBackAsync(drawers, choosing);
 
         // The host picks no sign-in after all: the provider is no longer used, and the host goes alone.
         await drawers.InvokeAsync(() => drawers.FindComponents<MudSelect<string>>().Single(select => select.Instance.Label == "Sign-in").Instance.ValueChanged.InvokeAsync("off"));
@@ -526,7 +556,7 @@ public sealed class DrawerStackTests
         await drawers.InvokeAsync(() => drawers.FindComponents<MudSelect<RulePathKind?>>().Single().Instance.ValueChanged.InvokeAsync(RulePathKind.Prefix));
         await TypeAsync(drawers, "[data-drawer=rule-set] input[data-field=pattern-0]", "/admin");
         await drawers.Find("form[data-drawer=rule-set]").SubmitAsync();
-        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+        await HandedBackAsync(drawers, choosing);
 
         // Staged with the host, and the host's picker now names it; nothing is sent yet.
         var hosted = drawers.FindComponent<HostForm>().Instance.Model;
@@ -559,6 +589,24 @@ public sealed class DrawerStackTests
     // hands back; a cold, loaded CI runner can take longer than bUnit's default for that, so these waits get the room it needs.
     private static readonly TimeSpan ReviewTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>Waits for the stacked drawer to hand back; on a timeout says what the stack looks like, which a bare TimeoutException doesn't.</summary>
+    private static async Task HandedBackAsync(IRenderedComponent<DrawerHost> drawers, Task choosing)
+    {
+        try
+        {
+            await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            var stack = drawers.Services.GetRequiredService<DrawerStack>();
+            var levels = string.Join("; ", stack.Levels.Select(level => $"{level.Component.Name} open={level.IsOpen} dirty={level.IsDirty} busy={level.Busy}"));
+            var errors = string.Join(" | ", drawers.FindAll("[data-form=errors]").Select(e => e.TextContent.Trim()));
+            var sheet = string.Join(" || ", drawers.FindAll(".pdk-sheet").Select(e => e.TextContent.Trim()));
+            var fields = string.Join(", ", drawers.FindAll("[data-drawer] input[data-field]").Select(i => $"{i.GetAttribute("data-field")}='{i.GetAttribute("value")}'"));
+            throw new TimeoutException($"The stacked drawer didn't hand back within {ReviewTimeout.TotalSeconds:0} s. Levels: [{levels}]. Errors shown: [{errors}]. Fields: [{fields}]. Sheets: [{sheet}].");
+        }
+    }
+
     /// <summary>Types into a MudBlazor field and leaves it (which sends what was typed at once, instead of after the field's debounce).</summary>
     private static async Task TypeAsync(IRenderedComponent<DrawerHost> drawers, string selector, string value)
     {
@@ -579,7 +627,7 @@ public sealed class DrawerStackTests
         await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=name]", name);
         await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=destination-0]", address);
         await drawers.Find("form[data-drawer=upstream]").SubmitAsync();
-        await choosing.WaitAsync(ReviewTimeout, Xunit.TestContext.Current.CancellationToken);
+        await HandedBackAsync(drawers, choosing);
 
         var id = route.UpstreamId ?? throw new InvalidOperationException("The route didn't get the new upstream.");
         return new UpstreamConfig(id, name, Destinations: [new DestinationConfig(DestinationId.New(), address)]);
