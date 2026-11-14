@@ -682,6 +682,31 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void ServerSettingsThatSetNothingWriteNoKeyAndKeepTheDocumentsBytesAndHash()
+    {
+        var plain = ConfigSamples.Valid();
+        var empty = plain with { Settings = plain.Settings with { Server = new ServerSettings() } };
+        var set = plain with
+        {
+            Settings = plain.Settings with
+            {
+                Server = new ServerSettings { MetricsRetention = TimeSpan.FromDays(7), McpEnabled = true, NotificationAdminUrl = string.Empty, LimitsMaxConnections = 0 },
+            },
+        };
+
+        var plainBytes = CanonicalConfigJson.Serialize(plain);
+        Assert.Equal(plainBytes, CanonicalConfigJson.Serialize(empty));
+        Assert.Equal(System.Security.Cryptography.SHA256.HashData(plainBytes), System.Security.Cryptography.SHA256.HashData(CanonicalConfigJson.Serialize(empty)));
+        Assert.DoesNotContain("\"server\"", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(empty)), StringComparison.Ordinal);
+        Assert.Null(CanonicalConfigJson.Canonicalize(empty).Settings.Server);
+
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(set));
+        Assert.Contains("\"server\":{\"metricsRetention\":\"7.00:00:00\",\"notificationAdminUrl\":\"\",\"mcpEnabled\":true,\"limitsMaxConnections\":0}", json, StringComparison.Ordinal);
+        Assert.NotEqual(plainBytes, CanonicalConfigJson.Serialize(set));
+        Assert.Equal(CanonicalConfigJson.Serialize(set), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(set))));
+    }
+
+    [Fact]
     public void NormalisesSetsAndBlankValues()
     {
         ConfigDocument document = new(

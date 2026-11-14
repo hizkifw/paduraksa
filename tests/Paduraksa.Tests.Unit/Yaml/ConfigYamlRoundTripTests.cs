@@ -126,6 +126,47 @@ public sealed class ConfigYamlRoundTripTests
     }
 
     [Fact]
+    public void TheServerSettingsAreAKeyOfTheYamlAndReadBack()
+    {
+        var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());
+        var document = sample with
+        {
+            Settings = sample.Settings with
+            {
+                Server = new ServerSettings
+                {
+                    MetricsRetention = TimeSpan.FromDays(7),
+                    LogMaxTotalSize = 512L * 1024 * 1024,
+                    AdminTotpIssuer = "Homelab",
+                    NotificationAdminUrl = "https://admin.example.com",
+                    McpEnabled = true,
+                    LimitsKeepAliveTimeout = TimeSpan.FromSeconds(30),
+                },
+            },
+        };
+
+        var yaml = ConfigYamlExporter.Export(document);
+        var read = YamlTestSupport.Mapped(yaml);
+
+        Assert.Contains("server:", yaml, StringComparison.Ordinal);
+        Assert.Equal(document.Settings.Server, read.Settings.Server);
+        Assert.Equal(Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)), Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(read)));
+    }
+
+    [Fact]
+    public void ServerSettingsThatSetNothingAreNoKeyOfTheYaml()
+    {
+        var sample = YamlTestSupport.WithoutVersions(ConfigSamples.Valid());
+        var document = sample with { Settings = sample.Settings with { Server = new ServerSettings() } };
+
+        // The exporter takes a canonical document (what a revision stores), and canonicalising drops a section that sets nothing.
+        var yaml = ConfigYamlExporter.Export(CanonicalConfigJson.Canonicalize(document));
+
+        Assert.DoesNotContain("server:", yaml, StringComparison.Ordinal);
+        Assert.Equal(CanonicalConfigJson.Serialize(sample), CanonicalConfigJson.Serialize(YamlTestSupport.Mapped(yaml)));
+    }
+
+    [Fact]
     public void EveryGeneratedValidDocumentExportsAndReadsBackToTheSameDocument()
     {
         var checkedDocuments = 0;
