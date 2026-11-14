@@ -9,6 +9,7 @@ bench/soak/run-soak.sh --quick              # 5 minutes: every event once, scale
 bench/soak/run-soak.sh                      # 60 minutes
 bench/soak/run-soak.sh --duration 1800 --rate 3000 --out /tmp/soak
 bench/soak/run-soak.sh --analyze-only DIR   # judge a finished run again, after changing a threshold
+bench/soak/run-soak.sh --quick --watch-hangs # report every request the server holds over 10 s, with where it stopped, and dump the first
 ```
 
 Exit 0 when every check passed, 1 when one failed, 3 when the harness itself failed. It needs the .NET SDK, `python3` and `ss`. `taskset` pins the server and the load to separate
@@ -88,6 +89,7 @@ Events are scaled to the length of the run (`SoakPlan`): the 60-minute plan warm
 | `plan.json`, `env.txt`, `config.yaml` | the plan, the machine and versions, the config that was imported |
 | `server.log`, `probe.log`, `driver.log`, `server-log-notable.txt` | the server's output (10 MB and more, not committed), the startup hook's lines, the driver's output, and the few server log lines worth keeping (errors, health verdicts, lifecycle) |
 | `server-logs/` | with `--keep-logs`: the server's own log directory, the access log of every request (not committed; for a short run) |
+| `hangs.txt`, `hang.dmp` | with `--watch-hangs`: each request the server held over 10 s, with the YARP and upstream-client steps it reached, and a heap dump of the first HTTP/2 one (not committed; the hook allocates per request, so a run with it is for chasing, not for figures) |
 
 ## The checks and their thresholds
 

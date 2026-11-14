@@ -8,6 +8,7 @@
 #   bench/soak/run-soak.sh --duration 1800 --rate 3000
 #   bench/soak/run-soak.sh --analyze-only DIR       # judge a run again
 #   bench/soak/run-soak.sh --quick --keep-logs      # keep the server's access log (big: for chasing one request in a short run)
+#   bench/soak/run-soak.sh --watch-hangs            # write each request the server holds over 10 s to hangs.txt, with where it stopped, and dump the first
 #
 # Needs: the .NET SDK from global.json, python3, ss (iproute2), curl is not needed. taskset pins the server and the load to separate CPUs when it is there. Chromium
 # (PADURAKSA_E2E_CHROMIUM, /usr/bin/chromium) gives the two dashboard tabs; without it the dashboard is left out and the report says so. libmsquic turns HTTP/3 on.
@@ -27,6 +28,7 @@ MCP=true
 HTTP3=auto
 BUILD=true
 KEEP_LOGS=false
+WATCH_HANGS=false
 OUT=""
 ANALYZE_ONLY=""
 
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
         --http3) HTTP3=$2; shift ;;
         --skip-build) BUILD=false ;;
         --keep-logs) KEEP_LOGS=true ;;
+        --watch-hangs) WATCH_HANGS=true ;;
         --analyze-only) ANALYZE_ONLY=$2; shift ;;
         -h | --help) usage; exit 0 ;;
         *) echo "unknown option '$1'" >&2; usage; exit 2 ;;
@@ -146,6 +149,11 @@ done
     echo "mcp: $MCP"
     echo "ulimit -n: $(ulimit -n)"
 } >"$OUT/env.txt"
+
+if [[ "$WATCH_HANGS" == true ]]; then
+    # Read by the startup hook in the server (bench/Paduraksa.Bench.Soak.Probe/HangWatch.cs), which the driver starts with this environment.
+    export PADURAKSA_SOAK_HANG_FILE="$OUT/hangs.txt" PADURAKSA_SOAK_HANG_DUMP="$OUT/hang.dmp"
+fi
 
 echo "== Soak: $((DURATION / 60)) min at $RATE req/s; output in $OUT" >&2
 PIN=()

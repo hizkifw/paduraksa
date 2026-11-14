@@ -12,6 +12,11 @@ internal static class StartupHook
 
     public static void Initialize()
     {
+        if (Environment.GetEnvironmentVariable("PADURAKSA_SOAK_HANG_FILE") is { Length: > 0 } hangFile)
+        {
+            HangWatch.Start(hangFile, Environment.GetEnvironmentVariable("PADURAKSA_SOAK_HANG_DUMP"));
+        }
+
         var path = Environment.GetEnvironmentVariable(FileVariable);
         if (string.IsNullOrWhiteSpace(path))
         {

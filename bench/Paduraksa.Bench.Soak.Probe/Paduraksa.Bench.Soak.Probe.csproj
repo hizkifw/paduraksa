@@ -8,5 +8,10 @@
     <AssemblyName>StartupHook</AssemblyName>
     <RootNamespace>Paduraksa.Bench.Soak.Probe</RootNamespace>
     <PaduraksaIdsGenerator>false</PaduraksaIdsGenerator>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- The server runs on it anyway; the hang watch reads requests from its hosting events. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 </Project>
