@@ -152,6 +152,10 @@
     transform: none;
 }
 
+.pdk-mcp-summary-static {
+    cursor: default;
+}
+
 .pdk-mcp-summary::-webkit-details-marker {
     display: none;
 }
@@ -1087,4 +1091,63 @@
 
 .pdk-card-head + .pdk-server-section {
     margin-top: 0;
+}
+
+/* ---------- Linking to a field ---------- */
+
+/* An element a link's fragment names (paduraksa.js, highlights). It scrolls to just below the app bar and the open draft's bar, and the
+   highlight is a layer over it, so nothing in the row moves. */
+[data-highlight-target] {
+    position: relative;
+    scroll-margin-top: calc(var(--mud-appbar-height, 64px) + 72px);
+    scroll-margin-bottom: 96px;
+}
+
+[data-highlight-target].pdk-highlight::after {
+    content: "";
+    position: absolute;
+    inset: -6px -12px;
+    border-radius: var(--pdk-radius);
+    background: color-mix(in srgb, var(--pdk-accent) 10%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--pdk-accent) 55%, transparent);
+    pointer-events: none;
+    animation: pdk-highlight 1800ms var(--pdk-ease-out) both;
+}
+
+@keyframes pdk-highlight {
+    0% {
+        opacity: 0;
+        transform: scale(0.985);
+    }
+
+    15% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    60% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+/* No pulse: the same ring appears at once, holds and fades. */
+@media (prefers-reduced-motion: reduce) {
+    [data-highlight-target].pdk-highlight::after {
+        animation-name: pdk-highlight-still;
+    }
+
+    @keyframes pdk-highlight-still {
+        0%,
+        60% {
+            opacity: 1;
+        }
+
+        100% {
+            opacity: 0;
+        }
+    }
 }

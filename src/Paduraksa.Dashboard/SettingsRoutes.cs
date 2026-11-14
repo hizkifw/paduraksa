@@ -1,3 +1,5 @@
+using Paduraksa.Contracts.Config;
+
 namespace Paduraksa.Dashboard;
 
 /// <summary>The settings pages: the instance-wide defaults and who may use the instance.</summary>
@@ -8,6 +10,12 @@ public static class SettingsRoutes
 
     /// <summary>The server's own settings: retention, sign-in, notifications, integrations and the public connection limits.</summary>
     public const string Server = "/settings/server";
+
+    /// <summary>
+    /// The server settings page scrolled to one setting's row, which takes focus and shows the highlight (<c>/settings/server#mcp-enabled</c>). A hint that
+    /// sends the person to a setting links here, so no caller writes the fragment by hand.
+    /// </summary>
+    public static string SettingLink(ServerSettingDefinition setting) => $"{Server}#{setting.Anchor}";
 
     /// <summary>The users and their roles.</summary>
     public const string Users = "/settings/users";

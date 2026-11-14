@@ -1,4 +1,4 @@
-<div class="@(Wide ? "pdk-setting pdk-setting-wide" : "pdk-setting")">
+<div class="@(Wide ? "pdk-setting pdk-setting-wide" : "pdk-setting")" @attributes="AdditionalAttributes">
     <div class="pdk-setting-text">
         <span class="pdk-setting-title">@Title</span>
         @if (Help is not null)
@@ -31,4 +31,8 @@
 
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>An <c>id</c> with <c>data-highlight-target</c> makes the row a place a link can scroll to and highlight (docs/design/dashboard.md, "Linking to a field").</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
 }

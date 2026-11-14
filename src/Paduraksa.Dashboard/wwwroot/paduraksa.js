@@ -610,8 +610,121 @@
         }
     });
 
+    // Linking to a field (docs/design/dashboard.md, "Linking to a field"): an element with an id and `data-highlight-target` is a place an address's
+    // fragment can name. The page behind it loads its data after the circuit starts, and Blazor scrolls to a fragment only when the element is
+    // already there, so this waits for the element, then brings it clear of the app bar, moves focus into it and highlights it for about two seconds.
+    const highlights = (() => {
+        const FOCUS_FIRST = "input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [role=radio][tabindex='0']:not([disabled])";
+        const WAIT_MS = 8000;
+        const SHOWN_MS = 2000;
+        let observer = null;
+        let giveUp = 0;
+        let shown = null;
+        let hide = 0;
+
+        const stopWaiting = () => {
+            observer?.disconnect();
+            observer = null;
+            clearTimeout(giveUp);
+        };
+
+        const clear = () => {
+            clearTimeout(hide);
+            shown?.classList.remove("pdk-highlight");
+            shown = null;
+        };
+
+        // The router moves focus to the page's heading after a navigation (FocusOnNavigate), and on a page that has its data at once that is
+        // a few milliseconds after the element is found. For a moment a heading taking focus hands it back, unless the person has acted.
+        const keepFocus = (target) => {
+            const reclaim = (event) => {
+                if (event.target instanceof HTMLHeadingElement) {
+                    target.focus({ preventScroll: true });
+                }
+            };
+            const stop = () => {
+                document.removeEventListener("focusin", reclaim, true);
+                document.removeEventListener("pointerdown", stop, true);
+                document.removeEventListener("keydown", stop, true);
+            };
+            document.addEventListener("focusin", reclaim, true);
+            document.addEventListener("pointerdown", stop, true);
+            document.addEventListener("keydown", stop, true);
+            setTimeout(stop, 1000);
+        };
+
+        const reveal = (target) => {
+            clear();
+            target.scrollIntoView({ block: "start" });
+            let focusTarget = target.querySelector(FOCUS_FIRST);
+            if (!focusTarget) {
+                target.tabIndex = -1;
+                focusTarget = target;
+            }
+
+            focusTarget.focus({ preventScroll: true });
+            keepFocus(focusTarget);
+            // Taking the class off and putting it back restarts the animation when the same field is linked to twice.
+            void target.offsetWidth;
+            target.classList.add("pdk-highlight");
+            shown = target;
+            hide = setTimeout(clear, SHOWN_MS);
+        };
+
+        const lookup = (id) => {
+            const target = document.getElementById(id);
+            return target?.hasAttribute("data-highlight-target") ? target : null;
+        };
+
+        return Object.freeze({
+            /** Waits for the element the fragment names (the page may still be loading), then scrolls to it, focuses it and highlights it. */
+            arm(fragment) {
+                stopWaiting();
+                let id = fragment.startsWith("#") ? fragment.slice(1) : fragment;
+                try {
+                    id = decodeURIComponent(id);
+                } catch {
+                    // A malformed escape names nothing.
+                }
+
+                if (!id) {
+                    return;
+                }
+
+                // Two frames, so the layout the page just rendered has settled before the element is measured.
+                const go = (target) => requestAnimationFrame(() => requestAnimationFrame(() => reveal(target)));
+                const now = lookup(id);
+                if (now) {
+                    go(now);
+                    return;
+                }
+
+                observer = new MutationObserver(() => {
+                    const target = lookup(id);
+                    if (target) {
+                        stopWaiting();
+                        go(target);
+                    }
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
+                giveUp = setTimeout(stopWaiting, WAIT_MS);
+            },
+        });
+    })();
+
+    // A full load with a fragment, a navigation inside the app that names one, and the back and forward buttons. Blazor takes a navigation to
+    // another fragment of the same page in the browser alone (it tells the circuit nothing), so the history is watched here instead.
+    highlights.arm(window.location.hash);
+    const pushState = history.pushState.bind(history);
+    history.pushState = (...args) => {
+        pushState(...args);
+        highlights.arm(window.location.hash);
+    };
+    window.addEventListener("popstate", () => highlights.arm(window.location.hash));
+
     window.paduraksa = Object.freeze({
         drawers,
+        highlights,
         logPane,
         pageVisibility,
 

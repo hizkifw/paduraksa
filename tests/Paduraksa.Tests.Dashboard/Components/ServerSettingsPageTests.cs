@@ -8,6 +8,7 @@ using Paduraksa.Application.Settings;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Pages;
 using Paduraksa.Dashboard.SettingsArea;
 
@@ -93,5 +94,47 @@ public sealed class ServerSettingsPageTests
         Assert.Empty(page.FindAll("[data-action=review]"));
         Assert.Single(page.FindAll("[data-banner=read-only]"));
         Assert.All(page.FindComponents<DurationField>(), f => Assert.True(f.Instance.ReadOnly));
+    }
+
+    [Fact]
+    public async Task EverySettingOfTheCatalogueHasARowAnAddressCanNameAndTheLinkBuildsIt()
+    {
+        await using DashboardTestContext context = new();
+        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Owner);
+        config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 1));
+        var page = await RenderAsync(context);
+
+        Assert.Equal(ServerSettingCatalog.All.Count, ServerSettingCatalog.All.Select(s => s.Anchor).Distinct(StringComparer.Ordinal).Count());
+        foreach (var setting in ServerSettingCatalog.All)
+        {
+            Assert.Matches("^[a-z0-9]+(-[a-z0-9]+)*$", setting.Anchor);
+            var row = page.Find("#" + setting.Anchor);
+            Assert.True(row.HasAttribute("data-highlight-target"), setting.Key);
+            Assert.NotNull(row.QuerySelector($"[data-setting={setting.Key}]"));
+            Assert.Equal($"/settings/server#{setting.Anchor}", SettingsRoutes.SettingLink(setting));
+        }
+    }
+
+    [Fact]
+    public async Task ASettingTheEnvironmentSetsKeepsItsAnchorSoALinkStillLandsOnTheNote()
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddSingleton(new ServerSettingsState(new Dictionary<string, string> { ["mcpEnabled"] = "false" }));
+        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Owner);
+        config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 1));
+        var page = await RenderAsync(context);
+
+        var row = page.Find("#mcp-enabled");
+        Assert.Contains("Paduraksa__Mcp__Enabled", row.TextContent, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("mcpEnabled", "mcp-enabled")]
+    [InlineData("notificationAdminUrl", "notification-admin-url")]
+    [InlineData("adminRateLimitPermitsPerIp", "admin-rate-limit-permits-per-ip")]
+    public void TheAnchorIsTheKeyInKebabCase(string key, string anchor)
+    {
+        Assert.Equal(anchor, ServerSettingCatalog.Find(key)!.Anchor);
+        Assert.Equal("/settings/server#" + anchor, SettingsRoutes.SettingLink(ServerSettingCatalog.Find(key)!));
     }
 }

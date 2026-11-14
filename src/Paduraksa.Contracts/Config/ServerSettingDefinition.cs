@@ -69,6 +69,7 @@ public abstract class ServerSettingDefinition
         string key, string configurationKey, ServerSettingGroup group, string section, ServerSettingKind kind, ServerSettingApply apply, string title, string help)
     {
         Key = key;
+        Anchor = KebabCase(key);
         ConfigurationKey = configurationKey;
         Group = group;
         Section = section;
@@ -80,6 +81,12 @@ public abstract class ServerSettingDefinition
 
     /// <summary>The camelCase name of its <see cref="ServerSettings"/> property: its JSON name and its key in the API.</summary>
     public string Key { get; }
+
+    /// <summary>
+    /// The page address's fragment that names it (<c>mcp-enabled</c>) and the id of its row on the server settings page, so a link scrolls to it.
+    /// Kebab-case like every other address in the project; the catalogue's tests hold the anchors apart.
+    /// </summary>
+    public string Anchor { get; }
 
     /// <summary>The configuration key under <c>Paduraksa</c> (<c>Metrics:Retention</c>), as appsettings writes it.</summary>
     public string ConfigurationKey { get; }
@@ -111,6 +118,24 @@ public abstract class ServerSettingDefinition
 
     /// <summary>What the review says about a change from the first settings to the second, when the change needs a word; null says nothing.</summary>
     public Func<ServerSettings, ServerSettings, string?>? Note { get; init; }
+
+    private static string KebabCase(string key)
+    {
+        var kebab = new System.Text.StringBuilder(key.Length + 4);
+        foreach (var c in key)
+        {
+            if (char.IsAsciiLetterUpper(c))
+            {
+                kebab.Append('-').Append(char.ToLowerInvariant(c));
+            }
+            else
+            {
+                kebab.Append(c);
+            }
+        }
+
+        return kebab.ToString();
+    }
 
     /// <summary>Whether <paramref name="settings"/> sets it.</summary>
     public abstract bool IsSet(ServerSettings settings);

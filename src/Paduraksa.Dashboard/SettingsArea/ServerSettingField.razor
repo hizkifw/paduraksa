@@ -1,6 +1,6 @@
 @* One server setting's row: the control its kind takes (empty or "Default" is the built-in default), read-only with a note when the server's
    environment sets it, and the restart marker for a setting read once at startup. *@
-<SettingRow Title="@Setting.Title" Help="@Setting.Help">
+<SettingRow Title="@Setting.Title" Help="@Setting.Help" id="@Setting.Anchor" data-highlight-target="">
     <div class="pdk-setting-control pdk-server-setting" data-setting="@Setting.Key">
         @switch (Setting)
         {
