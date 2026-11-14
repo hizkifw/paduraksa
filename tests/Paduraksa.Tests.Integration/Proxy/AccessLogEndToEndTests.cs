@@ -86,7 +86,7 @@ public sealed class AccessLogEndToEndTests
 
         // The forwarded line, field by field.
         var fields = Fields(forwarded);
-        Assert.Equal(13, fields.Length);
+        Assert.Equal(19, fields.Length);
         Assert.True(DateTime.TryParseExact(fields[0], "yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out _), fields[0]);
         Assert.Equal("127.0.0.1", fields[1]);
         Assert.Equal("\"app.test\"", fields[2]);
@@ -103,6 +103,13 @@ public sealed class AccessLogEndToEndTests
         Assert.Equal("-", fields[10]); // no Cloudflare
         Assert.Equal("\"https://ref.example/\"", fields[11]);
         Assert.Equal("\"IntegrationTest/1.0\"", fields[12]);
+        // The stages: no TLS on the plain listener, the request's index on its connection, no body, the gate, the forward's connect, the send.
+        Assert.Equal("-", fields[13]);
+        Assert.Matches(@"^[1-9]\d*$", fields[14]);
+        Assert.Equal("0.000", fields[15]);
+        Assert.Matches(@"^\d+\.\d{3}$", fields[16]);
+        Assert.Matches(@"^\d+\.\d{3}$", fields[17]);
+        Assert.Matches(@"^\d+\.\d{3}$", fields[18]);
 
         // Nothing secret, from either request.
         foreach (var line in lines)
@@ -123,6 +130,13 @@ public sealed class AccessLogEndToEndTests
         Assert.Equal("404", Fields(unknownHost)[4]);
         Assert.Equal("-", Fields(unknownHost)[7]);
         Assert.Contains("\"nobody.test\"", Fields(unknownHost)[2], StringComparison.Ordinal);
+        // An answer is timed through the gate and its send, and has no connect.
+        foreach (var answered in new[] { refused, redirected, unknownHost })
+        {
+            Assert.Matches(@"^\d+\.\d{3}$", Fields(answered)[16]);
+            Assert.Equal("-", Fields(answered)[17]);
+            Assert.Matches(@"^\d+\.\d{3}$", Fields(answered)[18]);
+        }
     }
 
     [Fact]
@@ -192,12 +206,14 @@ public sealed class AccessLogEndToEndTests
 
         var line = await sink.WaitForLineAsync($"/{tag}/gone", ct);
         var fields = Fields(line);
-        Assert.Equal(13, fields.Length);
+        Assert.Equal(19, fields.Length);
         Assert.Contains("\"dead.test\"", fields[2], StringComparison.Ordinal);
         Assert.Equal("502", fields[4]);
         // The upstream leg was attempted: it has a duration up to the failure, and names the destination that failed.
         Assert.Matches(@"^\d+\.\d{3}$", fields[7]);
         Assert.Equal($"\"{dead.Address}\"", fields[8]);
+        // Nothing listens there: the whole attempt was the connect.
+        Assert.Equal(fields[7], fields[17]);
     }
 
     [Fact]
@@ -218,7 +234,7 @@ public sealed class AccessLogEndToEndTests
 
         var line = await WaitForLogAsync(data, tag, ct);
         var fields = Fields(line);
-        Assert.Equal(13, fields.Length);
+        Assert.Equal(19, fields.Length);
         Assert.Equal("\"app.test\"", fields[2]);
         Assert.Equal($"\"GET /{tag}/on-disk?token=REDACTED HTTP/1.1\"", fields[3]);
         Assert.Equal("200", fields[4]);

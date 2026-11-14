@@ -26,6 +26,7 @@ namespace Paduraksa.Contracts.Logging;
 /// <param name="CloudflareRay"><c>CF-Ray</c>, only when the request came through a trusted Cloudflare edge or tunnel.</param>
 /// <param name="Referer">The <c>Referer</c> header.</param>
 /// <param name="UserAgent">The <c>User-Agent</c> header.</param>
+/// <param name="Timing">Where the request's time went, stage by stage.</param>
 public sealed record LogTailEntry(
     long Sequence,
     DateTimeOffset Time,
@@ -45,7 +46,31 @@ public sealed record LogTailEntry(
     string? RequestIdentifier = null,
     string? CloudflareRay = null,
     string? Referer = null,
-    string? UserAgent = null);
+    string? UserAgent = null,
+    LogTailTiming? Timing = null);
+
+/// <summary>
+/// One request's time by stage, in milliseconds. A stage that didn't happen, or wasn't measured, is absent. The stages overlap
+/// (the gate runs while the body may still be arriving; a streamed answer is sent while the upstream still writes it), so they don't
+/// add up to the total.
+/// </summary>
+/// <param name="ConnectionRequest">The request's index on its connection, from 1.</param>
+/// <param name="TlsHandshakeMs">The connection's TLS handshake, on its first request only.</param>
+/// <param name="TlsReused">A later request on a TLS connection: its handshake was paid by the first.</param>
+/// <param name="RequestBodyMs">From the first to the last request body byte read; 0 when there was no body.</param>
+/// <param name="GateMs">The top of the pipeline to the gate's hand-off (to the forward, or to its own answer): the WAF, rate limits, access lists, auth and rules.</param>
+/// <param name="UpstreamConnectMs">The upstream connect (DNS, TCP and TLS); 0 on a pooled connection.</param>
+/// <param name="UpstreamWaitMs">The rest of the forward: sending the request and waiting for the upstream's response headers.</param>
+/// <param name="ResponseSendMs">The response's headers to its last byte written to the client.</param>
+public sealed record LogTailTiming(
+    int? ConnectionRequest = null,
+    double? TlsHandshakeMs = null,
+    bool TlsReused = false,
+    double? RequestBodyMs = null,
+    double? GateMs = null,
+    double? UpstreamConnectMs = null,
+    double? UpstreamWaitMs = null,
+    double? ResponseSendMs = null);
 
 /// <summary>
 /// Which requests a live tail wants; every part that is set must match. Nothing set is everything.

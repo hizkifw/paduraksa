@@ -138,5 +138,16 @@ public sealed class LogTailFeed : IDisposable
         RequestIdentifier: entry.RequestId,
         CloudflareRay: entry.CloudflareRay,
         Referer: entry.Referer,
-        UserAgent: entry.UserAgent);
+        UserAgent: entry.UserAgent,
+        Timing: new LogTailTiming(
+            ConnectionRequest: entry.ConnectionRequest > 0 ? entry.ConnectionRequest : null,
+            TlsHandshakeMs: Ms(entry.TlsHandshakeTicks),
+            TlsReused: entry.TlsHandshakeTicks == AccessLogEntry.HandshakeReused,
+            RequestBodyMs: Ms(entry.RequestBodyTicks),
+            GateMs: Ms(entry.GateTicks),
+            UpstreamConnectMs: entry.UpstreamTicks >= 0 ? Ms(entry.UpstreamConnectTicks) : null,
+            UpstreamWaitMs: entry.UpstreamTicks >= 0 ? Ms(entry.UpstreamTicks - Math.Max(0, entry.UpstreamConnectTicks)) : null,
+            ResponseSendMs: Ms(entry.ResponseSendTicks)));
+
+    private static double? Ms(long ticks) => ticks >= 0 ? ticks / (double)TimeSpan.TicksPerMillisecond : null;
 }

@@ -148,6 +148,45 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
     }
 
     [Fact]
+    public async Task AnEntryCarriesItsStagesAndTheForwardSplitIntoConnectAndWait()
+    {
+        var (response, reader) = await OpenAsync();
+        using (response)
+        using (reader)
+        {
+            Assert.Equal(": open", await NextLineAsync(reader));
+            Hub.Offer(Entry("/timed") with
+            {
+                TlsHandshakeTicks = TimeSpan.FromMilliseconds(2).Ticks,
+                ConnectionRequest = 1,
+                RequestBodyTicks = 0,
+                GateTicks = TimeSpan.FromMicroseconds(50).Ticks,
+                UpstreamTicks = TimeSpan.FromMilliseconds(10).Ticks,
+                UpstreamConnectTicks = TimeSpan.FromMilliseconds(3).Ticks,
+                ResponseSendTicks = TimeSpan.FromMilliseconds(1).Ticks,
+            });
+            Hub.Offer(Entry("/again") with { TlsHandshakeTicks = AccessLogEntry.HandshakeReused, ConnectionRequest = 2 });
+
+            var first = (await NextEntryAsync(reader)).GetProperty("timing");
+            Assert.Equal(1, first.GetProperty("connectionRequest").GetInt32());
+            Assert.Equal(2, first.GetProperty("tlsHandshakeMs").GetDouble());
+            Assert.False(first.GetProperty("tlsReused").GetBoolean());
+            Assert.Equal(0, first.GetProperty("requestBodyMs").GetDouble());
+            Assert.Equal(0.05, first.GetProperty("gateMs").GetDouble(), 9);
+            Assert.Equal(3, first.GetProperty("upstreamConnectMs").GetDouble());
+            Assert.Equal(7, first.GetProperty("upstreamWaitMs").GetDouble());
+            Assert.Equal(1, first.GetProperty("responseSendMs").GetDouble());
+
+            var again = (await NextEntryAsync(reader)).GetProperty("timing");
+            Assert.True(again.GetProperty("tlsReused").GetBoolean());
+            Assert.False(again.TryGetProperty("tlsHandshakeMs", out _));
+            // Not forwarded: neither half of the forward is there.
+            Assert.False(again.TryGetProperty("upstreamConnectMs", out _));
+            Assert.False(again.TryGetProperty("upstreamWaitMs", out _));
+        }
+    }
+
+    [Fact]
     public async Task FiltersKeepOnlyTheMatchingRequestsAndABacklogComesFirst()
     {
         Hub.Offer(Entry("/earlier-ok"));
