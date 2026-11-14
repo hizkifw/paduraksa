@@ -32,8 +32,16 @@
     <button type="submit" class="pdk-button pdk-button-primary">Sign in</button>
 </form>
 
-<div class="pdk-auth-note">
-    <p>Forgot the password? On the server, run:</p>
+@* A static page has no dialog component; the browser's popover gives light dismiss and Escape without a circuit. *@
+<button type="button" class="pdk-auth-forgot" popovertarget="pdk-forgot">Forgot password?</button>
+
+<div id="pdk-forgot" class="pdk-popup" popover>
+    <div class="pdk-popup-head">
+        <p>Run on the server:</p>
+        <button type="button" class="pdk-popup-close" popovertarget="pdk-forgot" popovertargetaction="hide" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+        </button>
+    </div>
     <CliHint Arguments="admin reset-password <user>" Static="true" />
 </div>
 

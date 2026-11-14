@@ -39,6 +39,20 @@ public sealed class SignInPageTests
         Assert.Empty(page.FindAll(".pdk-callout"));
     }
 
+    [Fact]
+    public void SignIn_KeepsTheResetCommandsInAPopoverTheForgotLinkOpens()
+    {
+        using DashboardTestContext context = new();
+        var page = Render<SignIn>(context, DashboardRoutes.SignIn);
+
+        var popup = page.Find("[popover]");
+        Assert.Equal(popup.Id, page.Find("button.pdk-auth-forgot").GetAttribute("popovertarget"));
+        Assert.Equal("paduraksa admin reset-password <user>", popup.QuerySelector("[data-form=systemd] code")!.TextContent);
+        Assert.Equal("docker compose exec paduraksa paduraksa admin reset-password <user>", popup.QuerySelector("[data-form=docker] code")!.TextContent);
+        Assert.Equal("hide", popup.QuerySelector("button[popovertargetaction]")!.GetAttribute("popovertargetaction"));
+        Assert.Equal(popup.Id, popup.QuerySelector("button[popovertargetaction]")!.GetAttribute("popovertarget"));
+    }
+
     [Theory]
     [InlineData("auth.invalidCredentials", "The username or password is wrong.")]
     [InlineData("auth.rateLimited", "Too many attempts. Wait a minute, then try again.")]

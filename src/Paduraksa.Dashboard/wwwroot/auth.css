@@ -165,16 +165,80 @@
     background: color-mix(in srgb, var(--pdk-info) 10%, transparent);
 }
 
-.pdk-auth-note {
-    display: grid;
-    gap: 8px;
-    margin: 22px 0 0;
+.pdk-auth-forgot {
+    display: block;
+    margin: 14px auto 0;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: var(--pdk-radius);
+    background: none;
     color: var(--pdk-muted);
+    font: inherit;
     font-size: 0.8125rem;
+    cursor: pointer;
 }
 
-.pdk-auth-note p {
+.pdk-auth-forgot:hover {
+    color: var(--pdk-text);
+    text-decoration: underline;
+}
+
+.pdk-auth-forgot:focus-visible,
+.pdk-popup-close:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-accent) 40%, transparent);
+}
+
+/* The browser centres a popover with fixed position and auto margins, which a reset's margin would undo, so they are set here too; the width leaves a gutter on a phone. */
+.pdk-popup {
+    inset: 0;
+    margin: auto;
+    width: min(calc(100vw - 32px), 460px);
+    box-sizing: border-box;
+    padding: 20px 20px 22px;
+    border: 1px solid var(--pdk-line);
+    border-radius: 18px;
+    background: var(--pdk-surface);
+    color: var(--pdk-text);
+    box-shadow: var(--pdk-shadow);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+}
+
+.pdk-popup::backdrop {
+    background: rgb(0 0 0 / 0.55);
+}
+
+.pdk-popup-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pdk-popup-head p {
     margin: 0;
+    font-weight: 600;
+}
+
+.pdk-popup-close {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin: -6px -8px -6px 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--pdk-muted);
+    cursor: pointer;
+}
+
+.pdk-popup-close:hover {
+    background: color-mix(in srgb, var(--pdk-text) 8%, transparent);
+    color: var(--pdk-text);
 }
 
 /* A CopyableCode on these pages reads the MudBlazor palette, which only the interactive pages define. */
