@@ -146,7 +146,7 @@ Apply runs the same command with the version the form opened with.
 - A commit that could not go live stays on screen as "saved as #N, but it isn't live" with the publisher's errors.
 - A commit leaves a toast with **Undo** (`ConfigUndo`): a rollback to the parent revision (a replace with the empty config for #1), based on the revision it undoes. It is refused when someone changed the config in between. A newer toast replaces the last, since only the latest change can be undone.
 - The drawer sits above the toasts, closes with Escape and focuses its heading.
-- "Simulate this change" runs a request against the draft in place, and the draft stays offered to the simulator page (`ReviewedDraft`) until it is applied.
+- "Simulate this change" runs a request against the change in place, and the change stays offered to the simulator page (`ReviewedDraft`) until it is applied. In the draft drawer, "Simulate the draft" targets the stored draft (`{kind: draft}`), so it reads what a review reads, and the simulator page offers the draft as "My draft" instead.
 
 **Forms.**
 - **Hosts:**
@@ -167,7 +167,7 @@ Apply runs the same command with the version the form opened with.
 
 **History.** The timeline shows number, who ("You", a user's name with `users:read`, a token, the CLI, Paduraksa), channel, time, message, and what changed in counts. It has "load older". The selected revision's diff is against its parent or any loaded revision. Roll back goes through the drawer, based on the latest. Simulate is there too.
 
-**Simulator.** URL, client IP, method and headers, with arrival, proxy address, TLS version, ALPN and SNI under Advanced. The target is live, a revision (`?revision=`), or the change under review. The outcome comes first in its tone, then the destinations with live health, the notes, and the trace as a vertical list of steps with verdict icons, summaries and facts. A refused request marks its fields.
+**Simulator.** URL, client IP, method and headers, with arrival, proxy address, TLS version, ALPN and SNI under Advanced. The target is live, a revision (`?revision=`), "My draft" while the user has a draft with entries (`?target=draft`; it follows the draft and falls back to live when the draft goes), or the change under review. The outcome comes first in its tone, then the destinations with live health, the notes, and the trace as a vertical list of steps with verdict icons, summaries and facts. A refused request marks its fields.
 
 **Permissions.** Add, edit, delete, roll back and Apply show only with `config:write` (a read-only form otherwise). The simulator needs `simulate`. The certificate picker and states need `certificates:read`. The services still refuse on their own.
 
@@ -922,7 +922,6 @@ Lists mark rows the draft creates or changes with "Draft".
 
 ### Not yet
 
-- The simulator page does not offer a draft as a target of its own (the review panel's Simulate does).
 - No merge of an entry's fields with someone else's change (an entry is reloaded, not rebased).
 - The YAML import does not go through a draft.
 

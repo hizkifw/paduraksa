@@ -269,4 +269,4 @@ A **draft** collects changes made on any page (hosts, upstreams, profiles, rate 
 
 ## Ask the Simulator
 
-**Simulator** (Insight) answers "why was this request routed, redirected or refused?" for a made-up request, against the live config or a draft. It walks the same steps the gate does and says what each decided: client address, access list, rules, rate limit, sign-in, route, upstream and the Host sent. Simulating never spends a rate-limit token or sends a request.
+**Simulator** (Insight) answers "why was this request routed, redirected or refused?" for a made-up request, against the live config, an older revision, the change you are reviewing or your open draft ("My draft"). It walks the same steps the gate does and says what each decided: client address, access list, rules, rate limit, sign-in, route, upstream and the Host sent. Simulating never spends a rate-limit token or sends a request.

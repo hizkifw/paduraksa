@@ -41,6 +41,8 @@ requests instead of the stream. Text the assistant reads from your traffic (user
 
 **Changes go to a draft by default.** The tool descriptions tell the assistant to put config changes in your [draft](../guide/hosts-and-routes.md#drafts) unless you asked for a change to be applied directly. You then see it in the draft bar, review it and apply it yourself. A token acts on its owner's draft, so a model's change gets the same review as a person's. This is guidance to the model, not a restriction: what limits an assistant is its token's scopes and the two-step rule below.
 
+**It checks its draft before it reports.** After adding entries the assistant reviews the draft, then simulates requests against it (`POST /api/v1/simulate` with `{kind: "draft", draft: "<id>"}`): requests the change is meant to affect and, where it matters, one it must not break, such as the host's normal path still forwarding. If a simulation shows the change is not what you asked for, it fixes the draft first. It then tells you what it drafted and what it checked, one line per simulated outcome. When you ask for a change to be applied directly it simulates first too, before applying. Simulating reads the draft and changes nothing; it needs a token that can write config (the draft is its owner's) and `simulate`.
+
 Claude Code:
 
 ```sh

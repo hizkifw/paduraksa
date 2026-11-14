@@ -572,7 +572,8 @@ Other details:
 - live;
 - `RevisionSimulationTarget`;
 - `DraftDocumentSimulationTarget` (a `ReplaceConfigCommand` on the current head, retried once on a commit in between);
-- `DraftCommandSimulationTarget`.
+- `DraftCommandSimulationTarget`;
+- `DraftSimulationTarget`, the caller's stored draft: `DraftService.ReadForSimulationAsync` reads it and the head with its entries applied (the replay a review starts from, without the writer's lock), and the simulator plans that document as a replace on the draft's head, retried once like a draft document. An unknown, discarded or someone else's draft is `DraftNotFound`; any entry changed elsewhere is `DraftBlocked`. See [admin-surfaces.md](admin-surfaces.md#the-simulators-targets).
 
 Drafts go through `ConfigService.PlanDraftAsync`, which is `AttemptAsync` as a dry run that hands back its compiled candidate.
 - Validation, certificate rules and compile errors are the real command's, and are returned as `Invalid` with the dry run's errors.
@@ -584,7 +585,7 @@ Drafts go through `ConfigService.PlanDraftAsync`, which is `AttemptAsync` as a d
 
 **Concurrency.** At most 4 drafts or revisions compile at once (`RequestSimulator.MaxConcurrentCompiles`). One that waits more than 2 s is `Unavailable`. The live target takes no slot.
 
-**Authorization.** `ISimulationAuthorizer` is asked for every target (see [identity.md](identity.md)).
+**Authorization.** `OperationPermissions.ForSimulation` names what each target needs (see [identity.md](identity.md)): `simulate`, plus `config:read` for a revision or a draft that is not stored, or `config:write` for the caller's stored draft.
 
 **Parity tests.**
 - `SimulatorParityTests` (Proxy): every outcome, 421 variants, all trusted-proxy modes and header shapes, PROXY protocol, ACME answered and fall-through.

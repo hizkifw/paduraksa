@@ -171,6 +171,27 @@ acme.order.name.ipNeedsHttp01, acme.order.challenge.undefined, acme.order.keySpe
 *Warnings:*
 `certificate.auto.noCoverage`, `certificate.specific.unusable`, `certificate.specific.noCoverage`, `certificate.default.unusable`, `host.admin.forceHttpsIgnored`, `host.admin.internalDisabled`.
 
+### The simulator's targets
+
+`POST /api/v1/simulate` takes `target`, a `kind` and what it names. A draft kind is validated and compiled as the real change would be, and never stored or published.
+
+| `kind` | Names | Needs |
+|---|---|---|
+| `live` (the default) | the snapshot serving traffic | `simulate` |
+| `revision` | `revision`, a stored revision | `simulate`, `config:read` |
+| `draftDocument` | `document`, a whole config that is not stored | `simulate`, `config:read` |
+| `draftCommand` | `command`, a pending command on the current config | `simulate`, `config:read` |
+| `draft` | `draft`, the caller's stored draft | `simulate`, `config:write` |
+
+- **`draft`** applies the stored draft to the current head as its review does (the same replay, then a dry run of one whole-document replace). It reads the draft when the request runs.
+- **Who:** a draft is its owner's, and a token acts on its owner's draft. Another user's draft, an unknown one and a discarded one are all 404 (`SimulationStatus.DraftNotFound`), as the draft endpoints answer. It needs `config:write` because reading a draft does; a viewer may simulate the live config but not a draft (403).
+- **Errors, as problems:**
+  - entries changed elsewhere (or depending on one that is) are 409 `draft.blocked`, with an error per entry as the draft's apply gives (`SimulationStatus.DraftBlocked`);
+  - what the dry run refuses (an invalid whole, a store that is unavailable) is the same 422 or 503 as for the other draft kinds;
+  - a draft with no entries simulates the current config, and says so in its notes.
+- **Decision:** the review of a draft with some blocked entries shows the rest; a simulation refuses instead (409 `draft.blocked`), because a simulation over part of what the draft says would show a change the draft does not make as a whole, and an agent would report it as checked.
+- **The dashboard** offers it as "My draft" in the simulator's target picker while the user has a draft with entries (`?target=draft` selects it), and the draft drawer's "Simulate the draft" uses it too. The reviewed single change still offers "The change under review".
+
 ### The resource API (M4)
 
 Code: `Paduraksa.Admin` with `AddPaduraksaAdminApi`, `MapPaduraksaAdminApi` and `UsePaduraksaAdminApi`, one file per resource group (`Api/*Endpoints.cs`). `AdminApp` only calls them.
@@ -289,6 +310,9 @@ The descriptions are all the model knows. They name the global, the shape of the
 **The server instructions** (`ToolDescriptions.ServerInstructions`, sent once at `initialize`) give the model a dense map of what Paduraksa is and which areas the API covers, so it knows what is worth searching for, and they name what is not reachable from MCP.
 - **Changes go to a draft by default.** Unless the user asked for a change to be applied directly, the model opens or reuses the user's draft and adds entries to it, then tells the user, who reviews and applies it in the dashboard. It does not apply or discard the draft unless asked. `execute`'s description repeats the rule in one line.
 - **Why:** the token acts as its owner, and the draft is that owner's, so it shows in their draft bar. A model's change then gets the same review as a person's.
+- **Then it proves the change.** After the review the model simulates its draft with `{kind: "draft", draft: id}`: one or more requests the change should affect and, where it matters, one it must not break. A simulation that shows the change is not what was asked sends it back to fix the draft. It then tells the user what it drafted and what it checked, one line per simulated outcome.
+- **Applying directly** (the user asked for it): it simulates first, with `draftCommand` or the draft, then applies.
+- **Why:** an agent that says "done" proves nothing, and the two-step read (`GET /drafts/{id}/config`, then `draftDocument`) was clumsy and could test a stale copy. The draft target reads the draft when it runs.
 - **Kept honest by a test:** `McpEndpointTests` checks that every `/api/v1` path the instructions name exists in the API description.
 
 **`search`.** The one global is `spec`, the OpenAPI document with every `$ref` resolved. The model finds endpoints with code, so the document never enters its context.
