@@ -137,11 +137,16 @@ the canary never went backwards, the counters never regressed in 361 scrapes, th
    WebSocket open, where the same stop took 0.11 s). The hour's analytics total fell from 7 427 229 to 6 906 897 requests in the full run (and from 618 000 to 152 000 in the 5-minute runs, whose
    whole history was the open bucket), where the control run without WebSockets carried all of it (618 854 to 767 901). `PaduraksaHost.StopHostsAsync` gives the public drain, admin and core one shared
    budget; once the drain has spent it, core stops "without waiting", and `BackgroundService.StopAsync` given a cancelled token returns before the rollup jobs' final flush (which uses `CancellationToken.None`) has run.
-   Not fixed here: closing upgraded connections when the drain starts, or giving core a budget of its own, are both small and the manager's call.
+   **Fixed in `soak-fixes`** (docs/design/hosting.md "Shutdown"): upgraded connections get a 1001 close as the drain starts, and core's flush has a budget of its own. A 5-minute run with
+   the fix (`--quick`, a machine at a load of about 39) closed 305 WebSockets at the signal and carried the analytics across (618 954 to 827 121 requests); a control without WebSockets carried them too (618 796 to 767 732).
+   The stop still took 21.8 s, the drain's new 20 s budget: what held it was the slow request bodies (below), not the WebSockets.
 3. **A destination that recovers after a flap stays out for a minute.** The 60 s outage was seen by the active check at 6 s and the destination was healthy again to the active check 3 s after it came
    back, but it was out of rotation for 63 s. The first request it got after recovery evaluated YARP's passive transport-failure window, which still held the outage's failures, marked it unhealthy again, and
    YARP logged "scheduled for a reactivation in 00:01:00" although the upstream's `passiveHealth.reactivationPeriod` is 10 s. The period reaches YARP's cluster model (`SnapshotPublisherTests` builds it) and does not
    change what YARP does: a unit test with a 2 s period still had the destination passively unhealthy after 5 s and healthy only after about a minute. The notification outbox's `destination.up` therefore arrives a minute late.
+   **Fixed in `soak-fixes`** (docs/design/observability.md "Passive health"): YARP's policy raises any shorter period to its 60 s detection window, so a policy of Paduraksa's own replaces it, keeps the
+   period, and forgets the outage when the active check sees the destination back. In a 5-minute run with the fix the flapped destination was down after 7.0 s and back in rotation 4.0 s after it
+   restarted, with `destination.down` and `destination.up` both in the outbox.
 4. **About 15 HTTP/2 requests an hour never get a response** (15 of 14.9 million in each run; none on HTTP/1.1 or plain HTTP): the client gives up after 30 s. It is a Kestrel bug, now worked around
    (`KestrelHttp2StreamReuse`; the whole account is "Kestrel's lost HTTP/2 responses" in [hot-path.md](../../docs/design/hot-path.md#kestrels-lost-http2-responses)). A 64 KiB download that uses up both HTTP/2 send windows can
    leave its pooled stream unable to send, and the next request on that stream is answered by the proxy (its access log has the `200`) but never written to the client. That stream never completes, which is
@@ -158,6 +163,10 @@ the canary never went backwards, the counters never regressed in 361 scrapes, th
    the managed heap's committed size rose from about 240 to 300 MiB. RSS moves in steps (522 to 571 MiB in the first six minutes, 580 to 675 MiB at 50 minutes in the first run) and the burst costs about
    150 MiB that the collector gives back minutes later, so one hour cannot tell a plateau from a leak. The thresholds make this a failure on purpose: the second process's slope is measured over only 19 minutes. A two-hour run, or one with a
    restart at a third, would settle it.
+6. **A slow request body holds a graceful stop for its whole drain** (found while proving finding 2). The four slow-body clients (10 bytes a second) are cut by the minimum body rate in about 11 s while
+   the server runs, but one that is in flight when the stop starts is not cut: it stays until the drain's budget runs out and Kestrel aborts it. A single trickling upload through the proxy held the stop
+   for 30 s before the fix and 20 s (the new drain budget) after it, so this was there before. Unresolved: whether Kestrel stops enforcing the rate while it drains, and whether a stop should abort
+   request bodies that are below the minimum rate, is a follow-up.
 
 The silent WebSocket check was skipped in both runs: `ClientWebSocket` pings every 30 s by default, a ping is traffic, and so the 120-second idle timeout never ran out. The harness now disables the pings for those
 five sockets; 5-minute runs after the change show them cut at exactly 120 s.
