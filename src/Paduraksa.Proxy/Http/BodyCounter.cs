@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Primitives;
 
 namespace Paduraksa.Proxy.Http;
 
@@ -174,7 +175,7 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     async Task<Stream> IHttpUpgradeFeature.UpgradeAsync()
     {
         _upgradedStream.Inner = await _upgrade!.UpgradeAsync().ConfigureAwait(false);
-        return Tracked(string.Equals(_upgradable!.Request.Headers.Upgrade, "websocket", StringComparison.OrdinalIgnoreCase));
+        return Tracked(OffersWebSocket(_upgradable!.Request.Headers.Upgrade));
     }
 
     bool IHttpExtendedConnectFeature.IsExtendedConnect => _connect?.IsExtendedConnect ?? false;
@@ -186,6 +187,24 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     {
         _upgradedStream.Inner = await _connect!.AcceptAsync().ConfigureAwait(false);
         return Tracked(string.Equals(_connect.Protocol, "websocket", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Any of the values, not the joined string: a client may send the Upgrade header on several lines, or list protocols in one,
+    // and the stop must still close its WebSocket with a frame rather than abort it.
+    private static bool OffersWebSocket(StringValues upgrade)
+    {
+        foreach (var line in upgrade)
+        {
+            foreach (var range in line.AsSpan().Split(','))
+            {
+                if (line.AsSpan(range).Trim().Equals("websocket", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     // The closer writes through the counting stream, so a close frame the stop sends is counted like any other byte out.

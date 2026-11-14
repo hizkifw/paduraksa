@@ -101,6 +101,43 @@ public sealed class BodyCounterTests
         Assert.Equal(0, counter.RequestBodyTicks);
     }
 
+    // The stop closes a WebSocket with a going-away frame and aborts any other upgrade; a client may offer "websocket" on a second
+    // Upgrade line, or in a list, and still gets the frame.
+    [Theory]
+    [InlineData(new[] { "websocket" }, true)]
+    [InlineData(new[] { "WebSocket" }, true)]
+    [InlineData(new[] { "h2c", "websocket" }, true)]
+    [InlineData(new[] { "h2c, websocket" }, true)]
+    [InlineData(new[] { "h2c" }, false)]
+    public async Task AnUpgradeThatOffersWebSocketOnAnyLineIsClosedWithAFrame(string[] upgradeLines, bool frame)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (context, _) = NewContext();
+        context.Request.Headers.Upgrade = upgradeLines;
+        MemoryStream tunnel = new();
+        context.Features.Set<IHttpUpgradeFeature>(new FakeUpgrade(tunnel));
+        UpgradedConnections connections = new();
+        BodyCounter counter = new();
+        counter.Begin(context, connections);
+        await context.Features.Get<IHttpUpgradeFeature>()!.UpgradeAsync();
+
+        using CancellationTokenSource stop = new();
+        var closing = connections.CloseAllAsync(stop.Token);
+        if (frame)
+        {
+            // The close frame goes out at once, the handshake is then waited for; the test does not wait out the handshake.
+            while (tunnel.Length < 4)
+            {
+                await Task.Delay(10, ct);
+            }
+
+            stop.Cancel();
+        }
+
+        await closing.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        Assert.Equal(frame ? [0x88, 0x02, 0x03, 0xE9] : [], tunnel.ToArray());
+    }
+
     [Fact]
     public async Task AnUpgradedConnectionsReadsAreNotTheBodyRead()
     {
