@@ -63,7 +63,7 @@ RUN set -eux; \
         -nologo; \
     setcap cap_net_bind_service=+ep /app/paduraksa
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:1a48394b6f29d3a32c79d9edecd4abda0ecbe8776d567dbfc4590ed6979c740c AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e AS runtime
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # libmsquic, pinned, from Microsoft's Ubuntu 24.04 feed: Kestrel's HTTP/3 transport loads it at runtime. The signing key
