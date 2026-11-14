@@ -277,6 +277,27 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
+    public async Task AFailingDayIsNotReadAtPollRateAndTryAgainReadsIt()
+    {
+        await using DashboardTestContext context = new();
+        await using var shell = await StartAsync(context, Role.Operator, database: false);
+        shell.Publish(Hosts());
+        var page = context.Render<SecurityPage>(parameters => parameters.Add(p => p.PollInterval, TimeSpan.FromSeconds(2)));
+        Assert.Single(page.FindAll("[data-part=failed]"));
+
+        // The rollups are back, but the poll reads only the hour: the live protections move, the alert stays.
+        await shell.UseDatabaseAsync();
+        shell.Publish(Hosts() with { Hosts = [.. Hosts().Hosts.Where(host => host.Id != Files)] });
+        Advance(shell, TimeSpan.FromSeconds(2));
+        await page.WaitForStateAsync(() => page.FindAll("[data-host]").Count == 2);
+        Assert.Single(page.FindAll("[data-part=failed]"));
+
+        await page.Find("[data-part=failed] button").ClickAsync(new());
+        Assert.Empty(page.FindAll("[data-part=failed]"));
+        Assert.Single(page.FindAll("[data-part=refused]"));
+    }
+
+    [Fact]
     public async Task TheProtectionsAreReadAgainWhileTheTabIsVisibleAndNotWhileItIsHidden()
     {
         await using DashboardTestContext context = new();

@@ -362,7 +362,7 @@ else
             _self = DotNetObjectReference.Create(this);
             try
             {
-                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", _self);
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", "security", _self);
             }
             catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
             {
@@ -387,20 +387,27 @@ else
 
     // The protections are the live snapshot's on every read; the 24 hours are the rollups, which the service reads at most every 30 s.
     // Rollups that can't be read must not hide the protections: the hour is memory, so it stands in for them, without the 24-hour figures.
-    private async Task LoadAsync()
+    // While the day is failing the poll reads only the hour, like the statistics tabs that stop polling after a failure; "Try again" and a tab
+    // shown again (retryDay) read the day once more.
+    private async Task LoadAsync(bool retryDay = true)
     {
         var token = _stop?.Token ?? CancellationToken.None;
-        try
+        if (!_dayFailed || retryDay)
         {
-            _current = await Service.ReadAsync(MetricsRange.Day, token);
-            _dayFailed = false;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _dayFailed = true;
-            _current = await Service.ReadAsync(MetricsRange.Hour, token);
+            try
+            {
+                _current = await Service.ReadAsync(MetricsRange.Day, token);
+                _dayFailed = false;
+                StateHasChanged();
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _dayFailed = true;
+            }
         }
 
+        _current = await Service.ReadAsync(MetricsRange.Hour, token);
         StateHasChanged();
     }
 
@@ -414,7 +421,7 @@ else
             {
                 if (_visible)
                 {
-                    await InvokeAsync(LoadAsync);
+                    await InvokeAsync(() => LoadAsync(retryDay: false));
                 }
             }
         }
@@ -436,7 +443,7 @@ else
         {
             try
             {
-                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach");
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach", "security");
             }
             catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
             {
