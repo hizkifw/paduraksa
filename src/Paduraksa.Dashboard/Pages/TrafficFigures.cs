@@ -28,6 +28,17 @@ internal static class TrafficFigures
             : null;
     }
 
+    /// <summary>The chart's points for a series: each step's start and width, whether anyone observed it, and the note for a step observed in part.</summary>
+    public static IReadOnlyList<TimeSeriesChart.ChartPoint> Points(IReadOnlyList<MetricsSeriesPoint> series, DisplayFormat format) =>
+        [.. series.Select(point => new TimeSeriesChart.ChartPoint(point.Start, TimeSpan.FromSeconds(point.WidthSeconds), point.CoveredSeconds == 0, Coverage(point, format)))];
+
+    /// <summary>
+    /// One value per step. A step nobody observed has no value; a step observed that timed nothing has a rate but no latency (<paramref name="timed"/>):
+    /// both break a line.
+    /// </summary>
+    public static double?[] Values(IReadOnlyList<MetricsSeriesPoint> series, Func<MetricsSeriesPoint, double> value, bool timed = false) =>
+        [.. series.Select(point => point.CoveredSeconds == 0 || (timed && value(point) <= 0) ? (double?)null : value(point))];
+
     public static string Label(MetricsRange range) => range switch
     {
         MetricsRange.Hour => "1 h",

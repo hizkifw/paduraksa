@@ -9,17 +9,23 @@
    nobody observed. Every point has a transparent column over it that carries the point's text in data attributes, and paduraksa.js
    shows it as a tooltip at once (no round trip to the circuit, and nothing to fight Blazor's re-render): data-time, data-values (one
    string per line, in the legend's order) and data-note. The line names and swatches come from the legend. *@
-<figure class="pdk-chart" data-chart="@Name" role="img" aria-label="@Summary">
+<figure class="pdk-chart@(Compact ? " pdk-chart-compact" : null)" data-chart="@Name" role="img" aria-label="@Summary">
     <div class="pdk-chart-body">
-        <div class="pdk-chart-axis" aria-hidden="true">
-            <span>@Show(_max)</span>
-            <span>@Show(_max / 2)</span>
-            <span>@Show(0)</span>
-        </div>
+        @if (!Compact)
+        {
+            <div class="pdk-chart-axis" aria-hidden="true">
+                <span>@Show(_max)</span>
+                <span>@Show(_max / 2)</span>
+                <span>@Show(0)</span>
+            </div>
+        }
         <svg class="pdk-chart-plot" viewBox="0 0 @Width @Height" preserveAspectRatio="none" aria-hidden="true">
-            <line class="pdk-chart-grid" x1="0" x2="@Width" y1="0" y2="0" />
-            <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@(Height / 2)" y2="@(Height / 2)" />
-            <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@Height" y2="@Height" />
+            @if (!Compact)
+            {
+                <line class="pdk-chart-grid" x1="0" x2="@Width" y1="0" y2="0" />
+                <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@(Height / 2)" y2="@(Height / 2)" />
+                <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@Height" y2="@Height" />
+            }
             @foreach (var (from, to) in GapBands())
             {
                 <rect class="pdk-chart-gap" x="@Coord(from)" y="0" width="@Coord(to - from)" height="@Height" />
@@ -45,10 +51,13 @@
             }
         </svg>
     </div>
-    <div class="pdk-chart-x" aria-hidden="true">
-        <span>@(Points.Count > 0 ? Fmt.Axis(Points[0].Start, TimeFormat) : string.Empty)</span>
-        <span>@(Points.Count > 0 ? Fmt.Axis(Points[^1].Start, TimeFormat) : string.Empty)</span>
-    </div>
+    @if (!Compact)
+    {
+        <div class="pdk-chart-x" aria-hidden="true">
+            <span>@(Points.Count > 0 ? Fmt.Axis(Points[0].Start, TimeFormat) : string.Empty)</span>
+            <span>@(Points.Count > 0 ? Fmt.Axis(Points[^1].Start, TimeFormat) : string.Empty)</span>
+        </div>
+    }
     <figcaption class="pdk-chart-legend">
         @foreach (var line in Lines)
         {
@@ -99,6 +108,13 @@
     /// </summary>
     [Parameter]
     public bool Stacked { get; set; }
+
+    /// <summary>
+    /// The line alone, as a sparkline in a tile: no axes, grid or time labels. The tooltip still gives each point's time and values, and
+    /// the legend is kept (hidden) because the tooltip takes its line names from it.
+    /// </summary>
+    [Parameter]
+    public bool Compact { get; set; }
 
     private double?[][] _drawn = [];
     private double[][] _lower = [];

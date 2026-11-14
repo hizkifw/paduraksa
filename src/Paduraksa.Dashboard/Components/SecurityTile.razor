@@ -1,10 +1,22 @@
-<MudPaper Class="pdk-card pdk-sec-tile" Elevation="0" Outlined="true" data-tile="@Name">
-    <span class="pdk-sec-label">@Label</span>
+<MudPaper Class="@("pdk-card pdk-sec-tile" + (Href is null ? null : " pdk-sec-tile-linked"))" Elevation="0" Outlined="true" data-tile="@Name">
+    @if (Href is null)
+    {
+        <span class="pdk-sec-label">@Label</span>
+    }
+    else
+    {
+        @* One link per tile, stretched over all of it (CSS) so the whole tile is the target, and named by the label. *@
+        <a class="pdk-sec-label pdk-sec-link" href="@Href" data-part="link" title="@LinkTitle">@Label</a>
+    }
     <div class="pdk-sec-figure">
         <span class="pdk-sec-value" data-part="value">@Value</span>
         <span class="pdk-sec-rate" data-part="rate">@Rate</span>
     </div>
     <span class="pdk-sec-detail" data-part="detail">@Detail</span>
+    @if (Spark is not null)
+    {
+        <div class="pdk-sec-spark" data-part="spark">@Spark</div>
+    }
 </MudPaper>
 
 @code {
@@ -24,4 +36,16 @@
     /// <summary>The live per-second rate; blank until a second sample exists.</summary>
     [Parameter]
     public string? Rate { get; set; }
+
+    /// <summary>Where the tile leads: the whole tile is a link when set.</summary>
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>The link's tooltip, for what it opens.</summary>
+    [Parameter]
+    public string? LinkTitle { get; set; }
+
+    /// <summary>A small chart under the figure (a compact <c>TimeSeriesChart</c>).</summary>
+    [Parameter]
+    public RenderFragment? Spark { get; set; }
 }

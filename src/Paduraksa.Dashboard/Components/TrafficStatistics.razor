@@ -243,24 +243,20 @@
     private void Shape(MetricsOverview overview)
     {
         var series = overview.Series;
-        _points = [.. series.Select(point => new TimeSeriesChart.ChartPoint(point.Start, TimeSpan.FromSeconds(point.WidthSeconds), point.CoveredSeconds == 0, TrafficFigures.Coverage(point, Fmt)))];
-        // A step nobody observed has no value; a step observed that timed nothing has a rate but no latency: both break a line.
+        _points = TrafficFigures.Points(series, Fmt);
         _requestLines =
         [
-            new("Requests", "pdk-chart-a", Values(series, point => point.RequestsPerSecond), Area: true),
-            new("5xx", "pdk-chart-err", Values(series, point => point.ErrorsPerSecond)),
+            new("Requests", "pdk-chart-a", TrafficFigures.Values(series, point => point.RequestsPerSecond), Area: true),
+            new("5xx", "pdk-chart-err", TrafficFigures.Values(series, point => point.ErrorsPerSecond)),
         ];
         _latencyLines =
         [
-            new("p50", "pdk-chart-b", Values(series, point => point.Total.P50Ms, timed: true)),
-            new("p95", "pdk-chart-c", Values(series, point => point.Total.P95Ms, timed: true)),
-            new("p99", "pdk-chart-err", Values(series, point => point.Total.P99Ms, timed: true)),
-            new("Upstream p95", "pdk-chart-up", Values(series, point => point.Upstream.P95Ms, timed: true)),
+            new("p50", "pdk-chart-b", TrafficFigures.Values(series, point => point.Total.P50Ms, timed: true)),
+            new("p95", "pdk-chart-c", TrafficFigures.Values(series, point => point.Total.P95Ms, timed: true)),
+            new("p99", "pdk-chart-err", TrafficFigures.Values(series, point => point.Total.P99Ms, timed: true)),
+            new("Upstream p95", "pdk-chart-up", TrafficFigures.Values(series, point => point.Upstream.P95Ms, timed: true)),
         ];
     }
-
-    private static double?[] Values(IReadOnlyList<MetricsSeriesPoint> series, Func<MetricsSeriesPoint, double> value, bool timed = false) =>
-        [.. series.Select(point => point.CoveredSeconds == 0 || (timed && value(point) <= 0) ? (double?)null : value(point))];
 
     public async ValueTask DisposeAsync()
     {

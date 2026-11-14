@@ -249,6 +249,41 @@
     font-size: 0.75rem;
 }
 
+/* A tile that is a link: the label's anchor is stretched over the whole tile, and the sparkline sits above it so its tooltip still works. */
+.pdk-sec-tile-linked.mud-paper {
+    position: relative;
+}
+
+.pdk-sec-tile-linked:hover.mud-paper {
+    border-color: var(--mud-palette-primary);
+}
+
+.pdk-sec-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.pdk-sec-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+
+.pdk-sec-link:focus-visible {
+    outline: none;
+}
+
+.pdk-sec-tile-linked:has(.pdk-sec-link:focus-visible).mud-paper {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-sec-spark {
+    position: relative;
+    min-height: 36px;
+    margin-top: 6px;
+}
+
 .pdk-sec-body {
     display: grid;
     gap: 16px;

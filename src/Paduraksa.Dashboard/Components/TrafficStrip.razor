@@ -1,0 +1,184 @@
+@implements IAsyncDisposable
+@using Paduraksa.Application.Metrics
+@using Paduraksa.Contracts.Metrics
+@using Paduraksa.Dashboard.Pages
+@inject MetricsService Metrics
+@inject TimeProvider Time
+@inject IJSRuntime JS
+@inject DisplayFormat Fmt
+@* The overview's live glance: four tiles for the pace of the last half minute, each with the last hour behind it from the sampler's
+   memory, and each a link to the traffic over that hour on Analytics. It is always the live hour (no range), read every few seconds while
+   the browser tab is visible. *@
+
+<section class="pdk-sec-tiles pdk-traffic-strip" data-section="traffic-strip" aria-label="Traffic in the last hour">
+    @if (_overview is null)
+    {
+        @for (var i = 0; i < 4; i++)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="124px" />
+        }
+    }
+    else
+    {
+        var now = _overview.Now;
+        <SecurityTile Name="requests" Label="Requests" Value="@Fmt.PerSecond(now.RequestsPerSecond)" Href="@Href" LinkTitle="@LinkTitle">
+            <Spark>
+                @if (_points.Count >= 2)
+                {
+                    <TimeSeriesChart Name="requests" Points="@_points" Lines="@_requests" Format="@Fmt.PerSecond" Compact="true" />
+                }
+            </Spark>
+        </SecurityTile>
+        <SecurityTile Name="errors" Label="Errors" Value="@Fmt.Percent(now.ErrorRate)" Detail="5xx answers" Href="@Href" LinkTitle="@LinkTitle">
+            <Spark>
+                @if (_points.Count >= 2)
+                {
+                    <TimeSeriesChart Name="errors" Points="@_points" Lines="@_errors" Format="@Fmt.Percent" Compact="true" />
+                }
+            </Spark>
+        </SecurityTile>
+        <SecurityTile Name="refused" Label="Refused" Value="@Fmt.PerSecond(now.RefusedPerSecond)" Detail="by a policy or limit" Href="@Href" LinkTitle="@LinkTitle">
+            <Spark>
+                @if (_points.Count >= 2)
+                {
+                    <TimeSeriesChart Name="refused" Points="@_points" Lines="@_refused" Format="@Fmt.PerSecond" Compact="true" />
+                }
+            </Spark>
+        </SecurityTile>
+        <SecurityTile Name="latency" Label="Latency p95" Value="@Fmt.Latency(now.Total.P95Ms)" Href="@Href" LinkTitle="@LinkTitle">
+            <Spark>
+                @if (_points.Count >= 2)
+                {
+                    <TimeSeriesChart Name="latency" Points="@_points" Lines="@_latency" Format="@Fmt.Latency" Compact="true" />
+                }
+            </Spark>
+        </SecurityTile>
+    }
+</section>
+
+@code {
+    private static readonly string Href = AnalyticsView.Href(AnalyticsTab.Traffic, MetricsRange.Hour);
+
+    private const string LinkTitle = "The traffic over the last hour, on Analytics";
+
+    private MetricsOverview? _overview;
+    private bool _visible = true;
+    private bool _started;
+    private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
+    private IReadOnlyList<TimeSeriesChart.ChartLine> _requests = [];
+    private IReadOnlyList<TimeSeriesChart.ChartLine> _errors = [];
+    private IReadOnlyList<TimeSeriesChart.ChartLine> _refused = [];
+    private IReadOnlyList<TimeSeriesChart.ChartLine> _latency = [];
+    private DotNetObjectReference<TrafficStrip>? _self;
+    private CancellationTokenSource? _stop;
+
+    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        await LoadAsync();
+        _started = true;
+        _stop = new CancellationTokenSource();
+        _ = PollAsync(_stop);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _started)
+        {
+            _self = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", _self);
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone; nothing watches, and the strip polls until it is disposed.
+            }
+        }
+    }
+
+    /// <summary>The browser tab was hidden or shown: the polling pauses while it is hidden and reads at once when it is shown.</summary>
+    [JSInvokable]
+    public async Task PageVisibilityChangedAsync(bool visible)
+    {
+        await InvokeAsync(async () =>
+        {
+            _visible = visible;
+            if (visible)
+            {
+                await LoadAsync();
+            }
+        });
+    }
+
+    private async Task LoadAsync()
+    {
+        // The hour is the sampler's memory: it reads nothing that can fail, so there is no error state (the longer ranges, which read the
+        // rollup database, are on Analytics).
+        _overview = await Metrics.ReadOverviewAsync(MetricsRange.Hour, _stop?.Token ?? CancellationToken.None);
+        Shape(_overview);
+        StateHasChanged();
+    }
+
+    private async Task PollAsync(CancellationTokenSource stop)
+    {
+        var token = stop.Token;
+        try
+        {
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(5), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                if (_visible)
+                {
+                    await InvokeAsync(LoadAsync);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The strip is gone.
+        }
+    }
+
+    private void Shape(MetricsOverview overview)
+    {
+        var series = overview.Series;
+        _points = TrafficFigures.Points(series, Fmt);
+        _requests = [new("Requests", "pdk-chart-a", TrafficFigures.Values(series, point => point.RequestsPerSecond), Area: true)];
+        // The share of a step's requests that failed; a step with none has no share to draw, and reads as no errors.
+        _errors = [new("5xx", "pdk-chart-err", TrafficFigures.Values(series, point => point.RequestsPerSecond > 0 ? point.ErrorsPerSecond / point.RequestsPerSecond : 0))];
+        _refused = [new("Refused", "pdk-chart-c", TrafficFigures.Values(series, point => point.RefusedPerSecond), Area: true)];
+        _latency = [new("p95", "pdk-chart-b", TrafficFigures.Values(series, point => point.Total.P95Ms, timed: true))];
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_stop is { } stop)
+        {
+            await stop.CancelAsync();
+            stop.Dispose();
+        }
+
+        if (_self is not null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach");
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone.
+            }
+
+            _self.Dispose();
+        }
+    }
+}

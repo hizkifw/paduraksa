@@ -104,6 +104,24 @@
     overflow: visible;
 }
 
+/* A sparkline: the plot alone, short, in a tile; its legend stays in the markup for the tooltip's names. */
+.pdk-chart-compact {
+    margin: 0;
+}
+
+.pdk-chart-compact .pdk-chart-body {
+    display: block;
+}
+
+.pdk-chart-compact .pdk-chart-plot {
+    display: block;
+    height: 36px;
+}
+
+.pdk-chart-compact .pdk-chart-legend {
+    display: none;
+}
+
 .pdk-chart-grid {
     stroke: var(--pdk-line);
     stroke-width: 1;

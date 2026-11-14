@@ -26,6 +26,7 @@ public sealed class OverviewAndNavigationTests
         config.Document = new ConfigDocument(Upstreams: [off], Hosts: [host]);
         config.LiveWarnings = [new ConfigWarning("/hosts/0", "certificate.auto.noCoverage", "no valid certificate covers media.home.test")];
         context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficStrip>();
 
         var page = context.Render<Home>();
 
@@ -45,6 +46,7 @@ public sealed class OverviewAndNavigationTests
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument();
         context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficStrip>();
 
         var page = context.Render<Home>();
 
@@ -60,6 +62,7 @@ public sealed class OverviewAndNavigationTests
         context.Services.AddSingleton<IVaultLifecycle>(new FakeVaultLifecycle(KekSourceKind.GeneratedFile, besideDatabase: true));
         ConfigPages.SignIn(context, Role.Owner).Document = new ConfigDocument();
         context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficStrip>();
 
         var page = context.Render<Home>();
 
@@ -85,6 +88,7 @@ public sealed class OverviewAndNavigationTests
         context.Services.AddSingleton<IVaultLifecycle>(new FakeVaultLifecycle(source, beside));
         ConfigPages.SignIn(context, role).Document = new ConfigDocument();
         context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficStrip>();
 
         var page = context.Render<Home>();
 
@@ -102,6 +106,7 @@ public sealed class OverviewAndNavigationTests
         config.Document = new ConfigDocument();
         identity.Users.Add(FakeDashboardIdentity.User("grace", Role.Admin));
         context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficStrip>();
 
         var page = context.Render<Home>();
 
