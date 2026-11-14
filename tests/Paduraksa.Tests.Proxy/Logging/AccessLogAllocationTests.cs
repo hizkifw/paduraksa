@@ -210,6 +210,8 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
     /// </summary>
     private sealed class CompletionProbe
     {
+        private static readonly HttpRequestMessage ForwardedMessage = new();
+
         private volatile bool _enabled;
         private long _requests;
         private long _registrationBytes;
@@ -272,9 +274,17 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             ProxyHostingExtensions.RegisterReapply(context);
             registration += GC.GetAllocatedBytesForCurrentThread() - before;
 
+            // Recorded as a forward that was answered, so the start offsets and the wait are filled in as well; the forward that follows
+            // sets these again in its first request transform.
+            state.UpstreamStartedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            state.UpstreamTicks = TimeSpan.TicksPerMillisecond;
+            state.UpstreamRequest = ForwardedMessage;
             before = GC.GetAllocatedBytesForCurrentThread();
             AccessLogMiddleware.Record(context, ring, started);
             var recording = GC.GetAllocatedBytesForCurrentThread() - before;
+            state.UpstreamStartedTimestamp = 0;
+            state.UpstreamTicks = AccessLogEntry.Unknown;
+            state.UpstreamRequest = null;
 
             // The counters, for a request that was forwarded: the same entry point the completion callback calls, with the
             // outcome the gate set when it handed the request on.

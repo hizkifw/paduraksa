@@ -53,10 +53,12 @@ internal static class UpstreamConnects
     /// The connect <paramref name="message"/> paid for, in <see cref="TimeSpan"/> ticks, at most <paramref name="upstreamTicks"/>: 0
     /// when it went out on a pooled connection; when its connect never finished, 0 if the forward was <paramref name="answered"/>
     /// anyway (the pool handed it a connection that freed up while its own was still opening) and all of
-    /// <paramref name="upstreamTicks"/> if not (the forward failed while connecting).
+    /// <paramref name="upstreamTicks"/> if not (the forward failed while connecting). <paramref name="startedTimestamp"/> is when the
+    /// connect started, a <see cref="Stopwatch"/> timestamp, whenever the figure is above 0; else 0.
     /// </summary>
-    public static long TicksFor(HttpRequestMessage message, long upstreamTicks, bool answered)
+    public static long TicksFor(HttpRequestMessage message, long upstreamTicks, bool answered, out long startedTimestamp)
     {
+        startedTimestamp = 0;
         if (!Started.TryGetValue(message, out var connect))
         {
             return 0;
@@ -65,10 +67,19 @@ internal static class UpstreamConnects
         var ticks = connect.Ticks;
         if (ticks < 0)
         {
-            return answered ? 0 : upstreamTicks;
+            ticks = answered ? 0 : upstreamTicks;
+        }
+        else if (ticks > upstreamTicks)
+        {
+            ticks = upstreamTicks;
         }
 
-        return ticks > upstreamTicks ? upstreamTicks : ticks;
+        if (ticks > 0)
+        {
+            startedTimestamp = connect.Started;
+        }
+
+        return ticks;
     }
 
     // What SocketsHttpHandler does without a callback: a dual-mode socket, Nagle off, every address of the name tried in turn.
@@ -90,6 +101,8 @@ internal static class UpstreamConnects
     private sealed class Connect(long started)
     {
         private long _ticks = -1;
+
+        public long Started => started;
 
         public long Ticks => Volatile.Read(ref _ticks);
 

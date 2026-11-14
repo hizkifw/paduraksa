@@ -124,7 +124,39 @@ public sealed class RequestTimingTests : IAsyncLifetime
         var entries = await EntriesAsync(server, "/upload/trickled", "/nobody");
         Assert.True(entries[0].RequestBodyTicks >= Floor.Ticks, $"the body read took {Ms(entries[0].RequestBodyTicks)}");
         Assert.Equal(3, entries[0].RequestBytes);
+        Assert.False(entries[0].RequestBodyUnfinished);
         Assert.Equal(0, entries[1].RequestBodyTicks);
+        Assert.Equal(AccessLogEntry.UnknownOffset, entries[1].RequestBodyStartMicros);
+        AssertPlaced(entries[0]);
+        AssertPlaced(entries[1]);
+        // The upstream answers once it has the body, so the wait starts at the body's last byte and is not the trickle.
+        Assert.True(entries[0].UpstreamWaitTicks < entries[0].RequestBodyTicks, $"the wait was {Ms(entries[0].UpstreamWaitTicks)}");
+        Assert.True(Micros(entries[0].RequestBodyStartMicros) + entries[0].RequestBodyTicks <= WaitStart(entries[0]) + TimeSpan.TicksPerMillisecond / 1000);
+    }
+
+    [Fact]
+    public async Task AnUpstreamThatAnswersBeforeTheBodyIsInWaitsForNothing()
+    {
+        // Over TLS the forward is HTTP/2, which hands YARP an early refusal at once; the proxy then answers and drops the rest of the body.
+        await using var tlsUpstream = await TimingUpstream.StartAsync(_certificate);
+        await using var server = await ProxyTestServer.StartAsync(Model(tlsUpstream.Address, UpstreamTlsTrust.Any));
+        var ct = TestContext.Current.CancellationToken;
+        using TcpClient tcp = new();
+        await tcp.ConnectAsync(IPAddress.Loopback, server.BaseAddress.Port, ct);
+        var stream = tcp.GetStream();
+        await stream.WriteAsync(Encoding.ASCII.GetBytes("POST /early/answer HTTP/1.1\r\nHost: app.test\r\nContent-Length: 3\r\n\r\nx"), ct);
+
+        Assert.Contains("413", await ReadHeadAsync(stream, ct), StringComparison.Ordinal);
+
+        var entry = Assert.Single(await EntriesAsync(server, "/early/answer"));
+        Assert.Equal(1, entry.RequestBytes);
+        Assert.True(entry.RequestBodyUnfinished, "the body was cut off by the answer");
+        Assert.Equal(0, entry.UpstreamWaitTicks);
+        AssertPlaced(entry);
+        // The zero-length wait sits at the answer, after the body's one read.
+        var answered = Micros(entry.ForwardStartMicros) + entry.UpstreamTicks;
+        Assert.Equal(answered, WaitStart(entry));
+        Assert.True(Micros(entry.RequestBodyStartMicros) <= answered, "the body was read after the answer");
     }
 
     [Fact]
@@ -145,6 +177,12 @@ public sealed class RequestTimingTests : IAsyncLifetime
         Assert.InRange(entries[0].UpstreamConnectTicks, 0, entries[0].UpstreamTicks);
         Assert.Equal(0, entries[1].UpstreamConnectTicks);
         Assert.True(entries[1].UpstreamTicks >= 0);
+        AssertPlaced(entries[0]);
+        AssertPlaced(entries[1]);
+        // The wait starts once the connection is up, and the reused connection has no connect to place.
+        Assert.True(WaitStart(entries[0]) >= Micros(entries[0].UpstreamConnectStartMicros) + entries[0].UpstreamConnectTicks - TimeSpan.TicksPerMillisecond / 1000);
+        Assert.True(entries[0].UpstreamWaitTicks < entries[0].UpstreamConnectTicks, $"the wait was {Ms(entries[0].UpstreamWaitTicks)}");
+        Assert.Equal(AccessLogEntry.UnknownOffset, entries[1].UpstreamConnectStartMicros);
     }
 
     [Fact]
@@ -158,7 +196,9 @@ public sealed class RequestTimingTests : IAsyncLifetime
         var entry = Assert.Single(await EntriesAsync(server, "/slow/first-byte"));
         Assert.True(entry.UpstreamTicks >= Floor.Ticks, $"the forward took {Ms(entry.UpstreamTicks)}");
         // A loopback connect, whatever the machine is doing, is far from the upstream's own wait.
-        Assert.True(entry.UpstreamTicks - entry.UpstreamConnectTicks >= Floor.Ticks, $"the wait was {Ms(entry.UpstreamTicks - entry.UpstreamConnectTicks)}");
+        Assert.True(entry.UpstreamWaitTicks >= Floor.Ticks, $"the wait was {Ms(entry.UpstreamWaitTicks)}");
+        Assert.InRange(entry.UpstreamWaitTicks, 0, entry.UpstreamTicks);
+        AssertPlaced(entry);
     }
 
     [Fact]
@@ -201,10 +241,51 @@ public sealed class RequestTimingTests : IAsyncLifetime
         var entries = await EntriesAsync(server, "/forwarded", "/answered");
         Assert.All(entries, static entry => Assert.InRange(entry.GateTicks, 0, entry.TotalTicks));
         Assert.All(entries, static entry => Assert.InRange(entry.ResponseSendTicks, 0, entry.TotalTicks));
+        Assert.All(entries, AssertPlaced);
         Assert.True(entries[0].UpstreamConnectTicks >= 0, "the forward opened a connection or reused one");
         Assert.Equal(AccessLogEntry.Unknown, entries[1].UpstreamConnectTicks);
         Assert.Equal(AccessLogEntry.Unknown, entries[1].UpstreamTicks);
+        Assert.Equal(AccessLogEntry.Unknown, entries[1].UpstreamWaitTicks);
+        Assert.Equal(AccessLogEntry.UnknownOffset, entries[1].ForwardStartMicros);
     }
+
+    // Every stage starts and ends inside the request, in the pipeline's order: the gate hands the request on before the forward starts,
+    // the connect runs inside the forward, the wait ends at the upstream's answer and the response goes out after it. An offset is
+    // whole microseconds and a duration is ticks, so a comparison across the two allows a microsecond.
+    private static void AssertPlaced(AccessLogEntry entry)
+    {
+        const long Slack = TimeSpan.TicksPerMillisecond / 1000;
+        var total = entry.TotalTicks;
+        var sendStart = entry.ResponseSendTicks >= 0 ? total - entry.ResponseSendTicks : total;
+        if (entry.RequestBodyStartMicros >= 0)
+        {
+            Assert.InRange(Micros(entry.RequestBodyStartMicros) + entry.RequestBodyTicks, 0, total + Slack);
+        }
+
+        if (entry.ForwardStartMicros < 0)
+        {
+            Assert.Equal(AccessLogEntry.UnknownOffset, entry.UpstreamConnectStartMicros);
+            return;
+        }
+
+        var forwardStart = Micros(entry.ForwardStartMicros);
+        var answered = forwardStart + entry.UpstreamTicks;
+        Assert.InRange(entry.GateTicks, 0, forwardStart + Slack);
+        Assert.InRange(answered, forwardStart, sendStart + Slack);
+        if (entry.UpstreamConnectStartMicros >= 0)
+        {
+            var connectStart = Micros(entry.UpstreamConnectStartMicros);
+            Assert.InRange(connectStart, forwardStart - Slack, answered + Slack);
+            Assert.InRange(connectStart + entry.UpstreamConnectTicks, forwardStart, answered + Slack);
+        }
+
+        Assert.InRange(entry.UpstreamWaitTicks, 0, entry.UpstreamTicks);
+        Assert.InRange(WaitStart(entry), forwardStart, answered);
+    }
+
+    private static long WaitStart(AccessLogEntry entry) => RequestStages.WaitStartTicks(entry.ForwardStartMicros, entry.UpstreamTicks, entry.UpstreamWaitTicks);
+
+    private static long Micros(int micros) => micros * (TimeSpan.TicksPerMillisecond / 1000);
 
     private static ProxyConfigModel Model(string address, UpstreamTlsTrust trust = UpstreamTlsTrust.System) => new()
     {
@@ -265,7 +346,7 @@ public sealed class RequestTimingTests : IAsyncLifetime
 
     /// <summary>
     /// An upstream with known delays: <c>/slow/...</c> waits before its first byte, <c>/big/...</c> answers <see cref="BigBody"/> bytes,
-    /// <c>/upload/...</c> reads the whole body first; anything else answers at once.
+    /// <c>/upload/...</c> reads the whole body first, <c>/early/...</c> refuses the body with a 413 before reading it; anything else answers at once.
     /// </summary>
     private sealed class TimingUpstream : IAsyncDisposable
     {
@@ -307,6 +388,11 @@ public sealed class RequestTimingTests : IAsyncLifetime
                         else if (path.StartsWith("/upload/", StringComparison.Ordinal))
                         {
                             await context.Request.Body.CopyToAsync(Stream.Null, ct);
+                        }
+                        else if (path.StartsWith("/early/", StringComparison.Ordinal))
+                        {
+                            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                            return;
                         }
                         else if (path.StartsWith("/big/", StringComparison.Ordinal))
                         {

@@ -83,6 +83,18 @@ public sealed class AccessLogTailEntry
 
     public long ResponseSendTicks { get; private init; }
 
+    /// <summary>The upstream wait as the file writes it (<see cref="AccessLogEntry.UpstreamWaitTicks"/>).</summary>
+    public long UpstreamWaitTicks { get; private init; }
+
+    /// <summary>The start offsets, as on <see cref="AccessLogEntry"/> (microseconds from the request's start, <see cref="AccessLogEntry.UnknownOffset"/> when not known).</summary>
+    public int ForwardStartMicros { get; private init; }
+
+    public int UpstreamConnectStartMicros { get; private init; }
+
+    public int RequestBodyStartMicros { get; private init; }
+
+    public bool RequestBodyUnfinished { get; private init; }
+
     internal void Number(long sequence) => Sequence = sequence;
 
     /// <summary>
@@ -152,6 +164,11 @@ public sealed class AccessLogTailEntry
         GateTicks = entry.GateTicks,
         UpstreamConnectTicks = entry.UpstreamConnectTicks,
         ResponseSendTicks = entry.ResponseSendTicks,
+        UpstreamWaitTicks = entry.UpstreamWaitTicks,
+        ForwardStartMicros = entry.ForwardStartMicros,
+        UpstreamConnectStartMicros = entry.UpstreamConnectStartMicros,
+        RequestBodyStartMicros = entry.RequestBodyStartMicros,
+        RequestBodyUnfinished = entry.RequestBodyUnfinished,
     };
 
     private static string? VisibleQuery(string? query, AccessLogFormatOptions options)

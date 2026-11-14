@@ -37,7 +37,8 @@ public sealed class AccessLogFormatterPropertyTests
         Gen.Select(Text, Text, Text, Text),
         Gen.Select(Gen.Int[-1, 600], Gen.Long[-1, 100_000], Gen.Long[0, 10_000_000_000], Gen.Long[-1, 10_000_000_000]),
         Gen.Select(Gen.Long[-2, 10_000_000_000], Gen.Int[0, 100_000], Gen.Long[-1, 10_000_000_000], Gen.Long[-1, 10_000_000_000], Gen.Long[-1, 10_000_000_000], Gen.Long[-1, 10_000_000_000]),
-        static (a, b, c, d) => new AccessLogEntry
+        Gen.Select(Gen.Int[-1, int.MaxValue], Gen.Int[-1, int.MaxValue], Gen.Int[-1, int.MaxValue]),
+        static (a, b, c, d, e) => new AccessLogEntry
         {
             TimestampUtcTicks = new DateTime(2026, 1, 31, 12, 34, 56, DateTimeKind.Utc).Ticks,
             // The address is one the proxy formatted itself, never a client's string, so it is the one field that isn't escaped.
@@ -62,6 +63,9 @@ public sealed class AccessLogFormatterPropertyTests
             GateTicks = d.Item4,
             UpstreamConnectTicks = d.Item5,
             ResponseSendTicks = d.Item6,
+            ForwardStartMicros = e.Item1,
+            UpstreamConnectStartMicros = e.Item2,
+            RequestBodyStartMicros = e.Item3,
         });
 
     [Fact]
@@ -76,7 +80,7 @@ public sealed class AccessLogFormatterPropertyTests
                 Assert.True(line.All(static c => !(char.IsControl(c) || c is '\u2028' or '\u2029')), "a character a reader may take for the end of a line: " + line);
                 var fields = Reader.Fields(line);
 
-                Assert.Equal(19, fields.Count);
+                Assert.Equal(20, fields.Count);
                 CheckQuoted(fields[2], entry.Host, AccessLogFormatter.MaxHostLength);
                 CheckQuoted(fields[8], entry.UpstreamAddress, AccessLogFormatter.MaxUpstreamLength);
                 CheckQuoted(fields[9], entry.RequestId, RequestIds.MaxLength);
@@ -89,6 +93,7 @@ public sealed class AccessLogFormatterPropertyTests
                 CheckDuration(fields[16], entry.GateTicks);
                 CheckDuration(fields[17], entry.UpstreamConnectTicks);
                 CheckDuration(fields[18], entry.ResponseSendTicks);
+                CheckDuration(fields[19], entry.UpstreamWaitTicks);
             });
 
     // A duration reads back to its microseconds (the line's resolution), and any unknown value is a bare dash.
@@ -118,7 +123,7 @@ public sealed class AccessLogFormatterPropertyTests
                 var line = Format(entry, AccessLogFormatOptions.Default);
                 var fields = Reader.Fields(line);
 
-                Assert.Equal(19, fields.Count);
+                Assert.Equal(20, fields.Count);
                 Assert.DoesNotContain(Canary, line, StringComparison.Ordinal);
                 var expected = $"{OrDash(method, AccessLogFormatter.MaxMethodLength)} {OrDash(path, AccessLogFormatter.MaxPathLength)}{Redacted(query)} {OrDash(protocol, AccessLogFormatter.MaxProtocolLength)}";
                 var decoded = Assert.IsType<string>(fields[3]);

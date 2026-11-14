@@ -11,7 +11,7 @@ namespace Paduraksa.Proxy.Logging;
 /// <code>
 /// 2026-01-31T12:34:56.789Z 198.51.100.7 "app.example" "GET /a/b?token=REDACTED HTTP/2" 200 512 1.234 0.987
 ///     "http://10.0.0.2:8080/" "0k3m9x2p-00000000000abc" "8f2a1c3d4e5f6789" "https://example.com/" "Mozilla/5.0"
-///     2.101 1 0.000 0.012 0.000 0.105
+///     2.101 1 0.000 0.012 0.000 0.105 0.987
 /// </code>
 /// <para>Fields, in order: (1) the time of the end of the request, ISO-8601 UTC with milliseconds; (2) the resolved client
 /// address, unquoted (it is an address Paduraksa formatted, never a client's string); (3) the <c>Host</c> as received;
@@ -20,7 +20,8 @@ namespace Paduraksa.Proxy.Logging;
 /// upstream duration; (9) the upstream destination; (10) the request ID; (11) <c>CF-Ray</c>; (12) the referer; (13) the user
 /// agent; then the stages (docs/design/observability.md "Request timing"): (14) the connection's TLS handshake, on its first request
 /// only; (15) the request's index on its connection; (16) the request body read; (17) the gate; (18) the upstream connect, 0 on a
-/// pooled connection; (19) the response send. Fields are separated by one space, and the line has <b>no trailing newline</b>: the sink writes it as one
+/// pooled connection; (19) the response send; (20) the upstream wait, from when the request was sent upstream (its body's last byte,
+/// or its headers without one) to the upstream's response headers (<see cref="RequestStages.WaitTicks"/>). Fields are separated by one space, and the line has <b>no trailing newline</b>: the sink writes it as one
 /// line.</para>
 /// <para><b>Missing values</b> are a bare <c>-</c>. Text fields are quoted; a quoted field is empty of meaning when the
 /// entry has no value, which is why <c>-</c> stands outside the quotes.</para>
@@ -184,6 +185,10 @@ public static class AccessLogFormatter
         line.WriteMillisecondsOrMissing(entry.UpstreamConnectTicks);
         line.Write(' ');
         line.WriteMillisecondsOrMissing(entry.ResponseSendTicks);
+
+        // 20. The upstream wait, appended after the stages for the same reason.
+        line.Write(' ');
+        line.WriteMillisecondsOrMissing(entry.UpstreamWaitTicks);
 
         return line.Overflowed ? -1 : line.Length;
     }

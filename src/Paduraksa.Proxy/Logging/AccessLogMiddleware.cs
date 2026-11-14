@@ -171,7 +171,11 @@ public sealed class AccessLogMiddleware
             }
         }
 
-        var connectTicks = state is { UpstreamRequest: { } sent } && upstreamTicks >= 0 ? Yarp.UpstreamConnects.TicksFor(sent, upstreamTicks, answered) : AccessLogEntry.Unknown;
+        long connectTicks = AccessLogEntry.Unknown, connectStarted = 0;
+        if (state is { UpstreamRequest: { } sent } && upstreamTicks >= 0)
+        {
+            connectTicks = Yarp.UpstreamConnects.TicksFor(sent, upstreamTicks, answered, out connectStarted);
+        }
 
         AccessLogEntry entry = new()
         {
@@ -200,6 +204,10 @@ public sealed class AccessLogMiddleware
             GateTicks = state is { GateEndedTimestamp: not 0 } ? Stopwatch.GetElapsedTime(started, state.GateEndedTimestamp).Ticks : AccessLogEntry.Unknown,
             UpstreamConnectTicks = connectTicks,
             ResponseSendTicks = ResponseSendTicks(state, ended),
+            ForwardStartMicros = upstreamTicks >= 0 ? RequestStages.Offset(started, state?.UpstreamStartedTimestamp ?? 0) : AccessLogEntry.UnknownOffset,
+            UpstreamConnectStartMicros = RequestStages.Offset(started, connectStarted),
+            RequestBodyStartMicros = RequestStages.Offset(started, state?.CountedBody?.FirstBodyReadTimestamp ?? 0),
+            RequestBodyUnfinished = state?.CountedBody is { FirstBodyReadTimestamp: not 0, RequestBodyEnded: false } body && !(request.ContentLength is { } length && body.RequestBytes >= length),
         };
         ring.TryWrite(entry);
     }

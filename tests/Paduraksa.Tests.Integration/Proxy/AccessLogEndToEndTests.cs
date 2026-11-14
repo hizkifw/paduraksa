@@ -86,7 +86,7 @@ public sealed class AccessLogEndToEndTests
 
         // The forwarded line, field by field.
         var fields = Fields(forwarded);
-        Assert.Equal(19, fields.Length);
+        Assert.Equal(20, fields.Length);
         Assert.True(DateTime.TryParseExact(fields[0], "yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out _), fields[0]);
         Assert.Equal("127.0.0.1", fields[1]);
         Assert.Equal("\"app.test\"", fields[2]);
@@ -206,14 +206,15 @@ public sealed class AccessLogEndToEndTests
 
         var line = await sink.WaitForLineAsync($"/{tag}/gone", ct);
         var fields = Fields(line);
-        Assert.Equal(19, fields.Length);
+        Assert.Equal(20, fields.Length);
         Assert.Contains("\"dead.test\"", fields[2], StringComparison.Ordinal);
         Assert.Equal("502", fields[4]);
         // The upstream leg was attempted: it has a duration up to the failure, and names the destination that failed.
         Assert.Matches(@"^\d+\.\d{3}$", fields[7]);
         Assert.Equal($"\"{dead.Address}\"", fields[8]);
-        // Nothing listens there: the whole attempt was the connect.
+        // Nothing listens there: the whole attempt was the connect, and nothing was waited for once it was sent.
         Assert.Equal(fields[7], fields[17]);
+        Assert.Equal("0.000", fields[19]);
     }
 
     [Fact]
@@ -234,7 +235,7 @@ public sealed class AccessLogEndToEndTests
 
         var line = await WaitForLogAsync(data, tag, ct);
         var fields = Fields(line);
-        Assert.Equal(19, fields.Length);
+        Assert.Equal(20, fields.Length);
         Assert.Equal("\"app.test\"", fields[2]);
         Assert.Equal($"\"GET /{tag}/on-disk?token=REDACTED HTTP/1.1\"", fields[3]);
         Assert.Equal("200", fields[4]);

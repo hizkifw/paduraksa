@@ -37,10 +37,12 @@ public sealed class UpstreamConnectsTests
         }
 
         await serving;
-        Assert.InRange(UpstreamConnects.TicksFor(first, long.MaxValue, answered: true), 1, long.MaxValue);
-        Assert.Equal(0, UpstreamConnects.TicksFor(second, long.MaxValue, answered: true));
+        Assert.InRange(UpstreamConnects.TicksFor(first, long.MaxValue, answered: true, out var firstStarted), 1, long.MaxValue);
+        Assert.InRange(firstStarted, 1, System.Diagnostics.Stopwatch.GetTimestamp());
+        Assert.Equal(0, UpstreamConnects.TicksFor(second, long.MaxValue, answered: true, out var secondStarted));
+        Assert.Equal(0, secondStarted);
         // Never more than the forward it is part of.
-        Assert.Equal(1, UpstreamConnects.TicksFor(first, 1, answered: true));
+        Assert.Equal(1, UpstreamConnects.TicksFor(first, 1, answered: true, out _));
     }
 
     [Fact]
@@ -57,18 +59,19 @@ public sealed class UpstreamConnectsTests
         using HttpRequestMessage refused = new(HttpMethod.Get, "http://127.0.0.1:9/");
         await Assert.ThrowsAsync<HttpRequestException>(() => client.SendAsync(refused, ct));
 
-        Assert.Equal(12_345, UpstreamConnects.TicksFor(refused, 12_345, answered: false));
+        Assert.Equal(12_345, UpstreamConnects.TicksFor(refused, 12_345, answered: false, out _));
 
         // The same unfinished connect on a forward that was answered anyway: the pool served it on a connection that freed up
         // while its own was still opening, so it paid no connect.
-        Assert.Equal(0, UpstreamConnects.TicksFor(refused, 12_345, answered: true));
+        Assert.Equal(0, UpstreamConnects.TicksFor(refused, 12_345, answered: true, out var started));
+        Assert.Equal(0, started);
     }
 
     [Fact]
     public void LookingARequestUpAllocatesNothing()
     {
         using HttpRequestMessage message = new();
-        AllocAssert.Zero(message, static m => _ = UpstreamConnects.TicksFor(m, 1_000, answered: true), "UpstreamConnects.TicksFor");
+        AllocAssert.Zero(message, static m => _ = UpstreamConnects.TicksFor(m, 1_000, answered: true, out _), "UpstreamConnects.TicksFor");
     }
 
     // Answers each request on one kept-alive connection with an empty 200.

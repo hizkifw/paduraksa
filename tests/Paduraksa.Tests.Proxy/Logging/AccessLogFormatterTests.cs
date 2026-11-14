@@ -17,7 +17,7 @@ public sealed class AccessLogFormatterTests
         Assert.Equal(
             "2026-01-31T12:34:56.789Z 198.51.100.7 \"app.example:8443\" \"GET /a/b?x=1&token=REDACTED HTTP/2\" 200 512 1.234 0.987 "
             + "\"http://10.0.0.2:8080/\" \"0k3m9x2p-00000000000ab\" \"8f2a1c3d4e5f6789\" \"https://example.com/\" \"Mozilla/5.0\" "
-            + "2.101 1 0.000 0.012 0.000 0.105",
+            + "2.101 1 0.000 0.012 0.000 0.105 0.987",
             line);
         // The sink owns the newline.
         Assert.DoesNotContain("\n", line, StringComparison.Ordinal);
@@ -30,7 +30,7 @@ public sealed class AccessLogFormatterTests
 
         var line = Format(entry);
 
-        Assert.Equal("2026-01-31T00:00:00.000Z - - \"- - -\" 403 - 0.000 - - - - - - - - - - - -", line);
+        Assert.Equal("2026-01-31T00:00:00.000Z - - \"- - -\" 403 - 0.000 - - - - - - - - - - - - -", line);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class AccessLogFormatterTests
         // The gate dropped the request: nothing was sent, so the status is '-', not the 200 an unsent response reports.
         var entry = Target("/drop") with { StatusCode = AccessLogEntry.NoResponse };
 
-        Assert.Equal("0001-01-01T00:00:00.000Z - - \"GET /drop HTTP/1.1\" - - 0.000 - - - - - - - - - - - -", Format(entry));
+        Assert.Equal("0001-01-01T00:00:00.000Z - - \"GET /drop HTTP/1.1\" - - 0.000 - - - - - - - - - - - - -", Format(entry));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class AccessLogFormatterTests
             ResponseSendTicks = TimeSpan.FromSeconds(1.25).Ticks,
         };
 
-        Assert.EndsWith(" - - - - - - 7 250.000 0.003 40.500 1250.000", Format(entry), StringComparison.Ordinal);
+        Assert.EndsWith(" - - - - - - 7 250.000 0.003 40.500 1250.000 -", Format(entry), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -236,6 +236,8 @@ public sealed class AccessLogFormatterTests
             ResponseBytes = long.MaxValue,
             TotalTicks = TimeSpan.MaxValue.Ticks,
             UpstreamTicks = TimeSpan.MaxValue.Ticks,
+            TlsHandshakeTicks = long.MaxValue,
+            ForwardStartMicros = 0,
         };
 
         var buffer = new char[AccessLogFormatter.MaxLineLength];
@@ -303,6 +305,7 @@ public sealed class AccessLogFormatterTests
         GateTicks = TimeSpan.FromMicroseconds(12).Ticks,
         UpstreamConnectTicks = 0,
         ResponseSendTicks = TimeSpan.FromMicroseconds(105).Ticks,
+        ForwardStartMicros = 20,
     };
 
     private static string Format(AccessLogEntry entry, AccessLogFormatOptions? options = null)

@@ -47,6 +47,7 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     private long _bytesIn;
     private long _firstBodyRead;
     private long _lastBodyRead;
+    private bool _bodyEnded;
     private bool _discardsBody;
 
     public BodyCounter()
@@ -68,6 +69,12 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     /// byte was read. An upgraded connection's frames aren't the request body and aren't timed.
     /// </summary>
     public long RequestBodyTicks => _firstBodyRead == 0 ? 0 : System.Diagnostics.Stopwatch.GetElapsedTime(_firstBodyRead, _lastBodyRead).Ticks;
+
+    /// <summary>When the first read that returned body bytes completed, as a <see cref="System.Diagnostics.Stopwatch"/> timestamp; 0 when none did.</summary>
+    public long FirstBodyReadTimestamp => _firstBodyRead;
+
+    /// <summary>Whether a read found the end of the request body.</summary>
+    public bool RequestBodyEnded => _bodyEnded;
 
     /// <summary>
     /// Zeroes the counts and stands in for the request's body features. Must run before anything has touched the body, so the
@@ -93,6 +100,7 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
         _bytesIn = 0;
         _firstBodyRead = 0;
         _lastBodyRead = 0;
+        _bodyEnded = false;
         _discardsBody = HttpMethods.IsHead(context.Request.Method);
         _connections = connections;
         _upgradable = null;
@@ -131,9 +139,10 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     private void AddIn(long bytes) => _bytesIn += bytes;
 
     // A read is timed when it completes; one timestamp per read that returned bytes, and none for the end of the body.
-    private void AddBody(long bytes)
+    private void AddBody(long bytes, bool ended)
     {
         _bytesIn += bytes;
+        _bodyEnded |= ended;
         if (bytes > 0)
         {
             var now = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -210,25 +219,21 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
 
         public override Task FlushAsync(CancellationToken cancellationToken) => Inner.FlushAsync(cancellationToken);
 
-        public override int Read(byte[] buffer, int offset, int count) => Counted(Inner.Read(buffer, offset, count));
+        public override int Read(byte[] buffer, int offset, int count) => Counted(Inner.Read(buffer, offset, count), count);
 
-        public override int Read(Span<byte> buffer) => Counted(Inner.Read(buffer));
+        public override int Read(Span<byte> buffer) => Counted(Inner.Read(buffer), buffer.Length);
 
         public override int ReadByte()
         {
             var value = Inner.ReadByte();
-            if (value >= 0)
-            {
-                Counted(1);
-            }
-
+            Counted(value >= 0 ? 1 : 0, 1);
             return value;
         }
 
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             var read = Inner.ReadAsync(buffer, cancellationToken);
-            return read.IsCompletedSuccessfully ? new ValueTask<int>(Counted(read.Result)) : AwaitReadAsync(read);
+            return read.IsCompletedSuccessfully ? new ValueTask<int>(Counted(read.Result, buffer.Length)) : AwaitReadAsync(read, buffer.Length);
         }
 
         // Stream's own array-based async methods fall back to the synchronous ones on a pool thread, which Kestrel refuses; these go
@@ -275,11 +280,12 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
             base.Dispose(disposing);
         }
 
-        private int Counted(int read)
+        // A read for no bytes (a reader waiting for data without a buffer) that returns none is not the end of the body.
+        private int Counted(int read, int requested)
         {
             if (timesReads)
             {
-                owner.AddBody(read);
+                owner.AddBody(read, ended: read == 0 && requested > 0);
             }
             else
             {
@@ -290,7 +296,7 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
         }
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-        private async ValueTask<int> AwaitReadAsync(ValueTask<int> read) => Counted(await read.ConfigureAwait(false));
+        private async ValueTask<int> AwaitReadAsync(ValueTask<int> read, int requested) => Counted(await read.ConfigureAwait(false), requested);
 
     }
 

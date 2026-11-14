@@ -99,6 +99,9 @@ internal static class AccessLogTailTarget
             GateTicks = input[4] % 4 == 0 ? AccessLogEntry.Unknown : input[4] * 17L,
             UpstreamConnectTicks = input[5] == 0 ? AccessLogEntry.Unknown : input[5] % 2 == 0 ? 0 : input[5] * 3_003L,
             ResponseSendTicks = input[2] % 5 == 0 ? AccessLogEntry.Unknown : input[2] * 99_991L,
+            ForwardStartMicros = input[5] == 0 ? AccessLogEntry.UnknownOffset : input[4] * 3,
+            UpstreamConnectStartMicros = input[5] % 2 == 0 ? AccessLogEntry.UnknownOffset : input[4] * 5,
+            RequestBodyStartMicros = input[3] % 3 == 0 ? AccessLogEntry.UnknownOffset : input[2] * 7,
         };
 
         var length = AccessLogFormatter.Format(in entry, options, Buffer);
@@ -127,7 +130,7 @@ internal static class AccessLogTailTarget
 
     private static void CheckAgainstFile(in AccessLogEntry entry, AccessLogFormatOptions options, AccessLogTailEntry tail, List<(string Text, bool Quoted)> file)
     {
-        Checks.That(file.Count == 19, $"a plain reader finds {file.Count} fields in the line, not 19");
+        Checks.That(file.Count == 20, $"a plain reader finds {file.Count} fields in the line, not 20");
 
         // The numbers: the line's time, status, sizes and durations are the tail's, written as text.
         Checks.That(
@@ -150,6 +153,7 @@ internal static class AccessLogTailTarget
         SameStage(file[16], tail.GateTicks, "gate");
         SameStage(file[17], tail.UpstreamConnectTicks, "upstream connect");
         SameStage(file[18], tail.ResponseSendTicks, "response send");
+        SameStage(file[19], tail.UpstreamWaitTicks, "upstream wait");
 
         // The client address is one the proxy formatted: unquoted, as it is.
         Checks.That(
@@ -327,7 +331,9 @@ internal static class AccessLogTailTarget
     private static bool SameFields(AccessLogTailEntry a, AccessLogTailEntry b) =>
         Texts(a).SequenceEqual(Texts(b)) && a.StatusCode == b.StatusCode && a.ResponseBytes == b.ResponseBytes && a.TotalTicks == b.TotalTicks && a.UpstreamTicks == b.UpstreamTicks && a.TimestampUtcTicks == b.TimestampUtcTicks
         && a.TlsHandshakeTicks == b.TlsHandshakeTicks && a.ConnectionRequest == b.ConnectionRequest && a.RequestBodyTicks == b.RequestBodyTicks
-        && a.GateTicks == b.GateTicks && a.UpstreamConnectTicks == b.UpstreamConnectTicks && a.ResponseSendTicks == b.ResponseSendTicks;
+        && a.GateTicks == b.GateTicks && a.UpstreamConnectTicks == b.UpstreamConnectTicks && a.ResponseSendTicks == b.ResponseSendTicks
+        && a.UpstreamWaitTicks == b.UpstreamWaitTicks && a.ForwardStartMicros == b.ForwardStartMicros && a.UpstreamConnectStartMicros == b.UpstreamConnectStartMicros
+        && a.RequestBodyStartMicros == b.RequestBodyStartMicros;
 
     private static void SameStage((string Text, bool Quoted) field, long ticks, string what) =>
         Checks.That(ticks < 0 ? field == ("-", false) : !field.Quoted && Milliseconds(field.Text, ticks), $"the line's {what} '{field.Text}' is not the tail's {ticks} ticks");

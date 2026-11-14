@@ -19,7 +19,7 @@ namespace Paduraksa.Proxy.Logging;
 /// the time it runs: the queue cannot tell "the consumer has read my slot" from "the consumer is about to", so it never
 /// waits and never rewrites.</para>
 /// <para><b>Memory:</b> one slot array of <see cref="Capacity"/> slots allocated once. A slot is padded to
-/// <see cref="SlotBytes"/> (192 bytes: the sequence number, the entry and padding) so that slots on either side don't share
+/// <see cref="SlotBytes"/> (192 bytes: the sequence number and the entry) so that slots on either side don't share
 /// a cache line: producers write different slots, and a line shared by two of them would ping-pong between cores. 64-byte
 /// lines, not 128, because every x86-64 and ARM64 core this runs on has 64-byte lines, and a slot bigger than a line can't
 /// share one as long as it is aligned to a line boundary. The default 16 384 slots are about 3 MiB.</para>
@@ -144,10 +144,8 @@ public sealed class AccessLogRing
     private struct Cell
     {
         public long Sequence;
+        // 8 + 184 (the entry's fields) = 192, three 64-byte lines, so a slot begins on a line boundary and owns every line it
+        // covers. No padding is left: RingTests pins the total, and a bigger entry means growing the slot to four lines.
         public AccessLogEntry Entry;
-
-        // 8 bytes of padding: 8 + 176 (the entry's fields) + 8 = 192, three 64-byte lines, so a slot begins on a line
-        // boundary and owns every line it covers. RingTests pins the total; a bigger entry means adjusting this.
-        private readonly long _padding0;
     }
 }
