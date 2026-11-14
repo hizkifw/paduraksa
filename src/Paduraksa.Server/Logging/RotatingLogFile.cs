@@ -70,7 +70,8 @@ internal sealed class RotatingLogFile : IDisposable
 
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
-    private readonly LogFileWriterSettings _settings;
+    // Replaced whole by Retain (the server settings); each thread reads it where it acts, so a change applies to the next rotation and trim.
+    private volatile LogFileWriterSettings _settings;
     private readonly TimeProvider _time;
     private readonly ILogger _report;
     private readonly BlockingCollection<string> _queue = new(new ConcurrentQueue<string>(), QueueCapacity);
@@ -118,6 +119,33 @@ internal sealed class RotatingLogFile : IDisposable
     }
 
     public string LivePath => _livePath;
+
+    /// <summary>
+    /// Takes new rotation and retention limits (a server setting changed): the next line rotates by the new size, and a trim by the new limits runs
+    /// on the compression thread at once, so a lowered limit deletes what it no longer keeps without waiting for the next rotation.
+    /// </summary>
+    public void Retain(long maxFileSizeBytes, int retainedFiles, TimeSpan maxAge, long maxTotalSizeBytes)
+    {
+        var current = _settings;
+        var next = current with { MaxFileSizeBytes = maxFileSizeBytes, RetainedFiles = retainedFiles, MaxAge = maxAge, MaxTotalSizeBytes = maxTotalSizeBytes };
+        if (next == current)
+        {
+            return;
+        }
+
+        _settings = next;
+        try
+        {
+            _compressions.TryAdd(string.Empty);
+        }
+        catch (InvalidOperationException)
+        {
+            // Disposed: nothing is trimmed any more.
+        }
+    }
+
+    /// <summary>The limits in force (for tests and the page).</summary>
+    internal LogFileWriterSettings Settings => _settings;
 
     /// <summary>The clock the writer stamps its lines and rotations with.</summary>
     public TimeProvider Time => _time;
@@ -421,7 +449,12 @@ internal sealed class RotatingLogFile : IDisposable
         Recover();
         while (_compressions.TryTake(out var path, Timeout.Infinite))
         {
-            Compress(path);
+            // An empty entry is Retain asking for a trim alone.
+            if (path.Length > 0)
+            {
+                Compress(path);
+            }
+
             Trim();
         }
     }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Data;
 using Paduraksa.Data.Notifications;
 
@@ -27,7 +28,10 @@ public sealed partial class CertificateExpiryMonitor : BackgroundService
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly CertificateService _certificates;
     private readonly INotificationEvents _events;
-    private readonly NotificationOptions _options;
+    private readonly LiveOptions<NotificationOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private NotificationOptions Options => _live.Current;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
 
@@ -35,7 +39,7 @@ public sealed partial class CertificateExpiryMonitor : BackgroundService
         IDbContextFactory<ConfigDbContext> contexts,
         CertificateService certificates,
         INotificationEvents events,
-        NotificationOptions options,
+        LiveOptions<NotificationOptions> options,
         TimeProvider time,
         ILogger<CertificateExpiryMonitor> logger)
     {
@@ -48,7 +52,7 @@ public sealed partial class CertificateExpiryMonitor : BackgroundService
         _contexts = contexts;
         _certificates = certificates;
         _events = events;
-        _options = options;
+        _live = options;
         _time = time;
         _logger = logger;
     }
@@ -58,7 +62,7 @@ public sealed partial class CertificateExpiryMonitor : BackgroundService
         try
         {
             await Task.Delay(FirstLookDelay, _time, stoppingToken).ConfigureAwait(false);
-            using PeriodicTimer timer = new(_options.ExpiryCheckInterval, _time);
+            using PeriodicTimer timer = new(Options.ExpiryCheckInterval, _time);
             do
             {
                 try
@@ -102,7 +106,7 @@ public sealed partial class CertificateExpiryMonitor : BackgroundService
 
                 var notAfter = certificate.NotAfter.ToUnixTimeSeconds();
                 var remaining = certificate.NotAfter - now;
-                var crossed = _options.ExpiryThresholdDays.Where(d => remaining <= TimeSpan.FromDays(d)).Order().ToList();
+                var crossed = Options.ExpiryThresholdDays.Where(d => remaining <= TimeSpan.FromDays(d)).Order().ToList();
                 if (crossed.Count == 0)
                 {
                     continue;

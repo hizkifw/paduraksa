@@ -351,6 +351,8 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), [ex.Message]);
         }
 
+        options.ServerSettingEnvironment = ServerSettingEnvironment.Read(configuration.GetSection(PaduraksaOptions.SectionName));
+
         // The binder ignores a scalar where an IList<string> is expected (and anything that isn't an array index):
         // normalise both environment forms here, before the validator reads the lists.
         ConfigurationListOptions.Bind(configuration, options);

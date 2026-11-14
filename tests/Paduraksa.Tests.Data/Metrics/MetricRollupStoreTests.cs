@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Metrics;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Tests.Data.Config;
 
@@ -312,6 +313,26 @@ public sealed class MetricRollupStoreTests
 
         await job.PruneAsync(Ct);
 
+        Assert.Equal([20L], (await database.QueryAsync("SELECT \"Requests\" FROM \"MetricRollups\"")).Select(r => (long)r[0]!));
+    }
+
+    [Fact]
+    public async Task ARetentionChangedWhileTheJobRunsAppliesAtTheNextPrune()
+    {
+        await using var database = await TestConfigDatabase.CreateAsync();
+        ManualTimeProvider time = new(Noon);
+        MetricRollupBacklog queue = new();
+        LiveOptions<MetricRollupOptions> options = new(new MetricRollupOptions { Retention = TimeSpan.FromDays(30) });
+        MetricRollupJob job = new(Sampler(queue, time), new MetricRollupStore(database.Factory), new SecurityRollupStore(database.Factory), options, time, NullLogger<MetricRollupJob>.Instance);
+        queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddDays(-8), 10));
+        queue.Enqueue(Minute(MetricRollupSubject.Host, App.ToString(), Noon.AddMinutes(-1), 20));
+        await job.WriteAsync(Ct);
+
+        await job.PruneAsync(Ct);
+        Assert.Equal(2L, await database.ScalarAsync("SELECT COUNT(*) FROM \"MetricRollups\""));
+
+        options.Set(options.Current with { Retention = TimeSpan.FromDays(7) });
+        await job.PruneAsync(Ct);
         Assert.Equal([20L], (await database.QueryAsync("SELECT \"Requests\" FROM \"MetricRollups\"")).Select(r => (long)r[0]!));
     }
 

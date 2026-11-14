@@ -1,5 +1,6 @@
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Yarp;
 
 namespace Paduraksa.Application.Notifications;
@@ -52,7 +53,7 @@ internal sealed record HealthChange(
 /// An upstream's change replaces its destinations' changes of the same direction in the same tick (one message says which destinations).
 /// </para>
 /// </remarks>
-internal sealed class HealthTracker(NotificationOptions options)
+internal sealed class HealthTracker(LiveOptions<NotificationOptions> options)
 {
     private readonly Dictionary<UpstreamId, UpstreamTrack> _upstreams = [];
 
@@ -178,7 +179,7 @@ internal sealed class HealthTracker(NotificationOptions options)
         return new DestinationHealthView(destination.Id, destination.Address, state, ReasonOf(destination, state == DestinationHealthState.Unhealthy), machine?.Last?.At, machine?.Flapping ?? false);
     }
 
-    private sealed class UpstreamTrack(NotificationOptions options)
+    private sealed class UpstreamTrack(LiveOptions<NotificationOptions> options)
     {
         public Machine Whole { get; } = new(options);
 
@@ -192,7 +193,7 @@ internal sealed class HealthTracker(NotificationOptions options)
     internal sealed record Accepted(DateTimeOffset At, bool Down, string? Reason);
 
     /// <summary>One up/down state with its debounce and flap guard (see the type's remarks).</summary>
-    internal sealed class Machine(NotificationOptions options)
+    internal sealed class Machine(LiveOptions<NotificationOptions> options)
     {
         private readonly Queue<DateTimeOffset> _changes = new();
         private bool? _down;
@@ -228,7 +229,7 @@ internal sealed class HealthTracker(NotificationOptions options)
                     Last = new Accepted(now, down, reason);
                 }
 
-                if (now - _lastChange < options.FlapSettle)
+                if (now - _lastChange < options.Current.FlapSettle)
                 {
                     return null;
                 }
@@ -251,7 +252,7 @@ internal sealed class HealthTracker(NotificationOptions options)
                 _pendingSince = now;
             }
 
-            if (now - _pendingSince < options.HealthHold)
+            if (now - _pendingSince < options.Current.HealthHold)
             {
                 return null;
             }
@@ -261,12 +262,12 @@ internal sealed class HealthTracker(NotificationOptions options)
             _lastChange = now;
             Last = new Accepted(_pendingSince, down, reason);
             _changes.Enqueue(now);
-            while (_changes.Count > 0 && now - _changes.Peek() > options.FlapWindow)
+            while (_changes.Count > 0 && now - _changes.Peek() > options.Current.FlapWindow)
             {
                 _changes.Dequeue();
             }
 
-            if (_changes.Count >= options.FlapThreshold)
+            if (_changes.Count >= options.Current.FlapThreshold)
             {
                 Flapping = true;
                 return new Step(down, _pendingSince, reason, Flapping: true, Settled: false);

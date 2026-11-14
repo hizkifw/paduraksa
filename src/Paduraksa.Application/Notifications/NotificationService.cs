@@ -10,6 +10,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Data.Notifications;
@@ -32,7 +33,10 @@ public sealed partial class NotificationService
     private readonly ConfigService _config;
     private readonly ISecretStore _secrets;
     private readonly INotificationSenders _senders;
-    private readonly NotificationOptions _options;
+    private readonly LiveOptions<NotificationOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private NotificationOptions Options => _live.Current;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly IPermissionEvaluator _permissions;
@@ -43,7 +47,7 @@ public sealed partial class NotificationService
         ConfigService config,
         ISecretStore secrets,
         INotificationSenders senders,
-        NotificationOptions options,
+        LiveOptions<NotificationOptions> options,
         TimeProvider time,
         ILogger<NotificationService> logger,
         IPermissionEvaluator permissions,
@@ -62,7 +66,7 @@ public sealed partial class NotificationService
         _config = config;
         _secrets = secrets;
         _senders = senders;
-        _options = options;
+        _live = options;
         _time = time;
         _logger = logger;
         _permissions = permissions;
@@ -300,7 +304,7 @@ public sealed partial class NotificationService
         {
             try
             {
-                await sender.SendAsync(NotificationMapping.ToTarget(row), NotificationAddress.Message(test, _options), cancellationToken).ConfigureAwait(false);
+                await sender.SendAsync(NotificationMapping.ToTarget(row), NotificationAddress.Message(test, Options), cancellationToken).ConfigureAwait(false);
                 error = null;
             }
             catch (NotificationDeliveryException ex)

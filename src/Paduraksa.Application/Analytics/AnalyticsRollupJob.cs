@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Core.Options;
+
 using Paduraksa.Proxy.Analytics;
 
 namespace Paduraksa.Application.Analytics;
@@ -12,11 +14,11 @@ namespace Paduraksa.Application.Analytics;
 /// job's last write runs. A write that fails puts the batch back and tries again; the backlog is bounded, so a database that stays down loses
 /// the oldest buckets and never memory.
 /// </summary>
-public sealed partial class AnalyticsRollupJob(AnalyticsRollupStore store, AnalyticsOptions options, TimeProvider time, ILogger<AnalyticsRollupJob> logger) : BackgroundService
+public sealed partial class AnalyticsRollupJob(AnalyticsRollupStore store, LiveOptions<AnalyticsOptions> options, TimeProvider time, ILogger<AnalyticsRollupJob> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using PeriodicTimer timer = new(options.WriteInterval, time);
+        using PeriodicTimer timer = new(options.Current.WriteInterval, time);
         var nextPrune = time.GetUtcNow();
         try
         {
@@ -27,7 +29,7 @@ public sealed partial class AnalyticsRollupJob(AnalyticsRollupStore store, Analy
                 if (time.GetUtcNow() >= nextPrune)
                 {
                     await PruneAsync(stoppingToken).ConfigureAwait(false);
-                    nextPrune = time.GetUtcNow() + options.PruneInterval;
+                    nextPrune = time.GetUtcNow() + options.Current.PruneInterval;
                 }
 
                 if (!await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
@@ -76,10 +78,12 @@ public sealed partial class AnalyticsRollupJob(AnalyticsRollupStore store, Analy
         try
         {
             var now = time.GetUtcNow();
-            var removed = await store.PruneAsync(now - options.Retention, now - TimeSpan.FromTicks(Math.Min(options.FineRetention.Ticks, options.Retention.Ticks)), cancellationToken).ConfigureAwait(false);
+            // Read on every pass: a retention changed from the dashboard applies at the next one.
+            var current = options.Current;
+            var removed = await store.PruneAsync(now - current.Retention, now - TimeSpan.FromTicks(Math.Min(current.FineRetention.Ticks, current.Retention.Ticks)), cancellationToken).ConfigureAwait(false);
             if (removed > 0)
             {
-                LogPruned(logger, removed, options.Retention);
+                LogPruned(logger, removed, current.Retention);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

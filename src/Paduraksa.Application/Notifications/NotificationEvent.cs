@@ -39,7 +39,7 @@ public interface INotificationEvents
 }
 
 /// <summary>The knobs of the notification system (<c>Paduraksa:Notifications</c>).</summary>
-public sealed class NotificationOptions
+public sealed record NotificationOptions
 {
     /// <summary>The address the dashboard is reached at (<c>https://admin.example.com</c>), for the links in a message; null sends none.</summary>
     public Uri? AdminUrl { get; init; }
@@ -69,7 +69,7 @@ public sealed class NotificationOptions
     public TimeSpan MaxDeliveryAge { get; init; } = TimeSpan.FromHours(1);
 
     /// <summary>How long a finished event and its deliveries are kept for the history.</summary>
-    public TimeSpan HistoryRetention { get; init; } = TimeSpan.FromDays(14);
+    public TimeSpan HistoryRetention { get; init; } = Contracts.Config.ServerSettingCatalog.NotificationHistoryRetention.Default;
 
     /// <summary>How often events past <see cref="HistoryRetention"/> are deleted.</summary>
     public TimeSpan PruneInterval { get; init; } = TimeSpan.FromHours(1);

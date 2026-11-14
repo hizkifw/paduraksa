@@ -13,6 +13,9 @@ public static class OperationPermissions
     /// <summary>Every config command (host, upstream, profile, rate limit, access list, settings, replace, rollback).</summary>
     public const Permission ForConfigCommand = Permission.ConfigWrite;
 
+    /// <summary>A config command that changes the server settings (<c>settings.server</c>), on top of <see cref="ForConfigCommand"/>.</summary>
+    public const Permission ForServerSettings = Permission.ServerWrite;
+
     /// <summary>Uploading, issuing, re-issuing and deleting certificates.</summary>
     public const Permission ForCertificateOperation = Permission.CertificatesWrite;
 

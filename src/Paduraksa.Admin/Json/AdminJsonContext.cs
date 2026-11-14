@@ -101,6 +101,8 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(RouteConfig))]
 [JsonSerializable(typeof(Page<RouteConfig>))]
 [JsonSerializable(typeof(GlobalSettings))]
+[JsonSerializable(typeof(ServerSettings))]
+[JsonSerializable(typeof(ServerSettingsView))]
 [JsonSerializable(typeof(ConfigDraft))]
 [JsonSerializable(typeof(Page<ConfigDraft>))]
 [JsonSerializable(typeof(DraftConfig))]

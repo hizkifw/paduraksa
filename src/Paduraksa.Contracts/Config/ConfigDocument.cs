@@ -70,13 +70,15 @@ public sealed record ConfigDocument(
 /// <param name="TrustedProxies">Who may tell us the client IP and scheme.</param>
 /// <param name="Connections">The connection stage, before TLS: the per-IP connection cap and the connection deny list; null =
 /// the built-in cap and no list.</param>
+/// <param name="Server">The server's own settings (retention, sign-in, ...); null = every one at its default or the environment's value.</param>
 public sealed record GlobalSettings(
     long Version = 0,
     HostSettings? Defaults = null,
     UnknownHostBehaviour UnknownHost = UnknownHostBehaviour.NotFound,
     CertificateId? DefaultCertificateId = null,
     TrustedProxySettings? TrustedProxies = null,
-    ConnectionSettings? Connections = null)
+    ConnectionSettings? Connections = null,
+    ServerSettings? Server = null)
 {
     public HostSettings Defaults { get; init; } = Defaults ?? new();
 
@@ -85,6 +87,9 @@ public sealed record GlobalSettings(
     /// <summary>Null when it sets nothing (<see cref="ConnectionSettings.SetsNothing"/>): canonical JSON writes no key, so a
     /// stored revision keeps its bytes and its hash.</summary>
     public ConnectionSettings? Connections { get; init; } = Connections;
+
+    /// <summary>Null when it sets nothing (<see cref="ServerSettings.SetsNothing"/>), for the same reason.</summary>
+    public ServerSettings? Server { get; init; } = Server;
 }
 
 /// <summary>

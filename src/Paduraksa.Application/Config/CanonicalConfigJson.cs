@@ -155,6 +155,7 @@ public static class CanonicalConfigJson
             {
                 Defaults = Canonical(settings.Defaults),
                 Connections = settings.Connections is { SetsNothing: false } ? settings.Connections : null,
+                Server = settings.Server is { SetsNothing: false } ? settings.Server : null,
                 TrustedProxies = trusted with
                 {
                     Proxies = SortedSet(trusted.Proxies, ConfigNormalization.CanonicalAddress),

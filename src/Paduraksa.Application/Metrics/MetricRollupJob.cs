@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Metrics;
 
 namespace Paduraksa.Application.Metrics;
@@ -15,7 +16,7 @@ namespace Paduraksa.Application.Metrics;
 /// </summary>
 /// <remarks>The security series' minutes go to <paramref name="security"/> the same way, on the same schedule and retention.</remarks>
 public sealed partial class MetricRollupJob(
-    MetricSampler sampler, MetricRollupStore store, SecurityRollupStore security, MetricRollupOptions options, TimeProvider time, ILogger<MetricRollupJob> logger) : BackgroundService
+    MetricSampler sampler, MetricRollupStore store, SecurityRollupStore security, LiveOptions<MetricRollupOptions> options, TimeProvider time, ILogger<MetricRollupJob> logger) : BackgroundService
 {
     private readonly MetricRollupBacklog _queue = sampler.Rollups;
     private readonly SecurityRollupBacklog _securityQueue = sampler.SecurityRollups;
@@ -48,7 +49,7 @@ public sealed partial class MetricRollupJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using PeriodicTimer timer = new(options.WriteInterval, time);
+        using PeriodicTimer timer = new(options.Current.WriteInterval, time);
         var nextPrune = time.GetUtcNow();
         try
         {
@@ -58,7 +59,7 @@ public sealed partial class MetricRollupJob(
                 if (time.GetUtcNow() >= nextPrune)
                 {
                     await PruneAsync(stoppingToken).ConfigureAwait(false);
-                    nextPrune = time.GetUtcNow() + options.PruneInterval;
+                    nextPrune = time.GetUtcNow() + options.Current.PruneInterval;
                 }
 
                 if (!await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
@@ -111,13 +112,15 @@ public sealed partial class MetricRollupJob(
     {
         try
         {
-            var cutoff = time.GetUtcNow() - options.Retention;
+            // Read on every pass: a retention changed from the dashboard applies at the next one.
+            var retention = options.Current.Retention;
+            var cutoff = time.GetUtcNow() - retention;
             var removed = await store.PruneAsync(cutoff, cancellationToken).ConfigureAwait(false);
             removed += await security.PruneAsync(cutoff, cancellationToken).ConfigureAwait(false);
 
             if (removed > 0)
             {
-                LogPruned(logger, removed, options.Retention);
+                LogPruned(logger, removed, retention);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

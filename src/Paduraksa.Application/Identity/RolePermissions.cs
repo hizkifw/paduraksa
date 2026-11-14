@@ -16,7 +16,7 @@ public static class RolePermissions
         [Role.Admin] = Set(
             Permission.ConfigRead, Permission.ConfigWrite, Permission.CertificatesRead, Permission.CertificatesWrite,
             Permission.ProvidersRead, Permission.ProvidersWrite, Permission.UsersRead, Permission.AuditRead,
-            Permission.Simulate, Permission.LogsRead, Permission.MetricsRead, Permission.TokensOwn),
+            Permission.Simulate, Permission.LogsRead, Permission.MetricsRead, Permission.TokensOwn, Permission.ServerWrite),
         [Role.Operator] = Set(
             Permission.ConfigRead, Permission.ConfigWrite, Permission.CertificatesRead, Permission.CertificatesWrite,
             Permission.ProvidersRead, Permission.Simulate, Permission.MetricsRead, Permission.TokensOwn),

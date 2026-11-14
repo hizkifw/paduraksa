@@ -158,6 +158,7 @@ public static class ModelNames
         Permission.LogsRead => "logs:read",
         Permission.MetricsRead => "metrics:read",
         Permission.BackupCreate => "backup:create",
+        Permission.ServerWrite => "server:write",
         _ => throw Undefined(permission),
     };
 

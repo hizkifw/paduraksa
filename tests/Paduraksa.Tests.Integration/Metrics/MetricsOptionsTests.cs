@@ -24,11 +24,11 @@ public sealed class MetricsOptionsTests
     }
 
     [Fact]
-    public void TheMinutesAreKeptTwoWeeksAndWrittenEveryFifteenSecondsByDefault()
+    public void TheMinutesAreKeptNinetyDaysAndWrittenEveryFifteenSecondsByDefault()
     {
         var options = PaduraksaHost.LoadOptions(TestHost.CreateOptions());
 
-        Assert.Equal(TimeSpan.FromDays(14), options.Metrics.Retention);
+        Assert.Equal(TimeSpan.FromDays(90), options.Metrics.Retention);
         Assert.Equal(TimeSpan.FromSeconds(15), options.Metrics.WriteInterval);
     }
 

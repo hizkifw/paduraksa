@@ -44,6 +44,8 @@ internal sealed partial class ConfigPublishing : IDisposable
     private volatile IReadOnlyList<ConfigWarning> _warnings = [];
     private volatile PublishTicket? _latest;
     private volatile bool _disposed;
+    private volatile ServerSettings? _server;
+    private bool _serverKnown;
 
     public ConfigPublishing(
         SnapshotPublisher publisher, TimeProvider timeProvider, ConfigServiceOptions options, LastKnownGoodFile lastKnownGood,
@@ -60,6 +62,16 @@ internal sealed partial class ConfigPublishing : IDisposable
 
     /// <summary>A certificate's validity boundary passed: the live config has to be compiled and published again.</summary>
     public event Action? ValidityChanged;
+
+    /// <summary>
+    /// The server settings of the latest snapshot queued for publishing (null before the first, and for a document that sets none). They follow the
+    /// queue rather than YARP's answer: the revision is committed, and the settings the listeners read at startup must be known before the public
+    /// app binds, which is before the startup publish can complete.
+    /// </summary>
+    public ServerSettings? Server => _server;
+
+    /// <summary>Raised under the writer lock when a queued snapshot carries server settings that differ from the previous one's.</summary>
+    public event Action<ServerSettings?>? ServerSettingsChanged;
 
     public bool IsDisposed => _disposed;
 
@@ -96,6 +108,7 @@ internal sealed partial class ConfigPublishing : IDisposable
     /// </summary>
     public Task<PublishResult> Start(RuntimeSnapshot snapshot, ConfigCompilation compilation)
     {
+        NoteServerSettings(compilation.Server);
         Task<PublishResult> publishing;
         try
         {
@@ -145,6 +158,26 @@ internal sealed partial class ConfigPublishing : IDisposable
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default).Unwrap();
+    }
+
+    private void NoteServerSettings(ServerSettings? server)
+    {
+        if (_serverKnown && !Settings.ServerSettingsChange.Differs(_server, server))
+        {
+            return;
+        }
+
+        _serverKnown = true;
+        _server = server;
+        try
+        {
+            ServerSettingsChanged?.Invoke(server);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A consumer that fails to take the new values must not fail the publish of a committed revision.
+            LogServerSettingsFailed(ex);
+        }
     }
 
     /// <summary>A publish of generation <paramref name="generation"/> is live: record its warnings and schedule its
@@ -365,6 +398,9 @@ internal sealed partial class ConfigPublishing : IDisposable
                     + $" ({status.Revision}); fix or restore the database and restart."),
             ]);
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Applying the server settings of the snapshot being published failed; the previous values stay in force where they were not taken.")]
+    private partial void LogServerSettingsFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recovered from a degraded start: revision #{Seq} ({Revision}) from the database is live.")]
     private partial void LogRecovered(long seq, ConfigRevisionId revision);

@@ -4,7 +4,7 @@ namespace Paduraksa.Application.Analytics;
 public sealed record AnalyticsOptions
 {
     /// <summary>How long a stretch is kept; older rows are deleted. Five-minute rows are kept only <see cref="FineRetention"/> (or this, if shorter), the hourly rows the whole of it.</summary>
-    public TimeSpan Retention { get; init; } = TimeSpan.FromDays(30);
+    public TimeSpan Retention { get; init; } = Contracts.Config.ServerSettingCatalog.AnalyticsRetention.Default;
 
     /// <summary>How often closed buckets are written, and hours that have passed are rolled up.</summary>
     public TimeSpan WriteInterval { get; init; } = TimeSpan.FromSeconds(15);

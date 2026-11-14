@@ -13,6 +13,7 @@ using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Application.Yaml;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Analytics;
@@ -59,7 +60,7 @@ internal static class ConfigStore
         AdminOptions admin,
         TimeProvider timeProvider,
         ProofOfWorkRuntime proofOfWork,
-        NotificationOptions notificationOptions,
+        LiveOptions<NotificationOptions> notificationOptions,
         AnalyticsBacklog analyticsBacklog,
         ILoggerFactory loggerFactory)
     {

@@ -1,4 +1,5 @@
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Settings;
 using Paduraksa.Server.Configuration;
 
 namespace Paduraksa.Server.Hosting;
@@ -13,7 +14,7 @@ namespace Paduraksa.Server.Hosting;
 /// reports it. An empty config needs no YARP and is live at once. With nothing to serve at all (neither the database nor the
 /// last-known-good file usable) the start fails and the process exits with <see cref="ExitCodes.StartupFailed"/>.</para>
 /// </summary>
-internal sealed partial class ConfigStartup(ConfigService config, PaduraksaOptions options, ILogger<ConfigStartup> logger) : IHostedService
+internal sealed partial class ConfigStartup(ConfigService config, ServerSettingsState serverSettings, PaduraksaOptions options, ILogger<ConfigStartup> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -28,6 +29,9 @@ internal sealed partial class ConfigStartup(ConfigService config, PaduraksaOptio
         }
 
         await config.StartAsync(cancellationToken).ConfigureAwait(false);
+
+        // The startup snapshot is queued, so its server settings are in force: what the listeners bind with next is what they run with.
+        serverSettings.Seal();
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

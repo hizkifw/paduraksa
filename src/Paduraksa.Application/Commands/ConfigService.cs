@@ -120,6 +120,16 @@ public sealed class ConfigService : IDisposable
     /// certificate coverage, bindings to certificates that went bad. Empty before the first one.</summary>
     public IReadOnlyList<ConfigWarning> Warnings => _publishing.Warnings;
 
+    /// <summary>The server settings of the latest snapshot queued for publishing (docs/design/config.md "Server settings"); null when none sets any.</summary>
+    public ServerSettings? ServerSettings => _publishing.Server;
+
+    /// <summary>Raised when a queued snapshot changes the server settings; handlers run under the writer lock, so they only hand values on.</summary>
+    public event Action<ServerSettings?>? ServerSettingsChanged
+    {
+        add => _publishing.ServerSettingsChanged += value;
+        remove => _publishing.ServerSettingsChanged -= value;
+    }
+
     /// <summary>Configs to compile without publishing them, for the request simulator.</summary>
     internal ConfigDrafts Drafts { get; }
 

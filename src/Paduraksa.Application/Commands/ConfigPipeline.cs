@@ -8,6 +8,7 @@ using Paduraksa.Application.Config;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Revisions;
+using Paduraksa.Application.Settings;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -131,6 +132,16 @@ internal sealed partial class ConfigPipeline
             if (plan.Early is { } early)
             {
                 return await RejectAsync(command, origin, audited, early with { Changes = changes }, plan.EarlyOutcome)
+                    .ConfigureAwait(false);
+            }
+
+            // The server's own settings are the Owner's and the Admin's, whichever command changes them (an update, an import, a rollback or a
+            // draft's entry), so the check is on what the plan does to the document, not on the kind of command.
+            if (!simulation && plan.Arranged is { } arranged
+                && ServerSettingsChange.Differs(current.Settings.Server, arranged.Settings?.Server)
+                && !await _permissions.IsAllowedAsync(origin, OperationPermissions.ForServerSettings, cancellationToken).ConfigureAwait(false))
+            {
+                return await RejectAsync(command, origin, audited, new(ConfigCommandStatus.Denied), AuditOutcome.Denied)
                     .ConfigureAwait(false);
             }
 

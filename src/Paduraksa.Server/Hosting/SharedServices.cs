@@ -16,6 +16,7 @@ using Paduraksa.Application.Logging;
 using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Security;
+using Paduraksa.Application.Settings;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
 using Paduraksa.Core.Hosting;
@@ -79,6 +80,8 @@ internal sealed class SharedServices : IAsyncDisposable
         RangeRefresher = _registrations.FirstOrDefault(static r => r.Key == typeof(CloudflareRangeRefresher)).Value as CloudflareRangeRefresher;
         AccessLists = Get<AccessListRuntime>();
         LogFiles = Get<ServerLogFiles>();
+        ServerSettings = Get<ServerSettingsState>();
+        ServerSettingsBindings = Get<ServerSettingsBindings>();
         LogStore = Get<ILogFileStore>();
         AccessLogTail = Get<AccessLogTail>();
         Analytics = Get<TrafficAnalytics>();
@@ -211,6 +214,12 @@ internal sealed class SharedServices : IAsyncDisposable
     /// </summary>
     public ServerLogFiles LogFiles { get; }
 
+    /// <summary>The server settings in force (docs/design/config.md "Server settings"): the environment's over the config's over the defaults.</summary>
+    public ServerSettingsState ServerSettings { get; }
+
+    /// <summary>The consumers' live options the server settings are handed to.</summary>
+    internal ServerSettingsBindings ServerSettingsBindings { get; }
+
     /// <summary>The read side of the log files: what the dashboard's log page browses and the API's log endpoints serve.</summary>
     public ILogFileStore LogStore { get; }
 
@@ -327,6 +336,12 @@ internal sealed class SharedServices : IAsyncDisposable
                 throw;
             }
 
+            // The server settings in force: the environment's over the config's over the defaults. It follows the config store below, and the
+            // bindings hand each change to the consumers' live options.
+            var serverSettings = builder.Add(new ServerSettingsState(options.ServerSettingEnvironment));
+            var settingsBindings = builder.Add(new ServerSettingsBindings(
+                serverSettings, logFiles, new PaduraksaOptionsSnapshot(options.Metrics.ToOptions(), options.Analytics.ToOptions(), options.Notifications.ToOptions())));
+
             var health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
             var snapshots = builder.Add(new SnapshotStore());
@@ -404,7 +419,8 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.AddOwnedElsewhere(vault.Catalog);
             builder.AddOwnedElsewhere(vault.PasswordCredentials);
             var configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, options.Notifications.ToOptions(), analyticsBacklog, coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, settingsBindings.Notifications, analyticsBacklog, coreLoggers);
+            serverSettings.Follow(configStore.Config);
 
             // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
             // persists the minutes (hosted services of the core host, below), and the meter, the service and the /metrics scrape read them.
@@ -414,9 +430,9 @@ internal sealed class SharedServices : IAsyncDisposable
             var sampler = builder.Add(new MetricSampler(metrics, timeProvider, new MetricRollupBacklog(), securitySources));
             var rollupStore = configStore.MetricRollups;
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
-            builder.Add(new MetricRollupJob(sampler, rollupStore, configStore.SecurityRollups, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
+            builder.Add(new MetricRollupJob(sampler, rollupStore, configStore.SecurityRollups, settingsBindings.MetricRollups, timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
             builder.Add(new DraftExpiryJob(configStore.Drafts, timeProvider, coreLoggers.CreateLogger<DraftExpiryJob>()));
-            builder.Add(new AnalyticsRollupJob(configStore.AnalyticsRollups, options.Analytics.ToOptions(), timeProvider, coreLoggers.CreateLogger<AnalyticsRollupJob>()));
+            builder.Add(new AnalyticsRollupJob(configStore.AnalyticsRollups, settingsBindings.Analytics, timeProvider, coreLoggers.CreateLogger<AnalyticsRollupJob>()));
             var peerGone = builder.Add(new PeerGoneLogFilter());
             var processCounters = builder.Add(new ProcessCounters(
             [

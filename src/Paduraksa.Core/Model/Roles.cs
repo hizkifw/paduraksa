@@ -73,4 +73,10 @@ public enum Permission
 
     /// <summary>Make a full backup: the config and the vault in one passphrase-encrypted archive. The Owner only, since the archive holds every key the vault does.</summary>
     BackupCreate = 17,
+
+    /// <summary>
+    /// Change the server's own settings (retention, the sign-in policy, MCP, the connection limits): config commands that change
+    /// <c>settings.server</c> need it besides <see cref="ConfigWrite"/>. The Owner's and the Admin's, not the Operator's.
+    /// </summary>
+    ServerWrite = 18,
 }

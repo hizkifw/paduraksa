@@ -36,6 +36,13 @@ internal sealed class ServerLogFiles : IDisposable
     /// <summary>The error log's provider; added to the process's one logger factory.</summary>
     public ErrorLogProvider ErrorProvider { get; }
 
+    /// <summary>New rotation and retention limits for both logs (a server setting changed).</summary>
+    public void Retain(long maxFileSizeBytes, int retainedFiles, TimeSpan maxAge, long maxTotalSizeBytes)
+    {
+        Error.Retain(maxFileSizeBytes, retainedFiles, maxAge, maxTotalSizeBytes);
+        Access.Retain(maxFileSizeBytes, retainedFiles, maxAge, maxTotalSizeBytes);
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)

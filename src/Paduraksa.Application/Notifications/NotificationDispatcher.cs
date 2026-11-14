@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Commands;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Data;
 using Paduraksa.Data.Notifications;
 using Paduraksa.Notifications;
@@ -41,7 +42,10 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 {
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly INotificationSenders _senders;
-    private readonly NotificationOptions _options;
+    private readonly LiveOptions<NotificationOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private NotificationOptions Options => _live.Current;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly NotificationOutbox _outbox;
@@ -55,7 +59,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
     internal NotificationDispatcher(
         IDbContextFactory<ConfigDbContext> contexts,
         INotificationSenders senders,
-        NotificationOptions options,
+        LiveOptions<NotificationOptions> options,
         TimeProvider time,
         ILogger<NotificationDispatcher> logger,
         NotificationStats stats)
@@ -68,13 +72,13 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         ArgumentNullException.ThrowIfNull(stats);
         _contexts = contexts;
         _senders = senders;
-        _options = options;
+        _live = options;
         _time = time;
         _logger = logger;
         Stats = stats;
         _outbox = new NotificationOutbox(contexts, Stats);
         _buffer = System.Threading.Channels.Channel.CreateBounded<(NotificationEvent, DateTimeOffset)>(
-            new BoundedChannelOptions(options.EventCapacity) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true },
+            new BoundedChannelOptions(options.Current.EventCapacity) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true },
             _ => CountDrop());
     }
 
@@ -145,7 +149,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         try
         {
             var now = _time.GetUtcNow();
-            Wake(await _outbox.RecoverAsync(now - _options.MaxDeliveryAge, now, cancellationToken).ConfigureAwait(false));
+            Wake(await _outbox.RecoverAsync(now - Options.MaxDeliveryAge, now, cancellationToken).ConfigureAwait(false));
             await _outbox.RefreshPendingAsync(cancellationToken).ConfigureAwait(false);
             _recovered = true;
         }
@@ -169,15 +173,15 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                 return;
             }
 
-            if (carry.Count + _buffer.Reader.Count < _options.FlushBatchSize)
+            if (carry.Count + _buffer.Reader.Count < Options.FlushBatchSize)
             {
-                await Task.Delay(_options.FlushInterval, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(Options.FlushInterval, cancellationToken).ConfigureAwait(false);
             }
 
             Drain(carry);
             if (!await TryStoreAsync(carry, cancellationToken).ConfigureAwait(false))
             {
-                await Task.Delay(_options.FlushInterval, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(Options.FlushInterval, cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -188,7 +192,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         Drain(carry, all: true);
         while (carry.Count > 0)
         {
-            var batch = carry.Take(_options.FlushBatchSize).ToList();
+            var batch = carry.Take(Options.FlushBatchSize).ToList();
             try
             {
                 Wake(await _outbox.StoreAsync(batch, CancellationToken.None).ConfigureAwait(false));
@@ -205,7 +209,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 
     private void Drain(List<BufferedEvent> carry, bool all = false)
     {
-        while ((all || carry.Count < _options.FlushBatchSize) && _buffer.Reader.TryRead(out var item))
+        while ((all || carry.Count < Options.FlushBatchSize) && _buffer.Reader.TryRead(out var item))
         {
             carry.Add(new BufferedEvent(NotificationEventId.New(), item.Event, item.At));
         }
@@ -242,7 +246,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
     {
         try
         {
-            using PeriodicTimer timer = new(_options.PollInterval, _time);
+            using PeriodicTimer timer = new(Options.PollInterval, _time);
             var nextPrune = _time.GetUtcNow();
             do
             {
@@ -259,10 +263,10 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                     if (_time.GetUtcNow() >= nextPrune)
                     {
                         var removed = await PruneAsync(cancellationToken).ConfigureAwait(false);
-                        nextPrune = _time.GetUtcNow() + _options.PruneInterval;
+                        nextPrune = _time.GetUtcNow() + Options.PruneInterval;
                         if (removed > 0)
                         {
-                            LogPruned(removed, _options.HistoryRetention);
+                            LogPruned(removed, Options.HistoryRetention);
                         }
                     }
                 }
@@ -281,7 +285,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 
     /// <summary>One retention pass; internal for tests, which drive it without the timer.</summary>
     internal Task<int> PruneAsync(CancellationToken cancellationToken) =>
-        _outbox.PruneAsync(_time.GetUtcNow() - _options.HistoryRetention, _options.PruneBatchSize, cancellationToken);
+        _outbox.PruneAsync(_time.GetUtcNow() - Options.HistoryRetention, Options.PruneBatchSize, cancellationToken);
 
     private void Wake(IEnumerable<NotificationChannelId> channels)
     {
@@ -394,7 +398,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                 return null;
             }
 
-            var rest = owner._options.CoalesceWindow - (owner._time.GetUtcNow() - last);
+            var rest = owner.Options.CoalesceWindow - (owner._time.GetUtcNow() - last);
             return rest > TimeSpan.Zero ? rest : null;
         }
 
@@ -418,7 +422,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
         /// </summary>
         private async Task<TimeSpan?> PassAsync(CancellationToken cancellationToken)
         {
-            var poll = owner._options.PollInterval;
+            var poll = owner.Options.PollInterval;
             try
             {
                 var channel = await ReadChannelAsync(cancellationToken).ConfigureAwait(false);
@@ -442,7 +446,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                     return Within(until - now, poll);
                 }
 
-                var groups = await owner._outbox.ClaimAsync(id, channel.Kind, now, now - owner._options.MaxDeliveryAge, owner._options.ClaimBatchSize, cancellationToken).ConfigureAwait(false);
+                var groups = await owner._outbox.ClaimAsync(id, channel.Kind, now, now - owner.Options.MaxDeliveryAge, owner.Options.ClaimBatchSize, cancellationToken).ConfigureAwait(false);
                 if (groups.Count > 0)
                 {
                     _lastSendAt = now;
@@ -467,7 +471,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                     }
                 }
 
-                return groups.Sum(g => g.Rows.Count) >= owner._options.ClaimBatchSize ? TimeSpan.Zero : poll;
+                return groups.Sum(g => g.Rows.Count) >= owner.Options.ClaimBatchSize ? TimeSpan.Zero : poll;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -485,7 +489,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
                 return null;
             }
 
-            var message = NotificationAddress.Message(group.Message, owner._options) with { EventId = group.EventId };
+            var message = NotificationAddress.Message(group.Message, owner.Options) with { EventId = group.EventId };
             string? failure = null;
             var transient = true;
             try
@@ -512,7 +516,7 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
             }
 
             var attempts = group.Attempts + 1;
-            var delays = owner._options.RetryDelays;
+            var delays = owner.Options.RetryDelays;
             if (!transient || attempts > delays.Count)
             {
                 owner.LogGivenUp(id, group.Message.Kind.ToName(), failure);

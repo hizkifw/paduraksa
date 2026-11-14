@@ -45,5 +45,8 @@ public sealed record ConfigCompilation(RuntimeSnapshot? Snapshot, IReadOnlyList<
     /// (<see cref="CertificateInventory.NextBoundary"/>); null when it doesn't.</summary>
     public DateTimeOffset? ValidityChangesAt { get; init; }
 
+    /// <summary>The compiled document's server settings: they take effect with the snapshot's publish (docs/design/config.md "Server settings").</summary>
+    public ServerSettings? Server { get; init; }
+
     public bool Succeeded => Snapshot is not null;
 }

@@ -84,6 +84,7 @@ public sealed class ConfigCompiler : IConfigCompiler
                 ])
             {
                 ValidityChangesAt = inventory.NextBoundary,
+                Server = document.Settings.Server,
             };
         }
 

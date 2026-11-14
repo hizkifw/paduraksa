@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Data;
 
 namespace Paduraksa.Application.Notifications;
@@ -15,7 +16,7 @@ namespace Paduraksa.Application.Notifications;
 /// </list>
 /// The answer comes from the audit log, so nothing is kept in memory and a restart forgets nothing.
 /// </summary>
-internal sealed class SignInWatch(INotificationEvents events, NotificationOptions options, TimeProvider time)
+internal sealed class SignInWatch(INotificationEvents events, LiveOptions<NotificationOptions> options, TimeProvider time)
 {
     /// <summary>The address as the audit log writes it.</summary>
     public static string AddressText(IPAddress address) => (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString();
@@ -43,8 +44,8 @@ internal sealed class SignInWatch(INotificationEvents events, NotificationOption
         IQueryable<Data.Audit.AuditEvent> Completed(DateTimeOffset since) => context.AuditEvents.AsNoTracking()
             .Where(e => e.ActorUserId == user && e.Outcome == AuditOutcome.Success && e.Timestamp >= since
                 && ((e.Action == "auth.login" && e.Details!.Contains("\"secondFactor\":\"none\"")) || e.Action == "auth.second_factor"));
-        return await Completed(now - options.SignedInBeforeWindow).AnyAsync(cancellationToken).ConfigureAwait(false)
-            && !await Completed(now - options.KnownAddressWindow).AnyAsync(e => e.ClientIp == text, cancellationToken).ConfigureAwait(false);
+        return await Completed(now - options.Current.SignedInBeforeWindow).AnyAsync(cancellationToken).ConfigureAwait(false)
+            && !await Completed(now - options.Current.KnownAddressWindow).AnyAsync(e => e.ClientIp == text, cancellationToken).ConfigureAwait(false);
     }
 
     public void PublishNewAddress(string username, UserId user, IPAddress address) =>

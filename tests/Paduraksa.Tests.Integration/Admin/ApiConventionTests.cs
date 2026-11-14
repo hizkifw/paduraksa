@@ -242,6 +242,8 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("DELETE /api/v1/drafts/{id:DraftId}", Permission.ConfigWrite),
             ("GET /api/v1/settings", Permission.ConfigRead),
             ("PUT /api/v1/settings", Permission.ConfigWrite),
+            ("GET /api/v1/server-settings", Permission.ConfigRead),
+            ("PUT /api/v1/server-settings", Permission.ServerWrite),
             ("GET /api/v1/hosts", Permission.ConfigRead),
             ("POST /api/v1/hosts", Permission.ConfigWrite),
             ("GET /api/v1/hosts/{id:HostId}", Permission.ConfigRead),

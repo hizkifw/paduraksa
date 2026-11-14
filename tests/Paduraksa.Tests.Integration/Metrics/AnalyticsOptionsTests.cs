@@ -24,11 +24,11 @@ public sealed class AnalyticsOptionsTests
     }
 
     [Fact]
-    public void ThirtyDaysAreKeptAndBucketsAreWrittenEveryFifteenSecondsByDefault()
+    public void NinetyDaysAreKeptAndBucketsAreWrittenEveryFifteenSecondsByDefault()
     {
         var options = PaduraksaHost.LoadOptions(TestHost.CreateOptions());
 
-        Assert.Equal(TimeSpan.FromDays(30), options.Analytics.Retention);
+        Assert.Equal(TimeSpan.FromDays(90), options.Analytics.Retention);
         Assert.Equal(TimeSpan.FromSeconds(15), options.Analytics.WriteInterval);
     }
 

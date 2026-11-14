@@ -54,6 +54,7 @@ public static class AdminApiExtensions
         var api = endpoints.MapGroup("/api/v1");
         VersionEndpoint.Map(api);
         ConfigEndpoints.Map(api);
+        ServerSettingsEndpoints.Map(api);
         DraftEndpoints.Map(api);
         RevisionEndpoints.Map(api);
         ConfigTransferEndpoints.Map(api);

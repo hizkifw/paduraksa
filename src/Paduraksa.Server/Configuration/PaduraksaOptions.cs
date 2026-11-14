@@ -2,6 +2,7 @@ using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Server.Configuration;
@@ -77,6 +78,13 @@ internal sealed class PaduraksaOptions
     /// indexed keys, where the scalar wins). Not bound from configuration; logged once at startup as a warning.
     /// </summary>
     internal List<string> ListBindingWarnings { get; } = [];
+
+    /// <summary>
+    /// The server settings (docs/design/config.md "Server settings") that the configuration sets explicitly, by catalogue key, in the form the config
+    /// writes: they win over the dashboard's. Filled from the configuration providers when the options are bound, never from a comparison with the
+    /// defaults, so a value set to its default is still the environment's.
+    /// </summary>
+    internal IReadOnlyDictionary<string, string> ServerSettingEnvironment { get; set; } = new Dictionary<string, string>();
 }
 
 /// <summary>
@@ -456,16 +464,16 @@ internal sealed class PaduraksaLogOptions
     public LogLevel ErrorLevel { get; set; } = LogLevel.Warning;
 
     /// <summary>Rotate when the next line would push a file past this (default 64 MiB; 1 KiB to 16 GiB).</summary>
-    public long MaxFileSize { get; set; } = 64L * 1024 * 1024;
+    public long MaxFileSize { get; set; } = ServerSettingCatalog.LogMaxFileSize.Default;
 
     /// <summary>How many rotated files each log keeps, newest first (default 30; 1 to 10 000).</summary>
-    public int RetainedFiles { get; set; } = 30;
+    public int RetainedFiles { get; set; } = (int)ServerSettingCatalog.LogRetainedFiles.Default;
 
     /// <summary>Delete rotated files older than this (default 30 days; 1 minute to 10 years).</summary>
-    public TimeSpan MaxAge { get; set; } = TimeSpan.FromDays(30);
+    public TimeSpan MaxAge { get; set; } = ServerSettingCatalog.LogMaxAge.Default;
 
     /// <summary>Delete the oldest rotated files until each log's rotated files total at most this (default 1 GiB; 1 MiB to 1 TiB).</summary>
-    public long MaxTotalSize { get; set; } = 1024L * 1024 * 1024;
+    public long MaxTotalSize { get; set; } = ServerSettingCatalog.LogMaxTotalSize.Default;
 
     /// <summary>The logs directory after <see cref="Hosting.PaduraksaHost"/> resolved it: always absolute once the options are validated.</summary>
     internal string ResolvedDirectory { get; set; } = string.Empty;
@@ -479,8 +487,8 @@ internal sealed class PaduraksaLogOptions
 /// </summary>
 internal sealed class PaduraksaMetricsOptions
 {
-    /// <summary>How long a minute is kept (default 14 days; 1 hour to 5 years). Older rows are deleted hourly.</summary>
-    public TimeSpan Retention { get; set; } = TimeSpan.FromDays(14);
+    /// <summary>How long a minute is kept (default 90 days; 1 hour to 5 years). Older rows are deleted hourly. Also a server setting: set here, it wins over the dashboard's.</summary>
+    public TimeSpan Retention { get; set; } = ServerSettingCatalog.MetricsRetention.Default;
 
     /// <summary>How often finished minutes are written to the database (default 15 s; 1 s to 10 min). A restart loses the minute in progress and whatever was waiting.</summary>
     public TimeSpan WriteInterval { get; set; } = TimeSpan.FromSeconds(15);
@@ -509,8 +517,8 @@ internal sealed class PaduraksaMcpOptions
 /// </summary>
 internal sealed class PaduraksaAnalyticsOptions
 {
-    /// <summary>How long a stretch is kept (default 30 days; 1 hour to 5 years). Older rows are deleted hourly. The five-minute rows are kept two days once rolled up.</summary>
-    public TimeSpan Retention { get; set; } = TimeSpan.FromDays(30);
+    /// <summary>How long a stretch is kept (default 90 days; 1 hour to 5 years). Older rows are deleted hourly. The five-minute rows are kept two days once rolled up. Also a server setting: set here, it wins over the dashboard's.</summary>
+    public TimeSpan Retention { get; set; } = ServerSettingCatalog.AnalyticsRetention.Default;
 
     /// <summary>How often closed buckets are written to the database (default 15 s; 1 s to 10 min). A crash loses the bucket in progress and whatever was waiting; a graceful stop writes them.</summary>
     public TimeSpan WriteInterval { get; set; } = TimeSpan.FromSeconds(15);
@@ -550,7 +558,7 @@ internal sealed class PaduraksaNotificationOptions
     public TimeSpan MaxDeliveryAge { get; set; } = TimeSpan.FromHours(1);
 
     /// <summary>How long a finished event and its deliveries are kept for the notification history (default 14 days; 1 hour to 5 years). Older ones are deleted hourly.</summary>
-    public TimeSpan HistoryRetention { get; set; } = TimeSpan.FromDays(14);
+    public TimeSpan HistoryRetention { get; set; } = ServerSettingCatalog.NotificationHistoryRetention.Default;
 
     public Application.Notifications.NotificationOptions ToOptions() => new()
     {

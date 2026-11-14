@@ -113,6 +113,8 @@ public static class ConfigErrorCodes
     public const string TrustedProxiesOptionUnexpected = "trustedProxies.option.unexpected";
     public const string ConnectionsMaxPerIpInvalid = "connections.maxConnectionsPerIp.invalid";
     public const string ConnectionsDenyListUnknown = "connections.denyList.unknown";
+    public const string ServerSettingInvalid = "server.setting.invalid";
+    public const string ServerSettingsConflict = "server.settings.conflict";
 
     // Upstreams.
     public const string UpstreamDestinationsRequired = "upstream.destinations.required";

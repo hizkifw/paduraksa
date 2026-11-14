@@ -200,6 +200,40 @@ public static class ConfigValidator
 
             CheckTrustedProxies(settings.TrustedProxies ?? new(), $"{path}/trustedProxies");
             CheckConnections(settings.Connections, accessLists, $"{path}/connections");
+            CheckServer(settings.Server, $"{path}/server");
+        }
+
+        // Each value against its declared bounds, then the rules between settings over the values in force; the server's environment may still
+        // override some of them, which the resolver reconciles (ServerSettingsState).
+        private void CheckServer(ServerSettings? server, string path)
+        {
+            if (server is null)
+            {
+                return;
+            }
+
+            var bad = false;
+            foreach (var setting in ServerSettingCatalog.All)
+            {
+                if (setting.Problem(server) is { } problem)
+                {
+                    bad = true;
+                    Add($"{path}/{setting.Key}", ServerSettingInvalid, $"{setting.Title} {problem}");
+                }
+            }
+
+            if (bad)
+            {
+                return;
+            }
+
+            foreach (var rule in ServerSettingCatalog.Rules)
+            {
+                if (rule(server) is { } broken)
+                {
+                    Add($"{path}/{broken.Key}", ServerSettingsConflict, broken.Problem);
+                }
+            }
         }
 
         private void CheckConnections(ConnectionSettings? connections, HashSet<AccessListId> accessLists, string path)

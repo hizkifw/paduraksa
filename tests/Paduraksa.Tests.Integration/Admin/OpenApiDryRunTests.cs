@@ -6,7 +6,8 @@ namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
 /// The API description says which changes have a dry run. Every change that goes through the config pipeline reads <c>?dryRun=</c>, and nothing
-/// else does, so the description declares the parameter on exactly the operations that need <c>config:write</c> and are not reads: a client (MCP's
+/// else does, so the description declares the parameter on exactly the operations that need <c>config:write</c> (or <c>server:write</c>, a
+/// change to the server settings, which are part of the config) and are not reads: a client (MCP's
 /// request policy among them) learns from the description, with no list of its own, which writes it can preview.
 /// </summary>
 public sealed class OpenApiDryRunTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
@@ -36,7 +37,7 @@ public sealed class OpenApiDryRunTests(SharedAdminApi shared) : IClassFixture<Sh
             foreach (var method in path.Value.EnumerateObject())
             {
                 var changesOnlyADraft = ChangeOnlyADraft.Contains($"{method.Name} {path.Name}");
-                var writesConfig = method.Value.TryGetProperty("x-required-permission", out var permission) && permission.GetString() == "config:write" && method.Name != "get" && !changesOnlyADraft;
+                var writesConfig = method.Value.TryGetProperty("x-required-permission", out var permission) && permission.GetString() is "config:write" or "server:write" && method.Name != "get" && !changesOnlyADraft;
                 var declares = method.Value.TryGetProperty("parameters", out var parameters)
                     && parameters.EnumerateArray().Any(p => p.GetProperty("name").GetString() == "dryRun" && p.GetProperty("in").GetString() == "query");
                 operations.Add((method.Name, path.Name, writesConfig, declares));

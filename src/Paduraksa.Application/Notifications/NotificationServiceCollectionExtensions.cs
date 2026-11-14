@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Notifications;
@@ -21,18 +22,18 @@ public static class NotificationServiceCollectionExtensions
     /// <see cref="IPermissionEvaluator"/>, <see cref="ISecretStore"/>, <see cref="INotificationSecretSource"/>, <see cref="IMacKeySource"/> and
     /// <see cref="IUpstreamHealth"/>. The hosted services are started by the core host, not here.
     /// </summary>
-    public static IServiceCollection AddPaduraksaNotifications(this IServiceCollection services, NotificationOptions? options = null)
+    public static IServiceCollection AddPaduraksaNotifications(this IServiceCollection services, LiveOptions<NotificationOptions>? options = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton(options ?? new NotificationOptions());
+        services.TryAddSingleton(options ?? new LiveOptions<NotificationOptions>(new NotificationOptions()));
         services.TryAddSingleton<INotificationSenders>(sp => new NotificationSenders(
             sp.GetRequiredService<INotificationSecretSource>(), sp.GetRequiredService<IMacKeySource>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<NotificationStats>();
         services.AddSingleton(sp => new NotificationDispatcher(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<INotificationSenders>(),
-            sp.GetRequiredService<NotificationOptions>(),
+            sp.GetRequiredService<LiveOptions<NotificationOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<NotificationDispatcher>(sp),
             sp.GetRequiredService<NotificationStats>()));
@@ -51,14 +52,14 @@ public static class NotificationServiceCollectionExtensions
             sp.GetRequiredService<ConfigService>(),
             sp.GetRequiredService<INotificationEvents>(),
             sp.GetRequiredService<UpstreamHealthBoard>(),
-            sp.GetRequiredService<NotificationOptions>(),
+            sp.GetRequiredService<LiveOptions<NotificationOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<HealthMonitor>(sp)));
         services.AddSingleton(sp => new CertificateExpiryMonitor(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<CertificateService>(),
             sp.GetRequiredService<INotificationEvents>(),
-            sp.GetRequiredService<NotificationOptions>(),
+            sp.GetRequiredService<LiveOptions<NotificationOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<CertificateExpiryMonitor>(sp)));
         services.AddSingleton(sp => new NotificationService(
@@ -66,13 +67,13 @@ public static class NotificationServiceCollectionExtensions
             sp.GetRequiredService<ConfigService>(),
             sp.GetRequiredService<ISecretStore>(),
             sp.GetRequiredService<INotificationSenders>(),
-            sp.GetRequiredService<NotificationOptions>(),
+            sp.GetRequiredService<LiveOptions<NotificationOptions>>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<NotificationService>(sp),
             sp.GetRequiredService<IPermissionEvaluator>(),
             sp.GetRequiredService<NotificationStats>()));
         services.AddSingleton(sp => new SignInWatch(
-            sp.GetRequiredService<INotificationEvents>(), sp.GetRequiredService<NotificationOptions>(), sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<INotificationEvents>(), sp.GetRequiredService<LiveOptions<NotificationOptions>>(), sp.GetRequiredService<TimeProvider>()));
         return services;
     }
 

@@ -1,9 +1,9 @@
 using System.Net;
 using Microsoft.Extensions.Options;
-
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Server.Configuration;
@@ -325,22 +325,10 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             failures.Add($"{Key}:ErrorLevel must be Information, Warning, Error or Critical, was {logs.ErrorLevel}.");
         }
 
-        if (logs.MaxFileSize is < MinLogFileSize or > MaxLogFileSize)
-        {
-            failures.Add($"{Key}:MaxFileSize must be between {MinLogFileSize} and {MaxLogFileSize} bytes, was {logs.MaxFileSize}.");
-        }
-
-        if (logs.RetainedFiles is < 1 or > 10_000)
-        {
-            failures.Add($"{Key}:RetainedFiles must be between 1 and 10 000, was {logs.RetainedFiles}.");
-        }
-
-        Bound(logs.MaxAge, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650), $"{Key}:MaxAge", failures);
-
-        if (logs.MaxTotalSize is < 1024 * 1024 or > 1024L * 1024 * 1024 * 1024)
-        {
-            failures.Add($"{Key}:MaxTotalSize must be between {1024 * 1024} and {1024L * 1024 * 1024 * 1024} bytes, was {logs.MaxTotalSize}.");
-        }
+        Bound(ServerSettingCatalog.LogMaxFileSize, logs.MaxFileSize, $"{Key}:MaxFileSize", failures);
+        Bound(ServerSettingCatalog.LogRetainedFiles, logs.RetainedFiles, $"{Key}:RetainedFiles", failures);
+        Bound(ServerSettingCatalog.LogMaxAge, logs.MaxAge, $"{Key}:MaxAge", failures);
+        Bound(ServerSettingCatalog.LogMaxTotalSize, logs.MaxTotalSize, $"{Key}:MaxTotalSize", failures);
     }
 
     private static void ValidateMetrics(PaduraksaMetricsOptions? metrics, List<string> failures)
@@ -352,7 +340,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             return;
         }
 
-        Bound(metrics.Retention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:Retention", failures);
+        Bound(ServerSettingCatalog.MetricsRetention, metrics.Retention, $"{Key}:Retention", failures);
         Bound(metrics.WriteInterval, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:WriteInterval", failures);
     }
 
@@ -374,7 +362,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             return;
         }
 
-        Bound(analytics.Retention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:Retention", failures);
+        Bound(ServerSettingCatalog.AnalyticsRetention, analytics.Retention, $"{Key}:Retention", failures);
         Bound(analytics.WriteInterval, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:WriteInterval", failures);
     }
 
@@ -396,14 +384,18 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         Bound(notifications.HealthHold, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:HealthHold", failures);
         Bound(notifications.CoalesceWindow, TimeSpan.Zero, TimeSpan.FromMinutes(1), $"{Key}:CoalesceWindow", failures);
         Bound(notifications.MaxDeliveryAge, TimeSpan.FromMinutes(1), TimeSpan.FromDays(7), $"{Key}:MaxDeliveryAge", failures);
-        Bound(notifications.HistoryRetention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:HistoryRetention", failures);
+        Bound(ServerSettingCatalog.NotificationHistoryRetention, notifications.HistoryRetention, $"{Key}:HistoryRetention", failures);
     }
 
-    /// <summary>The smallest rotation size accepted: below one line's worth of bytes, every line would rotate the file again (thrashing).</summary>
-    internal const long MinLogFileSize = 1024;
-
-    /// <summary>The largest rotation size accepted (16 GiB): a bigger live file would be a stain on the dashboard's memory, not a log.</summary>
-    internal const long MaxLogFileSize = 16L * 1024 * 1024 * 1024;
+    // A server setting's bounds are its declaration's (ServerSettingCatalog): the dashboard and the API hold the stored value to the same ones.
+    private static void Bound<T>(ServerSetting<T> setting, T value, string name, List<string> failures)
+        where T : struct, IComparable<T>
+    {
+        if (!setting.InBounds(value))
+        {
+            failures.Add($"{name} {setting.Problem(setting.Set(new ServerSettings(), value))}.");
+        }
+    }
 
     private static void Bound(TimeSpan value, TimeSpan min, TimeSpan max, string name, List<string> failures)
     {

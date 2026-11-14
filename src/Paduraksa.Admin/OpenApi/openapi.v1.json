@@ -2356,6 +2356,209 @@
         "x-required-permission": "config:write"
       }
     },
+    "/api/v1/server-settings": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "The server settings",
+        "description": "Every server setting with its default, its bounds, what the config stores, the value in force and where it comes from: the server's environment (an explicit Paduraksa__... variable or appsettings key, which wins), the config, or the default. A setting that applies after a restart also names the value the process runs with. The ETag is the global settings' version.\n\nRequires the `config:read` permission.",
+        "operationId": "GetServerSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerSettingsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `config:read` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "config:read"
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Replace the server settings",
+        "description": "The body is what the config stores: a member left out or null goes back to its default. Values are held to each setting's bounds (422, server.setting.invalid). A value the environment sets is stored but not used while the environment sets it. Needs server:write besides config:write, and If-Match with the global settings' version (428 without it, 412 when stale).\n\nRequires the `server:write` permission.",
+        "operationId": "PutServerSettings",
+        "parameters": [
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "true validates and compiles the change and returns the plan without committing it.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "description": "true overrides the admin host's lock-out guard, for a change that would remove the caller's own way in.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "description": "A note stored with the revision this change makes (at most 1000 characters).",
+            "schema": {
+              "maxLength": 1000,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigCommandResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not in a type this operation takes.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request is well-formed but can't be applied; errors lists why, with a pointer into the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `server:write` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "server:write"
+      }
+    },
     "/api/v1/config/export": {
       "get": {
         "tags": [
@@ -19083,6 +19286,17 @@
                 "$ref": "#/components/schemas/ConnectionSettings"
               }
             ]
+          },
+          "server": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Null when it sets nothing (bool ServerSettings.SetsNothing), for the same reason.",
+                "$ref": "#/components/schemas/ServerSettings"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -23346,6 +23560,241 @@
         },
         "additionalProperties": false,
         "description": "What the host's responses say in `Server`. ServerHeaderMode? ServerHeaderSettings.Mode and string? ServerHeaderSettings.Value inherit on\ntheir own, like every other nested setting."
+      },
+      "ServerSettingApply": {
+        "enum": [
+          "live",
+          "restart"
+        ],
+        "type": "string",
+        "description": "When a changed value takes effect."
+      },
+      "ServerSettingGroup": {
+        "enum": [
+          "retention",
+          "signIn",
+          "notifications",
+          "integrations",
+          "connections"
+        ],
+        "type": "string",
+        "description": "Where a setting sits on the server settings page."
+      },
+      "ServerSettingKind": {
+        "enum": [
+          "duration",
+          "number",
+          "size",
+          "boolean",
+          "text"
+        ],
+        "type": "string",
+        "description": "What kind of value a server setting holds, which says how it is written as text and edited."
+      },
+      "ServerSettingSource": {
+        "enum": [
+          "default",
+          "config",
+          "environment"
+        ],
+        "type": "string",
+        "description": "Where the value in force comes from."
+      },
+      "ServerSettingView": {
+        "required": [
+          "key",
+          "group",
+          "section",
+          "kind",
+          "apply",
+          "title",
+          "description",
+          "configurationKey",
+          "environmentVariable",
+          "default",
+          "value",
+          "source",
+          "restartPending"
+        ],
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Its member in ServerSettings."
+          },
+          "group": {
+            "description": "Where the page shows it.",
+            "$ref": "#/components/schemas/ServerSettingGroup"
+          },
+          "section": {
+            "type": "string",
+            "description": "Its heading within the group."
+          },
+          "kind": {
+            "description": "The kind of value.",
+            "$ref": "#/components/schemas/ServerSettingKind"
+          },
+          "apply": {
+            "description": "Whether a change applies live or after a restart.",
+            "$ref": "#/components/schemas/ServerSettingApply"
+          },
+          "title": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "description": {
+            "type": "string",
+            "description": "What it does."
+          },
+          "configurationKey": {
+            "type": "string",
+            "description": "The appsettings key (`Paduraksa:Metrics:Retention`)."
+          },
+          "environmentVariable": {
+            "type": "string",
+            "description": "The environment variable that sets it, and then wins over the config."
+          },
+          "default": {
+            "type": "string",
+            "description": "The built-in default."
+          },
+          "value": {
+            "type": "string",
+            "description": "The value in force."
+          },
+          "source": {
+            "description": "Where Value comes from.",
+            "$ref": "#/components/schemas/ServerSettingSource"
+          },
+          "restartPending": {
+            "type": "boolean",
+            "description": "The value in force differs from Running: a restart applies it."
+          },
+          "min": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The least value accepted, for an ordered kind."
+          },
+          "max": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The largest value accepted, for an ordered kind."
+          },
+          "stored": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What the config stores; null when it leaves the setting to the default."
+          },
+          "running": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "For a setting that applies after a restart: the value the process runs with."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One server setting. Values are text in the form the config writes them (`90.00:00:00`, `1073741824`, `true`)."
+      },
+      "ServerSettings": {
+        "type": "object",
+        "properties": {
+          "metricsRetention": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "analyticsRetention": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notificationHistoryRetention": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "logRetainedFiles": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "logMaxAge": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "logMaxTotalSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "logMaxFileSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The server's own settings that the dashboard may change (docs/design/config.md \"Server settings\"): how long data is kept, the sign-in\npolicy and the like, as opposed to how requests are routed. Part of GlobalSettings, so a change is a revision with its audit\nevent, its diff and its undo. Every field is nullable: null is the built-in default. A value the server's environment sets\nexplicitly (`Paduraksa__Metrics__Retention`) wins over the stored one."
+      },
+      "ServerSettingsView": {
+        "required": [
+          "version",
+          "stored",
+          "settings"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The global settings' version: the `If-Match` a change needs.",
+            "format": "int64"
+          },
+          "stored": {
+            "description": "What the config stores (null fields are left to the default or the environment): the body a change replaces.",
+            "$ref": "#/components/schemas/ServerSettings"
+          },
+          "settings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerSettingView"
+            },
+            "description": "Every setting, in the page's order."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The server settings as the API and the dashboard show them: every declared setting with its value in force and where it comes from."
       },
       "SessionId": {
         "examples": [

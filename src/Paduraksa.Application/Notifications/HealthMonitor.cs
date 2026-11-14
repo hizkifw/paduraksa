@@ -4,6 +4,7 @@ using Paduraksa.Application.Audit;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Proxy.Yarp;
 
 namespace Paduraksa.Application.Notifications;
@@ -43,7 +44,10 @@ public sealed partial class HealthMonitor : BackgroundService
     private readonly ConfigService _config;
     private readonly INotificationEvents _events;
     private readonly UpstreamHealthBoard _board;
-    private readonly NotificationOptions _options;
+    private readonly LiveOptions<NotificationOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private NotificationOptions Options => _live.Current;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly HealthTracker _tracker;
@@ -53,7 +57,7 @@ public sealed partial class HealthMonitor : BackgroundService
         ConfigService config,
         INotificationEvents events,
         UpstreamHealthBoard board,
-        NotificationOptions options,
+        LiveOptions<NotificationOptions> options,
         TimeProvider time,
         ILogger<HealthMonitor> logger)
     {
@@ -68,7 +72,7 @@ public sealed partial class HealthMonitor : BackgroundService
         _config = config;
         _events = events;
         _board = board;
-        _options = options;
+        _live = options;
         _time = time;
         _logger = logger;
         _tracker = new HealthTracker(options);
@@ -76,7 +80,7 @@ public sealed partial class HealthMonitor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using PeriodicTimer timer = new(_options.HealthPollInterval, _time);
+        using PeriodicTimer timer = new(Options.HealthPollInterval, _time);
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
@@ -112,7 +116,7 @@ public sealed partial class HealthMonitor : BackgroundService
         {
             var name = names.GetValueOrDefault(change.Upstream) ?? change.Upstream.ToString();
             await _config.TryAppendAuditAsync(AuditOf(change)).ConfigureAwait(false);
-            _events.Publish(NotificationText.Health(change, name, _options.FlapWindow, _options.FlapSettle));
+            _events.Publish(NotificationText.Health(change, name, Options.FlapWindow, Options.FlapSettle));
         }
     }
 
