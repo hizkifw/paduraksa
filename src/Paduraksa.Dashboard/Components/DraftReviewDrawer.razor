@@ -98,7 +98,7 @@
 
                     @if (_phase == Phase.Ready && _maySimulate && _set is not null)
                     {
-                        <SimulateChange Command="_set" Label="Simulate the draft" />
+                        <SimulateChange Command="_set" Draft="_loadedKey?.Id" Label="Simulate the draft" />
                     }
                     break;
             }
@@ -285,10 +285,6 @@
                 _ => Phase.Failed,
             };
             _notices = _phase is Phase.Ready or Phase.Invalid ? ReviewNotices.Of(_head, working, result.Changes, result.Warnings, Config.LiveWarnings) : [];
-            if (_phase == Phase.Ready)
-            {
-                Reviewed.Set(set, "Apply the draft", null);
-            }
         }
         catch (Exception ex) when (StoreFailures.Survivable(ex))
         {

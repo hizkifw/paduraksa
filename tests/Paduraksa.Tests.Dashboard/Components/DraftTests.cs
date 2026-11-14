@@ -1,5 +1,6 @@
 using Bunit;
 
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 using MudBlazor;
@@ -8,6 +9,7 @@ using Paduraksa.Application.Drafts;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Drafts;
+using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
@@ -280,6 +282,59 @@ public sealed class DraftTests
         await bar.Find("[data-action=review-draft]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=draft]").Count == 1 && drawers.FindAll("[data-review-phase=loading]").Count == 0);
         return (drawers, bar);
+    }
+
+    [Fact]
+    public async Task TheSimulatorOffersMyDraftWhileOneHasEntries_AndRunsAgainstTheStoredDraft()
+    {
+        await using DashboardTestContext context = new();
+        var config = DraftedUpstream(context);
+        config.Simulation = new SimulationResult(SimulationStatus.Simulated, new SimulationSource(SimulationTargetKind.Draft), new SimulationOutcome(SimulationOutcomeKind.ForwardToUpstream, "forwarded"));
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/simulator?target=draft&url=https%3A%2F%2Fapp.test%2F");
+
+        var page = context.Render<Simulator>();
+        await page.WaitForStateAsync(() => page.FindAll("input[data-field=url]").Count == 1 && page.Find("input[data-field=url]").GetAttribute("value") == "https://app.test/");
+
+        Assert.Equal("My draft", page.Find("input[data-field=target]").GetAttribute("value"));
+        Assert.Contains(TargetChoices(page), choice => choice.Contains("Kind = Draft,", StringComparison.Ordinal));
+        await page.Find("form").SubmitAsync();
+
+        await page.WaitForStateAsync(() => config.Simulated.Count == 1);
+        Assert.Equal(new DraftSimulationTarget(config.Draft!.Id), config.Simulated[0]);
+    }
+
+    // The picker's choices are a private type of the page, so they are read as the items' values print: "TargetChoice { Kind = Draft, ... }".
+    private static IEnumerable<string> TargetChoices(IRenderedComponent<Simulator> page) =>
+        page.FindComponents<IComponent>().Select(c => c.Instance).Where(c => c.GetType().Name == "MudSelectItem`1")
+            .Select(c => c.GetType().GetProperty("Value")!.GetValue(c)?.ToString() ?? string.Empty);
+
+    [Fact]
+    public async Task TheSimulatorOffersNoDraftWhenThereIsNone()
+    {
+        await using DashboardTestContext context = new();
+        ConfigPages.SignIn(context, Role.Operator);
+
+        var page = context.Render<Simulator>();
+        await page.WaitForStateAsync(() => TargetChoices(page).Any(choice => choice.Contains("Kind = Live", StringComparison.Ordinal)));
+
+        Assert.Contains(TargetChoices(page), choice => choice.Contains("Kind = Live", StringComparison.Ordinal));
+        Assert.DoesNotContain(TargetChoices(page), choice => choice.Contains("Kind = Draft", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SimulatingFromTheDraftDrawerTargetsTheStoredDraft_NotACopyOfItsSet()
+    {
+        await using DashboardTestContext context = new();
+        var config = DraftedUpstream(context);
+        config.Simulation = new SimulationResult(SimulationStatus.Simulated, new SimulationSource(SimulationTargetKind.Draft), new SimulationOutcome(SimulationOutcomeKind.ForwardToUpstream, "forwarded"));
+        var (drawers, _) = await OpenReviewAsync(context);
+
+        await drawers.Find(".pdk-review-simulate button").ClickAsync(new());
+        await drawers.Find(".pdk-review-simulate-form input").ChangeAsync(new() { Value = "https://app.test/" });
+        await drawers.Find(".pdk-review-simulate-form .mud-button-outlined").ClickAsync(new());
+
+        await drawers.WaitForStateAsync(() => config.Simulated.Count == 1);
+        Assert.Equal(new DraftSimulationTarget(config.Draft!.Id), config.Simulated[0]);
     }
 
     private static FakeDashboardConfig DraftedUpstream(DashboardTestContext context)

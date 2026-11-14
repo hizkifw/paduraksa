@@ -48,6 +48,8 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
 
     public SimulationResult? Simulation { get; set; }
 
+    public List<SimulationTarget> Simulated { get; } = [];
+
     public int WatcherCount => _watchers.Count;
 
     public ConfigStoreStatus Status { get; set; } = new(ConfigSource.Database, null);
@@ -236,8 +238,11 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
     public Task<IReadOnlyList<UserSummary>> ListUsersAsync(CommandOrigin origin, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<UserSummary>>([]);
 
-    public Task<SimulationResult> SimulateAsync(SimulationTarget target, SimulationRequest request, CommandOrigin origin, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Simulation ?? new SimulationResult(SimulationStatus.Unavailable, new SimulationSource(SimulationTargetKind.Live)));
+    public Task<SimulationResult> SimulateAsync(SimulationTarget target, SimulationRequest request, CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        Simulated.Add(target);
+        return Task.FromResult(Simulation ?? new SimulationResult(SimulationStatus.Unavailable, new SimulationSource(SimulationTargetKind.Live)));
+    }
 
     public IDisposable Watch(Func<ConfigCommitted, Task> onCommitted)
     {

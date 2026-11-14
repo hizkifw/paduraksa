@@ -6,6 +6,7 @@
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
 @inject ReviewedDraft Draft
+@inject DraftState Drafts
 @inject ILogger<Simulator> Logger
 
 <PageTitle>Simulator · Paduraksa</PageTitle>
@@ -26,6 +27,10 @@ else
                 <MudSelect T="TargetChoice" Value="_target" ValueChanged="ChangeTarget" Label="Against" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
                            ToStringFunc="TargetLabel" data-field="target">
                     <MudSelectItem T="TargetChoice" Value="TargetChoice.Live">The live config</MudSelectItem>
+                    @if (Drafts.Current is { Entries.Count: > 0 })
+                    {
+                        <MudSelectItem T="TargetChoice" Value="TargetChoice.MyDraft">My draft</MudSelectItem>
+                    }
                     @if (Draft.Command is not null)
                     {
                         <MudSelectItem T="TargetChoice" Value="TargetChoice.Draft">The change under review: @Draft.Title</MudSelectItem>
@@ -172,7 +177,7 @@ else
     [SupplyParameterFromQuery(Name = "method")]
     public string? MethodParameter { get; set; }
 
-    /// <summary><c>draft</c>: the change under review.</summary>
+    /// <summary><c>draft</c>: your open draft, else the change under review.</summary>
     [SupplyParameterFromQuery(Name = "target")]
     public string? TargetParameter { get; set; }
 
@@ -217,7 +222,13 @@ else
             _form.Method = known;
         }
 
-        if (string.Equals(TargetParameter, "draft", StringComparison.Ordinal) && Draft.Command is not null)
+        await Drafts.EnsureLoadedAsync();
+        Drafts.Changed += OnDraftChanged;
+        if (string.Equals(TargetParameter, "draft", StringComparison.Ordinal) && Drafts.Current is { Entries.Count: > 0 })
+        {
+            _target = TargetChoice.MyDraft;
+        }
+        else if (string.Equals(TargetParameter, "draft", StringComparison.Ordinal) && Draft.Command is not null)
         {
             _target = TargetChoice.Draft;
         }
@@ -237,7 +248,22 @@ else
         }
     }
 
-    public void Dispose() => _watch?.Dispose();
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        Drafts.Changed -= OnDraftChanged;
+    }
+
+    private void OnDraftChanged() => _ = InvokeAsync(() =>
+    {
+        // A target that is gone would only answer "no such draft".
+        if (_target == TargetChoice.MyDraft && Drafts.Current is not { Entries.Count: > 0 })
+        {
+            _target = TargetChoice.Live;
+        }
+
+        StateHasChanged();
+    });
 
     private async Task LoadTargetsAsync()
     {
@@ -260,6 +286,7 @@ else
 
     private string TargetLabel(TargetChoice? choice) => choice switch
     {
+        { Kind: SimulationTargetKind.Draft } => "My draft",
         { Kind: SimulationTargetKind.DraftCommand } => $"The change under review{(Draft.Title is { } title ? $": {title}" : string.Empty)}",
         { Kind: SimulationTargetKind.Revision, Revision: { } id } =>
             _revisions.FirstOrDefault(e => e.Revision.Id == id) is { } entry ? $"Revision #{entry.Revision.Seq}" : $"Revision {id}",
@@ -275,6 +302,7 @@ else
 
         var target = _target switch
         {
+            { Kind: SimulationTargetKind.Draft } when Drafts.Current is { } mine => new DraftSimulationTarget(mine.Id),
             { Kind: SimulationTargetKind.DraftCommand } when Draft.Command is { } command => new DraftCommandSimulationTarget(command),
             { Kind: SimulationTargetKind.Revision, Revision: { } revision } => new RevisionSimulationTarget(revision),
             _ => SimulationTarget.Live,
@@ -291,6 +319,7 @@ else
             {
                 RevisionSimulationTarget => SimulationTargetKind.Revision,
                 DraftCommandSimulationTarget => SimulationTargetKind.DraftCommand,
+                DraftSimulationTarget => SimulationTargetKind.Draft,
                 _ => SimulationTargetKind.Live,
             }));
         }
@@ -314,6 +343,8 @@ else
         public static TargetChoice Live { get; } = new(SimulationTargetKind.Live);
 
         public static TargetChoice Draft { get; } = new(SimulationTargetKind.DraftCommand);
+
+        public static TargetChoice MyDraft { get; } = new(SimulationTargetKind.Draft);
 
         public static TargetChoice Of(ConfigRevisionId revision) => new(SimulationTargetKind.Revision, revision);
     }

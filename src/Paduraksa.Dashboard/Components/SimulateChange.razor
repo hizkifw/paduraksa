@@ -30,9 +30,13 @@
     private SimulationResult? _result;
     private ConfigCommand? _seen;
 
-    /// <summary>What to try the request against: the command the review is of, or the draft's set as one whole-document command.</summary>
+    /// <summary>What to try the request against: the command the review is of. With <see cref="Draft"/> set it only tells a new review from the last.</summary>
     [Parameter, EditorRequired]
     public ConfigCommand Command { get; set; } = default!;
+
+    /// <summary>The open draft under review: the simulator reads it as it is stored now, as its review does, instead of a copy of its set.</summary>
+    [Parameter]
+    public DraftId? Draft { get; set; }
 
     [Parameter]
     public string Label { get; set; } = "Simulate this change";
@@ -65,7 +69,8 @@
         try
         {
             await Logger.TryAsync(Snackbar, "The simulation couldn't run.", async () =>
-                _result = await Config.SimulateAsync(new DraftCommandSimulationTarget(Command with { DryRun = true }), _form.ToRequest(), origin));
+                _result = await Config.SimulateAsync(
+                    Draft is { } draft ? new DraftSimulationTarget(draft) : new DraftCommandSimulationTarget(Command with { DryRun = true }), _form.ToRequest(), origin));
         }
         finally
         {
