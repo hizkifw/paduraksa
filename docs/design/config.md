@@ -320,6 +320,7 @@ Everything else walks the catalogue:
 - **`server:write`** (`Permission.ServerWrite`) belongs to the Owner and Admin roles, never the Operator.
 - **Checked on what the plan does to the document,** not on the kind of command. `ConfigPipeline` requires it whenever `settings.server` differs between the head and the planned document. That covers `PUT /server-settings`, `PUT /settings`, an import, a rollback and a draft's entry alike.
 - **Simulations aren't checked.** A simulation never commits.
+- **Staging in a draft isn't checked either.** Adding an entry to a draft is a check of the entry, not a commit, so an Operator can stage a server-settings change. The draft's apply runs the pipeline as the person applying it, and that is where it is refused. This was kept as it is, on review: a draft holds nothing until it is applied.
 
 ### Adding a server setting
 
