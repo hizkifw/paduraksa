@@ -535,7 +535,7 @@ internal sealed class PaduraksaAnalyticsOptions
 internal sealed class PaduraksaNotificationOptions
 {
     /// <summary>
-    /// The address the dashboard is reached at (<c>https://admin.example.com</c>, no path or query): messages carry a link to the page that
+    /// The address the dashboard is reached at (<c>https://admin.example.com</c>; a path is kept, a query or fragment is not allowed): messages carry a link to the page that
     /// shows what happened. Empty sends no link, since the process cannot know which name or port its admin is reached by.
     /// </summary>
     public string? AdminUrl { get; set; }

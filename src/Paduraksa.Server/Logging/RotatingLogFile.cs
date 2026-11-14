@@ -144,7 +144,7 @@ internal sealed class RotatingLogFile : IDisposable
         }
     }
 
-    /// <summary>The limits in force (for tests and the page).</summary>
+    /// <summary>The limits in force (for tests).</summary>
     internal LogFileWriterSettings Settings => _settings;
 
     /// <summary>The clock the writer stamps its lines and rotations with.</summary>

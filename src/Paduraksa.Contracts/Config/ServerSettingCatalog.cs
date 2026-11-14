@@ -174,7 +174,7 @@ public static class ServerSettingCatalog
     public static readonly TextServerSetting NotificationAdminUrl = new(
         "notificationAdminUrl", "Notifications:AdminUrl", ServerSettingGroup.Notifications, "Messages", ServerSettingApply.Live,
         "Dashboard address",
-        "Where messages link to (https://admin.example.com, no path or query). Empty sends no link: the server can't know the name its admin is reached by.",
+        "Where messages link to (https://admin.example.com; a path is kept, a query or fragment is not allowed). Empty sends no link: the server can't know the name its admin is reached by.",
         static s => s.NotificationAdminUrl, static (s, v) => s with { NotificationAdminUrl = v },
         string.Empty,
         static value => value.Length == 0

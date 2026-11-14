@@ -22,6 +22,7 @@ public sealed class ServerSettingsState
     private readonly Lock _lock = new();
     private ServerSettings? _config;
     private volatile Snapshot _current;
+    private volatile ServerSettings _startup;
 
     /// <param name="environment">The settings the environment sets explicitly: <see cref="ServerSettingDefinition.Key"/> to the value as the config
     /// writes it (<see cref="ServerSettingDefinition.FromConfiguration"/>). Keys the catalogue doesn't declare are ignored.</param>
@@ -32,14 +33,14 @@ public sealed class ServerSettingsState
             .Where(pair => ServerSettingCatalog.Find(pair.Key) is not null)
             .ToFrozenDictionary(StringComparer.Ordinal);
         _current = Resolve(null);
-        Startup = _current.Effective;
+        _startup = _current.Effective;
     }
 
     /// <summary>The values in force, every setting resolved: read one with the declaration's <c>Resolve</c>.</summary>
     public ServerSettings Current => _current.Effective;
 
     /// <summary>The values in force when the process first took them (<see cref="Seal"/>): what a setting that applies after a restart is running with.</summary>
-    public ServerSettings Startup { get; private set; }
+    public ServerSettings Startup => _startup;
 
     /// <summary>Raised with the new values whenever one in force changes; on the thread that changed them (the config's writer), so a handler only hands values on.</summary>
     public event Action<ServerSettings>? Changed;
@@ -101,7 +102,7 @@ public sealed class ServerSettingsState
     {
         lock (_lock)
         {
-            Startup = _current.Effective;
+            _startup = _current.Effective;
         }
     }
 
