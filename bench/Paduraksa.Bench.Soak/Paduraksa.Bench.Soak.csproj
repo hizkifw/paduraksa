@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    The soak test's driver (bench/soak/run-soak.sh): it starts the real server and its upstreams, publishes a realistic config through the admin API, runs the traffic
+    and the changes (publishes, a flap, a burst, MCP, a browser, a restart) for the whole run and samples the server's health every ten seconds. It writes facts and
+    CSV for bench/soak/analyze.py, which judges them. Method and thresholds: bench/soak/README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TieredPGO>true</TieredPGO>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <!-- A throwaway tool: its own code is not held to the product's analyzer bar for culture, ConfigureAwait, logging templates or broad catches. The rest still applies. -->
+    <NoWarn>$(NoWarn);CA1031;CA1303;CA1305;CA1307;CA1310;CA1812;CA1822;CA1848;CA1859;CA1861;CA2007;CA2234;CA5359;CA5400;CA5386;CA1054;CA1056;CA1034;CA1707;CA1716;CA1720;CA1724;CA1002;CA1024;CA1062;CA1040;CA1051;CA1819;CA2227;CA1063;CA1001</NoWarn>
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
+    <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Admin/Paduraksa.Admin.csproj" />
+    <ProjectReference Include="../Paduraksa.Bench.Soak.Probe/Paduraksa.Bench.Soak.Probe.csproj" ReferenceOutputAssembly="false" />
+    <Compile Include="../Paduraksa.Bench.Runner/ProofOfWorkSolver.cs" Link="ProofOfWorkSolver.cs" />
+  </ItemGroup>
+</Project>
