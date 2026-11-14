@@ -27,7 +27,20 @@
                 <dt>Client</dt><dd class="pdk-mono">@(Entry.ClientAddress ?? "-")</dd>
                 @if (ConnectionText() is { } connection)
                 {
-                    <dt>Connection</dt><dd class="pdk-mono" data-fact="connection">@connection</dd>
+                    <dt>Connection</dt>
+                    <dd class="pdk-mono" data-fact="connection">
+                        @if (ConnectionNote() is { } note)
+                        {
+                            <span class="pdk-hint" tabindex="0" aria-describedby="@($"conn-{Entry.Sequence}")">
+                                @connection
+                                <span class="pdk-waterfall-tip" id="@($"conn-{Entry.Sequence}")"><span class="pdk-waterfall-note" data-tip="note">@note</span></span>
+                            </span>
+                        }
+                        else
+                        {
+                            @connection
+                        }
+                    </dd>
                 }
                 <dt>Time taken</dt>
                 <dd class="pdk-mono">
@@ -93,6 +106,13 @@
             _ => request,
         };
     }
+
+    private string? ConnectionNote() => Entry.Timing switch
+    {
+        { TlsHandshakeMs: not null } => "The TLS handshake runs once, when a connection opens, before its first request, so it is not on the waterfall.",
+        { TlsReused: true } => "This connection's handshake ran for its first request and is not repeated.",
+        _ => null,
+    };
 
     public static IReadOnlyDictionary<string, object?> For(LogTailEntry entry, bool canSimulate) =>
         new Dictionary<string, object?> { [nameof(Entry)] = entry, [nameof(CanSimulate)] = canSimulate };

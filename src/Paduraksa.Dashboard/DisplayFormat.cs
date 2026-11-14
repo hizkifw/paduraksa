@@ -203,6 +203,15 @@ public sealed class DisplayFormat
         _ => (milliseconds.Value / 1000).ToString("0.##", Culture) + " s",
     };
 
+    /// <summary>The smallest step <see cref="Duration"/> tells apart at this size, in milliseconds: what a value is rounded to when it is shown.</summary>
+    public static double DurationStep(double milliseconds) => milliseconds switch
+    {
+        < 1 => 0.01,
+        < 100 => 0.1,
+        < 1000 => 1,
+        _ => 10,
+    };
+
     /// <summary>A latency for a chart or a tile: <see cref="Duration"/>, and "-" when nothing was timed.</summary>
     public string Latency(double milliseconds) => milliseconds <= 0 ? "-" : Duration(milliseconds);
 

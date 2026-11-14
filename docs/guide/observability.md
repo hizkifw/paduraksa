@@ -118,7 +118,7 @@ Durations are milliseconds. The stages overlap (a body is read while the forward
 total. Fields 14 to 19 came after the first 13, and field 20 after them; a reader of the first fields reads them unchanged.
 Lines written before field 20 existed have 19 fields. The live tail showed a wait then too, but it was field 8 minus field
 18, so it included the time the body took to go up; field 20 doesn't. The same figures are in the **Live tail**'s entry as
-a waterfall, each stage drawn where it started, like a browser's network timing.
+a waterfall, each stage drawn where it started, like a browser's network timing. The proxy's own work between stages (preparing the forward, preparing the response) and any time no stage covers get their own muted rows, so the rows account for the whole request. Hover, focus or tap a row for what happens in that stage.
 
 ## Metrics
 

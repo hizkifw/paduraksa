@@ -886,13 +886,14 @@
     cursor: default;
 }
 
-.pdk-waterfall-bar::before {
-    position: absolute;
-    inset: -7px -4px;
-    content: "";
+/* The whole row is the target (focus, and a tap on a phone), so a sliver of a bar is no harder to reach than a long one. */
+.pdk-waterfall-row {
+    border-radius: 4px;
+    cursor: default;
 }
 
-.pdk-waterfall-bar:focus-visible {
+.pdk-waterfall-row:focus-visible,
+.pdk-hint:focus-visible {
     outline: 2px solid var(--mud-palette-primary);
     outline-offset: 2px;
 }
@@ -902,6 +903,21 @@
 .pdk-waterfall-bar.pdk-waterfall-connect { background: var(--mud-palette-warning, #D9A957); }
 .pdk-waterfall-bar.pdk-waterfall-wait { background: var(--mud-palette-info, var(--pdk-info)); }
 .pdk-waterfall-bar.pdk-waterfall-send { background: var(--mud-palette-success, #5DBB8A); }
+
+
+/* Rows worked out from the time between measured stages: neutral, so they read as the proxy's own work next to the coloured stages; what
+   nothing measured is hatched. */
+.pdk-waterfall-bar.pdk-waterfall-derived { background: var(--pdk-muted); opacity: 0.55; }
+.pdk-waterfall-bar.pdk-waterfall-gap {
+    background: repeating-linear-gradient(135deg, var(--pdk-muted) 0 2px, transparent 2px 4px);
+    opacity: 0.8;
+}
+
+.pdk-waterfall-note {
+    margin-top: 4px;
+    color: var(--pdk-muted);
+    white-space: normal;
+}
 
 .pdk-waterfall-value {
     text-align: right;
@@ -918,6 +934,8 @@
     grid-column: 2 / -1;
     box-sizing: border-box;
     min-width: 140px;
+    width: max-content;
+    max-width: min(280px, 100%);
     padding: 8px 10px;
     border: 1px solid var(--pdk-line-strong);
     border-radius: 8px;
@@ -934,9 +952,28 @@
     display: flex;
 }
 
-.pdk-waterfall-row:has(.pdk-waterfall-bar:hover, .pdk-waterfall-bar:focus-visible) .pdk-waterfall-tip {
+/* :focus, not :focus-visible: a tap focuses the row but never matches :focus-visible, and a tap elsewhere takes the focus away again. */
+.pdk-waterfall-row:is(:hover, :focus) .pdk-waterfall-tip,
+.pdk-hint:is(:hover, :focus) .pdk-waterfall-tip {
     display: block;
 }
+
+/* A line of text with an explanation behind it (the connection's handshake), reached the same ways as a waterfall row. */
+.pdk-hint {
+    position: relative;
+    display: inline-block;
+    border-radius: 4px;
+    text-decoration: underline dotted var(--pdk-muted);
+    text-underline-offset: 3px;
+}
+
+.pdk-hint > .pdk-waterfall-tip {
+    top: calc(100% + 4px);
+    min-width: 0;
+    max-width: min(260px, 80vw);
+    text-decoration: none;
+}
+
 
 .pdk-waterfall-axis {
     display: flex;

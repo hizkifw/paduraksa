@@ -552,12 +552,18 @@ The page reads `LogTailService` (Application): the hub described in [observabili
 - status and matched host as chips;
 - the request ID in the copy control `SecretValue` gives (clipboard through `DashboardBrowser`);
 - the request line, host, client, time taken, upstream with its time, response size, `CF-Ray`, referer and user agent;
-- which request of its connection it was ("Request 1, TLS handshake 3.4 ms", "Request 14, TLS reused", "Request 2" on plain HTTP);
+- which request of its connection it was ("Request 1, TLS handshake 3.4 ms", "Request 14, TLS reused", "Request 2" on plain HTTP); the handshake and reused forms carry the same kind of tooltip (the handshake runs once, when the connection opens, before its first request, so it is not on the waterfall; a reused connection's was paid by its first request);
 - under the time taken, a **waterfall** of the stages laid out like Chrome DevTools' Timing tab (`RequestWaterfallView`, laid out by `RequestWaterfall`):
   - one axis from 0 to the request's total (or the furthest a bar reaches, when rounding puts one past it), with a thin scale under the rows (`0 ms` ... the total);
   - each bar at its measured start with its measured length (the API's `*StartMs`; the gate starts at 0), so overlapping stages overlap and time no stage accounts for stays a gap;
   - the rows in the order the stages started, the pipeline's order breaking a tie: Gate, Upstream connect (only when the forward opened a connection), Request body (only with a body), Waiting for upstream (TTFB), Response send;
-  - the stage's time through `DisplayFormat` at the end of each row; hovering or focusing a bar (each is focusable) shows its start and duration in the charts' tooltip style, a CSS-only box under the row (no script, so nothing to keep in step with a re-render);
+  - **derived rows** fill the time between the measured stages, so no stretch of the request is blank and, for stages that run one after another, the rows add up to the total. They come from the same `timing` figures (no new field, nothing on the request path) and are drawn in a neutral colour:
+    - *Forwarding the request*: after the gate and before the wait starts, where no connect or body covers it (YARP building and sending the upstream request). A request that opened a connection can have two, before the connect and between it and the wait;
+    - *Preparing the response*: from the upstream's answer to the response's start (copying its headers, the response transforms);
+    - *Unaccounted* (hatched): any other stretch no stage covers, including a local answer's time between the gate and the send. A gap under about 1 us is rounding and gets no row. A row appears only when its time is above that;
+  - **rounding**: each row's time goes through `DisplayFormat` at its own precision, and rows that run in sequence are nudged by single steps (largest remainder, never hiding a row that has time) until they match the exact total, so the owner's 1.6 ms request reads 0.03 + 0.07 + 1 + 0.09 + 0.41. Overlapping rows (a body streaming while the upstream answers) can't add up and are shown as they are. The shown total is itself rounded, so a coarse total can differ from the parts by half its step;
+  - the stage's time through `DisplayFormat` at the end of each row;
+  - **one tooltip per row** (the charts' tooltip style, a CSS-only box under the row): the stage's start and duration, then a sentence on what happens in it (the gate's checks, opening a connection, the upload, the upstream's think time plus the network, streaming to the client; for a derived row, that it is derived and what the proxy does there). The whole row is the target: it is one tab stop, `:hover` or `:focus` opens it (not `:focus-visible`, which a tap never matches, and a tap elsewhere takes the focus away), and the text is the row's `aria-describedby`. It sits below its row so it never covers the bar it describes, on a phone too (the label is above the track there). There is no Escape to dismiss it: the focus moving on does;
   - the tracks share one grid (a subgrid per row), so every bar sits on the same axis. On a phone (600 px and under) the label goes above its track, which would otherwise be about 60 px wide. The geometry (`left` and `width` in percent) is the one other file the formatting guard lets spell a number;
   - the TLS handshake happened before the request started, so it is not on the axis: the connection line above it says it, as DevTools' connection setup does;
 - a **Simulate this request** button (for a role that may simulate) linking to `/simulator?url=https://<host><path><query>&clientIp=<client>&method=<method>`.
@@ -586,6 +592,8 @@ The simulator learned two query parameters for this (`clientIp`, and `method` wh
 - the simulate button crowding the drawer's title (it moved to the footer).
 
 The waterfall's visual pass (a throwaway tour, not committed: a forwarded upload with a handshake, a pooled forward on a reused TLS connection and a refusal, in dark, light and 390 px) found nothing to fix. At 390 px the tracks are narrow (about 60 px) but every row stays one line and nothing scrolls sideways.
+
+The gaps pass (`waterfall-gaps`: an owner-like pooled request with no body and small gaps, an upload on a new connection with a handshake, and a gate answer with an unaccounted stretch, in dark, light and 390 px, each with a row tooltip shown by focus on desktop and by a tap on a phone, and the connection tooltip) found nothing to fix: the tooltip sits under its row, covers none of its own bar, fits 390 px and nothing scrolls sideways.
 
 The DevTools layout's visual pass (the same tour plus an early 413 that cut its body off, each with a bar hovered) found that at 390 px the longer label ("Waiting for upstream (TTFB)") pushed the times out of the drawer and clipped the tooltip; the label now goes above its track there.
 

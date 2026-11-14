@@ -361,12 +361,21 @@ public sealed class LiveTailPageTests
             await page.Find("[data-seq='1']").ClickAsync(new());
             await drawers.WaitForStateAsync(() => drawers.FindAll("[data-detail]").Count == 1);
 
-            Assert.Equal("Request 1, TLS handshake 2.5 ms", drawers.Find("[data-fact=connection]").TextContent);
-            // A pooled connection has no connect row, and a request without a body no body row.
-            Assert.Equal(["gate", "wait", "send"], drawers.FindAll("[data-waterfall] [data-stage]").Select(static row => row.GetAttribute("data-stage")));
+            Assert.StartsWith("Request 1, TLS handshake 2.5 ms", drawers.Find("[data-fact=connection] .pdk-hint").ChildNodes[0].TextContent.Trim(), StringComparison.Ordinal);
+            Assert.Contains("runs once, when a connection opens", drawers.Find("[data-fact=connection] [data-tip=note]").TextContent, StringComparison.Ordinal);
+            // A pooled connection has no connect row, and a request without a body no body row; the proxy's own work before the wait and after it is derived.
+            Assert.Equal(["gate", "forward", "wait", "prepare", "send"], drawers.FindAll("[data-waterfall] [data-stage]").Select(static row => row.GetAttribute("data-stage")));
             Assert.Equal("Waiting for upstream (TTFB)", drawers.Find("[data-stage=wait] .pdk-waterfall-label").TextContent);
             Assert.Equal("30 ms", drawers.Find("[data-stage=wait] .pdk-waterfall-value").TextContent);
             Assert.Equal("left: 2.5%; width: 75%", drawers.Find("[data-stage=wait] .pdk-waterfall-bar").GetAttribute("style"));
+            Assert.Equal("0.92 ms", drawers.Find("[data-stage=forward] .pdk-waterfall-value").TextContent);
+            Assert.Equal("5 ms", drawers.Find("[data-stage=prepare] .pdk-waterfall-value").TextContent);
+            Assert.Contains("proxy's own work between stages", drawers.Find("[data-stage=forward] [data-tip=note]").TextContent, StringComparison.Ordinal);
+            Assert.Contains("upstream's own think time", drawers.Find("[data-stage=wait] [data-tip=note]").TextContent, StringComparison.Ordinal);
+            // Each row is one tab stop that a tap or a keyboard focus opens, and its tooltip is its description.
+            var forward = drawers.Find("[data-stage=forward]");
+            Assert.Equal("0", forward.GetAttribute("tabindex"));
+            Assert.Equal(forward.QuerySelector(".pdk-waterfall-tip")!.Id, forward.GetAttribute("aria-describedby"));
             Assert.Equal("1 ms", drawers.Find("[data-stage=wait] [data-tip=start]").TextContent);
             Assert.Equal("30 ms", drawers.Find("[data-stage=wait] [data-tip=duration]").TextContent);
             Assert.Equal("left: 90%; width: 10%", drawers.Find("[data-stage=send] .pdk-waterfall-bar").GetAttribute("style"));

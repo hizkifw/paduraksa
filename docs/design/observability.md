@@ -299,6 +299,8 @@ The live tail's waterfall (see [dashboard.md](dashboard.md)) reads like DevTools
 
 **Request headers are left out.** Kestrel exposes no timestamp of a request's first byte. The connection's own start would include an idle keep-alive's wait, and a parser hook would mean replacing Kestrel's. So the time from the first header byte to the top of the pipeline is not measured.
 
+**Time between the stages.** The dashboard fills the stretches no stage covers from the stages' own starts and lengths (nothing more is recorded): the proxy forwarding the request before the wait, preparing the response between the upstream's answer and the send, and anything else as unaccounted. See [dashboard.md](dashboard.md) (the live tail's entry). The forward's start (`ForwardStartMicros`) is not exposed, and not needed: the forwarding row runs from the gate's end to the wait's start, minus the connect and body.
+
 ### How each is taken
 
 - **TLS** (`Net.ConnectionTimings`): one small object per connection, set as a connection feature by `UseConnectionTimings` (plain HTTP), `UseTimedHttps` (TCP, the two middlewares around `UseHttps`) or the QUIC callback and `UseQuicHandshakeTiming`. The handshake is written once, before the connection's first request can start, and read by the request whose index is 1. The pooled request state caches the feature, since the state never leaves its connection (it lives on the H1 connection, or on an H2/H3 stream Kestrel pools per connection).
