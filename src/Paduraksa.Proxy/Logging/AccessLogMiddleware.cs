@@ -6,6 +6,7 @@ using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.ProxyProtocol;
+using Yarp.ReverseProxy.Forwarder;
 using Yarp.ReverseProxy.Model;
 
 namespace Paduraksa.Proxy.Logging;
@@ -158,7 +159,9 @@ public sealed class AccessLogMiddleware
         var userAgent = request.Headers.UserAgent;
         var referer = request.Headers.Referer;
         var upstreamTicks = state?.UpstreamTicks ?? AccessLogEntry.Unknown;
-        var answered = upstreamTicks >= 0;
+        // YARP runs its response transforms for a failed forward too (with no response), so the transform's figure alone doesn't say
+        // the upstream answered; the forwarder's error feature does.
+        var answered = upstreamTicks >= 0 && context.Features.Get<IForwarderErrorFeature>() is null;
         var upstreamAddress = state?.UpstreamAddress;
         if (state is { UpstreamStartedTimestamp: not 0 } && upstreamTicks < 0)
         {
