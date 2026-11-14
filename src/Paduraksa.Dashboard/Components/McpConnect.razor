@@ -1,18 +1,32 @@
+@using Paduraksa.Application.Settings
 @inject NavigationManager Navigation
 @inject DashboardOptions Options
+@inject DashboardCaller Caller
+@inject ServerSettingsState State
 @* How to point an AI assistant at the MCP endpoint (docs/design/admin-surfaces.md "MCP in code mode (M10)"). The snippets carry <token>, never a secret, unless the caller hands over the
    token it has just issued (the token drawer's one-time view): then they are filled in, open, and the token lives only in that parameter and
    the markup built from it; nothing here keeps or logs it. *@
 @if (!Options.McpEnabled)
 {
     <MudPaper Class="@Chrome" Elevation="0" Outlined="true" data-section="mcp-off">
-        <div class="pdk-mcp-summary">
+        <div class="pdk-mcp-summary pdk-mcp-summary-static">
             <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
             <span class="pdk-list-title">MCP is off</span>
-            <MudText Typo="Typo.body2" Class="pdk-muted">To let AI assistants connect, set this and restart (their code runs in a separate sandbox process; see install.md).</MudText>
-        </div>
-        <div class="pdk-mcp-body">
-            <CopyableCode Value="Paduraksa__Mcp__Enabled=true" Label="Environment variable" CopyAction="copy-env" data-field="mcp-enable" />
+            <MudText Typo="Typo.body2" Class="pdk-muted" data-field="mcp-enable">
+                @if (_environmentSetsIt)
+                {
+                    <text>The server's environment keeps it off (<code>@Setting.EnvironmentVariable</code>): </text>
+                    <MudLink Href="@SettingsRoutes.SettingLink(Setting)" Underline="Underline.Always" data-action="open-setting">see the setting</MudLink>
+                }
+                else if (_mayChange)
+                {
+                    <text>To let AI assistants connect, turn on </text><MudLink Href="@SettingsRoutes.SettingLink(Setting)" Underline="Underline.Always" data-action="open-setting">Serve /mcp</MudLink><text> in the server settings.</text>
+                }
+                else
+                {
+                    <text>An Owner or Admin can turn it on in </text><MudLink Href="@SettingsRoutes.SettingLink(Setting)" Underline="Underline.Always" data-action="open-setting">the server settings</MudLink><text>.</text>
+                }
+            </MudText>
         </div>
     </MudPaper>
     return;
@@ -48,6 +62,23 @@
 </MudPaper>
 
 @code {
+    private static ServerSettingDefinition Setting => ServerSettingCatalog.McpEnabled;
+
+    private bool _mayChange;
+    private bool _environmentSetsIt;
+
+    // Only the off card needs either: who may flip the switch decides what it says, and the environment keeping it off decides whether the link
+    // can promise a switch to flip.
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Options.McpEnabled)
+        {
+            _environmentSetsIt = State.SourceOf(Setting) == ServerSettingSource.Environment;
+            var user = await Caller.CheckAsync();
+            _mayChange = user is not null && user.Has(Permission.ConfigWrite) && user.Has(Permission.ServerWrite);
+        }
+    }
+
     /// <summary>The token just issued, to fill into the snippets; null shows <c>&lt;token&gt;</c>.</summary>
     [Parameter]
     public string? Token { get; set; }

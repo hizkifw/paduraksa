@@ -49,7 +49,7 @@ public sealed class SettingsPagesTests
     }
 
     [Fact]
-    public async Task WhileMcpIsOffTheTokensPageSaysHowToTurnItOnInsteadOfShowingSnippets()
+    public async Task WhileMcpIsOffTheTokensPageLinksToTheSettingThatTurnsItOnInsteadOfShowingSnippets()
     {
         await using DashboardTestContext context = new();
         IdentityPages.SignIn(context, Role.Admin);
@@ -57,7 +57,43 @@ public sealed class SettingsPagesTests
         var page = context.Render<ApiTokens>();
         await page.WaitForStateAsync(() => page.FindAll("[data-section=mcp-off]").Count == 1);
         Assert.Empty(page.FindAll("[data-section=mcp]"));
-        Assert.Contains("Paduraksa__Mcp__Enabled=true", page.Find("[data-section=mcp-off]").TextContent, StringComparison.Ordinal);
+
+        var off = page.Find("[data-section=mcp-off]");
+        Assert.Equal(SettingsRoutes.SettingLink(ServerSettingCatalog.McpEnabled), off.QuerySelector("a[data-action=open-setting]")!.GetAttribute("href"));
+        Assert.Equal("/settings/server#mcp-enabled", off.QuerySelector("a[data-action=open-setting]")!.GetAttribute("href"));
+        Assert.Contains("turn on", off.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("Paduraksa__", off.TextContent, StringComparison.Ordinal);
+        Assert.Empty(off.QuerySelectorAll("[data-action=copy-env]"));
+    }
+
+    [Fact]
+    public async Task WhoCantChangeTheServerSettingsIsToldWhoCanAndStillGetsTheLink()
+    {
+        await using DashboardTestContext context = new();
+        IdentityPages.SignIn(context, Role.Operator);
+        context.Render<MudPopoverProvider>();
+        var page = context.Render<ApiTokens>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-section=mcp-off]").Count == 1);
+
+        var off = page.Find("[data-section=mcp-off]");
+        Assert.Contains("An Owner or Admin can turn it on", off.TextContent, StringComparison.Ordinal);
+        Assert.Equal("/settings/server#mcp-enabled", off.QuerySelector("a[data-action=open-setting]")!.GetAttribute("href"));
+    }
+
+    [Fact]
+    public async Task WhenTheEnvironmentKeepsMcpOffTheHintSaysSoAndNamesTheVariable()
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddSingleton(new Paduraksa.Application.Settings.ServerSettingsState(new Dictionary<string, string> { ["mcpEnabled"] = "false" }));
+        IdentityPages.SignIn(context, Role.Owner);
+        context.Render<MudPopoverProvider>();
+        var page = context.Render<ApiTokens>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-section=mcp-off]").Count == 1);
+
+        var off = page.Find("[data-section=mcp-off]");
+        Assert.Contains("environment keeps it off", off.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Paduraksa__Mcp__Enabled", off.TextContent, StringComparison.Ordinal);
+        Assert.Equal("/settings/server#mcp-enabled", off.QuerySelector("a[data-action=open-setting]")!.GetAttribute("href"));
     }
 
     [Fact]
@@ -177,7 +213,8 @@ public sealed class SettingsPagesTests
 
         var dialogs = await IssueATokenAsync(context);
 
-        Assert.Contains("Paduraksa__Mcp__Enabled=true", dialogs.Find("[data-section=mcp-off]").TextContent, StringComparison.Ordinal);
+        Assert.Equal("/settings/server#mcp-enabled", dialogs.Find("[data-section=mcp-off] a[data-action=open-setting]").GetAttribute("href"));
+        Assert.DoesNotContain("Paduraksa__", dialogs.Find("[data-section=mcp-off]").TextContent, StringComparison.Ordinal);
         Assert.Empty(dialogs.FindAll("[data-snippet]"));
         Assert.DoesNotContain("claude mcp add", dialogs.Markup, StringComparison.Ordinal);
         // The one place the token is shown is its own copy box.
