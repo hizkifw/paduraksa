@@ -117,10 +117,7 @@ public sealed class GateMiddleware
             {
                 CompiledHeaders.ApplyResponse(context.Response.Headers, (state.Route?.Headers ?? answering.Headers).Response);
             }
-        }
 
-        if (state is not null)
-        {
             // The gate's share of the request ends here: what follows is the forward, or writing the answer it chose.
             state.GateEndedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         }

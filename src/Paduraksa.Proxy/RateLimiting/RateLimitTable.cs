@@ -11,7 +11,8 @@ namespace Paduraksa.Proxy.RateLimiting;
 /// stored (it is "no policy"). Its state is (<b>bits 63-24 = last refill in ms since process start</b>, a 40-bit field
 /// that a process cannot outlive; <b>bits 23-0 = tokens in 1/16 units</b>, which is 20.4 fixed point, so a burst of at
 /// most 1 048 575 whole tokens). A new entry starts full.</para>
-/// <para><b>Probing.</b> The start index is the low bits of the partition hash; a key is looked for in at most
+/// <para><b>Probing.</b> The start index is the low bits of the partition hash mixed with the policy slot, so one client's buckets
+/// in different policies start in different places and spread over the table; a key is looked for in at most
 /// <see cref="ProbeLength"/> consecutive entries and then either found there or given the oldest of them (least recently
 /// refilled). The hash is per-process random (<see cref="RateLimitPartition"/>), so a client cannot precompute
 /// collisions; a collision only shares a bucket with another key, which makes limits stricter, never looser, and the
