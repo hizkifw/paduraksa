@@ -180,3 +180,48 @@
         margin-left: auto;
     }
 }
+
+/* The security statistics: the refusals chart across, then a grid of counter cards, each as tall as its rows. A link to the section
+   lands with its heading below the sticky app bar. */
+.pdk-security-stats {
+    scroll-margin-top: 80px;
+}
+
+.pdk-security-stats-head,
+.pdk-security-stats-title {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.pdk-security-stats-head {
+    margin: 24px 0 12px;
+}
+
+.pdk-security-stats-head .pdk-section-heading {
+    margin: 0;
+}
+
+.pdk-security-stats-note {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-security-stats-title .pdk-security-stats-note {
+    margin-left: auto;
+}
+
+.pdk-security-stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    align-items: start;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.pdk-security-stats-cards .pdk-sec-reasons {
+    grid-template-columns: 1fr;
+    margin-top: 8px;
+}

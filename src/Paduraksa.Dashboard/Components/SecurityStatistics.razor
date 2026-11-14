@@ -1,0 +1,295 @@
+@implements IAsyncDisposable
+@using Paduraksa.Application.Security
+@using Paduraksa.Contracts.Metrics
+@using Paduraksa.Contracts.Security
+@using Paduraksa.Dashboard.Pages
+@inject SecurityOverviewService Service
+@inject DashboardCaller Caller
+@inject TimeProvider Time
+@inject DisplayFormat Fmt
+@* The gate's security counters over a range: the refusals over time stacked by reason, and a card per protection. The host page owns
+   the range and the tab's visibility; this reads, polls and draws. The hour is the sampler's memory, read every poll; the longer
+   ranges are the rollups, which change once a minute, so they are read a tenth as often. The counters are the whole process's:
+   they are not kept per host. *@
+
+<section class="pdk-security-stats" id="security" data-section="security" aria-labelledby="pdk-security-stats-title">
+    <div class="pdk-security-stats-head">
+        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-security-stats-title" Class="pdk-section-heading">Security</MudText>
+        @if (HostScoped)
+        {
+            <span class="pdk-security-stats-note" data-part="scope">All hosts: these are not counted per host</span>
+        }
+    </div>
+
+    @if (_denied)
+    {
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
+        </MudPaper>
+    }
+    else if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="security-failed">
+            The security figures couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+    else if (_overview is null)
+    {
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" />
+    }
+    else
+    {
+        var current = _overview;
+        var pow = current.ProofOfWork;
+        var lists = current.AccessLists;
+        var connections = current.Connections;
+        var signIn = current.ForwardAuth;
+        var notServed = current.Refusals.NoRoute + current.Refusals.Unavailable + current.Refusals.Dropped + current.Refusals.UnknownHost;
+
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="refusals-chart">
+            <div class="pdk-security-stats-title">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Refused per second</MudText>
+                <span class="pdk-security-stats-note" data-part="refused-total">@Fmt.Count(current.Refusals.Refused) refused</span>
+            </div>
+            @if (current.Series.Count < 2 || _lines.Count == 0)
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ShieldMoon" Title="Nothing refused in this range" />
+            }
+            else
+            {
+                <TimeSeriesChart Name="refusals" Points="@_points" Lines="@_lines" Stacked="true" Format="@Fmt.PerSecond" TimeFormat="@TrafficFigures.TimeFormat(current.Range)" />
+            }
+        </MudPaper>
+
+        <div class="pdk-security-stats-cards">
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="proof-of-work">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Proof of work</MudText>
+                <dl class="pdk-sec-reasons">
+                    <div title="Challenge pages sent to browsers without a valid token"><dt>Challenges served</dt><dd data-reason="served">@Fmt.Count(pow.ChallengesServed)</dd></div>
+                    <div title="Challenges answered with a cookie"><dt>Solved</dt><dd data-reason="solved">@Fmt.Count(pow.Solved)@Share(pow.Solved, pow.ChallengesServed)</dd></div>
+                    <div title="A wrong challenge or solution sent to the verify endpoint"><dt>Bad solution</dt><dd data-reason="verify">@Fmt.Count(pow.VerifyRejected)</dd></div>
+                    <div title="No token, and not a browser: a script, or a method that can't show a page"><dt>Not a browser</dt><dd data-reason="non-browser">@Fmt.Count(pow.BlockedNonBrowser)</dd></div>
+                    <div title="A cookie that is not a token this build issues"><dt>Malformed cookie</dt><dd data-reason="malformed">@Fmt.Count(pow.TokensRejected.Malformed)</dd></div>
+                    <div title="Altered, or issued for another host or client address"><dt>Bad signature</dt><dd data-reason="bad-tag">@Fmt.Count(pow.TokensRejected.BadTag)</dd></div>
+                    <div title="Valid, but past its lifetime"><dt>Expired</dt><dd data-reason="expired">@Fmt.Count(pow.TokensRejected.Expired)</dd></div>
+                    <div title="Valid, but easier than the host's current difficulty"><dt>Too easy</dt><dd data-reason="too-easy">@Fmt.Count(pow.TokensRejected.TooEasy)</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="rate-limits">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Rate limits</MudText>
+                <dl class="pdk-sec-reasons">
+                    <div title="Requests on routes with a rate-limit policy"><dt>Checked</dt><dd data-reason="checked">@Fmt.Count(current.RateLimit.Allowed + current.RateLimit.Limited)</dd></div>
+                    <div title="Refused with 429"><dt>Limited</dt><dd data-reason="limited">@Fmt.Count(current.RateLimit.Limited)@Share(current.RateLimit.Limited, current.RateLimit.Allowed + current.RateLimit.Limited)</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="access-lists">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Access lists</MudText>
+                <dl class="pdk-sec-reasons">
+                    <div title="Refused for their address: a 403, or dropped"><dt>Address refused</dt><dd data-reason="address-refused">@Fmt.Count(lists.AddressRefused)</dd></div>
+                    <div title="Answered 401: no credentials, or a wrong password"><dt>Wrong or missing password</dt><dd data-reason="unauthorized">@Fmt.Count(lists.Unauthorized)</dd></div>
+                    <div title="Checks run in full, right or wrong; a password accepted from the five-minute memory is not one"><dt>Passwords checked</dt><dd data-reason="checked">@Fmt.Count(lists.Verifications)</dd></div>
+                    <div title="Waited for a password check to come free"><dt>Queued</dt><dd data-reason="queued">@Fmt.Count(lists.Queued)</dd></div>
+                    <div title="Answered 429: the line for a check was full or this client already had its share of it, or the wait ran out"><dt>Refused, busy</dt><dd data-reason="busy">@Fmt.Count(lists.QueueFull + lists.QueueTimeouts)</dd></div>
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="connections">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Connections</MudText>
+                <dl class="pdk-sec-reasons">
+                    <div title="Open connections one client address may hold; an IPv6 /64 counts as one address. Trusted proxies are not counted"><dt>Limit per address</dt><dd data-reason="connection-limit">@SecurityFigures.LimitText(connections.MaxPerIp, Fmt)</dd></div>
+                    <div title="The deny addresses of this access list are refused before TLS"><dt>Deny list</dt><dd data-reason="connection-deny-list">
+                        @if (connections.DenyList is { } denyList)
+                        {
+                            <a class="pdk-row-link" href="@DashboardRoutes.AccessList(denyList.Id)">@denyList.Name</a>
+                        }
+                        else
+                        {
+                            <span class="pdk-muted">None</span>
+                        }
+                    </dd></div>
+                    <div title="Closed before TLS because the address is in the deny list"><dt>Refused, deny list</dt><dd data-reason="connection-denied">@Fmt.Count(connections.DenyListRefused)</dd></div>
+                    <div title="Closed before TLS because the address already held its limit"><dt>Refused, over the limit</dt><dd data-reason="connection-over-limit">@Fmt.Count(connections.LimitRefused)</dd></div>
+                    <div title="Open connections the limit counts now"><dt>Counted now</dt><dd data-reason="connection-counted">@Fmt.Count(connections.Counted)</dd></div>
+                    @if (connections.Uncounted > 0)
+                    {
+                        <div title="Let through without being counted because the table had no room: a flood from very many addresses filled it"><dt>Not counted, table full</dt><dd data-reason="connection-uncounted">@Fmt.Count(connections.Uncounted)</dd></div>
+                    }
+                </dl>
+            </MudPaper>
+
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="sign-in">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Sign-in</MudText>
+                <dl class="pdk-sec-reasons">
+                    <div title="Let through by an auth provider: from its answer, or from the allow it gave a moment ago"><dt>Allowed</dt><dd data-reason="sign-in-allowed">@Fmt.Count(signIn.Allowed)</dd></div>
+                    <div title="Refused with the provider's 401 or 403, or sent to a sign-in page"><dt>Refused or sent to sign in</dt><dd data-reason="sign-in-refused">@Fmt.Count(signIn.Denied + signIn.Redirected)</dd></div>
+                    <div title="Allows answered from the decision cache, with no call to the provider"><dt>Answered from memory</dt><dd data-reason="sign-in-cache-hits">@Fmt.Count(signIn.CacheHits)</dd></div>
+                    <div title="Calls made to the providers' endpoints"><dt>Calls made</dt><dd data-reason="sign-in-calls">@Fmt.Count(signIn.Calls)</dd></div>
+                    <div title="A call that failed or answered something the proxy won't act on (502), ran out of time (504), or found too many already running (503): the request was refused"><dt>Errors and timeouts</dt><dd data-reason="sign-in-errors">@Fmt.Count(signIn.Errors + signIn.Timeouts + signIn.Busy)</dd></div>
+                </dl>
+            </MudPaper>
+
+            @if (notServed > 0)
+            {
+                <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="not-served">
+                    <MudText Typo="Typo.subtitle1" HtmlTag="h3">Not served</MudText>
+                    <dl class="pdk-sec-reasons">
+                        <div title="A name no host has: scanners and typos"><dt>Unknown host</dt><dd data-reason="unknown-host">@Fmt.Count(current.Refusals.UnknownHost)</dd></div>
+                        <div title="The host has no route for the path"><dt>No route</dt><dd data-reason="no-route">@Fmt.Count(current.Refusals.NoRoute)</dd></div>
+                        <div title="A 503: no live config yet, or the route has no endpoint"><dt>Unavailable</dt><dd data-reason="unavailable">@Fmt.Count(current.Refusals.Unavailable)</dd></div>
+                        <div title="Closed without an answer"><dt>Dropped</dt><dd data-reason="dropped">@Fmt.Count(current.Refusals.Dropped)</dd></div>
+                    </dl>
+                </MudPaper>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private SecurityOverview? _overview;
+    private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
+    private IReadOnlyList<TimeSeriesChart.ChartLine> _lines = [];
+    private MetricsRange? _loaded;
+    private bool _wasVisible = true;
+    private bool _denied;
+    private bool _failed;
+    private bool _started;
+    private CancellationTokenSource? _stop;
+
+    /// <summary>The range to count over; the host page's picker.</summary>
+    [Parameter, EditorRequired]
+    public MetricsRange Range { get; set; }
+
+    /// <summary>Whether the tab is visible: the host page watches it, and polling pauses while it is hidden.</summary>
+    [Parameter]
+    public bool Visible { get; set; } = true;
+
+    /// <summary>The host page shows one host's figures: these are still every host's, and the section says so.</summary>
+    [Parameter]
+    public bool HostScoped { get; set; }
+
+    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _started = true;
+        _stop = new CancellationTokenSource();
+        _ = PollAsync(_stop);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        // A new range starts over; a tab shown again reads at once.
+        if (_loaded != Range)
+        {
+            _overview = null;
+            await LoadAsync();
+        }
+        else if (Visible && !_wasVisible)
+        {
+            await LoadAsync();
+        }
+
+        _wasVisible = Visible;
+    }
+
+    private string? Share(long part, long whole) => Fmt.ShareOrNull(part, whole) is { } share ? $" ({share})" : null;
+
+    private async Task LoadAsync()
+    {
+        var range = Range;
+        try
+        {
+            var overview = await Service.ReadAsync(range, _stop?.Token ?? CancellationToken.None);
+            if (range != Range)
+            {
+                return;
+            }
+
+            _overview = overview;
+            _loaded = range;
+            _failed = false;
+            Shape(overview);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _failed = true;
+            _loaded = range;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task PollAsync(CancellationTokenSource stop)
+    {
+        var token = stop.Token;
+        try
+        {
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(2), Time);
+            var ticks = 0;
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                ticks++;
+                if (Visible && !_failed && _overview is not null && (Range == MetricsRange.Hour || ticks % 10 == 0))
+                {
+                    await InvokeAsync(LoadAsync);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The section is gone.
+        }
+    }
+
+    private void Shape(SecurityOverview overview)
+    {
+        var series = overview.Series;
+        _points = [.. series.Select(step => new TimeSeriesChart.ChartPoint(step.Start, TimeSpan.FromSeconds(step.WidthSeconds), step.CoveredSeconds == 0, TrafficFigures.Coverage(step.CoveredSeconds, step.WidthSeconds, Fmt)))];
+        // Only the reasons that refused something in the range: a legend of nine where two moved would be noise.
+        _lines =
+        [
+            .. SecurityFigures.RefusalKinds
+                .Where(kind => kind.Of(overview.Refusals) > 0)
+                .Select(kind => new TimeSeriesChart.ChartLine(
+                    kind.Name,
+                    kind.Css,
+                    [.. series.Select(step => step.CoveredSeconds == 0 ? (double?)null : (double)kind.Of(step.Refused) / step.CoveredSeconds)])),
+        ];
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_stop is { } stop)
+        {
+            await stop.CancelAsync();
+            stop.Dispose();
+        }
+    }
+}

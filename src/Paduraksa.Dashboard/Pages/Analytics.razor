@@ -11,7 +11,7 @@
 @inject IJSRuntime JS
 @inject TimeProvider Time
 @inject DisplayFormat Fmt
-@* Visitors and content, and clients and bots, for every host or one. The figures come from the access-log drain, so a host with its
+@* Visitors and content, clients and bots for every host or one, then the gate's security counters for the whole process. The traffic figures come from the access-log drain, so a host with its
    access log off is not in them; the hour is read every few seconds while the tab is visible (the service keeps a result for
    a few seconds), the longer ranges a tenth as often. *@
 
@@ -326,6 +326,12 @@ else
     </section>
 }
 
+@if (!_denied && _started)
+{
+    @* The gate's counters are the whole process's, whatever host the picker names; the range and the tab's visibility are this page's. *@
+    <SecurityStatistics Range="_range" Visible="_visible" HostScoped="@(_scope != AllHosts)" PollInterval="SecurityPollInterval" />
+}
+
 @code {
     private const string AllHosts = "all";
 
@@ -351,6 +357,10 @@ else
     /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
     [Parameter]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>How often the security section reads the hour. A test shortens it.</summary>
+    [Parameter]
+    public TimeSpan SecurityPollInterval { get; set; } = TimeSpan.FromSeconds(2);
 
     private IReadOnlyList<ChartSpec> Charts => _charts;
 

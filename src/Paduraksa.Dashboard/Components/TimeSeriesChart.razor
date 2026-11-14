@@ -24,13 +24,14 @@
             {
                 <rect class="pdk-chart-gap" x="@Coord(from)" y="0" width="@Coord(to - from)" height="@Height" />
             }
-            @foreach (var line in Lines)
+            @for (var l = 0; l < Lines.Count; l++)
             {
-                @foreach (var run in Runs(line))
+                var line = Lines[l];
+                @foreach (var run in Runs(l))
                 {
-                    @if (line.Area)
+                    @if (line.Area || Stacked)
                     {
-                        <path class="pdk-chart-area @line.Css" d="@AreaPath(run)" />
+                        <path class="@(Stacked ? "pdk-chart-band" : "pdk-chart-area") @line.Css" d="@AreaPath(run)" />
                     }
 
                     <polyline class="pdk-chart-line @line.Css" points="@PointsOf(run)" vector-effect="non-scaling-stroke" />
@@ -76,7 +77,8 @@
     /// <param name="Area">Fill under the line.</param>
     public sealed record ChartLine(string Name, string Css, IReadOnlyList<double?> Values, bool Area = false);
 
-    private sealed record Run(IReadOnlyList<(double X, double Value)> Points, double EndX);
+    // Lower is where a stacked line's band starts (the lines below it); 0 otherwise.
+    private sealed record Run(IReadOnlyList<(double X, double Value, double Lower)> Points, double EndX);
 
     [Parameter, EditorRequired]
     public string Name { get; set; } = string.Empty;
@@ -91,7 +93,17 @@
     [Parameter, EditorRequired]
     public Func<double, string>? Format { get; set; }
 
-    /// <summary>The format of the two time labels under the plot, written on the person's clock.</summary>
+    /// <summary>
+    /// Each line is drawn on top of the ones before it, as a filled band, so the top is their sum (a total split by kind). The tooltip
+    /// and the legend still give each line's own value. A point with no value in a line counts as 0 there unless it has no data at all.
+    /// </summary>
+    [Parameter]
+    public bool Stacked { get; set; }
+
+    private double?[][] _drawn = [];
+    private double[][] _lower = [];
+
+        /// <summary>The format of the two time labels under the plot, written on the person's clock.</summary>
     [Parameter]
     public string TimeFormat { get; set; } = "HH:mm";
 
@@ -105,9 +117,9 @@
             }
 
             var peak = 0.0;
-            foreach (var line in Lines)
+            foreach (var drawn in _drawn)
             {
-                foreach (var value in line.Values)
+                foreach (var value in drawn)
                 {
                     peak = Math.Max(peak, value ?? 0);
                 }
@@ -121,10 +133,36 @@
 
     protected override void OnParametersSet()
     {
-        var peak = 0.0;
-        foreach (var line in Lines)
+        _drawn = new double?[Lines.Count][];
+        _lower = new double[Lines.Count][];
+        var below = new double[Points.Count];
+        for (var l = 0; l < Lines.Count; l++)
         {
-            foreach (var value in line.Values)
+            var values = Lines[l].Values;
+            _drawn[l] = new double?[Points.Count];
+            _lower[l] = new double[Points.Count];
+            for (var i = 0; i < Points.Count; i++)
+            {
+                var value = i < values.Count ? values[i] : null;
+                if (!Stacked)
+                {
+                    _drawn[l][i] = value;
+                    continue;
+                }
+
+                _lower[l][i] = below[i];
+                if (!Points[i].NoData)
+                {
+                    below[i] += value ?? 0;
+                    _drawn[l][i] = below[i];
+                }
+            }
+        }
+
+        var peak = 0.0;
+        foreach (var drawn in _drawn)
+        {
+            foreach (var value in drawn)
             {
                 if (value is { } v)
                 {
@@ -173,16 +211,17 @@
     private double ColumnEnd(int index) => index == Points.Count - 1 ? Width : (X(Points[index].Start) + X(Points[index + 1].Start)) / 2;
 
     /// <summary>The points that have a value in unbroken stretches. A stretch of one point is drawn as the width of its step, so it is a mark and not nothing.</summary>
-    private List<Run> Runs(ChartLine line)
+    private List<Run> Runs(int index)
     {
         List<Run> runs = [];
-        List<(double X, double Value)> current = [];
-        var count = Math.Min(line.Values.Count, Points.Count);
+        List<(double X, double Value, double Lower)> current = [];
+        var drawn = _drawn[index];
+        var count = drawn.Length;
         for (var i = 0; i <= count; i++)
         {
-            if (i < count && line.Values[i] is { } value)
+            if (i < count && drawn[i] is { } value)
             {
-                current.Add((X(Points[i].Start), value));
+                current.Add((X(Points[i].Start), value, _lower[index][i]));
                 continue;
             }
 
@@ -200,7 +239,7 @@
     private string PointsOf(Run run)
     {
         StringBuilder points = new();
-        foreach (var (x, value) in run.Points)
+        foreach (var (x, value, _) in run.Points)
         {
             points.Append(CultureInfo.InvariantCulture, $"{x:0.#},{Y(value):0.#} ");
         }
@@ -213,11 +252,12 @@
         return points.ToString().TrimEnd();
     }
 
+    // The band from the line down to what is below it: the axis, or in a stacked chart the lines before it.
     private string AreaPath(Run run)
     {
         StringBuilder path = new();
-        path.Append(CultureInfo.InvariantCulture, $"M{run.Points[0].X:0.#},{Height} ");
-        foreach (var (x, value) in run.Points)
+        path.Append(CultureInfo.InvariantCulture, $"M{run.Points[0].X:0.#},{Y(run.Points[0].Lower):0.#} ");
+        foreach (var (x, value, _) in run.Points)
         {
             path.Append(CultureInfo.InvariantCulture, $"L{x:0.#},{Y(value):0.#} ");
         }
@@ -226,9 +266,17 @@
         if (run.Points.Count == 1)
         {
             path.Append(CultureInfo.InvariantCulture, $"L{endX:0.#},{Y(run.Points[0].Value):0.#} ");
+            path.Append(CultureInfo.InvariantCulture, $"L{endX:0.#},{Y(run.Points[0].Lower):0.#} ");
+        }
+        else
+        {
+            for (var i = run.Points.Count - 1; i >= 0; i--)
+            {
+                path.Append(CultureInfo.InvariantCulture, $"L{run.Points[i].X:0.#},{Y(run.Points[i].Lower):0.#} ");
+            }
         }
 
-        path.Append(CultureInfo.InvariantCulture, $"L{endX:0.#},{Height} Z");
+        path.Append('Z');
         return path.ToString();
     }
 

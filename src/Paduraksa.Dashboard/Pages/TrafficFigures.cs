@@ -17,11 +17,14 @@ internal static class TrafficFigures
     public static string Count(long value) => DisplayFormat.Invariant.Count(value);
 
     /// <summary>A tooltip line for a step the server observed only in part (it started or stopped inside it); null when it saw all of it or none.</summary>
-    public static string? Coverage(MetricsSeriesPoint point, DisplayFormat? format = null)
+    public static string? Coverage(MetricsSeriesPoint point, DisplayFormat? format = null) => Coverage(point.CoveredSeconds, point.WidthSeconds, format);
+
+    /// <inheritdoc cref="Coverage(MetricsSeriesPoint, DisplayFormat?)"/>
+    public static string? Coverage(int coveredSeconds, int widthSeconds, DisplayFormat? format = null)
     {
         format ??= DisplayFormat.Invariant;
-        return point.CoveredSeconds > 0 && point.CoveredSeconds < point.WidthSeconds
-            ? $"Observed {format.Seconds(point.CoveredSeconds)} of {format.Seconds(point.WidthSeconds)}"
+        return coveredSeconds > 0 && coveredSeconds < widthSeconds
+            ? $"Observed {format.Seconds(coveredSeconds)} of {format.Seconds(widthSeconds)}"
             : null;
     }
 

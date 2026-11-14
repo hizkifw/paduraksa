@@ -12,6 +12,7 @@ using Paduraksa.Contracts.Metrics;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
+using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Layout;
 using Paduraksa.Dashboard.Pages;
 using Paduraksa.Data;
@@ -97,7 +98,11 @@ public sealed class AnalyticsPageTests
             Store = new AnalyticsRollupStore(_factory, Backlog);
             Live = new TrafficAnalytics(new SnapshotStore(), Time, Backlog, new byte[16]);
             Service = new AnalyticsService(Store, Live, Time);
+            Security = new SecurityRig(Time);
         }
+
+        /// <summary>The page's security section reads this; its database stays down unless a test opens it.</summary>
+        public SecurityRig Security { get; }
 
         public ManualClock Time { get; } = new(Noon);
 
@@ -115,6 +120,7 @@ public sealed class AnalyticsPageTests
         {
             var context = new DashboardTestContext();
             context.Services.AddSingleton(Service);
+            Security.Register(context.Services);
             Config = ConfigPages.SignIn(context, role, Time);
             Config.Document = new ConfigDocument(Hosts:
             [
@@ -138,6 +144,7 @@ public sealed class AnalyticsPageTests
         public async ValueTask DisposeAsync()
         {
             Store.Dispose();
+            await Security.DisposeAsync();
             if (_database is not null)
             {
                 await _database.DisposeAsync();
@@ -483,6 +490,32 @@ public sealed class AnalyticsPageTests
         Assert.Equal(["/post/1"], page.FindAll("[data-section=top-paths] tbody tr").Select(row => row.GetAttribute("data-path")));
         // The blog's first name is what the live tail knows it by.
         Assert.Equal("/logs/live?path=%2Fpost%2F1&host=blog.test", page.Find("[data-section=top-paths] tbody tr a").GetAttribute("href"));
+    }
+
+    [Fact]
+    public async Task TheSecuritySectionIsUnderTheContentAndFollowsThePagesRangeAndHost()
+    {
+        await using Rig rig = new();
+        await rig.UseDatabaseAsync();
+        await FillAsync(rig);
+        await using var context = rig.SignIn();
+        var page = Render(context);
+        await page.WaitForStateAsync(() => page.FindAll("[data-tile]").Count == 4);
+
+        var section = page.FindComponent<SecurityStatistics>();
+        Assert.Equal(MetricsRange.Day, section.Instance.Range);
+        Assert.False(section.Instance.HostScoped);
+        Assert.Equal("security", page.FindAll("section")[^1].Id);
+
+        await page.Find("[data-field=range] [data-value=hour]").ClickAsync(new());
+        await page.WaitForStateAsync(() => section.Instance.Range == MetricsRange.Hour);
+        // The hour is the sampler's memory: it is there with the rollup database down.
+        await page.WaitForStateAsync(() => page.FindAll("[data-section=proof-of-work]").Count == 1);
+
+        var picker = page.FindComponent<MudSelect<string>>();
+        await page.InvokeAsync(() => picker.Instance.ValueChanged.InvokeAsync(Blog.ToString()));
+        await page.WaitForStateAsync(() => section.Instance.HostScoped);
+        Assert.NotNull(page.Find("[data-part=scope]"));
     }
 
     [Fact]

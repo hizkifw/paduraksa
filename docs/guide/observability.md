@@ -159,6 +159,10 @@ the top paths, referers and user agents, the slowest paths and the largest respo
 and the bots that ignore a host's `robots.txt`. They are computed by the same background writer that writes `access.log`, never on
 the request path, so **a host with its access log off is in neither**: turn it off for a host and its traffic is not recorded anywhere.
 
+Under them, the **Security** section shows what the gate refused over the same range, by reason and over time, and the counters of
+proof of work, rate limits, access lists, the connection stage and sign-in (see [the security overview](security.md#the-security-overview)).
+Those come from the metrics, not the access log, so they count every host whatever its access-log setting.
+
 Nothing in them is a client address: an address is hashed with a random salt that lives in memory only, goes into a fixed-size
 counting sketch (HyperLogLog) and is gone, so what is stored can't be turned back into an address, even by someone who holds the
 database. The price of a salt that dies with the process is that a visitor active across a restart is counted once on each side of it.

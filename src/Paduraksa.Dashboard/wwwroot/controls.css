@@ -122,6 +122,11 @@
     opacity: 0.16;
 }
 
+.pdk-chart-band {
+    stroke: none;
+    opacity: 0.55;
+}
+
 .pdk-chart-gap {
     fill: color-mix(in srgb, var(--pdk-text) 6%, transparent);
 }
@@ -222,8 +227,19 @@
 .pdk-chart-c { --pdk-series: var(--mud-palette-warning, #D9A957); }
 .pdk-chart-err { --pdk-series: var(--mud-palette-error, var(--pdk-error)); }
 .pdk-chart-up { --pdk-series: var(--pdk-muted); stroke-dasharray: 5 4; }
+/* The refusal reasons, stacked: distinct hues that read on both themes, the unknown reason a neutral grey. */
+.pdk-chart-r1 { --pdk-series: var(--mud-palette-warning, #D9A957); }
+.pdk-chart-r2 { --pdk-series: var(--mud-palette-info, var(--pdk-info)); }
+.pdk-chart-r3 { --pdk-series: var(--mud-palette-error, var(--pdk-error)); }
+.pdk-chart-r4 { --pdk-series: var(--mud-palette-success, #5DBB8A); }
+.pdk-chart-r5 { --pdk-series: #A77BD9; }
+.pdk-chart-r6 { --pdk-series: #4FB3BF; }
+.pdk-chart-r7 { --pdk-series: #D97BAE; }
+.pdk-chart-r8 { --pdk-series: #8C9A5B; }
+.pdk-chart-r9 { --pdk-series: var(--pdk-muted); }
 .pdk-chart-line { stroke: var(--pdk-series); }
-.pdk-chart-area { fill: var(--pdk-series); }
+.pdk-chart-area,
+.pdk-chart-band { fill: var(--pdk-series); }
 .pdk-chart-swatch.pdk-chart-up { background: repeating-linear-gradient(90deg, var(--pdk-series) 0 5px, transparent 5px 8px); }
 
 .pdk-traffic-scroll {

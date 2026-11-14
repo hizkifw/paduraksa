@@ -199,11 +199,18 @@ It is answered from memory with `Cache-Control: max-age=3600`, so a change is pi
 
 **Security overview** (Security) answers "what is protecting my hosts, and is it working".
 
-- Four tiles: challenges served, solved (with the solve rate), rejected, and rate-limited (with its share of the requests a limit checked).
-- A table of hosts with what protects each: browser check, rate limit, access list, `robots.txt`, rules and sign-in. A route that differs from its host is grouped, such as "Off on 2 routes". Hosts with nothing on come last.
-- The refusal reasons, and the Connections card with what the connection stage refused.
+- One line: what the gate refused in the last 24 hours, and the reasons (rate limit, access list, rules, ...). It links to the security section of Analytics.
+- A table of hosts with what protects each: browser check, rate limit, access list, `robots.txt`, rules and sign-in, and how many of its requests were refused in the last 24 hours. A route that differs from its host is grouped, such as "Off on 2 routes". Hosts with nothing on come last.
 
-It reads the live config, not the stored one, so it is what the gate is doing. Its counters are for the process and start at zero on every start. The same data is `GET /api/v1/security/overview`.
+It reads the live config, not the stored one, so it is what the gate is doing.
+
+The counters themselves are the **Security** section at the bottom of [Analytics](observability.md#analytics), over the page's range (1 h, 24 h, 7 d, 30 d):
+
+- the refusals per second over time, stacked by reason;
+- a card each for proof of work, rate limits, access lists, the connection stage and sign-in;
+- the requests the gate answered without a policy (unknown host, no route), once there are some.
+
+They are kept with the metrics, so a restart doesn't reset them, and they are for the whole process: the host picker doesn't change them. Refusals stored before the reasons were kept count as "unknown reason". The same data is `GET /api/v1/security/overview?range=hour|day|week|month`.
 
 ## Defaults for new hosts
 
