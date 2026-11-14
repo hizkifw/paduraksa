@@ -295,12 +295,18 @@ public static class SandboxChild
         }
     }
 
-    /// <summary>The function is run and its ending reported through captured natives, so a script that replaces <c>Promise.prototype.then</c> cannot hide its own ending.</summary>
+    /// <summary>
+    /// The function is run and its ending reported through captured natives, so a script that replaces <c>Promise.prototype.then</c> cannot hide its own ending.
+    /// It is called with the tool's globals as its one argument and <c>globalThis</c> as <c>this</c>: models write <c>async ({ paduraksa }) =&gt;</c>
+    /// or <c>this.paduraksa</c> as often as the bare global, and each of those saw <c>undefined</c> when the function got
+    /// <c>then</c>'s resolved value.
+    /// </summary>
     private const string Runner = """
         (function () {
           const apply = Reflect.apply, then = Promise.prototype.then, resolved = Promise.resolve.bind(Promise);
+          const bindings = Object.freeze(typeof spec === 'undefined' ? { paduraksa } : { spec });
           return function (fn, report) {
-            const started = apply(then, resolved(), [fn]);
+            const started = apply(then, resolved(), [() => apply(fn, globalThis, [bindings])]);
             apply(then, started, [v => report(true, v), e => report(false, e)]);
           };
         })()

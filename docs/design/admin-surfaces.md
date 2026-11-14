@@ -324,6 +324,7 @@ The descriptions are all the model knows. They name the global, the shape of the
 **`execute`.** The one global is `paduraksa.request({ method, path, query?, body?, confirm?, ifMatch? })`, a promise of `{ status, body, etag? }`.
 - `body` is the parsed JSON, or the text for another media type.
 - An HTTP error is a result (4xx or 5xx with the problem document), not an exception.
+- **The function gets its globals as its argument too** (`{ paduraksa }` for execute, `{ spec }` for search), and `globalThis` as `this`. A red-team agent reported `paduraksa` intermittently undefined. The global was there on every run (a fresh engine per run, tested over many, concurrent, post-idle and post-tampering runs); what failed were functions written `async ({ paduraksa }) =>` or reading `this.paduraksa`, which received the `undefined` that `then` passes and strict mode's `undefined` this.
 - `ifMatch` is the one header a script can send (the quoted `etag` a read returned), because every change to an existing config object needs it. No other header, and never the token.
 
 ### The sandbox: a killable child process
