@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using Paduraksa.Core.Options;
+
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
@@ -7,8 +9,19 @@ namespace Paduraksa.Application.Identity;
 /// No composition rules: they make people predictable, not safe (NIST SP 800-63B). Length is one measure everywhere
 /// (<see cref="Length"/>): Unicode scalar values (runes), so an emoji is one character and a letter with combining marks is several.
 /// </summary>
-internal sealed class PasswordPolicy(int minLength)
+internal sealed class PasswordPolicy(Func<int> minLength)
 {
+    public PasswordPolicy(int minLength)
+        : this(() => minLength)
+    {
+    }
+
+    /// <summary>A policy that follows the live options: a new minimum applies to the next new or changed password, never to a stored one.</summary>
+    public PasswordPolicy(LiveOptions<IdentityOptions> options)
+        : this(() => options.Current.MinPasswordLength)
+    {
+    }
+
     /// <summary>The length of <paramref name="password"/> in runes.</summary>
     public static int Length(string password)
     {
@@ -37,9 +50,10 @@ internal sealed class PasswordPolicy(int minLength)
         }
 
         var length = password.Length > 2 * IdentityOptions.MaxPasswordLength ? int.MaxValue : Length(password);
-        if (length < minLength)
+        var least = minLength();
+        if (length < least)
         {
-            return string.Create(CultureInfo.InvariantCulture, $"The password must be at least {minLength} characters.");
+            return string.Create(CultureInfo.InvariantCulture, $"The password must be at least {least} characters.");
         }
 
         return length > IdentityOptions.MaxPasswordLength

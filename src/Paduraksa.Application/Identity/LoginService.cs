@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Data.Identity;
@@ -48,7 +49,10 @@ public sealed class LoginService
 {
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly TimeProvider _time;
-    private readonly IdentityOptions _options;
+    private readonly LiveOptions<IdentityOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private IdentityOptions Options => _live.Current;
     private readonly PasswordHasher _hasher;
     private readonly IdentityAudit _audit;
     private readonly SessionService _sessions;
@@ -58,7 +62,7 @@ public sealed class LoginService
     internal LoginService(
         IDbContextFactory<ConfigDbContext> contexts,
         TimeProvider time,
-        IdentityOptions options,
+        LiveOptions<IdentityOptions> options,
         PasswordHasher hasher,
         IdentityAudit audit,
         SessionService sessions,
@@ -67,7 +71,7 @@ public sealed class LoginService
     {
         _contexts = contexts;
         _time = time;
-        _options = options;
+        _live = options;
         _hasher = hasher;
         _audit = audit;
         _sessions = sessions;
@@ -152,7 +156,7 @@ public sealed class LoginService
                     // The right password must not lock its own owner out of the second step; the count stays one short of the limit,
                     // and a password alone never earns fresh second-factor guesses.
                     row.LockedUntil = null;
-                    row.FailedAttempts = _options.MaxFailedAttempts - 1;
+                    row.FailedAttempts = Options.MaxFailedAttempts - 1;
                 }
 
                 if (rehash is not null)
@@ -198,7 +202,7 @@ public sealed class LoginService
         await using (context.ConfigureAwait(false))
         {
             var session = await context.Sessions.AsNoTracking().SingleOrDefaultAsync(s => s.TokenHash == hash, cancellationToken).ConfigureAwait(false);
-            if (session is null || session.RevokedAt is not null || session.SecondFactorCompleted || now >= session.ExpiresAt)
+            if (session is null || session.RevokedAt is not null || session.SecondFactorCompleted || now >= session.ExpiresAt || now >= session.CreatedAt + Options.PartialSessionLifetime)
             {
                 return new LoginResult(LoginStatus.SessionExpired);
             }
@@ -247,7 +251,7 @@ public sealed class LoginService
                     return new LoginResult(LoginStatus.SessionExpired);
                 }
 
-                var expires = finished + _options.SessionLifetime;
+                var expires = finished + Options.SessionLifetime;
                 IdentityMapping.ClearFailures(userRow);
                 row.TokenHash = newHash;
                 row.SecondFactorCompleted = true;
@@ -310,7 +314,7 @@ public sealed class LoginService
                 return new Attempt(false, null);
             }
 
-            var engaged = IdentityMapping.RegisterFailure(row, now, _options) ? row.LockedUntil : null;
+            var engaged = IdentityMapping.RegisterFailure(row, now, Options) ? row.LockedUntil : null;
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return new Attempt(true, engaged);

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Data;
 using Paduraksa.Data.Identity;
 
@@ -64,17 +65,20 @@ public sealed class SessionService
 
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly TimeProvider _time;
-    private readonly IdentityOptions _options;
+    private readonly LiveOptions<IdentityOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private IdentityOptions Options => _live.Current;
     private readonly IdentityAudit _audit;
     private readonly IPermissionEvaluator _permissions;
     private long _validations;
 
     internal SessionService(
-        IDbContextFactory<ConfigDbContext> contexts, TimeProvider time, IdentityOptions options, IdentityAudit audit, IPermissionEvaluator permissions)
+        IDbContextFactory<ConfigDbContext> contexts, TimeProvider time, LiveOptions<IdentityOptions> options, IdentityAudit audit, IPermissionEvaluator permissions)
     {
         _contexts = contexts;
         _time = time;
-        _options = options;
+        _live = options;
         _audit = audit;
         _permissions = permissions;
     }
@@ -140,7 +144,7 @@ public sealed class SessionService
             return new SessionValidation(SessionStatus.SecondFactorRequired, principal);
         }
 
-        if (countAsUse && now - session.LastSeenAt >= _options.TouchInterval)
+        if (countAsUse && now - session.LastSeenAt >= Options.TouchInterval)
         {
             var id = session.Id;
             await context.Sessions.Where(s => s.Id == id && s.RevokedAt == null)
@@ -278,7 +282,7 @@ public sealed class SessionService
     internal SessionGrant Add(ConfigDbContext context, UserId user, ClientContext client, bool secondFactorCompleted, DateTimeOffset now)
     {
         var (cookie, hash) = NewCookie();
-        var expires = now + (secondFactorCompleted ? _options.SessionLifetime : _options.PartialSessionLifetime);
+        var expires = now + (secondFactorCompleted ? Options.SessionLifetime : Options.PartialSessionLifetime);
         var row = new SessionRow
         {
             Id = SessionId.New(),
@@ -302,8 +306,12 @@ public sealed class SessionService
         return context.Sessions.Where(s => s.ExpiresAt < cutoff || (s.RevokedAt != null && s.RevokedAt < cutoff)).ExecuteDeleteAsync(cancellationToken);
     }
 
+    // The stored expiry is the lifetime when the session began; the lifetime in force is checked too, so a shortened one (a server setting)
+    // ends existing sessions at their next check. A session the second factor completed counts from its creation, so a shortening may end it
+    // up to the partial lifetime early: the safe side.
     private bool IsLive(SessionRow session, DateTimeOffset now) =>
-        session.RevokedAt is null && now < session.ExpiresAt && now < session.LastSeenAt + _options.SessionIdleTimeout;
+        session.RevokedAt is null && now < session.ExpiresAt && now < session.LastSeenAt + Options.SessionIdleTimeout
+        && now < session.CreatedAt + (session.SecondFactorCompleted ? Options.SessionLifetime : Options.PartialSessionLifetime);
 
     private async Task<bool> MayAccessAsync(CommandOrigin origin, UserId owner, CancellationToken cancellationToken) =>
         origin.Actor.UserId == owner || await _permissions.IsAllowedAsync(origin, Permission.SessionsAll, cancellationToken).ConfigureAwait(false);

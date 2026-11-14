@@ -1,7 +1,7 @@
 namespace Paduraksa.Application.Identity;
 
 /// <summary>The knobs of the identity services.</summary>
-public sealed class IdentityOptions
+public sealed record IdentityOptions
 {
     /// <summary>Consecutive wrong passwords or codes before an account is locked.</summary>
     public int MaxFailedAttempts { get; init; } = 5;

@@ -7,6 +7,8 @@ using Paduraksa.Admin.Identity;
 using Paduraksa.Admin.Mcp;
 using Paduraksa.Admin.Web;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Settings;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Identity;
@@ -131,6 +133,7 @@ internal static partial class AdminApp
         builder.Services.AddPaduraksaDashboard(new DashboardOptions
         {
             MinPasswordLength = context.Options.Admin.MinPasswordLength,
+            LiveMinPasswordLength = () => (int)ServerSettingCatalog.AdminMinPasswordLength.Resolve(context.Shared.ServerSettings.Current),
             McpEnabled = context.Options.Mcp.Enabled,
             SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
         });
@@ -143,6 +146,7 @@ internal static partial class AdminApp
         HostSetup.PinListenerConfiguration(builder);
 
         var app = builder.Build();
+        FollowServerSettings(app, context.Shared.ServerSettings);
         app.Lifetime.ApplicationStarted.Register(() =>
             CompleteInternalListener(internalListener, internalListenOptions, logger));
         // First, before anything writes a response: the dashboard and the API are served over HTTP/2 too.
@@ -162,6 +166,19 @@ internal static partial class AdminApp
         DashboardAssets.Map(app);
         app.MapPaduraksaDashboard();
         return app;
+    }
+
+    /// <summary>The admin app's own consumers of the server settings: the sign-in rate limits, taken from the next attempt.</summary>
+    private static void FollowServerSettings(WebApplication app, ServerSettingsState state)
+    {
+        var throttle = app.Services.GetRequiredService<AdminThrottle>();
+        void Apply(ServerSettings values) => throttle.Reconfigure(
+            (int)ServerSettingCatalog.AdminRateLimitPermitsPerIp.Resolve(values),
+            (int)ServerSettingCatalog.AdminRateLimitPermitsPerUser.Resolve(values),
+            ServerSettingCatalog.AdminRateLimitWindow.Resolve(values));
+        Apply(state.Current);
+        state.Changed += Apply;
+        app.Lifetime.ApplicationStopped.Register(() => state.Changed -= Apply);
     }
 
     /// <summary>

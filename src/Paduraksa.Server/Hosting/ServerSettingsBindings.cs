@@ -1,4 +1,5 @@
 using Paduraksa.Application.Analytics;
+using Paduraksa.Application.Identity;
 using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Application.Settings;
@@ -16,6 +17,7 @@ namespace Paduraksa.Server.Hosting;
 internal sealed class ServerSettingsBindings
 {
     private readonly ServerLogFiles _logFiles;
+    private readonly TimeSpan _touchInterval;
 
     public ServerSettingsBindings(ServerSettingsState state, ServerLogFiles logFiles, PaduraksaOptionsSnapshot startup)
     {
@@ -26,6 +28,8 @@ internal sealed class ServerSettingsBindings
         MetricRollups = new(startup.MetricRollups);
         Analytics = new(startup.Analytics);
         Notifications = new(startup.Notifications);
+        Identity = new(startup.Identity);
+        _touchInterval = startup.Identity.TouchInterval;
         Apply(state.Current);
         state.Changed += Apply;
     }
@@ -36,6 +40,8 @@ internal sealed class ServerSettingsBindings
 
     public LiveOptions<NotificationOptions> Notifications { get; }
 
+    public LiveOptions<IdentityOptions> Identity { get; }
+
     private void Apply(ServerSettings values)
     {
         MetricRollups.Set(MetricRollups.Current with { Retention = ServerSettingCatalog.MetricsRetention.Resolve(values) });
@@ -43,6 +49,21 @@ internal sealed class ServerSettingsBindings
         Notifications.Set(Notifications.Current with
         {
             HistoryRetention = ServerSettingCatalog.NotificationHistoryRetention.Resolve(values),
+        });
+        var idle = ServerSettingCatalog.AdminSessionIdleTimeout.Resolve(values);
+        Identity.Set(Identity.Current with
+        {
+            MaxFailedAttempts = (int)ServerSettingCatalog.AdminMaxFailedAttempts.Resolve(values),
+            LockoutDuration = ServerSettingCatalog.AdminLockoutDuration.Resolve(values),
+            SessionLifetime = ServerSettingCatalog.AdminSessionLifetime.Resolve(values),
+            SessionIdleTimeout = idle,
+            PartialSessionLifetime = ServerSettingCatalog.AdminPartialSessionLifetime.Resolve(values),
+            MinPasswordLength = (int)ServerSettingCatalog.AdminMinPasswordLength.Resolve(values),
+            TotpIssuer = ServerSettingCatalog.AdminTotpIssuer.Resolve(values),
+
+            // The last-seen time must be written more often than the idle limit is long, or live sessions end: the environment's touch interval
+            // was checked against the environment's idle timeout, so a shorter one from the config halves it here.
+            TouchInterval = _touchInterval < idle ? _touchInterval : idle / 2,
         });
         _logFiles.Retain(
             ServerSettingCatalog.LogMaxFileSize.Resolve(values),
@@ -53,4 +74,4 @@ internal sealed class ServerSettingsBindings
 }
 
 /// <summary>The consumers' options as the bootstrap configuration has them, before the server settings are laid over them.</summary>
-internal sealed record PaduraksaOptionsSnapshot(MetricRollupOptions MetricRollups, AnalyticsOptions Analytics, NotificationOptions Notifications);
+internal sealed record PaduraksaOptionsSnapshot(MetricRollupOptions MetricRollups, AnalyticsOptions Analytics, NotificationOptions Notifications, IdentityOptions Identity);

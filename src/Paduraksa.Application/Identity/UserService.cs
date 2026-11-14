@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Data.Identity;
@@ -26,7 +27,10 @@ public sealed partial class UserService
 
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly TimeProvider _time;
-    private readonly IdentityOptions _options;
+    private readonly LiveOptions<IdentityOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private IdentityOptions Options => _live.Current;
     private readonly PasswordHasher _hasher;
     private readonly PasswordPolicy _policy;
     private readonly IdentityAudit _audit;
@@ -37,7 +41,7 @@ public sealed partial class UserService
     internal UserService(
         IDbContextFactory<ConfigDbContext> contexts,
         TimeProvider time,
-        IdentityOptions options,
+        LiveOptions<IdentityOptions> options,
         PasswordHasher hasher,
         PasswordPolicy policy,
         IdentityAudit audit,
@@ -47,7 +51,7 @@ public sealed partial class UserService
     {
         _contexts = contexts;
         _time = time;
-        _options = options;
+        _live = options;
         _hasher = hasher;
         _policy = policy;
         _audit = audit;
@@ -353,7 +357,7 @@ public sealed partial class UserService
                 user = fresh;
                 if (newHash is null || IdentityMapping.IsLocked(user, now))
                 {
-                    var locked = IdentityMapping.RegisterFailure(user, now, _options);
+                    var locked = IdentityMapping.RegisterFailure(user, now, Options);
                     if (locked)
                     {
                         // A proven session that keeps failing the password check is the suspicious one: it ends with all the others.

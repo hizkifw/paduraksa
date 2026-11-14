@@ -168,4 +168,35 @@ public sealed class ServerSettingsApiTests : IAsyncLifetime
         Assert.Equal(ConfigCommandStatus.Committed, (await AdminApiHarness.ReadAsync(applied, AdminJsonContext.Default.DraftOutcome, Ct)).Result.Status);
         Assert.Equal(TimeSpan.FromDays(3), _api.Host.Shared.ServerSettingsBindings.Notifications.Current.HistoryRetention);
     }
+
+    [Fact]
+    public async Task TheSignInPolicyReachesTheIdentityServicesAndTheRateLimitWithNoRestart()
+    {
+        var (_, etag) = await ReadAsync();
+
+        using var put = await PutAsync(
+            new ServerSettings { AdminSessionLifetime = TimeSpan.FromHours(2), AdminSessionIdleTimeout = TimeSpan.FromMinutes(30), AdminMinPasswordLength = 16, AdminRateLimitPermitsPerIp = 1 },
+            etag);
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+
+        var identity = _api.Host.Shared.ServerSettingsBindings.Identity.Current;
+        Assert.Equal((TimeSpan.FromHours(2), TimeSpan.FromMinutes(30), 16), (identity.SessionLifetime, identity.SessionIdleTimeout, identity.MinPasswordLength));
+        const string Body = """{"username":"nobody","password":"not the password at all"}""";
+        using var first = await _api.SendAsync(HttpMethod.Post, "/api/v1/auth/login", caller: null, content: AdminApiHarness.JsonBody(Body));
+        using var second = await _api.SendAsync(HttpMethod.Post, "/api/v1/auth/login", caller: null, content: AdminApiHarness.JsonBody(Body));
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnIdleTimeoutLongerThanTheLifetimeIsRefused()
+    {
+        var (_, etag) = await ReadAsync();
+
+        using var response = await PutAsync(new ServerSettings { AdminSessionLifetime = TimeSpan.FromHours(1), AdminSessionIdleTimeout = TimeSpan.FromHours(3) }, etag);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var error = Assert.Single((await AdminApiHarness.ProblemAsync(response, Ct)).Errors!);
+        Assert.Equal(("/server/adminSessionIdleTimeout", "server.settings.conflict"), (error.Path, error.Code));
+    }
 }

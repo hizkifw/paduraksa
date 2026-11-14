@@ -3,9 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Notifications;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 
@@ -18,16 +18,16 @@ public static class IdentityServiceCollectionExtensions
     /// <param name="services">The service collection.</param>
     /// <param name="dataDirectory">The data directory: <c>setup-token</c> lives in it.</param>
     /// <param name="options">The lockout, session and password settings; the defaults when null.</param>
-    public static IServiceCollection AddPaduraksaIdentity(this IServiceCollection services, string dataDirectory, IdentityOptions? options = null)
+    public static IServiceCollection AddPaduraksaIdentity(this IServiceCollection services, string dataDirectory, LiveOptions<IdentityOptions>? options = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
-        options ??= new IdentityOptions();
+        options ??= new LiveOptions<IdentityOptions>(new IdentityOptions());
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton(options);
-        services.AddSingleton(new PasswordHasher(options.PasswordIterations));
-        services.AddSingleton(new PasswordPolicy(options.MinPasswordLength));
+        services.AddSingleton(new PasswordHasher(options.Current.PasswordIterations));
+        services.AddSingleton(new PasswordPolicy(options));
         services.AddSingleton(sp => new IdentityAudit(sp.GetRequiredService<TimeProvider>(), LoggerFactory(sp)));
         services.AddSingleton<IPermissionEvaluator>(sp => new PermissionEvaluator(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(), sp.GetRequiredService<TimeProvider>()));
@@ -35,7 +35,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton(sp => new UserService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<IdentityOptions>(),
+            sp.GetRequiredService<LiveOptions<IdentityOptions>>(),
             sp.GetRequiredService<PasswordHasher>(),
             sp.GetRequiredService<PasswordPolicy>(),
             sp.GetRequiredService<IdentityAudit>(),
@@ -45,13 +45,13 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton(sp => new SessionService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<IdentityOptions>(),
+            sp.GetRequiredService<LiveOptions<IdentityOptions>>(),
             sp.GetRequiredService<IdentityAudit>(),
             sp.GetRequiredService<IPermissionEvaluator>()));
         services.AddSingleton(sp => new TwoFactorService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<IdentityOptions>(),
+            sp.GetRequiredService<LiveOptions<IdentityOptions>>(),
             sp.GetRequiredService<PasswordHasher>(),
             sp.GetRequiredService<IdentityAudit>(),
             sp.GetRequiredService<IPermissionEvaluator>(),
@@ -60,7 +60,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton(sp => new LoginService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<IdentityOptions>(),
+            sp.GetRequiredService<LiveOptions<IdentityOptions>>(),
             sp.GetRequiredService<PasswordHasher>(),
             sp.GetRequiredService<IdentityAudit>(),
             sp.GetRequiredService<SessionService>(),
@@ -69,7 +69,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton(sp => new ApiTokenService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<IdentityOptions>(),
+            sp.GetRequiredService<LiveOptions<IdentityOptions>>(),
             sp.GetRequiredService<IdentityAudit>(),
             sp.GetRequiredService<IPermissionEvaluator>()));
         services.AddSingleton(sp => new SetupService(

@@ -79,17 +79,113 @@ public static class ServerSettingCatalog
         // Below a line's worth of bytes every line would rotate the file again; above 16 GiB the live file is more than the dashboard's tail can read.
         64 * Mebibyte, 1024, 16 * Gibibyte, ServerSettingKind.Size);
 
+    private const string SessionNote = "Existing sessions are held to the shorter time at their next check, so some may end at once.";
+
+    public static readonly ServerSetting<long> AdminMaxFailedAttempts = new(
+        "adminMaxFailedAttempts", "Admin:MaxFailedAttempts", ServerSettingGroup.SignIn, "Lockout", ServerSettingApply.Live,
+        "Failed attempts before a lockout",
+        "Consecutive wrong passwords or codes before an account refuses sign-in.",
+        static s => s.AdminMaxFailedAttempts, static (s, v) => s with { AdminMaxFailedAttempts = v },
+        5, 2, 100);
+
+    public static readonly ServerSetting<TimeSpan> AdminLockoutDuration = new(
+        "adminLockoutDuration", "Admin:LockoutDuration", ServerSettingGroup.SignIn, "Lockout", ServerSettingApply.Live,
+        "Lockout",
+        "How long a locked account refuses sign-in.",
+        static s => s.AdminLockoutDuration, static (s, v) => s with { AdminLockoutDuration = v },
+        TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(1), TimeSpan.FromHours(24));
+
+    public static readonly ServerSetting<TimeSpan> AdminSessionLifetime = new(
+        "adminSessionLifetime", "Admin:SessionLifetime", ServerSettingGroup.SignIn, "Sessions", ServerSettingApply.Live,
+        "Session lifetime",
+        "The longest a sign-in lasts, however active.",
+        static s => s.AdminSessionLifetime, static (s, v) => s with { AdminSessionLifetime = v },
+        TimeSpan.FromHours(12), TimeSpan.FromMinutes(5), TimeSpan.FromDays(30))
+    {
+        LoweredNote = SessionNote,
+    };
+
+    public static readonly ServerSetting<TimeSpan> AdminSessionIdleTimeout = new(
+        "adminSessionIdleTimeout", "Admin:SessionIdleTimeout", ServerSettingGroup.SignIn, "Sessions", ServerSettingApply.Live,
+        "Idle timeout",
+        "A session unused for this long ends. At most the session lifetime.",
+        static s => s.AdminSessionIdleTimeout, static (s, v) => s with { AdminSessionIdleTimeout = v },
+        TimeSpan.FromHours(2), TimeSpan.FromMinutes(1), TimeSpan.FromDays(30))
+    {
+        LoweredNote = SessionNote,
+    };
+
+    public static readonly ServerSetting<TimeSpan> AdminPartialSessionLifetime = new(
+        "adminPartialSessionLifetime", "Admin:PartialSessionLifetime", ServerSettingGroup.SignIn, "Sessions", ServerSettingApply.Live,
+        "Time for the second factor",
+        "How long a person has to give the authenticator code after the password.",
+        static s => s.AdminPartialSessionLifetime, static (s, v) => s with { AdminPartialSessionLifetime = v },
+        TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(30))
+    {
+        LoweredNote = "A sign-in waiting for its code is held to the shorter time at its next step.",
+    };
+
+    public static readonly ServerSetting<long> AdminMinPasswordLength = new(
+        "adminMinPasswordLength", "Admin:MinPasswordLength", ServerSettingGroup.SignIn, "Passwords", ServerSettingApply.Live,
+        "Shortest password",
+        "In characters, with no composition rules. Applies to new and changed passwords; stored ones keep working.",
+        static s => s.AdminMinPasswordLength, static (s, v) => s with { AdminMinPasswordLength = v },
+        12, 8, 128)
+    {
+        Note = static (before, after) => AdminMinPasswordLength!.Resolve(after) > AdminMinPasswordLength.Resolve(before)
+            ? "The longer minimum applies to new and changed passwords only: nobody is signed out or asked to change theirs."
+            : null,
+    };
+
+    public static readonly TextServerSetting AdminTotpIssuer = new(
+        "adminTotpIssuer", "Admin:TotpIssuer", ServerSettingGroup.SignIn, "Passwords", ServerSettingApply.Live,
+        "Authenticator name",
+        "The issuer authenticator apps show for a new enrolment; existing ones keep the name they were enrolled with.",
+        static s => s.AdminTotpIssuer, static (s, v) => s with { AdminTotpIssuer = v },
+        "Paduraksa",
+        static value => value.Length is 0 or > 64 || value.Contains(':', StringComparison.Ordinal) || value.Any(char.IsControl)
+            ? "must be 1 to 64 characters without a colon or control characters"
+            : null);
+
+    public static readonly ServerSetting<long> AdminRateLimitPermitsPerIp = new(
+        "adminRateLimitPermitsPerIp", "Admin:RateLimit:PermitsPerIp", ServerSettingGroup.SignIn, "Sign-in rate limit", ServerSettingApply.Live,
+        "Attempts per address",
+        "Sign-in, second-factor and setup attempts, successful or not, one client address may make per window. An IPv6 client is one /64.",
+        static s => s.AdminRateLimitPermitsPerIp, static (s, v) => s with { AdminRateLimitPermitsPerIp = v },
+        20, 1, 10_000);
+
+    public static readonly ServerSetting<long> AdminRateLimitPermitsPerUser = new(
+        "adminRateLimitPermitsPerUser", "Admin:RateLimit:PermitsPerUser", ServerSettingGroup.SignIn, "Sign-in rate limit", ServerSettingApply.Live,
+        "Failures per username",
+        "Failed attempts against one username per window; successful ones do not count.",
+        static s => s.AdminRateLimitPermitsPerUser, static (s, v) => s with { AdminRateLimitPermitsPerUser = v },
+        10, 1, 1000);
+
+    public static readonly ServerSetting<TimeSpan> AdminRateLimitWindow = new(
+        "adminRateLimitWindow", "Admin:RateLimit:Window", ServerSettingGroup.SignIn, "Sign-in rate limit", ServerSettingApply.Live,
+        "Window",
+        "The window both limits count in.",
+        static s => s.AdminRateLimitWindow, static (s, v) => s with { AdminRateLimitWindow = v },
+        TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));
+
     /// <summary>Every declaration, in the order the page shows them.</summary>
     public static IReadOnlyList<ServerSettingDefinition> All { get; } =
     [
         MetricsRetention, AnalyticsRetention, NotificationHistoryRetention, LogRetainedFiles, LogMaxAge, LogMaxTotalSize, LogMaxFileSize,
+        AdminMaxFailedAttempts, AdminLockoutDuration, AdminSessionLifetime, AdminSessionIdleTimeout, AdminPartialSessionLifetime,
+        AdminMinPasswordLength, AdminTotpIssuer, AdminRateLimitPermitsPerIp, AdminRateLimitPermitsPerUser, AdminRateLimitWindow,
     ];
 
     /// <summary>
     /// The rules between settings, over the values in force (each setting's own value or its default): a key and what is wrong, for each
     /// pair that can't be used together.
     /// </summary>
-    public static IReadOnlyList<Func<ServerSettings, (string Key, string Problem)?>> Rules { get; } = [];
+    public static IReadOnlyList<Func<ServerSettings, (string Key, string Problem)?>> Rules { get; } =
+    [
+        static s => AdminSessionIdleTimeout.Resolve(s) > AdminSessionLifetime.Resolve(s)
+            ? (AdminSessionIdleTimeout.Key, $"the idle timeout ({ServerSettingText.Duration(AdminSessionIdleTimeout.Resolve(s))}) can't be longer than the session lifetime ({ServerSettingText.Duration(AdminSessionLifetime.Resolve(s))})")
+            : null,
+    ];
 
     /// <summary>
     /// What the review drawer says about a change from <paramref name="before"/> to <paramref name="after"/> (both as stored; null fields at

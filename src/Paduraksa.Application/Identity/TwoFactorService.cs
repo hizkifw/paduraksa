@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Data.Identity;
@@ -39,7 +40,10 @@ public sealed partial class TwoFactorService
 
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly TimeProvider _time;
-    private readonly IdentityOptions _options;
+    private readonly LiveOptions<IdentityOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private IdentityOptions Options => _live.Current;
     private readonly PasswordHasher _hasher;
     private readonly IdentityAudit _audit;
     private readonly IPermissionEvaluator _permissions;
@@ -49,7 +53,7 @@ public sealed partial class TwoFactorService
     internal TwoFactorService(
         IDbContextFactory<ConfigDbContext> contexts,
         TimeProvider time,
-        IdentityOptions options,
+        LiveOptions<IdentityOptions> options,
         PasswordHasher hasher,
         IdentityAudit audit,
         IPermissionEvaluator permissions,
@@ -58,7 +62,7 @@ public sealed partial class TwoFactorService
     {
         _contexts = contexts;
         _time = time;
-        _options = options;
+        _live = options;
         _hasher = hasher;
         _audit = audit;
         _permissions = permissions;
@@ -98,7 +102,7 @@ public sealed partial class TwoFactorService
                 return new TotpEnrollmentResult(IdentityStatus.Conflict);
             }
 
-            var enrollment = await _totp.BeginEnrollmentAsync(user.Username, _options.TotpIssuer, cancellationToken).ConfigureAwait(false);
+            var enrollment = await _totp.BeginEnrollmentAsync(user.Username, Options.TotpIssuer, cancellationToken).ConfigureAwait(false);
             SecretId? previous;
             try
             {
@@ -337,7 +341,7 @@ public sealed partial class TwoFactorService
         await using (transaction.ConfigureAwait(false))
         {
             var row = await context.Users.SingleAsync(u => u.Id == id, cancellationToken).ConfigureAwait(false);
-            var locked = IdentityMapping.RegisterFailure(row, now, _options);
+            var locked = IdentityMapping.RegisterFailure(row, now, Options);
             if (locked)
             {
                 // A proven session that keeps failing the password check is the suspicious one: it ends with all the others.

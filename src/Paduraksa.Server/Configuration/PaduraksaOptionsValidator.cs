@@ -432,12 +432,12 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             }
         }
 
-        Int(nameof(AdminOptions.MaxFailedAttempts), admin.MaxFailedAttempts, 2, 100);
-        Span(nameof(AdminOptions.LockoutDuration), admin.LockoutDuration, TimeSpan.FromMinutes(1), TimeSpan.FromHours(24));
-        Span(nameof(AdminOptions.SessionLifetime), admin.SessionLifetime, TimeSpan.FromMinutes(5), TimeSpan.FromDays(30));
+        Bound(ServerSettingCatalog.AdminMaxFailedAttempts, admin.MaxFailedAttempts, $"{Key}:MaxFailedAttempts", failures);
+        Bound(ServerSettingCatalog.AdminLockoutDuration, admin.LockoutDuration, $"{Key}:LockoutDuration", failures);
+        Bound(ServerSettingCatalog.AdminSessionLifetime, admin.SessionLifetime, $"{Key}:SessionLifetime", failures);
         Span(nameof(AdminOptions.SessionIdleTimeout), admin.SessionIdleTimeout, TimeSpan.FromMinutes(1), admin.SessionLifetime < TimeSpan.FromMinutes(1) ? TimeSpan.FromMinutes(1) : admin.SessionLifetime);
-        Span(nameof(AdminOptions.PartialSessionLifetime), admin.PartialSessionLifetime, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(30));
-        Int(nameof(AdminOptions.MinPasswordLength), admin.MinPasswordLength, 8, 128);
+        Bound(ServerSettingCatalog.AdminPartialSessionLifetime, admin.PartialSessionLifetime, $"{Key}:PartialSessionLifetime", failures);
+        Bound(ServerSettingCatalog.AdminMinPasswordLength, admin.MinPasswordLength, $"{Key}:MinPasswordLength", failures);
         Int(nameof(AdminOptions.PasswordIterations), admin.PasswordIterations, 100_000, 10_000_000);
         Span(nameof(AdminOptions.TouchInterval), admin.TouchInterval, TimeSpan.FromSeconds(1), TimeSpan.FromHours(1));
         if (admin.TouchInterval >= admin.SessionIdleTimeout)
@@ -451,9 +451,9 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         }
         else
         {
-            Int($"RateLimit:{nameof(AdminRateLimitOptions.PermitsPerIp)}", admin.RateLimit.PermitsPerIp, 1, 10_000);
-            Int($"RateLimit:{nameof(AdminRateLimitOptions.PermitsPerUser)}", admin.RateLimit.PermitsPerUser, 1, 1000);
-            Span($"RateLimit:{nameof(AdminRateLimitOptions.Window)}", admin.RateLimit.Window, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));
+            Bound(ServerSettingCatalog.AdminRateLimitPermitsPerIp, admin.RateLimit.PermitsPerIp, $"{Key}:RateLimit:PermitsPerIp", failures);
+            Bound(ServerSettingCatalog.AdminRateLimitPermitsPerUser, admin.RateLimit.PermitsPerUser, $"{Key}:RateLimit:PermitsPerUser", failures);
+            Bound(ServerSettingCatalog.AdminRateLimitWindow, admin.RateLimit.Window, $"{Key}:RateLimit:Window", failures);
         }
 
         if (admin.MaxRequestBodyBytes is < 1024 or > 16 * 1024 * 1024)
@@ -461,7 +461,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             failures.Add($"{Key}:{nameof(AdminOptions.MaxRequestBodyBytes)} must be between 1024 and {16 * 1024 * 1024}, was {admin.MaxRequestBodyBytes}.");
         }
 
-        if (string.IsNullOrWhiteSpace(admin.TotpIssuer) || admin.TotpIssuer.Length > 64 || admin.TotpIssuer.Contains(':', StringComparison.Ordinal) || admin.TotpIssuer.Any(char.IsControl))
+        if (string.IsNullOrWhiteSpace(admin.TotpIssuer) || ServerSettingCatalog.AdminTotpIssuer.Check(admin.TotpIssuer) is not null)
         {
             failures.Add($"{Key}:TotpIssuer must be 1 to 64 characters without a colon or control characters.");
         }

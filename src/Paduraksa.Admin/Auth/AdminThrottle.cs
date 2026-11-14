@@ -89,6 +89,13 @@ public sealed class AdminThrottle : IDisposable
         return new Slot(_passwordChecks);
     }
 
+    /// <summary>New rate limits (the server settings changed): each counter takes them from its next attempt, without forgetting what it counted.</summary>
+    public void Reconfigure(int permitsPerIp, int permitsPerUser, TimeSpan window)
+    {
+        _byClient.Reconfigure(permitsPerIp, window);
+        _bySubject.Reconfigure(permitsPerUser, window);
+    }
+
     public void Dispose() => _passwordChecks.Dispose();
 
     /// <summary>The key of a client: an IPv4 address as is, an IPv6 address by its /64.</summary>
@@ -149,6 +156,18 @@ public sealed class AdminThrottle : IDisposable
         private readonly Dictionary<string, (DateTimeOffset Start, int Count)> _windows = [];
         private readonly Lock _gate = new();
         private DateTimeOffset _lastSweep;
+        private int _limit = limit;
+        private TimeSpan _window = window;
+
+        /// <summary>New limits; a window already open keeps its start and its count, judged by the new limit and length from the next attempt.</summary>
+        public void Reconfigure(int newLimit, TimeSpan newWindow)
+        {
+            lock (_gate)
+            {
+                _limit = newLimit;
+                _window = newWindow;
+            }
+        }
 
         /// <summary>The time left until the key's window ends when it has used its permits, else null (taking one if <paramref name="consume"/>).</summary>
         public TimeSpan? TryTake(string key, bool consume)
@@ -158,9 +177,9 @@ public sealed class AdminThrottle : IDisposable
                 var now = time.GetUtcNow();
                 var slot = Resolve(key, now);
                 var (start, count) = Current(slot, now);
-                if (count >= limit)
+                if (count >= _limit)
                 {
-                    return start + window - now;
+                    return start + _window - now;
                 }
 
                 if (consume)
@@ -184,7 +203,7 @@ public sealed class AdminThrottle : IDisposable
         }
 
         private (DateTimeOffset Start, int Count) Current(string slot, DateTimeOffset now) =>
-            _windows.TryGetValue(slot, out var entry) && now - entry.Start < window ? entry : (now, 0);
+            _windows.TryGetValue(slot, out var entry) && now - entry.Start < _window ? entry : (now, 0);
 
         /// <summary>The key itself, or the shared overflow bucket when the table is full of live windows.</summary>
         private string Resolve(string key, DateTimeOffset now)
@@ -198,7 +217,7 @@ public sealed class AdminThrottle : IDisposable
             if (now - _lastSweep >= TimeSpan.FromSeconds(1))
             {
                 _lastSweep = now;
-                foreach (var expired in _windows.Where(w => now - w.Value.Start >= window).Select(w => w.Key).ToList())
+                foreach (var expired in _windows.Where(w => now - w.Value.Start >= _window).Select(w => w.Key).ToList())
                 {
                     _windows.Remove(expired);
                 }

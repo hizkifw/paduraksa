@@ -8,6 +8,7 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data.Audit;
 using Paduraksa.Tests.Data.Config;
@@ -26,11 +27,11 @@ internal sealed class IdentityHarness : IAsyncDisposable
 
     private readonly bool _ownsDatabase;
 
-    private IdentityHarness(TestConfigDatabase db, IdentityOptions options, bool ownsDatabase)
+    private IdentityHarness(TestConfigDatabase db, LiveOptions<IdentityOptions> options, bool ownsDatabase)
     {
         Db = db;
         _ownsDatabase = ownsDatabase;
-        Options = options;
+        Live = options;
         DataDirectory = Directory.CreateTempSubdirectory("paduraksa-identity-").FullName;
         _services = new ServiceCollection()
             .AddSingleton(db.Factory)
@@ -47,7 +48,10 @@ internal sealed class IdentityHarness : IAsyncDisposable
 
     public TestConfigDatabase Db { get; }
 
-    public IdentityOptions Options { get; }
+    /// <summary>The options the services read; a test replaces them as a server setting would.</summary>
+    public LiveOptions<IdentityOptions> Live { get; }
+
+    public IdentityOptions Options => Live.Current;
 
     public string DataDirectory { get; }
 
@@ -74,8 +78,8 @@ internal sealed class IdentityHarness : IAsyncDisposable
 
     public IPermissionEvaluator Permissions => Get<IPermissionEvaluator>();
 
-    public static async Task<IdentityHarness> CreateAsync(IdentityOptions? options = null) =>
-        new(await TestConfigDatabase.CreateAsync(), options ?? Fast(), ownsDatabase: true);
+    public static async Task<IdentityHarness> CreateAsync(LiveOptions<IdentityOptions>? options = null) =>
+        new(await TestConfigDatabase.CreateAsync(), options ?? new LiveOptions<IdentityOptions>(Fast()), ownsDatabase: true);
 
     /// <summary>The identity services over a database someone else owns (and disposes).</summary>
     public static IdentityHarness Over(TestConfigDatabase db, IdentityOptions? options = null) => new(db, options ?? Fast(), ownsDatabase: false);

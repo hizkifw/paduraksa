@@ -57,7 +57,7 @@ internal static class ConfigStore
         VaultCapabilities vault,
         AcmeChallengeStore challenges,
         bool placeholderEnabled,
-        AdminOptions admin,
+        LiveOptions<IdentityOptions> identity,
         TimeProvider timeProvider,
         ProofOfWorkRuntime proofOfWork,
         LiveOptions<NotificationOptions> notificationOptions,
@@ -90,7 +90,7 @@ internal static class ConfigStore
             .AddSingleton(vault.MacKeys)
             .AddSingleton(vault.NotificationSecrets)
             .AddSingleton(vault.Backup)
-            .AddPaduraksaIdentity(dataDirectory, admin.ToIdentityOptions())
+            .AddPaduraksaIdentity(dataDirectory, identity)
             .AddPaduraksaBackup(dataDirectory)
             .AddSingleton<IUpstreamHealth>(health)
             .AddSingleton(new ListenerFacts(listeners.HttpProxyProtocol, listeners.HttpsProxyProtocol, listeners.Http3))

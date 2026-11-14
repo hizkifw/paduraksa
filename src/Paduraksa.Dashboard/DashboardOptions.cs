@@ -3,11 +3,28 @@ namespace Paduraksa.Dashboard;
 /// <summary>The dashboard's knobs. The composition root builds one; tests shorten the intervals.</summary>
 public sealed class DashboardOptions
 {
+    private readonly int _minPasswordLength = 12;
+    private readonly bool _mcpEnabled;
+
     /// <summary>The shortest password the identity services accept, for the setup form's hint and its browser-side check.</summary>
-    public int MinPasswordLength { get; init; } = 12;
+    public int MinPasswordLength
+    {
+        get => LiveMinPasswordLength?.Invoke() ?? _minPasswordLength;
+        init => _minPasswordLength = value;
+    }
+
+    /// <summary>Where <see cref="MinPasswordLength"/> comes from while the process runs (a server setting); null keeps the fixed value.</summary>
+    public Func<int>? LiveMinPasswordLength { get; init; }
 
     /// <summary>Whether the admin app serves <c>/mcp</c> (<c>Paduraksa:Mcp:Enabled</c>): the tokens page shows how to connect, or how to turn it on.</summary>
-    public bool McpEnabled { get; init; }
+    public bool McpEnabled
+    {
+        get => LiveMcpEnabled?.Invoke() ?? _mcpEnabled;
+        init => _mcpEnabled = value;
+    }
+
+    /// <summary>Where <see cref="McpEnabled"/> comes from while the process runs (a server setting); null keeps the fixed value.</summary>
+    public Func<bool>? LiveMcpEnabled { get; init; }
 
     /// <summary>
     /// How often an open circuit re-checks its session in the background: a revoked or expired session, a disabled user or a

@@ -237,6 +237,20 @@ public sealed class UserServiceTests
     }
 
     [Fact]
+    public async Task ALongerMinimumAppliesToTheNextChangedPasswordAndLeavesTheStoredOneWorking()
+    {
+        await using var h = await CreateAsync();
+        var user = await h.CreateUserAsync("jill");
+
+        h.Live.Set(h.Options with { MinPasswordLength = 40 });
+
+        Assert.Equal(LoginStatus.Succeeded, (await h.Login.LoginAsync("jill", Password, h.Client, Ct)).Status);
+        var refused = await h.Users.ChangePasswordAsync(h.As(user), new(Password, "a brand new passphrase"), null, Ct);
+        Assert.Equal(IdentityStatus.Invalid, refused.Status);
+        Assert.Contains("at least 40", refused.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ChangingAPasswordChecksThePolicyAndNeedsAUser()
     {
         await using var h = await CreateAsync();

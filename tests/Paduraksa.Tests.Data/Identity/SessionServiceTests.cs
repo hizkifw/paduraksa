@@ -33,6 +33,34 @@ public sealed class SessionServiceTests
     }
 
     [Fact]
+    public async Task AShortenedLifetimeEndsAnExistingSessionAtItsNextCheck()
+    {
+        await using var h = await CreateAsync(Short);
+        await h.CreateUserAsync("alice");
+        var session = await h.SignInAsync("alice");
+        h.Time.Advance(TimeSpan.FromMinutes(5));
+        Assert.Equal(SessionStatus.Valid, (await h.Sessions.ValidateAsync(session.CookieValue, Ct)).Status);
+
+        // A server setting changed while the session runs: the stored expiry still says an hour, the lifetime in force says less.
+        h.Live.Set(h.Options with { SessionLifetime = TimeSpan.FromMinutes(5) });
+
+        Assert.Equal(SessionStatus.Invalid, (await h.Sessions.ValidateAsync(session.CookieValue, Ct)).Status);
+    }
+
+    [Fact]
+    public async Task ALengthenedLifetimeDoesNotExtendASessionAlreadyIssued()
+    {
+        await using var h = await CreateAsync(Short);
+        await h.CreateUserAsync("alice");
+        var session = await h.SignInAsync("alice");
+        h.Live.Set(h.Options with { SessionLifetime = TimeSpan.FromDays(1), SessionIdleTimeout = TimeSpan.FromDays(1) });
+
+        h.Time.Advance(TimeSpan.FromMinutes(61));
+
+        Assert.Equal(SessionStatus.Invalid, (await h.Sessions.ValidateAsync(session.CookieValue, Ct)).Status);
+    }
+
+    [Fact]
     public async Task ASessionEndsWhenIdleTooLong()
     {
         await using var h = await CreateAsync(Short);

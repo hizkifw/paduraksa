@@ -28,6 +28,26 @@ public sealed record ServerSettings
 
     public long? LogMaxFileSize { get; init; }
 
+    public long? AdminMaxFailedAttempts { get; init; }
+
+    public TimeSpan? AdminLockoutDuration { get; init; }
+
+    public TimeSpan? AdminSessionLifetime { get; init; }
+
+    public TimeSpan? AdminSessionIdleTimeout { get; init; }
+
+    public TimeSpan? AdminPartialSessionLifetime { get; init; }
+
+    public long? AdminMinPasswordLength { get; init; }
+
+    public string? AdminTotpIssuer { get; init; }
+
+    public long? AdminRateLimitPermitsPerIp { get; init; }
+
+    public long? AdminRateLimitPermitsPerUser { get; init; }
+
+    public TimeSpan? AdminRateLimitWindow { get; init; }
+
     /// <summary>Whether no field is set: canonical JSON then writes no <c>server</c> key, so a stored revision keeps its bytes.</summary>
     [JsonIgnore]
     public bool SetsNothing => ServerSettingCatalog.All.All(setting => !setting.IsSet(this));

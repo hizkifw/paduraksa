@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Options;
 using Paduraksa.Data;
 using Paduraksa.Data.Identity;
 
@@ -52,16 +53,19 @@ public sealed class ApiTokenService
 
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly TimeProvider _time;
-    private readonly IdentityOptions _options;
+    private readonly LiveOptions<IdentityOptions> _live;
+
+    // Read on every use: the server settings may replace them while the process runs.
+    private IdentityOptions Options => _live.Current;
     private readonly IdentityAudit _audit;
     private readonly IPermissionEvaluator _permissions;
 
     internal ApiTokenService(
-        IDbContextFactory<ConfigDbContext> contexts, TimeProvider time, IdentityOptions options, IdentityAudit audit, IPermissionEvaluator permissions)
+        IDbContextFactory<ConfigDbContext> contexts, TimeProvider time, LiveOptions<IdentityOptions> options, IdentityAudit audit, IPermissionEvaluator permissions)
     {
         _contexts = contexts;
         _time = time;
-        _options = options;
+        _live = options;
         _audit = audit;
         _permissions = permissions;
     }
@@ -241,7 +245,7 @@ public sealed class ApiTokenService
                 return new ApiTokenVerification(null);
             }
 
-            if (row.LastUsedAt is not { } last || now - last >= _options.TouchInterval)
+            if (row.LastUsedAt is not { } last || now - last >= Options.TouchInterval)
             {
                 await context.ApiTokens.Where(t => t.Id == id)
                     .ExecuteUpdateAsync(u => u.SetProperty(t => t.LastUsedAt, now), cancellationToken).ConfigureAwait(false);

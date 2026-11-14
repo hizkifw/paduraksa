@@ -340,7 +340,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // bindings hand each change to the consumers' live options.
             var serverSettings = builder.Add(new ServerSettingsState(options.ServerSettingEnvironment));
             var settingsBindings = builder.Add(new ServerSettingsBindings(
-                serverSettings, logFiles, new PaduraksaOptionsSnapshot(options.Metrics.ToOptions(), options.Analytics.ToOptions(), options.Notifications.ToOptions())));
+                serverSettings, logFiles, new PaduraksaOptionsSnapshot(options.Metrics.ToOptions(), options.Analytics.ToOptions(), options.Notifications.ToOptions(), options.Admin.ToIdentityOptions())));
 
             var health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
@@ -419,7 +419,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.AddOwnedElsewhere(vault.Catalog);
             builder.AddOwnedElsewhere(vault.PasswordCredentials);
             var configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, settingsBindings.Notifications, analyticsBacklog, coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, settingsBindings.Identity, timeProvider, proofOfWork, settingsBindings.Notifications, analyticsBacklog, coreLoggers);
             serverSettings.Follow(configStore.Config);
 
             // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
