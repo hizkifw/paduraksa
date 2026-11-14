@@ -17,6 +17,14 @@ cd deploy
 docker compose up -d --build
 ```
 
+After the upgrade, run the host check. It reports a downgraded database, a master key that no longer opens the vault, a port something else took and a running server that is still the old version:
+
+```sh
+docker compose exec paduraksa paduraksa doctor
+```
+
+Run it before the upgrade too if you can: a `[info]` line about pending migrations is then the upgrade's own, and anything else was already wrong. See [the CLI](../automation/cli.md#doctor).
+
 Migrations are applied at startup, before the listeners bind. Stop with `docker compose down` (not `kill`): the
 `stop_grace_period: 35s` gives Kestrel its 30-second drain. The compose example sets a stable `hostname`, so the admin
 certificate's machine name does not change on a recreate; without it a new container gets a new name, the certificate is

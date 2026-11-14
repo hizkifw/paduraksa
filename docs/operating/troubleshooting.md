@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with the logs: `docker logs paduraksa`, then **Logs** and **Live tail** in the dashboard, then the **Simulator**, which says why a request was routed, redirected or refused. The messages below are the ones Paduraksa prints.
+Start with `docker compose exec paduraksa paduraksa doctor`, which checks the data directory, the master key, the databases, the ports, HTTP/3 and the clock and says what to do about each ([the CLI](../automation/cli.md#doctor)). Then the logs: `docker logs paduraksa`, then **Logs** and **Live tail** in the dashboard, then the **Simulator**, which says why a request was routed, redirected or refused. The messages below are the ones Paduraksa prints.
 
 ## It will not start
 

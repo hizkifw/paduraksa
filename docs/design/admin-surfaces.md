@@ -612,8 +612,30 @@ The same binary, using `System.CommandLine`.
 | `config export\|import [--dry-run] [--mode]` | See below. |
 | `vault rotate-kek` | See [vault-and-certificates.md](vault-and-certificates.md). |
 | `backup --out <file>`, `restore <file>` | Built in M10. The passphrase comes from a file, the environment or a prompt, never argv. |
-| `doctor` | Ports, permissions, H3 and libmsquic, DNS, clock skew. Built in M5: `doctor --liveness` only, the admin `/healthz` over loopback, for the container `HEALTHCHECK`. |
+| `doctor` | The host check, read-only (see "`doctor`" below). `doctor --liveness` is the admin `/healthz` over loopback, for the container `HEALTHCHECK`. |
 | `migrate` | Database migrations. **Not built**: migrations run at startup, and `paduraksa --help` has no such command. |
+
+### `doctor`
+
+Code: `Paduraksa.Server/Cli/Doctor/` (the checks, the seams, the runner) and `DoctorCommands.cs`. The user's page is [the CLI](../automation/cli.md#doctor); this is the design.
+
+- **A check is a small unit** (`IDoctorCheck`) over a `DoctorContext`: the effective options and the seams to the host (`IDoctorFileSystem`, `IPortProbe`, `IDoctorHttp`, `IQuicProbe`, a `TimeProvider`, and the two database looks). The unit tests describe a host in memory with fakes; the end-to-end tests run it over a real data directory made by a real server.
+- **Read-only is a design rule, tested.** `TheDoctorChangesNothing` compares the data directory before and after. That shaped four choices:
+  - the vault's look (`IVaultInspection`, a Core capability, so the key stays inside the vault) goes through the same `KekProvider` the vault starts with, so the source priority, the key format and the mode rules are the vault's own, but with `generate: false`: a data directory with no key answers "none yet" instead of writing `master.key`;
+  - the databases open read-only (`PaduraksaSqlite.ReadOnlyConnectionString`, `MigrationInspector`). Even a read-only connection to a WAL database creates `-wal` and `-shm` when they are missing, so with no `-wal` beside the file (no server holds it, and a clean close removes it) it is opened `immutable`; with one present it is opened normally, since the WAL may hold commits the main file lacks;
+  - writability is `access(2)`, not a temporary file;
+  - a port is tested by binding it and letting go (`[::]` dual-mode, like Kestrel's wildcard), never by connecting to a public port.
+- **Migrations are compared by ID, both ways.** EF's own pending list ignores applied migrations it does not know, so `MigrationInspector` lists them: that is the downgrade failure. Pending is `[info]`: it is what every upgrade looks like before its first start.
+- **Who holds a port.** A held port is "the running Paduraksa" when the admin `/healthz` answers `ok` or `unavailable` on this installation's loopback candidates (`DoctorCommands.HealthUris`, the same as `--liveness`), else "another process". Only the admin has a `/healthz`, so a held public port is attributed through it: if a Paduraksa answers on the admin port, a held 80 or 443 on this host is taken to be its own. A port below 1024 that this user may not bind says nothing about being free (EACCES comes before EADDRINUSE), so it is a warning, or info when a Paduraksa is running.
+- **The key beside the vault** says what the dashboard's attention item says: both read `MasterKeyAdvice` (Core).
+- **The options check** loads the options the way `serve` does (`PaduraksaHost.LoadOptions`, the same validator). An invalid configuration is a failed `options` check and exit 1, not 3, so the rest of the report still prints; the checks that need options are skipped with an info line. Settings that the configuration sets (`ServerSettingEnvironment`) are listed as locked, and a differing value stored in the dashboard is a warning.
+- **The clock** compares the system clock, taken at the midpoint of the request, with the `Date` header of `https://www.cloudflare.com/cdn-cgi/trace`: over 30 s (a TOTP window) is a warning, over 5 minutes (ACME, certificate validity) a failure. No network, or no `Date`, is info. `--offline` skips it. Cloudflare because the server already talks to it for its edge ranges; nothing is sent but a GET.
+- **The running server's version** is read from `/api/v1/version`, which needs a token (`--token-file`, or `PADURAKSA_TOKEN`), and only over loopback, since the certificate check is skipped there. Without a token the line says the version was not compared. We chose that over an unauthenticated version on `/healthz`, which would tell any scanner of the admin port which build runs.
+- **Output** is ASCII, like every line the CLI prints: `[ ok ]`, `[info]`, `[warn]`, `[FAIL]`. `--json` is `{ version, passed, summary, checks[] }` (`DoctorJsonContext`, source-generated), with lowercase statuses.
+
+#### The CLI reads the sign-in policy as the server does
+
+`admin reset-password` (and `backup`, which builds the identity services) read the identity options from `CliSettings.ApplyStoredAsync`: the environment's value, else the one the latest config revision stores (`StoredServerSettings`, read-only), else the default, through the same `ServerSettingsState` and `ServerSettingsBindings.ResolveIdentity` the server uses. It runs after the database is migrated, so an upgraded schema is read. A database that stores nothing or can't be read leaves the environment and the defaults, as the server does.
 
 ### `config export` and `config import` (M10)
 

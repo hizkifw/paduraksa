@@ -25,7 +25,7 @@ docker inspect --format '{{.State.Health.Status}}' paduraksa
 
 If you set `Paduraksa__Listen__AdminAllowedSources`, loopback is not implied: add `127.0.0.1/32`, or the check fails and the container is marked unhealthy.
 
-`doctor` has no other checks in v0.1. Running it without `--liveness` prints `Only --liveness is implemented so far`. For ports, certificates and DNS use the dashboard (the Overview lists what needs you) and the [troubleshooting](troubleshooting.md) page.
+`paduraksa doctor` without `--liveness` checks the whole host: data directory, master key, databases, ports, HTTP/3 and the clock. See [the CLI](../automation/cli.md#doctor). For certificates and DNS use the dashboard (the Overview lists what needs you) and the [troubleshooting](troubleshooting.md) page.
 
 ## Upstream health
 

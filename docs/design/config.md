@@ -302,6 +302,7 @@ Everything else walks the catalogue:
   - every stored setting the rule involves (`ServerSettingRule.Involves`) falls back to its default, both sides if both are stored;
   - then the rules are checked again, since a default can break another, until a pass drops nothing (at most one pass per setting);
   - a rule still broken with nothing stored in it is the environment against a default, which the options validator refuses at startup, so a running server never has one.
+- **The command line follows it too.** `admin reset-password` and `backup` resolve the sign-in policy through the same state, reading the stored values from the config database read-only (`CliSettings`), so a minimum password length raised in the dashboard binds them.
 - **An environment-locked value is still stored.** The API accepts it and the page shows it read-only, so removing the variable makes the stored value apply at the next start.
 
 ### Taking effect

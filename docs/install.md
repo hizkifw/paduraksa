@@ -21,6 +21,7 @@ Start with [Getting started](guide/getting-started.md).
 | Upgrading | [Upgrading](operating/upgrading.md) |
 | Changing the master key | [The master key](operating/master-key.md#changing-the-master-key) |
 | Health | [Health endpoints](operating/health.md) |
+| Checking the host (`paduraksa doctor`) | [The command line](automation/cli.md#doctor) |
 | Bare metal | [Bare metal (systemd)](operating/bare-metal.md) |
 
 ## The master key
