@@ -45,9 +45,6 @@ else if (_current is { } current)
 
     <div class="pdk-sec-body">
         <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="hosts">
-            <div class="pdk-card-head pdk-card-head-padded">
-                <MudText Typo="Typo.h6" HtmlTag="h2">Hosts</MudText>
-            </div>
             @if (current.Hosts.Count == 0)
             {
                 <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Language" Title="No hosts yet">
@@ -298,8 +295,8 @@ else if (_current is { } current)
     private DotNetObjectReference<SecurityPage>? _self;
     private CancellationTokenSource? _stop;
 
-    /// <summary>The security section of Analytics, whose range defaults to the same 24 hours.</summary>
-    private static string SecurityStatisticsHref => DashboardRoutes.Analytics + "#security";
+    /// <summary>The Security tab of Analytics over the same 24 hours.</summary>
+    private static string SecurityStatisticsHref => AnalyticsView.Href(AnalyticsTab.Security, MetricsRange.Day);
 
     /// <summary>A set's page; a built-in preset has none of its own, so it goes to the list that shows the presets.</summary>
     private static string RuleSetHref(RuleSetRef set) => set.BuiltIn ? DashboardRoutes.RuleSets : DashboardRoutes.RuleSet(set.Id);

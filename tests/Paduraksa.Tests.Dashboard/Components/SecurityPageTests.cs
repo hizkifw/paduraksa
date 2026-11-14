@@ -238,11 +238,13 @@ public sealed class SecurityPageTests
 
         var line = page.Find("[data-part=refused]");
         Assert.Equal("Refused in the last 24 h: 1,204", line.QuerySelector("a")!.TextContent);
-        Assert.Equal(DashboardRoutes.Analytics + "#security", line.QuerySelector("a")!.GetAttribute("href"));
+        Assert.Equal("/analytics?tab=security&range=24h", line.QuerySelector("a")!.GetAttribute("href"));
         Assert.Equal("(rate limit 900 · access list 250 · proof of work 54)", line.QuerySelector("[data-part=reasons]")!.TextContent.Trim());
         Assert.Equal("954", page.Find("[data-host='app.test'] [data-cell=refused]").TextContent.Trim());
         Assert.Equal("250", page.Find("[data-host='blog.test'] [data-cell=refused]").TextContent.Trim());
         Assert.Empty(page.FindAll("[data-tile]"));
+        // The page's content is one section, so the title is its heading: the hosts card has none of its own.
+        Assert.Empty(page.FindAll("h2"));
     }
 
     [Fact]
