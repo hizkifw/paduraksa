@@ -44,8 +44,8 @@ internal sealed record DoctorContext
     /// <summary>The server settings the config database stores (read-only), null when it stores none.</summary>
     public Func<string, CancellationToken, Task<ServerSettings?>> ReadStoredSettings { get; init; } = StoredServerSettings.ReadAsync;
 
-    /// <summary>Skip everything that needs the network (the clock).</summary>
-    public bool Offline { get; init; }
+    /// <summary>Check the clock against a public server: the one outward request doctor can make, so only when asked (<c>--check-clock</c>).</summary>
+    public bool CheckClock { get; init; }
 
     /// <summary>The URL whose <c>Date</c> header is the clock's reference.</summary>
     public Uri ClockUrl { get; init; } = new("https://www.cloudflare.com/cdn-cgi/trace");

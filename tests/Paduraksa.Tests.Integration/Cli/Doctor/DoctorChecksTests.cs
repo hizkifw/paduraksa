@@ -461,12 +461,12 @@ public sealed class DoctorChecksTests
 
     private static readonly DateTimeOffset Noon = new(2026, 11, 14, 12, 0, 0, TimeSpan.Zero);
 
-    private static DoctorContext ClockContext(TimeSpan skew, bool offline = false, FakeHttp? http = null)
+    private static DoctorContext ClockContext(TimeSpan skew, bool checkClock = true, FakeHttp? http = null)
     {
         // The local clock reads Noon+skew when the request goes out and 2 s later when the answer comes: the midpoint is the guess.
         http ??= new FakeHttp();
         http.Answers["/cdn-cgi/trace"] = new HttpAnswer(200, "fl=1", Noon + TimeSpan.FromSeconds(1), null);
-        return Doctors.Context(http: http, offline: offline, time: new SteppedClock(Noon + skew, Noon + skew + TimeSpan.FromSeconds(2)));
+        return Doctors.Context(http: http, checkClock: checkClock, time: new SteppedClock(Noon + skew, Noon + skew + TimeSpan.FromSeconds(2)));
     }
 
     [Theory]
@@ -501,10 +501,10 @@ public sealed class DoctorChecksTests
     [Fact]
     public async Task TheClockIsSkippedWithoutTheNetworkNeverFailed()
     {
-        var unreachable = Assert.Single(await RunAsync(new ClockCheck(), Doctors.Context(http: new FakeHttp { Default = new HttpAnswer(null, null, null, "Name or service not known") })));
+        var unreachable = Assert.Single(await RunAsync(new ClockCheck(), Doctors.Context(checkClock: true, http: new FakeHttp { Default = new HttpAnswer(null, null, null, "Name or service not known") })));
         FakeHttp http = new();
         http.Answers["/cdn-cgi/trace"] = new HttpAnswer(200, "fl=1", null, null);
-        var noDate = Assert.Single(await RunAsync(new ClockCheck(), Doctors.Context(http: http)));
+        var noDate = Assert.Single(await RunAsync(new ClockCheck(), Doctors.Context(checkClock: true, http: http)));
 
         Assert.Equal(CheckStatus.Info, unreachable.Status);
         Assert.Contains("normal without a network", unreachable.Message, StringComparison.Ordinal);
@@ -512,14 +512,14 @@ public sealed class DoctorChecksTests
     }
 
     [Fact]
-    public async Task OfflineAsksNobody()
+    public async Task WithoutCheckClockItAsksNobody()
     {
         FakeHttp http = new();
 
-        var result = Assert.Single(await RunAsync(new ClockCheck(), ClockContext(TimeSpan.Zero, offline: true, http: http)));
+        var result = Assert.Single(await RunAsync(new ClockCheck(), ClockContext(TimeSpan.Zero, checkClock: false, http: http)));
 
         Assert.Equal(CheckStatus.Info, result.Status);
-        Assert.Contains("--offline", result.Message, StringComparison.Ordinal);
+        Assert.Contains("--check-clock", result.Message, StringComparison.Ordinal);
         Assert.Empty(http.Requests);
     }
 
@@ -626,7 +626,7 @@ public sealed class DoctorChecksTests
     [Fact]
     public async Task ChecksThatNeedOptionsAreSkippedWhenTheyAreInvalidAndTheOthersStillRun()
     {
-        DoctorContext context = new() { OptionsProblems = ["Paduraksa:DataDirectory must not be empty."], Offline = true };
+        DoctorContext context = new() { OptionsProblems = ["Paduraksa:DataDirectory must not be empty."] };
 
         var report = await DoctorRunner.RunAsync(context, DoctorRunner.DefaultChecks, Ct);
 
@@ -660,7 +660,7 @@ public sealed class DoctorChecksTests
     {
         FakeFiles files = new();
         files.Modes[$"{Doctors.Data}/paduraksa.db"] = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-        var context = Doctors.Context(files: files, offline: true);
+        var context = Doctors.Context(files: files);
 
         var report = await DoctorRunner.RunAsync(context, DoctorRunner.DefaultChecks, Ct);
 

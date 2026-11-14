@@ -57,7 +57,7 @@ Not healthy: 11 ok, 1 info, 0 warning(s), 1 failure(s).
 | Option | What |
 |---|---|
 | `--json` | Print `{ "version", "passed", "summary": { "ok", "info", "warning", "failure" }, "checks": [ { "id", "status", "message", "fix" } ] }`. `status` is `ok`, `info`, `warning` or `failure`, `fix` is present on the last two, and `passed` is false exactly when the exit code is 1 |
-| `--offline` | Skip the clock check, the one that uses the network |
+| `--check-clock` | Also check the clock against a public server. Off by default: `doctor` makes no outward request unless asked |
 | `--token-file <file>` | An API token (any scope; or `PADURAKSA_TOKEN`) so the running server's version can be compared with this binary's |
 | `--liveness` | Only ask the admin `/healthz` over loopback: exit 0 when it answers, 1 if not. The image's `HEALTHCHECK` |
 
@@ -80,7 +80,7 @@ The checks, with their `id` in the report:
 
 Notes:
 - A migration the database lacks is `[info]`, not a warning: the next start applies it. It is only a failure the other way round.
-- The clock check is the one outward request (to Cloudflare's trace endpoint, a few bytes). It is skipped, never failed, when there is no network, and `--offline` skips it.
+- The clock check is the one outward request (to Cloudflare's trace endpoint, a few bytes), so it runs only with `--check-clock`. Without the network it is skipped, never failed.
 - The server's version needs a token because `/api/v1/version` needs one. Without it the line says so.
 - Doctor opens both databases read-only (with no WAL file beside a stopped server, as an immutable file, so it leaves no file behind) and tests a port by binding it and letting go. It writes nothing, creates nothing and never generates a key.
 

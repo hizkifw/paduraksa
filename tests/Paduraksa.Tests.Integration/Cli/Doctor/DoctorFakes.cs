@@ -119,7 +119,7 @@ internal static class Doctors
         Dictionary<string, string?>? env = null,
         TimeProvider? time = null,
         bool quic = true,
-        bool offline = false,
+        bool checkClock = false,
         string? token = null)
     {
         files ??= new FakeFiles();
@@ -137,7 +137,7 @@ internal static class Doctors
             Vault = _ => new FakeVault(vault ?? Vault()),
             InspectConfigDatabase = (_, _) => Task.FromResult(config ?? Config()),
             ReadStoredSettings = (_, _) => Task.FromResult(stored),
-            Offline = offline,
+            CheckClock = checkClock,
             ApiToken = token,
             Version = "0.1.0",
             Commit = "abc1234",

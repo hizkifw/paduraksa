@@ -50,7 +50,7 @@ public sealed class DoctorEndToEndTests
     {
         using StringWriter output = new();
         using StringWriter error = new();
-        var exit = await DoctorCommands.DiagnoseAsync(options, new DoctorCommands.DoctorRequest(Json: json, Offline: true), output, error, Ct);
+        var exit = await DoctorCommands.DiagnoseAsync(options, new DoctorCommands.DoctorRequest(Json: json), output, error, Ct);
         return (exit, output.ToString(), error.ToString());
     }
 
@@ -297,7 +297,7 @@ public sealed class DoctorEndToEndTests
         var root = PaduraksaCli.BuildRootCommand();
 
         Assert.Empty(root.Parse(["doctor"]).Errors);
-        Assert.Empty(root.Parse(["doctor", "--json", "--offline", "--token-file", "/tmp/t"]).Errors);
+        Assert.Empty(root.Parse(["doctor", "--json", "--check-clock", "--token-file", "/tmp/t"]).Errors);
         Assert.Empty(root.Parse(["doctor", "--liveness"]).Errors);
         Assert.NotEmpty(root.Parse(["doctor", "--nope"]).Errors);
     }

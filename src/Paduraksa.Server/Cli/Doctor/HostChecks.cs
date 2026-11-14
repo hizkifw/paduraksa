@@ -50,9 +50,9 @@ internal sealed class ClockCheck : IDoctorCheck
 
     public async Task<IReadOnlyList<CheckResult>> RunAsync(DoctorContext context, CancellationToken cancellationToken)
     {
-        if (context.Offline)
+        if (!context.CheckClock)
         {
-            return [CheckResult.Info("clock", "Not checked (--offline). ACME and sign-in codes depend on the clock being right.")];
+            return [CheckResult.Info("clock", "Not checked: it asks a public server for the time, so it runs only with --check-clock. ACME and sign-in codes depend on the clock being right.")];
         }
 
         var sent = context.Time.GetUtcNow();

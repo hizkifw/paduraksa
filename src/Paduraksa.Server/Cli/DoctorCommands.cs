@@ -38,20 +38,20 @@ internal static class DoctorCommands
             Description = "Only ask the admin listener's /healthz over loopback: exit 0 when it answers 200, 1 otherwise. Used by the image's HEALTHCHECK.",
         };
         Option<bool> json = new("--json") { Description = "Print the report as JSON (version, passed, summary, checks) instead of lines." };
-        Option<bool> offline = new("--offline") { Description = "Skip what needs the network: the clock check, which asks a public server for its Date header." };
+        Option<bool> checkClock = new("--check-clock") { Description = "Also compare the system clock with the Date header of a public server (www.cloudflare.com). Off by default: doctor makes no outward request unless asked." };
         Option<string> tokenFile = new("--token-file")
         {
             Description = $"A file whose first line is an API token (default: the ${ConfigCommands.TokenVariable} variable), so the running server's version can be compared with this binary's.",
         };
         doctor.Options.Add(liveness);
         doctor.Options.Add(json);
-        doctor.Options.Add(offline);
+        doctor.Options.Add(checkClock);
         doctor.Options.Add(tokenFile);
         doctor.SetAction((parseResult, cancellationToken) => parseResult.GetValue(liveness)
             ? LivenessAsync(null, parseResult.InvocationConfiguration.Output, parseResult.InvocationConfiguration.Error, cancellationToken)
             : DiagnoseAsync(
                 null,
-                new DoctorRequest(parseResult.GetValue(json), parseResult.GetValue(offline), parseResult.GetValue(tokenFile)),
+                new DoctorRequest(parseResult.GetValue(json), parseResult.GetValue(checkClock), parseResult.GetValue(tokenFile)),
                 parseResult.InvocationConfiguration.Output,
                 parseResult.InvocationConfiguration.Error,
                 cancellationToken));
@@ -59,7 +59,7 @@ internal static class DoctorCommands
     }
 
     /// <summary>What <c>paduraksa doctor</c> was asked.</summary>
-    internal sealed record DoctorRequest(bool Json = false, bool Offline = false, string? TokenFile = null);
+    internal sealed record DoctorRequest(bool Json = false, bool CheckClock = false, string? TokenFile = null);
 
     /// <summary>
     /// The full doctor. <paramref name="configure"/> replaces seams (a test's fake file system, port or clock). Returns 0, or 1 when a check failed.
@@ -95,7 +95,7 @@ internal static class DoctorCommands
         {
             Options = options,
             OptionsProblems = problems,
-            Offline = request.Offline,
+            CheckClock = request.CheckClock,
             ApiToken = await ReadTokenAsync(request.TokenFile, error, cancellationToken).ConfigureAwait(false),
         };
         if (configure is not null)
