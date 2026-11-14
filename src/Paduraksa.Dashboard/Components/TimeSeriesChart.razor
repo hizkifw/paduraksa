@@ -1,17 +1,20 @@
 @using System.Globalization
 @using System.Text
+@using System.Text.Json
 @using Paduraksa.Dashboard.Config
 @inject DisplayFormat Fmt
 @* A line and area chart as inline SVG: no script and no dependency, so it renders on the server like everything else.
    Points sit at their start times, so a minute wide point can stand among ten second ones. A line is broken wherever a value is
    missing, and a stretch the server wasn't running for is a shaded band: it never draws a line through, or a zero into, what
-   nobody observed. Every point has a transparent column over it with a native tooltip. *@
+   nobody observed. Every point has a transparent column over it that carries the point's text in data attributes, and paduraksa.js
+   shows it as a tooltip at once (no round trip to the circuit, and nothing to fight Blazor's re-render): data-time, data-values (one
+   string per line, in the legend's order) and data-note. The line names and swatches come from the legend. *@
 <figure class="pdk-chart" data-chart="@Name" role="img" aria-label="@Summary">
     <div class="pdk-chart-body">
         <div class="pdk-chart-axis" aria-hidden="true">
-            <span>@Format(_max)</span>
-            <span>@Format(_max / 2)</span>
-            <span>@Format(0)</span>
+            <span>@Show(_max)</span>
+            <span>@Show(_max / 2)</span>
+            <span>@Show(0)</span>
         </div>
         <svg class="pdk-chart-plot" viewBox="0 0 @Width @Height" preserveAspectRatio="none" aria-hidden="true">
             <line class="pdk-chart-grid" x1="0" x2="@Width" y1="0" y2="0" />
@@ -36,7 +39,8 @@
             @for (var i = 0; i < Points.Count; i++)
             {
                 var index = i;
-                <rect class="pdk-chart-hit" x="@Coord(ColumnStart(index))" y="0" width="@Coord(ColumnEnd(index) - ColumnStart(index))" height="@Height"><title>@Tooltip(index)</title></rect>
+                <rect class="pdk-chart-hit" x="@Coord(ColumnStart(index))" y="0" width="@Coord(ColumnEnd(index) - ColumnStart(index))" height="@Height"
+                      data-time="@Fmt.Exact(Points[index].Start)" data-values="@ValuesOf(index)" data-note="@NoteOf(index)" />
             }
         </svg>
     </div>
@@ -85,9 +89,9 @@
 
     /// <summary>Writes a value with its unit, for the axis and the tooltips.</summary>
     [Parameter, EditorRequired]
-    public Func<double, string> Format { get; set; } = static value => value.ToString("0.##", CultureInfo.InvariantCulture);
+    public Func<double, string>? Format { get; set; }
 
-    /// <summary>The format of the two time labels under the plot on the person's clock.</summary>
+    /// <summary>The format of the two time labels under the plot, written on the person's clock.</summary>
     [Parameter]
     public string TimeFormat { get; set; } = "HH:mm";
 
@@ -110,7 +114,7 @@
             }
 
             var gaps = Points.Count(point => point.NoData);
-            return $"{Name}, {Points.Count} points from {Fmt.Exact(Points[0].Start)} to {Fmt.Exact(Points[^1].Start)}, highest {Format(peak)}"
+            return $"{Name}, {Points.Count} points from {Fmt.Exact(Points[0].Start)} to {Fmt.Exact(Points[^1].Start)}, highest {Show(peak)}"
                 + (gaps > 0 ? $", {gaps} with no data" : string.Empty);
         }
     }
@@ -249,29 +253,25 @@
         }
     }
 
-    private string Tooltip(int index)
+    private string Show(double value) => Format?.Invoke(value) ?? Fmt.Number(value, 2);
+
+    // One string per line, in the legend's order; a missing value is "-". A step nobody observed has no values, only its note.
+    private string ValuesOf(int index)
     {
-        var point = Points[index];
-        StringBuilder text = new(Fmt.Exact(point.Start));
-        if (point.NoData)
+        if (Points[index].NoData)
         {
-            text.Append("\nNo data: Paduraksa was not running");
-            return text.ToString();
+            return "[]";
         }
 
-        foreach (var line in Lines)
+        var values = new string[Lines.Count];
+        for (var i = 0; i < values.Length; i++)
         {
-            if (index < line.Values.Count)
-            {
-                text.Append(CultureInfo.InvariantCulture, $"\n{line.Name}: {(line.Values[index] is { } value ? Format(value) : "-")}");
-            }
+            var line = Lines[i];
+            values[i] = index < line.Values.Count && line.Values[index] is { } value ? Show(value) : "-";
         }
 
-        if (point.Note is not null)
-        {
-            text.Append('\n').Append(point.Note);
-        }
-
-        return text.ToString();
+        return JsonSerializer.Serialize(values);
     }
+
+    private string? NoteOf(int index) => Points[index].NoData ? "No data: Paduraksa was not running" : Points[index].Note;
 }

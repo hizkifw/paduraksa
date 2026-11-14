@@ -70,7 +70,7 @@ public sealed class AnalyticsEndToEndTests
     /// Closed buckets for the last ten hours of two hosts and the requests no host owns, with a stretch nobody observed in the middle, put where
     /// the analytics service reads them (the backlog the drain closes buckets into).
     /// </summary>
-    private static void Seed(DashboardHost host)
+    internal static void Seed(DashboardHost host)
     {
         var app = HostId.New();
         var blog = HostId.New();
@@ -171,7 +171,7 @@ public sealed class AnalyticsEndToEndTests
         Assert.Empty(problems);
     }
 
-    private static async Task SetUpAsync(IPage page, DashboardHost host)
+    internal static async Task SetUpAsync(IPage page, DashboardHost host)
     {
         await page.GotoAsync("/");
         await Expect(page).ToHaveURLAsync(new Regex("/setup$"));

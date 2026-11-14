@@ -448,7 +448,7 @@ The longer ranges are summed in SQL (`GROUP BY` the object or the step, `SUM`s o
 
 **The dashboard's `TrafficOverview`** on the home page shows:
 - five tiles;
-- a requests chart (area, with 5xx) and a latency chart (p50, p95, p99 and the upstream's p95), as inline SVG (`TimeSeriesChart`: no script, no dependency, a native tooltip per point, a round-number scale);
+- a requests chart (area, with 5xx) and a latency chart (p50, p95, p99 and the upstream's p95), as inline SVG (`TimeSeriesChart`: no dependency, a script-driven tooltip per point (see dashboard.md, "Charts"), a round-number scale);
 - the busiest hosts (linked; the requests no host owns, unlinked);
 - the upstream errors (named from the config);
 - a 1 h / 24 h / 7 d / 30 d switch.
@@ -966,7 +966,7 @@ Through the existing `ProcessCounters` path, so `/metrics` and the OpenTelemetry
 - A list, newest first, 50 at a time with "Load older". Each event row is its time, its title with a kind badge and its subject, and a **chip per channel**:
   - sent (a tick);
   - failed ("Mail failed", the error and the attempts in its tooltip);
-  - queued, or "retrying, next 14:03 UTC";
+  - queued, or "retrying, next 14:03 UTC" (the zone is the browser's);
   - expired;
   - dropped (a deleted channel is named "Deleted Webhook channel").
 - **Retry:** a 36 px refresh button beside each failed or expired chip (`providers:write` only), and "Send all again" on an event with several. A refusal is said in a snackbar in the API's words.

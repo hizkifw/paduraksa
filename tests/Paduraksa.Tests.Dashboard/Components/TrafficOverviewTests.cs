@@ -82,7 +82,7 @@ public sealed class TrafficOverviewTests
         Assert.NotEmpty(page.Find("[data-chart=requests] polyline.pdk-chart-line").GetAttribute("points")!);
         // p50, p95 and p99; nothing was forwarded upstream, so the upstream line has nothing to draw.
         Assert.Equal(3, page.FindAll("[data-chart=latency] polyline").Count);
-        Assert.NotEmpty(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"));
+        Assert.NotEmpty(page.FindAll("[data-chart=requests] rect.pdk-chart-hit[data-time]"));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class TrafficOverviewTests
         Assert.Equal(2, page.FindAll("[data-chart=requests] polyline.pdk-chart-err").Count);
         Assert.Equal(2, page.FindAll("[data-chart=latency] polyline.pdk-chart-b").Count);
         Assert.Single(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
-        Assert.Contains(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"), title => title.TextContent.Contains("No data: Paduraksa was not running", StringComparison.Ordinal));
+        Assert.Contains(page.FindAll("[data-chart=requests] rect.pdk-chart-hit"), hit => hit.GetAttribute("data-note") == "No data: Paduraksa was not running");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class TrafficOverviewTests
 
         Assert.Single(page.FindAll("[data-chart=requests] polyline.pdk-chart-a"));
         Assert.Empty(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
-        Assert.DoesNotContain(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"), title => title.TextContent.Contains("No data", StringComparison.Ordinal));
+        Assert.DoesNotContain(page.FindAll("[data-chart=requests] rect.pdk-chart-hit"), hit => hit.GetAttribute("data-note")?.StartsWith("No data", StringComparison.Ordinal) == true);
         Assert.Single(page.FindAll("[data-chart=latency] polyline.pdk-chart-b"));
     }
 

@@ -130,8 +130,59 @@
     fill: transparent;
 }
 
-.pdk-chart-hit:hover {
+.pdk-chart-hit.is-active {
     fill: color-mix(in srgb, var(--pdk-text) 7%, transparent);
+}
+
+/* The tooltip paduraksa.js puts on <body>: it follows the pointer, so it is fixed and never takes it. */
+.pdk-chart-tip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2000;
+    box-sizing: border-box;
+    max-width: min(300px, calc(100vw - 16px));
+    padding: 8px 10px;
+    border: 1px solid var(--pdk-line-strong);
+    border-radius: 8px;
+    background: var(--pdk-surface);
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+    color: var(--pdk-text);
+    font-family: var(--pdk-font);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+.pdk-chart-tip[hidden] {
+    display: none;
+}
+
+.pdk-chart-tip-time {
+    margin-bottom: 4px;
+    color: var(--pdk-muted);
+    white-space: nowrap;
+}
+
+.pdk-chart-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pdk-chart-tip-name {
+    flex: 1;
+}
+
+.pdk-chart-tip-value {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pdk-chart-tip-note {
+    margin-top: 4px;
+    color: var(--pdk-muted);
 }
 
 .pdk-chart-x {

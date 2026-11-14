@@ -297,7 +297,7 @@ public sealed class AnalyticsPageTests
 
         Assert.Equal(2, page.FindAll("[data-chart=requests] polyline.pdk-chart-a").Count);
         Assert.Single(page.FindAll("[data-chart=requests] rect.pdk-chart-gap"));
-        Assert.Contains(page.FindAll("[data-chart=requests] rect.pdk-chart-hit title"), title => title.TextContent.Contains("No data: Paduraksa was not running", StringComparison.Ordinal));
+        Assert.Contains(page.FindAll("[data-chart=requests] rect.pdk-chart-hit"), hit => hit.GetAttribute("data-note") == "No data: Paduraksa was not running");
     }
 
     [Fact]

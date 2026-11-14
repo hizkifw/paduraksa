@@ -336,6 +336,222 @@
         },
     });
 
+    // The charts' tooltip (TimeSeriesChart). Every hit column carries its point's text in data attributes, so hovering needs no round trip
+    // to the circuit; one element on <body> (outside what Blazor renders) is filled from the column under the pointer and follows it.
+    // Blazor re-draws a chart on every poll and keeps its columns but rewrites their attributes, and a column can also be replaced: while
+    // the tooltip is shown a MutationObserver refills it from whatever column is under the pointer now (a touch tap simply hides it).
+    const chartTip = (() => {
+        let tip = null;
+        let active = null;
+        let touch = false;
+        let pointerX = 0;
+        let pointerY = 0;
+        let observer = null;
+        let frame = 0;
+
+        const element = () => {
+            if (!tip) {
+                tip = document.createElement("div");
+                tip.className = "pdk-chart-tip";
+                tip.setAttribute("aria-hidden", "true");
+                tip.hidden = true;
+                document.body.appendChild(tip);
+            }
+
+            return tip;
+        };
+
+        const hitOf = (target) => target instanceof Element ? target.closest(".pdk-chart-hit") : null;
+
+        const parse = (text) => {
+            try {
+                const values = JSON.parse(text ?? "[]");
+                return Array.isArray(values) ? values : [];
+            } catch {
+                return [];
+            }
+        };
+
+        const fill = (hit) => {
+            const box = element();
+            const figure = hit.closest(".pdk-chart");
+            const keys = figure ? figure.querySelectorAll(".pdk-chart-key") : [];
+            const values = parse(hit.dataset.values);
+            const rows = [];
+            const time = document.createElement("div");
+            time.className = "pdk-chart-tip-time";
+            time.textContent = hit.dataset.time ?? "";
+            rows.push(time);
+            values.forEach((value, index) => {
+                const key = keys[index];
+                if (!key) {
+                    return;
+                }
+
+                const row = document.createElement("div");
+                row.className = "pdk-chart-tip-row";
+                const swatch = key.querySelector(".pdk-chart-swatch")?.cloneNode(true);
+                if (swatch) {
+                    row.appendChild(swatch);
+                }
+
+                const name = document.createElement("span");
+                name.className = "pdk-chart-tip-name";
+                name.textContent = key.textContent.trim();
+                const number = document.createElement("span");
+                number.className = "pdk-chart-tip-value";
+                number.textContent = value;
+                row.append(name, number);
+                rows.push(row);
+            });
+
+            if (hit.dataset.note) {
+                const note = document.createElement("div");
+                note.className = "pdk-chart-tip-note";
+                note.textContent = hit.dataset.note;
+                rows.push(note);
+            }
+
+            box.replaceChildren(...rows);
+        };
+
+        // Beside the column (to its right, else to its left), level with the top of the plot, and always inside the chart and the viewport.
+        const place = (hit) => {
+            const box = element();
+            const column = hit.getBoundingClientRect();
+            const figure = (hit.closest(".pdk-chart") ?? hit).getBoundingClientRect();
+            const plot = (hit.ownerSVGElement ?? hit).getBoundingClientRect();
+            const margin = 8;
+            const left = Math.max(margin, figure.left);
+            const right = Math.min(window.innerWidth - margin, figure.right);
+            const width = box.offsetWidth;
+            const height = box.offsetHeight;
+            const centre = column.left + column.width / 2;
+            let x = centre + 12;
+            if (x + width > right) {
+                x = centre - 12 - width;
+            }
+
+            x = Math.max(left, Math.min(x, right - width));
+            // A tooltip wider than the chart (a phone) still has to fit the viewport; the chart's edge gives way.
+            x = Math.max(margin, Math.min(x, window.innerWidth - margin - width));
+            const y = Math.max(margin, Math.min(plot.top + 4, window.innerHeight - margin - height));
+            box.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+        };
+
+        const watch = () => {
+            if (observer) {
+                return;
+            }
+
+            // Filling the tooltip is a mutation too: only a change outside it is a re-render.
+            observer = new MutationObserver((records) => {
+                if (!frame && records.some((record) => !tip.contains(record.target))) {
+                    frame = requestAnimationFrame(() => {
+                        frame = 0;
+                        refresh();
+                    });
+                }
+            });
+            observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-time", "data-values", "data-note"] });
+        };
+
+        const hide = () => {
+            active?.classList.remove("is-active");
+            active = null;
+            if (tip) {
+                tip.hidden = true;
+            }
+
+            observer?.disconnect();
+            observer = null;
+            if (frame) {
+                cancelAnimationFrame(frame);
+                frame = 0;
+            }
+        };
+
+        const show = (hit) => {
+            if (active !== hit) {
+                active?.classList.remove("is-active");
+                hit.classList.add("is-active");
+                active = hit;
+            }
+
+            fill(hit);
+            const box = element();
+            box.hidden = false;
+            place(hit);
+            watch();
+        };
+
+        // After a re-render: the same column with its new text, or (when it was replaced) whichever column the pointer is over now.
+        const refresh = () => {
+            if (!active) {
+                return;
+            }
+
+            if (active.isConnected) {
+                show(active);
+                return;
+            }
+
+            const next = touch ? null : hitOf(document.elementFromPoint(pointerX, pointerY));
+            if (next) {
+                active = null;
+                show(next);
+            } else {
+                hide();
+            }
+        };
+
+        document.addEventListener("pointermove", (event) => {
+            if (event.pointerType === "touch") {
+                return;
+            }
+
+            touch = false;
+            pointerX = event.clientX;
+            pointerY = event.clientY;
+            const hit = hitOf(event.target);
+            if (hit) {
+                show(hit);
+            } else if (active) {
+                hide();
+            }
+        }, { passive: true });
+
+        // A tap shows the column and a tap anywhere else (or on the same column again) hides it.
+        document.addEventListener("pointerdown", (event) => {
+            if (event.pointerType !== "touch") {
+                return;
+            }
+
+            touch = true;
+            const hit = hitOf(event.target);
+            if (hit && hit !== active) {
+                show(hit);
+            } else {
+                hide();
+            }
+        }, { passive: true });
+
+        // The pointer left the window.
+        document.addEventListener("pointerout", (event) => {
+            if (!event.relatedTarget && event.pointerType !== "touch") {
+                hide();
+            }
+        }, { passive: true });
+
+        document.addEventListener("scroll", hide, { capture: true, passive: true });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                hide();
+            }
+        });
+        window.addEventListener("blur", hide);
+    })();
+
     // A multi-line text that starts like a URL scheme ("User-agent: *" reads as the scheme "user-agent:") is put on the iOS
     // clipboard as a URL too, and Safari pastes that form: lowercased and percent-encoded, every newline a %0A. A field that
     // opts in (data-paste="decode-url") gets the text back. Only a paste with an encoded line break and no real one is

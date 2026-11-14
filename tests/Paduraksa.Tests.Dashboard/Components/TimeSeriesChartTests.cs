@@ -1,7 +1,9 @@
 using System.Globalization;
 
 using Bunit;
+using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -53,11 +55,12 @@ public sealed class TimeSeriesChartTests
         var band = Assert.Single(chart.FindAll("rect.pdk-chart-gap"));
         Assert.Equal("200", band.GetAttribute("x"));
         Assert.Equal("200", band.GetAttribute("width"));
-        var tooltips = chart.FindAll("rect.pdk-chart-hit title").Select(title => title.TextContent).ToArray();
-        Assert.Equal(7, tooltips.Length);
-        Assert.Contains("No data: Paduraksa was not running", tooltips[2], StringComparison.Ordinal);
-        Assert.DoesNotContain("Requests", tooltips[2], StringComparison.Ordinal);
-        Assert.Contains("Requests: ", tooltips[1], StringComparison.Ordinal);
+        var hits = chart.FindAll("rect.pdk-chart-hit");
+        Assert.Equal(7, hits.Count);
+        Assert.Equal("No data: Paduraksa was not running", hits[2].GetAttribute("data-note"));
+        Assert.Equal("[]", hits[2].GetAttribute("data-values"));
+        Assert.Equal("""["2"]""", hits[1].GetAttribute("data-values"));
+        Assert.Null(hits[1].GetAttribute("data-note"));
     }
 
     [Fact]
@@ -84,7 +87,7 @@ public sealed class TimeSeriesChartTests
 
         Assert.Equal(2, chart.FindAll("polyline.pdk-chart-line").Count);
         Assert.Empty(chart.FindAll("rect.pdk-chart-gap"));
-        Assert.Contains("p95: -", chart.FindAll("rect.pdk-chart-hit title")[2].TextContent, StringComparison.Ordinal);
+        Assert.Equal("""["-"]""", chart.FindAll("rect.pdk-chart-hit")[2].GetAttribute("data-values"));
     }
 
     [Fact]
@@ -137,7 +140,43 @@ public sealed class TimeSeriesChartTests
 
         var chart = Render(context, points, new TimeSeriesChart.ChartLine("Requests", "pdk-chart-a", [1, 2]));
 
-        Assert.EndsWith("Observed 4 s of 10 s", chart.FindAll("rect.pdk-chart-hit title")[0].TextContent, StringComparison.Ordinal);
+        Assert.Equal("Observed 4 s of 10 s", chart.FindAll("rect.pdk-chart-hit")[0].GetAttribute("data-note"));
+    }
+
+    [Fact]
+    public void EveryColumnCarriesItsTextInDataAttributesAndNoNativeTooltip()
+    {
+        using DashboardTestContext context = new();
+        var points = new[] { At(0), At(10) };
+        TimeSeriesChart.ChartLine requests = new("Requests", "pdk-chart-a", [4.2, 340]);
+        TimeSeriesChart.ChartLine errors = new("Errors", "pdk-chart-err", [0, null]);
+
+        var chart = context.Render<TimeSeriesChart>(parameters => parameters
+            .Add(p => p.Name, "test")
+            .Add(p => p.Points, points)
+            .Add(p => p.Lines, [requests, errors])
+            .Add(p => p.Format, rate => rate.ToString("0.#", CultureInfo.InvariantCulture) + "/s"));
+
+        Assert.Empty(chart.FindAll("title"));
+        var hits = chart.FindAll("rect.pdk-chart-hit");
+        Assert.Equal("2026-11-12 12:00:00 UTC", hits[0].GetAttribute("data-time"));
+        Assert.Equal("""["4.2/s","0/s"]""", hits[0].GetAttribute("data-values"));
+        Assert.Equal("""["340/s","-"]""", hits[1].GetAttribute("data-values"));
+        // The names and swatches the script shows come from the legend, in the same order as the values.
+        Assert.Equal(["Requests", "Errors"], chart.FindAll(".pdk-chart-key").Select(key => key.TextContent.Trim()));
+    }
+
+    [Fact]
+    public void TimesAreWrittenInThePersonsZoneOnTheAxisAndInTheColumns()
+    {
+        using DashboardTestContext context = new();
+        context.Services.GetRequiredService<DisplayFormat>().Use(new DisplayPreferences(TimeZoneInfo.CreateCustomTimeZone("test", TimeSpan.FromHours(7), "test", "test"), CultureInfo.InvariantCulture));
+        var points = new[] { At(0), At(3600) };
+
+        var chart = Render(context, points, new TimeSeriesChart.ChartLine("Requests", "pdk-chart-a", [1, 2]));
+
+        Assert.Equal(["19:00", "20:00"], chart.FindAll(".pdk-chart-x span").Select(span => span.TextContent));
+        Assert.Equal("2026-11-12 19:00:00 UTC+7", chart.FindAll("rect.pdk-chart-hit")[0].GetAttribute("data-time"));
     }
 
     [Fact]

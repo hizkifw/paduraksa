@@ -283,7 +283,7 @@ There is a line of help per setting. Inline validation is the real validator wit
 - **Sessions.** This one marked, browser and system from the user agent, address, last seen. End one, or "sign out everywhere else" (confirmed).
 
 **Audit (`/audit`, `audit:read`).**
-- **Filters:** time range (1 hour to all, or from and until in UTC), who (you, users with `users:read`, tokens one may list, Paduraksa, the CLI), action (exact or `prefix*`, with suggestions), target, and outcome (`AuditFilter.Outcome`, new in Application and on the API as `?outcome=`).
+- **Filters:** time range (1 hour to all, or from and until in the browser's time zone), who (you, users with `users:read`, tokens one may list, Paduraksa, the CLI), action (exact or `prefix*`, with suggestions), target, and outcome (`AuditFilter.Outcome`, new in Application and on the API as `?outcome=`).
 - **Rows:** when, the action in words with its dotted name as a chip coloured by area, who (a name where the page may read it, else the kind and a short ID), and the outcome chip.
 - A row opens to the time, channel, client, target (linked when it has a page), revision, event ID and the details pretty-printed (never a secret).
 - It pages through the cursor ("Load older events"). New events reload the first page, or offer "Show them" once older pages are loaded.
@@ -506,7 +506,7 @@ The page reads `LogTailService` (Application): the hub described in [observabili
 
 **Table.**
 - Newest first. **Decision:** the view stays put at the top while following, with no scroll handling, and pausing is a plain freeze.
-- At most 500 rows, each a grid row: time (UTC, to the millisecond); status (a badge coloured by class: 2xx green, 3xx blue, 4xx amber, 5xx red, none grey); method and path with its redacted query (the row's link is the keyboard's way in); host as received; client; time taken; upstream; request ID.
+- At most 500 rows, each a grid row: time (the browser's zone, to the millisecond); status (a badge coloured by class: 2xx green, 3xx blue, 4xx amber, 5xx red, none grey); method and path with its redacted query (the row's link is the keyboard's way in); host as received; client; time taken; upstream; request ID.
 - Below 900 px a row is a card with labelled cells, the request first.
 - Rows are components that never re-render (`ShouldRender` false after the first), keyed by sequence. A batch costs the new rows and not 500 diffs.
 
@@ -600,7 +600,7 @@ There is no page-wide accuracy note (the owner found it too much). The visitors 
 Nothing is drawn for a range with no requests: one empty state says that a host with its access log off is never counted.
 
 **Visitors and content.**
-- Three charts (requests with a 5xx line, bytes sent, unique visitors): the overview's inline-SVG `TimeSeriesChart`, no dependency. **A step nobody observed is a shaded gap and its line breaks. An observed quiet step is a real zero** (the M9 rule, from the service's `coveredSeconds`).
+- Three charts (requests with a 5xx line, bytes sent, unique visitors): the overview's inline-SVG `TimeSeriesChart`, no dependency (see "Charts" under the conventions). **A step nobody observed is a shaded gap and its line breaks. An observed quiet step is a real zero** (the M9 rule, from the service's `coveredSeconds`).
 - Bar lists with shares (`ShareList`: a label, a bar as wide as the share, the count, the percent): status classes (green, blue, amber and red by class) and the top exact codes, methods and HTTP versions.
 - Tables: top paths (requests, bandwidth, p95, errors), top referers, slowest paths, largest responses.
 - A count a sketch may have overshot is written with the approximation sign and a tooltip "Between X and Y".
@@ -958,6 +958,23 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - **Whole-document changes** (rollback, undo, YAML import): their own review, no draft choice, and the draft-open notice while a draft is open.
 - **The footer is `DrawerActions`:** Delete or another leading action at the start, Cancel, extra choices, the primary last. A drawer does not lay out its own footer buttons.
 - **A guard** (`DashboardChangePathTests`) fails when a component calls the config's execute or add-to-draft methods outside the allowed types.
+
+**All display formatting goes through `DisplayFormat`.** It is a scoped service (inject it as `Fmt`) and the one place that spells a time, a date, a duration or a number a person reads.
+- **Times** are written in the browser's time zone, with its offset where the time stands alone: `2026-11-12 21:03:20 UTC+7`, `21:03 UTC+7`, `12 Nov 2026`. The offset ("UTC", "UTC+7", "UTC-3:30") needs no zone abbreviation table and reads the same everywhere. Ages ("5 min ago") are the same in every zone.
+- **Where the zone comes from.** `paduraksa.js` writes two cookies on every load, `paduraksa-tz` (the IANA zone) and `paduraksa-locale` (the language tag), the way it writes the theme's. `App` reads them, `Routes` hands them to `DisplayFormat.Initialize`, and the circuit keeps them, so server-rendered text and bUnit tests are plain strings with no JS round trip. The very first load of a browser that has never opened the dashboard shows UTC; the sign-in or setup page is always the first to load the script, so that load is not a dashboard page. A zone the server's tzdata doesn't know falls back to UTC.
+- **Preferences.** The inputs are one record, `DisplayPreferences` (zone, culture, 24 hour clock), with UTC, invariant and 24 hours as the default. A per-user setting would call `DisplayFormat.Use`; there is no such page yet. The build runs with `InvariantGlobalization`, so the culture carries today but spells numbers and months the invariant way until ICU is switched on.
+- **Numbers:** `Count` (grouped), `Compact` (axes), `PerSecond`, `RateText`, `Percent`, `Share`, `Bytes` (decimal units, as a network is measured), `FileSize` (binary units, as sizes are typed into settings), `Duration` and `Latency` (milliseconds written as ms or s), `Seconds`, `Number`.
+- **Not through it:** exported data, API responses, log files and machine values (IDs, fingerprints, what a form field holds), and SVG geometry. `DashboardMarkupConventionTests` fails when a `.razor` or `.cs` file in the dashboard formats with `ToString("...")`, a format string in an interpolation hole or `UtcDateTime`, apart from a short allowlist with the reason for each.
+- **Old names.** `TrafficFigures`, `AnalyticsFigures`, `SecurityFigures`, `LiveTailText.Duration`, `RevisionText.Exact` and `Ago`, and `CertificateDisplay.Date`/`DateTime` stay as shims over `DisplayFormat.Invariant` (UTC, invariant). A helper that words a count or a time takes an optional `DisplayFormat` for the person's. New code injects the service.
+- **A `datetime-local` input has no zone**, so the audit filter reads its value in the zone the page shows times in; the list and the filter agree.
+
+**Charts (`TimeSeriesChart`).** One inline SVG per chart, drawn on the server, and a tooltip drawn by the browser.
+- **The tooltip is a DOM element, not an SVG `<title>`.** Every point has a transparent hit column carrying its text in `data-time` (the time in the person's zone), `data-values` (one formatted string per line, in the legend's order, as JSON) and `data-note` (a step observed in part, or "No data"). `paduraksa.js` fills one element on `<body>` from the column under the pointer with delegated listeners: a swatch, name and value per line from the legend, the note last. No round trip to the circuit, no library.
+- **It appears at once and follows the column.** It sits to the right of the column, flips to its left near the right edge, and is clamped to the chart and the viewport. The column under the pointer is shaded (`is-active`).
+- **Blazor re-draws the chart on every poll.** The columns survive and get new attributes; while the tooltip is shown a `MutationObserver` refills it, or finds the column now under the pointer if it was replaced. A change inside the tooltip itself is ignored.
+- **Touch:** a tap shows it, a tap elsewhere (or on the same column) hides it; scrolling hides it. **Keyboard:** the figure is one `role="img"` with an `aria-label` summary (the range, the peak, the steps with no data); there is no tab stop per point, so the tooltip is a pointer aid.
+- **The axis labels** are `TimeFormat` (`TrafficFigures.TimeFormat(range)`) in the person's zone: the time of day for an hour, the date and time beyond.
+- **Parameters** (`Name`, `Points`, `Lines`, `Format`, `TimeFormat`, `ChartPoint`, `ChartLine`) are unchanged; `Format` may be left out and then writes up to two decimals.
 
 **A drawer that throws.** Each level of the drawer stack has its own `ErrorBoundary` (`DrawerHost`). The failed level shows `DrawerError`: the drawer's frame, "This drawer couldn't be shown", a compact message and Close. The page and the levels below keep running, and closing it does not ask about what it held. The details are in the server log.
 
