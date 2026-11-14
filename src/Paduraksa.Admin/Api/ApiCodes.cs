@@ -128,6 +128,9 @@ internal static class ApiCodes
 
         /// <summary>403: drafts belong to a user, or to a token's owner; this caller is neither.</summary>
         public const string NotAUser = "draft.notAUser";
+
+        /// <summary>410: the draft is past its lifetime; nothing reads or changes it, the expiry job removes it, and a discard or a new draft does at once.</summary>
+        public const string Expired = "draft.expired";
     }
 
     /// <summary>Identity outcomes that are one thing over several operations.</summary>

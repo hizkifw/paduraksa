@@ -3198,6 +3198,16 @@
               }
             }
           },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
           "415": {
             "description": "The body is not in a type this operation takes.",
             "content": {
@@ -8500,6 +8510,16 @@
               }
             }
           },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Authentication is required.",
             "content": {
@@ -8657,6 +8677,16 @@
               }
             }
           },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Authentication is required.",
             "content": {
@@ -8762,6 +8792,16 @@
           },
           "404": {
             "description": "There is no such object.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8886,6 +8926,16 @@
               }
             }
           },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Authentication is required.",
             "content": {
@@ -8990,6 +9040,16 @@
           },
           "409": {
             "description": "It clashes with what exists, or with something in progress.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9140,6 +9200,16 @@
           },
           "409": {
             "description": "It clashes with what exists, or with something in progress.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -24791,6 +24861,7 @@
           "invalid",
           "revisionNotFound",
           "draftNotFound",
+          "draftExpired",
           "draftBlocked",
           "draftRejected",
           "unavailable",

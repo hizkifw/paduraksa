@@ -150,6 +150,58 @@ public sealed class DraftSecretsTests : IAsyncLifetime
         Assert.Empty(await _h.Config.Passwords.ListAsync(Ct));
     }
 
+    /// <summary>
+    /// What the API dispatches to an MCP script as a read (the draft's reads, its review, a simulation of it) must not write: before, each of them dropped an
+    /// expired draft, wrote its notice and deleted its vault values. Only the expiry job does now, and the changes to the draft are refused as expired too.
+    /// </summary>
+    [Fact]
+    public async Task EveryCallOnAnExpiredDraftButTheJobLeavesTheDatabaseAndTheVaultAsTheyAre()
+    {
+        var (draft, _, credential) = await DraftAListAsync();
+        _h.Time.Now += DraftService.Lifetime;
+        var before = (await RowAsync(), await _h.Config.Db.ScalarAsync("SELECT Version FROM ConfigDrafts"));
+        var revisions = (await _h.Config.RevisionsAsync()).Count;
+
+        Assert.Equal(DraftStatus.Expired, (await _h.Drafts.GetAsync(_h.Alice, Ct)).Status);
+        Assert.Equal(DraftStatus.Expired, (await _h.Drafts.GetAsync(_h.Alice, draft, Ct)).Status);
+        Assert.Null(await _h.Drafts.GetConfigAsync(_h.Alice, draft, Ct));
+        Assert.Null(await _h.Drafts.GetConfigAsync(_h.Alice, null, Ct));
+        Assert.Equal(DraftStatus.Expired, (await _h.Drafts.ReadForSimulationAsync(_h.Alice, draft, Ct)).Result.Status);
+        Assert.Equal(DraftStatus.Expired, (await _h.Drafts.ReviewAsync(_h.Alice, draft, cancellationToken: Ct)).Status);
+        Assert.Equal(DraftStatus.Expired, (await _h.Drafts.ApplyAsync(_h.Alice, draft, "token", cancellationToken: Ct)).Status);
+        Assert.Equal(DraftStatus.Expired, (await _h.AddAsync(draft, new UpsertAccessListCommand(List(AccessListId.New(), "late", ("bob", Secret))))).Status);
+        Assert.Equal(DraftStatus.Expired, (await _h.Drafts.RemoveEntryAsync(_h.Alice, draft, 1, Ct)).Status);
+
+        Assert.Equal(before, (await RowAsync(), await _h.Config.Db.ScalarAsync("SELECT Version FROM ConfigDrafts")));
+        Assert.Equal(0, await _h.RowsAsync("ConfigDraftNotices"));
+        Assert.Equal([credential], await _h.Config.Passwords.ListAsync(Ct));
+        Assert.Equal(revisions, (await _h.Config.RevisionsAsync()).Count);
+
+        Assert.Equal(1, await _h.Drafts.DropExpiredAsync(Ct));
+        Assert.Equal(0, await _h.RowsAsync("ConfigDrafts"));
+        Assert.Equal(1, await _h.RowsAsync("ConfigDraftNotices"));
+        Assert.Empty(await _h.Config.Passwords.ListAsync(Ct));
+    }
+
+    [Fact]
+    public async Task DiscardingAnExpiredDraftOrOpeningANewOneOverItRemovesItAndItsValues()
+    {
+        var (draft, _, _) = await DraftAListAsync();
+        _h.Time.Now += DraftService.Lifetime;
+        Assert.Equal(DraftStatus.Succeeded, (await _h.Drafts.DiscardAsync(_h.Alice, draft, Ct)).Status);
+        Assert.Equal(0, await _h.RowsAsync("ConfigDrafts"));
+        Assert.Empty(await _h.Config.Passwords.ListAsync(Ct));
+        Assert.Equal(0, await _h.RowsAsync("ConfigDraftNotices"));
+
+        var (second, _, _) = await DraftAListAsync();
+        _h.Time.Now += DraftService.Lifetime;
+        var opened = await _h.Drafts.CreateAsync(_h.Alice, Ct);
+        Assert.Equal(DraftStatus.Succeeded, opened.Status);
+        Assert.NotEqual(second, opened.Draft!.Id);
+        Assert.Empty(await _h.Config.Passwords.ListAsync(Ct));
+        Assert.Equal(second, Assert.Single(await _h.Drafts.TakeNoticesAsync(_h.Alice, Ct)).Id);
+    }
+
     [Fact]
     public async Task TheStartupSweepKeepsWhatADraftHoldsAndDeletesTheRest()
     {

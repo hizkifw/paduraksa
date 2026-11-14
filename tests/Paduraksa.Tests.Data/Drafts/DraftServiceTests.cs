@@ -406,6 +406,10 @@ public sealed class DraftServiceTests : IAsyncLifetime
         Assert.Equal(0, await _h.Drafts.DropExpiredAsync(Ct));
         Assert.Equal(DraftStatus.Succeeded, (await _h.Drafts.GetAsync(_h.Alice, Ct)).Status);
         _h.Time.Now += TimeSpan.FromDays(1);
+        var expired = await _h.Drafts.GetAsync(_h.Alice, Ct);
+        Assert.Equal((DraftStatus.Expired, _h.Time.Now), (expired.Status, expired.ExpiredAt));
+        Assert.Empty(await _h.Drafts.TakeNoticesAsync(_h.Alice, Ct));
+        Assert.Equal(1, await _h.Drafts.DropExpiredAsync(Ct));
         Assert.Equal(DraftStatus.NoDraft, (await _h.Drafts.GetAsync(_h.Alice, Ct)).Status);
 
         var notices = await _h.Drafts.TakeNoticesAsync(_h.Alice, Ct);
@@ -499,23 +503,6 @@ public sealed class DraftServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AnExpiredDraftItsOwnerRefreshedBeforeTheDropWasDecidedIsNotDropped()
-    {
-        var draft = (await _h.OpenAsync()).Draft!;
-        await _h.AddAsync(draft.Id, new UpsertUpstreamCommand(Upstream(UpstreamId.New(), "app")));
-        RacingClock racing = new(_h.Time.GetUtcNow());
-        var reader = new DraftService(_h.Config.Db.Factory, _h.Config.Service, _h.Config.Passwords, TestPermissions.AllowAll, racing, NullLoggerFactory.Instance);
-
-        // The first time the reader asks, the draft looks 30 days old; by the time it re-checks under the writer's lock it has been touched.
-        var seen = await reader.GetAsync(_h.Alice, Ct);
-
-        Assert.Equal(DraftStatus.Succeeded, seen.Status);
-        Assert.Single(seen.Draft!.Entries);
-        Assert.Equal(1, await _h.RowsAsync("ConfigDrafts"));
-        Assert.Empty(await reader.TakeNoticesAsync(_h.Alice, Ct));
-    }
-
-    [Fact]
     public async Task ARowMadeBeforeTheStateStoppedBeingStoredStillReadsAndNewRowsCarryNone()
     {
         var draft = (await _h.OpenAsync()).Draft!;
@@ -535,11 +522,4 @@ public sealed class DraftServiceTests : IAsyncLifetime
         Assert.Equal(DraftEntryState.Ready, Assert.Single(read.Entries).State);
     }
 
-    private sealed class RacingClock(DateTimeOffset now) : TimeProvider
-    {
-        private int _calls;
-
-        // 30 days on for the first look, as if the draft had not been touched; the time it really is for every look after.
-        public override DateTimeOffset GetUtcNow() => Interlocked.Increment(ref _calls) == 1 ? now + DraftService.Lifetime : now;
-    }
 }

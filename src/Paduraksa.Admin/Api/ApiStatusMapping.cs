@@ -87,6 +87,7 @@ public static class ApiStatusMapping
         SimulationStatus.RevisionNotFound => StatusCodes.Status404NotFound,
         SimulationStatus.DraftRejected or SimulationStatus.DraftBlocked => StatusCodes.Status409Conflict,
         SimulationStatus.DraftNotFound => StatusCodes.Status404NotFound,
+        SimulationStatus.DraftExpired => StatusCodes.Status410Gone,
         SimulationStatus.Unavailable => StatusCodes.Status503ServiceUnavailable,
         SimulationStatus.Denied => StatusCodes.Status403Forbidden,
         _ => StatusCodes.Status500InternalServerError,

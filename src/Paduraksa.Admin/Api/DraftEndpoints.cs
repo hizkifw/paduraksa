@@ -31,30 +31,30 @@ internal static class DraftEndpoints
             .Produces<ConfigDraft>(201).ProducesApiProblems(403, 409, 503).RequirePermission(Permission.ConfigWrite);
         drafts.MapGet("/{id:DraftId}", GetAsync).WithName("GetDraft").WithSummary("Get the open draft")
             .WithDescription("The draft with each entry's state against the latest revision. The ETag is the draft's version.")
-            .Produces<ConfigDraft>().ProducesApiProblems(404).RequirePermission(Permission.ConfigWrite);
+            .Produces<ConfigDraft>().ProducesApiProblems(404, 410).RequirePermission(Permission.ConfigWrite);
         drafts.MapGet("/{id:DraftId}/config", GetConfigAsync).WithName("GetDraftConfig").WithSummary("The config with the draft applied")
             .WithDescription("The latest revision's document with every entry that is not changed elsewhere applied in order: what a page reads while the draft is open. Versions are the latest revision's.")
-            .Produces<DraftConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigWrite);
+            .Produces<DraftConfig>().ProducesApiProblems(404, 410).RequirePermission(Permission.ConfigWrite);
         drafts.MapPost("/{id:DraftId}/entries", AddAsync).WithName("AddDraftEntries").WithSummary("Add or replace entries")
             .WithDescription("The body is a list of object commands (upsert or delete of a host, upstream, profile, rate limit, access list, rule set or auth provider, or the settings), each with the version it was made against, like the object endpoints' If-Match. "
                 + "Each is checked as a dry run on the latest revision with the draft's other entries applied, with the same errors a live command gives, and replaces the draft's earlier entry for its object; one that leaves its object as it is takes the entry out, and deleting an object the draft creates removes its entry. "
                 + "If one is refused (422, 412 or 404 like the live command) none is added. A password in an access list goes to the vault as a pending value bound to the draft; it is never stored in the draft or returned.")
-            .Accepts<AddDraftEntriesRequest>("application/json").Produces<ConfigDraft>().ProducesApiProblems(400, 403, 404, 412, 415, 422, 503)
+            .Accepts<AddDraftEntriesRequest>("application/json").Produces<ConfigDraft>().ProducesApiProblems(400, 403, 404, 410, 412, 415, 422, 503)
             .RequirePermission(Permission.ConfigWrite);
         drafts.MapDelete("/{id:DraftId}/entries/{number:int}", RemoveEntryAsync).WithName("RemoveDraftEntry").WithSummary("Remove an entry")
             .WithDescription("Takes one entry out of the draft, whatever its state: this is also how an entry that is changed elsewhere is reloaded (read the object again and add it afresh). The ETag of the answer is the draft's new version.")
-            .Produces(204).ProducesApiProblems(404).RequirePermission(Permission.ConfigWrite);
+            .Produces(204).ProducesApiProblems(404, 410).RequirePermission(Permission.ConfigWrite);
         drafts.MapPost("/{id:DraftId}/review", ReviewAsync).WithName("ReviewDraft").WithSummary("Review the draft as a dry run")
             .WithDescription("Replays the entries on the latest revision and dry-runs them as one change: the diff, the compiler's warnings, the admin lock-out guard (?force=true overrides it) and the errors of the whole set. "
                 + "The answer's reviewToken (also its ETag) is what apply must send back as If-Match to commit exactly this: it covers what the draft would do, so a change to the draft, to an object it writes or refers to, or to what the compiler says about it makes it stale, while an unrelated commit does not. "
                 + "A draft with entries that are changed elsewhere has no token (409 draft.blocked when every entry is); the answer shows the rest. Commits and audits nothing.")
-            .WithQuery(ApiQueries.Force).Produces<DraftOutcome>().ProducesApiProblems(400, 404, 409, 422, 503).RequirePermission(Permission.ConfigWrite);
+            .WithQuery(ApiQueries.Force).Produces<DraftOutcome>().ProducesApiProblems(400, 404, 409, 410, 422, 503).RequirePermission(Permission.ConfigWrite);
         drafts.MapPost("/{id:DraftId}/apply", ApplyAsync).WithName("ApplyDraft").WithSummary("Apply the draft as one revision")
             .WithDescription("Commits the whole draft as ONE revision, audited once with every entry listed, or nothing: what is confirmed is exactly what is applied. Needs If-Match with the review's token (428 without it, with the fresh review in the problem's review). "
                 + "Under the writer's lock the draft is replayed on the current head; unless that is what the review showed, 412 draft.changedSinceReview commits nothing and returns the fresh review (and its token) in the problem's review. "
                 + "Any entry that is changed elsewhere, or depends on one that is, refuses the whole draft (409 draft.blocked, errors naming each); remove or reload them and review again. "
                 + "?message= is the revision's note (it defaults to a summary of the entries). ?dryRun=true is the review. Undo of the revision undoes the whole draft.")
-            .Produces<DraftOutcome>().ProducesApiProblems(400, 404, 409, 412, 422, 428, 503).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+            .Produces<DraftOutcome>().ProducesApiProblems(400, 404, 409, 410, 412, 422, 428, 503).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
         drafts.MapDelete("/{id:DraftId}", DiscardAsync).WithName("DiscardDraft").WithSummary("Discard the draft")
             .WithDescription("Drops the draft and the vault values bound to it. Nothing was committed, so nothing is undone.")
             .Produces(204).ProducesApiProblems(404).RequirePermission(Permission.ConfigWrite);
@@ -65,7 +65,7 @@ internal static class DraftEndpoints
         var result = await drafts.GetAsync(caller.Origin, ct).ConfigureAwait(false);
         return result.Status switch
         {
-            DraftStatus.NoDraft => Pagination.Respond(http, Array.Empty<ConfigDraft>(), d => d.Id, AdminJsonContext.Default.PageConfigDraft),
+            DraftStatus.NoDraft or DraftStatus.Expired => Pagination.Respond(http, Array.Empty<ConfigDraft>(), d => d.Id, AdminJsonContext.Default.PageConfigDraft),
             DraftStatus.Succeeded => Pagination.Respond(http, [result.Draft!], d => d.Id, AdminJsonContext.Default.PageConfigDraft),
             _ => Problem(http, result),
         };
@@ -94,10 +94,10 @@ internal static class DraftEndpoints
         return result.Status == DraftStatus.Succeeded ? Draft(http, result.Draft!) : Problem(http, result);
     }
 
-    private static async Task<IResult> GetConfigAsync(DraftId id, AdminCaller caller, DraftService drafts, CancellationToken ct) =>
+    private static async Task<IResult> GetConfigAsync(HttpContext http, DraftId id, AdminCaller caller, DraftService drafts, CancellationToken ct) =>
         await drafts.GetConfigAsync(caller.Origin, id, ct).ConfigureAwait(false) is { } config
             ? EndpointSupport.Json(config, AdminJsonContext.Default.DraftConfig)
-            : NoSuchDraft();
+            : Problem(http, await OwnAsync(caller, id, drafts, ct).ConfigureAwait(false) is { Status: not DraftStatus.Succeeded } why ? why : new DraftResult(DraftStatus.NoDraft));
 
     private static async Task<IResult> AddAsync(HttpContext http, DraftId id, AdminCaller caller, DraftService drafts, CancellationToken ct)
     {
@@ -188,11 +188,7 @@ internal static class DraftEndpoints
         return result.Status == DraftStatus.Succeeded ? Results.NoContent() : Problem(http, result);
     }
 
-    private static async Task<DraftResult> OwnAsync(AdminCaller caller, DraftId id, DraftService drafts, CancellationToken ct)
-    {
-        var result = await drafts.GetAsync(caller.Origin, ct).ConfigureAwait(false);
-        return result.Status == DraftStatus.Succeeded && result.Draft!.Id != id ? new DraftResult(DraftStatus.NoDraft) : result;
-    }
+    private static Task<DraftResult> OwnAsync(AdminCaller caller, DraftId id, DraftService drafts, CancellationToken ct) => drafts.GetAsync(caller.Origin, id, ct);
 
     private static IResult Draft(HttpContext http, ConfigDraft draft)
     {
@@ -234,6 +230,7 @@ internal static class DraftEndpoints
                 .Select(static e => new ConfigError($"/entries/{e.Number}", DraftErrorCodes.EntryBlocked, $"{e.Target}: {e.Reason}"))],
             code: ApiCodes.Draft.Blocked),
         DraftStatus.NothingToApply => ApiProblems.Problem(StatusCodes.Status409Conflict, "The draft has no entries, so there is nothing to apply.", code: ApiCodes.Draft.NothingToApply),
+        DraftStatus.Expired => ApiProblems.Problem(StatusCodes.Status410Gone, ExpiredDetail, code: ApiCodes.Draft.Expired),
         _ => Refused(result),
     };
 
@@ -257,6 +254,9 @@ internal static class DraftEndpoints
         var which = result.FailedCommand is { } index ? $"Command {index + 1} was refused: " : string.Empty;
         return ApiProblems.Problem(status, which + ConfigCommandResponses.Detail(command.Status), null, command.Errors, command.RelatedErrors, command.Warnings, command.Conflict);
     }
+
+    internal static readonly string ExpiredDetail =
+        $"The draft expired: it was untouched for {(int)DraftService.Lifetime.TotalDays} days. Nothing reads or changes it now; it is removed within the hour, or at once when you discard it or open a new draft.";
 
     private static IResult NoSuchDraft() => ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such draft (a draft is only ever the caller's own).");
 }

@@ -69,7 +69,8 @@ internal sealed partial class DashboardConfig(
 
         var created = false;
         var open = await drafts.GetAsync(origin, cancellationToken).ConfigureAwait(false);
-        if (open.Status == DraftStatus.NoDraft)
+        // Opening a draft over an expired one removes it, with the notice the expiry job would leave.
+        if (open.Status is DraftStatus.NoDraft or DraftStatus.Expired)
         {
             open = await drafts.CreateAsync(origin, cancellationToken).ConfigureAwait(false);
             created = open.Status == DraftStatus.Succeeded;

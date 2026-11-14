@@ -319,6 +319,8 @@ public sealed partial class RequestSimulator : IDisposable
                     return new Resolved(new SimulationResult(SimulationStatus.Denied, source));
                 case DraftStatus.NoDraft:
                     return new Resolved(new SimulationResult(SimulationStatus.DraftNotFound, source));
+                case DraftStatus.Expired:
+                    return new Resolved(new SimulationResult(SimulationStatus.DraftExpired, source));
                 case DraftStatus.Blocked:
                     return new Resolved(new SimulationResult(
                         SimulationStatus.DraftBlocked,

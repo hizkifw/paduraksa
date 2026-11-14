@@ -229,7 +229,9 @@ the same process. The design leans on three structural decisions, each of which 
   generated OpenAPI document under `/api/v1/`, no encoding tricks, five methods; an explicit **refused list** (backups,
   restore, token and user management, sessions, sign-in and setup, anything that carries a secret into a model, the live
   tail, raw metrics, the API description); two-step writes (dry run or 428 unless `confirm: true`); the API's own permission
-  filters still run. A guard test fails when a sensitive-looking operation is on neither the refused nor the reviewed list
+  filters still run. What the policy treats as a read (a GET, `ReadOnlyPosts`) must write nothing in any state: until 2026-11-14 a read, review or simulation of an
+  expired draft deleted it, wrote its notice and cleared its vault values without a confirm; they now answer 410 `draft.expired` and only the expiry job,
+  a discard or a new draft removes one. A guard test fails when a sensitive-looking operation is on neither the refused nor the reviewed list
   (`McpRequestPolicyApiTests`). A fuzz target (`mcp-sandbox`) feeds the parent's protocol arbitrary bytes as the child's output.
 
 ### B6. Outbound calls (SSRF posture)

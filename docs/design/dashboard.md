@@ -770,7 +770,10 @@ A token acts on its owner's draft (an agent proposes, the person applies).
 
 ### Lifetime
 
-Untouched for 30 days (`DraftService.Lifetime`; every change restarts it), a draft is dropped, with the vault values bound to it, by `DraftExpiryJob`. The job runs once at start, then hourly. A call that meets an expired draft drops it too, so the clock is the only thing the tests drive.
+Untouched for 30 days (`DraftService.Lifetime`; every change restarts it), a draft is dropped, with the vault values bound to it, by `DraftExpiryJob`. The job runs once at start, then hourly.
+- **Until the job runs, an expired draft is `DraftStatus.Expired` and nothing writes it.** Its reads, its review, a simulation of it, an add, a remove and an apply answer 410 `draft.expired` (the list leaves it out, as it is not open). They used to drop it on the way: delete the row, write the notice and delete its vault values. A red-team report pointed out that MCP dispatches the reads, the review and a simulation as reads with no `confirm`, so "changes nothing" was false.
+- **Only the two writes that end a draft remove an expired one early.** A discard deletes it with its vault values, as any discard does. Opening a new draft over it (the API's `POST`, or the dashboard's first "Add to draft") drops it as the job would, notice included, because a user would otherwise wait up to an hour to start again.
+- **The dashboard** never showed an expired draft and still does not: the bar is hidden and the pages read the live config. The notice toast appears once the job (or the next "Add to draft") has dropped it, which can be up to an hour later than before.
 
 Its owner gets a `DraftNotice` at the next dashboard load: a toast that stays until it is closed ("Your draft with 3 changes was dropped after 30 days untouched."), shown once.
 
@@ -840,7 +843,7 @@ It is `{draft version}.{22 characters of base64url}`. The hash is SHA-256 over:
 
 | Operation | Notes |
 |---|---|
-| `GET` | Lists the caller's (at most one) draft. |
+| `GET` | Lists the caller's (at most one) open draft; an expired one is not listed. |
 | `POST` | Opens one (409 `draft.exists`). |
 | `GET {id}` | The draft's version as `ETag`. |
 | `GET {id}/config` | The head with the draft applied (one replay). Another user's ID is a 404. |
@@ -848,9 +851,9 @@ It is `{draft version}.{22 characters of base64url}`. The hash is SHA-256 over:
 | `DELETE {id}/entries/{number}` | Removes an entry: 204, with the draft's new version as `ETag`. |
 | `POST {id}/review` | A dry run. The answer's `reviewToken`, also its `ETag`, is what apply must send. None when an entry is blocked, and 409 `draft.blocked` when all are. |
 | `POST {id}/apply` | `If-Match` is **the review token**. 428 without it, with the current review as the problem's `review`. 412 `draft.changedSinceReview` with the fresh review and its token, also as the `ETag`. 409 `draft.blocked`. 409 `draft.nothingToApply` for an empty draft. `?message=`, `?force=`. `?dryRun=true` is the review. The body is a `DraftOutcome`. |
-| `DELETE {id}` | Discards. |
+| `DELETE {id}` | Discards, an expired draft too. |
 
-Someone else's draft is a 404.
+Someone else's draft is a 404. An expired one is a 410 `draft.expired` on every operation but the list and the discard, and nothing is written.
 
 **MCP** classifies by the existing rules (`EndpointRules`, checked against the generated description by `McpRequestPolicyApiTests`):
 - The reads and the review (a read-only POST) are allowed.
@@ -908,7 +911,8 @@ Lists mark rows the draft creates or changes with "Draft".
 
 - A read replays the draft once per (latest revision, draft, draft version). `DraftService` keeps one replayed view per user (at most 256, then the table starts over). Every render of every page of a circuit therefore costs a head read and a key comparison while nothing changed.
 - A row stores each entry's number, action, target, command and time and **not its state or reason**, which are worked out on every read. Rows written before that, which carry a `state`, still read.
-- The hourly expiry reads each draft's ID and time first and loads only the expired rows. An expired draft its owner refreshed before the drop was decided under the writer's lock is not dropped (`DropExpiredIdsAsync` says which it dropped).
+- The hourly expiry reads each draft's ID and time first and loads only the expired rows, under the writer's lock, which is where "untouched" is judged.
+- `DraftSecretsTests` holds that every call but the job leaves an expired draft's row, version, notice count, vault values and revisions as they were; `DraftApiTests` that every endpoint answers 410 `draft.expired` and the stored row is unchanged.
 
 ### Tests
 
@@ -919,7 +923,7 @@ Lists mark rows the draft creates or changes with "Draft".
   - a review that no longer matches (nothing committed, the fresh review back, a deliberate second apply), no token or an invented one;
   - an unrelated commit between review and apply (still applies) and one to an object the draft refers to (refused);
   - a blocked entry refusing the whole draft, a blocked dependency, the safe twin (a blocked delete leaves a reference: 422);
-  - the cache, the expiry race, rows with a stored state, restart, expiry and its notice with a `TimeProvider`, a token acting on its owner's draft;
+  - the cache, rows with a stored state, restart, expiry and its notice with a `TimeProvider`, a token acting on its owner's draft;
   - the secrets: never in the row, the output, a revision or the audit log; deleted with the entry, the draft and the expiry; kept by the startup sweep; a refused password stored nowhere; a password replaced within one add never set; a value that stays pending while its entry is blocked.
 - **Integration:**
   - `DraftApiTests`: the whole API flow, the review token as `If-Match` with 428 and 412 carrying the fresh review, a concurrent commit to an object the draft refers to against an unrelated one, a blocked entry refusing the whole draft, two users and another's `/config` as a 404, no secret in any response or in the database, permissions, the OpenAPI conventions.

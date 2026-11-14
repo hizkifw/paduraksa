@@ -184,7 +184,7 @@ acme.order.name.ipNeedsHttp01, acme.order.challenge.undefined, acme.order.keySpe
 | `draft` | `draft`, the caller's stored draft | `simulate`, `config:write` |
 
 - **`draft`** applies the stored draft to the current head as its review does (the same replay, then a dry run of one whole-document replace). It reads the draft when the request runs.
-- **Who:** a draft is its owner's, and a token acts on its owner's draft. Another user's draft, an unknown one and a discarded one are all 404 (`SimulationStatus.DraftNotFound`), as the draft endpoints answer. It needs `config:write` because reading a draft does; a viewer may simulate the live config but not a draft (403).
+- **Who:** a draft is its owner's, and a token acts on its owner's draft. Another user's draft, an unknown one and a discarded one are all 404 (`SimulationStatus.DraftNotFound`), as the draft endpoints answer. An expired one is 410 `draft.expired` (`SimulationStatus.DraftExpired`), and the simulation writes nothing (see dashboard.md, "Drafts"). It needs `config:write` because reading a draft does; a viewer may simulate the live config but not a draft (403).
 - **Errors, as problems:**
   - entries changed elsewhere (or depending on one that is) are 409 `draft.blocked`, with an error per entry as the draft's apply gives (`SimulationStatus.DraftBlocked`);
   - what the dry run refuses (an invalid whole, a store that is unavailable) is the same 422 or 503 as for the other draft kinds;
@@ -533,7 +533,7 @@ Refused whatever the token, scope or `confirm`. Rules for endpoints that do not 
 - If the operation has a dry run, the request is sent with `?dryRun=true`, and the plan comes back as `{ status, body, dryRun: true, note }`.
 - Otherwise the answer is `{ status: 428, body: { requiresConfirm: true, method, path, note } }` and nothing is sent.
 - Only the boolean `true` confirms (`"yes"` and `1` do not). A script cannot set `dryRun` itself.
-- A POST that only reads (`simulate`, an error-page preview, a draft's review: `EndpointRules.ReadOnlyPosts`) needs no confirm.
+- A POST that only reads (`simulate`, an error-page preview, a draft's review: `EndpointRules.ReadOnlyPosts`) needs no confirm. "Only reads" has to be true of every state: a review or simulation of an expired draft used to delete it, write its notice and clear its vault values, which a script could do without a confirm (a red-team report). They now answer 410 and write nothing.
 - A draft's open, add, remove and discard are writes that need `confirm` and declare no dry run. Its apply declares one (the review). See [dashboard.md](dashboard.md).
 - Which operations have a dry run is **read from the API description**. Every change that goes through the config pipeline reads `?dryRun=` (`Preconditions.TryGetDryRun`), and the description declares the parameter on exactly those operations: an operation transformer keyed on `config:write` plus the config pipeline's publish-failure metadata, with a test that the two sets are equal. The client has no list of its own.
 

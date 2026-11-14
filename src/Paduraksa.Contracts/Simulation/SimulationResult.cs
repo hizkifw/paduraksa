@@ -23,6 +23,9 @@ public enum SimulationStatus
     /// <summary>There is no such draft: unknown, discarded, applied, or someone else's (a draft is only ever its owner's).</summary>
     DraftNotFound,
 
+    /// <summary>The draft is past its lifetime: it is not simulated, and the expiry job removes it.</summary>
+    DraftExpired,
+
     /// <summary>Entries of the stored draft are changed elsewhere (or depend on one that is), so it doesn't apply to the current
     /// config as it stands; <see cref="SimulationResult.Errors"/> names each, as the draft's review does.</summary>
     DraftBlocked,

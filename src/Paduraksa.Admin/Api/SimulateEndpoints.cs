@@ -16,7 +16,7 @@ internal static class SimulateEndpoints
     public static void Map(RouteGroupBuilder api) =>
         api.MapPost("/simulate", SimulateAsync).WithName("Simulate").WithTags("Simulator").WithSummary("Simulate a request against the live config, a revision or a draft")
             .WithDescription("target is {kind: live} (the default), {kind: revision, revision}, {kind: draftDocument, document}, {kind: draftCommand, command} or {kind: draft, draft: <draft id>} (your own stored draft, applied as its review does; it needs config:write like reading the draft, 404 when it is not yours); a draft is validated and compiled as a real change would be, and never stored or published. Nothing here changes any counter or state.")
-            .Accepts<SimulateBody>("application/json").Produces<SimulationResult>().ProducesApiProblems(400, 404, 409, 415, 422, 503)
+            .Accepts<SimulateBody>("application/json").Produces<SimulationResult>().ProducesApiProblems(400, 404, 409, 410, 415, 422, 503)
             .WithAdminBodyLimit(ApiEndpointConventions.SimulateBodyLimit)
             .RequirePermission(Permission.Simulate);
 
@@ -41,6 +41,7 @@ internal static class SimulateEndpoints
             SimulationStatus.Invalid => "The draft doesn't validate or compile, so there is no config to simulate against; see errors.",
             SimulationStatus.RevisionNotFound => "There is no such revision.",
             SimulationStatus.DraftNotFound => "There is no such draft (a draft is only ever the caller's own).",
+            SimulationStatus.DraftExpired => DraftEndpoints.ExpiredDetail,
             SimulationStatus.DraftBlocked => "Some entries of the draft are changed elsewhere (or depend on one that is), so it doesn't apply to the current config as it stands. Remove them or reload them from the config as it is now, then simulate again.",
             SimulationStatus.DraftRejected => "The draft command can't be applied to the current config as it stands. " + string.Join(' ', result.Notes),
             SimulationStatus.Denied => "You may not simulate against this target.",
@@ -48,6 +49,11 @@ internal static class SimulateEndpoints
         };
         return ApiProblems.Problem(
             status, detail.TrimEnd(), null, result.Errors, result.RelatedErrors, result.Warnings,
-            code: result.Status == SimulationStatus.DraftBlocked ? ApiCodes.Draft.Blocked : null);
+            code: result.Status switch
+            {
+                SimulationStatus.DraftBlocked => ApiCodes.Draft.Blocked,
+                SimulationStatus.DraftExpired => ApiCodes.Draft.Expired,
+                _ => null,
+            });
     }
 }

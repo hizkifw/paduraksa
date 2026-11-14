@@ -50,6 +50,12 @@ public enum DraftStatus
 
     /// <summary>The call was refused; <see cref="DraftResult.Command"/> says why (an invalid entry, a refused review or apply, a store that is unavailable).</summary>
     Refused,
+
+    /// <summary>
+    /// The draft is past its <see cref="DraftService.Lifetime"/>: <see cref="DraftResult.ExpiredAt"/> says since when. It is not read, reviewed, simulated or changed;
+    /// <see cref="DraftExpiryJob"/> removes it, and until then a discard does, or opening a new draft over it.
+    /// </summary>
+    Expired,
 }
 
 /// <summary>The outcome of a draft call.</summary>
@@ -59,7 +65,9 @@ public enum DraftStatus
 /// <param name="FailedCommand">For an add that was refused: the index of the command that was.</param>
 /// <param name="ReviewToken">A review that passed, and could be applied: the token an apply must send (<see cref="DraftReviewToken"/>); null when the draft
 /// has blocked entries, or the set doesn't pass.</param>
-public sealed record DraftResult(DraftStatus Status, ConfigDraft? Draft = null, ConfigCommandResult? Command = null, int? FailedCommand = null, string? ReviewToken = null);
+/// <param name="ExpiredAt">For <see cref="DraftStatus.Expired"/>: when the draft's lifetime ended.</param>
+public sealed record DraftResult(
+    DraftStatus Status, ConfigDraft? Draft = null, ConfigCommandResult? Command = null, int? FailedCommand = null, string? ReviewToken = null, DateTimeOffset? ExpiredAt = null);
 
 /// <summary>
 /// Drafts (docs/design/dashboard.md "Drafts (M10)"): a user's change set across pages, kept in the config database until it is applied as one
@@ -74,7 +82,10 @@ public sealed record DraftResult(DraftStatus Status, ConfigDraft? Draft = null, 
 /// (<see cref="IPasswordCredentials"/>), the entry's user carries its ID, and the draft keeps the list of such IDs: they are deleted with the
 /// entry, the draft, or its expiry, and the startup sweep leaves them alone while a draft holds them.</para>
 /// <para><b>Lifetime.</b> A draft untouched for <see cref="Lifetime"/> is dropped (its credentials too) and its owner gets a
-/// <see cref="DraftNotice"/> to be shown once; <see cref="DropExpiredAsync"/> does it, and so does any call that meets an expired draft.</para>
+/// <see cref="DraftNotice"/> to be shown once; <see cref="DropExpiredAsync"/> (the hourly <see cref="DraftExpiryJob"/>) does it. Until then every
+/// call that meets it answers <see cref="DraftStatus.Expired"/> and writes nothing: a read, a review and a simulation are dispatched to an MCP
+/// script as reads, with no confirm, so they must not delete the draft, write its notice or clear its vault values. Only the two writes that end a draft
+/// themselves remove one early: a discard, and opening a new draft over it (which leaves the notice the job would).</para>
 /// </remarks>
 public sealed partial class DraftService
 {
@@ -116,6 +127,13 @@ public sealed partial class DraftService
     public async Task<DraftResult> GetAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         var view = await ViewAsync(origin, null, cancellationToken).ConfigureAwait(false);
+        return view.Result ?? new DraftResult(DraftStatus.Succeeded, view.Draft);
+    }
+
+    /// <summary>The caller's draft <paramref name="id"/>; <see cref="DraftStatus.NoDraft"/> when it is not theirs or not there.</summary>
+    public async Task<DraftResult> GetAsync(CommandOrigin origin, DraftId id, CancellationToken cancellationToken = default)
+    {
+        var view = await ViewAsync(origin, id, cancellationToken).ConfigureAwait(false);
         return view.Result ?? new DraftResult(DraftStatus.Succeeded, view.Draft);
     }
 
@@ -377,7 +395,7 @@ public sealed partial class DraftService
             var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             await using (context.ConfigureAwait(false))
             {
-                var (row, missing) = await LoadOwnAsync(context, origin, id, cancellationToken).ConfigureAwait(false);
+                var (row, missing) = await LoadOwnAsync(context, origin, id, cancellationToken, discarding: true).ConfigureAwait(false);
                 if (row is null)
                 {
                     return missing!;
@@ -603,15 +621,7 @@ public sealed partial class DraftService
             var row = await FindAsync(context, owner, id, cancellationToken).ConfigureAwait(false);
             if (row is not null && IsExpired(row))
             {
-                if ((await DropExpiredIdsAsync(cancellationToken).ConfigureAwait(false)).Contains(row.Id))
-                {
-                    row = null;
-                }
-                else
-                {
-                    // Its owner touched it between our read and the lock: what is stored now is the draft.
-                    await context.Entry(row).ReloadAsync(cancellationToken).ConfigureAwait(false);
-                }
+                return (Expired(row), null, null);
             }
 
             if (row is null)
@@ -664,19 +674,23 @@ public sealed partial class DraftService
     private static Task<DraftRow?> FindAsync(ConfigDbContext context, UserId owner, DraftId? id, CancellationToken cancellationToken) =>
         context.ConfigDrafts.Where(d => d.OwnerUserId == owner && (id == null || d.Id == id)).SingleOrDefaultAsync(cancellationToken);
 
-    /// <summary>The caller's draft <paramref name="id"/> for a change (tracked), or why there isn't one. An expired draft is dropped on the way.</summary>
-    private async Task<(DraftRow? Row, DraftResult? Missing)> LoadOwnAsync(ConfigDbContext context, CommandOrigin origin, DraftId id, CancellationToken cancellationToken)
+    /// <summary>The caller's draft <paramref name="id"/> for a change (tracked), or why there isn't one. An expired one is <see cref="DraftStatus.Expired"/>, except to a discard.</summary>
+    private async Task<(DraftRow? Row, DraftResult? Missing)> LoadOwnAsync(ConfigDbContext context, CommandOrigin origin, DraftId id, CancellationToken cancellationToken, bool discarding = false)
     {
         if (await OwnerAsync(context, origin, cancellationToken).ConfigureAwait(false) is not { } owner)
         {
             return (null, new DraftResult(DraftStatus.Denied));
         }
 
-        var row = await DropIfExpiredAsync(context, await FindAsync(context, owner, id, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
-        return row is null ? (null, new DraftResult(DraftStatus.NoDraft)) : (row, null);
+        var row = await FindAsync(context, owner, id, cancellationToken).ConfigureAwait(false);
+        return row is null ? (null, new DraftResult(DraftStatus.NoDraft))
+            : IsExpired(row) && !discarding ? (null, Expired(row))
+            : (row, null);
     }
 
     private bool IsExpired(DraftRow row) => row.UpdatedAt + Lifetime <= _time.GetUtcNow();
+
+    private static DraftResult Expired(DraftRow row) => new(DraftStatus.Expired, ExpiredAt: row.UpdatedAt + Lifetime);
 
     private async Task<DraftRow?> DropIfExpiredAsync(ConfigDbContext context, DraftRow? row, CancellationToken cancellationToken)
     {

@@ -1,6 +1,10 @@
 using System.Net;
 using System.Text.Json;
 
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+using Paduraksa.Admin.Api;
 using Paduraksa.Admin.Json;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Audit;
@@ -9,6 +13,8 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Drafts;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
+using Paduraksa.Data;
+using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;
@@ -549,5 +555,70 @@ public sealed class DraftApiTests(SharedAdminApi shared) : IClassFixture<SharedA
     {
         using var response = await api.GetAsync($"/api/v1/upstreams/{id}");
         return await AdminApiHarness.ReadAsync(response, AdminJsonContext.Default.UpstreamConfig, Ct);
+    }
+
+    /// <summary>
+    /// An expired draft reads as expired on every endpoint, and none of them writes: the reads, the review and the simulation are what MCP dispatches without a confirm,
+    /// and each used to delete the draft, write its notice and clear its vault values on the way.
+    /// </summary>
+    [Fact]
+    public async Task AnExpiredDraftIs410OnEveryEndpointAndNoneOfThemChangesTheDatabase()
+    {
+        var api = shared.Api;
+        var draft = await FreshAsync(api);
+        var label = Unique("lapsed");
+        await AddedAsync(api, draft.Id, "owner", new UpsertUpstreamCommand(ConfigTestSupport.Upstream(label, "http://10.0.0.7:80")));
+        var contexts = api.Host.GetServices(HostRole.Core).GetRequiredService<IDbContextFactory<ConfigDbContext>>();
+        async Task<string> SqlAsync(string sql)
+        {
+            await using var context = await contexts.CreateDbContextAsync(Ct);
+            var connection = context.Database.GetDbConnection();
+            await connection.OpenAsync(Ct);
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            // The row is found by what it holds: its id is stored as bytes.
+            var holding = command.CreateParameter();
+            holding.ParameterName = "$label";
+            holding.Value = "%" + label + "%";
+            command.Parameters.Add(holding);
+            return Convert.ToString(await command.ExecuteScalarAsync(Ct), System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+
+        Task<string> StoredAsync() => SqlAsync("SELECT UpdatedAt || ' ' || Version || ' ' || (SELECT COUNT(*) FROM ConfigDraftNotices) FROM ConfigDrafts WHERE Entries LIKE $label");
+
+        var past = (DateTimeOffset.UtcNow - Paduraksa.Application.Drafts.DraftService.Lifetime - TimeSpan.FromDays(1)).UtcDateTime.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fffffff'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        await SqlAsync($"UPDATE ConfigDrafts SET UpdatedAt = '{past}' WHERE Entries LIKE $label");
+        Assert.StartsWith(past, await StoredAsync(), StringComparison.Ordinal);
+
+        var before = await StoredAsync();
+        using (var listed = await api.GetAsync("/api/v1/drafts"))
+        {
+            Assert.Empty((await AdminApiHarness.ReadAsync(listed, AdminJsonContext.Default.PageConfigDraft, Ct)).Items);
+        }
+
+        HttpResponseMessage[] answers =
+        [
+            await api.GetAsync($"/api/v1/drafts/{draft.Id}"),
+            await api.GetAsync($"/api/v1/drafts/{draft.Id}/config"),
+            await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{draft.Id}/review"),
+            await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{draft.Id}/apply"),
+            await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{draft.Id}/apply?dryRun=true"),
+            await AddAsync(api, draft.Id, "owner", new UpsertUpstreamCommand(ConfigTestSupport.Upstream(Unique("late"), "http://10.0.0.8:80"))),
+            await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{draft.Id}/entries/1"),
+            await SimulateDraftAsync(api, draft.Id, "http://a.test/"),
+        ];
+        foreach (var answer in answers)
+        {
+            using (answer)
+            {
+                Assert.True(answer.StatusCode == HttpStatusCode.Gone, $"{answer.RequestMessage!.Method} {answer.RequestMessage.RequestUri}: {(int)answer.StatusCode}");
+                Assert.Equal(ApiCodes.Draft.Expired, (await AdminApiHarness.ProblemAsync(answer, Ct)).Code);
+            }
+        }
+
+        Assert.Equal(before, await StoredAsync());
+
+        using var discarded = await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{draft.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, discarded.StatusCode);
     }
 }
