@@ -137,6 +137,7 @@ internal sealed class TrafficMix
     private int _inFlight;
     private long _canaryHighest;
     private long _traceIds;
+    private readonly ClientTrace _clientTrace = new();
 
     public TrafficMix(SoakOptions options, SoakConfig config, TrafficClients clients, Recorder recorder, Events events)
     {
@@ -328,6 +329,7 @@ internal sealed class TrafficMix
     private async Task ExecuteAsync(Probe probe, long intended, CancellationToken ct)
     {
         Interlocked.Increment(ref _inFlight);
+        RequestTrace? trace = null;
         try
         {
             var scheme = probe.Protocol == "http" ? "http" : "https";
@@ -356,6 +358,8 @@ internal sealed class TrafficMix
             if (probe.Traced)
             {
                 probe.TraceId = Interlocked.Increment(ref _traceIds);
+                trace = new RequestTrace();
+                ClientTrace.Current.Value = trace;
                 request.Headers.TryAddWithoutValidation("X-Soak-Id", probe.TraceId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
 
@@ -402,8 +406,13 @@ internal sealed class TrafficMix
             var detail = ex.GetType().Name + ": " + (ex.InnerException?.Message ?? ex.Message);
             if (probe.TraceId != 0)
             {
-                var saw = _config.AllNodes.Where(n => n.Saw(probe.TraceId)).Select(n => n.Name + (n.Finished(probe.TraceId) ? " (answered)" : " (never answered)")).ToList();
+                var saw = _config.AllNodes.Where(n => n.Saw(probe.TraceId))
+                    .Select(n => n.Name + (n.Finished(probe.TraceId) ? " (answered)" : " (never answered)") + (trace is null ? "" : " " + trace.Since(n.SeenAt(probe.TraceId)))).ToList();
                 detail += saw.Count == 0 ? " | no upstream saw it" : " | upstream saw it: " + string.Join(',', saw);
+                if (trace is not null)
+                {
+                    detail += " | " + trace.Describe(_clientTrace);
+                }
             }
 
             _recorder.Fail(Recorder.KindOf(ex), probe.Host, probe.Path, probe.Protocol, detail);

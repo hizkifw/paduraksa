@@ -27,6 +27,7 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
     // The ids of the last requests that carried X-Soak-Id, direct-mapped: when a client's request hangs, this says whether the upstream ever got it.
     private readonly long[] _seen = new long[SeenSize];
     private readonly long[] _done = new long[SeenSize];
+    private readonly long[] _seenAt = new long[SeenSize];
     private long _requests;
     private long _webSockets;
 
@@ -39,6 +40,9 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
     public long WebSocketsAccepted => Interlocked.Read(ref _webSockets);
 
     public bool Running => _app is not null;
+
+    /// <summary>When it arrived (a <see cref="System.Diagnostics.Stopwatch"/> timestamp), if <see cref="Saw"/>.</summary>
+    public long SeenAt(long id) => Volatile.Read(ref _seenAt[id & (SeenSize - 1)]);
 
     public bool Saw(long id) => Volatile.Read(ref _seen[id & (SeenSize - 1)]) == id;
 
@@ -109,6 +113,7 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
         long traceId = 0;
         if (http.Request.Headers.TryGetValue("X-Soak-Id", out var traced) && long.TryParse(traced.ToString(), out traceId))
         {
+            Volatile.Write(ref _seenAt[traceId & (SeenSize - 1)], System.Diagnostics.Stopwatch.GetTimestamp());
             Volatile.Write(ref _seen[traceId & (SeenSize - 1)], traceId);
         }
 
