@@ -165,8 +165,9 @@ the canary never went backwards, the counters never regressed in 361 scrapes, th
    restart at a third, would settle it.
 6. **A slow request body holds a graceful stop for its whole drain** (found while proving finding 2). The four slow-body clients (10 bytes a second) are cut by the minimum body rate in about 11 s while
    the server runs, but one that is in flight when the stop starts is not cut: it stays until the drain's budget runs out and Kestrel aborts it. A single trickling upload through the proxy held the stop
-   for 30 s before the fix and 20 s (the new drain budget) after it, so this was there before. Unresolved: whether Kestrel stops enforcing the rate while it drains, and whether a stop should abort
-   request bodies that are below the minimum rate, is a follow-up.
+   for 30 s before the fix and 20 s (the new drain budget) after it, so this was there before.
+   The cause: `KestrelServerImpl.StopAsync` disposes Kestrel's heartbeat first, and the heartbeat is what ticks every connection's timeout control (the data rates, the headers and keep-alive timeouts). From then on nothing judges a slow client.
+   **Fixed:** the stop calls the same `Heartbeat.OnHeartbeat()` once a second while the public listener drains (`KestrelDrainHeartbeat`), so a trickling upload is cut by the minimum rate as it is while running, and a healthy upload still gets the drain.
 
 The silent WebSocket check was skipped in both runs: `ClientWebSocket` pings every 30 s by default, a ping is traffic, and so the 120-second idle timeout never ran out. The harness now disables the pings for those
 five sockets; 5-minute runs after the change show them cut at exactly 120 s.

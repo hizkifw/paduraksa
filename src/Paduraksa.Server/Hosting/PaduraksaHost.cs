@@ -510,7 +510,13 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         // Upgraded connections (WebSockets) never end on their own, so without this the public drain would always run to its budget.
         // They're closed while Kestrel drains the ordinary requests.
         var upgraded = CloseUpgradedConnectionsAsync(drain.Token);
+
+        // Kestrel's own timers stop as its stop begins, so a request still trickling its body would hold the drain for all of it.
+        using CancellationTokenSource timersStop = new();
+        var timers = TickKestrelTimersAsync(timersStop.Token);
         await StopHostAsync(Public, HostRole.Public, drain.Token).ConfigureAwait(false);
+        await timersStop.CancelAsync().ConfigureAwait(false);
+        await timers.ConfigureAwait(false);
         await upgraded.ConfigureAwait(false);
         await StopHostAsync(Admin, HostRole.Admin, drain.Token).ConfigureAwait(false);
 
@@ -529,6 +535,18 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     }
 
     private static readonly TimeSpan MaxCoreFlushReserve = TimeSpan.FromSeconds(10);
+
+    private async Task TickKestrelTimersAsync(CancellationToken cancellationToken)
+    {
+        var heartbeat = Paduraksa.Proxy.Net.KestrelDrainHeartbeat.TryCreate(Public.Services.GetService<IServer>());
+        if (heartbeat is null)
+        {
+            LogDrainTimersUnavailable(_logger);
+            return;
+        }
+
+        await heartbeat.RunAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     private async Task CloseUpgradedConnectionsAsync(CancellationToken cancellationToken)
     {
@@ -674,6 +692,9 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Closing {Count} upgraded connections (WebSockets) for the stop")]
     private static partial void LogClosingUpgraded(ILogger logger, int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Kestrel's timers can't be kept running for the stop (the server isn't the Kestrel this was written for); a slow upload may hold the drain for its whole budget")]
+    private static partial void LogDrainTimersUnavailable(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Closing the upgraded connections failed; the drain ends them")]
     private static partial void LogCloseUpgradedFailed(ILogger logger, Exception exception);

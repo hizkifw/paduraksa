@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
@@ -67,6 +68,87 @@ public sealed class ShutdownBudgetTests
         var (stored, unwritten) = await StoredRequestsAsync(host);
         Assert.Equal(0, unwritten);
         Assert.True(stored >= Requests, $"{stored} requests stored of at least {Requests}");
+    }
+
+    [Fact]
+    public async Task AStopWithATricklingUploadInFlightCutsItAtTheMinimumRateInsteadOfHoldingTheDrain()
+    {
+        await using var upstream = await WebSocketUpstream.StartAsync();
+        await using var host = TestHost.Create(settings: new Dictionary<string, string?>
+        {
+            ["Paduraksa:ShutdownTimeout"] = "00:00:30",
+            ["Paduraksa:Limits:MinRequestBodyGrace"] = "00:00:02",
+        });
+        await host.StartAsync(Ct);
+        await PublishAsync(host, upstream.Address);
+
+        var endpoint = TestHost.Endpoint(host, HostRole.Public, "http");
+        using TcpClient tcp = new();
+        await tcp.ConnectAsync(endpoint.Host, endpoint.Port, Ct);
+        var stream = tcp.GetStream();
+        await stream.WriteAsync(Encoding.ASCII.GetBytes("POST /upload HTTP/1.1\r\nHost: ws.test\r\nContent-Length: 100000\r\n\r\n"), Ct);
+        using CancellationTokenSource stopTrickle = new();
+        var trickle = Task.Run(async () =>
+        {
+            // 10 B/s against the 120 B/s minimum: Kestrel cuts it once the 2 s grace has passed.
+            try
+            {
+                while (true)
+                {
+                    await stream.WriteAsync(new byte[1], stopTrickle.Token);
+                    await Task.Delay(100, stopTrickle.Token);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+            {
+            }
+        }, Ct);
+        // The proxy hands the upstream the body in whatever pieces it reads, so the upstream is no signal that the request is in flight.
+        await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+
+        var clock = Stopwatch.StartNew();
+        await host.StopAsync(Ct);
+        clock.Stop();
+        await stopTrickle.CancelAsync();
+        await trickle;
+
+        // The drain's budget is 20 s; the rate's grace is 2 s, and the cut has to wait for the next heartbeat.
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(8), $"the stop took {clock.Elapsed}");
+    }
+
+    [Fact]
+    public async Task AStopWithAnUploadAtAHealthyRateInFlightLetsItFinish()
+    {
+        await using var upstream = await WebSocketUpstream.StartAsync();
+        await using var host = TestHost.Create(settings: new Dictionary<string, string?>
+        {
+            ["Paduraksa:ShutdownTimeout"] = "00:00:30",
+            ["Paduraksa:Limits:MinRequestBodyGrace"] = "00:00:02",
+        });
+        await host.StartAsync(Ct);
+        await PublishAsync(host, upstream.Address);
+
+        var endpoint = TestHost.Endpoint(host, HostRole.Public, "http");
+        using TcpClient tcp = new();
+        await tcp.ConnectAsync(endpoint.Host, endpoint.Port, Ct);
+        var stream = tcp.GetStream();
+        const int Chunks = 5;
+        await stream.WriteAsync(Encoding.ASCII.GetBytes($"POST /upload HTTP/1.1\r\nHost: ws.test\r\nContent-Length: {Chunks * 1000}\r\nConnection: close\r\n\r\n"), Ct);
+        await stream.WriteAsync(new byte[1000], Ct);
+        await Task.Delay(TimeSpan.FromMilliseconds(500), Ct);
+
+        // 1000 B/s for the next four seconds: twice the grace, and about eight times the minimum rate, so Kestrel's rule leaves it be.
+        var stopping = host.StopAsync(Ct);
+        for (var i = 1; i < Chunks; i++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+            await stream.WriteAsync(new byte[1000], Ct);
+        }
+
+        using StreamReader reader = new(stream, Encoding.ASCII);
+        var status = await reader.ReadLineAsync(Ct);
+        await stopping;
+        Assert.Equal("HTTP/1.1 200 OK", status);
     }
 
     [Fact]
@@ -247,6 +329,16 @@ public sealed class ShutdownBudgetTests
 
         private async Task HandleAsync(HttpContext context)
         {
+            if (context.Request.Path == "/upload")
+            {
+                var chunk = new byte[256];
+                while (await context.Request.Body.ReadAsync(chunk, context.RequestAborted) > 0)
+                {
+                }
+
+                return;
+            }
+
             if (!context.WebSockets.IsWebSocketRequest)
             {
                 await context.Response.WriteAsync("plain");
