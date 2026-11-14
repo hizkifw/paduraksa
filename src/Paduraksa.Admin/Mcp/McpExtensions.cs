@@ -33,7 +33,7 @@ public static class McpExtensions
         services.AddSingleton(static sp =>
         {
             var toolkit = ActivatorUtilities.CreateInstance<McpToolkit>(sp);
-            sp.GetService<McpSwitch>()?.Attach(toolkit.StopAsync);
+            sp.GetService<McpSwitch>()?.Attach(toolkit.Detach);
             return toolkit;
         });
         services

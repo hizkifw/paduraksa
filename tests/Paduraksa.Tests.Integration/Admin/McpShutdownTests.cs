@@ -91,6 +91,35 @@ public sealed class McpShutdownTests
         Assert.Empty(Toolkit(api)!.ChildProcessIds);
     }
 
+    [Fact]
+    public async Task AQuickOffAndOnNeverKillsThePoolBuiltAfterIt()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "reads /proc");
+        await using var api = await AdminApiHarness.StartAsync(Ct, settings: new Dictionary<string, string?> { ["Paduraksa:Mcp:Enabled"] = null });
+        await SetAsync(api, enabled: true);
+        await using (var client = await McpTestClient.ConnectAsync(api, cancellationToken: Ct))
+        {
+            Assert.Equal("1", (await client.CallAsync("search", "async () => 1", Ct)).Text);
+        }
+
+        var first = Toolkit(api)!.ChildProcessIds;
+        await SetAsync(api, enabled: false);
+        await SetAsync(api, enabled: true);
+        await using (var client = await McpTestClient.ConnectAsync(api, cancellationToken: Ct))
+        {
+            Assert.Equal("2", (await client.CallAsync("search", "async () => 2", Ct)).Text);
+        }
+
+        var second = Toolkit(api)!.ChildProcessIds;
+        Assert.NotEmpty(second);
+        Assert.Empty(second.Intersect(first));
+
+        // The off's kill runs in the background; whenever it lands, it is the first pool's, never this one's.
+        await Task.Delay(1000, Ct);
+        Assert.All(second, pid => Assert.True(Directory.Exists($"/proc/{pid}"), $"child {pid} of the new pool was killed"));
+        Assert.Equal(second, Toolkit(api)!.ChildProcessIds);
+    }
+
     private static async Task SetAsync(AdminApiHarness api, bool enabled)
     {
         using var read = await api.GetAsync("/api/v1/server-settings");

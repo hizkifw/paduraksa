@@ -128,7 +128,7 @@ internal static partial class AdminApp
             context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
         // Always mapped: whether /mcp answers is a server setting the switch reads on every request (404 while off).
         var settings = context.Shared.ServerSettings;
-        builder.Services.AddSingleton(new McpSwitch(
+        builder.Services.AddSingleton(_ => new McpSwitch(
             () => ServerSettingCatalog.McpEnabled.Resolve(settings.Current),
             () => ServerSettingCatalog.McpIdleTimeout.Resolve(settings.Current)));
         builder.Services.AddPaduraksaAdminApi(new AdminMcpOptions(Paduraksa.Mcp.SandboxChildCommand.ForThisServer(), context.Options.Mcp.IdleTimeout));
@@ -192,8 +192,9 @@ internal static partial class AdminApp
             var idle = ServerSettingCatalog.McpIdleTimeout.Resolve(values);
             if ((mcpEnabled && !enabled) || idle != mcpIdle)
             {
-                // Under the config's writer lock: the pool's children are killed off this thread.
-                _ = Task.Run(mcp.ChangedAsync);
+                // Under the config's writer lock: the pool is detached here, in the order the changes come, and its children are killed in the
+                // background (McpSwitch), so a late kill can't reach a pool a quick switch back on has built since.
+                _ = mcp.ChangedAsync();
             }
 
             (mcpEnabled, mcpIdle) = (enabled, idle);

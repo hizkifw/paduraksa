@@ -248,7 +248,8 @@ The security-headers middleware (auth) adds its headers when the response starts
 - **Switched live** (since `server-settings`). It is a server setting (config.md, "Server settings"), so the Owner or an Admin can turn it on from Settings, Server. An environment value locks it.
   - The MCP server and `/mcp` are always registered and mapped.
   - `McpSwitch`, right behind the API's problem middleware and before authentication, answers `/mcp` with a bare 404 while it is off. No token is asked for, and nothing behind the switch sees the request.
-  - Switching it off, or changing the idle timeout, stops and drains the sandbox pool (`McpToolkit.StopAsync`, which kills the children). The next allowed call builds a new pool with the values then in force.
+  - Switching it off, or changing the idle timeout, stops and drains the sandbox pool. The next allowed call builds a new pool with the values then in force.
+  - The pool is detached at once, on the config's writer thread, in the order the changes come (`McpToolkit.Detach`). Its children are killed in the background, one pool at a time (`McpSwitch.ChangedAsync`), so a late kill after a quick off and on only reaches the old pool, never the one the on's first call built.
   - The dashboard's card follows the switch, and turning MCP on says in the review drawer what it allows.
   - **Decided by the owner:** someone holding a stolen Owner session could switch MCP on; such a session can do worse anyway.
 - While it is off, no sandbox child runs, and the dashboard's card says in one line how to turn it on.

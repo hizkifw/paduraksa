@@ -11,21 +11,56 @@ namespace Paduraksa.Admin.Mcp;
 /// </summary>
 /// <param name="enabled">Read on every request.</param>
 /// <param name="idleTimeout">Read when the sandbox pool is built.</param>
-public sealed class McpSwitch(Func<bool> enabled, Func<TimeSpan> idleTimeout)
+public sealed class McpSwitch(Func<bool> enabled, Func<TimeSpan> idleTimeout) : IDisposable
 {
     public bool Enabled => enabled();
 
     public TimeSpan IdleTimeout => idleTimeout();
 
-    private Func<Task>? _stop;
+    private readonly SemaphoreSlim _disposing = new(1, 1);
+    private Func<Func<Task>?>? _detach;
 
     /// <summary>
     /// The settings behind the switch changed: the sandbox pool is stopped and drained (switched off, or a new idle timeout that a new pool takes).
     /// The next allowed call starts a new one.
     /// </summary>
-    public Task ChangedAsync() => _stop?.Invoke() ?? Task.CompletedTask;
+    /// <remarks>
+    /// The pool is detached before this returns, on the caller's thread, so changes detach in the order they came: a quick off and on can't have
+    /// the off's stop take the pool the on's first call built. Killing the detached children runs in the background, one disposal at a time.
+    /// </remarks>
+    public Task ChangedAsync()
+    {
+        if (_detach?.Invoke() is not { } dispose)
+        {
+            return Task.CompletedTask;
+        }
 
-    internal void Attach(Func<Task> stop) => _stop = stop;
+        return Task.Run(async () =>
+        {
+            try
+            {
+                await _disposing.WaitAsync().ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                // The app is stopping: the toolkit's own disposal kills every child.
+                return;
+            }
+
+            try
+            {
+                await dispose().ConfigureAwait(false);
+            }
+            finally
+            {
+                _disposing.Release();
+            }
+        });
+    }
+
+    internal void Attach(Func<Func<Task>?> detach) => _detach = detach;
+
+    public void Dispose() => _disposing.Dispose();
 
     /// <summary>A switch that is always on with the given idle timeout: a composition without server settings.</summary>
     public static McpSwitch On(TimeSpan idleTimeout) => new(static () => true, () => idleTimeout);

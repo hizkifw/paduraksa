@@ -148,7 +148,14 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
     /// Stops the sandbox pool and kills its children (MCP switched off, or its idle timeout changed): the next call, once allowed, builds a new one
     /// with the settings then in force. A call running now finishes or fails with the pool.
     /// </summary>
-    public async Task StopAsync()
+    public Task StopAsync() => Detach() is { } dispose ? dispose() : Task.CompletedTask;
+
+    /// <summary>
+    /// Takes the current pool out at once, so the next call builds a new one, and returns what disposes the old one (null when there was none).
+    /// Split from the disposal so a caller can detach in the order the changes came and dispose later: a disposal that runs late then only
+    /// ever kills the pool that was current when it was asked for, never a newer one.
+    /// </summary>
+    internal Func<Task>? Detach()
     {
         Task<CodeModeTools>? tools;
         lock (_gate)
@@ -157,16 +164,18 @@ internal sealed partial class McpToolkit(OpenApiDocumentCache document, McpPipel
             _tools = null;
         }
 
-        if (tools is not null)
+        return tools is null ? null : () => DisposePoolAsync(tools);
+    }
+
+    private async Task DisposePoolAsync(Task<CodeModeTools> tools)
+    {
+        try
         {
-            try
-            {
-                await (await tools.ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                LogStopFailed(logger, ex);
-            }
+            await (await tools.ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogStopFailed(logger, ex);
         }
     }
 
