@@ -1,0 +1,244 @@
+/* The dashboard's palette (src/Paduraksa.Dashboard/wwwroot/app.css, the --pdk-* colours) on Material's two schemes. mkdocs.yml sets
+   `primary: custom` and `accent: custom`, so Material takes its colours from here. */
+
+[data-md-color-scheme="default"] {
+  --pdk-bg: #F5F4F1;
+  --pdk-surface: #FFFFFF;
+  --pdk-line: #E5E3DE;
+  --pdk-line-strong: #D1CEC7;
+  --pdk-text: #1C1B18;
+  --pdk-muted: #6B675F;
+  --pdk-accent: #26241F;
+  --pdk-accent-contrast: #FFFFFF;
+  --pdk-info: #2F6E9E;
+  --pdk-shadow: 0 30px 80px -40px rgba(28, 27, 24, 0.35);
+
+  --md-default-bg-color: var(--pdk-bg);
+  --md-primary-fg-color: var(--pdk-surface);
+  --md-primary-fg-color--light: var(--pdk-surface);
+  --md-primary-fg-color--dark: var(--pdk-bg);
+  /* The header is light, so its text and icons are dark. */
+  --md-primary-bg-color: var(--pdk-text);
+  --md-primary-bg-color--light: var(--pdk-muted);
+  --md-footer-bg-color: #26241F;
+  --md-footer-bg-color--dark: #1C1B18;
+}
+
+[data-md-color-scheme="slate"] {
+  /* Material derives slate's greys from one hue: the dashboard's are warm. */
+  --md-hue: 45;
+  --pdk-bg: #111110;
+  --pdk-surface: #1A1917;
+  --pdk-line: #2A2926;
+  --pdk-line-strong: #3A3834;
+  --pdk-text: #EDECE8;
+  --pdk-muted: #9C988F;
+  --pdk-accent: #E7E5E0;
+  --pdk-accent-contrast: #171614;
+  --pdk-info: #7FA7C9;
+  --pdk-shadow: 0 30px 80px -32px rgba(0, 0, 0, 0.7);
+
+  --md-default-bg-color: var(--pdk-bg);
+  --md-code-bg-color: var(--pdk-surface);
+  --md-primary-fg-color: var(--pdk-bg);
+  --md-primary-fg-color--light: var(--pdk-surface);
+  --md-primary-fg-color--dark: var(--pdk-bg);
+  --md-primary-bg-color: var(--pdk-text);
+  --md-primary-bg-color--light: var(--pdk-muted);
+  --md-footer-bg-color: var(--pdk-surface);
+  --md-footer-bg-color--dark: var(--pdk-bg);
+}
+
+[data-md-color-scheme] {
+  --md-typeset-a-color: var(--pdk-info);
+  --md-accent-fg-color: var(--pdk-info);
+  --md-accent-fg-color--transparent: color-mix(in srgb, var(--pdk-info) 10%, transparent);
+  --md-accent-bg-color: var(--pdk-accent-contrast);
+}
+
+/* The header has the page's colour, so a line marks its edge, as in the dashboard. */
+.md-header,
+.md-header--shadow {
+  box-shadow: 0 1px 0 var(--pdk-line);
+}
+
+/* Material styles the search box for a coloured header: on this one it needs its own fill. */
+@media screen and (min-width: 60em) {
+  .md-search__form,
+  .md-search__form:hover {
+    background-color: color-mix(in srgb, var(--pdk-text) 7%, transparent);
+  }
+  .md-search__input::placeholder,
+  .md-search__input + .md-search__icon {
+    color: var(--pdk-muted);
+  }
+}
+
+.md-typeset .md-button--primary,
+.md-typeset .md-button--primary:hover,
+.md-typeset .md-button--primary:focus {
+  background-color: var(--pdk-accent);
+  border-color: var(--pdk-accent);
+  color: var(--pdk-accent-contrast);
+}
+
+.md-typeset .md-button {
+  border-radius: 10px;
+}
+
+/* The landing page (docs/index.md, overrides/home.html). */
+
+.pdk-hero {
+  padding: 3rem 0 1rem;
+  color: var(--pdk-text);
+}
+
+.pdk-hero__inner {
+  padding: 0 0.8rem;
+}
+
+.pdk-hero__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.pdk-hero__logo {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 0.7rem;
+  box-shadow: 0 0 0 1px var(--pdk-line);
+}
+
+.pdk-hero__name {
+  margin: 0;
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.pdk-hero__tagline {
+  margin: 1rem 0 0;
+  font-size: 1.2rem;
+  color: var(--pdk-muted);
+}
+
+.pdk-hero__lead {
+  max-width: 34rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.pdk-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+
+/* The hero is outside .md-typeset, which is where Material styles its buttons. */
+.pdk-hero .md-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--pdk-line-strong);
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--pdk-text);
+}
+
+.pdk-hero .md-button:hover,
+.pdk-hero .md-button:focus-visible {
+  border-color: var(--pdk-muted);
+}
+
+.pdk-hero .md-button--primary,
+.pdk-hero .md-button--primary:hover,
+.pdk-hero .md-button--primary:focus-visible {
+  background-color: var(--pdk-accent);
+  border-color: var(--pdk-accent);
+  color: var(--pdk-accent-contrast);
+}
+
+.pdk-hero__icon svg {
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+  fill: currentcolor;
+}
+
+/* Framed like the OG card (docs/assets/og.png). */
+.pdk-shot {
+  margin: 2.4rem 0 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--pdk-surface);
+  box-shadow: var(--pdk-shadow), 0 0 0 1px var(--pdk-line);
+}
+
+.pdk-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.md-typeset .pdk-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.8rem;
+}
+
+.md-typeset .pdk-features > div {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--pdk-line);
+  border-radius: 10px;
+  background: var(--pdk-surface);
+}
+
+.md-typeset .pdk-features h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.md-typeset .pdk-features h3 a {
+  color: var(--pdk-text);
+}
+
+.md-typeset .pdk-features h3 a:hover {
+  color: var(--md-accent-fg-color);
+}
+
+.md-typeset .pdk-features p {
+  margin: 0;
+  color: var(--pdk-muted);
+}
+
+.md-typeset .pdk-landing-footer p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  margin-top: 2.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--pdk-line);
+}
+
+@media screen and (max-width: 44.984375em) {
+  .pdk-hero {
+    padding-top: 1.6rem;
+  }
+  .pdk-hero__name {
+    font-size: 1.8rem;
+  }
+  .pdk-hero__tagline {
+    font-size: 1rem;
+  }
+  .pdk-shot {
+    margin-top: 1.6rem;
+    border-radius: 10px;
+  }
+}

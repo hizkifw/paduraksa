@@ -1,0 +1,32 @@
+{% extends "main.html" %}
+
+{#- The landing page (docs/index.md, `template: home.html`). The hero sits outside the grid so it can span the page; the rest of the
+    page is the Markdown, beside the usual navigation. -#}
+{% block tabs %}
+  {{ super() }}
+  <section class="pdk-hero">
+    <div class="md-grid pdk-hero__inner">
+      <div class="pdk-hero__brand">
+        <img class="pdk-hero__logo" src="{{ 'assets/logo.svg' | url }}" alt="" width="56" height="56">
+        <h1 class="pdk-hero__name">Paduraksa</h1>
+      </div>
+      <p class="pdk-hero__tagline">Gateway to your homelab</p>
+      <p class="pdk-hero__lead">A self-hosted reverse proxy for homelabs, managed from a web dashboard or a REST API, with every change reviewed first, versioned and reversible.</p>
+      <div class="pdk-hero__actions">
+        <a class="md-button md-button--primary" href="{{ 'guide/getting-started/' | url }}">Get started</a>
+        <a class="md-button" href="{{ config.repo_url }}">
+          <span class="pdk-hero__icon">{% include ".icons/fontawesome/brands/github.svg" %}</span>GitHub
+        </a>
+      </div>
+      <figure class="pdk-shot">
+        <img src="{{ 'assets/readme-overview.png' | url }}" width="2732" height="1594"
+             alt="The Paduraksa dashboard: live traffic for the last hour, counts of hosts, upstreams and certificates, the hosts and the recent changes">
+      </figure>
+    </div>
+  </section>
+{% endblock %}
+
+{#- No title: the hero has the page's one h1. -#}
+{% block content %}
+  {{ page.content }}
+{% endblock %}

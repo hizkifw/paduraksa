@@ -41,15 +41,15 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: blue grey
-      accent: teal
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: blue grey
-      accent: teal
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
@@ -77,11 +77,16 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
 
+# The dashboard's palette, and the landing page's layout.
+extra_css:
+  - assets/site.css
+
 extra:
   generator: false
 
 nav:
   - Home: index.md
+  - Introduction: introduction.md
   - User guide:
       - Getting started: guide/getting-started.md
       - Hosts and routes: guide/hosts-and-routes.md
