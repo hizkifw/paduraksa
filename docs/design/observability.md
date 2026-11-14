@@ -452,21 +452,22 @@ The longer ranges are summed in SQL (`GROUP BY` the object or the step, `SUM`s o
 
 **Decision: a step observed in part is an ordinary point.** The server started or stopped inside it. Its rate is over what was observed, and its tooltip says "Observed 20 s of 1 min". It is not a lighter segment: only a step with no coverage at all breaks the line.
 
-**The dashboard's `TrafficOverview`** on the home page shows:
-- five tiles;
-- a requests chart (area, with 5xx) and a latency chart (p50, p95, p99 and the upstream's p95), as inline SVG (`TimeSeriesChart`: no dependency, a script-driven tooltip per point (see dashboard.md, "Charts"), a round-number scale);
-- the busiest hosts (linked; the requests no host owns, unlinked);
-- the upstream errors (named from the config);
-- a 1 h / 24 h / 7 d / 30 d switch.
+**Where the dashboard shows it.** The traffic over a range is the **Traffic tab of Analytics** (`TrafficStatistics`, under the page's one range picker; see dashboard.md, "The Analytics page"), and the home page keeps a strip of four live tiles (`TrafficStrip`). Both read `MetricsService.ReadOverviewAsync`.
+- **The Traffic tab** shows:
+  - a requests chart (area, with 5xx) and a latency chart (p50, p95, p99 and the upstream's p95), as inline SVG (`TimeSeriesChart`: no dependency, a script-driven tooltip per point (see dashboard.md, "Charts"), a round-number scale);
+  - the busiest hosts (linked; the requests no host owns, unlinked);
+  - the upstream errors (named from the config).
+- **The strip** shows requests per second, the 5xx share, refused per second and latency p95 over the last 30 s (`Now`), each with a sparkline of the last hour from the ring (10 s steps). It is always the live hour.
+- **The hour on the Visitors tab** is live to within a few seconds: `AnalyticsService` merges the stored buckets, the closed buckets waiting in the backlog and the open bucket the drain feeds every 200 ms, and keeps a result for 5 s.
 
 **Chart rules.**
 - The axis is time (points sit at their start times, so a minute-wide step and ten-second steps share it).
 - A line is **one polyline per unbroken run of values**. A lone point is a mark the width of its step. The latency lines also break where a covered step timed nothing.
 - A stretch with no data is a quiet shaded band whose tooltip says "No data: Paduraksa was not running" (`pdk-chart-gap`, a 6 % tint of the text colour, so it reads in both themes and at phone width).
 
-**Polling.** The hour polls every two seconds while the tab is visible (the `paduraksa.pageVisibility` pause, as the security page). The rollup ranges poll a tenth as often. A range that cannot be read shows an alert with "Try again". The page needs `metrics:read`.
+**Polling.** On the Traffic and Security tabs the hour polls every two seconds while the browser tab is visible (the `paduraksa.pageVisibility` pause, as the security page), the strip every five, and the Visitors tab every ten. Only the open tab polls. The rollup ranges poll a tenth as often (a sixth on Visitors). A range that cannot be read shows an alert with "Try again". The pages need `metrics:read`.
 
-**Not built:** the per-host page's own traffic (the home table links to it), which would be one more call to the same service.
+**Not built:** the per-host page's own traffic (the Traffic tab's table links to it), which would be one more call to the same service.
 
 **Left out, with the seams.**
 - *Health checks and notifications:* the registry's per-upstream error counters are the input. YARP's `IUpstreamHealth` is already read by the simulator.

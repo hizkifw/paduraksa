@@ -29,7 +29,7 @@ Contents:
 - Keyboard-first forms, dark and light themes, a mobile-friendly host list.
 
 **Pages:**
-1. **Overview:** traffic, error rate, p50 and p95 latency, top hosts, blocked requests, cert expiries, unhealthy upstreams, recent audit events.
+1. **Overview:** what needs the person, the counts, a live strip of the last hour (requests, errors, refused, latency p95), the hosts and the recent changes. The traffic over a range is on Analytics.
 2. **Hosts:** a searchable, taggable list with live sparkline, health and cert status. As built, a host is edited in a drawer (see "Drawers" below), not on a tabbed detail page, and the list has no sparkline.
 3. **Request simulator ("Why was this blocked?"):** enter a URL, IP, UA and headers and see the exact decision chain (host match, each policy, route, upstream), against the live config, an old revision or the change being reviewed. The same function is exposed to the API and MCP, and access-log entries link straight into it (see [hot-path.md](hot-path.md)).
 4. **Certificates:** list, issue (wizard), upload, local CA, renewal timeline, ACME order logs.
@@ -445,7 +445,14 @@ A line of copy stays only if it says what the title, the navigation or the data 
 
 A missing second factor is not on the overview (threat model G4, the owner's call). The setup checklist's "Two-step sign-in" asks the viewer, and Users shows each account's two-step status. A link that leaves the dashboard (the install guide) opens in a tab of its own.
 
-Then come the counts (hosts online and off, upstreams, certificates, the live revision; two by two on a phone), the first six hosts with where their requests go and their status (those that need attention first), and the latest five revisions, each linked. "Add host" sits in the header. It reads through `IDashboardConfig` now (testable), and the whole snapshot still travels from the first render into the circuit.
+Then come the counts (hosts online and off, upstreams, certificates, the live revision; two by two on a phone), the traffic strip (below), the first six hosts with where their requests go and their status (those that need attention first), and the latest five revisions, each linked. "Add host" sits in the header. It reads through `IDashboardConfig` now (testable), and the whole snapshot still travels from the first render into the circuit.
+
+**The traffic strip** (`Components/TrafficStrip.razor`, `metrics:read`) is the overview's only traffic: four tiles, always the live hour, with no range picker.
+- **Tiles:** requests per second, errors (the 5xx share), refused per second and latency p95. Each figure is the pace of the last 30 s (`MetricsService`'s "now"). Behind it is a sparkline of the last hour from the sampler's ring, which is a compact `TimeSeriesChart` (`Compact`: the line alone, with no axes, grid or time labels; the tooltip still gives each step's time and values, and gaps are still shaded).
+- **Link:** the whole tile is one link, over its label (`SecurityTile.Href`, stretched by CSS, with the sparkline above it so its tooltip works), to `/analytics?tab=traffic&range=1h`.
+- **Polling:** it reads the hour every 5 s while the browser tab is visible (`paduraksa.pageVisibility`) and reads at once on return. The hour is the sampler's memory and reads nothing that can fail, so the strip has no error state. A sparkline appears once the hour has two steps.
+- **Where it sits:** under the counts and above the hosts and recent changes, about 150 px tall (two rows of tiles on a phone). On a laptop the hosts list starts in the first screen when nothing needs the person.
+- **Moved to Analytics:** the requests and latency charts, the busiest hosts, the upstream errors, the range picker, and the "Analytics" link beside it. The upstream-latency tile is gone (the latency chart draws upstream p95).
 
 **Drawers instead of dialogs.**
 - Adding and changing a user (`UserDrawer`).
@@ -573,8 +580,8 @@ The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOvervie
 **Decision (owner, `security-history`): the page shows the protections, the counters over time live on Analytics.** A later branch turns Analytics into tabs (Traffic, Visitors, Security) under one range picker kept in the URL. So the counters are a self-contained component (below) that takes the range, and the page keeps only what answers "is it working" at a glance.
 
 **The page as built:**
-- One line under the title (counts through `Fmt`): "Refused in the last 24 h: 1,204 (rate limit 900 · access list 250 · ...)", the reasons that refused anything, most first, or "Nothing refused in the last 24 h". The count links to `/analytics#security` (whose range defaults to the same 24 hours).
-- The hosts table: protected hosts by name, then those with nothing on, each cell a muted "None" when empty. A stacked card per host on a phone. Its **Refused, 24 h** column is the host's refusals from the host series (cheap: the same summary the overview's busiest-hosts table reads). The Rules and Sign-in cells count over the same 24 hours.
+- One line under the title (counts through `Fmt`): "Refused in the last 24 h: 1,204 (rate limit 900 · access list 250 · ...)", the reasons that refused anything, most first, or "Nothing refused in the last 24 h". The count links to the Security tab of Analytics over the same 24 hours (`/analytics?tab=security&range=24h`).
+- The hosts table has no card heading: the page's content is one section, so the title is its heading (see "Headings"). Protected hosts by name, then those with nothing on, each cell a muted "None" when empty. A stacked card per host on a phone. Its **Refused, 24 h** column is the host's refusals from the host series (cheap: the same summary the overview's busiest-hosts table reads). The Rules and Sign-in cells count over the same 24 hours.
 - It reads `ReadAsync(Day)` every 2 s (`PollInterval`): the protections are the live snapshot's on each read, the 24 hours come from the service's 30 s cache. Polling pauses while the tab is hidden (`paduraksa.pageVisibility`) and reads at once on return.
 - **Rollups that can't be read don't hide the protections.** The page falls back to the hour (memory) for the table, drops the line and the Refused column, and shows an alert with "Try again".
 - The tiles, the per-second rates between two samples and the counter cards are gone from the page.
@@ -586,14 +593,14 @@ The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOvervie
 
 ### The security statistics (`SecurityStatistics`)
 
-A component (`Components/SecurityStatistics.razor`) with no page of its own: it takes `Range`, `Visible` (the host page watches the tab) and `HostScoped`, and reads, polls and draws by itself, so the tabbed Analytics can mount it as a tab without change.
+A component (`Components/SecurityStatistics.razor`) with no page of its own: it takes `Range` and `Visible` (the host page watches the browser tab), and reads, polls and draws by itself. It is the Security tab of Analytics.
 - **Refused per second**, stacked by reason: a `TimeSeriesChart` with `Stacked` (each line a filled band on the lines before it, the top their sum; the tooltip gives each reason's own rate). Only the reasons that refused something in the range are drawn, so the legend is short. Unknown reason is a neutral grey; the reasons have `pdk-chart-r1` to `r9`. Gaps are shaded as on the overview's charts, and the total refused is beside the title.
 - Cards: proof of work (served, solved with its share, bad solution, not a browser, the four cookie reasons), rate limits (checked, limited with its share), access lists, connections (the live limit and deny list, what was refused, counted now, and table full once it happened), sign-in, and "Not served" (unknown host, no route, unavailable, dropped) once there are some.
 - Numbers and times go through `DisplayFormat` (`Fmt`): counts, shares, the chart's per-second axis and its tooltip times in the browser's zone, and the partly observed note.
 - Polling as the overview's: the hour every 2 s, the longer ranges a tenth as often, paused while hidden and read at once when shown. A range that can't be read is an alert with "Try again" (`data-part=security-failed`). A role without `config:read` sees a lock (every built-in role has it).
-- **On Analytics** it is the last section, under the page's own range picker (1 h, 24 h, 7 d, 30 d; 1 h reads the live ring). The host picker doesn't apply: with a host chosen the section says "All hosts: these are not counted per host". `id="security"` is the target of the security page's link, with a scroll margin for the app bar.
+- **On Analytics** it is the Security tab, under the page's one range picker (1 h reads the live ring). It has no section heading (the tab is the heading) and no host scope: the host picker belongs to the Visitors tab, so the old "All hosts" note and the `#security` anchor are gone.
 
-**Tests.** bUnit: `SecurityPageTests` (the line and its link, per-host counts, the 24-hour cells, the fallback, hidden-tab polling, the protections), `SecurityStatisticsTests` (every card from the sampler's hour, the connection card, the stacked chart and its legend, a longer range from the rollups and a range switch, polling and a hidden tab, a range that can't be read), and `AnalyticsPageTests` (the section follows the page's range and host picker). They share `SecurityRig`: the gate's runtimes, a sampler, a real rollup database and a clock that steps.
+**Tests.** bUnit: `SecurityPageTests` (the line and its link, per-host counts, the 24-hour cells, the fallback, hidden-tab polling, the protections), `SecurityStatisticsTests` (every card from the sampler's hour, the connection card, the stacked chart and its legend, a longer range from the rollups and a range switch, polling and a hidden tab, a range that can't be read), and `AnalyticsPageTests` (the tab follows the page's range). They share `SecurityRig`: the gate's runtimes, a sampler, a real rollup database and a clock that steps.
 
 **Visual pass** (a throwaway Playwright tour, not committed: a week of seeded refusals and security minutes with an unknown-reason stretch and a gap; the security page and Analytics at 1 h and 7 d, dark and light, 1366 and 390 px) found and fixed:
 - the link to `#security` scrolling the section's heading under the app bar (a scroll margin);
@@ -601,9 +608,25 @@ A component (`Components/SecurityStatistics.razor`) with no page of its own: it 
 
 ### The Analytics page
 
-**Analytics** is the first entry under Insight (route `/analytics`, permission `metrics:read`, which every role holds, so the page is for everyone who can read the overview). It reads `AnalyticsService` (Application) directly, as the home overview reads `MetricsService`. The numbers behind it are in [observability.md](observability.md).
+**Analytics** is the first entry under Insight (route `/analytics`, permission `metrics:read`, which every role holds). It is the one place for statistics over a range, in three tabs under one range picker. The overview keeps only the live strip.
 
-The header holds a **host picker** (all hosts, each configured host by its first name when the role may read the config, and "No host matched") and the 1 h / 24 h / 7 d / 30 d switch of the overview (default 24 h).
+**Page map: what lives where.**
+- **Overview** (`/`): the live hour at a glance, linking here. No range.
+- **Analytics, Traffic:** the proxy's own counters: requests per second and latency charts, the busiest hosts, the upstream errors. Read from `MetricsService`.
+- **Analytics, Visitors:** the access-log drain's analytics, for every host or one. Read from `AnalyticsService`.
+- **Analytics, Security:** the gate's counters over time (see "The security statistics"). Read from `SecurityOverviewService`.
+- **Security overview** (`/security`): the protections per host and one 24-hour refusals line that links to the Security tab. The counters over time are not repeated there.
+- *Why this split:* what a person asks ("how is it doing now", "how did it do over a week") has one answer in one place. The overview answers the first at a glance, and Analytics answers the second without choosing between three pages.
+
+**Address.** `?tab=traffic|visitors|security&range=1h|24h|7d|30d`, declared as `SupplyParameterFromQuery` parameters (`Pages/AnalyticsView.cs` writes and reads them). With nothing, or an unreadable value, it is Traffic over 24 h. Choosing a tab or a range rewrites the address (replacing the history entry, so Back leaves the page) and the page reads it back, so there is one source for the view and a switch of tab keeps the range. The tab is a `SegmentedControl` under the header, and the range picker (the same control) is in the header. The host picker is in the header too, but only on Visitors (it is the one tab the host scopes) and is not in the address.
+
+**Only the open tab is mounted,** so only it reads and polls. The page owns the browser-tab visibility watcher and passes `Visible` down. Each tab takes `Range` and `Visible`, starts over on a new range, and reads at once when shown again.
+- **Polling:** the hour reads fast (Traffic and Security every 2 s, Visitors every 10 s) and the longer ranges a tenth (Traffic, Security) or a sixth (Visitors) as often. Hidden, nothing reads.
+- **Is 1 h live on Visitors?** Yes, to within a few seconds, so there is no caveat line. `AnalyticsService` merges the stored buckets, the closed buckets still waiting to be written, and the open bucket (`TrafficAnalytics.Live`). The drain feeds the open bucket every 200 ms, and the service keeps a result for 5 s. The chart's steps are five minutes wide, so the last step grows as it fills. What is not in it is a host with its access log off.
+
+**Traffic tab** (`Components/TrafficStatistics.razor`). The former overview's two charts (requests with a 5xx line, latency p50, p95, p99 and upstream p95) and its two tables (busiest hosts, linked, the requests no host owns unlinked; upstream errors, named from the config). The five live tiles are gone: a figure for the last 30 s under a range picker would contradict the range, and the strip has them. A longer range's tables splice the last hour from memory (observability.md, `RecentFrom`): kept. A range that can't be read is an alert with "Try again".
+
+**Visitors tab** (`Components/VisitorsStatistics.razor`, which is the page's former content). It takes `Range`, `Host`, `Unmatched`, `HostName` and `Visible`.
 
 There is no page-wide accuracy note (the owner found it too much). The visitors tile carries its error as its subtitle. A table count a sketch may have overcounted is marked with the approximation sign, and its own tooltip gives the range.
 
@@ -616,7 +639,7 @@ There is no page-wide accuracy note (the owner found it too much). The visitors 
 Nothing is drawn for a range with no requests: one empty state says that a host with its access log off is never counted.
 
 **Visitors and content.**
-- Three charts (requests with a 5xx line, bytes sent, unique visitors): the overview's inline-SVG `TimeSeriesChart`, no dependency (see "Charts" under the conventions). **A step nobody observed is a shaded gap and its line breaks. An observed quiet step is a real zero** (the M9 rule, from the service's `coveredSeconds`).
+- Three charts (requests with a 5xx line, bytes sent, unique visitors): the inline-SVG `TimeSeriesChart`, no dependency (see "Charts" under the conventions). **A step nobody observed is a shaded gap and its line breaks. An observed quiet step is a real zero** (the M9 rule, from the service's `coveredSeconds`).
 - Bar lists with shares (`ShareList`: a label, a bar as wide as the share, the count, the percent): status classes (green, blue, amber and red by class) and the top exact codes, methods and HTTP versions.
 - Tables: top paths (requests, bandwidth, p95, errors), top referers, slowest paths, largest responses.
 - A count a sketch may have overshot is written with the approximation sign and a tooltip "Between X and Y".
@@ -625,16 +648,19 @@ Nothing is drawn for a range with no requests: one empty state says that a host 
 
 **Clients and bots.** Browsers (families, with versions in the API), operating systems and devices as bar lists with shares; bots by kind; the top bots with their kind; the bots ignoring robots.txt; and the raw user agents.
 - The ignoring-robots empty state says only hosts that serve a robots.txt are checked: the one consequence a person needs to act on.
-- The overview's Traffic card links to the page.
 
-**Security.** The last section is the security statistics over the page's range (see "The security statistics" above).
+**Security tab.** The security statistics over the page's range (see "The security statistics" above).
 
-**Updates.** The page reads every 10 s while the tab is visible (`paduraksa.pageVisibility`, as the overview) and the longer ranges six times less often. The service keeps a result for 5 s (30 s beyond the hour). A range that cannot be read is an alert with "Try again".
+**Decisions recorded for the layout:**
+- The tabs are a `SegmentedControl`, not a new tab component: there is no other in-page tab control (the area tabs the conventions mention are not in the code), and a one-off would break the "shared controls" rule.
+- Navigation replaces the history entry for both the tab and the range, so Back leaves the page.
+- The default range stays 24 h (the security overview's link and the page's earlier default).
+- The host picker is not in the address (the brief names the tab and the range).
 
 **Tests.**
-- bUnit (`AnalyticsPageTests`, 14, over a real database): the empty state, the tiles, the three charts and a gap, the breakdowns with their tones and shares, the tables with links and approximation marks, the clients and bots, the ignoring-robots empty state, the range and host switches (the blog's own name in the tail link), a cut path, a database that is down and recovers, the navigation entry. `LiveTailPageTests` covers the query parameters.
-- Playwright (`AnalyticsEndToEndTests`): the page over a real circuit with seeded buckets and a gap, a path leading to the filtered Live tail, the 7 d switch, and 390 px without sideways scroll.
-- **Visual pass** (a throwaway tour in dark, light and 390 px) found and fixed: the top-paths table cut off in a three-column grid (the table cards are wider), bar labels truncated ("Search en..."), and the header's actions overflowing at 390 px (they wrap).
+- bUnit: `AnalyticsPageTests` (the visitors tab as before, over a real database; defaults; the address read into tab and range, with bad values falling back; a click writing the address and keeping the other value; only the open tab mounted; the host picker on Visitors only; the hidden browser tab), `TrafficStatisticsTests` (the former overview's charts, tables, gaps, a longer range, a range that can't be read, a hidden tab), `TrafficStripTests` (the tiles, their link, the sparklines, polling, a hidden tab, and the overview having the strip and none of what moved), `SecurityStatisticsTests`. `LiveTailPageTests` covers the query parameters. `TrafficStatisticsTests` and `TrafficStripTests` share `MetricsRig`.
+- Playwright (`AnalyticsEndToEndTests`): the page over a real circuit with seeded buckets and a gap, the address after the 7 d switch and a tab change, a path leading to the filtered Live tail, and 390 px without sideways scroll.
+- **Visual pass** (a throwaway tour: the overview, each Analytics tab at 1 h and 7 d, and the security overview, in dark, light, 1366 by 768 and 390 px, with an hour in the ring and a week in the rollups; not committed). It found and fixed the errors sparkline's red fill reading as a block (the errors and latency sparklines are lines). The tabs sit left under the title, the range picker right in the header, and at 390 px the host picker stacks above the range switch.
 
 ## Settings fields
 
@@ -897,7 +923,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 
 **Stylesheets.** `app.css` was one file of 4,100 lines. It is now sliced by area at its own section headings, and `App.razor` loads the slices in the order they had, then the older area files (`certificates.css`, `setup.css`, `settings.css`).
 - The order is the cascade: a rule moves only together with everything between it and its new place. A slice is a contiguous run of the old file, so the split changed no rule's position relative to another.
-- `app.css` holds the palette, shared pieces, the shell, the open draft and the user menu. Then `pages.css`, `lists.css`, `forms.css`, `drawers.css`, `history.css` (diff, History, simulator), `feedback.css` (toasts, errors, narrow screens), `auth.css`, `reconnect.css`, `rule-sets.css`, `controls.css` (traffic, segmented control) and `analytics.css`.
+- `app.css` holds the palette, shared pieces, the shell, the open draft and the user menu. Then `pages.css`, `lists.css`, `forms.css`, `drawers.css`, `history.css` (diff, History, simulator), `feedback.css` (toasts, errors, narrow screens), `auth.css`, `reconnect.css`, `rule-sets.css`, `controls.css` (traffic statistics, segmented control) and `analytics.css`.
 - A new rule goes in the file of the area it styles, and a rule that several areas share in `app.css`.
 
 **Page header.** The title (h1) and the actions share one centre line in a row at least 40 px tall, so a title sits at the same height on every page. A lead, only where it says something the page does not, sits under the row.
@@ -906,7 +932,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - A card's title is h6 (`Typo.h6`).
 - A card under a section heading, on a page that has several (Analytics), is `subtitle1`. The section heading itself is h6 with `.pdk-section-heading`.
 - A small label inside a form is `subtitle2`.
-- A page whose content is one section has no section heading: the title is the heading, and the controls that sat beside it (the Overview's range and the Analytics link) go in a row at the top of the content.
+- A page whose content is one section has no section heading: the title is the heading, and the controls that sat beside it go in a row at the top of the content. The security overview's hosts card is one (no "Hosts" heading), and so is the Security tab of Analytics.
 
 **Filter cards** (Audit, Live tail) are `.pdk-filters`: an optional bar (a segmented control, "Clear filters" at the end), then the fields in one wrapping grid. Every field is dense outlined and floats its label (give it a placeholder).
 
@@ -993,6 +1019,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - **Touch:** a tap shows it, a tap elsewhere (or on the same column) hides it; scrolling hides it. **Keyboard:** the figure is one `role="img"` with an `aria-label` summary (the range, the peak, the steps with no data); there is no tab stop per point, so the tooltip is a pointer aid.
 - **The axis labels** are `TimeFormat` (`TrafficFigures.TimeFormat(range)`) in the person's zone: the time of day for an hour, the date and time beyond.
 - **Parameters** (`Name`, `Points`, `Lines`, `Format`, `TimeFormat`, `ChartPoint`, `ChartLine`) are unchanged; `Format` may be left out and then writes up to two decimals.
+- **`Compact`** draws the line alone, 36 px tall, for a sparkline in a tile (the overview's strip): no axis, grid or time labels. The legend stays in the markup, hidden, because the tooltip takes its line names from it.
 
 **A drawer that throws.** Each level of the drawer stack has its own `ErrorBoundary` (`DrawerHost`). The failed level shows `DrawerError`: the drawer's frame, "This drawer couldn't be shown", a compact message and Close. The page and the levels below keep running, and closing it does not ask about what it held. The details are in the server log.
 
