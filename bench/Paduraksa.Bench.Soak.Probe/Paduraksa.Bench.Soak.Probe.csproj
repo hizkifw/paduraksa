@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    A startup hook (DOTNET_STARTUP_HOOKS) the soak test (bench/soak/run-soak.sh) loads into the real server: it appends the process's own
+    GC and thread-pool figures to a file every few seconds. Neither /proc nor /metrics has them, and a hook needs no change to the product.
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>StartupHook</AssemblyName>
+    <RootNamespace>Paduraksa.Bench.Soak.Probe</RootNamespace>
+    <PaduraksaIdsGenerator>false</PaduraksaIdsGenerator>
+  </PropertyGroup>
+</Project>
