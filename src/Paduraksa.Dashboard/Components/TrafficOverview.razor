@@ -12,14 +12,11 @@
    errors. The hour reads the sampler's memory every two seconds while the tab is visible; longer ranges read the one-minute
    rollups, which only change once a minute, so they are read less often. *@
 
-<section class="pdk-traffic" data-section="traffic" aria-labelledby="pdk-traffic-title">
-    <div class="pdk-card-head">
-        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-traffic-title">Traffic</MudText>
-        <div class="pdk-card-head-actions">
-            <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="_range" ValueChanged="ChooseAsync" AriaLabel="Time range" DataField="range" />
-            <MudButton Href="@DashboardRoutes.Analytics" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight"
-                       data-link="analytics">Analytics</MudButton>
-        </div>
+<section class="pdk-traffic" data-section="traffic" aria-label="Traffic">
+    <div class="pdk-traffic-bar">
+        <SegmentedControl T="MetricsRange" Options="TrafficFigures.RangeOptions" Value="_range" ValueChanged="ChooseAsync" AriaLabel="Time range" DataField="range" />
+        <MudButton Href="@DashboardRoutes.Analytics" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight"
+                   data-link="analytics">Analytics</MudButton>
     </div>
 
     @if (_failed)

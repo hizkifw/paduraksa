@@ -115,16 +115,18 @@
     }
 }
 
-.pdk-card-head-actions {
+.pdk-traffic .pdk-card-head {
+    align-items: center;
+}
+
+/* The overview's range switch and the Analytics link share one row: the switch at the start, the link at the end. */
+.pdk-traffic-bar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-end;
-    gap: 4px 8px;
-}
-
-.pdk-traffic .pdk-card-head {
-    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin-bottom: 12px;
 }
 
 /* A control row above a table card (a segmented filter). */
@@ -173,17 +175,8 @@
         display: none;
     }
 
-    /* The overview's traffic header: the title and the Analytics link on one row, the range under them. */
-    .pdk-traffic .pdk-card-head-actions {
-        display: contents;
-    }
-
-    .pdk-traffic .pdk-card-head-actions > .pdk-seg {
-        order: 3;
-    }
-
-    .pdk-traffic .pdk-card-head-actions > a {
-        order: 2;
+    /* The switch fills a row on a phone, so the link goes to the end of the next. */
+    .pdk-traffic-bar > a {
         margin-left: auto;
     }
 }

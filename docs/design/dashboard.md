@@ -888,6 +888,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - A card's title is h6 (`Typo.h6`).
 - A card under a section heading, on a page that has several (Analytics), is `subtitle1`. The section heading itself is h6 with `.pdk-section-heading`.
 - A small label inside a form is `subtitle2`.
+- A page whose content is one section has no section heading: the title is the heading, and the controls that sat beside it (the Overview's range and the Analytics link) go in a row at the top of the content.
 
 **Filter cards** (Audit, Live tail) are `.pdk-filters`: an optional bar (a segmented control, "Clear filters" at the end), then the fields in one wrapping grid. Every field is dense outlined and floats its label (give it a placeholder).
 
@@ -926,6 +927,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - Recovery codes keep their Copy and Download pair.
 - A command to run on the server is never a bare `<code>`: it is `CliHint`, which shows the Docker form (`docker compose exec paduraksa paduraksa ...`, or `run --rm` when the server must be stopped) and the bare form for a systemd install, each in a `CopyableCode`.
 - The sign-in and setup pages are plain HTML, so their `CopyableCode` is `Static`: a native button that `paduraksa.js` answers. The text is in the markup, so it is never a secret.
+- Sign-in keeps the password-reset commands behind a muted "Forgot password?" button that opens a native popover (`popovertarget`): light dismiss, Escape and the close button need no circuit. The copy buttons inside answer to the same `paduraksa.js` listener, since a popover stays in the document.
 - Inline `<code>` stays for a name inside a sentence (a setting, a flag), never for something to run.
 
 **Pills.**
