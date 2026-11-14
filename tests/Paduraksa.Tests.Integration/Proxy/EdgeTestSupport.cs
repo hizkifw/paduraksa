@@ -242,11 +242,15 @@ internal sealed class ClientInfoProbe : IStartupFilter
 {
     public ConcurrentQueue<(string Protocol, ClientInfo? Info)> Seen { get; } = new();
 
+    /// <summary>The connection's timings as each request saw them: whether it is TLS and its handshake.</summary>
+    public ConcurrentQueue<(string Protocol, ConnectionTimings? Timings)> Connections { get; } = new();
+
     public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
     {
         app.Use((context, nextMiddleware) =>
         {
             Seen.Enqueue((context.Request.Protocol, context.Features.Get<IClientInfoFeature>()?.ClientInfo));
+            Connections.Enqueue((context.Request.Protocol, context.Features.Get<ConnectionTimings>()));
             return nextMiddleware(context);
         });
         next(app);

@@ -88,6 +88,14 @@ public sealed class PublicHttp3Tests
         Assert.Equal(IpKey.Parse("127.0.0.1"), info.Address);
         Assert.Equal(ConnectionAddressSource.Socket, info.Source);
 
+        // The QUIC handshake is timed from the TLS callback to the established connection, like TCP's around UseHttps.
+        var (_, quicTimings) = Assert.Single(probe.Connections, s => s.Protocol == "HTTP/3");
+        Assert.NotNull(quicTimings);
+        Assert.True(quicTimings.IsTls);
+        Assert.True(quicTimings.HandshakeTicks > 0, $"the QUIC handshake reads {quicTimings.HandshakeTicks} ticks");
+        var (_, tcpTimings) = Assert.Single(probe.Connections, s => s.Protocol == "HTTP/2");
+        Assert.True(tcpTimings!.HandshakeTicks > 0, $"the TCP handshake reads {tcpTimings.HandshakeTicks} ticks");
+
         // A host that opted out of H3 is refused on QUIC but still served on TCP.
         using var refused = EdgeClient.Create(out _);
         await Assert.ThrowsAsync<HttpRequestException>(() => refused.SendAsync(EdgeClient.Request(host, "https", "tcp.test", "/", HttpVersion.Version30), ct));
