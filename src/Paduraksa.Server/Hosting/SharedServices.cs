@@ -28,6 +28,7 @@ using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -410,10 +411,12 @@ internal sealed class SharedServices : IAsyncDisposable
             // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
             // persists the minutes (hosted services of the core host, below), and the meter, the service and the /metrics scrape read them.
             // After the config store, whose database holds the rollups.
-            var sampler = builder.Add(new MetricSampler(metrics, timeProvider, new MetricRollupBacklog()));
+            // The rule sets' counters live in the compiler's default runtime: the store compiles with no runtime of its own.
+            SecuritySources securitySources = new(proofOfWork.Stats, rateLimits.Stats, accessLists.Stats, connections.Stats, forwardAuth, RuleSetRuntime.Default);
+            var sampler = builder.Add(new MetricSampler(metrics, timeProvider, new MetricRollupBacklog(), securitySources));
             var rollupStore = configStore.MetricRollups;
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
-            builder.Add(new MetricRollupJob(sampler, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
+            builder.Add(new MetricRollupJob(sampler, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>(), configStore.SecurityRollups));
             builder.Add(new DraftExpiryJob(configStore.Drafts, timeProvider, coreLoggers.CreateLogger<DraftExpiryJob>()));
             builder.Add(new AnalyticsRollupJob(configStore.AnalyticsRollups, options.Analytics.ToOptions(), timeProvider, coreLoggers.CreateLogger<AnalyticsRollupJob>()));
             var peerGone = builder.Add(new PeerGoneLogFilter());

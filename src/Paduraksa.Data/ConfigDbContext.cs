@@ -18,7 +18,7 @@ namespace Paduraksa.Data;
 
 /// <summary>
 /// The config database (<c>data/paduraksa.db</c>): revisions (the config document is the only copy of the config),
-/// audit, the minute-by-minute metric rollups (<see cref="Metrics.MetricRollupRow"/>) and the certificate inventory (<see cref="Certificates.CertificateRow"/>) with its ACME accounts, orders and
+/// audit, the minute-by-minute metric and security rollups (<see cref="Metrics.MetricRollupRow"/>, <see cref="Metrics.SecurityRollupRow"/>) and the certificate inventory (<see cref="Certificates.CertificateRow"/>) with its ACME accounts, orders and
 /// DNS providers (<see cref="Issuance.AcmeOrderRow"/>), all of it operational metadata outside the config document. Entities are
 /// internal to Data and Application; nothing outside them sees a row type. Create contexts from the registered
 /// <see cref="IDbContextFactory{TContext}"/>; the schema comes from migrations, applied at startup by
@@ -51,6 +51,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
     internal DbSet<DnsProviderRow> DnsProviders => Set<DnsProviderRow>();
 
     internal DbSet<MetricRollupRow> MetricRollups => Set<MetricRollupRow>();
+
+    internal DbSet<SecurityRollupRow> SecurityRollups => Set<SecurityRollupRow>();
 
     internal DbSet<AnalyticsRollupRow> AnalyticsRollups => Set<AnalyticsRollupRow>();
 
@@ -98,6 +100,7 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration(new DnsProviderRowConfiguration());
         modelBuilder.ApplyConfiguration(new AcmeOrderRowConfiguration());
         modelBuilder.ApplyConfiguration(new MetricRollupRowConfiguration());
+        modelBuilder.ApplyConfiguration(new SecurityRollupRowConfiguration());
         modelBuilder.ApplyConfiguration(new AnalyticsRollupRowConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationChannelRowConfiguration());
         modelBuilder.ApplyConfiguration(new ExpiryNoticeRowConfiguration());

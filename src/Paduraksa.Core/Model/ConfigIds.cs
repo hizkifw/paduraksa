@@ -76,6 +76,11 @@ public readonly partial record struct ApiTokenId;
 [TypedId("mrl", IdKind.Int64Ordered)]
 public readonly partial record struct MetricRollupId;
 
+/// <summary>A one-minute rollup of the gate's security counters (the process's, or one auth provider's or rule set's). Int64Ordered:
+/// admin-only, append-only and high-volume.</summary>
+[TypedId("srl", IdKind.Int64Ordered)]
+public readonly partial record struct SecurityRollupId;
+
 /// <summary>A five-minute or hourly traffic analytics rollup (one host's visitors, top paths and clients for a stretch of time, or the record that the
 /// process watched it). Int64Ordered: admin-only, append-only and high-volume.</summary>
 [TypedId("anr", IdKind.Int64Ordered)]

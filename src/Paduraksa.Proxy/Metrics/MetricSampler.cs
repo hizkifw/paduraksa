@@ -39,11 +39,23 @@ public sealed class MetricSampler
     private readonly long[] _sumUpstream = new long[LatencyBuckets.Stride];
     private readonly MetricHistory _history = new();
     private readonly List<MetricSeries> _observed = [];
+    private readonly SecuritySources? _security;
+    private readonly SecuritySeries _securityTotal = new(SecurityRollupSubject.Total, Guid.Empty, string.Empty);
+    // Replaced, never changed in place, when a provider or a set first appears: a reader's thread may be walking them.
+    private SecuritySeries[] _providers = [];
+    private SecuritySeries[] _ruleSets = [];
+    private readonly long[] _securityRead = new long[SecurityPoint.Count];
+    private readonly long[] _securitySum = new long[SecurityPoint.Count];
+    private readonly SecurityHistory _securityHistory = new();
     private long _lastMillis;
     private long _lastStamp;
     private long _lastMinute = -1;
 
-    public MetricSampler(MetricsRegistry registry, TimeProvider time, MetricRollupBacklog rollups)
+    /// <param name="registry">The counters to sample.</param>
+    /// <param name="time">The clock: monotonic time for coverage, the wall clock for which bucket a moment is in.</param>
+    /// <param name="rollups">Where the request series' finished minutes go.</param>
+    /// <param name="security">The gate's security counters to keep as series too; null: none (a test, or a process without those runtimes).</param>
+    public MetricSampler(MetricsRegistry registry, TimeProvider time, MetricRollupBacklog rollups, SecuritySources? security = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(time);
@@ -51,6 +63,7 @@ public sealed class MetricSampler
         _registry = registry;
         _time = time;
         Rollups = rollups;
+        _security = security;
         // The registry has counted since it was made: the first tick covers the time since the sampler was.
         _lastMillis = time.GetUtcNow().ToUnixTimeMilliseconds();
         _lastStamp = time.GetTimestamp();
@@ -65,6 +78,9 @@ public sealed class MetricSampler
 
     /// <summary>The queue the finished minutes go to.</summary>
     public MetricRollupBacklog Rollups { get; }
+
+    /// <summary>The queue the security series' finished minutes go to.</summary>
+    public SecurityRollupBacklog SecurityRollups { get; } = new();
 
     /// <summary>The ring's reach in seconds: an hour.</summary>
     public static int RingSeconds => MetricSeries.RingPoints * MetricSeries.BucketSeconds;
@@ -90,6 +106,7 @@ public sealed class MetricSampler
         {
             _lastMinute = end / 60_000;
             _history.Trim((end / 1000) - RingSeconds - 60);
+            _securityHistory.Trim((end / 1000) - RingSeconds - 60);
         }
 
         Array.Clear(_sumCounters);
@@ -122,17 +139,81 @@ public sealed class MetricSampler
             }
         }
 
-        // A long gap with nothing counted in it is time nobody observed; one with requests in it was lived through.
-        var gained = _sumCounters.AsSpan().ContainsAnyExcept(0L);
-        var split = elapsed > MaxTickGap.TotalMilliseconds && !gained
-            ? TickSplit.None(end, MetricSeries.BucketSeconds * 1000L)
-            : TickSplit.Of(Math.Max(start, end - (RingSeconds * 1000L)), end, MetricSeries.BucketSeconds * 1000L);
+        var securityGained = SampleSecurity();
+
+        // A long gap with nothing counted in it is time nobody observed; one with requests (or a connection refused) in it was lived through.
+        var gained = securityGained || _sumCounters.AsSpan().ContainsAnyExcept(0L);
+        var unobserved = elapsed > MaxTickGap.TotalMilliseconds && !gained;
+        var from = Math.Max(start, end - (RingSeconds * 1000L));
+        var split = unobserved ? TickSplit.None(end, MetricSeries.BucketSeconds * 1000L) : TickSplit.Of(from, end, MetricSeries.BucketSeconds * 1000L);
         foreach (var series in _observed)
         {
             series.Absorb(split, Rollups);
         }
 
         _total.Absorb(split, _sumCounters, _sumTotal, _sumUpstream, Rollups);
+
+        if (_security is not null)
+        {
+            var minutes = unobserved ? TickSplit.None(end, MinuteMillis) : TickSplit.Of(from, end, MinuteMillis);
+            _securityTotal.Absorb(minutes, SecurityRollups);
+            foreach (var series in _providers)
+            {
+                series.Absorb(minutes, SecurityRollups);
+            }
+
+            foreach (var series in _ruleSets)
+            {
+                series.Absorb(minutes, SecurityRollups);
+            }
+        }
+    }
+
+    private const long MinuteMillis = 60_000;
+
+    // Reads every security counter once. The totals are the process counters plus every provider's and set's, so a provider that
+    // is deleted keeps what it counted in them. The runtimes' lists only grow, so an entry's index is its series' for good.
+    private bool SampleSecurity()
+    {
+        if (_security is null)
+        {
+            return false;
+        }
+
+        Array.Clear(_securitySum);
+        _security.ReadProcess(_securitySum);
+        var providers = _security.Providers;
+        for (var i = 0; i < providers.Length; i++)
+        {
+            if (i == _providers.Length)
+            {
+                var id = providers[i].Key;
+                Volatile.Write(ref _providers, [.. _providers, new SecuritySeries(SecurityRollupSubject.AuthProvider, id.Value, id.ToString())]);
+            }
+
+            Array.Clear(_securityRead);
+            SecuritySources.Read(providers[i].Value, _securityRead);
+            Add(_securitySum, _securityRead);
+            _providers[i].Sample(_securityRead);
+        }
+
+        var sets = _security.RuleSets;
+        for (var i = 0; i < sets.Length; i++)
+        {
+            if (i == _ruleSets.Length)
+            {
+                var id = sets[i].Key;
+                Volatile.Write(ref _ruleSets, [.. _ruleSets, new SecuritySeries(SecurityRollupSubject.RuleSet, id.Value, id.ToString())]);
+            }
+
+            Array.Clear(_securityRead);
+            SecuritySources.Read(sets[i].Value, _securityRead);
+            Add(_securitySum, _securityRead);
+            _ruleSets[i].Sample(_securityRead);
+        }
+
+        _securityTotal.Sample(_securitySum);
+        return _securityTotal.Delta.ContainsAnyExcept(0L);
     }
 
     /// <summary>
@@ -147,7 +228,62 @@ public sealed class MetricSampler
         {
             series.Flush(Rollups);
         }
+
+        _securityTotal.Flush(SecurityRollups);
+        foreach (var series in _providers)
+        {
+            series.Flush(SecurityRollups);
+        }
+
+        foreach (var series in _ruleSets)
+        {
+            series.Flush(SecurityRollups);
+        }
     }
+
+    /// <summary>
+    /// What the security counters of every object of <paramref name="subject"/> gained over the last <paramref name="window"/> (at most
+    /// the ring's hour), keyed by owner GUID (the totals under <see cref="Guid.Empty"/>): the minutes the sampler was seeded with, the
+    /// minutes this run closed and the open one. The totals are there whenever the sampler has security sources, even before a tick.
+    /// </summary>
+    public Dictionary<Guid, SecurityPoint> SummariseSecurity(SecurityRollupSubject subject, TimeSpan window)
+    {
+        var now = _time.GetUtcNow().ToUnixTimeSeconds();
+        var since = now - (long)Math.Min(window.TotalSeconds, RingSeconds);
+        var width = (int)(now - since);
+        Dictionary<Guid, SecurityPoint> summaries = [];
+        if (_security is null)
+        {
+            return summaries;
+        }
+
+        if (subject == SecurityRollupSubject.Total)
+        {
+            summaries[Guid.Empty] = _securityTotal.Summarise(since, now);
+        }
+        else
+        {
+            foreach (var series in subject == SecurityRollupSubject.AuthProvider ? Volatile.Read(ref _providers) : Volatile.Read(ref _ruleSets))
+            {
+                if (series.Summarise(since, now) is { HasCounts: true } point)
+                {
+                    summaries[series.Owner] = point;
+                }
+            }
+        }
+
+        foreach (var (id, minutes) in _securityHistory.Since(subject, since))
+        {
+            summaries[id] = summaries.TryGetValue(id, out var live)
+                ? SecurityPoint.Combine([live, .. minutes], Math.Min(since, minutes[0].Start), width)
+                : SecurityPoint.Combine(minutes, minutes[0].Start, width);
+        }
+
+        return summaries;
+    }
+
+    /// <summary>Gives the sampler the security minutes of the hour before it started; called once, before the first tick.</summary>
+    public void SeedSecurity(IEnumerable<SecurityRollup> history) => _securityHistory.Seed(history);
 
     /// <summary>The ring of one object (<see cref="Guid.Empty"/> for the totals, and for the unmatched host), or null when nothing has been sampled for it.</summary>
     public MetricSeriesView? Read(MetricRollupSubject subject, Guid id)

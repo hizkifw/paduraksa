@@ -835,6 +835,134 @@ namespace Paduraksa.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Data.Metrics.SecurityRollupRow", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AddressRefused")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("BlockedNonBrowser")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ChallengesServed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ConnectionsDenied")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ConnectionsOverLimit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ConnectionsUncounted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CoveredSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Minute")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PasswordCacheHits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("QueueFull")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("QueueTimeouts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Queued")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RateLimitAllowed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RateLimited")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RulesAllowed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RulesDenied")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RulesDropped")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RulesTimeouts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInAllowed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInBusy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInCacheHits")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInCalls")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInDenied")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInErrors")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInRedirected")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SignInTimeouts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Solved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Subject")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SubjectKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("TokenBadTag")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("TokenExpired")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("TokenMalformed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("TokenTooEasy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Unauthorized")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Verifications")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("VerifyRejected")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Minute");
+
+                    b.HasIndex("Subject", "SubjectKey", "Minute")
+                        .IsUnique();
+
+                    b.ToTable("SecurityRollups", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SecurityRollups_Subject", "\"Subject\" IN (0, 1, 2)");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Notifications.ExpiryNoticeRow", b =>
                 {
                     b.Property<byte[]>("CertificateId")

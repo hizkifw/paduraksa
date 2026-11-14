@@ -133,6 +133,7 @@ internal static class ConfigStore
         }
 
         var rollups = builder.AddOwnedElsewhere(container.GetRequiredService<MetricRollupStore>());
+        var securityRollups = builder.AddOwnedElsewhere(container.GetRequiredService<SecurityRollupStore>());
         var analyticsRollups = builder.AddOwnedElsewhere(container.GetRequiredService<AnalyticsRollupStore>());
 
         // The notification system: the dispatcher is also the one INotificationEvents that every producer (sign-in, ACME, the watchers) publishes to.
@@ -144,7 +145,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<UpstreamHealthBoard>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationHistoryService>());
-        return new ConfigStoreServices(contexts, config, drafts, certificates, operations, setup, permissions, rollups, analyticsRollups, events, container.GetRequiredService<NotificationStats>());
+        return new ConfigStoreServices(contexts, config, drafts, certificates, operations, setup, permissions, rollups, securityRollups, analyticsRollups, events, container.GetRequiredService<NotificationStats>());
     }
 }
 
@@ -157,6 +158,7 @@ internal static class ConfigStore
 /// <param name="Setup">First-run setup: whether an Owner exists, and the one-time setup token.</param>
 /// <param name="Permissions">The one answer to "may this origin do that".</param>
 /// <param name="MetricRollups">The one-minute metric rollups' store.</param>
+/// <param name="SecurityRollups">The one-minute security rollups' store.</param>
 /// <param name="AnalyticsRollups">The traffic analytics' rollup store.</param>
 /// <param name="Events">Where producers publish notification events.</param>
 /// <param name="NotificationStats">The notification outbox's figures, for <c>/metrics</c>.</param>
@@ -169,6 +171,7 @@ internal sealed record ConfigStoreServices(
     SetupService Setup,
     IPermissionEvaluator Permissions,
     MetricRollupStore MetricRollups,
+    SecurityRollupStore SecurityRollups,
     AnalyticsRollupStore AnalyticsRollups,
     INotificationEvents Events,
     NotificationStats NotificationStats);

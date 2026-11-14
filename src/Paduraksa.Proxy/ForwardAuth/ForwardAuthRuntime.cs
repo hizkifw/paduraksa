@@ -20,6 +20,8 @@ public sealed partial class ForwardAuthRuntime
 {
     private readonly ConcurrentDictionary<AuthProviderId, ForwardAuthProviderState> _providers = new();
     private readonly ConcurrentDictionary<AuthProviderId, ForwardAuthCounters> _counters = new();
+    private readonly Lock _countersGate = new();
+    private KeyValuePair<AuthProviderId, ForwardAuthCounters>[] _allCounters = [];
 
     // The retired states that haven't been disposed yet. A state is reachable only from the snapshots that hold it, and its disposal timer only from the state:
     // holding it here keeps the timer from being collected before it fires.
@@ -54,8 +56,32 @@ public sealed partial class ForwardAuthRuntime
     /// and no key is ever shown to anyone.</summary>
     internal byte[] CacheSecret { get; }
 
+    /// <summary>
+    /// Every provider's counters the process has made, in the order they were made. Only ever appended to, so an entry keeps its
+    /// index: the metric sampler reads it every second and keys its series by that index without allocating.
+    /// </summary>
+    public ReadOnlySpan<KeyValuePair<AuthProviderId, ForwardAuthCounters>> AllCounters => Volatile.Read(ref _allCounters);
+
     /// <summary>The counters of <paramref name="id"/>: cold path, once per provider per compile.</summary>
-    public ForwardAuthCounters CountersFor(AuthProviderId id) => _counters.GetOrAdd(id, static _ => new ForwardAuthCounters());
+    public ForwardAuthCounters CountersFor(AuthProviderId id)
+    {
+        if (_counters.TryGetValue(id, out var counters))
+        {
+            return counters;
+        }
+
+        lock (_countersGate)
+        {
+            if (!_counters.TryGetValue(id, out counters))
+            {
+                counters = new ForwardAuthCounters();
+                _counters[id] = counters;
+                Volatile.Write(ref _allCounters, [.. _allCounters, new(id, counters)]);
+            }
+
+            return counters;
+        }
+    }
 
     /// <summary>How many retired states wait to be disposed, for tests.</summary>
     internal int RetiredStates => _retiring.Count;

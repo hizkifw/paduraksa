@@ -13,10 +13,12 @@ namespace Paduraksa.Application.Metrics;
 /// the last hour of rollups, and it is registered before the sampler's service so that it stops after it: the minute the sampler
 /// closes as it stops is still in the queue when the job's last write runs.
 /// </summary>
+/// <remarks>The security series' minutes go to <paramref name="security"/> the same way, on the same schedule and retention; null leaves them unwritten (a test of the request rollups alone).</remarks>
 public sealed partial class MetricRollupJob(
-    MetricSampler sampler, MetricRollupStore store, MetricRollupOptions options, TimeProvider time, ILogger<MetricRollupJob> logger) : BackgroundService
+    MetricSampler sampler, MetricRollupStore store, MetricRollupOptions options, TimeProvider time, ILogger<MetricRollupJob> logger, SecurityRollupStore? security = null) : BackgroundService
 {
     private readonly MetricRollupBacklog _queue = sampler.Rollups;
+    private readonly SecurityRollupBacklog _securityQueue = sampler.SecurityRollups;
 
     /// <summary>
     /// The sampler starts from the hour before it. A database that can't be read leaves the one-hour view starting at boot, as it
@@ -32,9 +34,14 @@ public sealed partial class MetricRollupJob(
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
+        var from = now - TimeSpan.FromSeconds(MetricSampler.RingSeconds + 60);
         try
         {
-            sampler.Seed(await store.ReadMinutesAsync(now - TimeSpan.FromSeconds(MetricSampler.RingSeconds + 60), now, cancellationToken).ConfigureAwait(false));
+            sampler.Seed(await store.ReadMinutesAsync(from, now, cancellationToken).ConfigureAwait(false));
+            if (security is not null)
+            {
+                sampler.SeedSecurity(await security.ReadMinutesAsync(from, now, cancellationToken).ConfigureAwait(false));
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -74,7 +81,16 @@ public sealed partial class MetricRollupJob(
     /// <summary>One write pass; public for tests, which drive the job without its timer.</summary>
     public async Task WriteAsync(CancellationToken cancellationToken)
     {
-        var minutes = _queue.Drain();
+        await WriteAsync(_queue, store.WriteAsync, cancellationToken).ConfigureAwait(false);
+        if (security is not null)
+        {
+            await WriteAsync(_securityQueue, security.WriteAsync, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task WriteAsync<T>(RollupBacklog<T> queue, Func<IReadOnlyList<T>, CancellationToken, Task> write, CancellationToken cancellationToken)
+    {
+        var minutes = queue.Drain();
         if (minutes.Count == 0)
         {
             return;
@@ -82,11 +98,11 @@ public sealed partial class MetricRollupJob(
 
         try
         {
-            await store.WriteAsync(minutes, cancellationToken).ConfigureAwait(false);
+            await write(minutes, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _queue.Requeue(minutes);
+            queue.Requeue(minutes);
             if (ex is OperationCanceledException)
             {
                 throw;
@@ -101,7 +117,13 @@ public sealed partial class MetricRollupJob(
     {
         try
         {
-            var removed = await store.PruneAsync(time.GetUtcNow() - options.Retention, cancellationToken).ConfigureAwait(false);
+            var cutoff = time.GetUtcNow() - options.Retention;
+            var removed = await store.PruneAsync(cutoff, cancellationToken).ConfigureAwait(false);
+            if (security is not null)
+            {
+                removed += await security.PruneAsync(cutoff, cancellationToken).ConfigureAwait(false);
+            }
+
             if (removed > 0)
             {
                 LogPruned(logger, removed, options.Retention);
@@ -122,7 +144,7 @@ public sealed partial class MetricRollupJob(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LogWriteFailed(logger, ex, _queue.Count);
+            LogWriteFailed(logger, ex, _queue.Count + _securityQueue.Count);
         }
     }
 

@@ -412,7 +412,7 @@ public sealed class MetricRollupStoreTests
     }
 
     /// <summary>Records each statement EF runs and the plan SQLite makes for it, asked on the same connection with the same parameters.</summary>
-    private sealed class PlanCapture : DbCommandInterceptor
+    internal sealed class PlanCapture : DbCommandInterceptor
     {
         public List<(string Sql, string Plan)> Statements { get; } = [];
 

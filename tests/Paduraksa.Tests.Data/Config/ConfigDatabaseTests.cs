@@ -41,7 +41,7 @@ public sealed class ConfigDatabaseTests
         Assert.Empty(await context.Database.GetPendingMigrationsAsync(Ct));
         var tables = await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
         Assert.Equal(
-            ["AcmeAccounts", "AcmeOrders", "AnalyticsRollups", "ApiTokens", "AuditEvents", "CertificateNames", "Certificates", "ConfigDraftNotices", "ConfigDrafts", "ConfigRevisions", "DnsProviders", "ExpiryNotices", "MetricRollups", "NotificationChannels", "NotificationDeliveries", "NotificationEvents", "RecoveryCodes", "RoleAssignments", "Sessions", "Users", "__EFMigrationsHistory", "__EFMigrationsLock"],
+            ["AcmeAccounts", "AcmeOrders", "AnalyticsRollups", "ApiTokens", "AuditEvents", "CertificateNames", "Certificates", "ConfigDraftNotices", "ConfigDrafts", "ConfigRevisions", "DnsProviders", "ExpiryNotices", "MetricRollups", "NotificationChannels", "NotificationDeliveries", "NotificationEvents", "RecoveryCodes", "RoleAssignments", "SecurityRollups", "Sessions", "Users", "__EFMigrationsHistory", "__EFMigrationsLock"],
             tables.Select(r => (string)r[0]!).Order(StringComparer.Ordinal));
         Assert.Equal("wal", await db.ScalarAsync("PRAGMA journal_mode"));
     }
@@ -107,7 +107,7 @@ public sealed class ConfigDatabaseTests
 
         var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
 
-        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn", "20261113023752_AnalyticsRollupBytesIn", "20261114051015_MetricRollupRefusals"], result.AppliedMigrations);
+        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn", "20261113023752_AnalyticsRollupBytesIn", "20261114051015_MetricRollupRefusals", "20261114051633_SecurityRollups"], result.AppliedMigrations);
         var tables = (await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).Select(r => (string)r[0]!).ToList();
         Assert.All(["GlobalSettings", "Profiles", "Upstreams", "Destinations", "Hosts", "HostNames", "Routes"], dropped => Assert.DoesNotContain(dropped, tables));
         Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM ConfigRevisions WHERE Seq = 1"));

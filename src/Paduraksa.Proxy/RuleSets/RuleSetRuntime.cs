@@ -46,10 +46,36 @@ public sealed class RuleSetCounters
 public sealed class RuleSetRuntime
 {
     private readonly ConcurrentDictionary<RuleSetId, RuleSetCounters> _counters = new();
+    private readonly Lock _gate = new();
+    private KeyValuePair<RuleSetId, RuleSetCounters>[] _all = [];
 
     /// <summary>The runtime a compile uses when its options name none.</summary>
     public static RuleSetRuntime Default { get; } = new();
 
+    /// <summary>
+    /// Every set's counters the process has made, in the order they were made. Only ever appended to, so an entry keeps its index:
+    /// the metric sampler reads it every second and keys its series by that index without allocating.
+    /// </summary>
+    public ReadOnlySpan<KeyValuePair<RuleSetId, RuleSetCounters>> All => Volatile.Read(ref _all);
+
     /// <summary>The counters of <paramref name="id"/>: cold path, called once per set per compile.</summary>
-    public RuleSetCounters CountersFor(RuleSetId id) => _counters.GetOrAdd(id, static _ => new RuleSetCounters());
+    public RuleSetCounters CountersFor(RuleSetId id)
+    {
+        if (_counters.TryGetValue(id, out var counters))
+        {
+            return counters;
+        }
+
+        lock (_gate)
+        {
+            if (!_counters.TryGetValue(id, out counters))
+            {
+                counters = new RuleSetCounters();
+                _counters[id] = counters;
+                Volatile.Write(ref _all, [.. _all, new(id, counters)]);
+            }
+
+            return counters;
+        }
+    }
 }
