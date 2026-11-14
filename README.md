@@ -37,7 +37,7 @@ The image is `ghcr.io/hizkifw/paduraksa`, for amd64 and arm64.
 
 ## Documentation
 
-The documentation is in [`docs/`](docs/) and is built as a site with MkDocs (`mkdocs.yml`):
+The documentation is at [www.paduraksa.org](https://www.paduraksa.org/). Its source is in [`docs/`](docs/), built as a site with MkDocs (`mkdocs.yml`):
 
 - [Getting started](docs/guide/getting-started.md): from `docker compose up` to a service behind HTTPS.
 - [User guide](docs/guide/hosts-and-routes.md) and [operating it](docs/operating/docker.md): hosts, upstreams, TLS, security, backups, upgrades.

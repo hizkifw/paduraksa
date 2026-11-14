@@ -2,7 +2,8 @@
 # docs/development.md says how CI builds and publishes it.
 site_name: Paduraksa
 site_description: A self-hosted reverse proxy for homelabs, with a dashboard, a REST API and a built-in WAF.
-site_url: https://hizkifw.github.io/paduraksa/
+# The custom domain, served from the root: www is canonical, and GitHub Pages redirects the apex (docs/design/deployment.md).
+site_url: https://www.paduraksa.org/
 repo_url: https://github.com/hizkifw/paduraksa
 repo_name: hizkifw/paduraksa
 edit_uri: edit/main/docs/

@@ -105,6 +105,23 @@ Built on `docs-site`. The site is MkDocs with the Material theme over `docs/` (`
 - **CI.** The `Docs` workflow (`.github/workflows/docs.yml`) is its own file, so that it builds on every push to any branch and every pull request (`ci.yml` runs for pushes to `main` only). Its `build` job builds with `--strict`, runs the check and uploads the site (as the `docs-site` artifact and as the Pages artifact). Its `deploy` job publishes to GitHub Pages and runs only on a manual run (`workflow_dispatch`) **and** only when the repository variable `DOCS_PUBLISH` is `true`. Nothing publishes by itself, and Pages is not enabled: [development.md](../development.md#the-documentation-site) says how the owner turns it on.
 - **Material's end of life.** Material for MkDocs is in maintenance until 2027-05-05, and its team points to Zensical as the successor, which reads the same `mkdocs.yml`. The build sets `NO_MKDOCS_2_WARNING=1` to keep that notice out of the log. Moving is a later job.
 
+#### The custom domain
+
+The site is served at `https://www.paduraksa.org/`, from the root, so `site_url` has no path and every page keeps its old path under it.
+
+- **www is canonical.** `site_url` and `docs/CNAME` name it. GitHub Pages redirects the apex (`paduraksa.org`) to it when both have DNS records.
+- **The domain is a Pages setting.** A site deployed from Actions takes it from Settings, Pages, Custom domain. `docs/CNAME` is copied into the site, does nothing there, and records the name in the repository.
+- **DNS records** (at the registrar):
+
+| Name | Type | Value |
+|---|---|---|
+| `www` | CNAME | `hizkifw.github.io` |
+| `@` | A | `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153` |
+| `@` | AAAA | `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153`, `2606:50c0:8003::153` |
+
+- **Verify the domain** for the account (GitHub Settings, Pages, Add a domain: a `TXT` record `_github-pages-challenge-hizkifw`), so no other account's repository can claim it.
+- **HTTPS.** Pages issues the certificate once the DNS resolves. Then turn on Enforce HTTPS.
+
 ### Test
 
 `ContainerSmokeTests` (trait `Category=Container`, off unless `PADURAKSA_CONTAINER_TESTS=1`) builds the image, runs it on an empty volume with random loopback ports, and asserts:

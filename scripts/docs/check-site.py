@@ -43,7 +43,7 @@ def parse(path: Path) -> Page:
 
 
 def base_path() -> str:
-    """The path the site is served under: that of `site_url` in mkdocs.yml (`/paduraksa/`), which 404.html's links are written from."""
+    """The path the site is served under: that of `site_url` in mkdocs.yml (`/` on the custom domain), which 404.html's links are written from."""
     config = Path("mkdocs.yml")
     found = re.search(r"^site_url:\s*(\S+)", config.read_text(encoding="utf-8"), re.MULTILINE) if config.is_file() else None
     path = urlsplit(found.group(1)).path if found else "/"

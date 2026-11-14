@@ -124,7 +124,9 @@ The `Docs` workflow (`.github/workflows/docs.yml`) builds the site on every push
 2. Set the repository variable: `gh variable set DOCS_PUBLISH --body true`.
 3. Run the workflow by hand: `gh workflow run docs.yml` (or Actions, Docs, Run workflow). Its `deploy` job runs only for a manual run while `DOCS_PUBLISH` is `true`, and deploys the site that run built.
 
-To stop publishing, set the variable to anything else, or delete it. The site's address is `site_url` in `mkdocs.yml` (`https://hizkifw.github.io/paduraksa/`): change it there if the repository or its owner is renamed, or if the site gets a domain of its own.
+To stop publishing, set the variable to anything else, or delete it.
+
+The site is served at `https://www.paduraksa.org/`, from the root. That address is `site_url` in `mkdocs.yml` (the canonical links and the Open Graph tags use it) and `docs/CNAME`. The custom domain itself is a Pages setting, and the DNS records it needs are in [deployment.md](design/deployment.md#the-custom-domain).
 
 ## Writing tests that don't flake
 
