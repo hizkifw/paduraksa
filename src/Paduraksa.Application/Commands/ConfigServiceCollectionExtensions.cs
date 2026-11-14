@@ -58,6 +58,7 @@ public static class ConfigServiceCollectionExtensions
             sp.GetService<IBuiltInCertificates>()));
         services.TryAddSingleton(sp => new RequestSimulator(
             sp.GetRequiredService<ConfigService>(),
+            sp.GetRequiredService<DraftService>(),
             sp.GetRequiredService<SnapshotPublisher>().Store,
             sp.GetRequiredService<IPermissionEvaluator>(),
             sp.GetRequiredService<IUpstreamHealth>(),

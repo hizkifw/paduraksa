@@ -58,8 +58,9 @@ public sealed class SimulationContractTests
             new DraftDocumentSimulationTarget(document),
             new DraftCommandSimulationTarget(new UpsertHostCommand(document.Hosts[0])),
             new DraftCommandSimulationTarget(new DeleteUpstreamCommand(AppUpstream, 4) { DryRun = true, Message = "try" }),
+            new DraftSimulationTarget(DraftId.New()),
         ];
-        string[] kinds = ["live", "revision", "draftDocument", "draftCommand", "draftCommand"];
+        string[] kinds = ["live", "revision", "draftDocument", "draftCommand", "draftCommand", "draft"];
 
         for (var i = 0; i < targets.Length; i++)
         {
@@ -75,6 +76,10 @@ public sealed class SimulationContractTests
         Assert.Equal(AppUpstream, back.UpstreamId);
         Assert.Equal(4, back.Version);
         Assert.True(back.DryRun);
+
+        var stored = Assert.IsType<DraftSimulationTarget>(JsonSerializer.Deserialize(
+            JsonSerializer.Serialize(targets[5], SimulationJsonContext.Default.SimulationTarget), SimulationJsonContext.Default.SimulationTarget));
+        Assert.Equal(((DraftSimulationTarget)targets[5]).Draft, stored.Draft);
 
         // An unknown kind is not guessed at.
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize("{\"kind\":\"nowhere\"}", SimulationJsonContext.Default.SimulationTarget));

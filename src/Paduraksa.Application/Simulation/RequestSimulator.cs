@@ -6,10 +6,12 @@ using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
+using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Drafts;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
@@ -57,6 +59,7 @@ public sealed partial class RequestSimulator : IDisposable
     private readonly SemaphoreSlim _compiles = new(MaxConcurrentCompiles, MaxConcurrentCompiles);
     private readonly TimeSpan _busyWait;
     private readonly ConfigService _config;
+    private readonly DraftService _drafts;
     private readonly SnapshotStore _store;
     private readonly IUpstreamHealth _health;
     private readonly IPermissionEvaluator _permissions;
@@ -67,6 +70,7 @@ public sealed partial class RequestSimulator : IDisposable
     private readonly TimeProvider _time;
 
     /// <param name="config">Where drafts and revisions come from.</param>
+    /// <param name="drafts">Where a caller's stored draft is read from.</param>
     /// <param name="store">The live snapshot.</param>
     /// <param name="permissions">Who may simulate against which target (<see cref="OperationPermissions.ForSimulation"/>).</param>
     /// <param name="health">The live proxy's destination health.</param>
@@ -80,6 +84,7 @@ public sealed partial class RequestSimulator : IDisposable
     /// <param name="time">The clock the trace's ages (the Cloudflare edge ranges') are read against.</param>
     internal RequestSimulator(
         ConfigService config,
+        DraftService drafts,
         SnapshotStore store,
         IPermissionEvaluator permissions,
         IUpstreamHealth health,
@@ -91,6 +96,7 @@ public sealed partial class RequestSimulator : IDisposable
         TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(drafts);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(permissions);
         ArgumentNullException.ThrowIfNull(health);
@@ -100,6 +106,7 @@ public sealed partial class RequestSimulator : IDisposable
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(time);
         _config = config;
+        _drafts = drafts;
         _store = store;
         _health = health;
         _permissions = permissions;
@@ -231,6 +238,8 @@ public sealed partial class RequestSimulator : IDisposable
                 return await ResolveDraftDocumentAsync(draft.Document, origin, cancellationToken).ConfigureAwait(false);
             case DraftCommandSimulationTarget command:
                 return await ResolveDraftAsync(command.Command, SimulationTargetKind.DraftCommand, origin, cancellationToken).ConfigureAwait(false);
+            case DraftSimulationTarget stored:
+                return await ResolveStoredDraftAsync(stored.Draft, origin, cancellationToken).ConfigureAwait(false);
             default:
                 throw new ArgumentException($"Unknown simulation target {target.GetType().Name}.", nameof(target));
         }
@@ -284,6 +293,45 @@ public sealed partial class RequestSimulator : IDisposable
         {
             var head = (await _config.GetCurrentAsync(cancellationToken).ConfigureAwait(false)).Revision?.Id;
             resolved = await ResolveDraftAsync(new ReplaceConfigCommand(document, head), SimulationTargetKind.DraftDocument, origin, cancellationToken).ConfigureAwait(false);
+            if (resolved.Failure is not { Status: SimulationStatus.DraftRejected })
+            {
+                break;
+            }
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// The caller's stored draft: the head with its entries applied, replaced onto that head as its review does, and then planned like any draft
+    /// document. A head that moves between the read and the plan is a conflict, so it is read once more.
+    /// </summary>
+    private async Task<Resolved> ResolveStoredDraftAsync(DraftId id, CommandOrigin origin, CancellationToken cancellationToken)
+    {
+        SimulationSource source = new(SimulationTargetKind.Draft);
+        Resolved resolved = default!;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var (read, document) = await _drafts.ReadForSimulationAsync(origin, id, cancellationToken).ConfigureAwait(false);
+            switch (read.Status)
+            {
+                case DraftStatus.Denied:
+                    return new Resolved(new SimulationResult(SimulationStatus.Denied, source));
+                case DraftStatus.NoDraft:
+                    return new Resolved(new SimulationResult(SimulationStatus.DraftNotFound, source));
+                case DraftStatus.Blocked:
+                    return new Resolved(new SimulationResult(
+                        SimulationStatus.DraftBlocked,
+                        source,
+                        Errors: [.. read.Draft!.Entries.Where(static e => e.State == DraftEntryState.ChangedElsewhere)
+                            .Select(static e => new ConfigError($"/entries/{e.Number}", DraftErrorCodes.EntryBlocked, $"{e.Target}: {e.Reason}"))]));
+                case DraftStatus.Succeeded:
+                    break;
+                default:
+                    return new Resolved(new SimulationResult(SimulationStatus.Unavailable, source, Errors: read.Command?.Errors));
+            }
+
+            resolved = await ResolveDraftAsync(new ReplaceConfigCommand(document!, read.Draft!.Head?.Id), SimulationTargetKind.Draft, origin, cancellationToken).ConfigureAwait(false);
             if (resolved.Failure is not { Status: SimulationStatus.DraftRejected })
             {
                 break;
@@ -459,6 +507,7 @@ public sealed partial class RequestSimulator : IDisposable
         RevisionSimulationTarget => SimulationTargetKind.Revision,
         DraftDocumentSimulationTarget => SimulationTargetKind.DraftDocument,
         DraftCommandSimulationTarget => SimulationTargetKind.DraftCommand,
+        DraftSimulationTarget => SimulationTargetKind.Draft,
         _ => throw new ArgumentException($"Unknown simulation target {target.GetType().Name}.", nameof(target)),
     };
 

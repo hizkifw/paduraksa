@@ -115,6 +115,8 @@ else
     {
         SimulationStatus.Invalid => "This config doesn't validate, so there is nothing to simulate against.",
         SimulationStatus.RevisionNotFound => "That revision doesn't exist.",
+        SimulationStatus.DraftNotFound => "That draft doesn't exist any more.",
+        SimulationStatus.DraftBlocked => "Entries of the draft are changed elsewhere, so it can't be applied as it stands.",
         SimulationStatus.DraftRejected => "The change can't be applied as it stands.",
         SimulationStatus.Unavailable => "The config store is unavailable right now.",
         SimulationStatus.Denied => "Your role can't run this simulation.",

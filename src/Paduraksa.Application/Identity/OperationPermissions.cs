@@ -21,11 +21,17 @@ public static class OperationPermissions
 
     /// <summary>
     /// What simulating against <paramref name="target"/> needs: every simulation needs <see cref="Permission.Simulate"/>; a draft
-    /// or a stored revision shows what the config contains, so those also need <see cref="Permission.ConfigRead"/>.
+    /// or a stored revision shows what the config contains, so those also need <see cref="Permission.ConfigRead"/>; the caller's
+    /// stored draft needs what reading the draft does (<see cref="ForConfigCommand"/>).
     /// </summary>
     public static IReadOnlyList<Permission> ForSimulation(SimulationTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        return target is LiveSimulationTarget ? [Permission.Simulate] : [Permission.Simulate, Permission.ConfigRead];
+        return target switch
+        {
+            LiveSimulationTarget => [Permission.Simulate],
+            DraftSimulationTarget => [Permission.Simulate, ForConfigCommand],
+            _ => [Permission.Simulate, Permission.ConfigRead],
+        };
     }
 }

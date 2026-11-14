@@ -7,6 +7,7 @@ using Paduraksa.Contracts.Audit;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Drafts;
+using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
@@ -279,6 +280,118 @@ public sealed class DraftApiTests(SharedAdminApi shared) : IClassFixture<SharedA
         using var applied = await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{draft.Id}/apply", ifMatch: $"\"{await TokenAsync(api, draft.Id)}\"");
         Assert.Equal(HttpStatusCode.OK, applied.StatusCode);
         Assert.Equal("other, from the draft", (await ReadUpstreamAsync(api, other.Id)).Name);
+    }
+
+    private static async Task<HttpResponseMessage> SimulateDraftAsync(AdminApiHarness api, DraftId draft, string url, string caller = "owner") =>
+        await api.SendJsonAsync(
+            HttpMethod.Post, "/api/v1/simulate", new SimulateBody(new SimulationRequest(url, "203.0.113.9"), new DraftSimulationTarget(draft)), AdminJsonContext.Default.SimulateBody, caller);
+
+    [Fact]
+    public async Task ASimulationAgainstTheDraftShowsWhatApplyingItWouldDoAndChangesNothing()
+    {
+        var api = shared.Api;
+        var label = Unique("sim");
+        using (var made = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/hosts", ConfigTestSupport.RespondHost(label, $"{label}.test", "live"), AdminJsonContext.Default.HostConfig))
+        {
+            Assert.Equal(HttpStatusCode.Created, made.StatusCode);
+        }
+
+        var draft = await FreshAsync(api);
+        var added = await AddedAsync(api, draft.Id, "owner", new UpsertHostCommand(ConfigTestSupport.RespondHost(label + "-new", $"{label}-new.test", "drafted")));
+        var before = await HeadSeqAsync(api);
+
+        using var drafted = await SimulateDraftAsync(api, draft.Id, $"http://{label}-new.test/");
+        using var normal = await SimulateDraftAsync(api, draft.Id, $"http://{label}.test/");
+        using var live = await api.SendJsonAsync(
+            HttpMethod.Post, "/api/v1/simulate", new SimulateBody(new SimulationRequest($"http://{label}-new.test/", "203.0.113.9")), AdminJsonContext.Default.SimulateBody);
+
+        Assert.Equal(HttpStatusCode.OK, drafted.StatusCode);
+        var withDraft = await AdminApiHarness.ReadAsync(drafted, AdminJsonContext.Default.SimulationResult, Ct);
+        Assert.Equal(SimulationTargetKind.Draft, withDraft.Source.Kind);
+        Assert.Equal(SimulationOutcomeKind.FixedAnswer, withDraft.Outcome!.Kind);
+        Assert.Equal(SimulationOutcomeKind.FixedAnswer, (await AdminApiHarness.ReadAsync(normal, AdminJsonContext.Default.SimulationResult, Ct)).Outcome!.Kind);
+        var without = await AdminApiHarness.ReadAsync(live, AdminJsonContext.Default.SimulationResult, Ct);
+        Assert.Equal(SimulationOutcomeKind.DefaultHost, without.Outcome!.Kind);
+
+        // Reading the draft is all it did: the draft keeps its entry and the head did not move.
+        Assert.Equal(added.Version, (await GetDraftAsync(api, draft.Id)).Version);
+        Assert.Equal(before, await HeadSeqAsync(api));
+    }
+
+    [Fact]
+    public async Task ASimulationAgainstAnEmptyDraftIsTheCurrentConfig()
+    {
+        var api = shared.Api;
+        var draft = await FreshAsync(api);
+
+        using var response = await SimulateDraftAsync(api, draft.Id, "http://nothing-here.test/");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await AdminApiHarness.ReadAsync(response, AdminJsonContext.Default.SimulationResult, Ct);
+        Assert.Contains(result.Notes!, n => n.Contains("changes nothing", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ASimulationAgainstADraftNeedsTheDraftToBeTheCallersOwnAndToExist()
+    {
+        var api = shared.Api;
+        var owners = await FreshAsync(api);
+        var admins = await FreshAsync(api, "admin");
+        var gone = await FreshAsync(api, "operator");
+        using (var discarded = await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{gone.Id}", "operator"))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, discarded.StatusCode);
+        }
+
+        using var theirs = await SimulateDraftAsync(api, owners.Id, "http://a.test/", "admin");
+        using var unknown = await SimulateDraftAsync(api, DraftId.New(), "http://a.test/");
+        using var discardedOne = await SimulateDraftAsync(api, gone.Id, "http://a.test/", "operator");
+        using var ownAdmins = await SimulateDraftAsync(api, admins.Id, "http://a.test/", "admin");
+
+        Assert.All(new[] { theirs, unknown, discardedOne }, r => Assert.Equal(HttpStatusCode.NotFound, r.StatusCode));
+        Assert.Equal(HttpStatusCode.OK, ownAdmins.StatusCode);
+    }
+
+    [Fact]
+    public async Task ASimulationAgainstADraftNeedsTheSimulatePermissionAndTheDraftsOwn()
+    {
+        var api = shared.Api;
+        var draft = await FreshAsync(api);
+
+        // A viewer may simulate but can't read a draft.
+        using var viewer = await SimulateDraftAsync(api, draft.Id, "http://a.test/", "viewer");
+
+        Assert.Equal(HttpStatusCode.Forbidden, viewer.StatusCode);
+    }
+
+    [Fact]
+    public async Task ASimulationAgainstADraftThatNoLongerAppliesGivesTheReviewsProblem()
+    {
+        var api = shared.Api;
+        var mine = ConfigTestSupport.Upstream(Unique("sim-mine"), "http://10.0.0.19:80");
+        using (var made = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", mine, AdminJsonContext.Default.UpstreamConfig))
+        {
+            Assert.Equal(HttpStatusCode.Created, made.StatusCode);
+        }
+
+        var liveMine = await ReadUpstreamAsync(api, mine.Id);
+        var draft = await FreshAsync(api);
+        await AddedAsync(api, draft.Id, "owner", new UpsertUpstreamCommand(liveMine with { Name = Unique("from the draft") }));
+        using (var elsewhere = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/upstreams/{mine.Id}", liveMine with { Name = Unique("theirs") }, AdminJsonContext.Default.UpstreamConfig,
+            caller: "admin", ifMatch: $"\"{liveMine.Version}\""))
+        {
+            Assert.Equal(HttpStatusCode.OK, elsewhere.StatusCode);
+        }
+
+        using var simulated = await SimulateDraftAsync(api, draft.Id, "http://a.test/");
+        using var review = await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{draft.Id}/review");
+
+        Assert.Equal(HttpStatusCode.Conflict, simulated.StatusCode);
+        var problem = await AdminApiHarness.ProblemAsync(simulated, Ct);
+        Assert.Equal("draft.blocked", problem.Code);
+        Assert.Equal("/entries/1", Assert.Single(problem.Errors!).Path);
+        Assert.Equal(HttpStatusCode.Conflict, review.StatusCode);
+        Assert.Equal(problem.Code, (await AdminApiHarness.ProblemAsync(review, Ct)).Code);
     }
 
     [Fact]

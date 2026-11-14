@@ -13,6 +13,7 @@ public sealed class SimulationAuthorizerTests
         { new RevisionSimulationTarget(ConfigRevisionId.New()), [Permission.Simulate, Permission.ConfigRead] },
         { new DraftDocumentSimulationTarget(new ConfigDocument()), [Permission.Simulate, Permission.ConfigRead] },
         { new DraftCommandSimulationTarget(new Paduraksa.Contracts.Commands.DeleteHostCommand(HostId.New(), 1)), [Permission.Simulate, Permission.ConfigRead] },
+        { new DraftSimulationTarget(DraftId.New()), [Permission.Simulate, Permission.ConfigWrite] },
     };
 
     [Theory]

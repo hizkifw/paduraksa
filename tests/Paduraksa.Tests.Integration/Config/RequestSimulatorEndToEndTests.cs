@@ -422,6 +422,7 @@ public sealed class RequestSimulatorEndToEndTests
     /// <summary>A second simulator over the host's own pieces, with the permission check and the compile wait a test sets.</summary>
     private static RequestSimulator Simulator(PaduraksaHost host, IPermissionEvaluator permissions, TimeSpan? busyWait = null) => new(
         host.Shared.Config,
+        host.Shared.Drafts,
         host.Shared.SnapshotStore,
         permissions,
         new DeferredUpstreamHealth(),

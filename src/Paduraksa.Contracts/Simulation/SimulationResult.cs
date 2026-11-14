@@ -20,6 +20,13 @@ public enum SimulationStatus
     /// <summary>The revision doesn't exist.</summary>
     RevisionNotFound,
 
+    /// <summary>There is no such draft: unknown, discarded, applied, or someone else's (a draft is only ever its owner's).</summary>
+    DraftNotFound,
+
+    /// <summary>Entries of the stored draft are changed elsewhere (or depend on one that is), so it doesn't apply to the current
+    /// config as it stands; <see cref="SimulationResult.Errors"/> names each, as the draft's review does.</summary>
+    DraftBlocked,
+
     /// <summary>The draft command can't be applied as it stands (a stale version, an object that doesn't exist).
     /// <see cref="SimulationResult.Errors"/> and <see cref="SimulationResult.Notes"/> say why.</summary>
     DraftRejected,

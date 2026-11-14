@@ -22,17 +22,21 @@ public enum SimulationTargetKind
 
     /// <summary>A pending command applied to the current config, through the dry-run path.</summary>
     DraftCommand,
+
+    /// <summary>The caller's stored draft, applied to the current config as its review does; never stored or published.</summary>
+    Draft,
 }
 
 /// <summary>
-/// The config to simulate against: the live snapshot, a stored revision, or a draft (a document or a pending command)
-/// that is validated and compiled but never stored or published.
+/// The config to simulate against: the live snapshot, a stored revision, or a draft (the caller's stored draft, a document
+/// or a pending command) that is validated and compiled but never stored or published.
 /// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(LiveSimulationTarget), "live")]
 [JsonDerivedType(typeof(RevisionSimulationTarget), "revision")]
 [JsonDerivedType(typeof(DraftDocumentSimulationTarget), "draftDocument")]
 [JsonDerivedType(typeof(DraftCommandSimulationTarget), "draftCommand")]
+[JsonDerivedType(typeof(DraftSimulationTarget), "draft")]
 public abstract record SimulationTarget
 {
     /// <summary>The live snapshot.</summary>
@@ -54,3 +58,9 @@ public sealed record DraftDocumentSimulationTarget(ConfigDocument Document) : Si
 /// <see cref="ConfigCommand.DryRun"/> says, nothing is stored or published.</summary>
 /// <param name="Command">The command.</param>
 public sealed record DraftCommandSimulationTarget(ConfigCommand Command) : SimulationTarget;
+
+/// <summary>The caller's own stored draft, applied to the current config exactly as its review does (the same replay, the same
+/// validation and compile), so it shows what applying would do. It is read at the moment of the call; nothing is stored or
+/// published, and only the draft's owner (or the owner's token) can name it.</summary>
+/// <param name="Draft">The draft.</param>
+public sealed record DraftSimulationTarget(DraftId Draft) : SimulationTarget;

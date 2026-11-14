@@ -126,6 +126,29 @@ public sealed partial class DraftService
         return view.Draft is { } draft && view.Document is { } document ? new DraftConfig(document, draft, draft.Head) : null;
     }
 
+    /// <summary>
+    /// The draft <paramref name="id"/> and the head with its entries applied, for the request simulator: the replay a review starts from, read
+    /// without the writer's lock because nothing is written. <see cref="DraftStatus.Blocked"/> (with the draft) when any entry is changed
+    /// elsewhere: a simulation over the rest would show a change the draft doesn't make as a whole.
+    /// </summary>
+    internal async Task<(DraftResult Result, ConfigDocument? Document)> ReadForSimulationAsync(CommandOrigin origin, DraftId id, CancellationToken cancellationToken = default)
+    {
+        var view = await ViewAsync(origin, id, cancellationToken).ConfigureAwait(false);
+        if (view.Result is { } refused)
+        {
+            return (refused, null);
+        }
+
+        if (view.Draft is not { } draft || view.Document is not { } document)
+        {
+            return (new DraftResult(DraftStatus.NoDraft), null);
+        }
+
+        return draft.Entries.Any(static e => e.State == DraftEntryState.ChangedElsewhere)
+            ? (new DraftResult(DraftStatus.Blocked, draft), null)
+            : (new DraftResult(DraftStatus.Succeeded, draft), document);
+    }
+
     /// <summary>Opens an empty draft on the head. <see cref="DraftStatus.AlreadyOpen"/> (with the open draft) when there is one.</summary>
     public async Task<DraftResult> CreateAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
     {

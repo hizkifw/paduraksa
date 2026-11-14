@@ -3145,7 +3145,7 @@
           "Simulator"
         ],
         "summary": "Simulate a request against the live config, a revision or a draft",
-        "description": "target is {kind: live} (the default), {kind: revision, revision}, {kind: draftDocument, document} or {kind: draftCommand, command}; a draft is validated and compiled as a real change would be, and never stored or published. Nothing here changes any counter or state.\n\nRequires the `simulate` permission.",
+        "description": "target is {kind: live} (the default), {kind: revision, revision}, {kind: draftDocument, document}, {kind: draftCommand, command} or {kind: draft, draft: <draft id>} (your own stored draft, applied as its review does; it needs config:write like reading the draft, 404 when it is not yours); a draft is validated and compiled as a real change would be, and never stored or published. Nothing here changes any counter or state.\n\nRequires the `simulate` permission.",
         "operationId": "Simulate",
         "requestBody": {
           "content": {
@@ -24750,6 +24750,8 @@
           "simulated",
           "invalid",
           "revisionNotFound",
+          "draftNotFound",
+          "draftBlocked",
           "draftRejected",
           "unavailable",
           "denied",
@@ -24874,16 +24876,20 @@
           },
           {
             "$ref": "#/components/schemas/SimulationTargetDraftCommandSimulationTarget"
+          },
+          {
+            "$ref": "#/components/schemas/SimulationTargetDraftSimulationTarget"
           }
         ],
-        "description": "The config to simulate against: the live snapshot, a stored revision, or a draft (a document or a pending command)\nthat is validated and compiled but never stored or published.",
+        "description": "The config to simulate against: the live snapshot, a stored revision, or a draft (the caller's stored draft, a document\nor a pending command) that is validated and compiled but never stored or published.",
         "discriminator": {
           "propertyName": "kind",
           "mapping": {
             "live": "#/components/schemas/SimulationTargetLiveSimulationTarget",
             "revision": "#/components/schemas/SimulationTargetRevisionSimulationTarget",
             "draftDocument": "#/components/schemas/SimulationTargetDraftDocumentSimulationTarget",
-            "draftCommand": "#/components/schemas/SimulationTargetDraftCommandSimulationTarget"
+            "draftCommand": "#/components/schemas/SimulationTargetDraftCommandSimulationTarget",
+            "draft": "#/components/schemas/SimulationTargetDraftSimulationTarget"
           }
         }
       },
@@ -24925,12 +24931,32 @@
         "additionalProperties": false,
         "description": "A whole document. Validated and compiled like an import; its versions are not looked at."
       },
+      "SimulationTargetDraftSimulationTarget": {
+        "required": [
+          "draft"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "draft"
+            ],
+            "type": "string"
+          },
+          "draft": {
+            "description": "The draft.",
+            "$ref": "#/components/schemas/DraftId"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The caller's own stored draft, applied to the current config exactly as its review does (the same replay, the same\n            validation and compile), so it shows what applying would do. It is read at the moment of the call; nothing is stored or\n            published, and only the draft's owner (or the owner's token) can name it."
+      },
       "SimulationTargetKind": {
         "enum": [
           "live",
           "revision",
           "draftDocument",
-          "draftCommand"
+          "draftCommand",
+          "draft"
         ],
         "type": "string",
         "description": "Which config the simulator runs the request against."
