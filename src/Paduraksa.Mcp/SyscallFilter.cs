@@ -28,6 +28,7 @@ internal static class SyscallFilter
     private const uint OffsetNr = 0;
     private const uint OffsetArch = 4;
     private const uint OffsetArg0 = 16;
+    private const uint OffsetArg1 = 24;
 
     /// <summary>
     /// The calls refused outright, one reason each. The numbers are the kernel's (<c>asm/unistd_64.h</c> for x86-64, <c>asm-generic/unistd.h</c> for arm64), which differ by
@@ -47,6 +48,31 @@ internal static class SyscallFilter
         new("io_uring_setup", 425, 425, "run socket, connect and open as queued operations that this filter would not see"),
         new("io_uring_enter", 426, 426, "submit those operations on a ring made earlier"),
         new("io_uring_register", 427, 427, "register buffers and files for them"),
+        new("pidfd_send_signal", 424, 424, "signal a process through a pidfd, which the child gets only by opening /proc/<pid> where Landlock cannot close the file system"),
+    ];
+
+    /// <summary>
+    /// The calls that send a signal to the process or thread their first argument names: allowed only when it names the child itself, because the runtime signals its own
+    /// threads (<c>tgkill</c> for the GC's thread suspension, <c>raise</c> and <c>abort</c>). The low 32 bits are compared: the kernel reads the argument as a <c>pid_t</c>.
+    /// Not 0 or a negative group: the child is in its parent's process group, so <c>kill(0, SIGKILL)</c> is the server.
+    /// </summary>
+    internal static IReadOnlyList<DeniedCall> SignalsToSelfOnly { get; } =
+    [
+        new("kill", 62, 129, "signal the parent, or with 0 or -1 its whole process group or every process of the user"),
+        new("tkill", 200, 130, "signal one thread of the parent by its id"),
+        new("tgkill", 234, 131, "signal a thread of the parent's thread group"),
+        new("rt_sigqueueinfo", 129, 138, "queue a signal to the parent"),
+        new("rt_tgsigqueueinfo", 297, 240, "queue a signal to a thread of the parent"),
+    ];
+
+    /// <summary>
+    /// The commands (second argument) refused of these calls: each makes a descriptor's owner a process that the kernel then signals on I/O (<c>SIGIO</c>, or any signal with
+    /// <c>F_SETSIG</c>), a signal to the parent that no signal call sends. Their argument is not checked, since <c>F_SETOWN_EX</c>'s is a pointer the filter cannot read.
+    /// </summary>
+    internal static IReadOnlyList<(DeniedCall Call, uint[] Commands)> OwnerCommands { get; } =
+    [
+        (new("fcntl", 72, 25, "F_SETOWN and F_SETOWN_EX: make the parent the owner of a descriptor, to be signalled on I/O"), [8, 15]),
+        (new("ioctl", 16, 29, "FIOSETOWN and SIOCSPGRP: the same through ioctl"), [0x8901, 0x8902]),
     ];
 
     /// <summary>The calls whose first argument is a socket domain, of which only <c>AF_UNIX</c> is allowed (<c>socketpair</c> makes sockets as <c>socket</c> does).</summary>
@@ -77,7 +103,7 @@ internal static class SyscallFilter
             return "seccomp: not available (architecture " + RuntimeInformation.ProcessArchitecture + ")";
         }
 
-        var program = Build(target);
+        var program = Build(target, Environment.ProcessId);
         var memory = Marshal.AllocHGlobal(program.Length * Marshal.SizeOf<SockFilter>());
         try
         {
@@ -90,7 +116,7 @@ internal static class SyscallFilter
             var all = allThreads && seccomp(target.SeccompNumber, SeccompSetModeFilter, SeccompFilterFlagTsync, ref fprog) == 0;
             var applied = all || prctl(PrSetSeccomp, SeccompModeFilter, ref fprog, 0, 0) == 0;
             return applied
-                ? $"seccomp: only AF_UNIX sockets and {Denied.Count} calls denied" + (all ? " (every thread)" : " (the script thread)")
+                ? $"seccomp: only AF_UNIX sockets, signals only to itself and {Denied.Count} calls denied" + (all ? " (every thread)" : " (the script thread)")
                 : "seccomp: not applied (errno " + Marshal.GetLastPInvokeError() + ")";
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
@@ -103,13 +129,18 @@ internal static class SyscallFilter
         }
     }
 
-    /// <summary>The program: a foreign architecture, an x32 call number and every call in <see cref="Denied"/> end in the denied return, a <see cref="DomainChecked"/> call unless its domain is <c>AF_UNIX</c>, everything else in the allowed one.</summary>
-    internal static SockFilter[] Build(FilterTarget target)
+    /// <summary>
+    /// The program: a foreign architecture, an x32 call number and every call in <see cref="Denied"/> end in the denied return, a <see cref="DomainChecked"/> call unless its domain is <c>AF_UNIX</c>,
+    /// a <see cref="SignalsToSelfOnly"/> call unless its target is <paramref name="selfPid"/>, an <see cref="OwnerCommands"/> call with one of its commands, everything else in the allowed one.
+    /// </summary>
+    internal static SockFilter[] Build(FilterTarget target, int selfPid)
     {
-        // A jump target is an instruction index: these stand for the two returns appended at the end and for the domain check.
+        // A jump target is an instruction index: these stand for the two returns appended at the end and for the argument checks.
         const int Allow = -1;
         const int Deny = -2;
         const int Domain = -3;
+        const int Self = -4;
+        const int Owner0 = -5;
         List<(ushort Code, int IfTrue, int IfFalse, uint K)> steps =
         [
             (BpfLdAbsWord, 0, 0, OffsetArch),
@@ -127,12 +158,37 @@ internal static class SyscallFilter
             steps.Add((BpfJeq, Deny, 0, call.Number.For(target.Architecture)));
         }
 
-        // A call that is not one of these is allowed (the second compare's false branch); one that is goes to the domain check, which is the next step after the second compare.
+        foreach (var call in SignalsToSelfOnly)
+        {
+            steps.Add((BpfJeq, Self, 0, call.Number.For(target.Architecture)));
+        }
+
+        for (var i = 0; i < OwnerCommands.Count; i++)
+        {
+            steps.Add((BpfJeq, Owner0 - i, 0, OwnerCommands[i].Call.Number.For(target.Architecture)));
+        }
+
+        // A call that is not one of these is allowed (the second compare's false branch).
         steps.Add((BpfJeq, Domain, 0, DomainChecked[0].Number.For(target.Architecture)));
-        steps.Add((BpfJeq, 0, Allow, DomainChecked[1].Number.For(target.Architecture)));
+        steps.Add((BpfJeq, Domain, Allow, DomainChecked[1].Number.For(target.Architecture)));
         var domainIndex = steps.Count;
         steps.Add((BpfLdAbsWord, 0, 0, OffsetArg0));
         steps.Add((BpfJeq, Allow, Deny, AfUnix));
+        var selfIndex = steps.Count;
+        steps.Add((BpfLdAbsWord, 0, 0, OffsetArg0));
+        steps.Add((BpfJeq, Allow, Deny, (uint)selfPid));
+        var ownerIndexes = new int[OwnerCommands.Count];
+        for (var i = 0; i < OwnerCommands.Count; i++)
+        {
+            ownerIndexes[i] = steps.Count;
+            steps.Add((BpfLdAbsWord, 0, 0, OffsetArg1));
+            foreach (var command in OwnerCommands[i].Commands)
+            {
+                steps.Add((BpfJeq, Deny, 0, command));
+            }
+
+            steps.Add((BpfJeq, Allow, Allow, 0));
+        }
 
         var allowIndex = steps.Count;
         var denyIndex = steps.Count + 1;
@@ -152,6 +208,8 @@ internal static class SyscallFilter
             Allow => (byte)(allowIndex - from - 1),
             Deny => (byte)(denyIndex - from - 1),
             Domain => (byte)(domainIndex - from - 1),
+            Self => (byte)(selfIndex - from - 1),
+            <= Owner0 => (byte)(ownerIndexes[Owner0 - target] - from - 1),
             _ => (byte)target,
         };
     }

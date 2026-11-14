@@ -48,6 +48,7 @@ public static class SandboxChild
             PreloadAssemblies();
             report.Add(ProcessHardening.RestrictFileSystem());
             report.Add(ProcessHardening.RestrictNetwork());
+            report.Add(ProcessHardening.RestrictSignals());
             report.Add(SyscallFilter.Restrict());
 
             Send(output, Messages.Build(w =>

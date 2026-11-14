@@ -32,6 +32,8 @@ internal static class ProcessHardening
     private const int LandlockNetworkAbi = 4;
     private const ulong LandlockAccessNetBindTcp = 1ul << 0;
     private const ulong LandlockAccessNetConnectTcp = 1ul << 1;
+    private const int LandlockScopeAbi = 6;
+    private const ulong LandlockScopeSignal = 1ul << 1;
 
     /// <summary>
     /// Closes every descriptor the child inherited from the server, before anything else runs. A descriptor survives <c>exec</c> only if it lacks close-on-exec, so the ones the child holds without it are exactly
@@ -220,6 +222,46 @@ internal static class ProcessHardening
         }
     }
 
+    /// <summary>
+    /// Refuses every signal to a process outside the child's Landlock domain, the parent first (Landlock ABI 6, Linux 6.12: <c>LANDLOCK_SCOPE_SIGNAL</c>). It covers what
+    /// <see cref="SyscallFilter"/> checks by argument and also the signal the kernel sends a descriptor's owner on I/O. Applied only to every thread at once: on a kernel
+    /// that can restrict only this thread, the runtime's other threads would be outside the domain, and a GC on the script thread signals them to suspend.
+    /// </summary>
+    public static string RestrictSignals(bool allThreads = true)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return "Landlock signals: not Linux";
+        }
+
+        try
+        {
+            var abi = landlockVersion(SysLandlockCreateRuleset, 0, 0, LandlockCreateRulesetVersion);
+            if (abi < LandlockScopeAbi)
+            {
+                return abi < 0 ? "Landlock signals: not available (errno " + Marshal.GetLastPInvokeError() + ")" : "Landlock signals: not available (ABI " + abi + ", needs " + LandlockScopeAbi + ")";
+            }
+
+            var attributes = new LandlockScopedRulesetAttr { Scoped = LandlockScopeSignal };
+            var fd = syscall(SysLandlockCreateRuleset, ref attributes, (nuint)Marshal.SizeOf<LandlockScopedRulesetAttr>(), 0);
+            if (fd < 0)
+            {
+                return "Landlock signals: not available (errno " + Marshal.GetLastPInvokeError() + ")";
+            }
+
+            var restricted = syscall(SysLandlockRestrictSelf, (nint)fd, allThreads ? LandlockRestrictSelfTsync : 0, 0) == 0;
+            var errno = Marshal.GetLastPInvokeError();
+            _ = close((int)fd);
+            return restricted
+                ? "Landlock signals: none to a process outside the sandbox" + (allThreads ? " (every thread)" : " (this thread)")
+                : allThreads ? "Landlock signals: not applied (the kernel cannot restrict every thread at once, errno " + errno + ")" : "Landlock signals: not applied (errno " + errno + ")";
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
+        {
+            return "Landlock signals: not available";
+        }
+    }
+
     private static bool SetLimit(int resource, ulong value)
     {
         var limit = new RLimit { Current = value, Maximum = value };
@@ -248,6 +290,14 @@ internal static class ProcessHardening
         public ulong HandledAccessNet;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LandlockScopedRulesetAttr
+    {
+        public ulong HandledAccessFs;
+        public ulong HandledAccessNet;
+        public ulong Scoped;
+    }
+
     [DllImport("libc", EntryPoint = "setrlimit", SetLastError = true)]
     private static extern int setrlimit(int resource, ref RLimit limit);
 
@@ -265,6 +315,9 @@ internal static class ProcessHardening
 
     [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
     private static extern long syscall(long number, ref LandlockNetworkRulesetAttr attributes, nuint size, uint flags);
+
+    [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
+    private static extern long syscall(long number, ref LandlockScopedRulesetAttr attributes, nuint size, uint flags);
 
     [DllImport("libc", EntryPoint = "syscall", SetLastError = true)]
     private static extern long landlockVersion(long number, nint attributes, nuint size, uint flags);

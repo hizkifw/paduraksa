@@ -322,6 +322,7 @@ public sealed class SandboxBoundaryTests
 
         // What each of these says depends on the kernel and the architecture, but each reports and none is silent.
         Assert.Contains(hardening, h => h.StartsWith("Landlock network:", StringComparison.Ordinal));
+        Assert.Contains(hardening, h => h.StartsWith("Landlock signals:", StringComparison.Ordinal));
         Assert.Contains(hardening, h => h.StartsWith("seccomp:", StringComparison.Ordinal));
 
         process.StandardInput.Close();
@@ -342,7 +343,7 @@ public sealed class SandboxBoundaryTests
         Assert.Contains("seccomp:", line, StringComparison.Ordinal);
 
         // Where the filter says it is on every thread, the kernel agrees for the child's main thread too, not only the one that applied it.
-        Assert.SkipUnless(line.Contains("seccomp: only AF_UNIX sockets and ", StringComparison.Ordinal) && line.Contains("calls denied (every thread)", StringComparison.Ordinal), "the filter is on the script thread only here: " + line);
+        Assert.SkipUnless(line.Contains("seccomp: only AF_UNIX sockets, signals only to itself and ", StringComparison.Ordinal) && line.Contains("calls denied (every thread)", StringComparison.Ordinal), "the filter is on the script thread only here: " + line);
         var pid = Assert.Single(tools.Pool.ChildProcessIds);
         foreach (var task in Directory.GetDirectories($"/proc/{pid}/task"))
         {
@@ -355,6 +356,28 @@ public sealed class SandboxBoundaryTests
                 // A thread that ended since the listing.
             }
         }
+    }
+
+    [Fact]
+    public async Task UnderAllocationPressureTheChildKeepsCollectingWithItsSignalsLimitedToItself()
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "the hardening is Linux");
+        List<string> log = [];
+        await using var tools = SandboxFixture.Create(log: log.Add);
+        Assert.Equal("1", (await tools.SearchAsync("async () => 1", Ct)).Text);
+        var line = Assert.Single(log, l => l.StartsWith("Sandbox child hardening applied: ", StringComparison.Ordinal));
+        Assert.SkipUnless(line.Contains("signals only to itself", StringComparison.Ordinal), "no seccomp filter here: " + line);
+        var pid = Assert.Single(tools.Pool.ChildProcessIds);
+
+        // Each run allocates and drops about 40 MB in the 256 MiB heap, so the runtime collects again and again with the filter (and, where the kernel has it, Landlock's signal scope) on every thread.
+        for (var i = 0; i < 25; i++)
+        {
+            var outcome = await tools.SearchAsync("async () => { let n = 0; for (let i = 0; i < 400; i++) { const s = 'x'.repeat(50000) + i; n += s.length; } return n; }", Ct);
+            Assert.False(outcome.IsError, outcome.Text);
+        }
+
+        Assert.Equal(pid, Assert.Single(tools.Pool.ChildProcessIds));
+        Assert.DoesNotContain(log, l => l.Contains("killed", StringComparison.Ordinal) || l.Contains("ended", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -25,7 +25,7 @@ process-count limits (Docker's default read-only cgroup file system is fine with
 shows the endpoint and the snippets below with your address in them).
 
 **Inside Docker.** The default seccomp profile of Docker 29 on Linux 7.3 lets the process apply all of it: with `Paduraksa__Mcp__Enabled=true` the first call logs
-`Sandbox child hardening applied: ...; Landlock: no file system access, ABI 11 (every thread); Landlock network: no TCP bind or connect (every thread); seccomp: only AF_UNIX sockets and 12 calls denied (every thread)`.
+`Sandbox child hardening applied: ...; Landlock: no file system access, ABI 11 (every thread); Landlock network: no TCP bind or connect (every thread); Landlock signals: none to a process outside the sandbox (every thread); seccomp: only AF_UNIX sockets, signals only to itself and 13 calls denied (every thread)`.
 That was checked on the image built from this repository with the compose hardening (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`). Landlock's network rules need Linux
 6.7 on the host; on an older kernel the line says `Landlock network: not available (ABI 3, needs 4)` and the seccomp filter, which does not depend on the kernel version, still closes
 the sockets. A runtime or an older Docker whose profile blocks `landlock_create_ruleset`, `landlock_add_rule` and `landlock_restrict_self` makes the log say

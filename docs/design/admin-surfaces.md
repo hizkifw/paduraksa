@@ -408,17 +408,26 @@ The filter returns `EPERM`, not a kill, so a library that probes does not take t
 | `pidfd_open` (434), `pidfd_getfd` (438), `kcmp` (312 / 272) | Take over the parent's descriptors, and find which ones. |
 | `bpf` (321 / 280), `userfaultfd` (323 / 282), `perf_event_open` (298 / 241) | Kernel attack surface and a side channel on the parent. |
 | `io_uring_setup`, `_enter`, `_register` (425, 426, 427) | Socket, connect and open as queued operations the filter would not see. |
+| `pidfd_send_signal` (424) | Signal a process through a pidfd, which the child could get by opening `/proc/<pid>` where Landlock is unavailable. |
 | `socket`, `socketpair` (41, 53 / 198, 199) | Unless the domain is `AF_UNIX`. |
+| `kill` (62 / 129), `tkill` (200 / 130), `tgkill` (234 / 131), `rt_sigqueueinfo` (129 / 138), `rt_tgsigqueueinfo` (297 / 240) | Unless the first argument is the child's own pid (`SignalsToSelfOnly`). |
+| `fcntl` (72 / 25) with `F_SETOWN` or `F_SETOWN_EX`, `ioctl` (16 / 29) with `FIOSETOWN` or `SIOCSPGRP` | They make another process a descriptor's owner, which the kernel signals on I/O (`OwnerCommands`). |
+
+**Signals.** A red-team agent noted that `kill` and `tgkill` were open: every other same-user route was closed, so an engine escape had one call to SIGKILL the server.
+- The runtime needs to signal itself: `tgkill` for the GC's thread suspension, `raise` and `abort`. So the signal calls are allowed only when their first argument (the `pid_t`, the low 32 bits) is the child's pid, which the filter is built with. That target is the child's own thread group in every one of them.
+- **Not 0, and no negative group.** The child is in its parent's process group (`Process.Start` makes none), so `kill(0, SIGKILL)` is the server. A runtime that ever needs either would fail with `EPERM`, which the tests would show.
+- The owner commands are refused whatever their argument, because `F_SETOWN_EX`'s argument is a pointer the filter cannot read. The runtime uses neither.
+- **Landlock signal scoping** (`LANDLOCK_SCOPE_SIGNAL`, ABI 6, Linux 6.12) refuses every signal to a process outside the child's domain, the descriptor-owner signal included. It is applied only with `TSYNC`, to every thread at once: restricted on the script thread alone, the runtime's other threads would be outside the domain and a GC on the script thread signals them. The report says `Landlock signals: none to a process outside the sandbox (every thread)`, `not available (ABI n, needs 6)` or `not applied (the kernel cannot restrict every thread at once, ...)`.
+- `SyscallFilterTests` runs the program per architecture (itself, its group, -1, a neighbour's pid, high bits) and, on this kernel, installs the filter and the scope on a thread of their own and signals a stand-in for the parent with signal 0 and SIGTERM: refused, and the stand-in lives. `SandboxBoundaryTests` runs 25 allocation-heavy scripts on one real child with both on every thread: it collects throughout and is never replaced.
 
 **Considered and not taken:**
 - `PR_SET_DUMPABLE=0`. It would stop same-user processes from ptracing the child, but the parent inspects `/proc/<pid>` of its children, and the only other same-user processes are other children, which the filter already denies `ptrace`.
-- Denying `kill` and `tgkill`. The runtime signals its own threads with `tgkill`, so a hostile child can still signal the parent: that is availability, not the vault.
 
 **Without TSYNC.** If the kernel has no `SECCOMP_FILTER_FLAG_TSYNC` (the report says "the script thread"), the filter and Landlock cover only the script thread and the threads it creates afterwards. That is safe today because Jint runs on the script thread alone. But a future host function that hops threads would run outside both.
 
 **Landlock file system mask.** It follows the kernel's ABI (REFER from 2, TRUNCATE from 3, IOCTL_DEV from 5), because an access a ruleset does not name stays allowed. With only the first thirteen bits, `truncate(2)` could empty `paduraksa.db`, `vault.db` or `master.key`. The report names the ABI used.
 
-What stays open to an escaped script is what a process always has: the pipes it was given, local sockets, signals and the rest of the runtime's system call surface. Docker's default seccomp profile and Landlock: see install.md "MCP" (G14).
+What stays open to an escaped script is what a process always has: the pipes it was given, local sockets, signals to itself and the rest of the runtime's system call surface. Docker's default seccomp profile and Landlock: see install.md "MCP" (G14).
 
 #### The parent is the guard (`ChildProcess`, `RunProtocol`)
 
