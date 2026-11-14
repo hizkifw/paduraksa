@@ -9,7 +9,7 @@ users from a web dashboard or a REST API, with every change reviewed first, vers
 
 *Paduraksa*: the gate into the inner sanctum, flanked by guardian figures meant to keep evil out.
 
-<img width="960" height="560" alt="192 168 0 254_9443_ (1)" src="https://github.com/user-attachments/assets/3c7bda95-7af7-4b29-8e34-111ed743dd67" />
+<img width="960" alt="The Paduraksa dashboard: live traffic for the last hour, counts of hosts, upstreams and certificates, the hosts and the recent changes" src="docs/assets/readme-overview.png" />
 
 ## What it does
 

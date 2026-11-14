@@ -30,6 +30,8 @@ validation:
 
 theme:
   name: material
+  # Adds the Open Graph and Twitter card tags (overrides/main.html): Material writes none without its social plugin.
+  custom_dir: overrides
   # System fonts: no request to Google Fonts when a page is read.
   font: false
   language: en
