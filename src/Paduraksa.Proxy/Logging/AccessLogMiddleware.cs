@@ -159,9 +159,6 @@ public sealed class AccessLogMiddleware
         var userAgent = request.Headers.UserAgent;
         var referer = request.Headers.Referer;
         var upstreamTicks = state?.UpstreamTicks ?? AccessLogEntry.Unknown;
-        // YARP runs its response transforms for a failed forward too (with no response), so the transform's figure alone doesn't say
-        // the upstream answered; the forwarder's error feature does.
-        var answered = upstreamTicks >= 0 && context.Features.Get<IForwarderErrorFeature>() is null;
         var upstreamAddress = state?.UpstreamAddress;
         if (state is { UpstreamStartedTimestamp: not 0 } && upstreamTicks < 0)
         {
@@ -177,7 +174,9 @@ public sealed class AccessLogMiddleware
         long connectTicks = AccessLogEntry.Unknown, connectStarted = 0;
         if (state is { UpstreamRequest: { } sent } && upstreamTicks >= 0)
         {
-            connectTicks = Yarp.UpstreamConnects.TicksFor(sent, upstreamTicks, answered, out connectStarted);
+            // The forwarder's error feature says whether the forward failed (and why): YARP runs its response transforms for a failed
+            // forward too, with no response, so the transform's figure alone doesn't say the upstream answered.
+            connectTicks = Yarp.UpstreamConnects.TicksFor(sent, state.UpstreamStartedTimestamp, upstreamTicks, context.Features.Get<IForwarderErrorFeature>()?.Exception, out connectStarted);
         }
 
         AccessLogEntry entry = new()

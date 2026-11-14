@@ -192,12 +192,66 @@ public sealed class RequestTimingTests : IAsyncLifetime
         Assert.InRange(entries[0].UpstreamConnectTicks, 0, entries[0].UpstreamTicks);
         Assert.Equal(0, entries[1].UpstreamConnectTicks);
         Assert.True(entries[1].UpstreamTicks >= 0);
+        // The connect is taken to start with the forward, which is what a new connection's waterfall row is drawn from.
+        Assert.Equal(entries[0].ForwardStartMicros, entries[0].UpstreamConnectStartMicros);
         AssertPlaced(entries[0]);
         AssertPlaced(entries[1]);
         // The wait starts once the connection is up, and the reused connection has no connect to place.
         Assert.True(WaitStart(entries[0]) >= Micros(entries[0].UpstreamConnectStartMicros) + entries[0].UpstreamConnectTicks - TimeSpan.TicksPerMillisecond / 1000);
         Assert.True(entries[0].UpstreamWaitTicks < entries[0].UpstreamConnectTicks, $"the wait was {Ms(entries[0].UpstreamWaitTicks)}");
         Assert.Equal(AccessLogEntry.UnknownOffset, entries[1].UpstreamConnectStartMicros);
+    }
+
+    [Fact]
+    public async Task ARefusedConnectIsTheWholeUpstreamLegFromTheForwardsStart()
+    {
+        int closedPort;
+        using (TcpListener closed = new(IPAddress.Loopback, 0))
+        {
+            closed.Start();
+            closedPort = ((IPEndPoint)closed.LocalEndpoint).Port;
+        }
+
+        await using var server = await ProxyTestServer.StartAsync(Model($"http://127.0.0.1:{closedPort}/"));
+        using var client = ProxyTestServer.CreateClient();
+
+        using (var request = server.Request("app.test", "/refused"))
+        {
+            using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        }
+
+        var entry = Assert.Single(await EntriesAsync(server, "/refused"));
+        Assert.True(entry.UpstreamTicks > 0, "the failed forward has a duration");
+        Assert.Equal(entry.UpstreamTicks, entry.UpstreamConnectTicks);
+        Assert.Equal(entry.ForwardStartMicros, entry.UpstreamConnectStartMicros);
+        AssertPlaced(entry);
+    }
+
+    [Fact]
+    public async Task AnUpstreamThatResetsAfterConnectingOnAPooledConnectionReportsNoConnect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using TcpListener listener = new(IPAddress.Loopback, 0);
+        listener.Start();
+        var serving = ServeThenResetAsync(listener, ct);
+        await using var server = await ProxyTestServer.StartAsync(Model($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/"));
+        using var client = ProxyTestServer.CreateClient(maxConnections: 1);
+
+        await SendAsync(client, server, "/pooled/1");
+        using (var request = server.Request("app.test", "/pooled/2"))
+        {
+            // The head is out and the body is cut short, so the forward is no retry on another connection and no connect failure.
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            await Assert.ThrowsAnyAsync<Exception>(() => response.Content.ReadAsByteArrayAsync(ct));
+        }
+
+        await serving;
+        var entries = await EntriesAsync(server, "/pooled/1", "/pooled/2");
+        Assert.True(entries[0].UpstreamConnectTicks > 0, "the first request opened the connection");
+        Assert.Equal(0, entries[1].UpstreamConnectTicks);
+        Assert.Equal(AccessLogEntry.UnknownOffset, entries[1].UpstreamConnectStartMicros);
+        AssertPlaced(entries[1]);
     }
 
     [Fact]
@@ -296,6 +350,18 @@ public sealed class RequestTimingTests : IAsyncLifetime
 
         Assert.InRange(entry.UpstreamWaitTicks, 0, entry.UpstreamTicks);
         Assert.InRange(WaitStart(entry), forwardStart, answered);
+    }
+
+    // One kept-alive connection: the first request gets a whole answer, the second the head of one and a reset.
+    private static async Task ServeThenResetAsync(TcpListener listener, CancellationToken ct)
+    {
+        using var socket = await listener.AcceptSocketAsync(ct);
+        var buffer = new byte[4096];
+        await socket.ReceiveAsync(buffer, ct);
+        await socket.SendAsync("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"u8.ToArray(), ct);
+        await socket.ReceiveAsync(buffer, ct);
+        await socket.SendAsync("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\npartial"u8.ToArray(), ct);
+        socket.LingerState = new LingerOption(true, 0);
     }
 
     private static long WaitStart(AccessLogEntry entry) => RequestStages.WaitStartTicks(entry.ForwardStartMicros, entry.UpstreamTicks, entry.UpstreamWaitTicks);

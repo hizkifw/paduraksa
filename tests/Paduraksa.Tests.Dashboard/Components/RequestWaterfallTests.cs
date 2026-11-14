@@ -74,6 +74,12 @@ public sealed class RequestWaterfallTests
             "gate forward connect forward wait prepare send"
         },
         {
+            // The connect is taken to start with the forward, so on a new connection nothing is left for the forwarding row before it.
+            "new connection from the forward's start", 9,
+            new(GateMs: 0.05, UpstreamConnectStartMs: 0.05, UpstreamConnectMs: 5.35, UpstreamWaitStartMs: 5.4, UpstreamWaitMs: 3, ResponseSendStartMs: 8.6, ResponseSendMs: 0.4),
+            "gate connect wait prepare send"
+        },
+        {
             "new connection, body", 8,
             new(GateMs: 0.05, UpstreamConnectStartMs: 0.3, UpstreamConnectMs: 1.7, RequestBodyStartMs: 0.1, RequestBodyMs: 4, UpstreamWaitStartMs: 4.1, UpstreamWaitMs: 2.9, ResponseSendStartMs: 7.2, ResponseSendMs: 0.8),
             "gate forward body connect wait prepare send"

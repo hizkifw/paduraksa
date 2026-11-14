@@ -81,8 +81,8 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
                 .ConnectAsync;
         }
 
-        // The forward's connect part, for the access log (UpstreamConnects); the callback keeps the handler's own connect.
-        handler.ConnectCallback = UpstreamConnects.Timed(handler.ConnectCallback);
+        // The forward's connect part, for the access log (UpstreamConnects). Only a filter, no connect callback: a callback
+        // makes every failed connect dearer, and the admin cluster's is the only one the handler is given.
         handler.PlaintextStreamFilter = UpstreamConnects.CompletedAsync;
     }
 
