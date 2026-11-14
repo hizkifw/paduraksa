@@ -85,7 +85,10 @@ public sealed class NotificationHistoryEndToEndTests
             Assert.StartsWith("nev_", eventIds[0], StringComparison.Ordinal);
         }
 
-        await page.GotoAsync("/settings/notifications");
+        // The prerendered page has no buttons yet: one clicked before the circuit is live would do nothing. Read in one script run, so the circuit can't go live between the two checks.
+        await page.GotoAsync("/settings/notifications", new() { WaitUntil = WaitUntilState.Commit });
+        await page.WaitForFunctionAsync("document.querySelector('.pdk-provider-list') !== null");
+        Assert.True(await page.EvaluateAsync<bool>("document.querySelector('.pdk-shell').dataset.circuit !== 'prerendered' || document.querySelector('[data-action=edit]') === null"));
         await Expect(page.Locator("[data-channel] [data-part=success-rate]")).ToHaveTextAsync(new Regex("100% delivered"), new() { Timeout = 15_000 });
         await page.Locator("[data-action=edit]").First.ClickAsync();
         await Expect(page.Locator("[data-section=recent-deliveries] [data-event]")).ToHaveCountAsync(1, new() { Timeout = 15_000 });
