@@ -827,8 +827,9 @@
     }
 }
 
-/* A request's stages under its time taken: label, a track on the request's total, the stage's time. One grid with a row per stage, so every
-   track starts and ends at the same x. A bar too short to see is still a sliver. */
+/* A request's stages under its time taken, as DevTools' Timing tab: label, a track from 0 to the request's total with the bar at the
+   stage's own start, the stage's time. One grid with a row per stage, so every track shares one axis; what no bar covers is a gap. A bar
+   too short to see is still a sliver, with a larger area around it for the pointer. */
 .pdk-waterfall {
     display: grid;
     grid-template-columns: max-content minmax(64px, 1fr) minmax(7ch, max-content);
@@ -842,11 +843,16 @@
     font-variant-numeric: tabular-nums;
 }
 
-.pdk-waterfall-row {
+.pdk-waterfall-row,
+.pdk-waterfall-scale {
+    position: relative;
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: subgrid;
     align-items: center;
+}
+
+.pdk-waterfall-row {
     min-height: 22px;
 }
 
@@ -856,19 +862,31 @@
 }
 
 .pdk-waterfall-track {
-    display: flex;
+    position: relative;
     height: 8px;
     border-radius: 4px;
     background: var(--pdk-surface-2);
-    overflow: hidden;
 }
 
 .pdk-waterfall-bar {
-    display: block;
-    height: 100%;
+    position: absolute;
+    top: 0;
+    bottom: 0;
     min-width: 2px;
     border-radius: 4px;
     background: var(--mud-palette-info, var(--pdk-info));
+    cursor: default;
+}
+
+.pdk-waterfall-bar::before {
+    position: absolute;
+    inset: -7px -4px;
+    content: "";
+}
+
+.pdk-waterfall-bar:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
 }
 
 .pdk-waterfall-bar.pdk-waterfall-gate { background: var(--mud-palette-primary); }
@@ -880,4 +898,64 @@
 .pdk-waterfall-value {
     text-align: right;
     white-space: nowrap;
+}
+
+/* The bar's start and length, below its row and over the next, in the charts' tooltip style; shown while the bar is hovered or focused. */
+.pdk-waterfall-tip {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    z-index: 2;
+    display: none;
+    grid-column: 2 / -1;
+    box-sizing: border-box;
+    min-width: 140px;
+    padding: 8px 10px;
+    border: 1px solid var(--pdk-line-strong);
+    border-radius: 8px;
+    background: var(--pdk-surface);
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+    color: var(--pdk-text);
+    font-family: var(--pdk-font);
+    font-size: 0.75rem;
+    line-height: 1.35;
+    pointer-events: none;
+}
+
+.pdk-waterfall-tip > span {
+    display: flex;
+}
+
+.pdk-waterfall-row:has(.pdk-waterfall-bar:hover, .pdk-waterfall-bar:focus-visible) .pdk-waterfall-tip {
+    display: block;
+}
+
+.pdk-waterfall-axis {
+    display: flex;
+    grid-column: 2;
+    justify-content: space-between;
+    padding-top: 2px;
+    border-top: 1px solid var(--pdk-line-strong);
+    color: var(--pdk-muted);
+    font-size: 0.6875rem;
+}
+
+/* A phone's drawer leaves the time taken too narrow for label, track and time side by side: the label goes above its track. */
+@media (max-width: 600px) {
+    .pdk-waterfall {
+        grid-template-columns: minmax(0, 1fr) max-content;
+        row-gap: 2px;
+    }
+
+    .pdk-waterfall-label {
+        grid-column: 1 / -1;
+    }
+
+    .pdk-waterfall-tip {
+        grid-column: 1 / -1;
+    }
+
+    .pdk-waterfall-axis {
+        grid-column: 1;
+    }
 }

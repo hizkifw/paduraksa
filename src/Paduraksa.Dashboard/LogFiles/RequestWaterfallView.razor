@@ -1,6 +1,6 @@
 @using Paduraksa.Contracts.Logging
 @inject DisplayFormat Fmt
-@* A request's stages as bars on its total time; the starts follow the pipeline's order (RequestWaterfall). *@
+@* A request's stages on one axis from 0 to its total, each bar at its own start (RequestWaterfall). *@
 @if (_stages.Count > 0)
 {
     <ul class="pdk-waterfall" data-waterfall="@Entry.Sequence" aria-label="Time by stage">
@@ -8,15 +8,21 @@
         {
             <li class="pdk-waterfall-row" data-stage="@stage.Key">
                 <span class="pdk-waterfall-label">@stage.Label</span>
-                <span class="pdk-waterfall-track" aria-hidden="true">
-                    @if (!stage.Reused)
-                    {
-                        <span class="pdk-waterfall-bar pdk-waterfall-@stage.Key" style="@RequestWaterfall.Geometry(stage, _scale)"></span>
-                    }
+                <span class="pdk-waterfall-track">
+                    <span class="pdk-waterfall-bar pdk-waterfall-@stage.Key" style="@RequestWaterfall.Geometry(stage, _scale)" tabindex="0" role="img"
+                          aria-label="@($"{stage.Label}: from {Fmt.Duration(stage.StartMs)}, {Fmt.Duration(stage.Ms)}")"></span>
                 </span>
-                <span class="pdk-waterfall-value @(stage.Reused ? "pdk-muted" : null)">@(stage.Reused ? "Reused" : Fmt.Duration(stage.Ms))</span>
+                <span class="pdk-waterfall-value">@Fmt.Duration(stage.Ms)</span>
+                <span class="pdk-waterfall-tip" aria-hidden="true">
+                    <span class="pdk-chart-tip-time">@stage.Label</span>
+                    <span class="pdk-chart-tip-row"><span class="pdk-chart-tip-name">Start</span><span class="pdk-chart-tip-value" data-tip="start">@Fmt.Duration(stage.StartMs)</span></span>
+                    <span class="pdk-chart-tip-row"><span class="pdk-chart-tip-name">Duration</span><span class="pdk-chart-tip-value" data-tip="duration">@Fmt.Duration(stage.Ms)</span></span>
+                </span>
             </li>
         }
+        <li class="pdk-waterfall-scale" aria-hidden="true">
+            <span class="pdk-waterfall-axis"><span>@Fmt.Duration(0)</span><span>@Fmt.Duration(_scale)</span></span>
+        </li>
     </ul>
 }
 

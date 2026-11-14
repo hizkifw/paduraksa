@@ -350,6 +350,7 @@ public sealed class LiveTailPageTests
                 ConnectionRequest = 1,
                 RequestBodyTicks = 0,
                 GateTicks = TimeSpan.FromMicroseconds(80).Ticks,
+                ForwardStartMicros = 1_000,
                 UpstreamConnectTicks = 0,
                 ResponseSendTicks = TimeSpan.FromMilliseconds(4).Ticks,
             });
@@ -361,11 +362,15 @@ public sealed class LiveTailPageTests
             await drawers.WaitForStateAsync(() => drawers.FindAll("[data-detail]").Count == 1);
 
             Assert.Equal("Request 1, TLS handshake 2.5 ms", drawers.Find("[data-fact=connection]").TextContent);
-            Assert.Equal(["gate", "connect", "wait", "send"], drawers.FindAll("[data-waterfall] [data-stage]").Select(static row => row.GetAttribute("data-stage")));
-            Assert.Equal("Reused", drawers.Find("[data-stage=connect] .pdk-waterfall-value").TextContent);
-            Assert.Empty(drawers.FindAll("[data-stage=connect] .pdk-waterfall-bar"));
+            // A pooled connection has no connect row, and a request without a body no body row.
+            Assert.Equal(["gate", "wait", "send"], drawers.FindAll("[data-waterfall] [data-stage]").Select(static row => row.GetAttribute("data-stage")));
+            Assert.Equal("Waiting for upstream (TTFB)", drawers.Find("[data-stage=wait] .pdk-waterfall-label").TextContent);
             Assert.Equal("30 ms", drawers.Find("[data-stage=wait] .pdk-waterfall-value").TextContent);
-            Assert.Equal("margin-left: 90%; width: 10%", drawers.Find("[data-stage=send] .pdk-waterfall-bar").GetAttribute("style"));
+            Assert.Equal("left: 2.5%; width: 75%", drawers.Find("[data-stage=wait] .pdk-waterfall-bar").GetAttribute("style"));
+            Assert.Equal("1 ms", drawers.Find("[data-stage=wait] [data-tip=start]").TextContent);
+            Assert.Equal("30 ms", drawers.Find("[data-stage=wait] [data-tip=duration]").TextContent);
+            Assert.Equal("left: 90%; width: 10%", drawers.Find("[data-stage=send] .pdk-waterfall-bar").GetAttribute("style"));
+            Assert.Equal(["0 ms", "40 ms"], drawers.FindAll(".pdk-waterfall-axis > span").Select(static tick => tick.TextContent));
         }
     }
 
