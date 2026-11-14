@@ -298,9 +298,13 @@ internal sealed class AdminPoller(AdminClient admin, Recorder recorder, Events e
 
     private void Fail(string path, string why)
     {
-        Interlocked.Increment(ref _errors);
+        // Only a failure outside the restart is an error; the recorder files the others as tolerated.
+        if (!recorder.Tolerance.Applies(events.ElapsedSeconds, "admin"))
+        {
+            Interlocked.Increment(ref _errors);
+        }
+
         recorder.Fail("admin-error", "admin", path, "admin", why);
-        _ = events;
     }
 }
 

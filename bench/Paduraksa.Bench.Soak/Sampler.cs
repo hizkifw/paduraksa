@@ -13,7 +13,7 @@ internal sealed class Sampler(
 {
     private static readonly string[] Columns =
     [
-        "t", "pid", "rss_mb", "hwm_mb", "threads", "fds", "cpu_pct", "heap_mb", "committed_mb", "retained_mb", "gen0", "gen1", "gen2", "gc_pause_ms", "tp_threads", "tp_queue",
+        "t", "pid", "rss_mb", "rss_anon_mb", "rss_file_mb", "hwm_mb", "threads", "fds", "cpu_pct", "heap_mb", "committed_mb", "retained_mb", "gen0", "gen1", "gen2", "gc_pause_ms", "tp_threads", "tp_queue",
         "lock_contention", "client_conns", "upstream_conns", "ws_open", "requests", "rps", "ok", "refused_by_design", "unexpected_5xx", "conn_errors", "timeouts", "wrong", "tolerated",
         "skipped", "small_p50_ms", "small_p99_ms", "small_p999_ms", "big_p99_ms", "ws_p99_ms", "limited_p99_ms", "admin_p99_ms", "in_flight", "publishes", "publish_mean_ms",
         "publish_max_ms", "server_requests", "server_429", "generation", "counter_violations", "probe_age_s", "scrape_ms",
@@ -74,6 +74,8 @@ internal sealed class Sampler(
             ["t"] = t,
             ["pid"] = proc.Pid,
             ["rss_mb"] = proc.RssKb / 1024.0,
+            ["rss_anon_mb"] = proc.AnonKb / 1024.0,
+            ["rss_file_mb"] = proc.FileKb / 1024.0,
             ["hwm_mb"] = proc.HwmKb / 1024.0,
             ["threads"] = proc.Threads,
             ["fds"] = proc.Fds,
@@ -126,23 +128,31 @@ internal sealed class Sampler(
 
     private static string Format(double value) => double.IsNaN(value) ? string.Empty : value.ToString("0.###", CultureInfo.InvariantCulture);
 
-    private (int Pid, double RssKb, double HwmKb, int Threads, int Fds, double CpuPct) ReadProc()
+    private (int Pid, double RssKb, double AnonKb, double FileKb, double HwmKb, int Threads, int Fds, double CpuPct) ReadProc()
     {
         var pid = server.Pid;
         if (pid == 0 || server.HasExited)
         {
-            return (0, double.NaN, double.NaN, 0, 0, double.NaN);
+            return (0, double.NaN, double.NaN, double.NaN, double.NaN, 0, 0, double.NaN);
         }
 
         try
         {
-            double rss = 0, hwm = 0;
+            double rss = 0, hwm = 0, anon = 0, file = 0;
             var threads = 0;
             foreach (var line in File.ReadLines($"/proc/{pid}/status"))
             {
                 if (line.StartsWith("VmRSS:", StringComparison.Ordinal))
                 {
                     rss = KbOf(line);
+                }
+                else if (line.StartsWith("RssAnon:", StringComparison.Ordinal))
+                {
+                    anon = KbOf(line);
+                }
+                else if (line.StartsWith("RssFile:", StringComparison.Ordinal))
+                {
+                    file = KbOf(line);
                 }
                 else if (line.StartsWith("VmHWM:", StringComparison.Ordinal))
                 {
@@ -170,11 +180,11 @@ internal sealed class Sampler(
             _lastPid = pid;
             _lastTicks = ticks;
             _lastWall = wall;
-            return (pid, rss, hwm, threads, fds, cpu);
+            return (pid, rss, anon, file, hwm, threads, fds, cpu);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return (pid, double.NaN, double.NaN, 0, 0, double.NaN);
+            return (pid, double.NaN, double.NaN, double.NaN, double.NaN, 0, 0, double.NaN);
         }
 
         static double KbOf(string line) => double.Parse(line.Split(':')[1].Replace("kB", string.Empty).Trim(), CultureInfo.InvariantCulture);

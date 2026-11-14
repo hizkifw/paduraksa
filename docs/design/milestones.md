@@ -55,6 +55,7 @@ These were done first, before the features that depend on them. Each has an exit
   - M1 (`StateContinuityTests`): no request errors, and (3), over real YARP reloads, policy-only edits and unchanged configs.
   - M7 (`RateLimitContinuityTests`): (1), buckets carried over publishes under load (the 2xx count stays within burst + rate x elapsed and 429s keep coming), plus a lowered burst taking effect on the next touch.
   - (2) is tested with the metric slots (M9).
+  - At load (`soak`, `bench/soak/run-soak.sh`): publishes every 100 ms for 60 s under mixed traffic. The 429 client, the counters and a down destination are checked through the burst; see "Soak test" in [testing.md](testing.md#soak-test) for the run and what it found.
 
 ### S7: Baseline performance vs nginx and Caddy (done: baseline recorded; the tail stalls are under investigation)
 
@@ -213,7 +214,7 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
   - the REST API made consistent (**done** on `api-consistency`: kebab-case paths, one status per verb, `{ items, nextCursor }` on every collection, `GET /api/v1/version`, every query parameter and response in the OpenAPI document, kept by a test; see "Conventions for a new endpoint" in [admin-surfaces.md](admin-surfaces.md#conventions-for-a-new-endpoint));
   - custom request and response headers per host and route, strip-prefix and add-prefix per route, and response compression per host (**built** on `route-transforms`; see "Custom headers", "Path rewrite" and "Response compression" in [hot-path.md](hot-path.md)). Left out: regex rewrites, header placeholders, zstd (not in .NET 10) and a per-route compression switch;
   - a time-boxed run of every fuzz harness (`scripts/fuzz.sh --time 3600 --merge`; the harnesses and property tests are built, YAML and ACME harnesses with M10);
-  - load tests.
+  - load tests (**built** on `soak`: `bench/soak/run-soak.sh`, an hour of mixed traffic with publishes, a flap, a burst, MCP, a dashboard and a restart, judged on errors, leaks, latency drift and S6; see [testing.md](testing.md#soak-test)).
 - **Done when:** a tagged release.
 
 ### Later

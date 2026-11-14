@@ -185,6 +185,9 @@ async Task<int> RunAsync()
     await samplerTask;
 
     facts.Final = await Snapshot(control.Admin);
+    // The outbox at the end, not only after the flap: a recovery that comes late is still a recovery, and the "up" event comes with it.
+    var finalHistory = await control.Admin.GetAsync("/api/v1/notifications/history?limit=100");
+    facts.NotificationsFinal = finalHistory.Ok ? finalHistory.Json : null;
     var stop = await server.StopAsync();
     events.Write("server.stopped", new { exitCode = stop.ExitCode, seconds = Math.Round(stop.Took.TotalSeconds, 2) });
     facts.FinalStop = new JsonObject { ["exitCode"] = stop.ExitCode, ["seconds"] = Math.Round(stop.Took.TotalSeconds, 2) };
@@ -349,6 +352,7 @@ async Task<int> RunAsync()
             ["flap"] = facts.Flap,
             ["restart"] = facts.Restart,
             ["final"] = facts.Final,
+            ["notificationsFinal"] = facts.NotificationsFinal,
             ["finalStop"] = facts.FinalStop,
             ["webSockets"] = new JsonObject
             {
@@ -450,4 +454,6 @@ internal sealed class Facts
     public JsonNode? Final { get; set; }
 
     public JsonNode? FinalStop { get; set; }
+
+    public JsonNode? NotificationsFinal { get; set; }
 }

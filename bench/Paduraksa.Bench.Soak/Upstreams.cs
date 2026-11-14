@@ -22,6 +22,11 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
     private static readonly byte[] TextBody = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("The quick brown fox jumps over the lazy dog, again and again. ", 280)));
 
     private WebApplication? _app;
+    private const int SeenSize = 1 << 18;
+
+    // The ids of the last requests that carried X-Soak-Id, direct-mapped: when a client's request hangs, this says whether the upstream ever got it.
+    private readonly long[] _seen = new long[SeenSize];
+    private readonly long[] _done = new long[SeenSize];
     private long _requests;
     private long _webSockets;
 
@@ -34,6 +39,11 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
     public long WebSocketsAccepted => Interlocked.Read(ref _webSockets);
 
     public bool Running => _app is not null;
+
+    public bool Saw(long id) => Volatile.Read(ref _seen[id & (SeenSize - 1)]) == id;
+
+    /// <summary>The upstream wrote the whole response for it.</summary>
+    public bool Finished(long id) => Volatile.Read(ref _done[id & (SeenSize - 1)]) == id;
 
     public static byte[] Big => BigBody;
 
@@ -96,6 +106,12 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
     {
         Interlocked.Increment(ref _requests);
         var response = http.Response;
+        long traceId = 0;
+        if (http.Request.Headers.TryGetValue("X-Soak-Id", out var traced) && long.TryParse(traced.ToString(), out traceId))
+        {
+            Volatile.Write(ref _seen[traceId & (SeenSize - 1)], traceId);
+        }
+
         response.Headers["X-Soak-Node"] = Name;
         var path = http.Request.Path.Value ?? "/";
         switch (path)
@@ -142,6 +158,10 @@ internal sealed class UpstreamNode(string name, int port) : IAsyncDisposable
 
         response.Headers["X-Soak-Seen-Drop"] = http.Request.Headers.TryGetValue("X-Soak-Drop", out var drop) ? drop.ToString() : "none";
         await response.WriteAsync("path=" + path + "\n" + new string('x', 400));
+        if (traceId != 0)
+        {
+            Volatile.Write(ref _done[traceId & (SeenSize - 1)], traceId);
+        }
     }
 
     private static async Task EchoAsync(WebSocket socket, CancellationToken cancellationToken)

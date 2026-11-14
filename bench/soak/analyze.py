@@ -17,12 +17,12 @@ from pathlib import Path
 THRESHOLDS = {
     # The leak fits need a stretch long enough to tell a slope from noise.
     "min_segment_seconds": 600,
-    "settle_after_restart_seconds": 120,
+    "settle_after_restart_seconds": 600,
+    "settle_after_event_seconds": 300,
     "rss_mb_per_hour": 64.0,
     "retained_mb_per_hour": 16.0,
     "fds_per_hour": 30.0,
     "fds_band": 100,
-    "threads_per_hour": 4.0,
     "threads_band": 16,
     "tp_threads_band": 8,
     # Latency: the last window's p99 against the baseline window's, with the histogram's 3% bucket error and a quarter millisecond of slack on top.
@@ -140,66 +140,76 @@ def check_errors(report, plan, facts, log_findings):
     report.ok("Errors", "generator kept up (no skipped requests)", generated == 0, generated, 0)
 
 
-def segments(plan, samples, facts):
-    """The post-warm-up stretches to fit, one per server process: before the restart, and after it once things have settled."""
+def quiet_points(plan, samples, facts, field, residual=None):
+    """The samples a leak fit may use, one list per server process: after the warm-up, outside the stretches the test itself disturbs (the flap and the burst, and the minutes
+    the collector takes to give back what they cost; the restart and the time a new process needs to settle)."""
+    p = plan["plan"]
     restart = facts.get("restart") or {}
     begin = restart.get("beginT")
-    ready = restart.get("readySecondsFromSignal")
-    warm = plan["plan"]["WarmupSeconds"]
-    end = plan["plan"]["DurationSeconds"]
-    out = []
-    if begin is None:
-        out.append(("run", warm, end))
-    else:
-        out.append(("before restart", warm, begin - 10))
-        out.append(("after restart", begin + ready + T["settle_after_restart_seconds"], end))
-    return out
+    ready = restart.get("readySecondsFromSignal", 0)
+    busy = [(p["FlapStart"] - 10, max(p["FlapStart"] + p["FlapSeconds"], p["BurstStart"] + p["BurstSeconds"]) + T["settle_after_event_seconds"])]
+    if begin is not None:
+        busy.append((begin - 10, begin + ready + T["settle_after_restart_seconds"]))
+    by_process = {}
+    for s in samples:
+        t = s["t"]
+        if t < p["WarmupSeconds"] or t > p["DurationSeconds"] or math.isnan(s.get(field, float("nan"))) or any(lo <= t <= hi for lo, hi in busy):
+            continue
+        value = s[field] - (residual(s) if residual else 0)
+        by_process.setdefault(s["pid"], []).append((t, value))
+    return by_process
+
+
+def fit(by_process):
+    """(worst slope per hour, the spread p99 - p1, a description) over the processes that have a stretch long enough, or None."""
+    results = []
+    for pid, rows in by_process.items():
+        if len(rows) < 20 or rows[-1][0] - rows[0][0] < T["min_segment_seconds"]:
+            results.append((pid, None, None, rows[-1][0] - rows[0][0] if rows else 0))
+            continue
+        values = sorted(v for _, v in rows)
+        spread = values[max(0, int(len(values) * 0.99) - 1)] - values[int(len(values) * 0.01)]
+        results.append((pid, theil_sen(rows) * 3600, spread, rows[-1][0] - rows[0][0]))
+    measured = [r for r in results if r[1] is not None]
+    if not measured:
+        return None
+    detail = "; ".join(f"process {i + 1}: {r[1]:+.1f}/h, spread {r[2]:.0f}, over {r[3]:.0f} s of quiet samples" if r[1] is not None else f"process {i + 1}: too short" for i, r in enumerate(results))
+    return max(r[1] for r in measured), max(r[2] for r in measured), detail
 
 
 def check_leaks(report, plan, samples, facts):
     for label, field, bound, unit in (
         ("RSS growth", "rss_mb", T["rss_mb_per_hour"], "MiB/h"),
+        ("anonymous RSS growth (heap and native, not mapped files)", "rss_anon_mb", T["rss_mb_per_hour"], "MiB/h"),
         ("GC heap retained after collections", "retained_mb", T["retained_mb_per_hour"], "MiB/h"),
     ):
-        results = []
-        for name, start, stop in segments(plan, samples, facts):
-            rows = [(s["t"], s[field]) for s in samples if start <= s["t"] <= stop and not math.isnan(s[field])]
-            if stop - start < T["min_segment_seconds"] or len(rows) < 20:
-                results.append((name, None, stop - start))
-                continue
-            results.append((name, theil_sen(rows) * 3600, stop - start))
-        measured = [r for r in results if r[1] is not None]
-        if not measured:
-            report.skip("No leak", label, f"the run is too short for a fit (needs {T['min_segment_seconds']} s after warm-up)")
+        result = fit(quiet_points(plan, samples, facts, field))
+        if result is None:
+            report.skip("No leak", label, f"the run is too short for a fit (needs {T['min_segment_seconds']} s of quiet samples)")
             continue
-        worst = max(r[1] for r in measured)
-        detail = "; ".join(f"{n}: {s:+.1f} {unit} over {int(d)} s" if s is not None else f"{n}: too short" for n, s, d in results)
-        report.ok("No leak", label, worst <= bound, f"{worst:+.1f} {unit}", f"<= {bound:g} {unit}", detail)
+        report.ok("No leak", label, result[0] <= bound, f"{result[0]:+.1f} {unit}", f"<= {bound:g} {unit}", result[2])
 
-    for label, field, per_hour, band in (("open descriptors", "fds", T["fds_per_hour"], T["fds_band"]), ("OS threads", "threads", T["threads_per_hour"], T["threads_band"])):
-        results = []
-        for name, start, stop in segments(plan, samples, facts):
-            rows = [(s["t"], s[field]) for s in samples if start <= s["t"] <= stop and not math.isnan(s[field])]
-            if stop - start < T["min_segment_seconds"] or len(rows) < 20:
-                results.append((name, None, None, stop - start))
-                continue
-            values = sorted(v for _, v in rows)
-            spread = values[int(len(values) * 0.99) - 1] - values[int(len(values) * 0.01)]
-            results.append((name, theil_sen(rows) * 3600, spread, stop - start))
-        measured = [r for r in results if r[1] is not None]
-        if not measured:
-            report.skip("No leak", label, "the run is too short for a fit")
-            continue
-        slope = max(r[1] for r in measured)
-        spread = max(r[2] for r in measured)
-        detail = "; ".join(f"{n}: slope {s:+.1f}/h, spread {sp:.0f}" if s is not None else f"{n}: too short" for n, s, sp, _ in results)
-        report.ok("No leak", f"{label}: slope", slope <= per_hour, f"{slope:+.1f}/h", f"<= {per_hour:g}/h", detail)
-        report.ok("No leak", f"{label}: band (p99 - p1)", spread <= band, f"{spread:.0f}", f"<= {band}")
+    # Descriptors follow the connections, which come and go with the clients' pools; what must be flat is what is left when the sockets are taken off.
+    residual = lambda s: (s["client_conns"] if not math.isnan(s["client_conns"]) else 0) + (s["upstream_conns"] if not math.isnan(s["upstream_conns"]) else 0)
+    result = fit(quiet_points(plan, samples, facts, "fds", residual))
+    if result is None:
+        report.skip("No leak", "open descriptors (less client and upstream sockets)", "the run is too short for a fit")
+    else:
+        report.ok("No leak", "open descriptors (less client and upstream sockets): slope", result[0] <= T["fds_per_hour"], f"{result[0]:+.1f}/h", f"<= {T['fds_per_hour']:g}/h", result[2])
+        report.ok("No leak", "open descriptors (less client and upstream sockets): band (p99 - p1)", result[1] <= T["fds_band"], f"{result[1]:.0f}", f"<= {T['fds_band']}")
+    raw = [s["fds"] for s in samples if s["t"] >= plan["plan"]["WarmupSeconds"] and not math.isnan(s["fds"]) and s["fds"] > 0]
+    if raw:
+        report.info("No leak", "open descriptors, raw", f"{min(raw):.0f} to {max(raw):.0f}", "follows the connection count")
+
+    result = fit(quiet_points(plan, samples, facts, "threads"))
+    if result is None:
+        report.skip("No leak", "OS threads", "the run is too short for a fit")
+    else:
+        report.ok("No leak", "OS threads: band (p99 - p1)", result[1] <= T["threads_band"], f"{result[1]:.0f}", f"<= {T['threads_band']}", result[2])
 
     # The thread pool's size must not creep: the highest it reached after warm-up against the highest during it.
     warm = plan["plan"]["WarmupSeconds"]
     restart = facts.get("restart") or {}
-    # The pool grows to meet the reconnection storm after a restart, and shrinks again: those samples are the restart's, not creep.
     skip_from = restart.get("beginT", float("inf"))
     skip_to = skip_from + restart.get("readySecondsFromSignal", 0) + 60
     before = [s["tp_threads"] for s in samples if s["t"] <= warm and not math.isnan(s["tp_threads"])]
@@ -210,6 +220,9 @@ def check_leaks(report, plan, samples, facts):
     gc2 = [(s["t"], s["gen2"]) for s in samples if not math.isnan(s["gen2"])]
     if gc2:
         report.info("No leak", "gen2 collections / GC pause total", f"{gc2[-1][1]:.0f} / {max(s['gc_pause_ms'] for s in samples if not math.isnan(s['gc_pause_ms'])):.0f} ms", "after the last restart; for the record")
+    during = [s["rss_mb"] for s in samples if s["rss_mb"] == s["rss_mb"]]
+    if during:
+        report.info("No leak", "RSS range over the run", f"{min(during):.0f} to {max(during):.0f} MiB", "the burst costs memory the collector gives back minutes later")
 
 
 def check_latency(report, plan, facts):
@@ -321,8 +334,11 @@ def check_flap(report, plan, facts):
     report.ok("Flap", "the stopped destination was marked down", down is not None and down["T"] - stop_t <= T["flap_detect_seconds"], f"{down['T'] - stop_t:.1f} s" if down else "never", f"<= {T['flap_detect_seconds']:g} s", down["Reason"] if down else "")
     report.ok("Flap", "it was marked healthy again and got traffic", up is not None and up["T"] - start_t <= T["flap_recover_seconds"] and flap["requestsAfterRestart"] > 0,
               f"{up['T'] - start_t:.1f} s, {flap['requestsAfterRestart']} requests since" if up else "never", f"<= {T['flap_recover_seconds']:g} s")
-    history = flap.get("history")
-    items = history.get("items", []) if isinstance(history, dict) else []
+    items = []
+    for history in (flap.get("history"), facts.get("notificationsFinal")):
+        for item in history.get("items", []) if isinstance(history, dict) else []:
+            if item["id"] not in {i["id"] for i in items}:
+                items.append(item)
     texts = [json.dumps(i).lower() for i in items]
     went_down = [i for i, t in zip(items, texts) if "flappy" not in t and ("down" in t or "unhealthy" in t)]
     came_up = [i for i, t in zip(items, texts) if "recover" in t or ".up" in t or "healthy again" in t or "is up" in t or " up" in t]

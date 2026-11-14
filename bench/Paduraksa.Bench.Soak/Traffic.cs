@@ -33,6 +33,11 @@ internal sealed class Probe
     public Func<HttpResponseMessage, byte[], string?>? Check { get; init; }
 
     public Action<HttpRequestMessage>? Prepare { get; init; }
+
+    /// <summary>Gives the request an id the upstreams remember, so a hang can be told apart: the proxy never forwarded it, or the upstream never answered.</summary>
+    public bool Traced { get; init; }
+
+    public long TraceId { get; set; }
 }
 
 /// <summary>The HTTP clients the load uses, one per protocol: a connection goes to loopback whatever the name says, so each request carries the real host in its SNI and Host.</summary>
@@ -131,6 +136,7 @@ internal sealed class TrafficMix
     private readonly int _totalWeight;
     private int _inFlight;
     private long _canaryHighest;
+    private long _traceIds;
 
     public TrafficMix(SoakOptions options, SoakConfig config, TrafficClients clients, Recorder recorder, Events events)
     {
@@ -347,6 +353,12 @@ internal sealed class TrafficMix
             }
 
             probe.Prepare?.Invoke(request);
+            if (probe.Traced)
+            {
+                probe.TraceId = Interlocked.Increment(ref _traceIds);
+                request.Headers.TryAddWithoutValidation("X-Soak-Id", probe.TraceId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+
             using var response = await _clients.For(probe.Protocol).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             var body = await response.Content.ReadAsByteArrayAsync(ct);
             var micros = Stopwatch.GetElapsedTime(intended).TotalMicroseconds;
@@ -387,7 +399,14 @@ internal sealed class TrafficMix
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            _recorder.Fail(Recorder.KindOf(ex), probe.Host, probe.Path, probe.Protocol, ex.GetType().Name + ": " + (ex.InnerException?.Message ?? ex.Message));
+            var detail = ex.GetType().Name + ": " + (ex.InnerException?.Message ?? ex.Message);
+            if (probe.TraceId != 0)
+            {
+                var saw = _config.AllNodes.Where(n => n.Saw(probe.TraceId)).Select(n => n.Name + (n.Finished(probe.TraceId) ? " (answered)" : " (never answered)")).ToList();
+                detail += saw.Count == 0 ? " | no upstream saw it" : " | upstream saw it: " + string.Join(',', saw);
+            }
+
+            _recorder.Fail(Recorder.KindOf(ex), probe.Host, probe.Path, probe.Protocol, detail);
         }
         finally
         {
@@ -419,6 +438,7 @@ internal sealed class TrafficMix
             Host = AnyApp(),
             Path = path,
             Ok = [200],
+            Traced = true,
             Check = (response, body) => PathEcho(response, body, bare),
         };
     }

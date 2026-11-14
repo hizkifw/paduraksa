@@ -9,6 +9,8 @@ Two kinds of measurement live here:
   measured with `oha`. For Paduraksa it also tracks the whole process's allocated bytes per request (Kestrel, routing
   and YARP included), GC activity and thread-pool state.
 
+The [soak test](soak/README.md) (`bench/soak/run-soak.sh`) is the other direction: a moderate load for an hour, to see that the server stays healthy.
+
 Recorded runs are kept as a history, with generated tables in [`bench/RESULTS.md`](RESULTS.md). The raw output of a
 recorded run goes in `bench/results/`, one directory per run.
 

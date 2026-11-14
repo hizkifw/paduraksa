@@ -1,0 +1,423 @@
+{
+  "thresholds": {
+    "min_segment_seconds": 600,
+    "settle_after_restart_seconds": 120,
+    "rss_mb_per_hour": 64.0,
+    "retained_mb_per_hour": 16.0,
+    "fds_per_hour": 30.0,
+    "fds_band": 100,
+    "threads_per_hour": 4.0,
+    "threads_band": 16,
+    "tp_threads_band": 8,
+    "p99_drift_ratio": 1.5,
+    "p99_drift_slack_ms": 0.25,
+    "publish_p99_ms": 500.0,
+    "publish_trend_ratio": 1.5,
+    "publish_trend_slack_ms": 5.0,
+    "burst_slip_fraction": 0.1,
+    "burst_issued_fraction": 0.9,
+    "live_p99_ms": 1000.0,
+    "canary_lag_revisions": 3,
+    "limited_ok_ratio": 1.25,
+    "limited_ok_slack": 2.0,
+    "limited_rate_factor": 1.5,
+    "limited_rate_slack": 3.0,
+    "flap_detect_seconds": 20.0,
+    "flap_recover_seconds": 20.0,
+    "restart_ready_seconds": 50.0,
+    "restart_proxied_seconds": 55.0,
+    "restart_healthy_seconds": 75.0,
+    "slowloris_cut_seconds": 25.0,
+    "slow_body_cut_seconds": 30.0,
+    "ws_idle_slack_seconds": 30.0,
+    "rate_achieved_fraction": 0.95,
+    "mcp_min_calls_fraction": 0.8
+  },
+  "checks": [
+    {
+      "group": "Errors",
+      "check": "no unexpected client errors",
+      "status": "FAIL",
+      "value": 15,
+      "limit": 0,
+      "note": "timeout=15; 14,880,729 requests"
+    },
+    {
+      "group": "Errors",
+      "check": "no unexpected server log errors",
+      "status": "FAIL",
+      "value": 3,
+      "limit": 0,
+      "note": "t=665s crit Microsoft.AspNetCore.Server.Kestrel[23]: app=public Connection id \"0HNQ1VBKAV686\" application never completed.; t=2477s crit Microsoft.AspNetCore.Server.Kestrel[23]: app=public Connection id \"0HNQ1VSPFI6PQ\" application never completed.; t=3047s crit Microsoft.AspNetCore.Server.Kestrel[23]: app=public Connection id \"0HNQ1VSPFI9QD\" application never completed."
+    },
+    {
+      "group": "Errors",
+      "check": "server log warnings outside the expected ones",
+      "status": "INFO",
+      "value": 0,
+      "limit": "",
+      "note": ""
+    },
+    {
+      "group": "Errors",
+      "check": "generator kept up (no skipped requests)",
+      "status": "PASS",
+      "value": 0,
+      "limit": 0,
+      "note": ""
+    },
+    {
+      "group": "Load",
+      "check": "the generator held the rate",
+      "status": "PASS",
+      "value": "4,134 req/s",
+      "limit": ">= 3,800",
+      "note": "server CPU median 162% of 4 cores' worth"
+    },
+    {
+      "group": "No leak",
+      "check": "RSS growth",
+      "status": "FAIL",
+      "value": "+324.6 MiB/h",
+      "limit": "<= 64 MiB/h",
+      "note": "before restart: +120.7 MiB/h over 1490 s; after restart: +324.6 MiB/h over 1645 s"
+    },
+    {
+      "group": "No leak",
+      "check": "GC heap retained after collections",
+      "status": "FAIL",
+      "value": "+48.7 MiB/h",
+      "limit": "<= 16 MiB/h",
+      "note": "before restart: +48.7 MiB/h over 1490 s; after restart: +40.7 MiB/h over 1645 s"
+    },
+    {
+      "group": "No leak",
+      "check": "open descriptors: slope",
+      "status": "PASS",
+      "value": "-20.8/h",
+      "limit": "<= 30/h",
+      "note": "before restart: slope -20.8/h, spread 205; after restart: slope -65.0/h, spread 269"
+    },
+    {
+      "group": "No leak",
+      "check": "open descriptors: band (p99 - p1)",
+      "status": "FAIL",
+      "value": "269",
+      "limit": "<= 100",
+      "note": ""
+    },
+    {
+      "group": "No leak",
+      "check": "OS threads: slope",
+      "status": "FAIL",
+      "value": "+5.0/h",
+      "limit": "<= 4/h",
+      "note": "before restart: slope +0.0/h, spread 1; after restart: slope +5.0/h, spread 4"
+    },
+    {
+      "group": "No leak",
+      "check": "OS threads: band (p99 - p1)",
+      "status": "PASS",
+      "value": "4",
+      "limit": "<= 16",
+      "note": ""
+    },
+    {
+      "group": "No leak",
+      "check": "thread-pool threads stay put",
+      "status": "PASS",
+      "value": "max 7",
+      "limit": "<= 23",
+      "note": "warm-up max 15; queue max 24"
+    },
+    {
+      "group": "No leak",
+      "check": "gen2 collections / GC pause total",
+      "status": "INFO",
+      "value": "40 / 14215 ms",
+      "limit": "",
+      "note": "after the last restart; for the record"
+    },
+    {
+      "group": "No latency drift",
+      "check": "small requests: p99, last window vs baseline",
+      "status": "PASS",
+      "value": "10.12 ms vs 10.74 ms (0.94x)",
+      "limit": "<= 1.5x + 0.25 ms",
+      "note": "minutes 5-15 vs 50-60"
+    },
+    {
+      "group": "No latency drift",
+      "check": "small requests: p50",
+      "status": "INFO",
+      "value": "1.769 vs 1.769 ms",
+      "limit": "",
+      "note": "minutes 5-15 vs 50-60"
+    },
+    {
+      "group": "No latency drift",
+      "check": "small requests: p99.9",
+      "status": "INFO",
+      "value": "16.728 vs 19.392 ms",
+      "limit": "",
+      "note": "minutes 5-15 vs 50-60"
+    },
+    {
+      "group": "No latency drift",
+      "check": "64 KiB transfers: p99, last window vs baseline",
+      "status": "PASS",
+      "value": "12.09 ms vs 12.45 ms",
+      "limit": "<= 1.5x",
+      "note": "minutes 5-15 vs 50-60"
+    },
+    {
+      "group": "Publishes",
+      "check": "all publishes succeeded",
+      "status": "PASS",
+      "value": "0 of 955 failed",
+      "limit": "0",
+      "note": ""
+    },
+    {
+      "group": "Publishes",
+      "check": "cycle publishes (every 10 s)",
+      "status": "INFO",
+      "value": "359 of about 360",
+      "limit": "",
+      "note": ""
+    },
+    {
+      "group": "Publishes",
+      "check": "publish latency p99",
+      "status": "PASS",
+      "value": "40 ms",
+      "limit": "<= 500 ms",
+      "note": "p50 16 ms, max 311 ms"
+    },
+    {
+      "group": "Publishes",
+      "check": "publish latency does not trend up",
+      "status": "PASS",
+      "value": "18.7 ms vs 18.0 ms (median, last vs first third)",
+      "limit": "<= 1.5x + 5 ms",
+      "note": ""
+    },
+    {
+      "group": "Publishes",
+      "check": "command to live (canary host)",
+      "status": "PASS",
+      "value": "p50 21 ms, p99 69 ms",
+      "limit": "p99 <= 1000 ms",
+      "note": "45 checked"
+    },
+    {
+      "group": "Publishes",
+      "check": "clients never saw the canary go backwards",
+      "status": "PASS",
+      "value": "highest seen 641 of 641",
+      "limit": "monotonic",
+      "note": ""
+    },
+    {
+      "group": "Publishes",
+      "check": "the last published revision is the one served",
+      "status": "PASS",
+      "value": "641 vs 641",
+      "limit": "within 3",
+      "note": ""
+    },
+    {
+      "group": "S6 continuity",
+      "check": "the rate limit holds under the mixed load (limited host, 200s per second)",
+      "status": "PASS",
+      "value": "19.7/s",
+      "limit": "<= 33/s (policy 20/s)",
+      "note": "100 requests a second are sent; a bucket evicted by other hosts' buckets starts full and lets them through"
+    },
+    {
+      "group": "S6 continuity",
+      "check": "429s continue through the publish burst",
+      "status": "PASS",
+      "value": "0 seconds without a 429 of 56",
+      "limit": "0",
+      "note": ""
+    },
+    {
+      "group": "S6 continuity",
+      "check": "the limit holds through the burst (200s per second, burst vs baseline)",
+      "status": "PASS",
+      "value": "19.7/s vs 19.7/s (limit 20/s)",
+      "limit": "<= 1.25x + 2",
+      "note": "max in one second 20; a publish that reset the bucket would show as extra 200s"
+    },
+    {
+      "group": "S6 continuity",
+      "check": "counters are monotonic across publishes",
+      "status": "PASS",
+      "value": "0 regressions in 361 scrapes",
+      "limit": "0",
+      "note": ""
+    },
+    {
+      "group": "S6 continuity",
+      "check": "no scrape failed outside the restart",
+      "status": "PASS",
+      "value": 0,
+      "limit": "restart window only",
+      "note": ""
+    },
+    {
+      "group": "S6 continuity",
+      "check": "a destination marked down stays down across publishes",
+      "status": "PASS",
+      "value": "537 publishes while it was down",
+      "limit": "0 recoveries before it was started again",
+      "note": "0s healthy; 1207s unhealthy; 1324s healthy"
+    },
+    {
+      "group": "S6 continuity",
+      "check": "no healthy destination flaps",
+      "status": "PASS",
+      "value": "0 down verdicts, 0 flapping flags on live destinations",
+      "limit": "0",
+      "note": "7194 health polls"
+    },
+    {
+      "group": "Flap",
+      "check": "the stopped destination was marked down",
+      "status": "PASS",
+      "value": "6.5 s",
+      "limit": "<= 20 s",
+      "note": "active probe: connection refused"
+    },
+    {
+      "group": "Flap",
+      "check": "it was marked healthy again and got traffic",
+      "status": "FAIL",
+      "value": "63.5 s, 19 requests since",
+      "limit": "<= 20 s",
+      "note": ""
+    },
+    {
+      "group": "Flap",
+      "check": "the notification outbox recorded down and up",
+      "status": "FAIL",
+      "value": "1 down, 0 up of 1 events",
+      "limit": ">= 1 each",
+      "note": "destination.down"
+    },
+    {
+      "group": "Restart",
+      "check": "the server stopped cleanly on SIGTERM",
+      "status": "PASS",
+      "value": "exit 0 after 31.11 s",
+      "limit": "exit 0",
+      "note": "with WebSockets open the drain runs to the ShutdownTimeout (30 s); see README"
+    },
+    {
+      "group": "Restart",
+      "check": "healthy again within N seconds of the stop signal",
+      "status": "PASS",
+      "value": "34.37 s",
+      "limit": "<= 50 s",
+      "note": "/readyz"
+    },
+    {
+      "group": "Restart",
+      "check": "first proxied 200",
+      "status": "PASS",
+      "value": "34.38 s",
+      "limit": "<= 55 s",
+      "note": ""
+    },
+    {
+      "group": "Restart",
+      "check": "every destination healthy again",
+      "status": "PASS",
+      "value": "34.43 s",
+      "limit": "<= 75 s",
+      "note": ""
+    },
+    {
+      "group": "Restart",
+      "check": "Prometheus counters (process-local)",
+      "status": "INFO",
+      "value": "7,428,510 -> 28,109",
+      "limit": "",
+      "note": "they start again from zero with the process, as Prometheus expects"
+    },
+    {
+      "group": "Restart",
+      "check": "analytics continue (the total carried across)",
+      "status": "FAIL",
+      "value": "7,426,965 -> 7,291,409 requests (hour)",
+      "limit": "no loss",
+      "note": ""
+    },
+    {
+      "group": "Restart",
+      "check": "metrics overview continues, with the downtime shown as a gap",
+      "status": "PASS",
+      "value": "30 busy buckets before, 3 gap or dip buckets, 8 after",
+      "limit": "all three > 0",
+      "note": "downtime 34.37 s; the hour's series comes back from the persisted rollups"
+    },
+    {
+      "group": "Long-lived and slow clients",
+      "check": "WebSockets chatted",
+      "status": "PASS",
+      "value": "26,519 echoes over 610 sockets",
+      "limit": ">= 300 sockets",
+      "note": ""
+    },
+    {
+      "group": "Long-lived and slow clients",
+      "check": "silent WebSockets are cut by the idle timeout",
+      "status": "SKIP",
+      "value": "",
+      "limit": "",
+      "note": "none reached the timeout in this run"
+    },
+    {
+      "group": "Long-lived and slow clients",
+      "check": "slowloris connections are cut by the header timeout",
+      "status": "PASS",
+      "value": "4424 cut, max 17.0 s, 0 survived",
+      "limit": "<= 25 s",
+      "note": ""
+    },
+    {
+      "group": "Long-lived and slow clients",
+      "check": "slow request bodies are cut by the minimum rate",
+      "status": "PASS",
+      "value": "1284 cut, max 11.0 s",
+      "limit": "<= 30 s",
+      "note": ""
+    },
+    {
+      "group": "Admin, dashboard and MCP",
+      "check": "MCP calls succeeded",
+      "status": "PASS",
+      "value": "59 calls, 0 failed",
+      "limit": "about 60, none failed",
+      "note": ""
+    },
+    {
+      "group": "Admin, dashboard and MCP",
+      "check": "admin API polling had no errors",
+      "status": "FAIL",
+      "value": "2,633 calls, 1 errors",
+      "limit": "0",
+      "note": ""
+    },
+    {
+      "group": "Admin, dashboard and MCP",
+      "check": "dashboard tabs (overview, analytics) stayed live",
+      "status": "PASS",
+      "value": "240 checks, 0 stale, 0 console problems",
+      "limit": "0",
+      "note": ""
+    }
+  ],
+  "failed": 10
+}

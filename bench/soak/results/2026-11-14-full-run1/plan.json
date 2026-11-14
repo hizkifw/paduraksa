@@ -1,0 +1,32 @@
+{
+  "plan": {
+    "DurationSeconds": 3600,
+    "WarmupSeconds": 300,
+    "FlapStart": 1200,
+    "FlapSeconds": 60,
+    "BurstStart": 1205,
+    "BurstSeconds": 60,
+    "RestartAt": 1800,
+    "BaselineStart": 300,
+    "BaselineEnd": 900,
+    "FinalStart": 3000,
+    "FinalEnd": 3600
+  },
+  "Rate": 4000,
+  "WebSockets": 300,
+  "http3": false,
+  "http3Requested": false,
+  "quicSupported": false,
+  "browser": "chromium",
+  "mcp": true,
+  "hosts": 51,
+  "upstreams": 7,
+  "destinations": 19,
+  "serverCpus": "0-3",
+  "flapNode": "flappy-1",
+  "flapHosts": [
+    "flap01.soak.test",
+    "flap02.soak.test",
+    "flap03.soak.test"
+  ]
+}
