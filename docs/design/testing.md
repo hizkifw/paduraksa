@@ -9,6 +9,7 @@ Contents:
 - [What CI runs, and sleeping in tests](#what-ci-runs-and-sleeping-in-tests)
 - [Architecture tests](#architecture-tests)
 - [Performance](#performance)
+- [Soak test](#soak-test)
 - [Security](#security)
 - [Property tests](#property-tests)
 - [Fuzzing](#fuzzing)
@@ -81,6 +82,29 @@ They check:
 - BenchmarkDotNet for each policy and host lookup, with `[MemoryDiagnoser]` asserting 0 B.
 - A nightly `oha` load test comparing p50 and p99 and RPS against the previous run and nginx.
 - The S7 harness now covers nginx, Caddy, HAProxy, Traefik, Envoy and bare YARP, with a recorded history (`bench/RESULTS.md`).
+- The soak test (below) shows that a running server stays healthy over time.
+
+## Soak test
+
+Built on `soak`: `bench/soak/run-soak.sh` runs one real Paduraksa for an hour (`--quick`: five minutes) and judges it. Method, thresholds and their reasons are in `bench/soak/README.md`; this is the summary.
+
+**As built.**
+- **The server** is the Release build of `src/Paduraksa.Server` started as `dotnet paduraksa.dll`, with settings in environment variables, pinned to four CPUs. Not the container image: it adds Docker and libmsquic and changes no finding. A startup hook (`bench/Paduraksa.Bench.Soak.Probe`, `DOTNET_STARTUP_HOOKS`) reports the process's GC and thread-pool figures, which neither `/proc` nor `/metrics` has.
+- **The driver** (`bench/Paduraksa.Bench.Soak`) does first-run setup and a YAML import of a 51-host config, then runs the load and the changes and samples every 10 s. It writes CSV and facts; `bench/soak/analyze.py` judges them, with every threshold in one table.
+- **The config** has seven upstreams of two or three destinations, two profiles, the access log, rate limits, an access list, a rule set, custom error pages, forward auth, proof of work, HSTS, custom headers, compression and a strip-prefix route.
+- **The load** is open-loop and fixed-rate: HTTP/1.1, HTTP/2 (HTTP/3 with libmsquic), downloads and uploads, a 429 client, unknown hosts, 300 WebSockets that chat slowly, five silent ones, slowloris and slow-body clients.
+- **The changes** are a publish every 10 s (a host, an upstream, a rate-limit policy, an access list), a burst of one every 100 ms for 60 s, a destination that stops for 60 s, admin API polling, two dashboard tabs in headless Chromium, an MCP call a minute and a graceful restart halfway.
+- **The checks:** no unexpected error, no leak (slopes over the post-warm-up stretches), no latency drift (the last 10 minutes against minutes 5 to 15), publishes all succeed and stay fast, S6 (429s and counters through the burst, a down destination stays down), the flap and the restart.
+
+**Decisions.**
+- **Fixed rate, not saturation.** The default is 4 000 requests a second, what the .NET generator holds, about 40 % of the server's four CPUs. The bench's `oha` pushes ten times that; at that rate this generator is the limit, not the server.
+- **Errors are tolerated only where the test causes them:** the restart (stop signal to ready, plus 15 s) and, on the flap hosts, the flap's window.
+- **The leak fit is a Theil-Sen slope** over each process's post-warm-up stretch, so one GC or hiccup does not move it; stretches under 10 minutes are skipped, so `--quick` reports none.
+- **One client IP.** Everything is loopback, so the per-IP limits see one client; the connection cap and the deny list are set high.
+
+**What it found** (see the dated results under `bench/soak/results/`):
+- A rate-limit bucket was evicted by the same client's buckets on other hosts, and a bucket that is evicted starts full: past eight rate-limited hosts a 20/s limit let 88/s through. Fixed in `RateLimitTable` (the probe start mixes in the slot), with a regression test.
+- A restart with WebSockets open waits out the whole 30 s `ShutdownTimeout`, and the analytics and metrics that were still in memory are lost, because the stop's flush runs on the budget the drain used up. Not fixed; see `bench/soak/README.md`.
 
 ## Security
 
