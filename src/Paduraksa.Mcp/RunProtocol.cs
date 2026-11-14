@@ -86,6 +86,7 @@ internal static class RunProtocol
         w.WriteNumber("statements", limits.EngineMaxStatements);
         w.WriteNumber("memoryMiB", (int)(limits.EngineMemoryBytes / (1024 * 1024)));
         w.WriteNumber("depth", limits.EngineCallDepth);
+        w.WriteNumber("regexMs", (int)limits.EngineRegexTimeout.TotalMilliseconds);
         w.WriteNumber("output", limits.MaxOutputBytes);
         w.WriteEndObject();
     });

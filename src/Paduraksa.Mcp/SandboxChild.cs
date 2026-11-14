@@ -187,6 +187,7 @@ public static class SandboxChild
             EngineMaxStatements = Messages.Number(l, "statements"),
             EngineMemoryBytes = Messages.Number(l, "memoryMiB") * 1024L * 1024,
             EngineCallDepth = Messages.Number(l, "depth"),
+            EngineRegexTimeout = TimeSpan.FromMilliseconds(Messages.Number(l, "regexMs")),
             MaxOutputBytes = Messages.Number(l, "output"),
         };
     }
@@ -209,6 +210,7 @@ public static class SandboxChild
                     options.LimitMemory(limits.EngineMemoryBytes);
                     options.LimitRecursion(limits.EngineCallDepth);
                     options.Constraints.StackOverflowGuard = true;
+                    options.Constraints.RegexTimeout = limits.EngineRegexTimeout;
                 }
             });
 
@@ -239,7 +241,12 @@ public static class SandboxChild
                 return JsValue.Undefined;
             });
 
-            var script = Engine.PrepareScript(code, "code.js", strict: true);
+            // A prepared script's regular expression literals take the timeout from its parsing options, not from the engine's.
+            var script = Engine.PrepareScript(
+                code,
+                "code.js",
+                strict: true,
+                limits.EngineConstraints ? new ScriptPreparationOptions { ParsingOptions = new ScriptParsingOptions { RegexTimeout = limits.EngineRegexTimeout } } : null);
             var function = engine.Evaluate(script);
             if (!function.IsCallable())
             {
@@ -285,7 +292,7 @@ public static class SandboxChild
         catch (Exception ex)
         {
             var known = ex is JavaScriptException or PromiseRejectedException or StatementsCountOverflowException or MemoryLimitExceededException
-                or RecursionDepthOverflowException or ScriptPreparationException or InsufficientExecutionStackException;
+                or RecursionDepthOverflowException or ScriptPreparationException or InsufficientExecutionStackException or System.Text.RegularExpressions.RegexMatchTimeoutException;
             if (!known)
             {
                 Console.Error.WriteLine(ex.GetType().Name + ": " + ex.Message);

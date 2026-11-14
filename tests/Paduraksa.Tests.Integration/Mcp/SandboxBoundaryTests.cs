@@ -94,6 +94,28 @@ public sealed class SandboxBoundaryTests
         Assert.Equal("1", (await tools.SearchAsync("async () => 1", Ct)).Text);
     }
 
+    [Theory]
+    [InlineData("async () => /(a+)+$/.test('a'.repeat(60) + 'b')")]
+    [InlineData("async () => new RegExp('(a|aa)+$').test('a'.repeat(80) + 'b')")]
+    [InlineData("async () => /(a|aa)+$/.test('a'.repeat(80) + 'b')")]
+    [InlineData("async () => new RegExp('(a+)+$').test('a'.repeat(60) + 'b')")]
+    [InlineData("async () => ('a'.repeat(60) + 'b').replace(/(a+)+$/, '')")]
+    [InlineData("async () => ('x'.repeat(40) + '!').match(/^(x+x+)+y/)")]
+    [InlineData("async () => { try { /(a+)+$/.test('a'.repeat(60) + 'b'); } catch (e) { return 'caught ' + e.name; } }")]
+    public async Task CatastrophicBacktrackingFailsInsideTheRunWithinTheRegexTimeoutAndTheChildIsKept(string code)
+    {
+        await using var tools = SandboxFixture.Create();
+        Assert.Equal("1", (await tools.SearchAsync("async () => 1", Ct)).Text);
+        var pid = Assert.Single(tools.Pool.ChildProcessIds);
+        var started = Stopwatch.StartNew();
+        var outcome = await tools.SearchAsync(code, Ct);
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(4), "the CPU watchdog, not the regex timeout, ended it: " + started.Elapsed);
+        Assert.DoesNotContain("The script was stopped", outcome.Text, StringComparison.Ordinal);
+        Assert.True(outcome.Text.Contains("regular expression took too long", StringComparison.Ordinal) || outcome.Text.StartsWith("\"caught ", StringComparison.Ordinal), outcome.Text);
+        Assert.Equal("2", (await tools.SearchAsync("async () => 2", Ct)).Text);
+        Assert.Equal(pid, Assert.Single(tools.Pool.ChildProcessIds));
+    }
+
     [Fact]
     public async Task AStackOverflowInTheChildKillsOnlyTheChild()
     {

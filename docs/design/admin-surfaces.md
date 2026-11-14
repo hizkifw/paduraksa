@@ -361,7 +361,8 @@ It holds **no token, no configuration, no data directory and no network use**, a
 - Its stderr is drained into a 2 KiB tail that goes to the log when a child dies and to no caller. It is counted: more than 1 MiB over a child's life (a flood costs the parent a core to read) kills it.
 - A fresh `Engine` per run. The engine thread has a 256 MiB stack.
 
-**Jint's own constraints** (`MaxStatements` 300 000, `LimitMemory` 64 MiB, `LimitRecursion` 200, `StackOverflowGuard`) are on in the child, so that the ordinary runaway ends with a clean message in the script's own words. They are **not** the boundary and nothing relies on them. The tests run the same scripts with them off.
+**Jint's own constraints** (`MaxStatements` 300 000, `LimitMemory` 64 MiB, `LimitRecursion` 200, `StackOverflowGuard`, a 1 s regex timeout) are on in the child, so that the ordinary runaway ends with a clean message in the script's own words. They are **not** the boundary and nothing relies on them. The tests run the same scripts with them off.
+- **The regex timeout** (`SandboxLimits.EngineRegexTimeout`, sent in the `run` frame). Backtracking runs inside one native call, so `MaxStatements` never counts it and `LimitMemory` does not see its state: before, a catastrophic pattern ran into Jint's default (10 s for literals, 5 s for `new RegExp`), past the 5 s CPU limit, and was a kill and a new child. Now it is `A regular expression took too long to match; simplify it.` within about a second, which a script can catch, and the child is kept. A prepared script's literals take the timeout from its parsing options, so `PrepareScript` is given it as well. The CPU watchdog stays the boundary (`SandboxBoundaryTests` runs the same patterns with the constraints off).
 
 **The child hardens itself** at startup, before the file system is closed, on the thread that runs scripts (several of these are per thread):
 

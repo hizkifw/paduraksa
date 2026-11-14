@@ -63,4 +63,10 @@ public sealed record SandboxLimits
     public long EngineMemoryBytes { get; init; } = 64L * 1024 * 1024;
 
     public int EngineCallDepth { get; init; } = 200;
+
+    /// <summary>
+    /// How long one regular expression may match. Backtracking runs inside one native call, so <see cref="EngineMaxStatements"/> never sees it and Jint's memory limit does not
+    /// count its state; Jint's own default is 10 s, past the CPU limit, so without this a runaway pattern was a kill and a new child instead of an error the script can read.
+    /// </summary>
+    public TimeSpan EngineRegexTimeout { get; init; } = TimeSpan.FromSeconds(1);
 }
