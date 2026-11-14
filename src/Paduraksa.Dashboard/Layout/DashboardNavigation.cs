@@ -53,6 +53,7 @@ public static class DashboardNavigation
         new("Logs", DashboardRoutes.Logs, Icons.Material.Outlined.Article, InsightGroup, Permission.LogsRead, true),
         new("Live tail", DashboardRoutes.LiveTail, Icons.Material.Outlined.Sensors, InsightGroup, Permission.LogsRead, true),
         new("Global defaults", SettingsRoutes.Defaults, Icons.Material.Outlined.Tune, SettingsGroup, Permission.ConfigRead, true),
+        new("Server", SettingsRoutes.Server, Icons.Material.Outlined.Dns, SettingsGroup, Permission.ConfigRead, true),
         new("Users and roles", SettingsRoutes.Users, Icons.Material.Outlined.Group, SettingsGroup, Permission.UsersRead, true),
         new("Notifications", SettingsRoutes.Notifications, Icons.Material.Outlined.NotificationsActive, SettingsGroup, Permission.ProvidersRead, true),
         new("Notification history", SettingsRoutes.NotificationHistory, Icons.Material.Outlined.MarkEmailRead, SettingsGroup, Permission.ProvidersRead, true),

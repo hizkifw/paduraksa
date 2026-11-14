@@ -32,6 +32,8 @@ internal sealed class DashboardTestContext : BunitContext
         Services.AddScoped<DisplayFormat>();
         Services.AddScoped<DrawerStack>();
         Services.AddScoped<DashboardBrowser>();
+        // The values in force of the server settings: none from the environment unless a test registers its own.
+        Services.AddSingleton(new Paduraksa.Application.Settings.ServerSettingsState(new Dictionary<string, string>()));
     }
 
     /// <summary>A cascading authentication state for <paramref name="user"/> (anonymous when null).</summary>

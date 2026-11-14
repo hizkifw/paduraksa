@@ -1,0 +1,98 @@
+@* One server setting's row: the control its kind takes (empty or "Default" is the built-in default), read-only with a note when the server's
+   environment sets it, and the restart marker for a setting read once at startup. *@
+<SettingRow Title="@Setting.Title" Help="@Setting.Help">
+    <div class="pdk-setting-control pdk-server-setting" data-setting="@Setting.Key">
+        @switch (Setting)
+        {
+            case ServerSetting<TimeSpan> duration:
+                <DurationField Value="@(Locked ? Resolved(duration) : duration.Get(Settings))" ValueChanged="@(value => EmitAsync(duration.Set(Settings, value)))"
+                               Default="duration.Default" Placeholder="@DefaultWords" Label="@Setting.Title" Field="@Field" ReadOnly="ReadOnlyHere" Error="@Error" />
+                break;
+            case ServerSetting<long> size when Setting.Kind == ServerSettingKind.Size:
+                <SizeField Value="@(Locked ? Resolved(size) : size.Get(Settings))" ValueChanged="@(value => EmitAsync(size.Set(Settings, value)))"
+                           Inherited="size.Default" InheritWord="Default" Label="@Setting.Title" Field="@Field" ReadOnly="ReadOnlyHere" Error="@Error" />
+                break;
+            case ServerSetting<long> number:
+                <MudNumericField T="long?" Value="@(Locked ? Resolved(number) : number.Get(Settings))" ValueChanged="@(value => EmitAsync(number.Set(Settings, value)))"
+                                 Label="@Setting.Title" Placeholder="@DefaultWords" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnlyHere"
+                                 HideSpinButtons="true" Clearable="@(!ReadOnlyHere)" Class="pdk-mono-input" Error="@(Error is not null)" ErrorText="@Error" data-field="@Field" />
+                break;
+            case ServerSetting<bool> flag:
+                <SegmentedControl T="string" Options="FlagOptions(flag)" Value="@FlagKey(Locked ? Resolved(flag) : flag.Get(Settings))"
+                                  ValueChanged="@(key => EmitAsync(flag.Set(Settings, key switch { "on" => true, "off" => false, _ => null })))"
+                                  AriaLabel="@Setting.Title" DataField="@Field" Disabled="ReadOnlyHere" />
+                break;
+            case TextServerSetting text:
+                <MudTextField T="string" Value="@(Locked ? text.Resolve(Current) : text.Get(Settings))"
+                              ValueChanged="@(value => EmitAsync(text.Set(Settings, string.IsNullOrWhiteSpace(value) ? null : value.Trim())))"
+                              Label="@Setting.Title" Placeholder="@DefaultWords" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnlyHere"
+                              Class="pdk-mono-input" Error="@(Error is not null)" ErrorText="@Error" data-field="@Field" />
+                break;
+        }
+
+        @if (Locked)
+        {
+            <MudText Typo="Typo.caption" Class="pdk-muted d-block mt-1" data-note="environment">
+                Set by the server's environment (<code>@Setting.EnvironmentVariable</code>)
+            </MudText>
+        }
+        else if (Setting.Apply == ServerSettingApply.Restart)
+        {
+            <MudText Typo="Typo.caption" Class="pdk-muted d-block mt-1" data-note="restart">
+                Applies after a restart
+                @if (View?.RestartPending == true)
+                {
+                    <span class="pdk-chip pdk-chip-warning ml-1" data-state="restart-pending" title="@($"Running with {ServerSettingText.Describe(Setting.Kind, View.Running ?? string.Empty)}")">Restart pending</span>
+                }
+            </MudText>
+        }
+    </div>
+</SettingRow>
+
+@code {
+    [Parameter, EditorRequired]
+    public ServerSettingDefinition Setting { get; set; } = default!;
+
+    /// <summary>What the form would store: null fields take the default.</summary>
+    [Parameter, EditorRequired]
+    public ServerSettings Settings { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<ServerSettings> SettingsChanged { get; set; }
+
+    /// <summary>The values in force, for a setting the environment sets.</summary>
+    [Parameter, EditorRequired]
+    public ServerSettings Current { get; set; } = new();
+
+    /// <summary>Where the value in force comes from and whether a restart is pending.</summary>
+    [Parameter]
+    public ServerSettingView? View { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    private bool Locked => View?.Source == ServerSettingSource.Environment;
+
+    private bool ReadOnlyHere => ReadOnly || Locked;
+
+    private string Field => "server-" + Setting.Key;
+
+    private string DefaultWords => $"Default ({ServerSettingText.Describe(Setting.Kind, Setting.DefaultText)})";
+
+    private T? Resolved<T>(ServerSetting<T> setting)
+        where T : struct, IComparable<T> => setting.Resolve(Current);
+
+    private static string FlagKey(bool? value) => value switch { true => "on", false => "off", null => "default" };
+
+    private static IReadOnlyList<SegmentOption<string>> FlagOptions(ServerSetting<bool> flag) =>
+    [
+        new("default", $"Default ({(flag.Default ? "on" : "off")})", Key: "default"),
+        new("on", "On", Key: "on"),
+        new("off", "Off", Key: "off"),
+    ];
+
+    private Task EmitAsync(ServerSettings settings) => SettingsChanged.InvokeAsync(settings);
+}

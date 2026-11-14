@@ -26,6 +26,7 @@ public static class FieldLabels
         ["tcpAlpn"] = "Protocols over TCP",
         ["http3"] = "HTTP/3",
         ["serverHeader"] = "Server header",
+        ["server"] = "Server settings",
         ["value"] = "Value",
         ["proofOfWork"] = "Browser check",
         ["difficulty"] = "Difficulty",
@@ -172,7 +173,9 @@ public static class FieldLabels
     public static string Of(string field)
     {
         ArgumentNullException.ThrowIfNull(field);
-        return Fields.TryGetValue(field, out var label) ? label : Spell(field);
+        return Fields.TryGetValue(field, out var label) ? label
+            : Contracts.Config.ServerSettingCatalog.Find(field) is { } setting ? setting.Title
+            : Spell(field);
     }
 
     /// <summary>The words for an enum value as the document spells it; anything else as it is.</summary>

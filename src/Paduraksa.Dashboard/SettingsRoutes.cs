@@ -6,6 +6,9 @@ public static class SettingsRoutes
     /// <summary>The global defaults: the bottom layer of host settings, unknown names, the default certificate, trusted proxies.</summary>
     public const string Defaults = "/settings/defaults";
 
+    /// <summary>The server's own settings: retention, sign-in, notifications, integrations and the public connection limits.</summary>
+    public const string Server = "/settings/server";
+
     /// <summary>The users and their roles.</summary>
     public const string Users = "/settings/users";
 

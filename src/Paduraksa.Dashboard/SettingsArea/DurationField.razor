@@ -1,0 +1,89 @@
+@* A time span typed as a number and a unit (seconds to days); empty takes the default the placeholder names. The config holds the span. *@
+<div class="@("pdk-size-custom " + Class)">
+    <MudNumericField T="double?" Value="_number" ValueChanged="SetNumberAsync" Label="@Label" Placeholder="@Placeholder" Min="0"
+                     Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" HideSpinButtons="true" Clearable="@(!ReadOnly)"
+                     Class="pdk-mono-input" Error="@(Error is not null)" ErrorText="@Error" data-field="@Field" />
+    <MudSelect T="string" Value="_unit" ValueChanged="SetUnitAsync" Label="Unit" Variant="Variant.Outlined" Margin="Margin.Dense"
+               Dense="true" ReadOnly="@ReadOnly" data-field="@(Field + "-unit")">
+        @foreach (var unit in DurationText.Units)
+        {
+            <MudSelectItem T="string" Value="@unit">@unit</MudSelectItem>
+        }
+    </MudSelect>
+</div>
+
+@code {
+    private double? _number;
+    private string _unit = "days";
+    private TimeSpan? _seen;
+    private bool _initialised;
+
+    /// <summary>The span; null takes the default.</summary>
+    [Parameter]
+    public TimeSpan? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TimeSpan?> ValueChanged { get; set; }
+
+    /// <summary>What an empty field means, shown as its placeholder ("Default (90 days)").</summary>
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    /// <summary>The unit an empty field starts in: the one its default is said in.</summary>
+    [Parameter]
+    public TimeSpan Default { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The number's <c>data-field</c>; the unit adds <c>-unit</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // The parent's value is the truth (a reload, an undo); our own emission is already _seen, so a unit change doesn't renumber what was typed.
+        if (!_initialised || Value != _seen)
+        {
+            if (Value is { } span)
+            {
+                (var number, _unit) = DurationText.Split(span);
+                _number = number;
+            }
+            else
+            {
+                _number = null;
+                _unit = DurationText.Split(Default).Unit;
+            }
+            _seen = Value;
+            _initialised = true;
+        }
+    }
+
+    private Task SetNumberAsync(double? number)
+    {
+        _number = number;
+        return EmitAsync(number is { } typed ? DurationText.ToSpan(typed, _unit) : null);
+    }
+
+    private Task SetUnitAsync(string unit)
+    {
+        _unit = unit;
+        return _number is { } number ? EmitAsync(DurationText.ToSpan(number, unit)) : Task.CompletedTask;
+    }
+
+    private Task EmitAsync(TimeSpan? span)
+    {
+        _seen = span;
+        return ValueChanged.InvokeAsync(span);
+    }
+}

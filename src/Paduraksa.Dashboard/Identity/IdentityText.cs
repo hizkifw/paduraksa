@@ -49,6 +49,7 @@ public static class IdentityText
         Permission.LogsRead => "Browse, tail and download the log files",
         Permission.MetricsRead => "Read the request counters and latencies, and scrape /metrics",
         Permission.BackupCreate => "Download a full backup: the config and every key in the vault",
+        Permission.ServerWrite => "Change the server settings: retention, the sign-in policy, MCP, connection limits",
         Permission.Simulate => "Run the request simulator",
         Permission.VaultManage => "Manage secrets in the vault",
         Permission.TokensOwn => "Manage one's own API tokens",
@@ -60,7 +61,7 @@ public static class IdentityText
     /// <summary>The scopes a token may be given, by area. Tokens can't manage tokens or sessions, so those aren't offered.</summary>
     public static IReadOnlyList<(string Area, IReadOnlyList<Permission> Scopes)> ScopeAreas { get; } =
     [
-        ("Config", [Permission.ConfigRead, Permission.ConfigWrite]),
+        ("Config", [Permission.ConfigRead, Permission.ConfigWrite, Permission.ServerWrite]),
         ("Certificates", [Permission.CertificatesRead, Permission.CertificatesWrite]),
         ("ACME and DNS", [Permission.ProvidersRead, Permission.ProvidersWrite]),
         ("Simulator", [Permission.Simulate]),

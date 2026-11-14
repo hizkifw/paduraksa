@@ -72,6 +72,11 @@ public static class ReviewNotices
             }
         }
 
+        if (changes.Any(c => c is SettingsChange))
+        {
+            notices.AddRange(ServerSettingCatalog.Notices(before.Settings.Server, after.Settings.Server));
+        }
+
         HashSet<string> touched = [.. changes.Select(ObjectOf)];
         HashSet<(string, string, string)> standing = [.. (beforeWarnings ?? []).Select(w => Key(w, before))];
         foreach (var warning in warnings)
