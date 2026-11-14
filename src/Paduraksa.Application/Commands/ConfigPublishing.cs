@@ -114,7 +114,9 @@ internal sealed partial class ConfigPublishing : IDisposable
                 ]));
         }
 
-        _ = publishing.ContinueWith(
+        // The caller awaits the recording, not the bare publish: a command that reports its change live must already show that
+        // change's warnings (a continuation beside the caller's await could run after the caller had read the old ones).
+        return publishing.ContinueWith(
             task =>
             {
                 if (task.IsCompletedSuccessfully)
@@ -124,7 +126,7 @@ internal sealed partial class ConfigPublishing : IDisposable
                         WentLiveWith(task.Result.Generation, compilation);
                     }
 
-                    return;
+                    return task;
                 }
 
                 // The publisher answered with a failed result for the failures it knows; only a cancel or a thrown fault gets
@@ -137,11 +139,12 @@ internal sealed partial class ConfigPublishing : IDisposable
                 {
                     LogPublishFaulted(task.Exception!.GetBaseException());
                 }
+
+                return task;
             },
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-        return publishing;
+            TaskScheduler.Default).Unwrap();
     }
 
     /// <summary>A publish of generation <paramref name="generation"/> is live: record its warnings and schedule its
