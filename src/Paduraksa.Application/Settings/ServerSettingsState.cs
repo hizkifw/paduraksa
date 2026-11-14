@@ -14,7 +14,7 @@ namespace Paduraksa.Application.Settings;
 /// <remarks>
 /// The validator checks the rules between settings (<see cref="ServerSettingCatalog.Rules"/>) on the config's values over the defaults. A value
 /// the environment sets is outside its view, so a pair the environment makes impossible (an idle timeout stored longer than the session lifetime
-/// the environment sets) is settled here: the config's side of a broken rule is dropped, and that setting falls back to its default.
+/// the environment sets) is settled here: every stored setting of a broken rule falls back to its default, until no rule changes (<see cref="Settle"/>).
 /// </remarks>
 public sealed class ServerSettingsState
 {
@@ -140,15 +140,7 @@ public sealed class ServerSettingsState
             }
         }
 
-        // Settled once per rule: dropping a config value leaves its default, which the options validator holds to every rule with the environment's.
-        foreach (var rule in ServerSettingCatalog.Rules)
-        {
-            if (rule(effective) is { } broken && ServerSettingCatalog.Find(broken.Key) is { } setting && sources[setting.Key] == ServerSettingSource.Config)
-            {
-                effective = setting.CopyFrom(new ServerSettings(), effective);
-                sources[setting.Key] = ServerSettingSource.Default;
-            }
-        }
+        effective = Settle(effective, sources);
 
         // Every setting resolved, so a reader never needs the default again.
         foreach (var setting in ServerSettingCatalog.All)
@@ -157,6 +149,41 @@ public sealed class ServerSettingsState
         }
 
         return new Snapshot(effective, sources.ToFrozenDictionary(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// Drops the stored side of every rule the mix of environment and stored values breaks: each setting of the rule that comes from the config
+    /// falls back to its default, and the rules are checked again, since a default can break another. Each pass drops at least one stored value
+    /// or stops, so it ends within as many passes as there are settings. A rule still broken with no stored value in it is the environment's
+    /// against a default; the options validator refuses that at startup, so it is left as it is.
+    /// </summary>
+    internal static ServerSettings Settle(ServerSettings effective, Dictionary<string, ServerSettingSource> sources)
+    {
+        for (var pass = 0; pass <= ServerSettingCatalog.All.Count; pass++)
+        {
+            var dropped = false;
+            foreach (var rule in ServerSettingCatalog.Rules)
+            {
+                if (rule.Check(effective) is null)
+                {
+                    continue;
+                }
+
+                foreach (var setting in rule.Involves.Where(s => sources[s.Key] == ServerSettingSource.Config))
+                {
+                    effective = setting.CopyFrom(new ServerSettings(), effective);
+                    sources[setting.Key] = ServerSettingSource.Default;
+                    dropped = true;
+                }
+            }
+
+            if (!dropped)
+            {
+                break;
+            }
+        }
+
+        return effective;
     }
 
     private static bool SameSources(Snapshot a, Snapshot b) => a.Sources.All(pair => b.Sources[pair.Key] == pair.Value);

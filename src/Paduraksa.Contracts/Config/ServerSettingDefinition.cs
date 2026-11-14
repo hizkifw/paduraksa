@@ -341,3 +341,9 @@ public sealed class TextServerSetting : ServerSettingDefinition
 
     public override string? FromConfiguration(string raw) => raw.Trim();
 }
+
+/// <summary>
+/// A rule between server settings over the values in force: <see cref="Check"/> names the setting an error is reported at and what is wrong, and
+/// <see cref="Involves"/> every setting whose value can break it, so the settings in force can drop a stored side of a mix the validator can't see.
+/// </summary>
+public sealed record ServerSettingRule(IReadOnlyList<ServerSettingDefinition> Involves, Func<ServerSettings, (string Key, string Problem)?> Check);

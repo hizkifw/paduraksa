@@ -298,7 +298,10 @@ Everything else walks the catalogue:
 
 - **An explicit configuration value wins.** `ServerSettingEnvironment` asks the configuration providers whether a key has a value (appsettings, an environment variable, a test's in-memory source), never whether it differs from the default. A value equal to the default is still the environment's. The shipped `appsettings.json` no longer sets the log retention keys, so they don't lock the dashboard out.
 - **Then the config, then the default.** `ServerSettingsState` resolves the three into the values in force and the source of each.
-- **A mix the validator can't see.** The validator only sees the stored values. If an environment value breaks a rule with a stored one (an environment session lifetime shorter than a stored idle timeout), the state drops the config's side and that setting falls back to its default.
+- **A mix the validator can't see.** The validator only sees the stored values. If an environment value breaks a rule with a stored one (an environment session lifetime shorter than a stored idle timeout), the state settles it (`ServerSettingsState.Settle`):
+  - every stored setting the rule involves (`ServerSettingRule.Involves`) falls back to its default, both sides if both are stored;
+  - then the rules are checked again, since a default can break another, until a pass drops nothing (at most one pass per setting);
+  - a rule still broken with nothing stored in it is the environment against a default, which the options validator refuses at startup, so a running server never has one.
 - **An environment-locked value is still stored.** The API accepts it and the page shows it read-only, so removing the variable makes the stored value apply at the next start.
 
 ### Taking effect

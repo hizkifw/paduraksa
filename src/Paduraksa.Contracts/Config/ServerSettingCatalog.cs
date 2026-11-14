@@ -380,19 +380,25 @@ public static class ServerSettingCatalog
     /// The rules between settings, over the values in force (each setting's own value or its default): a key and what is wrong, for each
     /// pair that can't be used together.
     /// </summary>
-    public static IReadOnlyList<Func<ServerSettings, (string Key, string Problem)?>> Rules { get; } =
+    public static IReadOnlyList<ServerSettingRule> Rules { get; } =
     [
-        static s => AdminSessionIdleTimeout.Resolve(s) > AdminSessionLifetime.Resolve(s)
-            ? (AdminSessionIdleTimeout.Key, $"the idle timeout ({ServerSettingText.Duration(AdminSessionIdleTimeout.Resolve(s))}) can't be longer than the session lifetime ({ServerSettingText.Duration(AdminSessionLifetime.Resolve(s))})")
-            : null,
+        new(
+            [AdminSessionIdleTimeout, AdminSessionLifetime],
+            static s => AdminSessionIdleTimeout.Resolve(s) > AdminSessionLifetime.Resolve(s)
+                ? (AdminSessionIdleTimeout.Key, $"the idle timeout ({ServerSettingText.Duration(AdminSessionIdleTimeout.Resolve(s))}) can't be longer than the session lifetime ({ServerSettingText.Duration(AdminSessionLifetime.Resolve(s))})")
+                : null),
 
         // Kestrel's own rule: a data rate's grace must be longer than a second, unless the rate is off.
-        static s => LimitsMinRequestBodyRate.Resolve(s) > 0 && LimitsMinRequestBodyGrace.Resolve(s) <= TimeSpan.FromSeconds(1)
-            ? (LimitsMinRequestBodyGrace.Key, "the upload grace must be longer than 1 second while the slowest upload is set")
-            : null,
-        static s => LimitsMinResponseRate.Resolve(s) > 0 && LimitsMinResponseGrace.Resolve(s) <= TimeSpan.FromSeconds(1)
-            ? (LimitsMinResponseGrace.Key, "the download grace must be longer than 1 second while the slowest download is set")
-            : null,
+        new(
+            [LimitsMinRequestBodyGrace, LimitsMinRequestBodyRate],
+            static s => LimitsMinRequestBodyRate.Resolve(s) > 0 && LimitsMinRequestBodyGrace.Resolve(s) <= TimeSpan.FromSeconds(1)
+                ? (LimitsMinRequestBodyGrace.Key, "the upload grace must be longer than 1 second while the slowest upload is set")
+                : null),
+        new(
+            [LimitsMinResponseGrace, LimitsMinResponseRate],
+            static s => LimitsMinResponseRate.Resolve(s) > 0 && LimitsMinResponseGrace.Resolve(s) <= TimeSpan.FromSeconds(1)
+                ? (LimitsMinResponseGrace.Key, "the download grace must be longer than 1 second while the slowest download is set")
+                : null),
     ];
 
     /// <summary>

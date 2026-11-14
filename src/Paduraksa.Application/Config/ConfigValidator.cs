@@ -229,7 +229,7 @@ public static class ConfigValidator
 
             foreach (var rule in ServerSettingCatalog.Rules)
             {
-                if (rule(server) is { } broken)
+                if (rule.Check(server) is { } broken)
                 {
                     Add($"{path}/{broken.Key}", ServerSettingsConflict, broken.Problem);
                 }
