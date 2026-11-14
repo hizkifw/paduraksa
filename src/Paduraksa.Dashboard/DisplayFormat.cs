@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using Paduraksa.Contracts.Config;
+
 namespace Paduraksa.Dashboard;
 
 /// <summary>
@@ -211,6 +213,48 @@ public sealed class DisplayFormat
         < 5_400 => (seconds / 60.0).ToString("0.#", Culture) + " min",
         _ => (seconds / 3600.0).ToString("0.#", Culture) + " h",
     };
+
+    /// <summary>A span in prose, in the largest unit that holds it whole: "90 days", "15 minutes", "1 hour", "1.5 seconds".</summary>
+    public string Span(TimeSpan span)
+    {
+        string Unit(double count, string unit) => count.ToString("#,0.##", Culture) + " " + unit + (count == 1 ? string.Empty : "s");
+
+        if (span == TimeSpan.Zero)
+        {
+            return "0 seconds";
+        }
+
+        if (span.Ticks % TimeSpan.TicksPerDay == 0)
+        {
+            return Unit(span.TotalDays, "day");
+        }
+
+        if (span.Ticks % TimeSpan.TicksPerHour == 0)
+        {
+            return Unit(span.TotalHours, "hour");
+        }
+
+        return span.Ticks % TimeSpan.TicksPerMinute == 0 ? Unit(span.TotalMinutes, "minute") : Unit(span.TotalSeconds, "second");
+    }
+
+    /// <summary>
+    /// A server setting's value (the config's text form, <see cref="ServerSettingDefinition.TextOf"/>) the way its declaration's kind reads: a
+    /// span in words, a size in binary units, a count grouped, a switch as on or off, an empty text as none.
+    /// </summary>
+    public string ServerSetting(ServerSettingDefinition setting, string text)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+        ArgumentNullException.ThrowIfNull(text);
+        return setting.Kind switch
+        {
+            ServerSettingKind.Duration when TimeSpan.TryParseExact(text, "c", CultureInfo.InvariantCulture, out var span) => Span(span),
+            ServerSettingKind.Size when long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var bytes) => FileSize(bytes),
+            ServerSettingKind.Number when long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var number) => Count(number),
+            ServerSettingKind.Boolean => text == "true" ? "on" : "off",
+            ServerSettingKind.Text when text.Length == 0 => "none",
+            _ => text,
+        };
+    }
 
     // ---------- Numbers ----------
 

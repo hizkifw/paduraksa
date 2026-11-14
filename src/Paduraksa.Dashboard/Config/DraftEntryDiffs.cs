@@ -11,7 +11,7 @@ namespace Paduraksa.Dashboard.Config;
 /// </summary>
 public static class DraftEntryDiffs
 {
-    public static IReadOnlyDictionary<int, IReadOnlyList<ChangeGroup>> Build(ConfigDocument head, IEnumerable<DraftEntry> entries)
+    public static IReadOnlyDictionary<int, IReadOnlyList<ChangeGroup>> Build(ConfigDocument head, IEnumerable<DraftEntry> entries, DisplayFormat? format = null)
     {
         ArgumentNullException.ThrowIfNull(head);
         ArgumentNullException.ThrowIfNull(entries);
@@ -24,7 +24,7 @@ public static class DraftEntryDiffs
                 continue;
             }
 
-            diffs[entry.Number] = ChangeView.Build(running, after, ConfigDiff.Compare(running, after));
+            diffs[entry.Number] = ChangeView.Build(running, after, ConfigDiff.Compare(running, after), format);
             running = after;
         }
 

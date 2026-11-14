@@ -314,7 +314,7 @@ else
             var before = _selected.Revision.ParentId is { } parent && await Config.GetRevisionAsync(parent) is { } parentDetail
                 ? parentDetail.Document
                 : ConfigService.InitialDocument;
-            _groups = ChangeView.Build(before, _selected.Document, _selected.Changes);
+            _groups = ChangeView.Build(before, _selected.Document, _selected.Changes, Fmt);
             _diffCaption = _selected.Revision.ParentId is null ? "What #1 set up, from the empty config." : $"What #{_selected.Revision.Seq} changed.";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -355,7 +355,7 @@ else
 
                 // Older on the left: the diff reads as "from, to" whichever was picked first.
                 var (from, to) = compared.Revision.Seq < selected.Revision.Seq ? (compared, selected) : (selected, compared);
-                _groups = ChangeView.Build(from.Document, to.Document, ConfigDiff.Compare(from.Document, to.Document));
+                _groups = ChangeView.Build(from.Document, to.Document, ConfigDiff.Compare(from.Document, to.Document), Fmt);
                 _diffCaption = $"From #{from.Revision.Seq} to #{to.Revision.Seq}.";
             });
         }

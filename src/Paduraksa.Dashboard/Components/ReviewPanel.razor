@@ -9,6 +9,7 @@
 @inject DraftState Drafts
 @inject ISnackbar Snackbar
 @inject ILogger<ReviewPanel> Logger
+@inject DisplayFormat Fmt
 @* The review sheet, a level of the drawer stack and the one place a config change is confirmed: every edit is run as a dry run first and shown as a diff
    with its warnings and errors. The person then picks Apply now (commits it with the version the form opened with: a stale version is a friendly conflict, a
    commit that couldn't go live says so, a successful one leaves a toast with Undo) or Add to draft. A whole-document change (rollback, import) has no draft choice. *@
@@ -271,7 +272,7 @@
     private async Task ShowAsync(ConfigCommandResult result, ConfigCommand command, bool tellForm = true)
     {
         // A refused command carries no change list; what it would change is still what the person is looking at.
-        _groups = ChangeView.Build(_before, _after, result.Changes.Count == 0 && result.Status == ConfigCommandStatus.Invalid ? ConfigDiff.Compare(_before, _after) : result.Changes);
+        _groups = ChangeView.Build(_before, _after, result.Changes.Count == 0 && result.Status == ConfigCommandStatus.Invalid ? ConfigDiff.Compare(_before, _after) : result.Changes, Fmt);
         var objectCommand = command is not (ReplaceConfigCommand or RollbackConfigCommand);
         _errors =
         [
@@ -423,7 +424,7 @@
                 await DropAppliedEntriesAsync();
                 _committed = result.Revision;
                 _publishErrors = result.Publish?.Errors ?? [];
-                _groups = ChangeView.Build(_before, _after, result.Changes);
+                _groups = ChangeView.Build(_before, _after, result.Changes, Fmt);
                 _phase = Phase.PublishFailed;
                 if (Level is not null)
                 {

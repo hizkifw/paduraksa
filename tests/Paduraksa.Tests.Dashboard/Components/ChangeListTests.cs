@@ -259,6 +259,39 @@ public sealed class ChangeListTests
     }
 
     [Fact]
+    public async Task ServerSettings_ReadAsTheirKindsWithTheOldValueAndTheNew()
+    {
+        ConfigDocument older = new(Settings: new GlobalSettings(Server: new ServerSettings { LimitsMaxConnections = 12_000, AdminSessionIdleTimeout = TimeSpan.FromMinutes(90) }));
+        ConfigDocument newer = new(Settings: new GlobalSettings(Server: new ServerSettings
+        {
+            MetricsRetention = TimeSpan.FromDays(7),
+            McpEnabled = true,
+            LimitsMaxConnections = 500,
+            LogMaxTotalSize = 512L * 1024 * 1024,
+            AdminLockoutDuration = TimeSpan.FromMinutes(15),
+        }));
+
+        var groups = ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer), Paduraksa.Dashboard.DisplayFormat.Invariant);
+        await using DashboardTestContext context = new();
+        var list = context.Render<ChangeList>(parameters => parameters.Add(c => c.Groups, groups));
+
+        var fields = Assert.Single(groups).Head.Fields;
+        Assert.Equal(
+            [
+                ("Traffic and security history", "90 days", "7 days"),
+                ("Rotated files in total", "1 GiB", "512 MiB"),
+                ("Lockout", "15 minutes (default)", "15 minutes"),
+                ("Idle timeout", "90 minutes", "2 hours"),
+                ("Serve /mcp", "off", "on"),
+                ("Open connections", "12,000", "500"),
+            ],
+            fields.Select(f => (f.Label, f.Before, f.After)));
+        var text = list.Find(".pdk-diff-old").ParentElement!.TextContent;
+        Assert.Contains("90 days", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("00:00", list.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NoChanges_IsAnEmptyState()
     {
         await using DashboardTestContext context = new();

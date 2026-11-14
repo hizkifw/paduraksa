@@ -54,12 +54,16 @@ public static class ChangeView
     private static readonly JsonSerializerOptions Json = ConfigJsonContext.Default.Options;
 
     /// <summary>The groups for <paramref name="changes"/> between <paramref name="before"/> and <paramref name="after"/>.</summary>
-    public static IReadOnlyList<ChangeGroup> Build(ConfigDocument before, ConfigDocument after, IReadOnlyList<ConfigChange> changes)
+    /// <param name="before">The config before the change.</param>
+    /// <param name="after">The config after it.</param>
+    /// <param name="changes">The change list between them.</param>
+    /// <param name="format">How values a person reads are spelt (a server setting's span, size or count); the invariant form when null.</param>
+    public static IReadOnlyList<ChangeGroup> Build(ConfigDocument before, ConfigDocument after, IReadOnlyList<ConfigChange> changes, DisplayFormat? format = null)
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
         ArgumentNullException.ThrowIfNull(changes);
-        Names names = new(before, after);
+        Names names = new(before, after, format ?? DisplayFormat.Invariant);
         List<ChangeGroup> groups = [];
         List<ObjectChange>? children = null;
         ObjectChange? head = null;
@@ -395,6 +399,17 @@ public static class ChangeView
                     continue;
                 }
 
+                if (change is SettingsChange && (relative == "/server" || relative.StartsWith("/server/", StringComparison.Ordinal)))
+                {
+                    // One row per server setting, as its kind reads, with the value in force on each side (a cleared one is its default).
+                    if (!fields.Any(f => f.Path.StartsWith("/server/", StringComparison.Ordinal)))
+                    {
+                        fields.AddRange(names.ServerSettings(before.Settings.Server, after.Settings.Server));
+                    }
+
+                    continue;
+                }
+
                 if (AccessListUsers.Handles(relative))
                 {
                     var (was, now) = AccessListUsers.Describe(relative, old, @new);
@@ -478,8 +493,28 @@ public static class ChangeView
     }
 
     /// <summary>Names of the objects either document has, to show references (an upstream ID) and titles by name.</summary>
-    private sealed class Names(ConfigDocument before, ConfigDocument after)
+    private sealed class Names(ConfigDocument before, ConfigDocument after, DisplayFormat format)
     {
+        /// <summary>The server settings whose stored value differs, each read through its declaration: "Traffic and security history: 90 days to 7 days".</summary>
+        public IEnumerable<FieldChange> ServerSettings(ServerSettings? old, ServerSettings? @new)
+        {
+            old ??= new();
+            @new ??= new();
+            foreach (var setting in Application.Settings.ServerSettingsChange.Changed(old, @new))
+            {
+                var was = format.ServerSetting(setting, setting.ResolvedText(old));
+                var now = format.ServerSetting(setting, setting.ResolvedText(@new));
+                if (was == now)
+                {
+                    // Pinned to its default or left to it again: the same words on both sides, so the side that leaves it unset says so.
+                    was = setting.IsSet(old) ? was : was + " (default)";
+                    now = setting.IsSet(@new) ? now : now + " (default)";
+                }
+
+                yield return new FieldChange("/server/" + setting.Key, setting.Title, was, now);
+            }
+        }
+
         public string Host(HostId id) =>
             after.Hosts.FirstOrDefault(h => h.Id == id) is { } host ? HostTitle(host)
             : before.Hosts.FirstOrDefault(h => h.Id == id) is { } old ? HostTitle(old)

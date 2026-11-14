@@ -9,6 +9,7 @@
 @inject IDialogService Dialogs
 @inject NavigationManager Navigation
 @inject ILogger<DraftReviewDrawer> Logger
+@inject DisplayFormat Fmt
 @* The draft, which is its own review: the entries in the order they were added, each with its diff as the review sheet shows a change, then the warnings,
    the lock-out guard and Simulate of the whole set. Apply commits the set as one revision, with the token of exactly the review on screen. An entry
    can be taken out, and one whose object changed elsewhere says so and can be reloaded (taken out, and its form opened on the object as it is now).
@@ -252,7 +253,7 @@
             _notices = [];
             _set = null;
             _token = reviewed.ReviewToken;
-            _diffs = DraftEntryDiffs.Build(_head, _entries);
+            _diffs = DraftEntryDiffs.Build(_head, _entries, Fmt);
             if (reviewed.Command is null)
             {
                 _phase = reviewed.Status switch

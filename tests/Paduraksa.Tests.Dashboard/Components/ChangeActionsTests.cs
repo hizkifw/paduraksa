@@ -241,6 +241,31 @@ public sealed class ChangeActionsTests
         Assert.Empty(drawers.FindAll("[data-review=draft-open]"));
     }
 
+    [Fact]
+    public async Task AServerSettingsRevisionInTheHistoryReadsItsValuesAsTheirKinds()
+    {
+        await using DashboardTestContext context = new();
+        var config = Setup(context, draftOpen: false);
+        var me = UserId.New();
+        ConfigDocument before = new(Upstreams: [App]);
+        ConfigDocument after = before with { Settings = new GlobalSettings(Server: new ServerSettings { MetricsRetention = TimeSpan.FromDays(7), LimitsMaxConnections = 500 }) };
+        var first = Revision(1, null, before, me);
+        var second = Revision(2, first.Revision.Id, after, me) with { Changes = Paduraksa.Application.Config.ConfigDiff.Compare(before, after) };
+        config.Revisions[first.Revision.Id] = first;
+        config.Revisions[second.Revision.Id] = second;
+        context.Render<MudPopoverProvider>();
+        context.Render<DrawerHost>();
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/history?revision={second.Revision.Id}");
+        var page = context.Render<History>();
+
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-diff-new").Count > 0);
+        var diff = string.Join(" | ", page.FindAll(".pdk-diff-old, .pdk-diff-new").Select(e => e.TextContent));
+        Assert.Contains("90 days", diff, StringComparison.Ordinal);
+        Assert.Contains("7 days", diff, StringComparison.Ordinal);
+        Assert.Contains("10,000", diff, StringComparison.Ordinal);
+        Assert.DoesNotContain("7.00:00:00", page.Markup, StringComparison.Ordinal);
+    }
+
     private static RevisionDetail Revision(long seq, ConfigRevisionId? parent, ConfigDocument document, UserId user) =>
         new(
             new RevisionSummary(ConfigRevisionId.New(), seq, new ActorRef(ActorKind.User, user), Channel.Dashboard, DateTimeOffset.UtcNow, new string('0', 64), parent),
