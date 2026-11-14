@@ -173,7 +173,12 @@ public sealed class ConfigPagesEndToEndTests
         await page.Locator("[data-host='app.home.test'] .pdk-dt-status input[type=checkbox]").ClickAsync();
         await Expect(page.Locator(".pdk-sheet[data-top] [data-review=apply]")).ToBeEnabledAsync(new() { Timeout = 15_000 });
         await ExpectDrawerTitleAsync(page, $"Switch off {HostName}");
-        await page.Keyboard.PressAsync("Escape");
+        // The key goes to the switch that opened the drawer: the browser takes focus off the page behind (inert from now on) only at its
+        // next frame, so on a loaded runner an Escape can still find it there. Dispatched, the race is not left to the machine.
+        await page.EvaluateAsync("""
+            () => document.querySelector("[data-host='app.home.test'] .pdk-dt-status input[type=checkbox]")
+                .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))
+            """);
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0);
 
         // "New certificate..." in the host's drawer stacks the certificate flow: issued from the local CA for the host's names, it comes

@@ -348,7 +348,7 @@ The level's component gets the `DrawerLevel` as a cascading value:
 | `ResultOnClose` | What it hands back however it is closed (a commit that could not go live). |
 
 **Closing.**
-- Escape, the backdrop and the close or back button act on the top level only. `paduraksa.js` hands Escape over only while focus is in the top drawer and no list, menu or dialog is open.
+- Escape, the backdrop and the close or back button act on the top level only. `paduraksa.js` hands Escape over while a drawer is open and no list, menu or dialog is, wherever the key lands: as a drawer opens, focus is still on the control that opened it (on the page behind, inert from then on) until the browser's next frame, and an Escape in that gap targets that control.
 - When the level is dirty, they ask "Discard your changes?" in the drawer itself (Escape again keeps editing).
 - Leaving the page with a dirty drawer asks the same (`NavigationLock`).
 - Focus moves into a level as it opens (its first field when the form focuses one, else its title, which names the dialog) and back to what opened it as it closes. A drawer with an address opens by navigating, and the router then focuses the page's heading, so `paduraksa.js` remembers the control the person just activated and returns focus to it (`DrawerFocusEndToEndTests`).

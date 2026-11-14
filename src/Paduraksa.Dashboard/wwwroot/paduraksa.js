@@ -65,7 +65,11 @@
     };
 
     const drawers = Object.freeze({
-        /** Hands Escape to the host while focus is in the top drawer, unless an open list or menu, or a dialog, takes it first. */
+        /**
+         * Hands Escape to the host while a drawer is open, unless an open list or menu, or a dialog, takes it first. Wherever the key lands:
+         * as a drawer opens, focus is still on the control that opened it (on the page behind, which is inert from then on) until the
+         * browser's next frame drops it and the drawer takes it, and an Escape in that gap targets that control.
+         */
         attach(host) {
             if (escapeListener) {
                 document.removeEventListener("keydown", escapeListener);
@@ -76,12 +80,7 @@
                     return;
                 }
 
-                const top = topSheet();
-                if (!top || document.querySelector(".mud-popover-open:not(.mud-tooltip)") || document.querySelector(".mud-dialog-container")) {
-                    return;
-                }
-
-                if (event.target !== document.body && !top.contains(event.target)) {
+                if (!topSheet() || document.querySelector(".mud-popover-open:not(.mud-tooltip)") || document.querySelector(".mud-dialog-container")) {
                     return;
                 }
 

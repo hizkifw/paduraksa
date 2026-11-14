@@ -163,6 +163,8 @@ leaves the thing unprotected. What has caused them so far:
 - **A click or key before the page can take it.** A page that loads its data in `OnInitializedAsync` prerenders its buttons, and a click before the circuit is live is lost
   (the Notifications page now loads once live; `NotificationHistoryEndToEndTests` checks that the prerender has no Edit button). A key pressed while one drawer closes and the next opens (an Escape after a certificate is issued)
   finds nothing to close: wait for the state the key acts on (the new drawer visible), not for something the list shows earlier. `.pdk-sheet` also matches a sheet sliding out for 280 ms.
+  The list's switch is the other case: the page behind a drawer is inert, but the browser moves focus off it only at its next frame, so an Escape on a loaded runner found the switch as its target
+  and the drawer ignored it (`ConfigPagesEndToEndTests`, the sheet stayed for the 15 s). The Escape listener now acts on any target, and the test dispatches the key from the switch.
 - **A cold first call.** The first request of a boot runs cold code, and a probe or client with a contract timeout of its own (the 3 s of `doctor --liveness`) takes a longer
   one in tests (`LivenessAsync`'s `timeout`), as the timeout is not what the test checks.
 - **A local port prober.** On the dev machine a Node tool sends `GET /` to every new localhost port within seconds. A fake or a log that counts requests must count only what
