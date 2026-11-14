@@ -826,3 +826,58 @@
         flex: 0 0 100%;
     }
 }
+
+/* A request's stages under its time taken: label, a track on the request's total, the stage's time. One grid with a row per stage, so every
+   track starts and ends at the same x. A bar too short to see is still a sliver. */
+.pdk-waterfall {
+    display: grid;
+    grid-template-columns: max-content minmax(64px, 1fr) minmax(7ch, max-content);
+    column-gap: 10px;
+    row-gap: 4px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--mud-typography-default-family);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-waterfall-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-height: 22px;
+}
+
+.pdk-waterfall-label {
+    color: var(--mud-palette-text-secondary);
+    white-space: nowrap;
+}
+
+.pdk-waterfall-track {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--pdk-surface-2);
+    overflow: hidden;
+}
+
+.pdk-waterfall-bar {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    border-radius: 4px;
+    background: var(--mud-palette-info, var(--pdk-info));
+}
+
+.pdk-waterfall-bar.pdk-waterfall-gate { background: var(--mud-palette-primary); }
+.pdk-waterfall-bar.pdk-waterfall-body { background: var(--mud-palette-secondary); }
+.pdk-waterfall-bar.pdk-waterfall-connect { background: var(--mud-palette-warning, #D9A957); }
+.pdk-waterfall-bar.pdk-waterfall-wait { background: var(--mud-palette-info, var(--pdk-info)); }
+.pdk-waterfall-bar.pdk-waterfall-send { background: var(--mud-palette-success, #5DBB8A); }
+
+.pdk-waterfall-value {
+    text-align: right;
+    white-space: nowrap;
+}

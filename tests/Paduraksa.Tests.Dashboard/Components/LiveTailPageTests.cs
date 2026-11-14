@@ -337,6 +337,39 @@ public sealed class LiveTailPageTests
     }
 
     [Fact]
+    public async Task TheEntryShowsItsConnectionAndAWaterfallOfItsStages()
+    {
+        var (hub, context, _) = SignIn(Role.Owner);
+        await using (context)
+        {
+            hub.Offer(Entry("/timed") with
+            {
+                TotalTicks = TimeSpan.FromMilliseconds(40).Ticks,
+                UpstreamTicks = TimeSpan.FromMilliseconds(30).Ticks,
+                TlsHandshakeTicks = TimeSpan.FromMilliseconds(2.5).Ticks,
+                ConnectionRequest = 1,
+                RequestBodyTicks = 0,
+                GateTicks = TimeSpan.FromMicroseconds(80).Ticks,
+                UpstreamConnectTicks = 0,
+                ResponseSendTicks = TimeSpan.FromMilliseconds(4).Ticks,
+            });
+            hub.Offer(Entry("/again") with { TlsHandshakeTicks = AccessLogEntry.HandshakeReused, ConnectionRequest = 7, GateTicks = 1_000, ResponseSendTicks = 1_000 });
+            var drawers = context.Render<DrawerHost>();
+            var page = Render(context);
+
+            await page.Find("[data-seq='1']").ClickAsync(new());
+            await drawers.WaitForStateAsync(() => drawers.FindAll("[data-detail]").Count == 1);
+
+            Assert.Equal("Request 1, TLS handshake 2.5 ms", drawers.Find("[data-fact=connection]").TextContent);
+            Assert.Equal(["gate", "connect", "wait", "send"], drawers.FindAll("[data-waterfall] [data-stage]").Select(static row => row.GetAttribute("data-stage")));
+            Assert.Equal("Reused", drawers.Find("[data-stage=connect] .pdk-waterfall-value").TextContent);
+            Assert.Empty(drawers.FindAll("[data-stage=connect] .pdk-waterfall-bar"));
+            Assert.Equal("30 ms", drawers.Find("[data-stage=wait] .pdk-waterfall-value").TextContent);
+            Assert.Equal("margin-left: 90%; width: 10%", drawers.Find("[data-stage=send] .pdk-waterfall-bar").GetAttribute("style"));
+        }
+    }
+
+    [Fact]
     public async Task ARoleThatCantReadTheLogsGetsNoTailAndNoSubscription()
     {
         var (hub, context, _) = SignIn(Role.Operator);

@@ -34,6 +34,7 @@ public sealed partial class DashboardMarkupConventionTests
     [
         ("Components/TimeSeriesChart.razor", "SVG coordinates"),
         ("Components/ShareList.razor", "a CSS width"),
+        ("LogFiles/RequestWaterfall.cs", "a CSS offset and width"),
         ("Components/QrCode.cs", "SVG path data"),
         ("Pages/Audit.razor", "the export's file name"),
         ("Audit/AuditText.cs", "the export's lines"),

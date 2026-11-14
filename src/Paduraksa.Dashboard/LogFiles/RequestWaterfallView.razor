@@ -1,0 +1,35 @@
+@using Paduraksa.Contracts.Logging
+@inject DisplayFormat Fmt
+@* A request's stages as bars on its total time; the starts follow the pipeline's order (RequestWaterfall). *@
+@if (_stages.Count > 0)
+{
+    <ul class="pdk-waterfall" data-waterfall="@Entry.Sequence" aria-label="Time by stage">
+        @foreach (var stage in _stages)
+        {
+            <li class="pdk-waterfall-row" data-stage="@stage.Key">
+                <span class="pdk-waterfall-label">@stage.Label</span>
+                <span class="pdk-waterfall-track" aria-hidden="true">
+                    @if (!stage.Reused)
+                    {
+                        <span class="pdk-waterfall-bar pdk-waterfall-@stage.Key" style="@RequestWaterfall.Geometry(stage, _scale)"></span>
+                    }
+                </span>
+                <span class="pdk-waterfall-value @(stage.Reused ? "pdk-muted" : null)">@(stage.Reused ? "Reused" : Fmt.Duration(stage.Ms))</span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<WaterfallStage> _stages = [];
+    private double _scale;
+
+    [Parameter, EditorRequired]
+    public LogTailEntry Entry { get; set; } = default!;
+
+    protected override void OnParametersSet()
+    {
+        _stages = RequestWaterfall.Stages(Entry);
+        _scale = RequestWaterfall.Scale(Entry, _stages);
+    }
+}

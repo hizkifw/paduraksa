@@ -25,7 +25,15 @@
                 <dt>Request</dt><dd class="pdk-mono">@Entry.Method @LiveTailText.Target(Entry) @Entry.Protocol</dd>
                 <dt>Host</dt><dd class="pdk-mono">@(Entry.Host ?? "-")</dd>
                 <dt>Client</dt><dd class="pdk-mono">@(Entry.ClientAddress ?? "-")</dd>
-                <dt>Time taken</dt><dd class="pdk-mono">@Fmt.Duration(Entry.TotalMs)</dd>
+                @if (ConnectionText() is { } connection)
+                {
+                    <dt>Connection</dt><dd class="pdk-mono" data-fact="connection">@connection</dd>
+                }
+                <dt>Time taken</dt>
+                <dd class="pdk-mono">
+                    @Fmt.Duration(Entry.TotalMs)
+                    <RequestWaterfallView Entry="Entry" />
+                </dd>
                 @if (Entry.Upstream is { } upstream)
                 {
                     <dt>Upstream</dt><dd class="pdk-mono">@upstream (@Fmt.Duration(Entry.UpstreamMs))</dd>
@@ -68,6 +76,23 @@
     /// <summary>The viewer may run the simulator, so the drawer links to it.</summary>
     [Parameter]
     public bool CanSimulate { get; set; }
+
+    // "Request 1, TLS handshake 2.1 ms", "Request 3, TLS reused", "Request 2" on plain HTTP: which request of its connection this was.
+    private string? ConnectionText()
+    {
+        if (Entry.Timing is not { ConnectionRequest: { } index } timing)
+        {
+            return null;
+        }
+
+        var request = "Request " + Fmt.Count(index);
+        return timing switch
+        {
+            { TlsHandshakeMs: { } handshake } => request + ", TLS handshake " + Fmt.Duration(handshake),
+            { TlsReused: true } => request + ", TLS reused",
+            _ => request,
+        };
+    }
 
     public static IReadOnlyDictionary<string, object?> For(LogTailEntry entry, bool canSimulate) =>
         new Dictionary<string, object?> { [nameof(Entry)] = entry, [nameof(CanSimulate)] = canSimulate };
