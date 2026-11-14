@@ -77,8 +77,25 @@ internal sealed class ServerSettingsBindings
             DnsPropagationCheck = ServerSettingCatalog.AcmeDnsPropagationCheck.Resolve(values),
         });
         AccessLogFormat.Set(AccessLogFormat.Current with { LogQueryString = ServerSettingCatalog.AccessLogQueryString.Resolve(values) });
+        Identity.Set(ResolveIdentity(Identity.Current, values, _touchInterval));
+        _logFiles.Retain(
+            ServerSettingCatalog.LogMaxFileSize.Resolve(values),
+            (int)ServerSettingCatalog.LogRetainedFiles.Resolve(values),
+            ServerSettingCatalog.LogMaxAge.Resolve(values),
+            ServerSettingCatalog.LogMaxTotalSize.Resolve(values));
+    }
+
+    /// <summary>
+    /// The sign-in options in force: <paramref name="current"/> (the environment's) with each setting <paramref name="values"/> resolves laid over it.
+    /// Shared with the command line, which must enforce the same policy as the server (docs/design/config.md "Server settings").
+    /// </summary>
+    /// <param name="current">The options before the settings are laid over them.</param>
+    /// <param name="values">The server settings in force.</param>
+    /// <param name="startupTouchInterval">The environment's touch interval, which the last-seen time is written at unless it would be longer than half the idle limit.</param>
+    internal static IdentityOptions ResolveIdentity(IdentityOptions current, ServerSettings values, TimeSpan startupTouchInterval)
+    {
         var idle = ServerSettingCatalog.AdminSessionIdleTimeout.Resolve(values);
-        Identity.Set(Identity.Current with
+        return current with
         {
             MaxFailedAttempts = (int)ServerSettingCatalog.AdminMaxFailedAttempts.Resolve(values),
             LockoutDuration = ServerSettingCatalog.AdminLockoutDuration.Resolve(values),
@@ -90,13 +107,8 @@ internal sealed class ServerSettingsBindings
 
             // The last-seen time must be written more often than the idle limit is long, or live sessions end: the environment's touch interval
             // was checked against the environment's idle timeout, so a shorter one from the config halves it here.
-            TouchInterval = _touchInterval < idle ? _touchInterval : idle / 2,
-        });
-        _logFiles.Retain(
-            ServerSettingCatalog.LogMaxFileSize.Resolve(values),
-            (int)ServerSettingCatalog.LogRetainedFiles.Resolve(values),
-            ServerSettingCatalog.LogMaxAge.Resolve(values),
-            ServerSettingCatalog.LogMaxTotalSize.Resolve(values));
+            TouchInterval = startupTouchInterval < idle ? startupTouchInterval : idle / 2,
+        };
     }
 }
 

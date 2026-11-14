@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Core.Ids;
+using Paduraksa.Core.Options;
 using Paduraksa.Data;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Hosting;
@@ -154,13 +155,15 @@ internal static class IdentityCommands
         try
         {
             Directory.CreateDirectory(options.DataDirectory);
+            LiveOptions<IdentityOptions> identity = options.Admin.ToIdentityOptions();
             await using var provider = new ServiceCollection()
                 .AddPaduraksaDbContextFactory<ConfigDbContext>(Path.Combine(options.DataDirectory, ConfigDatabase.FileName))
                 .AddPaduraksaVault(options.DataDirectory)
-                .AddPaduraksaIdentity(options.DataDirectory, options.Admin.ToIdentityOptions())
+                .AddPaduraksaIdentity(options.DataDirectory, identity)
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
             await ConfigDatabase.InitializeAsync(provider.GetRequiredService<IDbContextFactory<ConfigDbContext>>(), Int64OrderedIdGenerator.Shared, cancellationToken).ConfigureAwait(false);
+            await CliSettings.ApplyStoredAsync(identity, options, cancellationToken).ConfigureAwait(false);
             return await command(new Services(
                 provider.GetRequiredService<SetupService>(), provider.GetRequiredService<UserService>(), provider.GetRequiredService<TwoFactorService>())).ConfigureAwait(false);
         }

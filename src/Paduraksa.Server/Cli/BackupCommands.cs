@@ -12,6 +12,7 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Core.Backup;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Ids;
+using Paduraksa.Core.Options;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Server.Configuration;
@@ -156,13 +157,15 @@ internal static class BackupCommands
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            LiveOptions<IdentityOptions> identity = options.Admin.ToIdentityOptions();
             await using var provider = new ServiceCollection()
                 .AddPaduraksaDbContextFactory<ConfigDbContext>(Path.Combine(options.DataDirectory, ConfigDatabase.FileName))
                 .AddPaduraksaVault(options.DataDirectory)
-                .AddPaduraksaIdentity(options.DataDirectory, options.Admin.ToIdentityOptions())
+                .AddPaduraksaIdentity(options.DataDirectory, identity)
                 .AddPaduraksaBackup(options.DataDirectory)
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             await ConfigDatabase.InitializeAsync(provider.GetRequiredService<IDbContextFactory<ConfigDbContext>>(), Int64OrderedIdGenerator.Shared, cancellationToken).ConfigureAwait(false);
+            await CliSettings.ApplyStoredAsync(identity, options, cancellationToken).ConfigureAwait(false);
 
             BackupResult result;
             await using (var file = CreatePrivateFile(partial))

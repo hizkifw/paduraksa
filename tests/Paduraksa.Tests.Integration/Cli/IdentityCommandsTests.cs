@@ -1,6 +1,7 @@
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Commands;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
 using Paduraksa.Server.Cli;
@@ -138,6 +139,82 @@ public sealed class IdentityCommandsTests
             TestHost.CreateOptions(dataDirectory: data), "nobody", new StringReader("a brand new passphrase\n"), false, shortOut, shortError, Ct));
         Assert.Equal(ExitCodes.Failure, await IdentityCommands.ResetPasswordAsync(
             TestHost.CreateOptions(dataDirectory: data), "alice", TextReader.Null, false, shortOut, shortError, Ct));
+    }
+
+    /// <summary>A data directory with alice and a config that stores <paramref name="storedMinimum"/> as the shortest password, left stopped.</summary>
+    private static async Task<string> DataWithStoredMinimumAsync(long storedMinimum)
+    {
+        var data = TestDataDirectories.NewPath();
+        await using var host = TestHost.Create(dataDirectory: data);
+        await host.StartAsync(Ct);
+        await host.Shared.Users.CreateAsync(CommandOrigin.Cli, new("alice", null, Password, [Role.Owner]), Ct);
+        var current = await host.Shared.Config.GetCurrentAsync(Ct);
+        var document = current.Document with { Settings = current.Document.Settings with { Server = new ServerSettings { AdminMinPasswordLength = storedMinimum } } };
+        await CommitAsync(host, new ReplaceConfigCommand(document, current.Revision?.Id), Ct);
+        await host.StopAsync(Ct);
+        return data;
+    }
+
+    private static async Task<(int Exit, string Error)> ResetAsync(string data, string password, params (string Key, string Value)[] settings)
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        var options = TestHost.CreateOptions(settings: settings.ToDictionary(s => s.Key, s => (string?)s.Value, StringComparer.OrdinalIgnoreCase), dataDirectory: data);
+        var exit = await IdentityCommands.ResetPasswordAsync(options, "alice", new StringReader(password + "\n"), standardInputIsTerminal: false, output, error, Ct);
+        return (exit, error.ToString());
+    }
+
+    [Fact]
+    public async Task ResetPasswordEnforcesTheMinimumLengthTheDashboardStored()
+    {
+        var data = await DataWithStoredMinimumAsync(20);
+
+        var (tooShort, message) = await ResetAsync(data, "fourteen chars"); // long enough for the default of 12, short of the stored 20
+        var (longEnough, _) = await ResetAsync(data, "a passphrase of twenty-one");
+
+        Assert.Equal(ExitCodes.Failure, tooShort);
+        Assert.Contains("at least 20 characters", message, StringComparison.Ordinal);
+        Assert.Contains("Nothing changed", message, StringComparison.Ordinal);
+        Assert.Equal(ExitCodes.Success, longEnough);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAcceptsWhatALowerStoredMinimumAllows()
+    {
+        var data = await DataWithStoredMinimumAsync(8);
+
+        var (exit, error) = await ResetAsync(data, "nine char");
+
+        Assert.True(exit == ExitCodes.Success, error);
+    }
+
+    [Fact]
+    public async Task AMinimumTheEnvironmentSetsBeatsTheStoredOne()
+    {
+        var data = await DataWithStoredMinimumAsync(20);
+
+        var (shorterThanStored, error) = await ResetAsync(data, "twelve chars", ("Paduraksa:Admin:MinPasswordLength", "10"));
+        var (shorterThanEnvironment, message) = await ResetAsync(data, "too short", ("Paduraksa:Admin:MinPasswordLength", "10"));
+
+        Assert.True(shorterThanStored == ExitCodes.Success, error);
+        Assert.Equal(ExitCodes.Failure, shorterThanEnvironment);
+        Assert.Contains("at least 10 characters", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResetPasswordWithNoConfigYetUsesTheDefaultMinimum()
+    {
+        var data = TestDataDirectories.NewPath();
+        await using (var host = TestHost.Create(dataDirectory: data))
+        {
+            await host.StartAsync(Ct);
+            await host.Shared.Users.CreateAsync(CommandOrigin.Cli, new("alice", null, Password, [Role.Owner]), Ct);
+        }
+
+        var (exit, message) = await ResetAsync(data, "eleven char");
+
+        Assert.Equal(ExitCodes.Failure, exit);
+        Assert.Contains("at least 12 characters", message, StringComparison.Ordinal);
     }
 
     [Fact]
