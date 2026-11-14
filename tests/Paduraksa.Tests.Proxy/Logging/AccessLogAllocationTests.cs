@@ -131,8 +131,11 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
     /// callbacks call, with the state, ring and headers the request really has. Its registrations come on top of the
     /// pipeline's own, so each measured request writes two identical lines: the test counts no lines on purpose.
     /// </summary>
-    [Fact]
-    public async Task TheCompletionAndReapplyCallbacksAllocateNothingOnKestrel()
+    [Theory]
+    [InlineData("h1")]
+    [InlineData("h2c")]
+    [InlineData("h1-tls")]
+    public async Task TheCompletionAndReapplyCallbacksAllocateNothingOnKestrel(string transport)
     {
         ProxyConfigModel model = new()
         {
@@ -140,7 +143,16 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             Hosts = [ProxyHost("app", "app.test", Route("app-root", "web"))],
         };
         CompletionProbe probe = new();
-        await using var server = await ProxyTestServer.StartAsync(model, new() { AfterGate = probe.Invoke, Metrics = new MetricsRegistry() });
+        using var certificate = transport.EndsWith("-tls", StringComparison.Ordinal) ? TestCertificates.SelfSigned() : null;
+        await using var server = await ProxyTestServer.StartAsync(
+            model,
+            new()
+            {
+                AfterGate = probe.Invoke,
+                Metrics = new MetricsRegistry(),
+                Protocols = transport == "h2c" ? Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2 : Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1,
+                Certificate = certificate,
+            });
         using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
 
         await SendAsync(server, client, "app.test", "/api/items", HttpStatusCode.OK, Warmup);
@@ -253,7 +265,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             _ = state.FormattedClientAddress();
 
             var before = GC.GetAllocatedBytesForCurrentThread();
-            AccessLogMiddleware.RegisterCompletion(context);
+            AccessLogMiddleware.RegisterCompletion(context, state);
             var registration = GC.GetAllocatedBytesForCurrentThread() - before;
 
             before = GC.GetAllocatedBytesForCurrentThread();
@@ -279,6 +291,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             // request's real context before anything has failed.
             before = GC.GetAllocatedBytesForCurrentThread();
             _ = ProxyHostingExtensions.OnResponseStarting(context);
+            _ = AccessLogMiddleware.MarkResponseStarted(state);
             var responseStart = GC.GetAllocatedBytesForCurrentThread() - before;
 
             Interlocked.Increment(ref _requests);

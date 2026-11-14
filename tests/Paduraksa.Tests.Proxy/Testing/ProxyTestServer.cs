@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections.Features;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Paduraksa.Proxy;
@@ -32,16 +34,21 @@ internal sealed class ProxyTestServer : IAsyncDisposable
 {
     private readonly IHost _host;
 
-    private ProxyTestServer(IHost host, SnapshotPublisher publisher, GateStats? stats, HttpProtocols protocols, SnapshotCompilerOptions? compilerOptions)
+    private ProxyTestServer(IHost host, SnapshotPublisher publisher, GateStats? stats, HttpProtocols protocols, SnapshotCompilerOptions? compilerOptions, bool tls)
     {
         _host = host;
         CompilerOptions = compilerOptions;
-        Http2 = protocols == HttpProtocols.Http2;
+        Http2 = protocols == HttpProtocols.Http2 && !tls;
         Publisher = publisher;
         GateStats = stats;
         var addresses = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
         var address = Assert.Single(addresses.Addresses);
         BaseAddress = new Uri(address);
+        if (tls)
+        {
+            BaseAddress = new UriBuilder(BaseAddress) { Scheme = Uri.UriSchemeHttps }.Uri;
+            Http2Tls = protocols == HttpProtocols.Http2;
+        }
     }
 
     public SnapshotPublisher Publisher { get; }
@@ -55,6 +62,9 @@ internal sealed class ProxyTestServer : IAsyncDisposable
 
     /// <summary>The listener speaks cleartext HTTP/2 only (h2c, prior knowledge).</summary>
     public bool Http2 { get; }
+
+    /// <summary>The listener speaks TLS and the requests ask for HTTP/2 over it.</summary>
+    public bool Http2Tls { get; }
 
     public IServiceProvider Services => _host.Services;
 
@@ -108,6 +118,23 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                         if (options.OriginLockdown is { } lockdown)
                         {
                             listen.UseOriginLockdown(publisher.Store, lockdown);
+                        }
+
+                        // As the public listeners: every connection carries its timings, and TLS is timed around the handshake.
+                        if (options.Certificate is { } certificate)
+                        {
+                            listen.UseTimedHttps(new TlsHandshakeCallbackOptions
+                            {
+                                OnConnection = _ => ValueTask.FromResult(new SslServerAuthenticationOptions
+                                {
+                                    ServerCertificate = certificate,
+                                    ApplicationProtocols = protocols == HttpProtocols.Http2 ? [SslApplicationProtocol.Http2] : [SslApplicationProtocol.Http11],
+                                }),
+                            });
+                        }
+                        else
+                        {
+                            listen.UseConnectionTimings();
                         }
                     });
                 })
@@ -174,7 +201,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                                 stats.Record(GC.GetAllocatedBytesForCurrentThread() - before + begin, fresh);
                                 return decision.Action == GateAction.AwaitPolicy
                                     ? gate.CompleteDeferredAsync(context, next)
-                                    : GateMiddleware.CompleteAsync(context, decision, next);
+                                    : gate.FinishAsync(context, decision, next);
                             });
                         }
                     }
@@ -197,7 +224,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
             Assert.True(result.Succeeded, string.Join("; ", result.Errors));
         }
 
-        return new ProxyTestServer(host, publisher, stats, protocols, compilerOptions);
+        return new ProxyTestServer(host, publisher, stats, protocols, compilerOptions, options.Certificate is not null);
     }
 
     public async Task<PublishResult> PublishAsync(ProxyConfigModel model) =>
@@ -210,6 +237,8 @@ internal sealed class ProxyTestServer : IAsyncDisposable
         UseCookies = false,
         MaxConnectionsPerServer = maxConnections,
         PooledConnectionLifetime = Timeout.InfiniteTimeSpan,
+        // The TLS listener's certificate is a test's own.
+        SslOptions = { RemoteCertificateValidationCallback = static (_, certificate, _, _) => TestCertificates.IsTestCertificate(certificate) },
     })
     {
         Timeout = TimeSpan.FromSeconds(10),
@@ -219,7 +248,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
     {
         HttpRequestMessage request = new(method ?? HttpMethod.Get, new Uri(BaseAddress, pathAndQuery));
         request.Headers.Host = host;
-        if (Http2)
+        if (Http2 || Http2Tls)
         {
             request.Version = HttpVersion.Version20;
             request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
@@ -264,8 +293,11 @@ internal sealed record ProxyTestServerOptions
     /// raises the body limit for a streaming case sets it here.</summary>
     public Action<KestrelServerLimits>? Limits { get; init; }
 
-    /// <summary>The listener's protocols; <see cref="HttpProtocols.Http2"/> means cleartext HTTP/2 only.</summary>
+    /// <summary>The listener's protocols; <see cref="HttpProtocols.Http2"/> means cleartext HTTP/2 only, unless <see cref="Certificate"/> is set (HTTP/2 over TLS).</summary>
     public HttpProtocols Protocols { get; init; } = HttpProtocols.Http1;
+
+    /// <summary>Serve TLS with this certificate, offering the one ALPN of <see cref="Protocols"/>.</summary>
+    public System.Security.Cryptography.X509Certificates.X509Certificate2? Certificate { get; init; }
 
     /// <summary>Used for every config the server compiles.</summary>
     public SnapshotCompilerOptions? CompilerOptions { get; init; }

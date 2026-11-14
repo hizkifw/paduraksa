@@ -16,7 +16,8 @@ public sealed class AccessLogFormatterTests
 
         Assert.Equal(
             "2026-01-31T12:34:56.789Z 198.51.100.7 \"app.example:8443\" \"GET /a/b?x=1&token=REDACTED HTTP/2\" 200 512 1.234 0.987 "
-            + "\"http://10.0.0.2:8080/\" \"0k3m9x2p-00000000000ab\" \"8f2a1c3d4e5f6789\" \"https://example.com/\" \"Mozilla/5.0\"",
+            + "\"http://10.0.0.2:8080/\" \"0k3m9x2p-00000000000ab\" \"8f2a1c3d4e5f6789\" \"https://example.com/\" \"Mozilla/5.0\" "
+            + "2.101 1 0.000 0.012 0.000 0.105",
             line);
         // The sink owns the newline.
         Assert.DoesNotContain("\n", line, StringComparison.Ordinal);
@@ -29,7 +30,7 @@ public sealed class AccessLogFormatterTests
 
         var line = Format(entry);
 
-        Assert.Equal("2026-01-31T00:00:00.000Z - - \"- - -\" 403 - 0.000 - - - - - -", line);
+        Assert.Equal("2026-01-31T00:00:00.000Z - - \"- - -\" 403 - 0.000 - - - - - - - - - - - -", line);
     }
 
     [Fact]
@@ -38,7 +39,7 @@ public sealed class AccessLogFormatterTests
         // The gate dropped the request: nothing was sent, so the status is '-', not the 200 an unsent response reports.
         var entry = Target("/drop") with { StatusCode = AccessLogEntry.NoResponse };
 
-        Assert.Equal("0001-01-01T00:00:00.000Z - - \"GET /drop HTTP/1.1\" - - 0.000 - - - - - -", Format(entry));
+        Assert.Equal("0001-01-01T00:00:00.000Z - - \"GET /drop HTTP/1.1\" - - 0.000 - - - - - - - - - - - -", Format(entry));
     }
 
     [Fact]
@@ -56,6 +57,23 @@ public sealed class AccessLogFormatterTests
         Assert.StartsWith("2026-02-03T04:05:06.007Z ", line, StringComparison.Ordinal);
         // No status and no byte count, then the durations: 1.235 ms (rounded from microseconds) and 2500.000 ms.
         Assert.Contains(" - - 1.235 2500.000 ", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheStagesFollowTheOlderFieldsAndAReusedHandshakeIsADash()
+    {
+        var entry = Target("/again") with
+        {
+            StatusCode = 200,
+            TlsHandshakeTicks = AccessLogEntry.HandshakeReused,
+            ConnectionRequest = 7,
+            RequestBodyTicks = TimeSpan.FromMilliseconds(250).Ticks,
+            GateTicks = TimeSpan.FromMicroseconds(3).Ticks,
+            UpstreamConnectTicks = TimeSpan.FromMilliseconds(40.5).Ticks,
+            ResponseSendTicks = TimeSpan.FromSeconds(1.25).Ticks,
+        };
+
+        Assert.EndsWith(" - - - - - - 7 250.000 0.003 40.500 1250.000", Format(entry), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -279,6 +297,12 @@ public sealed class AccessLogFormatterTests
         CloudflareRay = "8f2a1c3d4e5f6789",
         Referer = "https://example.com/",
         UserAgent = "Mozilla/5.0",
+        TlsHandshakeTicks = TimeSpan.FromMicroseconds(2_101).Ticks,
+        ConnectionRequest = 1,
+        RequestBodyTicks = 0,
+        GateTicks = TimeSpan.FromMicroseconds(12).Ticks,
+        UpstreamConnectTicks = 0,
+        ResponseSendTicks = TimeSpan.FromMicroseconds(105).Ticks,
     };
 
     private static string Format(AccessLogEntry entry, AccessLogFormatOptions? options = null)

@@ -146,6 +146,7 @@ public sealed class TlsHandshakeSelector
             throw new TlsHandshakeRejectedException(TlsRejectionReason.ConnectionDenied, serverName ?? string.Empty);
         }
 
+        Net.ConnectionTimingListenOptionsExtensions.StartQuicHandshake(connection);
         return options;
     }
 

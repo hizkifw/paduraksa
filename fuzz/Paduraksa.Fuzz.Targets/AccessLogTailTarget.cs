@@ -11,7 +11,7 @@ namespace Paduraksa.Fuzz;
 /// (the query string logged or not, a secret and a plain sentinel put into the query, the sensitive-key set, how the text is decoded), numbers, then ten text fields
 /// separated by 0xFF (host, method, path, query, protocol, upstream, request ID, <c>CF-Ray</c>, referer, user agent).
 /// Properties: no exception and no overflow; the same output twice and 0 B for the line; the line is one line (no character a reader takes for a line end) and a plain reader
-/// of its grammar finds thirteen fields; every field of the tail equals the file line's field (the numbers by value; the quoted text exactly when no cap cut it, and
+/// of its grammar finds nineteen fields; every field of the tail equals the file line's field (the numbers by value; the quoted text exactly when no cap cut it, and
 /// otherwise a prefix of the full escape that ends in the marker); the request target of the line is the one a plain model builds from the method, path, redacted query and protocol,
 /// and the tail's query is that redacted query escaped; a value of a sensitive parameter appears in neither (a sentinel put in one at the front of the query shows it); and with the
 /// query string off, no byte of it (a sentinel in a plain parameter shows it) appears in either.
@@ -92,6 +92,13 @@ internal static class AccessLogTailTarget
             CloudflareRay = fields[7],
             Referer = fields[8],
             UserAgent = fields[9],
+            // The stages from the same bytes, so the input layout (and the corpus) stays as it was.
+            TlsHandshakeTicks = (input[6] % 3) switch { 0 => AccessLogEntry.Unknown, 1 => AccessLogEntry.HandshakeReused, _ => input[5] * 911L },
+            ConnectionRequest = input[7] % 5,
+            RequestBodyTicks = input[3] % 3 == 0 ? AccessLogEntry.Unknown : input[3] * 1_234L,
+            GateTicks = input[4] % 4 == 0 ? AccessLogEntry.Unknown : input[4] * 17L,
+            UpstreamConnectTicks = input[5] == 0 ? AccessLogEntry.Unknown : input[5] % 2 == 0 ? 0 : input[5] * 3_003L,
+            ResponseSendTicks = input[2] % 5 == 0 ? AccessLogEntry.Unknown : input[2] * 99_991L,
         };
 
         var length = AccessLogFormatter.Format(in entry, options, Buffer);
@@ -120,7 +127,7 @@ internal static class AccessLogTailTarget
 
     private static void CheckAgainstFile(in AccessLogEntry entry, AccessLogFormatOptions options, AccessLogTailEntry tail, List<(string Text, bool Quoted)> file)
     {
-        Checks.That(file.Count == 13, $"a plain reader finds {file.Count} fields in the line, not 13");
+        Checks.That(file.Count == 19, $"a plain reader finds {file.Count} fields in the line, not 19");
 
         // The numbers: the line's time, status, sizes and durations are the tail's, written as text.
         Checks.That(
@@ -135,6 +142,14 @@ internal static class AccessLogTailTarget
             $"the line's size '{file[5].Text}' is not the tail's {tail.ResponseBytes}");
         Checks.That(Milliseconds(file[6].Text, tail.TotalTicks), $"the line's duration '{file[6].Text}' is not the tail's {tail.TotalTicks} ticks");
         Checks.That(tail.UpstreamTicks < 0 ? file[7] == ("-", false) : Milliseconds(file[7].Text, tail.UpstreamTicks), $"the line's upstream duration '{file[7].Text}' is not the tail's {tail.UpstreamTicks} ticks");
+        SameStage(file[13], tail.TlsHandshakeTicks, "TLS handshake");
+        Checks.That(
+            tail.ConnectionRequest <= 0 ? file[14] == ("-", false) : file[14].Text == tail.ConnectionRequest.ToString(CultureInfo.InvariantCulture),
+            $"the line's connection request '{file[14].Text}' is not the tail's {tail.ConnectionRequest}");
+        SameStage(file[15], tail.RequestBodyTicks, "request body");
+        SameStage(file[16], tail.GateTicks, "gate");
+        SameStage(file[17], tail.UpstreamConnectTicks, "upstream connect");
+        SameStage(file[18], tail.ResponseSendTicks, "response send");
 
         // The client address is one the proxy formatted: unquoted, as it is.
         Checks.That(
@@ -310,7 +325,12 @@ internal static class AccessLogTailTarget
         new[] { tail.ClientAddress, tail.Host, tail.Method, tail.Path, tail.Query, tail.Protocol, tail.UpstreamAddress, tail.RequestId, tail.CloudflareRay, tail.Referer, tail.UserAgent }.OfType<string>();
 
     private static bool SameFields(AccessLogTailEntry a, AccessLogTailEntry b) =>
-        Texts(a).SequenceEqual(Texts(b)) && a.StatusCode == b.StatusCode && a.ResponseBytes == b.ResponseBytes && a.TotalTicks == b.TotalTicks && a.UpstreamTicks == b.UpstreamTicks && a.TimestampUtcTicks == b.TimestampUtcTicks;
+        Texts(a).SequenceEqual(Texts(b)) && a.StatusCode == b.StatusCode && a.ResponseBytes == b.ResponseBytes && a.TotalTicks == b.TotalTicks && a.UpstreamTicks == b.UpstreamTicks && a.TimestampUtcTicks == b.TimestampUtcTicks
+        && a.TlsHandshakeTicks == b.TlsHandshakeTicks && a.ConnectionRequest == b.ConnectionRequest && a.RequestBodyTicks == b.RequestBodyTicks
+        && a.GateTicks == b.GateTicks && a.UpstreamConnectTicks == b.UpstreamConnectTicks && a.ResponseSendTicks == b.ResponseSendTicks;
+
+    private static void SameStage((string Text, bool Quoted) field, long ticks, string what) =>
+        Checks.That(ticks < 0 ? field == ("-", false) : !field.Quoted && Milliseconds(field.Text, ticks), $"the line's {what} '{field.Text}' is not the tail's {ticks} ticks");
 
     private static bool Milliseconds(string text, long ticks) =>
         double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var milliseconds) && Math.Abs((milliseconds * TimeSpan.TicksPerMillisecond) - ticks) <= (TimeSpan.TicksPerMillisecond / 1000.0 * 5) + 1;

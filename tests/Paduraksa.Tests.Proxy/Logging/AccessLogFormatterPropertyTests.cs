@@ -9,7 +9,7 @@ namespace Paduraksa.Tests.Proxy.Logging;
 
 /// <summary>
 /// No path, query, user agent, referer or host a client can send breaks the line or forges one. A plain reader of the documented grammar
-/// (space-separated tokens, quoted fields with <c>\"</c>, <c>\\</c> and <c>\xNN</c> escapes) must find exactly thirteen fields in what the formatter wrote,
+/// (space-separated tokens, quoted fields with <c>\"</c>, <c>\\</c> and <c>\xNN</c> escapes) must find exactly nineteen fields in what the formatter wrote,
 /// the quoted ones must decode to what the client sent (cut at the field's cap and marked), nothing that any common reader takes for a line end may appear,
 /// and a sensitive query value must never reach the line.
 /// </summary>
@@ -36,7 +36,8 @@ public sealed class AccessLogFormatterPropertyTests
         Gen.Select(Text, Text, Text, Text, Text, Text),
         Gen.Select(Text, Text, Text, Text),
         Gen.Select(Gen.Int[-1, 600], Gen.Long[-1, 100_000], Gen.Long[0, 10_000_000_000], Gen.Long[-1, 10_000_000_000]),
-        static (a, b, c) => new AccessLogEntry
+        Gen.Select(Gen.Long[-2, 10_000_000_000], Gen.Int[0, 100_000], Gen.Long[-1, 10_000_000_000], Gen.Long[-1, 10_000_000_000], Gen.Long[-1, 10_000_000_000], Gen.Long[-1, 10_000_000_000]),
+        static (a, b, c, d) => new AccessLogEntry
         {
             TimestampUtcTicks = new DateTime(2026, 1, 31, 12, 34, 56, DateTimeKind.Utc).Ticks,
             // The address is one the proxy formatted itself, never a client's string, so it is the one field that isn't escaped.
@@ -55,6 +56,12 @@ public sealed class AccessLogFormatterPropertyTests
             ResponseBytes = c.Item2,
             TotalTicks = c.Item3,
             UpstreamTicks = c.Item4,
+            TlsHandshakeTicks = d.Item1,
+            ConnectionRequest = d.Item2,
+            RequestBodyTicks = d.Item3,
+            GateTicks = d.Item4,
+            UpstreamConnectTicks = d.Item5,
+            ResponseSendTicks = d.Item6,
         });
 
     [Fact]
@@ -69,14 +76,34 @@ public sealed class AccessLogFormatterPropertyTests
                 Assert.True(line.All(static c => !(char.IsControl(c) || c is '\u2028' or '\u2029')), "a character a reader may take for the end of a line: " + line);
                 var fields = Reader.Fields(line);
 
-                Assert.Equal(13, fields.Count);
+                Assert.Equal(19, fields.Count);
                 CheckQuoted(fields[2], entry.Host, AccessLogFormatter.MaxHostLength);
                 CheckQuoted(fields[8], entry.UpstreamAddress, AccessLogFormatter.MaxUpstreamLength);
                 CheckQuoted(fields[9], entry.RequestId, RequestIds.MaxLength);
                 CheckQuoted(fields[10], entry.CloudflareRay, AccessLogFormatter.MaxCloudflareRayLength);
                 CheckQuoted(fields[11], entry.Referer, AccessLogFormatter.MaxHeaderValueLength);
                 CheckQuoted(fields[12], entry.UserAgent, AccessLogFormatter.MaxHeaderValueLength);
+                CheckDuration(fields[13], entry.TlsHandshakeTicks);
+                Assert.Equal(entry.ConnectionRequest > 0 ? entry.ConnectionRequest.ToString(System.Globalization.CultureInfo.InvariantCulture) : null, fields[14]);
+                CheckDuration(fields[15], entry.RequestBodyTicks);
+                CheckDuration(fields[16], entry.GateTicks);
+                CheckDuration(fields[17], entry.UpstreamConnectTicks);
+                CheckDuration(fields[18], entry.ResponseSendTicks);
             });
+
+    // A duration reads back to its microseconds (the line's resolution), and any unknown value is a bare dash.
+    private static void CheckDuration(string? field, long ticks)
+    {
+        if (ticks < 0)
+        {
+            Assert.Null(field);
+            return;
+        }
+
+        Assert.NotNull(field);
+        var milliseconds = double.Parse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(ticks / (double)TimeSpan.TicksPerMillisecond, milliseconds, 0.0005 + (ticks / (double)TimeSpan.TicksPerMillisecond * 1e-12));
+    }
 
     [Fact]
     public void TheRequestTargetDecodesToWhatTheClientSentWithItsSensitiveParametersRedacted() =>
@@ -91,7 +118,7 @@ public sealed class AccessLogFormatterPropertyTests
                 var line = Format(entry, AccessLogFormatOptions.Default);
                 var fields = Reader.Fields(line);
 
-                Assert.Equal(13, fields.Count);
+                Assert.Equal(19, fields.Count);
                 Assert.DoesNotContain(Canary, line, StringComparison.Ordinal);
                 var expected = $"{OrDash(method, AccessLogFormatter.MaxMethodLength)} {OrDash(path, AccessLogFormatter.MaxPathLength)}{Redacted(query)} {OrDash(protocol, AccessLogFormatter.MaxProtocolLength)}";
                 var decoded = Assert.IsType<string>(fields[3]);

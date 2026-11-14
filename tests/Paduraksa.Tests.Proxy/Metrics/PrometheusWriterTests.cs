@@ -132,6 +132,26 @@ public sealed partial class PrometheusWriterTests
     }
 
     [Fact]
+    public void TheHandshakeAndTheSendAreHistogramsOfTheRequestsThatHadThem()
+    {
+        var (registry, snapshot) = Live(ProxyHost("app", "app.test", Route("app-root", "web")));
+        var host = snapshot.HostsByIndex[0];
+        // A connection's first request (a handshake and a send), a later one (a send only) and one that got no response (neither).
+        registry.RecordRequest(new RequestMetrics { Host = host.MetricSlot, Status = 200, Outcome = GateOutcome.Answered, TotalMicros = 3_000, TlsHandshakeMicros = 2_000, ResponseSendMicros = 500 });
+        registry.RecordRequest(new RequestMetrics { Host = host.MetricSlot, Status = 200, Outcome = GateOutcome.Answered, TotalMicros = 1_000, ResponseSendMicros = 250 });
+        registry.RecordRequest(new RequestMetrics { Host = host.MetricSlot, Status = 0, Outcome = GateOutcome.Dropped, TotalMicros = 10 });
+        var id = TestIds.Host("app");
+
+        var text = Scrape(registry, snapshot);
+
+        Assert.Contains($"paduraksa_tls_handshake_duration_seconds_count{{host=\"app.test\",host_id=\"{id}\"}} 1\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_tls_handshake_duration_seconds_sum{{host=\"app.test\",host_id=\"{id}\"}} 0.002\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_response_send_duration_seconds_count{{host=\"app.test\",host_id=\"{id}\"}} 2\n", text, StringComparison.Ordinal);
+        Assert.Contains($"paduraksa_response_send_duration_seconds_sum{{host=\"app.test\",host_id=\"{id}\"}} 0.00075\n", text, StringComparison.Ordinal);
+        Assert.Contains("# TYPE paduraksa_tls_handshake_duration_seconds histogram\n", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnObservationExactlyOnABoundaryIsCountedAtThatBoundaryAndNotBelow()
     {
         var (registry, snapshot) = Live(ProxyHost("app", "app.test", Route("app-root", "web")));

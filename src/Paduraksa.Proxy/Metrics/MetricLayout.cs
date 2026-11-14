@@ -28,6 +28,12 @@ public static class RequestMetric
     /// <summary>Request body bytes read from clients. After the older counters, so their offsets stay where they were.</summary>
     public const int BytesIn = UpstreamMicros + 1;
 
+    /// <summary>Sum of TLS handshakes in microseconds, over the first requests of TLS connections (a host only).</summary>
+    public const int TlsHandshakeMicros = BytesIn + 1;
+
+    /// <summary>Sum of response sends in microseconds, over the requests that got a response (a host only).</summary>
+    public const int ResponseSendMicros = TlsHandshakeMicros + 1;
+
     /// <summary>Longs per slot and stripe: a multiple of 8.</summary>
     public const int Stride = 32;
 
@@ -36,6 +42,15 @@ public static class RequestMetric
 
     /// <summary>Longs per host slot and stripe in the latency table: the two histograms.</summary>
     public const int LatencyStride = 2 * LatencyBuckets.Stride;
+
+    /// <summary>The TLS-handshake histogram's offset inside a host's stage slot.</summary>
+    public const int TlsHandshakeHistogram = 0;
+
+    /// <summary>The response-send histogram's offset inside a host's stage slot.</summary>
+    public const int ResponseSendHistogram = LatencyBuckets.Stride;
+
+    /// <summary>Longs per host slot and stripe in the stage table: the two histograms.</summary>
+    public const int StageStride = 2 * LatencyBuckets.Stride;
 
     /// <summary>The status class's counter offset: 0 for 1xx to 4 for 5xx, <see cref="NoResponse"/> otherwise.</summary>
     public static int ClassOf(int statusCode) => statusCode is >= 100 and <= 599 ? (statusCode / 100) - 1 : NoResponse;

@@ -32,6 +32,12 @@ public readonly struct RequestMetrics
     /// <summary>YARP's <c>ForwarderError</c> as an integer; 0 when the forward went well or didn't happen.</summary>
     public int ForwarderError { get; init; }
 
+    /// <summary>The connection's TLS handshake, on its first request only, in whole microseconds; -1 on every other request.</summary>
+    public long TlsHandshakeMicros { get; init; } = -1;
+
+    /// <summary>The response's start to its end, in whole microseconds; -1 when nothing was sent.</summary>
+    public long ResponseSendMicros { get; init; } = -1;
+
     public RequestMetrics()
     {
     }
@@ -74,11 +80,12 @@ public sealed class MetricsRegistry
         _time = timeProvider ?? TimeProvider.System;
         HostCounters = new MetricTable(RequestMetric.Stride, stripes);
         HostLatency = new MetricTable(RequestMetric.LatencyStride, stripes);
+        HostStages = new MetricTable(RequestMetric.StageStride, stripes);
         RouteCounters = new MetricTable(RequestMetric.Stride, stripes);
         UpstreamCounters = new MetricTable(UpstreamMetric.Stride, stripes);
         UpstreamLatency = new MetricTable(UpstreamMetric.LatencyStride, stripes);
         DestinationCounters = new MetricTable(DestinationMetric.Stride, stripes);
-        Hosts = new MetricSlotRegistry(MetricSubject.Host, grace, (slot, reused) => Prepare(slot, reused, HostCounters, HostLatency), reserved: 1);
+        Hosts = new MetricSlotRegistry(MetricSubject.Host, grace, (slot, reused) => Prepare(slot, reused, HostCounters, HostLatency, HostStages), reserved: 1);
         Routes = new MetricSlotRegistry(MetricSubject.Route, grace, (slot, reused) => Prepare(slot, reused, RouteCounters));
         Upstreams = new MetricSlotRegistry(MetricSubject.Upstream, grace, (slot, reused) => Prepare(slot, reused, UpstreamCounters, UpstreamLatency));
         Destinations = new MetricSlotRegistry(MetricSubject.Destination, grace, (slot, reused) => Prepare(slot, reused, DestinationCounters));
@@ -87,6 +94,9 @@ public sealed class MetricsRegistry
     internal MetricTable HostCounters { get; }
 
     internal MetricTable HostLatency { get; }
+
+    /// <summary>A host's stage histograms (<see cref="RequestMetric.StageStride"/>): apart from <see cref="HostLatency"/>, which the sampler reads every second, since only the exporter reads these.</summary>
+    internal MetricTable HostStages { get; }
 
     internal MetricTable RouteCounters { get; }
 
@@ -172,6 +182,18 @@ public sealed class MetricsRegistry
                 HostCounters.Add(stripe, host, RequestMetric.UpstreamMicros, request.UpstreamMicros);
                 HostLatency.Increment(stripe, host, RequestMetric.UpstreamHistogram + LatencyBuckets.IndexOf(request.UpstreamMicros));
             }
+
+            if (request.TlsHandshakeMicros >= 0)
+            {
+                HostCounters.Add(stripe, host, RequestMetric.TlsHandshakeMicros, request.TlsHandshakeMicros);
+                HostStages.Increment(stripe, host, RequestMetric.TlsHandshakeHistogram + LatencyBuckets.IndexOf(request.TlsHandshakeMicros));
+            }
+
+            if (request.ResponseSendMicros >= 0)
+            {
+                HostCounters.Add(stripe, host, RequestMetric.ResponseSendMicros, request.ResponseSendMicros);
+                HostStages.Increment(stripe, host, RequestMetric.ResponseSendHistogram + LatencyBuckets.IndexOf(request.ResponseSendMicros));
+            }
         }
 
         if (!request.Route.IsNone && Routes.IsCurrent(request.Route.Index, request.Route.Version))
@@ -235,6 +257,15 @@ public sealed class MetricsRegistry
                 upstream.Clear();
                 break;
         }
+    }
+
+    /// <summary>A host's stage histograms: the TLS handshakes its connections' first requests reported, and the response sends.</summary>
+    public void ReadHostStages(int slot, Span<long> tlsHandshake, Span<long> responseSend)
+    {
+        Span<long> both = stackalloc long[RequestMetric.StageStride];
+        HostStages.SumInto(slot, both);
+        both[..LatencyBuckets.Stride].CopyTo(tlsHandshake);
+        both[RequestMetric.ResponseSendHistogram..].CopyTo(responseSend);
     }
 
     internal MetricTable CountersOf(MetricSubject subject) => subject switch

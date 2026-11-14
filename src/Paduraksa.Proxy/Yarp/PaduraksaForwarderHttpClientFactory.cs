@@ -80,6 +80,10 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
                 $"Cluster {YarpConfig.AdminClusterId} needs the admin internal listener, which isn't registered in this app."))
                 .ConnectAsync;
         }
+
+        // The forward's connect part, for the access log (UpstreamConnects); the callback keeps the handler's own connect.
+        handler.ConnectCallback = UpstreamConnects.Timed(handler.ConnectCallback);
+        handler.PlaintextStreamFilter = UpstreamConnects.CompletedAsync;
     }
 
     internal static void ApplyDefaults(SocketsHttpHandler handler)

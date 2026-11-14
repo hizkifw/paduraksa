@@ -74,6 +74,52 @@ public sealed class BodyCounterTests
         Assert.Equal(0, counter.ResponseBytes);
     }
 
+    [Fact]
+    public async Task TheBodyReadIsTimedFromTheFirstByteReadToTheLast()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (context, _) = NewContext(new byte[30]);
+        BodyCounter counter = new();
+        counter.Begin(context);
+        var body = context.Request.Body;
+
+        Assert.Equal(0, counter.RequestBodyTicks);
+        Assert.Equal(10, await body.ReadAsync(new byte[10].AsMemory(), ct));
+        await Task.Delay(60, ct);
+        Assert.Equal(20, await body.ReadAsync(new byte[20].AsMemory(), ct));
+        var read = counter.RequestBodyTicks;
+        // The end of the body is no byte: a reader that comes back for it later doesn't stretch the figure.
+        await Task.Delay(60, ct);
+        Assert.Equal(0, await body.ReadAsync(new byte[10].AsMemory(), ct));
+
+        Assert.True(read >= TimeSpan.FromMilliseconds(50).Ticks, $"{read} ticks");
+        Assert.Equal(read, counter.RequestBodyTicks);
+
+        // The next request on the connection starts again from nothing.
+        var (next, _) = NewContext(new byte[5]);
+        counter.Begin(next);
+        Assert.Equal(0, counter.RequestBodyTicks);
+    }
+
+    [Fact]
+    public async Task AnUpgradedConnectionsReadsAreNotTheBodyRead()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (context, _) = NewContext();
+        MemoryStream tunnel = new(new byte[50]);
+        context.Features.Set<IHttpUpgradeFeature>(new FakeUpgrade(tunnel));
+        BodyCounter counter = new();
+        counter.Begin(context);
+
+        var stream = await context.Features.Get<IHttpUpgradeFeature>()!.UpgradeAsync();
+        Assert.Equal(25, await stream.ReadAsync(new byte[25].AsMemory(), ct));
+        await Task.Delay(30, ct);
+        Assert.Equal(25, await stream.ReadAsync(new byte[25].AsMemory(), ct));
+
+        Assert.Equal(50, counter.RequestBytes);
+        Assert.Equal(0, counter.RequestBodyTicks);
+    }
+
     /// <summary>
     /// Kestrel refuses synchronous body I/O, and <see cref="Stream"/>'s own array-based async methods fall back to the synchronous
     /// ones on a pool thread: the counter's array overloads must go to the inner stream's async path, never through that fallback.
@@ -281,6 +327,7 @@ public sealed class BodyCounterTests
 
         Assert.Equal(0, result.TotalBytes);
         Assert.True(counter.RequestBytes > 0 && counter.RequestBytes % 4 == 0);
+        Assert.True(counter.RequestBodyTicks >= 0);
         Assert.Equal(counter.RequestBytes * 4, counter.ResponseBytes);
     }
 

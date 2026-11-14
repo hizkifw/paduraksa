@@ -141,6 +141,45 @@ public sealed class GateRequestState : IGateFeature
     /// <summary>YARP's key of the destination the forward chose, for the destination's counters; null when nothing was forwarded.</summary>
     internal string? UpstreamDestinationKey { get; set; }
 
+    /// <summary>The message YARP sent upstream, so the completion can find the connect it triggered (<see cref="Yarp.UpstreamConnects"/>); null when nothing was forwarded.</summary>
+    internal HttpRequestMessage? UpstreamRequest { get; set; }
+
+    /// <summary>When the gate handed the request on (to the forward or to its own answer), as a <see cref="System.Diagnostics.Stopwatch"/> timestamp; 0 until then.</summary>
+    internal long GateEndedTimestamp { get; set; }
+
+    /// <summary>When the response started (its headers went out), as a <see cref="System.Diagnostics.Stopwatch"/> timestamp; 0 until then, and for a request that got no response.</summary>
+    internal long ResponseStartedTimestamp { get; set; }
+
+    /// <summary>The request's index on its connection, from 1; 0 when the connection carries no <see cref="ConnectionTimings"/>.</summary>
+    internal int ConnectionRequest { get; set; }
+
+    /// <summary>The connection's TLS handshake as the entry reports it (<see cref="AccessLogEntry.TlsHandshakeTicks"/>).</summary>
+    internal long TlsHandshakeTicks { get; set; } = AccessLogEntry.Unknown;
+
+    // Invariant: the state never leaves its connection (it lives on the H1 connection, or on an H2/H3 stream, which Kestrel pools
+    // per connection), so the connection's timings are looked up once and kept across requests, like the formatted address.
+    private ConnectionTimings? _connectionTimings;
+    private bool _connectionTimingsRead;
+
+    /// <summary>Counts the request on its connection and takes the handshake it reports. 0 B: an atomic, and a feature lookup once per state.</summary>
+    internal void CountOnConnection(HttpContext context)
+    {
+        if (!_connectionTimingsRead)
+        {
+            _connectionTimings = context.Features.Get<ConnectionTimings>();
+            _connectionTimingsRead = true;
+        }
+
+        if (_connectionTimings is not { } connection)
+        {
+            return;
+        }
+
+        var index = connection.NextRequest();
+        ConnectionRequest = index;
+        TlsHandshakeTicks = !connection.IsTls ? AccessLogEntry.Unknown : index == 1 ? connection.HandshakeTicks : AccessLogEntry.HandshakeReused;
+    }
+
     private Http.BodyCounter? _bodyCounter;
 
     /// <summary>The counter of this request's body bytes once the access log put it on the request; null before that (a request
@@ -181,7 +220,12 @@ public sealed class GateRequestState : IGateFeature
         UpstreamStartedTimestamp = 0;
         UpstreamTicks = -1;
         UpstreamAddress = null;
+        UpstreamRequest = null;
         RequestStartedTimestamp = 0;
+        GateEndedTimestamp = 0;
+        ResponseStartedTimestamp = 0;
+        ConnectionRequest = 0;
+        TlsHandshakeTicks = AccessLogEntry.Unknown;
         AccessLogRing = null;
     }
 

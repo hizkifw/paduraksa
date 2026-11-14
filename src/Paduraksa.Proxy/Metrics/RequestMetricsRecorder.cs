@@ -19,7 +19,11 @@ internal static class RequestMetricsRecorder
     /// <summary>
     /// Reads what the request ended as and adds it. 0 B: a few field reads, feature lookups only for an answer that failed (the forwarder's error and the destination it had chosen), and <see cref="MetricsRegistry.RecordRequest"/>.
     /// </summary>
-    public static void Record(HttpContext context, GateRequestState state, MetricsRegistry metrics, long started)
+    public static void Record(HttpContext context, GateRequestState state, MetricsRegistry metrics, long started) =>
+        Record(context, state, metrics, started, Stopwatch.GetTimestamp());
+
+    /// <summary><see cref="Record(HttpContext, GateRequestState, MetricsRegistry, long)"/> with the end already read (the access log's).</summary>
+    public static void Record(HttpContext context, GateRequestState state, MetricsRegistry metrics, long started, long ended)
     {
         // No snapshot: the gate never ran (a test app without it), so there is no host to count against.
         if (state.Snapshot is null)
@@ -41,7 +45,7 @@ internal static class RequestMetricsRecorder
             if (state.UpstreamStartedTimestamp != 0)
             {
                 // A forward that got no response back is still timed, up to where it failed.
-                upstreamMicros = (state.UpstreamTicks >= 0 ? state.UpstreamTicks : Stopwatch.GetElapsedTime(state.UpstreamStartedTimestamp).Ticks) / TimeSpan.TicksPerMicrosecond;
+                upstreamMicros = (state.UpstreamTicks >= 0 ? state.UpstreamTicks : Stopwatch.GetElapsedTime(state.UpstreamStartedTimestamp, ended).Ticks) / TimeSpan.TicksPerMicrosecond;
             }
 
             // The forwarder's error is a feature lookup, which costs more than the rest of this method on a successful request;
@@ -68,8 +72,10 @@ internal static class RequestMetricsRecorder
             Outcome = outcome,
             ResponseBytes = state.CountedBody?.ResponseBytes ?? -1,
             RequestBytes = state.CountedBody?.RequestBytes ?? -1,
-            TotalMicros = Stopwatch.GetElapsedTime(started).Ticks / TimeSpan.TicksPerMicrosecond,
+            TotalMicros = Stopwatch.GetElapsedTime(started, ended).Ticks / TimeSpan.TicksPerMicrosecond,
             UpstreamMicros = upstreamMicros,
+            TlsHandshakeMicros = state.TlsHandshakeTicks >= 0 ? state.TlsHandshakeTicks / TimeSpan.TicksPerMicrosecond : -1,
+            ResponseSendMicros = Logging.AccessLogMiddleware.ResponseSendTicks(state, ended) is >= 0 and var send ? send / TimeSpan.TicksPerMicrosecond : -1,
             ForwarderError = error,
         });
     }

@@ -70,6 +70,19 @@ public sealed class AccessLogTailEntry
 
     public string? UserAgent { get; private init; }
 
+    /// <summary>The stages, as on <see cref="AccessLogEntry"/> (<see cref="TimeSpan"/> ticks, <see cref="AccessLogEntry.Unknown"/> when not known).</summary>
+    public long TlsHandshakeTicks { get; private init; }
+
+    public int ConnectionRequest { get; private init; }
+
+    public long RequestBodyTicks { get; private init; }
+
+    public long GateTicks { get; private init; }
+
+    public long UpstreamConnectTicks { get; private init; }
+
+    public long ResponseSendTicks { get; private init; }
+
     internal void Number(long sequence) => Sequence = sequence;
 
     /// <summary>
@@ -133,6 +146,12 @@ public sealed class AccessLogTailEntry
         CloudflareRay = Visible(entry.CloudflareRay, AccessLogFormatter.MaxCloudflareRayLength),
         Referer = Visible(entry.Referer, AccessLogFormatter.MaxHeaderValueLength),
         UserAgent = Visible(entry.UserAgent, AccessLogFormatter.MaxHeaderValueLength),
+        TlsHandshakeTicks = entry.TlsHandshakeTicks,
+        ConnectionRequest = entry.ConnectionRequest,
+        RequestBodyTicks = entry.RequestBodyTicks,
+        GateTicks = entry.GateTicks,
+        UpstreamConnectTicks = entry.UpstreamConnectTicks,
+        ResponseSendTicks = entry.ResponseSendTicks,
     };
 
     private static string? VisibleQuery(string? query, AccessLogFormatOptions options)

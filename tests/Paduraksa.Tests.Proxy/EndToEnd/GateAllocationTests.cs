@@ -21,22 +21,28 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
 {
     private static readonly AccessListSpec Loopback = TestAccessLists.Allow("loopback", "127.0.0.1");
 
+    private static readonly Lazy<System.Security.Cryptography.X509Certificates.X509Certificate2> Certificate = new(static () => TestCertificates.SelfSigned());
+
     private const int Connections = 4;
     private const int Warmup = 1_000;
     private const int Measured = 3_000;
 
     [Theory]
-    [InlineData(false, "app.test", "/api/items", HttpStatusCode.OK)]
-    [InlineData(false, "x.app.test:8080", "/", HttpStatusCode.OK)]
-    [InlineData(false, "app.test", "/blocked", HttpStatusCode.Forbidden)]
-    [InlineData(false, "soon.test", "/", HttpStatusCode.ServiceUnavailable)]
-    [InlineData(false, "unknown.test", "/", HttpStatusCode.NotFound)]
-    [InlineData(false, "limited.test", "/", HttpStatusCode.OK)]
-    [InlineData(false, "limited.test", "/limited", HttpStatusCode.TooManyRequests)]
-    [InlineData(true, "app.test", "/api/items", HttpStatusCode.OK)]
-    [InlineData(true, "app.test", "/blocked", HttpStatusCode.Forbidden)]
-    [InlineData(true, "unknown.test", "/", HttpStatusCode.NotFound)]
-    public async Task GateDecisionAllocatesNothingOnKestrel(bool h2c, string host, string path, HttpStatusCode expected)
+    [InlineData("h1", "app.test", "/api/items", HttpStatusCode.OK)]
+    [InlineData("h1", "x.app.test:8080", "/", HttpStatusCode.OK)]
+    [InlineData("h1", "app.test", "/blocked", HttpStatusCode.Forbidden)]
+    [InlineData("h1", "soon.test", "/", HttpStatusCode.ServiceUnavailable)]
+    [InlineData("h1", "unknown.test", "/", HttpStatusCode.NotFound)]
+    [InlineData("h1", "limited.test", "/", HttpStatusCode.OK)]
+    [InlineData("h1", "limited.test", "/limited", HttpStatusCode.TooManyRequests)]
+    [InlineData("h2c", "app.test", "/api/items", HttpStatusCode.OK)]
+    [InlineData("h2c", "app.test", "/blocked", HttpStatusCode.Forbidden)]
+    [InlineData("h2c", "unknown.test", "/", HttpStatusCode.NotFound)]
+    [InlineData("h1-tls", "app.test", "/api/items", HttpStatusCode.OK)]
+    [InlineData("h1-tls", "unknown.test", "/", HttpStatusCode.NotFound)]
+    [InlineData("h2-tls", "app.test", "/api/items", HttpStatusCode.OK)]
+    [InlineData("h2-tls", "app.test", "/blocked", HttpStatusCode.Forbidden)]
+    public async Task GateDecisionAllocatesNothingOnKestrel(string transport, string host, string path, HttpStatusCode expected)
     {
         RateLimitPolicyId openPolicy = TestIds.RateLimitPolicy("open");
         RateLimitPolicyId tightPolicy = TestIds.RateLimitPolicy("tight");
@@ -79,10 +85,16 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
             ],
         };
         // h2c: one connection, a few concurrent streams. Kestrel pools streams that end gracefully, so after warm-up
-        // the per-stream state in IPersistentStateFeature is reused just like on an H1 keep-alive connection.
+        // the per-stream state in IPersistentStateFeature is reused just like on an H1 keep-alive connection. TLS adds the
+        // handshake timing to the connection, which each request reads.
         await using var server = await ProxyTestServer.StartAsync(
             model,
-            new() { MeasureGate = true, Protocols = h2c ? HttpProtocols.Http2 : HttpProtocols.Http1 });
+            new()
+            {
+                MeasureGate = true,
+                Protocols = transport.StartsWith("h2", StringComparison.Ordinal) ? HttpProtocols.Http2 : HttpProtocols.Http1,
+                Certificate = transport.EndsWith("-tls", StringComparison.Ordinal) ? Certificate.Value : null,
+            });
         using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
 
         if (expected == HttpStatusCode.TooManyRequests)

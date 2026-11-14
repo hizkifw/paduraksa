@@ -78,16 +78,29 @@ public sealed class AccessLogMiddleware
         state.AccessLogRing = _ring;
         state.Metrics = _metrics;
         state.RequestStartedTimestamp = Stopwatch.GetTimestamp();
+        state.CountOnConnection(context);
         state.CountBody(context, _upgraded);
-        RegisterCompletion(context);
+        RegisterCompletion(context, state);
     }
 
     /// <summary>
-    /// Registers the completion callback, whose only state is the context. Internal so the allocation test can drive it
-    /// on a real Kestrel response.
+    /// Registers the completion callback, whose only state is the context, and the response-start one, whose only state is the
+    /// pooled request state (it runs before the request ends, so the state is still this request's). Internal so the allocation
+    /// test can drive it on a real Kestrel response.
     /// </summary>
-    internal static void RegisterCompletion(HttpContext context) =>
+    internal static void RegisterCompletion(HttpContext context, GateRequestState state)
+    {
+        context.Response.OnStarting(static started => MarkResponseStarted(started), state);
         context.Response.OnCompleted(static completed => RecordCompleted(completed), context);
+    }
+
+    // Kestrel runs its response-start callbacks last-registered first, so this one, registered at the top, runs last: right
+    // before the headers are written.
+    internal static Task MarkResponseStarted(object started)
+    {
+        ((GateRequestState)started).ResponseStartedTimestamp = Stopwatch.GetTimestamp();
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// Kestrel runs this after the response finished, with the final status settled (500 for an unhandled exception, 499
@@ -106,10 +119,12 @@ public sealed class AccessLogMiddleware
                 context.Response.StatusCode = rejected.StatusCode;
             }
 
-            Record(context, ring, state.RequestStartedTimestamp);
+            // One clock read for the end of every figure: the total, the response send, and the counters'.
+            var ended = Stopwatch.GetTimestamp();
+            Record(context, ring, state.RequestStartedTimestamp, ended);
             if (state.Metrics is { } metrics)
             {
-                RequestMetricsRecorder.Record(context, state, metrics, state.RequestStartedTimestamp);
+                RequestMetricsRecorder.Record(context, state, metrics, state.RequestStartedTimestamp, ended);
             }
 
             // Request-scoped: the gate skips its reset only for a request a stage above it already started.
@@ -125,7 +140,10 @@ public sealed class AccessLogMiddleware
     /// Fills the entry from the request as it ended and offers it to the ring. 0 B; internal so the allocation test can
     /// drive it directly.
     /// </summary>
-    internal static void Record(HttpContext context, AccessLogRing ring, long started)
+    internal static void Record(HttpContext context, AccessLogRing ring, long started) => Record(context, ring, started, Stopwatch.GetTimestamp());
+
+    /// <summary><see cref="Record(HttpContext, AccessLogRing, long)"/> with the end already read.</summary>
+    internal static void Record(HttpContext context, AccessLogRing ring, long started, long ended)
     {
         var state = context.Features.Get<IGateFeature>()?.State;
         if (state is { Snapshot: { } snapshot } && !snapshot.AccessLogFor(state.Host))
@@ -145,12 +163,14 @@ public sealed class AccessLogMiddleware
         {
             // A forward that got no response back (YARP's own 502, say): the attempt still has a duration, up to where it
             // failed, and YARP keeps the destination it chose on the feature.
-            upstreamTicks = Stopwatch.GetElapsedTime(state.UpstreamStartedTimestamp).Ticks;
+            upstreamTicks = Stopwatch.GetElapsedTime(state.UpstreamStartedTimestamp, ended).Ticks;
             if (upstreamAddress is null && context.Features.Get<IReverseProxyFeature>() is { ProxiedDestination: { } destination })
             {
                 upstreamAddress = destination.Model.Config.Address;
             }
         }
+
+        var connectTicks = state is { UpstreamRequest: { } sent } && upstreamTicks >= 0 ? Yarp.UpstreamConnects.TicksFor(sent, upstreamTicks) : AccessLogEntry.Unknown;
 
         AccessLogEntry entry = new()
         {
@@ -166,16 +186,28 @@ public sealed class AccessLogMiddleware
             StatusCode = state is { Aborted: true } ? AccessLogEntry.NoResponse : response.StatusCode,
             ResponseBytes = state?.CountedBody?.ResponseBytes ?? AccessLogEntry.Unknown,
             RequestBytes = state?.CountedBody?.RequestBytes ?? AccessLogEntry.Unknown,
-            TotalTicks = Stopwatch.GetElapsedTime(started).Ticks,
+            TotalTicks = Stopwatch.GetElapsedTime(started, ended).Ticks,
             UpstreamTicks = upstreamTicks,
             UpstreamAddress = upstreamAddress,
             RequestId = state is { HasRequestId: true } ? state.RequestIdText() : null,
             CloudflareRay = state is not null && state.ClientIp.CloudflareHeadersTrusted ? FirstOf(request.Headers[CloudflareHeaders.Ray]) : null,
             Referer = FirstOf(referer),
             UserAgent = FirstOf(userAgent),
+            TlsHandshakeTicks = state?.TlsHandshakeTicks ?? AccessLogEntry.Unknown,
+            ConnectionRequest = state?.ConnectionRequest ?? 0,
+            RequestBodyTicks = state?.CountedBody?.RequestBodyTicks ?? AccessLogEntry.Unknown,
+            GateTicks = state is { GateEndedTimestamp: not 0 } ? Stopwatch.GetElapsedTime(started, state.GateEndedTimestamp).Ticks : AccessLogEntry.Unknown,
+            UpstreamConnectTicks = connectTicks,
+            ResponseSendTicks = ResponseSendTicks(state, ended),
         };
         ring.TryWrite(entry);
     }
+
+    /// <summary>The response's start to <paramref name="ended"/>; unknown when nothing was sent (a dropped request never starts one).</summary>
+    internal static long ResponseSendTicks(GateRequestState? state, long ended) =>
+        state is { ResponseStartedTimestamp: not 0 and var responseStarted, Aborted: false }
+            ? Stopwatch.GetElapsedTime(responseStarted, ended).Ticks
+            : AccessLogEntry.Unknown;
 
     /// <summary>A single-valued header's value, or null. 0 B.</summary>
     private static string? FirstOf(StringValues values) => values.Count == 1 ? values[0] : null;

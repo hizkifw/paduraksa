@@ -103,7 +103,7 @@ public sealed class GateMiddleware
     /// one string a request materialises; it is built here, once, and shared with the upstream header and the access log, so
     /// <see cref="Decide"/> stays at 0 B.
     /// </summary>
-    private Task FinishAsync(HttpContext context, GateDecision decision, RequestDelegate next)
+    internal Task FinishAsync(HttpContext context, GateDecision decision, RequestDelegate next)
     {
         var state = context.Features.Get<IGateFeature>()?.State;
         if (state is not null)
@@ -117,6 +117,12 @@ public sealed class GateMiddleware
             {
                 CompiledHeaders.ApplyResponse(context.Response.Headers, (state.Route?.Headers ?? answering.Headers).Response);
             }
+        }
+
+        if (state is not null)
+        {
+            // The gate's share of the request ends here: what follows is the forward, or writing the answer it chose.
+            state.GateEndedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         }
 
         if (decision.Action == GateAction.VerifyProofOfWork && state?.Host is { } verifyHost)

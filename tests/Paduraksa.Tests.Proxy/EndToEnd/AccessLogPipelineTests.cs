@@ -14,7 +14,7 @@ namespace Paduraksa.Tests.Proxy.EndToEnd;
 /// The access log's behaviour that only a real server can show: the entry is written from the response's completion, so
 /// Kestrel's final status (500 for an unhandled exception, 499 for a connection that ended without one) and the gate's
 /// aborted request are only visible there. <see cref="Logging.AccessLogMiddlewareTests"/> keeps the pure
-/// <see cref="AccessLogMiddleware.Record"/> cases.
+/// <see cref="AccessLogMiddleware.Record(Microsoft.AspNetCore.Http.HttpContext, AccessLogRing, long)"/> cases.
 /// </summary>
 public sealed class AccessLogPipelineTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {

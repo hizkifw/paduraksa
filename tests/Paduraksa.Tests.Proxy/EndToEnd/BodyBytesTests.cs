@@ -301,19 +301,32 @@ public sealed class BodyBytesTests(BodyUpstream upstream) : IClassFixture<BodyUp
 
     /// <summary>
     /// The counter on Kestrel's pooled state: with bodies both ways (a chunked and a declared response, an upload), the access
-    /// log's start (the counter's set-up included) and the gate's decision stay at 0 B a request, and every byte is counted.
+    /// log's start (the counter's set-up and the connection's timings included) and the gate's decision stay at 0 B a request, and
+    /// every byte is counted. An upload times its body reads too.
     /// </summary>
     [Theory]
-    [InlineData(false, "/chunked")]
-    [InlineData(true, "/chunked")]
-    [InlineData(false, "/length")]
-    [InlineData(true, "/length")]
-    [InlineData(false, "/upload")]
-    [InlineData(true, "/upload")]
-    public async Task CountingAllocatesNothingOnKestrel(bool h2c, string path)
+    [InlineData("h1", "/chunked")]
+    [InlineData("h2c", "/chunked")]
+    [InlineData("h1", "/length")]
+    [InlineData("h2c", "/length")]
+    [InlineData("h1", "/upload")]
+    [InlineData("h2c", "/upload")]
+    [InlineData("h1-tls", "/upload")]
+    [InlineData("h2-tls", "/upload")]
+    [InlineData("h2-tls", "/chunked")]
+    public async Task CountingAllocatesNothingOnKestrel(string transport, string path)
     {
         MetricsRegistry registry = new(processors: 2);
-        await using var server = await ProxyTestServer.StartAsync(Model(), new() { MeasureGate = true, Metrics = registry, Protocols = h2c ? HttpProtocols.Http2 : HttpProtocols.Http1 });
+        using var certificate = transport.EndsWith("-tls", StringComparison.Ordinal) ? TestCertificates.SelfSigned() : null;
+        await using var server = await ProxyTestServer.StartAsync(
+            Model(),
+            new()
+            {
+                MeasureGate = true,
+                Metrics = registry,
+                Protocols = transport.StartsWith("h2", StringComparison.Ordinal) ? HttpProtocols.Http2 : HttpProtocols.Http1,
+                Certificate = certificate,
+            });
         using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
         var upload = path == "/upload";
 

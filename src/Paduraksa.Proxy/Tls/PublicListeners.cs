@@ -4,6 +4,8 @@ using System.Net.Quic;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
+using Paduraksa.Proxy.Net;
+
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>Where and how the public HTTPS endpoint listens.</summary>
@@ -72,7 +74,7 @@ public static class PublicListeners
             listen.Protocols = HttpProtocols.Http1AndHttp2;
             listen.DisableAltSvcHeader = true;
             options.ConfigureTcpConnection?.Invoke(listen);
-            listen.UseHttps(selector.CreateTcpCallbackOptions());
+            listen.UseTimedHttps(selector.CreateTcpCallbackOptions());
         });
 
         if (http3)
@@ -82,6 +84,7 @@ public static class PublicListeners
                 listen.Protocols = HttpProtocols.Http3;
                 // Kestrel would otherwise add Alt-Svc (bound port) to H3 responses too.
                 listen.DisableAltSvcHeader = true;
+                listen.UseQuicHandshakeTiming();
                 options.ConfigureQuicConnection?.Invoke(listen);
                 listen.UseHttps(selector.CreateQuicCallbackOptions());
             });
@@ -101,6 +104,7 @@ public static class PublicListeners
         {
             listen.Protocols = HttpProtocols.Http1;
             configure?.Invoke(listen);
+            listen.UseConnectionTimings();
         });
     }
 

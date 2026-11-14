@@ -22,6 +22,9 @@ public readonly record struct AccessLogEntry
     /// </summary>
     public const int NoResponse = 0;
 
+    /// <summary><see cref="TlsHandshakeTicks"/> of a later request on a TLS connection: the handshake was paid by the first.</summary>
+    public const long HandshakeReused = -2;
+
     /// <summary>An entry with every field at its default ("unknown"), which the middleware then fills in.</summary>
     public AccessLogEntry()
     {
@@ -74,4 +77,27 @@ public readonly record struct AccessLogEntry
     public string? Referer { get; init; }
 
     public string? UserAgent { get; init; }
+
+    // The stages (docs/design/observability.md "Request timing"), in TimeSpan ticks, Unknown when the stage didn't happen or wasn't measured.
+
+    /// <summary>
+    /// The connection's TLS handshake, on the connection's first request only; <see cref="HandshakeReused"/> on its later requests,
+    /// <see cref="Unknown"/> on plain HTTP and when it wasn't measured.
+    /// </summary>
+    public long TlsHandshakeTicks { get; init; } = Unknown;
+
+    /// <summary>The request's index on its connection, from 1; 0 when not known.</summary>
+    public int ConnectionRequest { get; init; }
+
+    /// <summary>The first to the last request body byte read; 0 when no body byte was, <see cref="Unknown"/> when not counted.</summary>
+    public long RequestBodyTicks { get; init; } = Unknown;
+
+    /// <summary>The top of the pipeline to the gate's hand-off (to the forward, or to its own answer); <see cref="Unknown"/> when no gate ran.</summary>
+    public long GateTicks { get; init; } = Unknown;
+
+    /// <summary>The upstream connect (DNS, TCP, TLS) inside <see cref="UpstreamTicks"/>; 0 on a pooled connection, <see cref="Unknown"/> when not forwarded.</summary>
+    public long UpstreamConnectTicks { get; init; } = Unknown;
+
+    /// <summary>The response's start (its headers) to its end; <see cref="Unknown"/> when no response was sent.</summary>
+    public long ResponseSendTicks { get; init; } = Unknown;
 }

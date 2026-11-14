@@ -30,6 +30,7 @@ internal static class AccessLogTransform
         if (context.HttpContext.Features.Get<IGateFeature>()?.State is { } state)
         {
             state.UpstreamStartedTimestamp = Stopwatch.GetTimestamp();
+            state.UpstreamRequest = context.ProxyRequest;
             state.UpstreamTicks = AccessLogEntry.Unknown;
             state.UpstreamAddress = null;
             state.UpstreamDestinationKey = null;

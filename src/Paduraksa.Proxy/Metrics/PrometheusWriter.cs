@@ -115,6 +115,27 @@ public static class PrometheusWriter
         {
             Histogram(output, "paduraksa_host_upstream_duration_seconds", [("host", rows[i].Name), ("host_id", rows[i].Id)], upstream[i], hostCounters[i][RequestMetric.UpstreamMicros]);
         }
+
+        var handshake = new long[rows.Length][];
+        var send = new long[rows.Length][];
+        for (var i = 0; i < rows.Length; i++)
+        {
+            handshake[i] = new long[LatencyBuckets.Stride];
+            send[i] = new long[LatencyBuckets.Stride];
+            registry.ReadHostStages(rows[i].Slot.Index, handshake[i], send[i]);
+        }
+
+        Header(output, "paduraksa_tls_handshake_duration_seconds", "TLS handshakes of client connections, by the host of each connection's first request.", "histogram");
+        for (var i = 0; i < rows.Length; i++)
+        {
+            Histogram(output, "paduraksa_tls_handshake_duration_seconds", [("host", rows[i].Name), ("host_id", rows[i].Id)], handshake[i], hostCounters[i][RequestMetric.TlsHandshakeMicros]);
+        }
+
+        Header(output, "paduraksa_response_send_duration_seconds", "Time from the response's headers to its last byte written to the client, by host.", "histogram");
+        for (var i = 0; i < rows.Length; i++)
+        {
+            Histogram(output, "paduraksa_response_send_duration_seconds", [("host", rows[i].Name), ("host_id", rows[i].Id)], send[i], hostCounters[i][RequestMetric.ResponseSendMicros]);
+        }
     }
 
     private static void WriteRoutes(TextWriter output, MetricsRegistry registry, MetricInventory inventory)

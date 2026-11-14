@@ -45,12 +45,14 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     private HttpContext? _upgradable;
     private long _bytesOut;
     private long _bytesIn;
+    private long _firstBodyRead;
+    private long _lastBodyRead;
     private bool _discardsBody;
 
     public BodyCounter()
     {
         _responseStream = new CountingStream(this);
-        _requestStream = new CountingStream(this);
+        _requestStream = new CountingStream(this, timesReads: true);
         _upgradedStream = new CountingStream(this);
         _responseWriter = new CountingPipeWriter(this);
     }
@@ -60,6 +62,12 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
 
     /// <summary>Request body bytes read from the client so far.</summary>
     public long RequestBytes => _bytesIn;
+
+    /// <summary>
+    /// From the first read of the request body that returned bytes to the last one, in <see cref="TimeSpan"/> ticks; 0 when no body
+    /// byte was read. An upgraded connection's frames aren't the request body and aren't timed.
+    /// </summary>
+    public long RequestBodyTicks => _firstBodyRead == 0 ? 0 : System.Diagnostics.Stopwatch.GetElapsedTime(_firstBodyRead, _lastBodyRead).Ticks;
 
     /// <summary>
     /// Zeroes the counts and stands in for the request's body features. Must run before anything has touched the body, so the
@@ -83,6 +91,8 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
         // request is never seen again (BodyBytesTests.EachRequestOnAConnectionIsCountedOnItsOwnFeatures pins it).
         _bytesOut = 0;
         _bytesIn = 0;
+        _firstBodyRead = 0;
+        _lastBodyRead = 0;
         _discardsBody = HttpMethods.IsHead(context.Request.Method);
         _connections = connections;
         _upgradable = null;
@@ -119,6 +129,22 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
     private void AddOut(long bytes) => _bytesOut += bytes;
 
     private void AddIn(long bytes) => _bytesIn += bytes;
+
+    // A read is timed when it completes; one timestamp per read that returned bytes, and none for the end of the body.
+    private void AddBody(long bytes)
+    {
+        _bytesIn += bytes;
+        if (bytes > 0)
+        {
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (_firstBodyRead == 0)
+            {
+                _firstBodyRead = now;
+            }
+
+            _lastBodyRead = now;
+        }
+    }
 
     Stream IHttpResponseBodyFeature.Stream => _responseStream;
 
@@ -158,7 +184,7 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
         _connections is { } connections ? connections.Track(_upgradable!, _upgradedStream, webSocket) : _upgradedStream;
 
     /// <summary>A stream that passes everything to <see cref="Inner"/> and counts what was read and written through it.</summary>
-    private sealed class CountingStream(BodyCounter owner) : Stream
+    private sealed class CountingStream(BodyCounter owner, bool timesReads = false) : Stream
     {
         public Stream Inner { get; set; } = Null;
 
@@ -193,7 +219,7 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
             var value = Inner.ReadByte();
             if (value >= 0)
             {
-                owner.AddIn(1);
+                Counted(1);
             }
 
             return value;
@@ -251,7 +277,15 @@ internal sealed class BodyCounter : IHttpResponseBodyFeature, IHttpUpgradeFeatur
 
         private int Counted(int read)
         {
-            owner.AddIn(read);
+            if (timesReads)
+            {
+                owner.AddBody(read);
+            }
+            else
+            {
+                owner.AddIn(read);
+            }
+
             return read;
         }
 
