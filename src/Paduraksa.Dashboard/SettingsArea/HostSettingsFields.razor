@@ -288,7 +288,7 @@
             }
         </InheritSelect>
 
-        <ErrorPageField Key="ErrorPageStatuses.MaintenanceKey" Title="Maintenance page" Help="What visitors see. The built-in page says the site is down for maintenance."
+        <ErrorPageField Key="ErrorPageStatuses.MaintenanceKey" Title="Maintenance page" Help="The built-in page says the site is down for maintenance."
                         Label="Maintenance page" Field="error-page-maintenance"
                         Value="_current.ErrorPages?.Maintenance" ValueChanged="@(value => SetPage(ErrorPageStatuses.MaintenanceKey, value))"
                         Inherited="Resolved.ErrorPages?.Maintenance" InheritWord="@InheritWord" PreviewStatus="@(_current.Maintenance?.Status ?? Resolved.Maintenance!.Status!.Value)"

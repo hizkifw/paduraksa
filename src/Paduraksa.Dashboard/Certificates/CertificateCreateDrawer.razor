@@ -136,8 +136,8 @@
 
     private string? Subtitle => Renew is { } renew ? string.Join(", ", renew.Names) : _method switch
     {
-        AddCertificateKind.Acme => "The CA checks that the names are yours, then issues. The key is born in the vault.",
-        AddCertificateKind.Upload => "The key goes straight into the vault and is never shown again.",
+        AddCertificateKind.Acme => "The CA checks that the names are yours, then issues.",
+        AddCertificateKind.Upload => "The key is never shown again.",
         AddCertificateKind.SelfSigned => "Trusted by nothing; fine for testing or a client you configure by hand.",
         AddCertificateKind.LocalCaLeaf => "For LAN names: trusted wherever the local CA's root is installed.",
         _ => null,

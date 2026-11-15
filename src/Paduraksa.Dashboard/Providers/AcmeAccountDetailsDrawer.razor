@@ -64,7 +64,7 @@
                         <dt>Contacts</dt>
                         <dd>@(_account.Contacts.Count == 0 ? "None" : string.Join(", ", _account.Contacts.Select(ProviderDisplay.Contact)))</dd>
                         <dt>Key</dt>
-                        <dd>@_account.KeyAlgorithm, kept in the vault</dd>
+                        <dd>@_account.KeyAlgorithm</dd>
                         @if (_account.EabKid is { } kid)
                         {
                             <dt>EAB key ID</dt>

@@ -9,7 +9,7 @@
     @if (_active.Count == 0 && NewAccount is null)
     {
         <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
-            There is no ACME account yet. Add one first (Settings, ACME accounts): it is how the CA knows who is asking.
+            There is no ACME account yet. Add one first (Settings, ACME accounts).
         </MudAlert>
     }
     else if (_active.Count == 0)
