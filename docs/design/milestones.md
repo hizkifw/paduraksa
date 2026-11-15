@@ -40,7 +40,7 @@ These were done first. Each has an exit criterion, and the result is what was re
 
 ### S4: Typed IDs, EF Core 10 and SQLite (partial)
 
-- **Question:** do convention converters, big-endian BLOB GUIDs (`UuidV7Generator` plus `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types holding typed IDs and LINQ comparisons work? Does the `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup?
+- **Question:** do convention converters, big-endian BLOB GUIDs (`UuidV7Generator` plus `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types holding typed IDs and LINQ comparisons work? Does the `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup work?
 - **Exit criterion:** round-trip, query and index-ordering tests pass.
 - **Result:** built as real code in `Paduraksa.Data` (the generic parts live in `Paduraksa.Storage`), tested in `tests/Paduraksa.Tests.Data` on real SQLite.
   - BLOB, INTEGER and JSON-string storage all work.
