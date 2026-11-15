@@ -511,13 +511,18 @@
     gap: 8px;
 }
 
+/* The button lines up with the outlined box, not with the label's notch above it: the field sits 6px down (the field rows' margin
+   in forms.css) and its box 2px below that. */
 .pdk-rename .mud-input-control {
     flex: 1 1 auto;
+    margin-top: 6px;
+    margin-bottom: 2px;
 }
 
 .pdk-rename .mud-button-root {
     flex: none;
     height: 40px;
+    margin-top: 8px;
 }
 
 .pdk-cert-links {
