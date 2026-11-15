@@ -192,6 +192,10 @@ PADURAKSA_UPDATE_OPENAPI=1 dotnet test --project tests/Paduraksa.Tests.Integrati
 
 The file is the API's changelog as much as a build input: read its diff before committing it. A server run from a build made before you regenerated serves the old description.
 
+## Third-party notices
+
+The About page lists the open-source software the server ships with, from `THIRD-PARTY-NOTICES.json`. After you add, remove or bump a package that the server publishes, run `scripts/generate-third-party-notices.py` (the packages must be restored) and commit the JSON and the Markdown it writes; `NoticesCompletenessTests` fails, naming the script, until you do. Something the publish output carries that no package describes (a font, a bundled library) goes in `scripts/third-party-notices/extra.json`: the script stops at a static-file source or a font it has no entry for.
+
 ## The data directory
 
 The server keeps its state in `Paduraksa:DataDirectory` (default `./data` next to the shipped `appsettings.json`, so

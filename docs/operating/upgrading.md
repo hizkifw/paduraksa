@@ -28,6 +28,8 @@ docker compose exec paduraksa paduraksa doctor
 
 If you can, run it before the upgrade too. A `[info]` line about pending migrations is then the upgrade's own, and anything else was already wrong. See [the CLI](../automation/cli.md#doctor).
 
+To see what is running, open **About Paduraksa** in the user menu (top right): it shows the version, commit and build date. Scripts can read the same from `GET /api/v1/version`.
+
 Migrations run at startup, before the listeners bind. Stop with `docker compose down`, not `kill`, so open connections get their 30-second drain.
 
 The compose example sets a stable `hostname`. Without one, a recreated container gets a new name, and the admin certificate is re-issued with a new serial. That is harmless, and `Paduraksa__Admin__CertificateNames` gives you a stable name instead.
