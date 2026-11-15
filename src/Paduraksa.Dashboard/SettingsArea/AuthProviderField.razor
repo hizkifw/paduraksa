@@ -5,7 +5,8 @@
    provider is never shown by ID. *@
 <RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
            ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New auth provider..." OnNew="@OnNew"
-           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field"
+           OpenHref="@OpenHref" OpenLabel="@OpenLabel">
     <MudSelectItem T="string" Value="@InheritChoice">
         <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
     </MudSelectItem>
@@ -94,6 +95,11 @@
     /// <summary>The provider this layer names that the document doesn't have; it gets an option of its own so the select still says so.</summary>
     private AuthProviderId? Missing =>
         Value?.AuthProviderId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    /// <summary>The chosen provider's page; none for one staged in this drawer (it has no page yet), or when none is chosen.</summary>
+    private string? OpenHref => Value is { Enabled: not false, AuthProviderId: { IsEmpty: false } id } && IndexOf(id) >= 0 && !Staged.Contains(id) ? DashboardRoutes.AuthProvider(id) : null;
+
+    private string? OpenLabel => Value?.AuthProviderId is { IsEmpty: false } id && IndexOf(id) >= 0 ? $"Open {Providers[IndexOf(id)].Name}" : null;
 
     private string Choice => Value switch
     {

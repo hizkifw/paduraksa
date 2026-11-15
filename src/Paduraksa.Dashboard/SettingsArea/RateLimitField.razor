@@ -5,7 +5,8 @@
    policy is Enabled true with its ID. A policy is never shown by ID. *@
 <RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
            ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New rate limit..." OnNew="@OnNew"
-           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field"
+           OpenHref="@OpenHref" OpenLabel="@OpenLabel">
     <MudSelectItem T="string" Value="@InheritChoice">
         <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
     </MudSelectItem>
@@ -94,6 +95,11 @@
     /// <summary>The policy this layer names that the list doesn't have; it gets an option of its own so the select still says so.</summary>
     private RateLimitPolicyId? Missing =>
         Value?.PolicyId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    /// <summary>The chosen policy's page; none for a policy staged in this drawer (it has no page yet), or when no policy is chosen.</summary>
+    private string? OpenHref => Value is { Enabled: not false, PolicyId: { IsEmpty: false } id } && IndexOf(id) >= 0 && !Staged.Contains(id) ? DashboardRoutes.RateLimit(id) : null;
+
+    private string? OpenLabel => Value?.PolicyId is { IsEmpty: false } id && IndexOf(id) >= 0 ? $"Open {Policies[IndexOf(id)].Name}" : null;
 
     private string Choice => Value switch
     {

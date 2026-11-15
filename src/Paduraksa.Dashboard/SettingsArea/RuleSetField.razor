@@ -5,7 +5,8 @@
    with its ID. A set is never shown by ID. *@
 <RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
            ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New rule set..." OnNew="@OnNew"
-           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field"
+           OpenHref="@OpenHref" OpenLabel="@OpenLabel">
     <MudSelectItem T="string" Value="@InheritChoice">
         <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
     </MudSelectItem>
@@ -100,6 +101,12 @@
     /// <summary>The set this layer names that the document doesn't have; it gets an option of its own so the select still says so.</summary>
     private RuleSetId? Missing =>
         Value?.RuleSetId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    /// <summary>The chosen set's page (a built-in preset's is the list, which shows it); none for a set staged in this drawer (it has no page yet), or when none is chosen.</summary>
+    private string? OpenHref => Value is { Enabled: not false, RuleSetId: { IsEmpty: false } id } && IndexOf(id) >= 0 && !Staged.Contains(id)
+        ? (RuleSetPresets.IsPreset(id) ? DashboardRoutes.RuleSets : DashboardRoutes.RuleSet(id)) : null;
+
+    private string? OpenLabel => Value?.RuleSetId is { IsEmpty: false } id && IndexOf(id) >= 0 ? $"Open {Choices[IndexOf(id)].Name}" : null;
 
     private string Choice => Value switch
     {

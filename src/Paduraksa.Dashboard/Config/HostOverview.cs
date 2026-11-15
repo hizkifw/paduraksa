@@ -19,14 +19,19 @@ public enum Tone
 }
 
 /// <summary>How a host's names are served over HTTPS, in a word and a tone.</summary>
-public sealed record CertificateState(string Label, Tone Tone, string Detail);
+/// <param name="Label">The state in a word.</param>
+/// <param name="Tone">Its tone.</param>
+/// <param name="Detail">What it means, for a tooltip.</param>
+/// <param name="CertificateId">The certificate the state is about (the bound one, or the one that ends soonest of those covering the names); null when none is.</param>
+public sealed record CertificateState(string Label, Tone Tone, string Detail, CertificateId? CertificateId = null);
 
 /// <summary>One line of where a host's requests go, as the hosts list shows it: a route to an upstream and its address, or a redirect.</summary>
 /// <param name="Path">The route's path (<c>/api</c>, <c>= /exact</c>); null for a host without routes.</param>
 /// <param name="Label">The upstream's name, the redirect target, the fixed status.</param>
 /// <param name="Detail">The upstream's address (the first destination, and how many more), in monospace.</param>
 /// <param name="Missing">The route's upstream isn't in the config.</param>
-public sealed record HostDestination(string? Path, string Label, string? Detail, bool Missing = false);
+/// <param name="UpstreamId">The route's upstream, which the label names; null for a redirect, a fixed answer or an upstream that isn't there.</param>
+public sealed record HostDestination(string? Path, string Label, string? Detail, bool Missing = false, UpstreamId? UpstreamId = null);
 
 /// <summary>One row of the hosts list.</summary>
 /// <param name="Host">The host as stored.</param>
@@ -160,7 +165,7 @@ public static class HostOverview
                     return new CertificateState("Missing", Tone.Error, "The certificate this host is bound to isn't in the inventory; the default one is served.");
                 }
 
-                return Judge(bound, now, $"Bound to {CertificateTitle(bound)}.");
+                return Judge(bound, now, $"Bound to {CertificateTitle(bound)}.") with { CertificateId = bound.Id };
             default:
                 if (host.Kind == HostKind.Admin && host.Names.Count == 0)
                 {
@@ -187,7 +192,7 @@ public static class HostOverview
                 }
 
                 var soonest = covering.OrderBy(c => c!.NotAfter).First()!;
-                return Judge(soonest, now, $"Covered by {CertificateTitle(soonest)}.");
+                return Judge(soonest, now, $"Covered by {CertificateTitle(soonest)}.") with { CertificateId = soonest.Id };
         }
     }
 
@@ -264,7 +269,7 @@ public static class HostOverview
                             var route = entry.Route;
                             var path = route.Match == RouteMatchKind.Exact ? $"= {route.Path}" : route.Path;
                             return document.Upstreams.FirstOrDefault(u => u.Id == route.UpstreamId) is { } upstream
-                                ? new HostDestination(path, upstream.Name, AddressOf(upstream))
+                                ? new HostDestination(path, upstream.Name, AddressOf(upstream), UpstreamId: upstream.Id)
                                 : new HostDestination(path, "missing upstream", null, Missing: true);
                         }),
                 ];

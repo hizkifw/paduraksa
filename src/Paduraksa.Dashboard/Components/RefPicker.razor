@@ -1,7 +1,8 @@
 @typeparam T
 @* A field that references another object: a select of what exists, and last a "New ..." choice that calls OnNew instead
    of changing the value, the caller stacking a drawer and setting the value when it hands one back. *@
-<MudSelect T="T" Value="@(_choosingNew ? NewValue : Value)" ValueChanged="OnChangedAsync" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+@{
+    RenderFragment select = @<MudSelect T="T" Value="@(_choosingNew ? NewValue : Value)" ValueChanged="OnChangedAsync" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
            ReadOnly="ReadOnly" Disabled="Disabled" HelperText="@HelperText" Error="Error" ErrorText="@ErrorText" ToStringFunc="Display" Class="@Class"
            Placeholder="@Placeholder" @attributes="Attributes">
     @ChildContent
@@ -11,7 +12,20 @@
             <span class="pdk-picker-new"><MudIcon Icon="@Icons.Material.Rounded.Add" Size="Size.Small" /> @NewLabel</span>
         </MudSelectItem>
     }
-</MudSelect>
+</MudSelect>;
+}
+@if (OpenHref is null)
+{
+    @select
+}
+else
+{
+    <div class="pdk-ref-picker">
+        @select
+        <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" Href="@OpenHref" aria-label="@(OpenLabel ?? "Open")" title="@(OpenLabel ?? "Open")"
+                       Class="pdk-ref-open" data-action="open-ref" />
+    </div>
+}
 
 @code {
     private bool _choosingNew;
@@ -49,6 +63,14 @@
 
     [Parameter]
     public string? Class { get; set; }
+
+    /// <summary>The chosen object's page: a small "open" button beside the select goes to it. Null (nothing chosen, or an object not saved yet) shows none.</summary>
+    [Parameter]
+    public string? OpenHref { get; set; }
+
+    /// <summary>What the open button says ("Open Strict API").</summary>
+    [Parameter]
+    public string? OpenLabel { get; set; }
 
     [Parameter]
     public Func<T?, string?>? ToStringFunc { get; set; }

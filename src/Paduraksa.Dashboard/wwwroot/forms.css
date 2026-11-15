@@ -663,3 +663,21 @@
     background: none;
     backdrop-filter: none;
 }
+
+/* A picker with an "open" button beside it, for the object it has chosen. */
+.pdk-ref-picker {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
+}
+
+.pdk-ref-picker > .mud-input-control {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pdk-ref-picker > .pdk-ref-open {
+    flex: none;
+    margin-top: 2px;
+}

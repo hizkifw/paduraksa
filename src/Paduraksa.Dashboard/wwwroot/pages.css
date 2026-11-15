@@ -388,6 +388,17 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     color: var(--mud-palette-primary);
 }
 
+/* A status chip that is a link: the chip keeps its own colours, and its outline says it can be opened. */
+a.pdk-chip-link {
+    display: inline-flex;
+    max-width: 100%;
+    font-weight: inherit;
+}
+
+a.pdk-chip-link:hover .pdk-chip, a.pdk-chip-link:focus-visible .pdk-chip {
+    outline: 1px solid currentColor;
+}
+
 .pdk-row-link:focus-visible {
     border-radius: 4px;
     outline: 2px solid var(--mud-palette-primary);

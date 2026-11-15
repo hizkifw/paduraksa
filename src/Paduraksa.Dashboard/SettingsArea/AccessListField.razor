@@ -5,7 +5,8 @@
    list is Enabled true with its ID. A list is never shown by ID. *@
 <RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
            ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New access list..." OnNew="@OnNew"
-           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field"
+           OpenHref="@OpenHref" OpenLabel="@OpenLabel">
     <MudSelectItem T="string" Value="@InheritChoice">
         <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
     </MudSelectItem>
@@ -94,6 +95,11 @@
     /// <summary>The list this layer names that the document doesn't have; it gets an option of its own so the select still says so.</summary>
     private AccessListId? Missing =>
         Value?.AccessListId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    /// <summary>The chosen list's page; none for a list staged in this drawer (it has no page yet), or when no list is chosen.</summary>
+    private string? OpenHref => Value is { Enabled: not false, AccessListId: { IsEmpty: false } id } && IndexOf(id) >= 0 && !Staged.Contains(id) ? DashboardRoutes.AccessList(id) : null;
+
+    private string? OpenLabel => Value?.AccessListId is { IsEmpty: false } id && IndexOf(id) >= 0 ? $"Open {Lists[IndexOf(id)].Name}" : null;
 
     private string Choice => Value switch
     {

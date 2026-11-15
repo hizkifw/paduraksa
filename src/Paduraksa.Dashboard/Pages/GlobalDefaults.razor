@@ -96,15 +96,22 @@ else
                     }
                     else
                     {
-                        <MudSelect T="CertificateId?" Value="_model.DefaultCertificateId" ValueChanged="@(value => Set(() => _model.DefaultCertificateId = value, "/defaultCertificateId"))"
-                                   Label="Default certificate" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite" ToStringFunc="CertificateName"
-                                   Class="pdk-setting-control" Error="@(E("/defaultCertificateId") is not null)" ErrorText="@E("/defaultCertificateId")" data-field="default-certificate">
-                            <MudSelectItem T="CertificateId?" Value="null">None</MudSelectItem>
-                            @foreach (var certificate in _certificates.Where(c => HostOverview.IsUsable(c) || c.Id == _model.DefaultCertificateId))
+                        <div class="pdk-ref-picker pdk-setting-control">
+                            <MudSelect T="CertificateId?" Value="_model.DefaultCertificateId" ValueChanged="@(value => Set(() => _model.DefaultCertificateId = value, "/defaultCertificateId"))"
+                                       Label="Default certificate" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite" ToStringFunc="CertificateName"
+                                       Error="@(E("/defaultCertificateId") is not null)" ErrorText="@E("/defaultCertificateId")" data-field="default-certificate">
+                                <MudSelectItem T="CertificateId?" Value="null">None</MudSelectItem>
+                                @foreach (var certificate in _certificates.Where(c => HostOverview.IsUsable(c) || c.Id == _model.DefaultCertificateId))
+                                {
+                                    <MudSelectItem T="CertificateId?" Value="certificate.Id">@CertificateName(certificate.Id)</MudSelectItem>
+                                }
+                            </MudSelect>
+                            @if (_model.DefaultCertificateId is { } defaultCertificate && _certificates.Any(c => c.Id == defaultCertificate))
                             {
-                                <MudSelectItem T="CertificateId?" Value="certificate.Id">@CertificateName(certificate.Id)</MudSelectItem>
+                                <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" Href="@DashboardRoutes.Certificate(defaultCertificate)"
+                                               aria-label="Open the default certificate" title="Open the default certificate" Class="pdk-ref-open" data-action="open-ref" />
                             }
-                        </MudSelect>
+                        </div>
                     }
                 </div>
             </div>

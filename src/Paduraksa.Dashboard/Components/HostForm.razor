@@ -247,7 +247,8 @@
     <FormSection Title="Certificate" Name="certificate">
         <RefPicker T="string" Value="CertificateChoice" ValueChanged="SetCertificateChoiceAsync" Label="Certificate" ReadOnly="ReadOnly" ToStringFunc="CertificateChoiceText"
                    NewValue="NewCertificateValue" NewLabel="New certificate..." OnNew="OnNewCertificate"
-                   HelperText="@CertificateHelp" Error="@(CertificateError is not null)" ErrorText="@CertificateError" data-field="certificate">
+                   HelperText="@CertificateHelp" Error="@(CertificateError is not null)" ErrorText="@CertificateError" data-field="certificate"
+                   OpenHref="@CertificateHref" OpenLabel="Open the certificate">
             <MudSelectItem T="string" Value="AutoChoice">
                 <span class="pdk-picker-item"><span>Automatic</span><span class="pdk-picker-hint">one that covers the hostnames</span></span>
             </MudSelectItem>
@@ -285,6 +286,8 @@
                 </div>
                 <RefPicker T="ProfileId?" Value="Model.ProfileId" ValueChanged="@(value => SetAsync(() => Model.ProfileId = value, "/profileId"))" Label="Profile"
                            ReadOnly="ReadOnly" ToStringFunc="ProfileName" NewValue="NewProfileValue" NewLabel="New profile..." OnNew="OnNewProfile" Class="pdk-setting-control"
+                           OpenHref="@(Model.ProfileId is { } profileId && !StagedProfiles.Contains(profileId) && Profiles.Any(p => p.Id == profileId) ? DashboardRoutes.Profile(profileId) : null)"
+                           OpenLabel="Open the profile"
                            HelperText="@(Profiles.Count == 0 ? "None yet: the global defaults apply." : null)"
                            Error="@(E("/profileId") is not null)" ErrorText="@E("/profileId")" data-field="profile">
                     <MudSelectItem T="ProfileId?" Value="null">No profile</MudSelectItem>
@@ -501,6 +504,10 @@
         Certificates is null ? [] : [.. Certificates.Where(c => HostOverview.IsUsable(c) || c.Id == Model.CertificateId).OrderBy(c => HostOverview.CertificateTitle(c), StringComparer.Ordinal)];
 
     private string? TagError => FirstUnder("/tags");
+
+    /// <summary>The bound certificate's drawer; none for Automatic or None, or for a certificate that isn't in the inventory.</summary>
+    private string? CertificateHref =>
+        Model.CertificateMode == CertificateBindingMode.Specific && Model.CertificateId is { } id && Certificates?.Any(c => c.Id == id) == true ? DashboardRoutes.Certificate(id) : null;
 
     private static string CertificateKey(CertificateId id) => $"cert:{id}";
 
