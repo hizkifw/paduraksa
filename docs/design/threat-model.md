@@ -33,7 +33,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
 
 | Asset | Where it lives | Why it matters | Confidentiality / integrity / availability |
 |---|---|---|---|
-| **TLS private keys** (ACME, uploaded, self-signed, local CA root and leaves, upstream mTLS client certs) | `vault.db`, sealed per row ([vault-and-certificates.md, The public surface](vault-and-certificates.md#the-public-surface), [vault-and-certificates.md, At-rest encryption](vault-and-certificates.md#at-rest-encryption)) | Impersonate every proxied name; the local CA root, if its root was installed on devices, can mint a certificate for **any** name those devices trust unless the operator limited it to chosen names (a root is unlimited by default) | C and I |
+| **TLS private keys** (ACME, uploaded, self-signed, local CA root and leaves, upstream mTLS client certs) | `vault.db`, sealed per row ([vault-and-certificates.md, The public surface](vault-and-certificates.md#the-public-surface), [vault-and-certificates.md, At-rest encryption](vault-and-certificates.md#at-rest-encryption)) | Impersonate every proxied name. If devices have installed the local CA root, it can mint a certificate for **any** name they trust, unless the operator limited it to chosen names (a root is unlimited by default) | C and I |
 | **ACME account keys, EAB HMAC keys** | `vault.db` | Order or revoke certificates for the owner's domains | C and I |
 | **DNS provider credentials** (Cloudflare, deSEC) | `vault.db`, `DnsApiToken` secrets | Edit DNS for the owner's zones: hijack a domain, get certificates | C |
 | **Notification secrets** (webhook URLs, tokens, SMTP password, signing keys) | `vault.db` | Spoof or read alerts; webhook URLs are bearer secrets | C |
@@ -204,7 +204,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
   - two-step writes (a dry run, or 428, unless `confirm: true`);
   - the API's own permission filters still run.
 
-  What the policy treats as a read (a GET, `ReadOnlyPosts`) must write nothing in any state. Until 2026-11-14 a read, review or simulation of an expired draft deleted it. They now answer 410 `draft.expired`, and only the expiry job, a discard or a new draft removes one.
+  What the policy treats as a read (a GET, `ReadOnlyPosts`) must write nothing in any state. Until 2026-11-14 a read, review or simulation of an expired draft deleted it. These calls now answer 410 `draft.expired`, and only the expiry job, a discard or a new draft removes one.
 
   A guard test fails when a sensitive-looking operation is on neither the refused nor the reviewed list (`McpRequestPolicyApiTests`). A fuzz target (`mcp-sandbox`) feeds the parent's protocol arbitrary bytes as the child's output.
 
@@ -356,7 +356,7 @@ permission metadata and a test checks every mapped `/api/*` endpoint declares on
 ### 4.3 A stolen API token (by scope)
 
 - *Built:* secret shown once, stored as SHA-256, checked on every request; optional expiry; revocable by its owner or by an Owner
-  (`tokens:all`); scopes are an intersection with the owner's live permissions; **a token cannot create, list or revoke
+  (`tokens:all`); a token's permissions are the intersection of its scopes and the owner's live permissions; **a token cannot create, list or revoke
   tokens or sessions** (so a leaked token cannot extend its own life or end the session watching it), cannot change users,
   passwords or second factors, and a backup needs `backup:create` which only an Owner's token can hold. CSRF does not apply to
   bearer requests, which is correct because a bearer token is not ambient. Every token-made change is audited with the token as
@@ -369,7 +369,7 @@ permission metadata and a test checks every mapped `/api/*` endpoint declares on
 | `config:write` | Everything an Operator can do (4.2), including taking the site down or exposing internal services. Reversible through revisions and rollback, and visible in History and Audit. |
 | `certificates:write` | Upload or replace certificates, order ACME certificates, issue from the local CA. Can serve a different certificate for a name; cannot read keys. |
 | `providers:write` | Replace DNS credentials, create notification channels pointing at any address (SSRF accepted, B6), change ACME accounts. |
-| `backup:create` | A passphrase-encrypted archive of everything. Useless without the passphrase the thief chooses to supply, but **the thief chooses it**: they hold a copy of every secret under a passphrase they know. The API call takes the passphrase in its body. Treat this scope as equal to Owner. |
+| `backup:create` | A passphrase-encrypted archive of everything. Useless without the passphrase, but **the thief chooses it**: they hold a copy of every secret under a passphrase they know. The API call takes the passphrase in its body. Treat this scope as equal to Owner. |
 
 - Tokens are bearer secrets: on the admin port the only protection in transit is TLS from the local CA, whose root the client
   must trust.
@@ -510,7 +510,7 @@ The gaps fixed before it (G1 to G5, G7 to G9, G13 and G14) are no longer listed,
 |---|---|---|---|---|
 | G6 | **Low** | **The audit chain is tamper-evident only against partial edits.** The hash is an unkeyed SHA-256 chain in the same database; anyone who can write `paduraksa.db` can rewrite the whole chain and the verifier will pass. There is no external anchor. | `src/Paduraksa.Application/Audit/AuditChain.cs`; `AuditQueryService.VerifyAsync` returns the head hash | Document honestly (done here); suggest an HMAC with a vault MAC key and/or sending the head hash periodically to a notification channel, or an export the operator stores off-box. |
 | G10 | **Low** | **A new host is unprotected until the operator opts in.** [dashboard.md, First-run setup](dashboard.md#first-run-setup) planned a security preset (Off / Balanced / Strict) in the wizard; the wizard and the presets were not built. Built-in defaults (`HostSettingsLayers.cs`): force-HTTPS off, HSTS off, PoW off, no rate-limit policy, access list or rule set until one is named, TLS 1.2 minimum, 100 MiB body limit. | [dashboard.md, First-run setup](dashboard.md#first-run-setup) "Owner decision: no wizard"; `src/Paduraksa.Application/Compilation/HostSettingsLayers.cs:28-60` | A "Balanced" preset in the global defaults (sane rate limit, the built-in rule-set presets, request limits) and a checklist item. At least say so in [Access control and WAF](../guide/security.md). |
-| G11 | **Low** | **The local CA root is unlimited by default.** A leaked vault means a CA that devices which trusted the root accept for any name, for ten years. A root can be rotated (the old key is destroyed in the same step) and a new root can be limited to chosen domains and networks, which a client then enforces; the owner chose unlimited as the default so a first-run root never refuses a name the operator uses. | [vault-and-certificates.md, Local CA name constraints and root rotation](vault-and-certificates.md#local-ca-name-constraints-and-root-rotation) "As built: local CA name constraints and root rotation" | Closed in part: the controls exist and are opt-in. Re-evaluate the default if the trust-the-root card is seen to be installed on devices outside the operator's control. |
+| G11 | **Low** | **The local CA root is unlimited by default.** A leaked vault gives an attacker a CA that every device that trusted the root accepts for any name, for ten years. A root can be rotated (the old key is destroyed in the same step) and a new root can be limited to chosen domains and networks, which a client then enforces; the owner chose unlimited as the default so a first-run root never refuses a name the operator uses. | [vault-and-certificates.md, Local CA name constraints and root rotation](vault-and-certificates.md#local-ca-name-constraints-and-root-rotation) "As built: local CA name constraints and root rotation" | Closed in part: the controls exist and are opt-in. Re-evaluate the default if the trust-the-root card is seen to be installed on devices outside the operator's control. |
 | G12 | **Low** (open) | **Fuzz and property coverage gaps already admitted in [testing.md, Security](testing.md#security) remain**: the rate-limit table and the PoW page have no property test, and the ACME response parser, multipart parsing and the dashboard have no fuzz target. The release-length run on the existing sixteen targets is done (two hours each, no crash). | [testing.md, Gaps](testing.md#gaps) and [Fuzzing](testing.md#fuzzing) "Left out" | Add the targets. |
 
 Things that were checked and **agree** with PLAN (spot checks, *code*): the key-material ban list and its wiring; session and
