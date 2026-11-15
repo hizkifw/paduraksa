@@ -100,7 +100,7 @@ internal static class BackupCommands
 
     private static Option<string> PassphraseFileOption() => new("--passphrase-file")
     {
-        Description = "A file holding the passphrase (its last line break is dropped), or - for standard input. Otherwise PADURAKSA_BACKUP_PASSPHRASE, otherwise a prompt. Never pass the passphrase on the command line.",
+        Description = "A file holding the passphrase (its last line break is dropped), or - for standard input. Without it, PADURAKSA_BACKUP_PASSPHRASE is used, or a prompt. Never pass the passphrase on the command line.",
     };
 
     private static PassphraseInput Input(string? file) =>
