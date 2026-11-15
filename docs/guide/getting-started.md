@@ -17,8 +17,14 @@ Put [`deploy/compose.yaml`](https://github.com/hizkifw/paduraksa/blob/main/deplo
 
 ```sh
 mkdir paduraksa && cd paduraksa
+
+# Download the compose file
 curl -fsSLO https://raw.githubusercontent.com/hizkifw/paduraksa/main/deploy/compose.yaml
+
+# Create the master key
 head -c 32 /dev/urandom | base64 | sudo install -m 400 -o 10001 -g 10001 /dev/stdin master.key
+
+# Start Paduraksa
 docker compose up -d
 ```
 

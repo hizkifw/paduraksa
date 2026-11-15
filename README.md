@@ -23,10 +23,18 @@ With Docker and Compose v2:
 
 ```sh
 mkdir paduraksa && cd paduraksa
+
+# Download the compose file
 curl -fsSLO https://raw.githubusercontent.com/hizkifw/paduraksa/main/deploy/compose.yaml
-head -c 32 /dev/urandom | base64 | sudo install -m 400 -o 10001 -g 10001 /dev/stdin master.key   # the vault's master key, a Docker secret
+
+# Create the master key
+head -c 32 /dev/urandom | base64 | sudo install -m 400 -o 10001 -g 10001 /dev/stdin master.key
+
+# Start Paduraksa
 docker compose up -d
-docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"   # the one-time setup token
+
+# Print the one-time setup token
+docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"
 ```
 
 Keep a copy of `master.key` somewhere other than this machine: nothing else opens the vault. Then open `https://localhost:9443/` on the
