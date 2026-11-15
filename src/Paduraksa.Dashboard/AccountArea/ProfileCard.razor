@@ -25,12 +25,17 @@
     </div>
 
     <form class="pdk-field-grid mt-4" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" novalidate>
-        <MudTextField T="string" Value="User.Username" Label="Username" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input"
-                      HelperText="Your sign-in name. It can't be changed." data-field="username" />
-        <MudTextField T="string" @bind-Value="_displayName" Label="Display name" ReadOnly="!MayEdit" Variant="Variant.Outlined" Margin="Margin.Dense"
-                      MaxLength="UserService.MaxDisplayNameLength" Immediate="true"
-                      HelperText="@(MayEdit ? "Shown in the top bar and the history." : "Shown in the top bar and the history. An Owner can change it.")"
-                      Error="@(_attempted && string.IsNullOrWhiteSpace(_displayName))" ErrorText="A display name can't be empty." data-field="display-name" />
+        <ReadOnlyField Field="username" Label="Username" Value="@User.Username" Mono="true" />
+        @if (MayEdit)
+        {
+            <MudTextField T="string" @bind-Value="_displayName" Label="Display name" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          MaxLength="UserService.MaxDisplayNameLength" Immediate="true" HelperText="Shown in the top bar and the history."
+                          Error="@(_attempted && string.IsNullOrWhiteSpace(_displayName))" ErrorText="A display name can't be empty." data-field="display-name" />
+        }
+        else
+        {
+            <ReadOnlyField Field="display-name" Label="Display name" Value="@User.DisplayName" Note="An Owner can change it." />
+        }
         @if (MayEdit)
         {
             <div class="pdk-span-2 pdk-form-actions">

@@ -91,9 +91,8 @@ else
                     </div>
                     @if (_certificates is null)
                     {
-                        <MudTextField T="string" Value="@(_model.DefaultCertificateId?.ToString() ?? "None")" Label="Default certificate" ReadOnly="true"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-setting-control pdk-mono-input"
-                                      HelperText="Your role can't read the certificates." />
+                        <ReadOnlyField Field="default-certificate" Label="Default certificate" Value="@(_model.DefaultCertificateId?.ToString() ?? "None")" Mono="true"
+                                       Note="Your role can't read the certificates." Class="pdk-setting-control" />
                     }
                     else
                     {

@@ -22,13 +22,20 @@
     </Banner>
     <ChildContent>
         <div class="pdk-form" data-form="user">
-            <FormSection Title="Who" Description="@(IsNew ? null : "Their username can't be changed.")" Name="who">
+            <FormSection Title="Who" Name="who">
                 <div class="pdk-field-grid">
-                    <MudTextField T="string" Value="_username" ValueChanged="SetUsername" Label="Username" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!IsNew"
-                                  Immediate="true" AutoFocus="IsNew" Class="pdk-mono-input" spellcheck="false" autocomplete="off"
-                                  HelperText="@(IsNew ? "3 to 64 letters, digits and . _ - @ +" : null)"
-                                  Error="@(IsNew && Shown("username") && UsernameError is not null)" ErrorText="@UsernameError"
-                                  OnBlur="@(() => Touch("username"))" data-field="username" />
+                    @if (IsNew)
+                    {
+                        <MudTextField T="string" Value="_username" ValueChanged="SetUsername" Label="Username" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Immediate="true" AutoFocus="true" Class="pdk-mono-input" spellcheck="false" autocomplete="off"
+                                      HelperText="@("3 to 64 letters, digits and . _ - @ +")"
+                                      Error="@(Shown("username") && UsernameError is not null)" ErrorText="@UsernameError"
+                                      OnBlur="@(() => Touch("username"))" data-field="username" />
+                    }
+                    else
+                    {
+                        <ReadOnlyField Field="username" Label="Username" Value="@_username" Mono="true" />
+                    }
                     <MudTextField T="string" Value="_displayName" ValueChanged="SetDisplayName" Label="Display name" Placeholder="@_username" Variant="Variant.Outlined"
                                   Margin="Margin.Dense" MaxLength="UserService.MaxDisplayNameLength" Immediate="true" AutoFocus="!IsNew" data-field="display-name" />
                     @if (IsNew)

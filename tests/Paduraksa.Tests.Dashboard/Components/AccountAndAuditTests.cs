@@ -121,7 +121,11 @@ public sealed class AccountAndAuditTests
         Assert.Contains("Safari on iOS", page.Find("[data-current=false]").TextContent, StringComparison.Ordinal);
         Assert.Empty(page.Find("[data-current=true]").QuerySelectorAll("[data-action=revoke-session]"));
         Assert.Contains("Member since", page.Find("[data-card=profile]").TextContent, StringComparison.Ordinal);
-        Assert.True(page.Find("input[data-field=username]").HasAttribute("readonly"));
+        // A viewer can't change the display name either: both are labelled values, not boxes that look editable.
+        Assert.Empty(page.FindAll("[data-card=profile] input"));
+        Assert.Equal("Username", page.Find("[data-card=profile] [data-readonly=username] .pdk-readonly-label").TextContent);
+        Assert.Equal(user.Username, page.Find("[data-card=profile] [data-readonly=username] [data-part=value]").TextContent);
+        Assert.Equal(user.DisplayName, page.Find("[data-card=profile] [data-readonly=display-name] [data-part=value]").TextContent);
         Assert.Equal("off", page.Find("[data-card=two-factor]").GetAttribute("data-state"));
 
         // The click waits for the dialog's answer, so it isn't awaited here.
@@ -132,6 +136,22 @@ public sealed class AccountAndAuditTests
 
         await page.WaitForStateAsync(() => page.FindAll("[data-session]").Count == 1);
         Assert.Contains($"revoke {other}", identity.Calls);
+    }
+
+    [Fact]
+    public async Task MyAccount_AnOwnerEditsTheDisplayNameAndSeesTheUsernameAsALabelledValue()
+    {
+        await using DashboardTestContext context = new();
+        var (_, _, _, user) = IdentityPages.SignIn(context, Role.Owner);
+        context.Render<MudPopoverProvider>();
+
+        var page = context.Render<MyAccount>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-card=profile]").Count == 1);
+
+        Assert.Equal(user.Username, page.Find("[data-card=profile] [data-readonly=username] [data-part=value]").TextContent);
+        Assert.Empty(page.FindAll("[data-card=profile] input[data-field=username]"));
+        Assert.Empty(page.FindAll("[data-card=profile] [data-readonly=display-name]"));
+        Assert.False(page.Find("[data-card=profile] input[data-field=display-name]").HasAttribute("readonly"));
     }
 
     [Fact]

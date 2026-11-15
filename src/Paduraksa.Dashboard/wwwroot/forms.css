@@ -370,6 +370,39 @@
     align-items: start;
 }
 
+/* A fixed value in a grid of fields: as tall as a dense outlined field (and offset the way MudBlazor offsets one), with no box. */
+.pdk-readonly {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 40px;
+    margin: 6px 0 2px;
+    padding: 0 14px;
+    min-width: 0;
+}
+
+.pdk-readonly-label {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-readonly-value {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.pdk-readonly-value.pdk-mono {
+    font-size: 0.8125rem;
+}
+
+.pdk-readonly-note {
+    margin-top: 2px;
+    font-size: 0.75rem;
+    color: var(--mud-palette-text-secondary);
+}
+
 .pdk-field-grid-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: 4px 0 8px 48px;

@@ -1,0 +1,38 @@
+@* A value the person can see but never change (a sign-in name, a fixed identifier): a label over the value with no box, so it doesn't
+   pass for an input. It takes the height of a dense outlined field and sits in the same grid cell, so the row stays aligned. *@
+<div class="@("pdk-readonly" + (Class is null ? null : " " + Class))" data-readonly="@Field" @attributes="AdditionalAttributes">
+    <span class="pdk-readonly-label" id="@LabelId">@Label</span>
+    <span class="@("pdk-readonly-value" + (Mono ? " pdk-mono" : null))" role="textbox" aria-readonly="true" aria-labelledby="@LabelId" data-part="value">@Value</span>
+    @if (Note is not null)
+    {
+        <span class="pdk-readonly-note" data-part="note">@Note</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    /// <summary>The field's key, like a text field's <c>data-field</c>, which tests and the E2E selectors find it by.</summary>
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+
+    /// <summary>Identifiers and names a machine reads are monospace, as in the input boxes they replace.</summary>
+    [Parameter]
+    public bool Mono { get; set; }
+
+    /// <summary>Only for what the value alone doesn't say (why it is an ID and not a name).</summary>
+    [Parameter]
+    public string? Note { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string LabelId => $"pdk-readonly-{Field}";
+}
