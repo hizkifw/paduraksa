@@ -1,12 +1,26 @@
 # Identity, authentication and authorization
 
-Two separate domains: who may use the admin surfaces (dashboard, API, MCP, CLI), and who may reach a proxied host. This page covers the identity tables and their rules, the admin sign-in pipeline, roles and permissions, and the notes on proxied-host auth. The forward-auth and access-list mechanics are in [waf.md](waf.md), and the admin certificate and the internal listener are in [hosting.md](hosting.md).
+For contributors: who may use the admin surfaces, who may reach a proxied host, and the rules that protect both.
 
-Contents:
+## In short
+
+- Two separate domains: admin identity (dashboard, API, MCP, CLI) and proxied-host auth. The forward-auth and access-list mechanics are in [waf.md](waf.md).
+- Admin users are local: a password (PBKDF2-SHA-512, 210 000 iterations by default), TOTP, recovery codes. Passkeys and OIDC are not built.
+- Roles are permission sets: Owner, Admin, Operator, Viewer, Auditor. **Operator is effectively a trusted role**, because `config:write` can reach internal addresses and edit credentials (threat model G5).
+- One permission check, `IPermissionEvaluator`, serves every surface. There is no allow-everything default.
+- API tokens (`pdk_...`) carry scopes, and their effective permissions are the intersection with the owner's current ones, evaluated on every use. A token cannot manage tokens or sessions.
+- Sessions are opaque cookies (only the SHA-256 is stored), with absolute and idle expiry.
+- Lockout counts an attempt before evaluating it, in one `BEGIN IMMEDIATE` transaction, so parallel guesses cannot outrun it. A lockout at the password stage ends no session, so a known username cannot be used to sign the owner out.
+- Login, second factor and setup are rate limited, and password derivation runs in a bounded number of slots.
+- A credential that is presented and wrong is a 401, never an anonymous request.
+- Code: `Paduraksa.Admin` (`AddPaduraksaAdminAuth`, `UsePaduraksaAdminAuth`, `MapPaduraksaIdentityApi`), `IPermissionEvaluator`, `SessionService`, `ApiTokenService`.
+
+## Contents
+
 - [Identity entities](#identity-entities)
-- [Identity core (M4)](#identity-core-m4)
+- [Identity core](#identity-core)
 - [Admin auth](#admin-auth)
-- [The admin pipeline (M4)](#the-admin-pipeline-m4)
+- [The admin pipeline](#the-admin-pipeline)
 - [Proxied-host auth](#proxied-host-auth)
 
 ## Identity entities
@@ -14,17 +28,17 @@ Contents:
 | Entity | Notes |
 |---|---|
 | `User` (`usr_`) | Username, display name, password hash (ASP.NET `PasswordHasher` v3 PBKDF2-SHA512 or Argon2id), TOTP secret **ref** (vault), lockout, disabled |
-| `Passkey` (`pk_`) | WebAuthn credentials (public keys only, so these live in the config DB). Built on .NET 10 passkey primitives. |
+| `Passkey` (`pk_`) | WebAuthn credentials (public keys only, so these live in the config DB). Not built. |
 | `RoleAssignment` | User to role (Owner, Admin, Operator, Viewer, Auditor), scope = global (per-tag scopes later) |
 | `ApiToken` (`tok_`) | Owner, scopes (`hosts:read`, `hosts:write`, `certs:*`, `mcp`, ...), expiry, last used, hash |
 | `Session` (`ses_`) | Hash, user, IP, UA, created and last seen, revocable from the UI |
-| `ExternalLogin` | OIDC subject to user (later) |
+| `ExternalLogin` | OIDC subject to user. Not built. |
 | `ConfigRevision` (`rev_`) | `Seq` (display number "#42"), parent rev, author, channel, message, `Document` (canonical config, Brotli-compressed), SHA-256, summary of changed objects |
 | `AuditEvent` (`aud_`, Int64Ordered) | Timestamp, actor (user, token or system), channel (dashboard, api, mcp, cli, system), action, target typed-ID string, outcome, IP, details JSON, **hash chain** (`prevHash`, `hash`) for tamper evidence |
 
-## Identity core (M4)
+## Identity core
 
-**Tables.** `Users`, `RoleAssignments`, `ApiTokens`, `Sessions` and `RecoveryCodes` (config DB, migration `Identity`). Passkeys are deferred to M5.
+**Tables.** `Users`, `RoleAssignments`, `ApiTokens`, `Sessions` and `RecoveryCodes` (config DB, migration `Identity`).
 
 ### Usernames and passwords
 
@@ -87,21 +101,14 @@ After `MaxFailedAttempts` consecutive failures (password, second factor, or a wr
 ## Admin auth
 
 **Credentials (dashboard, API, MCP):**
-- Local users: password, **TOTP** and **passkeys** (WebAuthn). ASP.NET Core 10's passkey support ships inside **Identity**, which we do not use. M4 included a short check of whether its WebAuthn primitives work standalone; otherwise the plan is **Fido2NetLib**. Budget for the latter.
-- Lockout and rate limiting on login. Session list with revoke.
+- Local users with a password and TOTP, lockout and rate limiting on login, and a session list with revoke.
+- Passkeys (WebAuthn) are planned. ASP.NET Core 10's passkey support ships inside **Identity**, which we do not use, so the choice is its primitives used standalone, or **Fido2NetLib**. Budget for the latter.
 
-**Roles:**
-- **Owner:** users, vault, everything.
-- **Admin:** all config.
-- **Operator:** all of the config and the certificates. `config:write` lets an Operator route to any internal address, set a forward-auth endpoint the gate calls, change trusted proxies and edit access-list credentials. Operator is therefore effectively a trusted role, not a restricted one. No users, vault, audit log or backups (threat model G5).
-- **Viewer:** read-only.
-- **Auditor:** audit log plus read-only.
-
-They are implemented as permission sets, so custom roles can be added later.
+**Roles** are the table under [Identity core](#roles-and-permissions), implemented as permission sets so custom roles can be added later. **Operator is effectively a trusted role, not a restricted one.** `config:write` lets an Operator route to any internal address, set a forward-auth endpoint the gate calls, change trusted proxies and edit access-list credentials. An Operator has no users, vault, audit log or backups (threat model G5).
 
 **API.** Bearer `pdk_...` tokens with scopes and expiry. MCP uses the same tokens: a bearer token and nothing else, on the `mcp` channel (see [admin-surfaces.md](admin-surfaces.md)). Read-only is the safe default and the dashboard offers read scopes first. The MCP authorization spec (OAuth) is considered later.
 
-**Pluggable providers.** `IAdminAuthProvider`: Local (v1), OIDC (authentik, Keycloak, Pocket-ID: claim-to-role mapping, JIT provisioning) and trusted-header (when the admin itself sits behind forward-auth).
+**Pluggable providers.** `IAdminAuthProvider`: Local is built. OIDC (authentik, Keycloak, Pocket-ID: claim-to-role mapping, JIT provisioning) and trusted-header (when the admin itself sits behind forward-auth) are not.
 
 **Hard rule for trusted-header auth.**
 - It is accepted **only** on connections from the internal proxy listener (see [hosting.md](hosting.md)), from loopback, or from an explicitly configured CIDR.
@@ -111,7 +118,7 @@ They are implemented as permission sets, so custom roles can be added later.
 
 **Hardening.** Strict CSP, antiforgery, `SameSite=Strict` cookies, Data Protection keys in the vault, an optional admin IP allowlist, and every login and failure audited.
 
-### Permission evaluation (M4)
+### Permission evaluation
 
 One permission check answers every "may this origin do that": `IPermissionEvaluator` (registered by `AddPaduraksaIdentity`). The config service, the certificate, issuance and provider services, the simulator, the Admin endpoint filters and the dashboard's permission sets all use it.
 
@@ -141,11 +148,9 @@ Other rules:
 | Minimum password length | 8 to 128 |
 | PBKDF2 iterations | 100 000 to 10 000 000 |
 
-**Not built:** passkeys (M5), and the OIDC and trusted-header providers.
+## The admin pipeline
 
-## The admin pipeline (M4)
-
-Code: `Paduraksa.Admin` (`AddPaduraksaAdminAuth`, `UsePaduraksaAdminAuth`, `MapPaduraksaIdentityApi`). `AdminApp` only calls them.
+`AdminApp` only calls `AddPaduraksaAdminAuth`, `UsePaduraksaAdminAuth` and `MapPaduraksaIdentityApi`.
 
 **Order:** the loopback listener's host check, security headers, the setup gate, routing, request body limit, CSRF check, authentication, then the endpoints.
 
@@ -250,42 +255,26 @@ A connection stage before TLS (`AdminPlainHttpRedirect`) peeks at the first byte
   - A client that sends neither a ClientHello nor a complete head in ten seconds is dropped.
 - The search for the empty line that ends a head is incremental. Only the bytes that arrived since the last read are scanned, with a three-byte overlap for a terminator split across reads. A client that drips its head a byte at a time therefore costs linear work rather than a re-decode per byte. One that connects and leaves without a byte is closed silently instead of answered.
 - No endpoint, cookie or certificate is ever served over plain HTTP. The allowlist still refuses an untrusted source before a byte is read, and TLS on that port is untouched.
-- Tests: one redirects over plaintext and then completes an ordinary HTTPS request to the same listener. Another runs the stage over a pipe pair to check that the TLS middleware's first read returns the ClientHello without waiting for more.
+- Tests redirect over plaintext and then complete an ordinary HTTPS request on the same listener, and run the stage over a pipe pair to check that the TLS middleware's first read returns the ClientHello without waiting for more.
 
 ### The admin certificate and the root download
 
-The listener serves a leaf the process issues from the local CA and keeps current. The full description is in [hosting.md](hosting.md). In short:
-- the stable `AdminCertificate.Id`, source `local_ca`, label `Admin (internal CA)`;
-- names from `Paduraksa:Admin:CertificateNames` plus localhost, the loopback addresses, the machine's host name and a specific `Paduraksa:Listen:AdminBind`;
-- re-issued only when that set changes or a third or less of its lifetime is left, always under the same ID;
-- neither deletable nor re-issuable by hand (`certificate.managed`);
-- reserved for the admin port: left out of every inventory the compiler sees, and refused as a Specific binding or the default certificate;
-- served through the vault's `IServerCertificateSource` with a per-handshake selection callback (hot-swap, no restart);
-- ensured by a core-host service before the listeners bind, and re-checked daily;
-- falling back to the placeholder with an Error log only when the vault has nothing servable;
-- a `vault.db` lost under an intact config database is repaired on the next start.
-
-The root is downloadable for trust-once: `GET /api/v1/ca/root.pem`, `GET /api/v1/ca/root.crt` (`application/x-x509-ca-cert`) and `GET /api/v1/ca` (JSON), plus `HEAD`. They are anonymous and open during setup (the prefix is one of the setup gate's allowed ones), and serve the public root only, from the in-memory `CaRootSource`.
-
-`Paduraksa:Admin:CertificateNames` is validated at startup: DNS names and IP addresses, no wildcards or IPv6 zone ids, at most 95, so the certificate stays inside the vault's 100. Both numbers come from `CertificateLimits.MaxNames`.
-
-The startup log prints the admin URLs and the root fingerprint at Information while setup is incomplete, alongside the setup token's banner.
+The listener serves a leaf the process issues from the local CA and keeps current, and the root is downloadable for trust-once (`GET /api/v1/ca/root.pem`, `root.crt` and `GET /api/v1/ca`, anonymous and open during setup). [hosting.md](hosting.md#the-admin-certificate) has the whole design: names, re-issue, reservation, fallback and the lost-vault repair.
 
 ### Not built
 
-- Passkeys.
-- A login-throttle store that survives a restart. The windows are in memory; the lockout is in the database.
-- The internal listener and forwarded-header trust are built (see [hosting.md](hosting.md)).
+- Passkeys, OIDC and the trusted-header provider.
+- A login-throttle store that survives a restart. The windows are in memory, and the lockout is in the database.
 
 ## Proxied-host auth
 
 `AuthProvider` per host or route.
 
-- **Access lists:** IP allow/deny plus HTTP basic auth. Each user's password is a vault credential. The snapshot holds a handle on it, and the vault caches a verified check per credential and client address until five minutes after its last use. A check that finds no free slot waits in a bounded line. Built in M7 (see [waf.md](waf.md)).
+- **Access lists:** IP allow/deny plus HTTP basic auth. Each user's password is a vault credential. The snapshot holds a handle on it, and the vault caches a verified check per credential and client address until five minutes after its last use. A check that finds no free slot waits in a bounded line. See [waf.md](waf.md).
 - **Forward-auth** (authentik, Authelia, oauth2-proxy presets): a sub-request to the auth endpoint with the original method, URI and headers.
   - 2xx: copy the configured response headers upstream.
   - 401 or 302: relay to the client.
   - A short-TTL decision cache keyed by a hash of the session credentials keeps it cheap.
   - This path allocates (an outbound HTTP call), which is accepted and documented.
-  - Built in M7 (see [waf.md](waf.md)).
+  - See [waf.md](waf.md).
 - **Native OIDC per host** (later): Paduraksa as the relying party with a session cookie on the host's domain.
