@@ -96,7 +96,7 @@ internal static class NotificationEndpoints
         var result = await service.TestAsync(id, caller.Origin, ct).ConfigureAwait(false);
         return result switch
         {
-            { Denied: true } => ApiProblems.Problem(StatusCodes.Status403Forbidden, "You may not send test notifications.", code: ApiCodes.Auth.PermissionRequired),
+            { Denied: true } => ApiProblems.Problem(StatusCodes.Status403Forbidden, "You can't send test notifications.", code: ApiCodes.Auth.PermissionRequired),
             { Found: false } => ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such notification channel."),
             _ => EndpointSupport.Json(new NotificationTestOutcome(result.Delivered, result.Error), AdminJsonContext.Default.NotificationTestOutcome),
         };

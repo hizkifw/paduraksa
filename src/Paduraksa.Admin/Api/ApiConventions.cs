@@ -70,7 +70,7 @@ internal static class ApiBody
         ArgumentNullException.ThrowIfNull(typeInfo);
         if (!IsJson(http.Request.ContentType))
         {
-            return new(null, ApiProblems.Problem(StatusCodes.Status415UnsupportedMediaType, "Send the body as application/json (UTF-8)."));
+            return new(null, ApiProblems.Problem(StatusCodes.Status415UnsupportedMediaType, "The body must be application/json (UTF-8)."));
         }
 
         try
@@ -83,12 +83,12 @@ internal static class ApiBody
         catch (JsonException ex) when (ex.Message.Contains("'ipAllowList'", StringComparison.Ordinal))
         {
             // The one unknown member worth its own sentence: it was a setting, and the way to say it now is different.
-            return new(null, ApiProblems.Problem(StatusCodes.Status400BadRequest, "The request body sets 'ipAllowList', which access lists replaced: create an access list (POST /api/v1/access-lists) and name it from the 'accessList' setting of the host, route, profile or global defaults."));
+            return new(null, ApiProblems.Problem(StatusCodes.Status400BadRequest, "The request body sets 'ipAllowList', which access lists replaced. Create an access list (POST /api/v1/access-lists) and name it in the 'accessList' setting of the host, route, profile or global defaults."));
         }
         catch (JsonException ex) when (ex.Message.Contains("'passwordHash'", StringComparison.Ordinal))
         {
             // The other: a verifier can't be sent any more, because the config document no longer holds one.
-            return new(null, ApiProblems.Problem(StatusCodes.Status400BadRequest, "The request body sets 'passwordHash', which no longer exists: a user's password lives in the vault. Send the plain 'password' (the vault hashes it), or leave it out to keep the password the user has."));
+            return new(null, ApiProblems.Problem(StatusCodes.Status400BadRequest, "The request body sets 'passwordHash', which no longer exists, because a user's password lives in the vault. Send the plain 'password' (the vault hashes it), or leave it out to keep the user's current password."));
         }
         catch (JsonException ex)
         {
@@ -328,7 +328,7 @@ internal static class Pagination
         var cursors = ApiQueries.Cursor.Read(http);
         if (cursors.Count > 1)
         {
-            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "Give cursor once.");
+            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "cursor can be given only once.");
             return false;
         }
 

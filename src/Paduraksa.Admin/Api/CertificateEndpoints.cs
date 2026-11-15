@@ -139,7 +139,7 @@ internal static class CertificateEndpoints
         if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out var contentType)
             || !contentType.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase))
         {
-            return ApiProblems.Problem(StatusCodes.Status415UnsupportedMediaType, "Send the upload as multipart/form-data.");
+            return ApiProblems.Problem(StatusCodes.Status415UnsupportedMediaType, "The upload must be multipart/form-data.");
         }
 
         var boundary = HeaderUtilities.RemoveQuotes(contentType.Boundary).Value;
@@ -204,7 +204,7 @@ internal static class CertificateEndpoints
                 }
             }
 
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The upload has no 'file' part (and a password or label must come before it).");
+            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The upload has no 'file' part. A password or label must come before it.");
         }
         catch (InvalidDataException)
         {

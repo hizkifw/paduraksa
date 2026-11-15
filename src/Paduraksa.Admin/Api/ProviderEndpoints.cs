@@ -201,7 +201,7 @@ internal static class ProviderEndpoints
         var result = await providers.TestAsync(id, caller.Origin, ct).ConfigureAwait(false);
         return result switch
         {
-            { Denied: true } => ApiProblems.Problem(StatusCodes.Status403Forbidden, "You may not test DNS provider credentials.", code: ApiCodes.Auth.PermissionRequired),
+            { Denied: true } => ApiProblems.Problem(StatusCodes.Status403Forbidden, "You can't test DNS provider credentials.", code: ApiCodes.Auth.PermissionRequired),
             { Found: false } => ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such DNS provider."),
             _ => EndpointSupport.Json(new DnsProviderTestOutcome(result.Valid, result.Message), AdminJsonContext.Default.DnsProviderTestOutcome),
         };

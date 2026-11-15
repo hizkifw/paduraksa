@@ -81,7 +81,7 @@ internal sealed partial class ApiPipelineMiddleware(RequestDelegate next, ILogge
         StatusCodes.Status405MethodNotAllowed => "This resource doesn't support that method; see the Allow header.",
         StatusCodes.Status400BadRequest => "The request could not be understood: a parameter is missing or malformed.",
         StatusCodes.Status406NotAcceptable => "The API answers with application/json.",
-        StatusCodes.Status415UnsupportedMediaType => "Send the body as application/json (UTF-8).",
+        StatusCodes.Status415UnsupportedMediaType => "The body must be application/json (UTF-8).",
         _ => null,
     };
 

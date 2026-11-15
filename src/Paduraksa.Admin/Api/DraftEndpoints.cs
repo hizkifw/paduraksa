@@ -82,7 +82,7 @@ internal static class DraftEndpoints
                 return EndpointSupport.Json(result.Draft, AdminJsonContext.Default.ConfigDraft, StatusCodes.Status201Created);
             case DraftStatus.AlreadyOpen:
                 http.Response.Headers.Location = EndpointSupport.Path("drafts", result.Draft!.Id);
-                return ApiProblems.Problem(StatusCodes.Status409Conflict, "You have an open draft already (see Location): add to it, apply it or discard it.", code: ApiCodes.Draft.Exists);
+                return ApiProblems.Problem(StatusCodes.Status409Conflict, "You already have an open draft (see Location). Add to it, apply it or discard it.", code: ApiCodes.Draft.Exists);
             default:
                 return Problem(http, result);
         }
@@ -222,7 +222,7 @@ internal static class DraftEndpoints
     {
         DraftStatus.Denied => ApiProblems.Problem(StatusCodes.Status403Forbidden, "Drafts belong to a user: sign in, or use a token (it acts on its owner's draft). You also need the permission to change the config.", code: ApiCodes.Draft.NotAUser),
         DraftStatus.NoDraft => NoSuchDraft(),
-        DraftStatus.AlreadyOpen => ApiProblems.Problem(StatusCodes.Status409Conflict, "You have an open draft already.", code: ApiCodes.Draft.Exists),
+        DraftStatus.AlreadyOpen => ApiProblems.Problem(StatusCodes.Status409Conflict, "You already have an open draft.", code: ApiCodes.Draft.Exists),
         DraftStatus.ChangedSinceReview => ChangedSinceReview(http, result),
         DraftStatus.Blocked => ApiProblems.Problem(StatusCodes.Status409Conflict,
             "Some entries are changed elsewhere (or depend on one that is), and a draft is applied whole or not at all: nothing was committed. Remove them or reload them from the config as it is now, then review again.",

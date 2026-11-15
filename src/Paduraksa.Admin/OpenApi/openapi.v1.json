@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Paduraksa admin API",
-    "description": "The REST API of the Paduraksa admin app. Authenticate with an API token (Authorization: Bearer ...) or a signed-in session. Paths are kebab-case; JSON members are camelCase; IDs are typed strings (host_...); times are ISO 8601 in UTC; enums are strings. A create is POST to the collection: 201 with Location and the created object. A change is PUT or PATCH: 200 with the object. A delete is 204. Every collection takes limit and cursor and answers { items, nextCursor }. Every error is RFC 9457 problem details (application/problem+json) with a traceId. Config objects (hosts, routes, upstreams, profiles, the settings, ...) and rollbacks take optimistic concurrency: a read carries an ETag (an object's version, or the latest revision's ID), and a change sends it back as one quoted tag in If-Match. Without it the answer is 428; a stale or weak tag is 412 (the problem's conflict says what is current); an unquoted tag, a list or '*' is 400. Creating with POST needs none, and neither do the objects that carry no version (certificates, ACME accounts, DNS providers, notification channels, users). Changes to config objects also take ?dryRun=true, which returns the plan and commits nothing. A change that was stored but could not go live is 500 with code config.publishFailed, the stored revision and the new ETag. Each operation names the permission it needs (x-required-permission).",
+    "description": "The REST API of the Paduraksa admin app. Authenticate with an API token (Authorization: Bearer ...) or a signed-in session. Paths are kebab-case; JSON members are camelCase; IDs are typed strings (host_...); times are ISO 8601 in UTC; enums are strings. A create is POST to the collection: 201 with Location and the created object. A change is PUT or PATCH: 200 with the object. A delete is 204. Every collection takes limit and cursor and answers { items, nextCursor }. Every error is RFC 9457 problem details (application/problem+json) with a traceId. Config objects (hosts, routes, upstreams, profiles, the settings, ...) and rollbacks use optimistic concurrency: a read carries an ETag (an object's version, or the latest revision's ID), and a change sends it back as one quoted tag in If-Match. Without it the answer is 428, a stale or weak tag gets 412 (the problem's conflict says what is current), and an unquoted tag, a list or '*' gets 400. Creating with POST needs none, and neither do objects that carry no version (certificates, ACME accounts, DNS providers, notification channels, users). Changes to config objects also take ?dryRun=true, which returns the plan and commits nothing. If a change was stored but couldn't go live, the answer is 500 with code config.publishFailed, the stored revision and the new ETag. Each operation names the permission it needs (x-required-permission).",
     "version": "v1"
   },
   "servers": [
@@ -18,7 +18,7 @@
           "Identity"
         ],
         "summary": "Whether first-run setup is done",
-        "description": "Anonymous: it needs no credentials.",
+        "description": "Anonymous: no credentials needed.",
         "operationId": "GetSetupStatus",
         "responses": {
           "200": {
@@ -32,7 +32,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -49,7 +49,7 @@
           "Identity"
         ],
         "summary": "Complete first-run setup",
-        "description": "Creates the Owner with the setup token the server prints, and signs them in (the answer's session). Works once; later calls return 409 setup.complete.\n\nAnonymous: it needs no credentials.",
+        "description": "Creates the Owner with the setup token the server prints, and signs them in (the answer's session). Works once; later calls return 409 setup.complete.\n\nAnonymous: no credentials needed.",
         "operationId": "CompleteSetup",
         "requestBody": {
           "content": {
@@ -143,7 +143,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -162,7 +162,7 @@
           "Identity"
         ],
         "summary": "Sign in with a username and password",
-        "description": "Sets the session cookie. A user with a second factor gets an incomplete session (secondFactorRequired) that auth/second-factor completes. A refusal is always the same generic 401.\n\nAnonymous: it needs no credentials.",
+        "description": "Sets the session cookie. A user with a second factor gets an incomplete session (secondFactorRequired) that auth/second-factor completes. A refusal is always the same generic 401.\n\nAnonymous: no credentials needed.",
         "operationId": "Login",
         "requestBody": {
           "content": {
@@ -236,7 +236,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -255,7 +255,7 @@
           "Identity"
         ],
         "summary": "Finish signing in with a code",
-        "description": "Send either the authenticator's code or one recovery code.\n\nAnonymous: it needs no credentials.",
+        "description": "Send either the authenticator's code or one recovery code.\n\nAnonymous: no credentials needed.",
         "operationId": "CompleteSecondFactor",
         "requestBody": {
           "content": {
@@ -329,7 +329,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -348,14 +348,14 @@
           "Identity"
         ],
         "summary": "Sign out",
-        "description": "Ends the cookie's session and clears the cookie. Returns 204 whether or not there was a session.\n\nAnonymous: it needs no credentials.",
+        "description": "Ends the cookie's session and clears the cookie. Returns 204 whether or not there was a session.\n\nAnonymous: no credentials needed.",
         "operationId": "Logout",
         "responses": {
           "204": {
             "description": "No Content"
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -374,7 +374,7 @@
           "Identity"
         ],
         "summary": "Who the caller is and what they may do",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "GetMe",
         "responses": {
           "200": {
@@ -398,7 +398,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -421,7 +421,7 @@
           "Identity"
         ],
         "summary": "Change your password",
-        "description": "Requires the current password (a wrong one returns 422 and counts toward the lockout). Ends every other session of the caller.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the current password (a wrong one returns 422 and counts toward the lockout). Ends every other session of the caller.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "ChangePassword",
         "requestBody": {
           "content": {
@@ -508,7 +508,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -531,7 +531,7 @@
           "Identity"
         ],
         "summary": "Start enrolling an authenticator",
-        "description": "Requires the password. The provisioning URI carries the secret and is shown once. The enrolment isn't active until it is confirmed.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the password. The provisioning URI carries the secret and is shown once. The enrolment isn't active until it is confirmed.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "BeginTotpEnrollment",
         "requestBody": {
           "content": {
@@ -635,7 +635,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -658,7 +658,7 @@
           "Identity"
         ],
         "summary": "Confirm the authenticator with a code",
-        "description": "Activates the second factor and returns the recovery codes, shown once.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Activates the second factor and returns the recovery codes, shown once.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "ConfirmTotpEnrollment",
         "requestBody": {
           "content": {
@@ -752,7 +752,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -775,7 +775,7 @@
           "Identity"
         ],
         "summary": "Turn the second factor off",
-        "description": "Requires the password, so it is a POST with a body (a DELETE can't rely on a body).\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the password, so it is a POST with a body (a DELETE can't rely on a body).\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "DisableTotp",
         "requestBody": {
           "content": {
@@ -872,7 +872,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -895,7 +895,7 @@
           "Identity"
         ],
         "summary": "Make new recovery codes",
-        "description": "Requires the password. The old codes stop working, and the new ones are shown once.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the password. The old codes stop working, and the new ones are shown once.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "RegenerateRecoveryCodes",
         "requestBody": {
           "content": {
@@ -999,7 +999,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1022,7 +1022,7 @@
           "Identity"
         ],
         "summary": "List sessions",
-        "description": "Requires a signed-in session; a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in session; a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "ListSessions",
         "parameters": [
           {
@@ -1111,7 +1111,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1134,7 +1134,7 @@
           "Identity"
         ],
         "summary": "End every other session of the caller",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "RevokeOtherSessions",
         "responses": {
           "204": {
@@ -1171,7 +1171,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1194,7 +1194,7 @@
           "Identity"
         ],
         "summary": "End a session",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "RevokeSession",
         "parameters": [
           {
@@ -1246,7 +1246,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1269,7 +1269,7 @@
           "Identity"
         ],
         "summary": "List API tokens",
-        "description": "Requires a signed-in session; a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in session; a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "ListTokens",
         "parameters": [
           {
@@ -1358,7 +1358,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1379,7 +1379,7 @@
           "Identity"
         ],
         "summary": "Issue an API token",
-        "description": "The secret appears in this answer only and is never shown again.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "The secret appears in this answer only and is never shown again.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "IssueToken",
         "requestBody": {
           "content": {
@@ -1463,7 +1463,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1486,7 +1486,7 @@
           "Identity"
         ],
         "summary": "Change an API token",
-        "description": "Renames the token, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token returns 409.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Renames the token, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token returns 409.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "UpdateToken",
         "parameters": [
           {
@@ -1595,7 +1595,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1616,7 +1616,7 @@
           "Identity"
         ],
         "summary": "Revoke an API token",
-        "description": "Requires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "RevokeToken",
         "parameters": [
           {
@@ -1668,7 +1668,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1757,7 +1757,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1863,7 +1863,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1887,7 +1887,7 @@
           "Identity"
         ],
         "summary": "Get a user",
-        "description": "A user can read themselves; reading another user requires users:read.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "A user can read themselves; reading another user requires users:read.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "GetUser",
         "parameters": [
           {
@@ -1946,7 +1946,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2076,7 +2076,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2160,7 +2160,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2184,7 +2184,7 @@
           "Server"
         ],
         "summary": "The version and build commit",
-        "description": "The product version and the commit it was built from. The API is versioned by its path (v1); a breaking change would be v2.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "The product version and the commit it was built from. The API is versioned by its path (v1); a breaking change would be v2.\n\nRequires a signed-in caller; the operation itself checks what the caller may do.",
         "operationId": "GetVersion",
         "responses": {
           "200": {
@@ -2208,7 +2208,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2265,7 +2265,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2323,7 +2323,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2408,7 +2408,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2438,7 +2438,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2468,7 +2468,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2526,7 +2526,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2611,7 +2611,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2641,7 +2641,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2671,7 +2671,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2764,7 +2764,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2904,7 +2904,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2954,7 +2954,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3044,7 +3044,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3133,7 +3133,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3251,7 +3251,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3389,7 +3389,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3479,7 +3479,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3614,7 +3614,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3697,7 +3697,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3805,7 +3805,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3835,7 +3835,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3865,7 +3865,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3966,7 +3966,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3976,7 +3976,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4006,7 +4006,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4119,7 +4119,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4215,7 +4215,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4346,7 +4346,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4376,7 +4376,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4406,7 +4406,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4520,7 +4520,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4530,7 +4530,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4560,7 +4560,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4650,7 +4650,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4785,7 +4785,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4868,7 +4868,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4976,7 +4976,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5006,7 +5006,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5036,7 +5036,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5137,7 +5137,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5157,7 +5157,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5187,7 +5187,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5277,7 +5277,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5412,7 +5412,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5495,7 +5495,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5603,7 +5603,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5633,7 +5633,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5663,7 +5663,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5764,7 +5764,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5784,7 +5784,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5814,7 +5814,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5904,7 +5904,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6039,7 +6039,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6122,7 +6122,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6230,7 +6230,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6260,7 +6260,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6290,7 +6290,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6391,7 +6391,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6411,7 +6411,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6441,7 +6441,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6531,7 +6531,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6666,7 +6666,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6756,7 +6756,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6839,7 +6839,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6947,7 +6947,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6977,7 +6977,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7007,7 +7007,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7108,7 +7108,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7128,7 +7128,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7158,7 +7158,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7248,7 +7248,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7383,7 +7383,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7466,7 +7466,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7574,7 +7574,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7604,7 +7604,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7634,7 +7634,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7735,7 +7735,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7755,7 +7755,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7785,7 +7785,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7875,7 +7875,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8010,7 +8010,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8093,7 +8093,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8201,7 +8201,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8231,7 +8231,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8261,7 +8261,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8362,7 +8362,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8382,7 +8382,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8412,7 +8412,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8502,7 +8502,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8578,7 +8578,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8671,7 +8671,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8745,7 +8745,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8838,7 +8838,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8941,7 +8941,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8991,7 +8991,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9087,7 +9087,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9229,7 +9229,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9349,7 +9349,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9369,7 +9369,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9409,7 +9409,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9499,7 +9499,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9605,7 +9605,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9688,7 +9688,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9788,7 +9788,7 @@
             }
           },
           "412": {
-            "description": "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+            "description": "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9808,7 +9808,7 @@
             }
           },
           "428": {
-            "description": "The change needs an If-Match header with the ETag of what you read.",
+            "description": "The change requires an If-Match header with the ETag of what you read.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9838,7 +9838,7 @@
             }
           },
           "500": {
-            "description": "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves.",
+            "description": "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9964,7 +9964,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10070,7 +10070,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10153,7 +10153,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10284,7 +10284,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10378,7 +10378,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10476,7 +10476,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10574,7 +10574,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10630,7 +10630,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10728,7 +10728,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10786,7 +10786,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10884,7 +10884,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11007,7 +11007,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11095,7 +11095,7 @@
             }
           },
           "502": {
-            "description": "The CA refused or could not be reached; nothing here is wrong with the request.",
+            "description": "The CA refused, or couldn't be reached. Nothing is wrong with the request.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11125,7 +11125,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11208,7 +11208,7 @@
             }
           },
           "502": {
-            "description": "The CA refused or could not be reached; nothing here is wrong with the request.",
+            "description": "The CA refused, or couldn't be reached. Nothing is wrong with the request.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11238,7 +11238,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11321,7 +11321,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11411,7 +11411,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11487,7 +11487,7 @@
             }
           },
           "502": {
-            "description": "The CA refused or could not be reached; nothing here is wrong with the request.",
+            "description": "The CA refused, or couldn't be reached. Nothing is wrong with the request.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11517,7 +11517,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11600,7 +11600,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11664,7 +11664,7 @@
             }
           },
           "502": {
-            "description": "The CA refused or could not be reached; nothing here is wrong with the request.",
+            "description": "The CA refused, or couldn't be reached. Nothing is wrong with the request.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11694,7 +11694,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11784,7 +11784,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11880,7 +11880,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11963,7 +11963,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12084,7 +12084,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12168,7 +12168,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12291,7 +12291,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12374,7 +12374,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12464,7 +12464,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12560,7 +12560,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12643,7 +12643,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12764,7 +12764,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12838,7 +12838,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12921,7 +12921,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13077,7 +13077,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13170,7 +13170,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13263,7 +13263,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13324,7 +13324,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13407,7 +13407,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13557,7 +13557,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13615,7 +13615,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13656,7 +13656,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13838,7 +13838,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13993,7 +13993,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14101,7 +14101,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14185,7 +14185,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14250,7 +14250,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14328,7 +14328,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14413,7 +14413,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14506,7 +14506,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14530,7 +14530,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as PEM",
-        "description": "Anonymous. Returns only the public root certificate. Once the owner trusts it, their browsers trust the admin UI.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate. Once the owner trusts it, their browsers trust the admin UI.\n\nAnonymous: no credentials needed.",
         "operationId": "GetCaRootPem",
         "responses": {
           "200": {
@@ -14554,7 +14554,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14571,7 +14571,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as PEM",
-        "description": "Anonymous. Returns only the public root certificate. Once the owner trusts it, their browsers trust the admin UI.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate. Once the owner trusts it, their browsers trust the admin UI.\n\nAnonymous: no credentials needed.",
         "operationId": "GetCaRootPem",
         "responses": {
           "200": {
@@ -14588,7 +14588,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14607,7 +14607,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as DER",
-        "description": "Anonymous. Returns only the public root certificate, as application/x-x509-ca-cert, the type Android and iOS offer to install.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate, as application/x-x509-ca-cert, the type Android and iOS offer to install.\n\nAnonymous: no credentials needed.",
         "operationId": "GetCaRootCrt",
         "responses": {
           "200": {
@@ -14632,7 +14632,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14649,7 +14649,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as DER",
-        "description": "Anonymous. Returns only the public root certificate, as application/x-x509-ca-cert, the type Android and iOS offer to install.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate, as application/x-x509-ca-cert, the type Android and iOS offer to install.\n\nAnonymous: no credentials needed.",
         "operationId": "GetCaRootCrt",
         "responses": {
           "200": {
@@ -14666,7 +14666,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14685,7 +14685,7 @@
           "CA"
         ],
         "summary": "Describe the local CA root",
-        "description": "Anonymous. The public root's SHA-256 fingerprint, subject and validity: what the wizard shows next to the download, so the owner can check what they are asked to trust.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. The public root's SHA-256 fingerprint, subject and validity: what the wizard shows next to the download, so the owner can check what they are asked to trust.\n\nAnonymous: no credentials needed.",
         "operationId": "GetCaRoot",
         "responses": {
           "200": {
@@ -14709,7 +14709,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14726,7 +14726,7 @@
           "CA"
         ],
         "summary": "Describe the local CA root",
-        "description": "Anonymous. The public root's SHA-256 fingerprint, subject and validity: what the wizard shows next to the download, so the owner can check what they are asked to trust.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. The public root's SHA-256 fingerprint, subject and validity: what the wizard shows next to the download, so the owner can check what they are asked to trust.\n\nAnonymous: no credentials needed.",
         "operationId": "GetCaRoot",
         "responses": {
           "200": {
@@ -14750,7 +14750,7 @@
             }
           },
           "500": {
-            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -26125,7 +26125,7 @@
     "securitySchemes": {
       "bearer": {
         "type": "http",
-        "description": "An API token issued to a user. A signed-in session cookie is accepted as well.",
+        "description": "An API token issued to a user. A signed-in session cookie also works.",
         "scheme": "bearer"
       }
     }

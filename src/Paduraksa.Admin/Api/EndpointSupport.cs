@@ -73,8 +73,8 @@ internal static class ConfigCommandResponses
 
             return ApiProblems.Problem(
                 status,
-                "The change is stored (see revision) but could not go live: the previous config still serves, and nothing retries the publish until the next change or a restart. "
-                    + "Use the new ETag (version) for the next change; repeating this request with the old If-Match is a 412.",
+                "The change is stored (see revision) but couldn't go live. The previous config still serves, and nothing retries the publish until the next change or a restart. "
+                    + "Use the new ETag (version) for the next change; repeating this request with the old If-Match returns 412.",
                 errors: [.. (result.Publish?.Errors ?? []).Select(message => new ConfigError(string.Empty, ApiCodes.Config.PublishFailed, message))],
                 warnings: result.Warnings,
                 code: ApiCodes.Config.PublishFailed,
@@ -116,7 +116,7 @@ internal static class ConfigCommandResponses
     private static string DetailOf(ConfigCommandStatus status) => status switch
     {
         ConfigCommandStatus.Invalid => "The change is well-formed but can't be applied; see errors (and relatedErrors for what it breaks elsewhere).",
-        ConfigCommandStatus.Conflict => "The config changed since you read it (or the object exists already); see conflict for what is current.",
+        ConfigCommandStatus.Conflict => "The config changed since you read it (or the object already exists). See conflict for what is current.",
         ConfigCommandStatus.NotFound => "There is no such object.",
         ConfigCommandStatus.Denied => "You may not change the config.",
         ConfigCommandStatus.Unavailable => "The config store is unavailable (the proxy serves its last-known-good config); see errors.",

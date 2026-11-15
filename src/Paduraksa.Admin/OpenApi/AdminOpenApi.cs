@@ -97,11 +97,11 @@ internal static class AdminOpenApi
                 + "A create is POST to the collection: 201 with Location and the created object. A change is PUT or PATCH: 200 with the object. A delete is 204. "
                 + "Every collection takes limit and cursor and answers { items, nextCursor }. "
                 + "Every error is RFC 9457 problem details (application/problem+json) with a traceId. "
-                + "Config objects (hosts, routes, upstreams, profiles, the settings, ...) and rollbacks take optimistic concurrency: a read carries an ETag (an object's version, or the latest revision's ID), "
-                + "and a change sends it back as one quoted tag in If-Match. Without it the answer is 428; a stale or weak tag is 412 (the problem's conflict says what is current); "
-                + "an unquoted tag, a list or '*' is 400. Creating with POST needs none, and neither do the objects that carry no version (certificates, ACME accounts, DNS providers, notification channels, users). "
+                + "Config objects (hosts, routes, upstreams, profiles, the settings, ...) and rollbacks use optimistic concurrency: a read carries an ETag (an object's version, or the latest revision's ID), "
+                + "and a change sends it back as one quoted tag in If-Match. Without it the answer is 428, a stale or weak tag gets 412 (the problem's conflict says what is current), "
+                + "and an unquoted tag, a list or '*' gets 400. Creating with POST needs none, and neither do objects that carry no version (certificates, ACME accounts, DNS providers, notification channels, users). "
                 + "Changes to config objects also take ?dryRun=true, which returns the plan and commits nothing. "
-                + "A change that was stored but could not go live is 500 with code config.publishFailed, the stored revision and the new ETag. "
+                + "If a change was stored but couldn't go live, the answer is 500 with code config.publishFailed, the stored revision and the new ETag. "
                 + "Each operation names the permission it needs (x-required-permission).",
         };
         // Paths in this document carry the /api/v1 prefix, so the server is the admin app's own origin.
@@ -112,7 +112,7 @@ internal static class AdminOpenApi
         {
             Type = SecuritySchemeType.Http,
             Scheme = "bearer",
-            Description = "An API token issued to a user. A signed-in session cookie is accepted as well.",
+            Description = "An API token issued to a user. A signed-in session cookie also works.",
         };
         return Task.CompletedTask;
     }
@@ -174,21 +174,21 @@ internal static class AdminOpenApi
                 context,
                 "500",
                 metadata.OfType<PublishFailureMetadata>().Any()
-                    ? "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves."
-                    : "An unexpected error; the trace ID in the problem finds it in the server log.");
+                    ? "Either an unexpected error (the trace ID identifies it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but couldn't go live, and the previous config still serves."
+                    : "An unexpected error. The trace ID in the problem identifies it in the server log.");
         }
         else if (authenticated)
         {
-            Describe(operation, "Requires a signed-in caller; what the caller may do is checked by the operation itself.");
+            Describe(operation, "Requires a signed-in caller; the operation itself checks what the caller may do.");
             Secure(operation, context);
             AddProblem(operation, context, "401", "Authentication is required.");
-            AddProblem(operation, context, "500", "An unexpected error; the trace ID in the problem finds it in the server log.");
+            AddProblem(operation, context, "500", "An unexpected error. The trace ID in the problem identifies it in the server log.");
         }
         else if (anonymous)
         {
-            Describe(operation, "Anonymous: it needs no credentials.");
+            Describe(operation, "Anonymous: no credentials needed.");
             operation.Security = [];
-            AddProblem(operation, context, "500", "An unexpected error; the trace ID in the problem finds it in the server log.");
+            AddProblem(operation, context, "500", "An unexpected error. The trace ID in the problem identifies it in the server log.");
         }
 
         DescribeProblems(operation);
@@ -301,13 +301,13 @@ internal static class AdminOpenApi
         ["403"] = "The caller may not do this.",
         ["404"] = "There is no such object.",
         ["409"] = "It clashes with what exists, or with something in progress.",
-        ["412"] = "The If-Match tag is stale (or weak): what you read is no longer current. The problem says what is.",
+        ["412"] = "The If-Match tag is stale (or weak), so what you read is no longer current. The problem says what is current.",
         ["413"] = "The body is larger than this operation takes.",
         ["415"] = "The body is not in a type this operation takes.",
         ["422"] = "The request is well-formed but can't be applied; errors lists why, with a pointer into the body.",
-        ["428"] = "The change needs an If-Match header with the ETag of what you read.",
+        ["428"] = "The change requires an If-Match header with the ETag of what you read.",
         ["429"] = "Too many attempts; Retry-After says when to try again.",
-        ["502"] = "The CA refused or could not be reached; nothing here is wrong with the request.",
+        ["502"] = "The CA refused, or couldn't be reached. Nothing is wrong with the request.",
         ["503"] = "The server can't do this right now; try again shortly.",
     };
 
