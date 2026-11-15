@@ -1,11 +1,11 @@
 # Packages
 
-Paduraksa's PROXY protocol support is also published on its own, for other .NET projects. They are the only parts of this repository built as NuGet packages. Both target .NET 10 and .NET 8.
+Paduraksa's PROXY protocol support is also published on its own, as two NuGet packages for other .NET projects. Nothing else in this repository is built as a package. Both target .NET 10 and .NET 8.
 
 | Package | What it is |
 |---|---|
 | `Paduraksa.ProxyProtocol` | A strict parser for the HAProxy PROXY protocol (v1 text and v2 binary). It has no dependency beyond the .NET base class library |
-| `Paduraksa.ProxyProtocol.AspNetCore` | A Kestrel `UseProxyProtocol` connection middleware over it. It makes the client behind a load balancer the connection's remote address. With no trusted proxies configured, every connection is refused |
+| `Paduraksa.ProxyProtocol.AspNetCore` | A Kestrel `UseProxyProtocol` connection middleware built on the parser. It sets the connection's remote address to the client behind a load balancer. With no trusted proxies configured, it refuses every connection |
 
 Their READMEs are the package documentation:
 
