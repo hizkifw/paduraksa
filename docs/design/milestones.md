@@ -196,7 +196,7 @@ Everything below is done. Only the tag waits for sign-off.
   - The full `paduraksa doctor`: a read-only check with `--json` and an opt-in `--check-clock`, which makes no outward request unless asked ("`doctor`" in [admin-surfaces.md](admin-surfaces.md#doctor)). The CLI's `reset-password` and `backup` follow the server's sign-in policy precedence, and `config export` and `import` exit 3 on invalid local settings.
 - **Verification:**
   - Fuzzing: two parallel hours on each of the sixteen targets, about 1.6 billion inputs, no crash, with the new coverage merged into `fuzz/corpus`.
-  - The final bench and review: the bench result is above. The closed-upstream 502 page's connect timing moved off a connect callback, which cost about 10 us per failed connect. A review of everything since v0.30 found no security or hot-path issue.
+  - The final bench and review: the bench result is above. The closed-upstream 502 page's connect timing moved off a connect callback, which cost about 10 us per failed connect. A review of everything since r30 found no security or hot-path issue.
   - Load tests: `bench/soak/run-soak.sh` runs an hour of mixed traffic with publishes, a flap, a burst, MCP, a dashboard and a restart, judged on errors, leaks, latency drift and S6 ([Soak test](testing.md#soak-test)). The 2-hour runs before the tag show memory levelling off after a 30-minute climb ([bench/soak/README.md](../../bench/soak/README.md)).
 - **Done when:** a tagged release.
 

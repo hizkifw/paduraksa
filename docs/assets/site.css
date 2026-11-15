@@ -242,3 +242,35 @@
     border-radius: 10px;
   }
 }
+
+/* The sidebar's section names (navigation.sections): Material sets them in the same size and a dimmer colour than the pages
+   under them, so "User guide" read as one more page. They are small capitals in the full text colour, with a rule and space
+   above each section after the first, so the groups read as groups. */
+@media screen and (min-width: 76.25em) {
+  .md-nav--primary > .md-nav__list > .md-nav__item--section {
+    margin-top: 1.4em;
+  }
+
+  .md-nav--primary > .md-nav__list > .md-nav__item--section + .md-nav__item--section {
+    border-top: 1px solid var(--pdk-line);
+    padding-top: 1.1em;
+  }
+
+  .md-nav--primary > .md-nav__list > .md-nav__item--section > .md-nav__link {
+    color: var(--pdk-text);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.3em;
+  }
+
+  .md-nav--primary > .md-nav__list > .md-nav__item--section > .md-nav__link .md-ellipsis {
+    color: inherit;
+  }
+
+  /* The site's name above the list repeats the header's and read as one more section. */
+  .md-nav--primary > .md-nav__title {
+    display: none;
+  }
+}

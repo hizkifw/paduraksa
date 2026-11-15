@@ -109,8 +109,8 @@ nav:
       - API reference: automation/api-reference.md
       - MCP (AI assistants): automation/mcp.md
       - The command line: automation/cli.md
-  - Packages: packages.md
   - Reference:
+      - Packages: packages.md
       - Threat model: threat-model.md
       - Changelog: changelog.md
   # Contributor documentation: how it is built, for people changing it (docs/design/index.md). "Contributors" says who the pages are for;
