@@ -9,7 +9,7 @@ For contributors: how the Blazor dashboard is built, the conventions every page 
 - **Every config change goes through the review drawer**, which offers **Apply now** or **Add to draft**. Nothing applies or drafts silently. A **draft** collects edits from any page and applies them as one revision.
 - **Drawers, not pages, for create and edit.** They stack, have addresses, and guard unsaved changes.
 - **Live by default** over the circuit: lists follow commits through change feeds, and statistics pages poll while the browser tab is visible. Nothing on the request path waits on the dashboard.
-- **Shared pieces carry the look** (`SegmentedControl`, `CopyableCode`, `ShareList`, `DisplayFormat`, `TimeSeriesChart`). A page that needs its own look for one of them means the shared piece is missing something.
+- **Shared pieces carry the look** (`SegmentedControl`, `CopyableCode`, `ShareList`, `DisplayFormat`, `TimeSeriesChart`). If a page needs its own look for one of them, the shared piece is missing something.
 - **Copy is a tool's voice:** plain statements in a fixed vocabulary (see [Voice and vocabulary](#voice-and-vocabulary)). A line of copy stays only if it tells the person something the title, navigation or data does not.
 - Code: `Paduraksa.Dashboard` (pages, components, drawers), `Paduraksa.Admin.Web` (form endpoints, pipeline hooks), tests in `Paduraksa.Tests.Dashboard` (bUnit and Playwright).
 
@@ -169,7 +169,7 @@ The level's component gets the `DrawerLevel` as a cascading value:
 
 **Closing.**
 - Escape, the backdrop and the close or back button act on the top level only. `paduraksa.js` hands Escape over while a drawer is open and no list, menu or dialog is, wherever the key lands (as a drawer opens, focus is still on the control that opened it, on the inert page behind, until the browser's next frame).
-- When the level is dirty, they ask "Discard your changes?" in the drawer itself (Escape again keeps editing). Leaving the page with a dirty drawer asks the same (`NavigationLock`), also for the browser's back within the app. A back to a page loaded outside the app is not something the page can hold.
+- When the level is dirty, they ask "Discard your changes?" in the drawer itself (Escape again keeps editing). Leaving the page with a dirty drawer asks the same (`NavigationLock`), also for the browser's back within the app. The page can't hold a back to a page loaded outside the app.
 - Focus moves into a level as it opens (its first field, else its title) and back to what opened it as it closes. A drawer with an address opens by navigating, and the router then focuses the page's heading, so `paduraksa.js` remembers the control the person just activated and returns focus to it (`DrawerFocusEndToEndTests`).
 - `DrawerShell.Closable` drops the close button for a drawer that must be left through its own action (a new token's secret: it ignores Escape and the backdrop until "I've copied it").
 
@@ -343,7 +343,7 @@ Inline validation is the real validator with the settings put in (`InlineValidat
 - **A row opens the token's drawer** (`TokenDetailsDrawer`, `/settings/tokens/{tok_...}`; someone else's token opens from the list of everyone's with `tokens:all`, anything else is the "not found" drawer). It shows the status, owner (a link: My account for one's own, the user's drawer when the caller may read users, else text), created, last used, expires and the token ID in a copy box; never the secret.
 - Whoever may revoke it can change it (`tokens:own` or `tokens:all`): the name, and the scopes with the issuing picker (`ScopePicker`), which offers what the token's *owner* holds, not the editor. Save goes straight to the service: a token is not a config revision, so there is no review sheet or draft. Only what changed is sent.
 - **Disable and Enable** act at once and keep the drawer open. **Revoke** keeps its confirmation. A disabled token gets an amber "Disabled" pill and a dimmed row and is listed by default (it can come back); revoked and expired ones need "Show revoked and expired".
-- A revoked token, or one the caller may not change, shows the name as a `ReadOnlyField` (it stands where an input would be), the scopes as chips and no actions. The details rows stay in the `pdk-facts` grid, the drawer pattern for facts.
+- If a token is revoked or the caller may not change it, the drawer shows the name as a `ReadOnlyField` (it stands where an input would be), the scopes as chips and no actions. The details rows stay in the `pdk-facts` grid, the drawer pattern for facts.
 - Scopes the token has but can't use (its owner lost them) are shown as struck-through chips with one line saying that saving changed scopes removes them. A rename alone never sends scopes.
 
 **My account:** Profile (username read-only; display name editable with `users:write`), Password (current, new with a strength meter, again; on success "your other sessions were signed out"; fields emptied as the change is sent), Two-step verification (`TwoStepEnrollment`; new recovery codes and turning it off, each behind the password; recovery codes are shown once with Copy and "Download .txt"), Sessions (this one marked; end one, or "sign out everywhere else", confirmed).
@@ -481,7 +481,7 @@ What a person asks ("how is it doing now", "how did it do over a week") has one 
 **Visitors tab** (`Components/VisitorsStatistics.razor`) takes `Range`, `Host`, `Unmatched`, `HostName` and `Visible`. There is no page-wide accuracy note. The visitors tile carries its error as its subtitle ("+/-1.6%", the sketch's standard error), and a table count a sketch may have overcounted is marked with the approximation sign and a tooltip "Between X and Y".
 - **Top.** Four tiles: requests (with the share from bots), bandwidth (what was sent and, when anything was uploaded, how much was received), unique visitors, and the error rate (5xx). A range with no requests draws one empty state saying that a host with its access log off is never counted.
 - **Visitors and content.** Three `TimeSeriesChart`s (requests with a 5xx line, bytes sent, unique visitors). **A step nobody observed is a shaded gap and its line breaks. An observed quiet step is a real zero** (from the service's `coveredSeconds`). `ShareList` bar lists with shares: status classes (green, blue, amber, red) and the top exact codes, methods, HTTP versions. Tables: top paths (requests, bandwidth, p95, errors), top referers, slowest paths, largest responses.
-- A path is a link to the **Live tail filtered to it** (and to the host when the page is for one). A path the analytics cut at their cap is plain text. **A user agent is not a link:** the tail has no user-agent filter, and adding one would reach into the tail's contract for little.
+- A path is a link to the **Live tail filtered to it** (and to the host when the page is for one). If the analytics cut a path at their cap, it is plain text. **A user agent is not a link:** the tail has no user-agent filter, and adding one would reach into the tail's contract for little.
 - **Clients and bots.** Browsers, operating systems and devices as bar lists; bots by kind; the top bots; the bots ignoring robots.txt (its empty state says only hosts that serve a robots.txt are checked); the raw user agents.
 
 **Security tab.** The security statistics over the page's range.
@@ -611,7 +611,7 @@ Someone else's draft is a 404. An expired one is a 410 `draft.expired` on every 
 - Add to draft opens a draft when there is none. The toast says which ("Added to the draft: ..." or "Started a draft: ...").
 - A delete, a host's switch or wrench in the list, a row's delete: the same sheet. Maintenance from the list asks first for the mode's options (`MaintenanceDrawer`: status, Retry-After, who is let through, the page, prefilled from what the host inherits), then opens the sheet. A toggle's host comes from the head with the draft applied.
 - Applying now a change the draft also holds drops the draft's stale entry; the sheet says so in one line.
-- A change the live config refuses while a draft is open (a host naming an upstream only the draft adds) shows its refusal as a warning, keeps Add to draft and turns Apply now off. Add to draft checks it on the draft's view and shows a refusal at the form's fields.
+- If the live config refuses a change while a draft is open (a host naming an upstream only the draft adds), the sheet shows the refusal as a warning, keeps Add to draft and turns Apply now off. Add to draft checks it on the draft's view and shows a refusal at the form's fields.
 - A whole-document change (rollback, Undo, YAML import) has no draft choice: it is not draftable (an entry is one object). While a draft is open its sheet carries one notice (`DraftOpenNotice`): the draft was made on the config as it is, applying this moves it, and entries for the objects it changes become changed elsewhere. **Review the draft first** closes the sheet and opens the draft. The Undo toast asks the same in a confirm.
 
 **The draft drawer is the review.** The bar's Review opens it (`DraftReviewDrawer`).
@@ -652,7 +652,7 @@ Someone else's draft is a 404. An expired one is a 410 `draft.expired` on every 
 
 ## Dashboard conventions
 
-Shared pieces first. A page that needs its own look for one of these is a sign the shared piece is missing something.
+Shared pieces first. If a page needs its own look for one of these, the shared piece is missing something.
 
 **`SegmentedControl<T>`** is the one single-choice-among-a-few control: time ranges, Mine and Everyone's, a host's kind, a token's expiry, the certificate filter.
 - Options are `SegmentOption<T>` (value, label, optional icon, tooltip, `data-value` key, count, tone dot).
@@ -854,7 +854,7 @@ Errors say what failed and what to do, without apologising. The second person is
 **Where it is linked.** The user menu, below My account and API tokens. There is no side-navigation entry: the navigation groups its entries by area and an entry without a group joins Overview at the top. The user docs mention it in `docs/operating/upgrading.md`, where a person checks which version is running after an upgrade.
 
 **The page** is short, left-aligned, in a column of 640 px, with no page header (the identity card holds the page's `h1`) and no captions:
-- **Identity card:** the mark (`BrandMark` at 64 px in a tinted tile), the name, the version large, then one row with the short commit SHA (a `pdk-ref-link` to the commit on GitHub, new tab, `rel="noopener noreferrer"`), a copy button that copies the full SHA, and the build date. A build without a commit says "Built without a commit ID" and has neither link nor button. The date of a build that recorded only its day is shown without moving it into the viewer's zone (`DisplayFormat.UtcDay`).
+- **Identity card:** the mark (`BrandMark` at 64 px in a tinted tile), the name, the version large, then one row with the short commit SHA (a `pdk-ref-link` to the commit on GitHub, new tab, `rel="noopener noreferrer"`), a copy button that copies the full SHA, and the build date. If a build has no commit, the card says "Built without a commit ID" and shows neither link nor button. The date of a build that recorded only its day is shown without moving it into the viewer's zone (`DisplayFormat.UtcDay`).
 - **Facts**, in the same card, set apart by spacing alone: API `v1`, Runtime (".NET 10.0.14"), the system and architecture, uptime (two largest units; the start time is its tooltip). Whether it runs in a container is not shown: nothing detects it.
 - **Links:** Documentation, Source, Changelog, API reference, as compact outlined links (`pdk-about-link`; plain anchors, because `MudButton` overwrites `rel` with `noopener`). The changelog link is the file at this build's commit (`main` without one). The API reference is `DashboardRoutes.ApiReference` (`/api/docs`), which the admin app serves to everyone; `ApiConventionTests` holds the two paths equal.
 - **License:** one line, "Apache-2.0 · © 2026 Hizkia Felix" (the holder from `NOTICE`), and the button "Open-source licenses (33)", a link to `/about/licenses`.
