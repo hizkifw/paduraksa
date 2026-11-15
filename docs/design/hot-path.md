@@ -353,7 +353,7 @@ Answers threat model G1 and G8. Everything here runs before TLS, at stage A.
 
 Peers behind a trusted proxy are judged by their real address later, at the gate (access lists, rate limits). The connection stage sees the connecting address: with PROXY protocol the PROXY source (`ClientInfo.Address`), so a load balancer's visitors are each their own address, otherwise the socket's.
 
-A deployment that puts another proxy in front without listing it as trusted makes every visitor one address, and the cap their shared limit. Set the trusted proxies.
+If a deployment puts another proxy in front without listing it as trusted, every visitor shares one address, and the cap is their shared limit. Set the trusted proxies.
 
 ### TCP
 
@@ -428,7 +428,7 @@ Bench (`bench/run-baseline.sh`, Paduraksa only, two quiet runs each, 2026-11-13)
 
 ## Kestrel's lost HTTP/2 responses
 
-Found by the soak (`h2-hang`): about one HTTP/2 response in a million was never sent. The proxy had answered (its access log has the `200`), the connection stayed up and kept serving other requests, and the client gave up after 30 s. The cause is a Kestrel bug: [dotnet/aspnetcore#69690](https://github.com/dotnet/aspnetcore/pull/69690), merged on `main` on 2026-10-29. The 10.0 backport ([#70100](https://github.com/dotnet/aspnetcore/pull/70100)) is not merged yet, so 10.0.14 has it.
+Found by the soak (`h2-hang`): about one HTTP/2 response in a million was never sent. The proxy had answered (its access log has the `200`), the connection stayed up and kept serving other requests, and the client gave up after 30 s. The cause is a Kestrel bug: [dotnet/aspnetcore#69690](https://github.com/dotnet/aspnetcore/pull/69690), merged on `main` on 2026-10-29. The 10.0 backport ([#70100](https://github.com/dotnet/aspnetcore/pull/70100)) is not merged yet, so 10.0.14 still has the bug.
 
 **The bug.**
 - A stream's output producer is queued to the connection's frame writer by `Schedule()`, which sets `_isScheduled` so it is queued once. Only the writer clears the flag, when it takes the producer.
@@ -454,7 +454,7 @@ Found by the soak (`h2-hang`): about one HTTP/2 response in a million was never 
 
 ## Upstream timeouts
 
-The listeners' limits above judge the client. These judge the upstream, and each upstream has its own.
+The listeners' limits above judge the client. The timeouts below judge the upstream, and each upstream has its own.
 
 **The bug it fixed.** Nothing set YARP's `ForwarderRequestConfig.ActivityTimeout` for a public cluster, so YARP's default of **100 s with no data in either direction** applied. It applies to an upgraded connection and to a streamed response too, so a Home Assistant dashboard, a chat app or an event stream with a quiet gap over 100 s was cut by the proxy. `ServerLimitsKestrelTests` could not see it: it proves only that Kestrel's limits leave an idle stream alone. The connect timeout was also a fixed 10 s for every upstream.
 
@@ -597,7 +597,7 @@ Drafts go through `ConfigService.PlanDraftAsync`, which is `AttemptAsync` as a d
 - A corrupt head, a degraded store or an unreadable database is `Unavailable` with a reason, never an exception.
 - Nothing is audited, stored or published.
 
-**Concurrency.** At most 4 drafts or revisions compile at once (`RequestSimulator.MaxConcurrentCompiles`). One that waits more than 2 s is `Unavailable`. The live target takes no slot.
+**Concurrency.** At most 4 drafts or revisions compile at once (`RequestSimulator.MaxConcurrentCompiles`). A compile that waits more than 2 s is `Unavailable`. The live target takes no slot.
 
 **Authorization.** `OperationPermissions.ForSimulation` names what each target needs (see [identity.md](identity.md)): `simulate`, plus `config:read` for a revision or a draft that is not stored, or `config:write` for the caller's stored draft.
 
