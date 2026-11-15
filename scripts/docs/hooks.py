@@ -1,12 +1,14 @@
 """MkDocs hooks for the documentation site (mkdocs.yml, `hooks:`).
 
-Four jobs, so that the files stay where the repository (and GitHub's own rendering of it) wants them:
+Five jobs, so that the files stay where the repository (and GitHub's own rendering of it) wants them:
 
 1. Links that leave docs/ (to source files, deploy/, bench/) become links to the repository on GitHub, instead of warnings.
 2. CHANGELOG.md, which lives at the repository root, becomes the page `changelog.md`.
 3. The contributor pages (docs/design/, docs/spikes/, PLAN.md, development.md) get a note under their title that they are not the guide.
 4. The API reference: the shipped OpenAPI document and a pinned Scalar bundle are written beside the site, so the reference
    renders with no request to anything but the site itself.
+5. A list straight after a paragraph line gets the blank line Python-Markdown needs. GitHub (CommonMark) starts a list there
+   without one, so the sources are written that way, and without this the site ran the items into the paragraph as " - " text.
 """
 
 import base64
@@ -148,7 +150,38 @@ def _is_contributor_page(src_uri: str) -> bool:
     return src_uri in CONTRIBUTOR_PAGES or src_uri.startswith(CONTRIBUTOR_PREFIXES)
 
 
+LIST_ITEM = re.compile(r"^(?P<indent>[ ]*)(?:[-*+]|\d+[.)])[ ]+\S")
+FENCE = re.compile(r"^[ ]*(```|~~~)")
+# Lines a list may follow directly without being run into them: a heading, a table row, an HTML line, an admonition opener.
+NOT_PARAGRAPH = re.compile(r"^[ ]*(#|\||<|!!!|\?\?\?|>)")
+
+
+def _separate_lists(markdown: str) -> str:
+    out: list[str] = []
+    fenced = False
+    list_indent: int | None = None  # the indent of the list the previous lines belong to, until a blank line ends it
+    previous = ""
+    for line in markdown.split("\n"):
+        if FENCE.match(line):
+            fenced = not fenced
+        elif not fenced:
+            item = LIST_ITEM.match(line)
+            if not line.strip():
+                list_indent = None
+            elif item:
+                indent = len(item["indent"])
+                previous_indent = len(previous) - len(previous.lstrip(" "))
+                paragraph = previous.strip() and not LIST_ITEM.match(previous) and not NOT_PARAGRAPH.match(previous)
+                if paragraph and previous_indent == indent and list_indent != indent:
+                    out.append("")
+                list_indent = indent if list_indent is None or indent < list_indent else list_indent
+        out.append(line)
+        previous = line
+    return "\n".join(out)
+
+
 def on_page_markdown(markdown, page, config, files):
+    markdown = _separate_lists(markdown)
     if page.file.src_uri == "changelog.md":
         return markdown
     directory = posixpath.dirname(page.file.src_uri)
