@@ -1,6 +1,6 @@
 # The REST API
 
-Everything the dashboard does, the REST API does, with the same permissions and the same audit trail. It is at `/api/v1` on the admin port, and it is described by an OpenAPI 3.1 document.
+The REST API can do everything the dashboard can, with the same permissions and audit trail. It is at `/api/v1` on the admin port and described by an OpenAPI 3.1 document.
 
 - [API reference](api-reference.md): every operation, rendered from the document this version ships.
 - `https://<admin host>:9443/api/docs` on your own instance (an interactive reference), and `/api/v1/openapi.json` (the document).
@@ -13,11 +13,11 @@ A script authenticates with an **API token**: `Authorization: Bearer pdk_...`. C
 ![The create-token drawer: a name, an expiry and the scopes.](../assets/token-create.png)
 
 - A token has a name, an optional expiry and **scopes**: permission names such as `config:read`. The drawer offers *Read-only*, *All you can* and *None* as starting points.
-- A token never exceeds its owner. Its effective permissions are the intersection of its scopes and the owner's **current** permissions, checked on every use. Demote the owner and the token shrinks with them.
-- The secret is shown once. Paduraksa stores only a hash. A revoked or expired token stops working at once.
+- A token never exceeds its owner. Its effective permissions are the intersection of its scopes and the owner's **current** permissions, checked on every use, so demoting the owner shrinks the token too.
+- The secret is shown once, and Paduraksa stores only a hash. A revoked or expired token stops working at once.
 - A token records when it was last used, so the token list can show it. Nothing else changes on a read.
-- **A token cannot manage tokens or sessions.** Every `tokens` and `sessions` endpoint answers a token with `403`, so a leaked token cannot mint a longer life for itself.
-- A token's `pdk_` prefix and checksum let secret scanners find a leaked one.
+- **A token cannot manage tokens or sessions.** Every `tokens` and `sessions` endpoint answers a token with `403`, so a leaked token cannot extend its own life.
+- A token's `pdk_` prefix and checksum let secret scanners find a leaked token.
 
 | Scope | Allows |
 |---|---|
@@ -42,7 +42,7 @@ Roles are sets of these scopes:
 - **Viewer** reads and simulates.
 - **Auditor** reads and holds audit.
 
-A browser session (the dashboard's cookie) also works. Every unsafe request must then send an `Origin` header. A token needs none.
+A browser session (the dashboard's cookie) also works, and every unsafe request must then send an `Origin` header. A token needs none.
 
 ## Trust the admin certificate
 
@@ -56,18 +56,18 @@ curl -k -o root.pem https://paduraksa.lan:9443/api/v1/ca/root.pem
 curl --cacert root.pem -H "Authorization: Bearer $TOKEN" https://paduraksa.lan:9443/api/v1/hosts
 ```
 
-Check the fingerprint against `GET /api/v1/ca` or the Local CA page before you trust a root you fetched with `-k`.
+Before you trust a root fetched with `-k`, check its fingerprint against `GET /api/v1/ca` or the Local CA page.
 
 ## Conventions
 
 - **Paths** are kebab-case and collections are plural: `/api/v1/rate-limit-policies/{id}`. An action on an object is `POST /{collection}/{id}/{verb}`, such as `/certificates/{id}/renew`.
 - **JSON** members are camelCase. IDs are typed strings (`host_...`, `ups_...`, `rte_...`). Times are ISO 8601 in UTC. Enums are strings.
-- **Statuses.** A create is `POST` to the collection: `201`. A change is `PUT` (replace) or `PATCH`: `200`. A delete is `204`.
+- **Statuses.** A create is a `POST` to the collection and returns `201`. A change is a `PUT` (replace) or `PATCH` and returns `200`. A delete returns `204`.
 - **Errors** are RFC 9457 problem details (`application/problem+json`) with a `traceId` and a stable dotted `code` such as `host.name.duplicate`. A validation failure is `422` with an `errors` list of `{ path, code, message }`.
 
-### IDs are yours to choose
+### IDs are chosen by the client
 
-A create needs an `id`: the type's prefix, an underscore, then 22 base-62 characters (`^host_[0-9A-Za-z]{22}$`). Use a time-ordered one, such as a UUIDv7 written in base 62 (the digits `0-9A-Za-z`, in that order). This script makes one:
+A create needs an `id`: the type's prefix, an underscore, then 22 base-62 characters (`^host_[0-9A-Za-z]{22}$`). Use a time-ordered ID, such as a UUIDv7 written in base 62 (the digits `0-9A-Za-z`, in that order). This script makes one:
 
 ```python
 import os, sys, time
@@ -85,11 +85,11 @@ def new_id(prefix):
 print(new_id(sys.argv[1]))   # python3 new-id.py host  ->  host_034wzZoNpxm3a53aJxIOBE
 ```
 
-When you only want to describe the config and not mint IDs, use [YAML import](../operating/export-import.md): an object without an `id` is matched by name or created.
+To describe the config without minting IDs, use [YAML import](../operating/export-import.md), which matches an object without an `id` by name or creates it.
 
 ### Pagination
 
-Every collection answers `{ "items": [...], "nextCursor": "..." }` and takes `limit` (1 to 200, default 50) and `cursor` (what the previous page gave, opaque). `nextCursor` is `null` on the last page.
+Every collection answers `{ "items": [...], "nextCursor": "..." }` and takes `limit` (1 to 200, default 50) and `cursor` (the opaque value the previous page gave). `nextCursor` is `null` on the last page.
 
 - Config and provider collections are ascending by ID.
 - History (revisions, audit, notification history) is newest first.
@@ -105,16 +105,16 @@ curl --cacert root.pem -H "Authorization: Bearer $TOKEN" "https://paduraksa.lan:
 Config objects (hosts, routes, upstreams, profiles, rate limits, access lists, rule sets, sign-in providers, the settings) carry a `version`.
 
 - A `GET` answers with `ETag: "<version>"`. A change or delete sends it back in `If-Match`, as one quoted tag. A create needs none.
-    - Without it, the answer is `428`.
-    - A stale tag is `412`, and the problem's `conflict` says what is current.
-    - A malformed tag, a list or `*` is `400`.
+    - Without the tag, the answer is `428`.
+    - A stale tag gives `412`, and the problem's `conflict` shows the current state.
+    - A malformed tag, a list or `*` gives `400`.
 - A route belongs to its host: changing or deleting a route takes the host's version in `If-Match`.
 - `POST /revisions/{id}/rollback` and `POST /config/import` take the latest revision's ID the same way.
 - `?dryRun=true` runs the whole command and returns the plan (`status: "dryRun"`, the warnings and the changes) without committing.
 - `?message=` is the revision's note, up to 1000 characters.
 - `?force=true` overrides the lock-out guard for the admin host.
-- A change that was stored but could not go live is `500` with `code: config.publishFailed`, the stored `revision` and the new `ETag`.
-- Certificates, ACME accounts, DNS providers, notification channels, users and tokens carry no version: a change overwrites, and last write wins.
+- If a change was stored but could not go live, the answer is `500` with `code: config.publishFailed`, the stored `revision` and the new `ETag`.
+- Certificates, ACME accounts, DNS providers, notification channels, users and tokens carry no version, so a change overwrites and the last write wins.
 
 A change answers with its result: `status` (`committed` or `dryRun`), the `revision`, the `publish` outcome, the new `version`, `warnings` and `changes`.
 
@@ -157,11 +157,11 @@ curl --cacert root.pem -H "$H" -H 'If-Match: "2"' -H 'Content-Type: application/
 
 ### Request bodies
 
-JSON bodies are limited to 64 KiB by default (`Paduraksa__Admin__MaxRequestBodyBytes`). A certificate upload and a config import raise their own limits. Bodies are strict: an unknown member is an error.
+JSON bodies are limited to 64 KiB by default (`Paduraksa__Admin__MaxRequestBodyBytes`). A certificate upload and a config import have their own limits. Bodies are strict, and an unknown member is an error.
 
 ### Drafts
 
-`/api/v1/drafts` is the draft the dashboard shows. A token acts on its owner's draft: add entries with `POST /drafts/{id}/entries`, review with `POST /drafts/{id}/review` and apply with `POST /drafts/{id}/apply` with the review's token in `If-Match`. If the config changed since, apply is refused with `412` and `draft.changedSinceReview`, and the fresh review comes back. See [Hosts and routes](../guide/hosts-and-routes.md#drafts).
+`/api/v1/drafts` is the draft the dashboard shows. A token acts on its owner's draft: add entries with `POST /drafts/{id}/entries`, review with `POST /drafts/{id}/review` and apply with `POST /drafts/{id}/apply`, sending the review's token in `If-Match`. If the config changed since the review, apply is refused with `412` and `draft.changedSinceReview`, and the fresh review comes back. See [Hosts and routes](../guide/hosts-and-routes.md#drafts).
 
 ## Streams and files
 
