@@ -44,8 +44,8 @@ The mode is a global setting only (`DefaultsSpec.TrustedProxies`: mode, trusted 
 
 - **Which header.** `CF-Connecting-IP` (a single value, so there is no X-Forwarded-For chain parsing). Optionally `True-Client-IP` (Enterprise), or the right-most untrusted entry of `X-Forwarded-For` as a fallback.
   - The value is parsed span-based into the same `UInt128` client-IP representation used everywhere, with IPv4-mapped addresses normalised.
-  - A missing or unparsable header from a trusted peer counts as a counter plus a debug log, and the peer IP is used.
-- **Anti-spoofing.** When the peer is **not** trusted, **every `cf-*` header** and `True-Client-IP` are ignored, and they are **stripped before forwarding upstream**.
+  - If a trusted peer sends no header or an unparsable one, the peer IP is used and a counter and a debug log record it.
+- **Anti-spoofing.** From a peer that is **not** trusted, **every `cf-*` header** and `True-Client-IP` are ignored and **stripped before forwarding upstream**.
   - Cloudflare adds more `cf-*` headers over time, and Cloudflare Access's `Cf-Access-Jwt-Assertion` and `Cf-Access-Authenticated-User-Email` carry identity.
   - Upstreams always get a clean `X-Forwarded-For` and `X-Real-IP` built from the resolved client IP (see "Request pipeline" in [hot-path.md](hot-path.md)).
 
@@ -122,7 +122,7 @@ In `CloudflareProxy` mode the compile adds `cloudflare.ranges.stale` (at `/setti
 
 ## Origin lockdown
 
-A request for a host with lockdown on whose peer is not a trusted peer of the snapshot's policy is refused before anything else of the host. The peer is the PROXY-protocol source when there is one, else the socket.
+If a request is for a host with lockdown on and its peer is not a trusted peer of the snapshot's policy, it is refused before anything else of the host. The peer is the PROXY-protocol source when there is one, else the socket.
 
 - It happens right after the host lookup and its `Server` header, before the TLS check, the policies and the redirect.
 - `forbid` answers 403 with a built-in page. `drop` aborts the request. Both are constants, so the decision allocates nothing.
