@@ -41,7 +41,7 @@ public static class SignInMessages
 
     /// <summary>The setup form's password hint.</summary>
     public static string PasswordHint(int minLength) =>
-        string.Create(CultureInfo.InvariantCulture, $"At least {minLength} characters. A long passphrase is best; there are no other rules.");
+        string.Create(CultureInfo.InvariantCulture, $"At least {minLength} characters, and no other rules.");
 
     /// <summary>The username hint (the identity services' rule).</summary>
     public const string UsernameHint = "3 to 64 characters: letters, digits and . _ - @ +";

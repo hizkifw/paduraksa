@@ -36,7 +36,7 @@
             <div>
                 <MudTextField T="string" @bind-Value="_passphrase" Label="Passphrase" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
                               autocomplete="new-password" Immediate="true" Error="@((_attempted || !string.IsNullOrEmpty(_passphrase)) && PassphraseError is not null)" ErrorText="@PassphraseError"
-                              HelperText="@($"At least {BackupPassphrase.MinLength} characters. A few unrelated words make a good one.")" data-field="passphrase" />
+                              HelperText="@($"At least {BackupPassphrase.MinLength} characters.")" data-field="passphrase" />
                 @if (!string.IsNullOrEmpty(_passphrase))
                 {
                     var (level, label) = Strength();
