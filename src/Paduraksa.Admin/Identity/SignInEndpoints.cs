@@ -54,7 +54,7 @@ internal static class SignInEndpoints
             { Outcome: SetupOutcome.AlreadyComplete } =>
                 ApiProblems.Problem(StatusCodes.Status409Conflict, "An Owner already exists; sign in instead.", code: ApiCodes.Setup.Complete, title: "Setup is complete"),
             { Outcome: SetupOutcome.InvalidToken } =>
-                AdminProblems.Forbidden("Invalid setup token", "The setup token is wrong. Read it from the server log, or run `paduraksa setup-token`.", ApiCodes.Setup.InvalidToken),
+                AdminProblems.Forbidden("Invalid setup token", "The setup token is wrong. It is in the server log, and `paduraksa setup-token` prints it.", ApiCodes.Setup.InvalidToken),
             { Outcome: SetupOutcome.Invalid } => AdminProblems.Invalid(result.Problem),
             _ => ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The operation ended in a state this endpoint doesn't know."),
         };

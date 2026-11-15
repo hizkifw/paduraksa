@@ -588,7 +588,7 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger, int keyRe
         return current;
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Generated a new master key at {Path} (mode 0600). Back it up separately from vault.db: without it the vault cannot be opened.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Generated a new master key at {Path} (mode 0600). The vault cannot be opened without it, and a backup of vault.db does not hold it.")]
     private partial void LogGenerated(string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Ignored} is set but {Used} takes priority, so it is ignored.")]

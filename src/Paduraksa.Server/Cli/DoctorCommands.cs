@@ -32,7 +32,7 @@ internal static class DoctorCommands
 
     public static Command Build()
     {
-        Command doctor = new("doctor", "Check the host: data directory, master key, databases, ports, HTTP/3 and the clock. Changes nothing, so it is safe while the server runs. Exit 0 unless a check failed.");
+        Command doctor = new("doctor", "Check the machine: data directory, master key, databases, ports, HTTP/3 and the clock. Changes nothing, so it is safe while the server runs. Exit 0 unless a check failed.");
         Option<bool> liveness = new("--liveness")
         {
             Description = "Only ask the admin listener's /healthz over loopback: exit 0 when it answers 200, 1 otherwise. Used by the image's HEALTHCHECK.",

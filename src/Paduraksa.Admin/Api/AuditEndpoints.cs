@@ -33,7 +33,7 @@ internal static class AuditEndpoints
             .WithDescription("Newest first. The filters are all optional and all must match.")
             .WithQuery(From, To, Actor, Action, Target, Outcome).WithPage().Produces<Page<AuditEventSummary>>().ProducesApiProblems(400).RequirePermission(Permission.AuditRead);
         audit.MapGet("/verify", VerifyAsync).WithName("VerifyAudit").WithSummary("Check the audit log's hash chain")
-            .WithDescription("Walks the whole chain and reports the first event that doesn't verify. Keep headHash somewhere else to detect the removal of the newest events.")
+            .WithDescription("Walks the whole chain and reports the first event that doesn't verify. headHash, kept elsewhere, detects the removal of the newest events.")
             .Produces<AuditVerification>().RequirePermission(Permission.AuditRead);
     }
 

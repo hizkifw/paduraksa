@@ -77,7 +77,7 @@ internal sealed class ClockCheck : IDoctorCheck
         var skew = local - reference;
         var size = Format(skew.Duration());
         var side = skew > TimeSpan.Zero ? "ahead of" : "behind";
-        var fix = "Turn on time synchronisation on the host (timedatectl set-ntp true, or chrony / systemd-timesyncd); a container uses its host's clock.";
+        var fix = "Turn on time synchronisation on the machine (timedatectl set-ntp true, or chrony / systemd-timesyncd); a container uses the machine's clock.";
         if (skew.Duration() > FailSkew)
         {
             return [CheckResult.Failure("clock", $"The system clock is {size} {side} {context.ClockUrl.Host}: ACME orders and certificate validity checks fail, and sign-in codes are refused.", fix)];

@@ -39,7 +39,7 @@ internal static class IdentityCommands
 
     public static Command BuildAdmin()
     {
-        Command admin = new("admin", "Recover admin access from the host.");
+        Command admin = new("admin", "Recover admin access from the machine.");
 
         Argument<string> resetUser = new("user") { Description = "The username." };
         Command reset = new("reset-password", "Set a user's password (read from standard input or prompted, never from the command line), end their sessions and clear a lockout.");

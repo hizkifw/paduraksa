@@ -180,7 +180,7 @@ internal static class NotificationText
     public static NotificationEvent Test(string label, DateTimeOffset now) => new(
         NotificationEventKind.Test,
         "Test from Paduraksa",
-        $"If you can read this, the channel \"{label}\" works.",
+        $"Test message sent through the channel \"{label}\".",
         NotificationSeverity.Info,
         now,
         "/settings/notifications");

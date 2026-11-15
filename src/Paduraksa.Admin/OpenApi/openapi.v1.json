@@ -13581,7 +13581,7 @@
           "Audit"
         ],
         "summary": "Check the audit log's hash chain",
-        "description": "Walks the whole chain and reports the first event that doesn't verify. Keep headHash somewhere else to detect the removal of the newest events.\n\nRequires the `audit:read` permission.",
+        "description": "Walks the whole chain and reports the first event that doesn't verify. headHash, kept elsewhere, detects the removal of the newest events.\n\nRequires the `audit:read` permission.",
         "operationId": "VerifyAudit",
         "responses": {
           "200": {

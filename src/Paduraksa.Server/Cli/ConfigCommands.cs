@@ -473,7 +473,7 @@ internal static class ConfigCommands
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
-            await error.WriteLineAsync($"Couldn't reach {client.BaseAddress ?? request.RequestUri}: {ex.Message}. Is the server running, and is --url (or {UrlVariable}) its admin address?").ConfigureAwait(false);
+            await error.WriteLineAsync($"Couldn't reach {client.BaseAddress ?? request.RequestUri}: {ex.Message}. Check that the server is running and that --url (or {UrlVariable}) is its admin address.").ConfigureAwait(false);
             return (null, null);
         }
     }

@@ -188,7 +188,7 @@ internal static class BackupCommands
             await output.WriteLineAsync(
                 $"Backup written to {target} ({result.Bytes.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} bytes).").ConfigureAwait(false);
             await output.WriteLineAsync(
-                "It is encrypted with your passphrase; without the passphrase it is useless, and nothing can recover a lost one. Keep a copy off this machine. "
+                "It is encrypted with your passphrase; without the passphrase it is useless, and nothing can recover a lost one. "
                 + "Restore it, with the service stopped, by running: paduraksa restore <file>").ConfigureAwait(false);
             return ExitCodes.Success;
         }
@@ -250,7 +250,7 @@ internal static class BackupCommands
         {
             if (!claim.Enforced)
             {
-                await error.WriteLineAsync($"Warning: the file system of {data} does not support file locks, so this cannot tell whether a server is running on it. Make sure it is stopped.").ConfigureAwait(false);
+                await error.WriteLineAsync($"Warning: the file system of {data} does not support file locks, so this cannot tell whether a server is running on it. The server must be stopped.").ConfigureAwait(false);
             }
 
             var passphrase = await ReadPassphraseAsync(input, confirm: false, error).ConfigureAwait(false);
@@ -328,7 +328,7 @@ internal static class BackupCommands
                 await output.WriteLineAsync($"Restored. Config: {revision}{(pending > 0 ? $" ({pending.ToString(System.Globalization.CultureInfo.InvariantCulture)} schema update(s) applied)" : string.Empty)}. The vault is under this machine's master key ({Source(status.KekSource)}).").ConfigureAwait(false);
                 if (!hadMasterKey && status.KekSource == KekSourceKind.GeneratedFile)
                 {
-                    await output.WriteLineAsync($"This machine had no master key, so {masterKeyPath} was generated: keep a copy of it apart from the data (see Backups and restore in the docs); the backup does not hold it.").ConfigureAwait(false);
+                    await output.WriteLineAsync($"This machine had no master key, so {masterKeyPath} was generated. The backup does not hold the master key (see Backups and restore in the docs).").ConfigureAwait(false);
                 }
 
                 if (moved.Count > 0)
