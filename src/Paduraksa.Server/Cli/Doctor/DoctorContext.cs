@@ -118,14 +118,11 @@ internal sealed record AdminAnswer(AdminKind Kind, Uri? Uri, int? Status)
 /// <summary>What this binary is.</summary>
 internal static class OwnBuild
 {
-    private static readonly string Informational =
-        System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(OwnBuild).Assembly)?.InformationalVersion
-        ?? typeof(OwnBuild).Assembly.GetName().Version?.ToString(3)
-        ?? "0.0.0";
+    private static readonly Paduraksa.Core.Hosting.BuildInfo Info = Paduraksa.Core.Hosting.BuildInfo.Read(typeof(OwnBuild).Assembly);
 
-    public static string Version { get; } = Informational.Split('+')[0];
+    public static string Version => Info.Version;
 
-    public static string? Commit { get; } = Informational.Contains('+', StringComparison.Ordinal) ? Informational[(Informational.IndexOf('+', StringComparison.Ordinal) + 1)..] : null;
+    public static string? Commit => Info.Commit;
 }
 
 /// <summary>Builds the vault's inspection for a data directory, the way the server registers the vault.</summary>

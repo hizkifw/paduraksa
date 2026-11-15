@@ -142,6 +142,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The commit's timestamp, which the image records as its build date: a rebuild of the same commit is the same image.
+      - id: epoch
+        run: echo "value=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
@@ -151,7 +155,9 @@ jobs:
         with:
           context: .
           # GET /api/v1/version names the commit the image was built from.
-          build-args: PADURAKSA_COMMIT=${{ github.sha }}
+          build-args: |
+            PADURAKSA_COMMIT=${{ github.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.value }}
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -161,7 +167,9 @@ jobs:
         with:
           context: .
           # GET /api/v1/version names the commit the image was built from.
-          build-args: PADURAKSA_COMMIT=${{ github.sha }}
+          build-args: |
+            PADURAKSA_COMMIT=${{ github.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.value }}
           platforms: linux/amd64
           load: true
           tags: paduraksa:ci
@@ -200,6 +208,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The commit's timestamp, which the image records as its build date: a rebuild of the same commit is the same image.
+      - id: epoch
+        run: echo "value=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
@@ -225,7 +237,9 @@ jobs:
         with:
           context: .
           # GET /api/v1/version names the commit the image was built from.
-          build-args: PADURAKSA_COMMIT=${{ github.sha }}
+          build-args: |
+            PADURAKSA_COMMIT=${{ github.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.epoch.outputs.value }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

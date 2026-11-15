@@ -8,6 +8,20 @@
          (_framework/blazor.web.js); ask for the framework's web assets explicitly. -->
     <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
+  <!-- The build date the About page shows. A release build is reproducible: CI and the container build give the commit's timestamp as SOURCE_DATE_EPOCH (or
+       -p:PaduraksaBuildDate=). A local build records only today's date: a date that changed on every build would make this project, and every project that references it, rebuild each time. -->
+  <PropertyGroup>
+    <PaduraksaEpochIsValid Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(SOURCE_DATE_EPOCH)', '^[0-9]{1,11}$'))">true</PaduraksaEpochIsValid>
+    <PaduraksaBuildDate Condition="'$(PaduraksaBuildDate)' == '' and '$(PaduraksaEpochIsValid)' == 'true'">$([System.DateTimeOffset]::FromUnixTimeSeconds($(SOURCE_DATE_EPOCH)).ToString('yyyy-MM-ddTHH:mm:ssZ'))</PaduraksaBuildDate>
+    <PaduraksaBuildDate Condition="'$(PaduraksaBuildDate)' == ''">$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd'))</PaduraksaBuildDate>
+  </PropertyGroup>
+  <Target Name="CheckSourceDateEpoch" BeforeTargets="BeforeBuild;GenerateAssemblyInfo">
+    <Error Condition="'$(SOURCE_DATE_EPOCH)' != '' and '$(PaduraksaEpochIsValid)' != 'true'"
+           Text="SOURCE_DATE_EPOCH must be seconds since the epoch (digits only), but it is '$(SOURCE_DATE_EPOCH)'." />
+  </Target>
+  <ItemGroup>
+    <AssemblyMetadata Include="BuildDate" Value="$(PaduraksaBuildDate)" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
     <ProjectReference Include="../Paduraksa.Data/Paduraksa.Data.csproj" />

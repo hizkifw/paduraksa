@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Json;
 using Paduraksa.Contracts.Api;
+using Paduraksa.Core.Hosting;
 
 namespace Paduraksa.Admin.Api;
 
@@ -21,12 +22,9 @@ internal static class VersionEndpoint
             .WithDescription("The product version and the commit it was built from. The API is versioned by its path (v1); a change that breaks it would be a v2.")
             .Produces<VersionInfo>().RequireAuthenticated();
 
-    /// <summary>Splits the assembly's informational version, <c>0.1.0+&lt;commit&gt;</c>: the SDK appends the commit when the build is given <c>SourceRevisionId</c>.</summary>
     internal static VersionInfo Read(Assembly assembly)
     {
-        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-        var plus = informational.IndexOf('+', StringComparison.Ordinal);
-        var commit = plus >= 0 && plus + 1 < informational.Length ? informational[(plus + 1)..] : null;
-        return new VersionInfo(plus >= 0 ? informational[..plus] : informational, "v1", commit);
+        var build = BuildInfo.Read(assembly);
+        return new VersionInfo(build.Version, "v1", build.Commit);
     }
 }

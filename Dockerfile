@@ -22,6 +22,9 @@ ARG TARGETARCH
 ARG PADURAKSA_READYTORUN=true
 # The commit the image is built from, for GET /api/v1/version: the build context has no .git for the SDK to read it from.
 ARG PADURAKSA_COMMIT=
+# The commit's timestamp (seconds since the epoch), so the build date the About page shows is the commit's and a rebuild of the same commit is the same image;
+# without it the build records the day it ran. BuildKit also stamps the layers' timestamps from it. The publish step reads it as an environment variable.
+ARG SOURCE_DATE_EPOCH=
 
 # setcap runs here rather than in the runtime image: COPY --from keeps the file capability, so the runtime image never
 # carries libcap2-bin and an app change doesn't re-run apt there.
