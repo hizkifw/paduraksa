@@ -5,9 +5,9 @@ Paduraksa's protections are named objects. Define one once and attach it to host
 | Block | Where | What it does |
 |---|---|---|
 | [Access lists](#access-lists) | Security, *Access lists* | Allow or deny addresses and countries, and ask for a password |
-| [Rule sets](#rule-sets) | Security, *Rules* | Refuse, drop or allow by path, method and user agent |
+| [Rule sets](#rule-sets) | Security, *Rule sets* | Refuse, drop or allow by path, method and user agent |
 | [Rate limits](#rate-limits) | Security, *Rate limits* | Token buckets that answer `429` |
-| [Sign-in](#sign-in-with-your-identity-provider) | Security, *Sign-in* | Forward-auth to authentik, Authelia, oauth2-proxy or your own endpoint |
+| [Auth providers](#sign-in-with-your-identity-provider) | Security, *Auth providers* | Forward-auth to authentik, Authelia, oauth2-proxy or your own endpoint |
 | [Browser check](#browser-check-proof-of-work) | A host setting | A proof of work a plain scraper does not pass |
 | [robots.txt](#robotstxt) | A host setting | A managed file for crawlers |
 
@@ -138,7 +138,7 @@ A rate limit policy is a token bucket: **requests** per second, minute or hour, 
 
 ## Sign-in with your identity provider
 
-**Sign-in** puts an authentication provider in front of a host or a route. Before forwarding a request, Paduraksa asks the provider's endpoint whether to let it through (forward-auth). It works with authentik, Authelia, oauth2-proxy, or any endpoint that answers allow or refuse.
+An **auth provider** (Security, *Auth providers*) is picked by the **Sign-in** setting of a host or a route, which puts it in front of that host or route. Before forwarding a request, Paduraksa asks the provider's endpoint whether to let it through (forward-auth). It works with authentik, Authelia, oauth2-proxy, or any endpoint that answers allow or refuse.
 
 A provider has an endpoint URL and a preset:
 

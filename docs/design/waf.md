@@ -519,7 +519,7 @@ A **regex** is the one thing that may not be.
 ### API and dashboard
 
 - `/api/v1/rule-sets` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.rule_set.*` audit actions. `GET /rule-sets/presets` lists the presets, and `GET /rule-sets/{id}` also reads one. A delete of a set a host still resolves to is refused.
-- The dashboard has Security > **Rules**: the sets with what their rules do and who applies them, and the presets read-only under them with "Create from preset" (`/rules/new?copy=...`).
+- The dashboard has Security > **Rule sets**: the sets with what their rules do and who applies them, and the presets read-only under them with "Create from preset" (`/rule-sets/new?copy=...`).
 - The drawer's rules read "When [path] [methods] [user agent] then [action]", with add, move and remove, and the real validator's messages at the fields.
 - The settings of a host, profile, the defaults and a route pick a set by name in the Access section: inherit, none, a set, a preset, or a staged "New rule set..." that goes in with the host in one revision.
 
@@ -698,7 +698,7 @@ So two requests that differ in anything the provider is sent never share an entr
   - `ForwardAuthSimulationTests` check that against a fake endpoint that sees nothing, and compare the simulator's outcome with the real gate's for requests the endpoint allows.
 - **API.** `/api/v1/auth-providers` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.auth_provider.*` audit actions and an OpenAPI entry that says what a preset fills in. A delete of a provider a host still resolves to is refused.
 - **Overview.** The security overview has a **Sign-in** column: the provider a host asks, what it let through and refused in the last 24 hours, its failed calls once there are some, and the routes that ask another provider or none. The providers' summed counters are a card of the security statistics on Analytics.
-- **Dashboard.** Security > **Sign-in** lists the providers with their endpoint and who asks them, with a drawer. The drawer's preset says what it fills in, and its empty fields say what they will use: the wait, the time an allow is remembered, the resolved endpoint, and the preset's headers (which the person's own list can replace, even an empty one). The settings of a host, profile, the defaults and a route pick a provider by name in the Access section, with a staged "New auth provider..." entry.
+- **Dashboard.** Security > **Auth providers** lists the providers with their endpoint and who asks them, with a drawer. The drawer's preset says what it fills in, and its empty fields say what they will use: the wait, the time an allow is remembered, the resolved endpoint, and the preset's headers (which the person's own list can replace, even an empty one). The settings of a host, profile, the defaults and a route pick a provider by name in the Access section, with a staged "New auth provider..." entry.
 - `AuthProvidersEndToEndTests` drives all of it in a real browser against a real host and a fake endpoint, at 1280 and 390 px in dark and light.
 
 ### Deviations from the original design, and gaps

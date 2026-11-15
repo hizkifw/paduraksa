@@ -47,7 +47,7 @@ For contributors: how the Blazor dashboard is built, the conventions every page 
 3. **Request simulator ("Why was this blocked?"):** enter a URL, IP, UA and headers and see the exact decision chain, against the live config, an old revision, the draft or the change being reviewed. The same function is on the API and MCP, and access-log entries link into it (see [hot-path.md](hot-path.md)).
 4. **Certificates:** list, issue, upload, local CA, ACME progress.
 5. **Upstreams and health:** destinations, probe results.
-6. **Security:** overview, rate limits, access lists, rules, sign-in (auth providers).
+6. **Security:** overview, rate limits, access lists, rule sets, auth providers.
 7. **Insight:** Analytics, Logs, Live tail, Audit.
 8. **History:** revision timeline, diff viewer, rollback.
 9. **Settings:** global defaults, profiles, DNS providers, ACME accounts, notifications, users and roles, API tokens, sessions, backup, server settings, YAML export and import.
@@ -118,7 +118,7 @@ An open editor says when its object changed elsewhere (with Reload); the Apply w
 Apply runs the same command with the version the form opened with.
 - A stale version or a deleted object is a conflict with Reload.
 - A commit that could not go live stays on screen as "saved as #N, but it isn't live" with the publisher's errors.
-- A commit leaves a toast with **Undo** (`ConfigUndo`): a rollback to the parent revision (a replace with the empty config for #1), based on the revision it undoes. It is refused when someone changed the config in between. A newer toast replaces the last, since only the latest change can be undone.
+- A commit leaves a toast with **Undo** (`ConfigUndo`), "Applied: host app.example.com added. Live as #4." (the review request's `SuccessMessage` is the part after "Applied: ", without a verb of its own; a draft says "Applied: 3 changes"). Undo is a rollback to the parent revision (a replace with the empty config for #1), based on the revision it undoes. It is refused when someone changed the config in between. A newer toast replaces the last, since only the latest change can be undone.
 - The drawer sits above the toasts, closes with Escape and focuses its heading.
 - "Simulate this change" runs a request against the change in place, and the change stays offered to the simulator page (`ReviewedDraft`) until it is applied. In the draft drawer, "Simulate the draft" targets the stored draft (`{kind: draft}`), and the simulator page offers the draft as "My draft".
 
@@ -780,10 +780,11 @@ Errors say what failed and what to do, without apologising. The second person is
 | A name a host answers for | hostname (a host's "name" in a list) | domain |
 | The computer Paduraksa runs on | the machine (or "the server" for the process) | host |
 | What a route forwards to; its addresses | upstream (the object), destination (one address of it) | backend, origin, target service |
+| Where a host's requests go: an upstream, a redirect or a fixed answer | Target (the Hosts list column) | destination (an upstream's address only) |
 | X.509 | certificate | cert |
-| A named set of path, method and user-agent rules | rule set (a list of "rules") | ruleset |
+| A named set of path, method and user-agent rules | rule set (the page, the nav entry, the buttons; a set holds "rules"); "Rules" is the name of the host setting that picks one | ruleset |
 | Who may reach a host: addresses, countries, users | access list | ACL, allow list, IP allow list |
-| Forward-auth in front of a host | auth provider; "sign-in" as its setting and nav name | login, forward-auth provider |
+| Forward-auth in front of a host | auth provider (the page, the nav entry, the buttons); "Sign-in" is the name of the host, profile, route and defaults setting that picks one | login, forward-auth provider |
 | Entering the dashboard | sign in (verb), sign-in (noun, adjective) | log in, login |
 | The routing configuration in the database | config | configuration |
 | Startup configuration (environment, appsettings) | configuration, "setting" for one value | config |
@@ -813,6 +814,8 @@ Errors say what failed and what to do, without apologising. The second person is
 | Refresh | Reads a list again in place. |
 | Continue | The next step of a short flow. |
 
+**Toasts.** A toast after a config change reads "Applied: " and what changed ("Applied: host app.example.com added", "Applied: rate limit web deleted", "Applied: 3 changes" for a draft), then the revision it is live as, with Undo. The verbs of a stored object that is not config are their own: Saved (a name, a user, a token's scopes, a channel), Created (a token, codes), Added, Revoked, Deleted (a user, a channel, a DNS provider). Adding to a draft says "Added to the draft" or "Started a draft", since nothing is applied yet.
+
 "Confirm" is a dialog's title and a password field's label, never a button. "Update" and "Commit" are not used in the interface; a revision "saved as #N, but it isn't live" is stored and not yet published.
 
 **Removal verbs.** Each has one meaning.
@@ -834,6 +837,12 @@ Errors say what failed and what to do, without apologising. The second person is
 - **Refused**, **Failed**, **Expired**, **Revoked** and **Disabled** are final words of their own; none stands for another.
 
 **Time and counts.** A sentence says "in the last hour" and "the last 24 hours". A tight table header or tile takes the compact unit ("1 h", "24 h", "7 d", "5 min"). A count is a figure before its noun ("3 errors to fix", "1 item needs attention"); "now" is the moment, never "just now".
+
+**Decided.** Four names the sweep left open:
+- Auth providers: the page title and the navigation entry, as the buttons and drawers already said. "Sign-in" stays the name of the host, profile, route and defaults setting that picks one. The page is `/auth-providers` (`DashboardRoutes.AuthProviders`).
+- Rule sets: the page title and the navigation entry. "Rules" stays the name of the setting. The page is `/rule-sets`.
+- The Hosts list column is "Target", since a host's requests can go to an upstream, a redirect or a fixed answer. An upstream's addresses are "destinations".
+- Config-change toasts say "Applied" (see Toasts above), not "Saved", "Created" or "Change applied".
 
 **Contracts are not renamed.** API fields and codes (`ipAllowList`, `Enabled` on a channel), YAML keys, CLI flags and the `data-*` attributes keep their names whatever the interface says. The interface calls a channel's `Enabled` flag "Enabled" and "Disabled"; the contract's comments say the same.
 
