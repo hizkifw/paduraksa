@@ -351,6 +351,11 @@ Detail: [design/milestones.md](design/milestones.md).
 **Later:**
 - **Response caching** per host and route: RFC 9111 semantics, memory with an optional disk tier, cache keys and bypass rules, stale-while-revalidate, purge from the dashboard and API, and hit and miss figures in the metrics.
 - **Browser fingerprinting for the proof-of-work gate:** TLS, HTTP/2 and in-page fingerprints with behaviour scoring, so a crawler fleet running one setup through residential proxies gets harder challenges, a reload check or a block.
+- **Blocklists and bans:**
+  - **Probe bans:** a ban action for probe paths (`.env`, `.git`, `wp-admin` and the like). A probe counts only when the upstream's answer shows it was one, such as a 404, not a 200 from a real WordPress. Bans keep an address out for a while, escalate for repeat offenders, cover an IPv6 /64, survive a restart, never touch an exempt access list, and show in the dashboard with unban.
+  - **IP feeds:** Tor exits, Spamhaus DROP, FireHOL level1 and cloud ranges. They are fetched like the Cloudflare edge ranges, only when turned on and never bundled, and an access list (or a rule's match) points at a feed. The matcher (a radix trie, sorted ranges, a Bloom pre-check) is chosen by benchmark.
+  - **ASN rules** come with the local geo database, for datacenter and VPN ranges.
+  - **The AI crawler list** is generated from ai.robots.txt at build time, through a CI pull request.
 - **The forwarder seam:** YARP behind a forwarding interface on the snapshot, so it can be replaced later.
 - Native OIDC for the admin and per host.
 - Bot heuristics and header rules.
