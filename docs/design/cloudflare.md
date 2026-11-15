@@ -1,15 +1,31 @@
 # Client IP behind Cloudflare
 
-Many homelabs sit behind Cloudflare's proxy (orange cloud) or a Cloudflare Tunnel. Getting the real client IP has to be a toggle, not a hand-maintained CIDR list. This page covers Paduraksa's native Cloudflare support: who is trusted, which headers are read, edge-range refresh, origin lockdown and Authenticated Origin Pulls.
+For contributors: how Paduraksa finds the real client address behind Cloudflare, and how it keeps the origin from being reached around it.
 
-It is a built-in **trusted-proxy provider**. The generic trusted-proxy model (CIDRs plus a header) and future providers use the same machinery.
+## In short
 
-Contents:
+- Cloudflare support is a built-in **trusted-proxy provider**. The generic model (CIDRs plus a header) uses the same machinery.
+- Modes: `Off`, `Proxy` (Cloudflare connects to us) and `Tunnel` (a local `cloudflared` does).
+- In `Proxy` mode the TCP peer must be inside Cloudflare's edge ranges: a baked-in list, refreshed daily and kept as a CIDR trie in the snapshot. In `Tunnel` mode the peer must be the configured `cloudflared` address.
+- From a trusted peer, `CF-Connecting-IP` is the client. From any other peer every `cf-*` header and `True-Client-IP` is ignored and stripped before forwarding.
+- A changed range list republishes the live config with no new revision, and the publish is level-triggered, so a revoked range is never left trusted.
+- Origin lockdown refuses requests whose peer is not Cloudflare. When every host asks for it, it is enforced at the connection stage, before TLS.
+- Authenticated Origin Pulls verifies Cloudflare's client certificate. Such a host has no HTTP/3.
+- Code: `CloudflareRangeRefresher`, `CloudflareEdgeRangeSource`, `OriginLockdownMiddleware`, `OriginPullCa`, `ClientIpResolution`.
+
+## Contents
+
 - [Modes and trust](#modes-and-trust)
 - [Which header, and anti-spoofing](#which-header-and-anti-spoofing)
 - [What the real IP feeds](#what-the-real-ip-feeds)
 - [Optional extras](#optional-extras)
-- [Cloudflare ranges, origin lockdown and Authenticated Origin Pulls (M7)](#as-built-m7)
+- [The host setting](#the-host-setting)
+- [Edge-range refresh](#edge-range-refresh)
+- [Origin lockdown](#origin-lockdown)
+- [Authenticated Origin Pulls](#authenticated-origin-pulls)
+- [Simulator](#simulator)
+- [Tests](#tests)
+- [The security overview](#the-security-overview)
 
 ## Modes and trust
 
@@ -18,13 +34,10 @@ Contents:
 - `Proxy`: Cloudflare connects to us directly.
 - `Tunnel`: a local `cloudflared` connects to us.
 
-The mode is set globally and meant to be overridable per host. M1 has the global setting only (`DefaultsSpec.TrustedProxies`: mode, trusted CIDRs, generic header, `True-Client-IP` and X-Forwarded-For fallbacks). The per-host override was planned for M2 and M7. The wizard asks "Is this server behind Cloudflare?" and offers to set it.
+The mode is a global setting only (`DefaultsSpec.TrustedProxies`: mode, trusted CIDRs, generic header, `True-Client-IP` and X-Forwarded-For fallbacks). There is no per-host override.
 
 **Who is trusted:**
-- **`Proxy`:** the TCP peer (after PROXY protocol, if any) must fall within **Cloudflare's published edge ranges**.
-  - They ship as a baked-in list and are refreshed by a background job from `https://api.cloudflare.com/client/v4/ips`, falling back to `https://www.cloudflare.com/ips-v4` and `ips-v6`.
-  - They are stored with a fetch timestamp and compiled into the snapshot as a CIDR trie.
-  - A failed refresh keeps the last good list, and raises a dashboard warning if it is stale (more than 30 days old).
+- **`Proxy`:** the TCP peer (after PROXY protocol, if any) must fall within **Cloudflare's published edge ranges**. They ship as a baked-in list, a background job refreshes them ([Edge-range refresh](#edge-range-refresh)), and the compiler turns them into a CIDR trie. A failed refresh keeps the last good list.
 - **`Tunnel`:** the peer must be the configured `cloudflared` address (loopback, a Docker network CIDR or a specific IP). Edge ranges do not apply, because the TCP peer is `cloudflared`.
 
 ## Which header, and anti-spoofing
@@ -40,23 +53,21 @@ The mode is set globally and meant to be overridable per host. M1 has the global
 
 WAF IP allow/deny, geo, rate-limit keys, access lists, forward-auth headers, access logs and metrics.
 
-Connection-stage limits necessarily see the Cloudflare edge IP. They must therefore exempt trusted Cloudflare peers from per-IP connection caps, or every visitor would share a handful of edge IPs. Built: the cap never counts a trusted peer, and the connection deny list still applies to every connecting address (see "The connection stage" in [hot-path.md](hot-path.md)).
+Connection-stage limits necessarily see the Cloudflare edge IP. They must therefore exempt trusted Cloudflare peers from per-IP connection caps, or every visitor would share a handful of edge IPs. The cap never counts a trusted peer, and the connection deny list still applies to every connecting address ("The connection stage" in [hot-path.md](hot-path.md)).
 
 ## Optional extras
 
 Per host or global.
 
-- **Geo from `CF-IPCountry`.** When the peer is trusted, use it instead of a local Geo DB lookup. It is free and accurate. `XX` maps to "unknown" and `T1` to a Tor pseudo-country rules can name. Built in M7 as the only country source of that wave (see "Country rules" in [waf.md](waf.md)).
-- **`CF-Visitor` scheme.** The original scheme for the HTTP-to-HTTPS redirect decision, when Cloudflare connects to the origin over plain HTTP ("Flexible" SSL, or `cloudflared` forwarding to port 80). This avoids redirect loops. Built in M1 (see "Gate middleware" in [hot-path.md](hot-path.md)) and always on in the Cloudflare modes. Flexible is counted and logged once, and the dashboard (M5) will warn that it is insecure.
+- **Geo from `CF-IPCountry`.** When the peer is trusted, use it instead of a local Geo DB lookup. It is free and accurate. `XX` maps to "unknown" and `T1` to a Tor pseudo-country rules can name. It is the only country source ("Country rules" in [waf.md](waf.md)).
+- **`CF-Visitor` scheme.** The original scheme for the HTTP-to-HTTPS redirect decision, when Cloudflare connects to the origin over plain HTTP ("Flexible" SSL, or `cloudflared` forwarding to port 80). This avoids redirect loops. It is always on in the Cloudflare modes ("Gate middleware" in [hot-path.md](hot-path.md)). Flexible is counted and logged once. The dashboard does not warn about it yet.
 - **Origin lockdown.** Reject (or 403) requests on a Cloudflare-mode host whose peer is not Cloudflare (or `cloudflared`), so the origin cannot be reached by IP to bypass Cloudflare's WAF. It is enforced at the connection stage when *all* hosts on a listener require it.
 - **Authenticated Origin Pulls.** Request a client certificate from Cloudflare and verify it against Cloudflare's origin-pull CA (shipped, replaceable) on the TCP listener (per-SNI `ClientCertificateRequired`). This is the strong form of origin lockdown.
 - **`CF-Ray`** is recorded in access logs and offered as a variable on error pages, next to our request ID, so issues can be correlated with the Cloudflare dashboard.
 - **Certificates.** Cloudflare Origin CA certificates can be uploaded like any other (see [vault-and-certificates.md](vault-and-certificates.md)), with a hint that they are only trusted by Cloudflare. DNS-01 via the Cloudflare DNS provider works whether or not the proxy mode is on.
 - **Request simulator.** It takes a "via Cloudflare" toggle, so users can see which IP and country the policies would see (see "Request simulator" in [hot-path.md](hot-path.md)).
 
-## As built (M7)
-
-### The host setting
+## The host setting
 
 `HostSettings.Cloudflare` (`CloudflareSettings`, the last field, merged field by field like the other nested records) has:
 - `originLockdown`: `off` (default), `forbid` or `drop` (the shared enum `OriginLockdownMode`);
@@ -69,7 +80,7 @@ Warnings:
 - `cloudflare.aop.needsHttps`: Authenticated Origin Pulls on a host with no HTTPS. It can only refuse, and says so.
 - `cloudflare.aop.tunnel`: Authenticated Origin Pulls under a Tunnel. `cloudflared` presents no client certificate, so it can only refuse, and says so.
 
-### Edge-range refresh
+## Edge-range refresh
 
 `CloudflareRangeRefresher` (Application) is a hosted service of the core host. `Paduraksa:Cloudflare:RangeRefresh:Enabled` defaults to true, and the URLs, start delay and interval are overridable.
 
@@ -101,7 +112,7 @@ Otherwise it is logged, counted as a failure and ignored, and the last good list
 
 The built-in list (`CloudflareIpRanges`) is the list in use until a fetched one is stored.
 
-### The warning
+### The stale-list warning
 
 In `CloudflareProxy` mode the compile adds `cloudflare.ranges.stale` (at `/settings/trustedProxies`, so it shows where config warnings do) when the list in use is older than 30 days or three or more refreshes in a row failed. The job compiles again when that warning appears, changes or clears.
 
@@ -109,7 +120,7 @@ In `CloudflareProxy` mode the compile adds `cloudflare.ranges.stale` (at `/setti
 - The overview's attention list carries the warning.
 - The simulator's client-address step has an `edgeRanges` fact: which list, how many ranges, when it was fetched and how many days ago.
 
-### Origin lockdown
+## Origin lockdown
 
 A request for a host with lockdown on whose peer is not a trusted peer of the snapshot's policy is refused before anything else of the host. The peer is the PROXY-protocol source when there is one, else the socket.
 
@@ -130,7 +141,7 @@ A request for a host with lockdown on whose peer is not a trusted peer of the sn
 
 The lock-out guard (see [hosting.md](hosting.md)) models a caller of a locked-down admin host as arriving through Cloudflare. Otherwise its probe would never have been forwarded and the guard would let a deletion through. A change that adds lockdown to the admin host is refused for a caller who may have come directly.
 
-### Authenticated Origin Pulls
+## Authenticated Origin Pulls
 
 **The CA.** Cloudflare's zone-level origin-pull CA is `https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem`, fetched 2026-11-11, self-signed, valid until 2029-11-01, SHA-256 `9A1AC2B4...25A2B9`. It is an embedded resource (`cloudflare-origin-pull-ca.pem`, whose header comment records this), loaded by `OriginPullCa.Default`.
 
@@ -155,7 +166,7 @@ The lock-out guard (see [hosting.md](hosting.md)) models a caller of a locked-do
 
 Cloudflare's own zone setting must be turned on too, or no request gets through. The dashboard row says so.
 
-### Simulator
+## Simulator
 
 New steps: `GateStepKind.OriginLockdown` and `GateStepKind.ClientCertificate`.
 - The lockdown step reads "peer 1.2.3.4 is not a Cloudflare edge address: refused (403)", or in Tunnel mode "not the configured cloudflared address".
@@ -164,15 +175,13 @@ New steps: `GateStepKind.OriginLockdown` and `GateStepKind.ClientCertificate`.
 - `GateProbe.ClientCertificate` defaults to "presented exactly when the arrival is `CloudflareProxy`". The existing "via Cloudflare" arrival therefore gives both outcomes, and a direct or tunnel arrival the refusals.
 - `GateSimulator.Run` takes the time the edge-range age is read against.
 
-### Tests
+## Tests
 
-- `OriginLockdownTests`: compiler resolution, both modes, tunnel, PROXY protocol source, forged headers, order before the TLS check and policies, the ACME exception, the connection stage on a real TCP listener and the QUIC gate, simulator parity, 0 B on every path (also on Kestrel in `GateAllocationTests`).
-- `AuthenticatedOriginPullsTests`: a test CA standing in for Cloudflare's, handed in through `SnapshotCompilerOptions.OriginPullCa`. It covers valid, absent, foreign, expired and self-signed certificates, no AIA fetch, the coalesced and non-SNI refusals, dedup keys, no `Alt-Svc`, the shipped CA's identity, the simulator, and 0 B.
-- `CloudflareEdgeRangesTests`.
-- `CloudflareRangeRefresherTests`: a fake Cloudflare with JSON, text fallback, refused lists, size, timeout, backoff, and republish only on change.
-- `CloudflareRangeRefreshHostTests`: a real host against a loopback Cloudflare, including the restart.
+- `OriginLockdownTests` covers compiler resolution, both modes, tunnel, PROXY protocol source, forged headers, the order before the TLS check, the ACME exception, the connection stage on a real TCP listener and the QUIC gate, simulator parity and 0 B on every path (also on Kestrel in `GateAllocationTests`).
+- `AuthenticatedOriginPullsTests` uses a test CA standing in for Cloudflare's (`SnapshotCompilerOptions.OriginPullCa`). It covers valid, absent, foreign, expired and self-signed certificates, no AIA fetch, the coalesced and non-SNI refusals, dedup keys, no `Alt-Svc`, the shipped CA's identity, the simulator and 0 B.
+- `CloudflareEdgeRangesTests`, `CloudflareRangeRefresherTests` (a fake Cloudflare: JSON, text fallback, refused lists, size, timeout, backoff, republish only on change) and `CloudflareRangeRefreshHostTests` (a real host against a loopback Cloudflare, including the restart).
 - The QUIC cases (`KestrelQuicTlsTests`, trait `Transport=Quic`) run only through `run-quic-tests.sh`.
 
-### The overview
+## The security overview
 
 The security overview's per-host row (`HostProtections.OriginLockdown` and `AuthenticatedOriginPulls`, read from `CompiledHost`) has a Cloudflare column: "Cloudflare only (403)" or "Cloudflare only (drop)", "Origin pulls", or None. Both are off in the compiled host unless the mode is a Cloudflare one, so the column says what the gate does.
