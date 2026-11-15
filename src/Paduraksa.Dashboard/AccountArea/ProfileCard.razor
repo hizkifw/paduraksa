@@ -28,7 +28,7 @@
         @if (MayEdit)
         {
             <MudTextField T="string" @bind-Value="_displayName" Label="Display name" Variant="Variant.Outlined" Margin="Margin.Dense"
-                          MaxLength="UserService.MaxDisplayNameLength" Immediate="true" HelperText="Shown in the top bar and the history."
+                          MaxLength="UserService.MaxDisplayNameLength" Immediate="true"
                           Error="@(_attempted && string.IsNullOrWhiteSpace(_displayName))" ErrorText="A display name can't be empty." data-field="display-name" />
         }
         else

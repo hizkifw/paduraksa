@@ -13,7 +13,7 @@ public enum SetupTask
 }
 
 /// <summary>One task as the checklist shows it: what it is, why, and the page where it is done.</summary>
-public sealed record SetupTaskInfo(SetupTask Task, string Title, string Slug, string Icon, string Hint, string Href);
+public sealed record SetupTaskInfo(SetupTask Task, string Title, string Slug, string Icon, string? Hint, string Href);
 
 /// <summary>
 /// The tasks after first-run setup. There is no wizard: setup creates the Owner and lands on the overview, whose checklist links each
@@ -24,7 +24,7 @@ public static class SetupTasks
     public static IReadOnlyList<SetupTaskInfo> All { get; } =
     [
         new(SetupTask.TwoStep, "Two-step sign-in", "two-step", Icons.Material.Outlined.PhonelinkLock,
-            "A code from your phone on top of your password.", DashboardRoutes.Account),
+            null, DashboardRoutes.Account),
         new(SetupTask.AcmeAccount, "ACME account", "acme", Icons.Material.Outlined.Badge,
             "For free, browser-trusted certificates from Let's Encrypt.", DashboardRoutes.AcmeAccounts),
         new(SetupTask.DnsProvider, "DNS provider", "dns", Icons.Material.Outlined.Dns,
@@ -32,7 +32,7 @@ public static class SetupTasks
         new(SetupTask.Certificate, "Certificate", "certificate", Icons.Material.Outlined.WorkspacePremium,
             "So your hosts answer over HTTPS.", DashboardRoutes.Certificates),
         new(SetupTask.FirstHost, "First host", "host", Icons.Material.Outlined.Language,
-            "Proxy a hostname to a service on your network.", DashboardRoutes.NewHost),
+            null, DashboardRoutes.NewHost),
     ];
 
     public static SetupTaskInfo Info(SetupTask task) => All[(int)task];

@@ -40,7 +40,7 @@
     <ChildContent>
         @if (Missing)
         {
-            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such rule set" Description="It may have been deleted, or the link is wrong." />
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such rule set" />
         }
         else if (Model is null || Document is null)
         {

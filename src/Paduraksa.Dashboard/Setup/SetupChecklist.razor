@@ -36,7 +36,10 @@
                     <span class="pdk-list-icon pdk-tone-default"><MudIcon Icon="@info.Icon" Size="Size.Small" /></span>
                     <span class="pdk-list-main">
                         <span class="pdk-list-title">@info.Title</span>
-                        <span class="pdk-list-sub">@info.Hint</span>
+                        @if (info.Hint is not null)
+                        {
+                            <span class="pdk-list-sub">@info.Hint</span>
+                        }
                     </span>
                     <MudButton Href="@info.Href" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small">Set up</MudButton>
                 </li>

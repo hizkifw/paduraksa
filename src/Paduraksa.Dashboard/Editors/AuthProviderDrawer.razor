@@ -42,7 +42,7 @@
     <ChildContent>
         @if (Missing)
         {
-            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such auth provider" Description="It may have been deleted, or the link is wrong." />
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such auth provider" />
         }
         else if (Model is null || Document is null)
         {

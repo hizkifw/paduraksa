@@ -352,7 +352,7 @@
         <InheritSelect T="bool" Value="_current.Compression?.Enabled" ValueChanged="@(value => Update(WithCompression(compression => compression with { Enabled = value }), "/compression/enabled"))"
                        Inherited="@Resolved.Compression!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
                        Title="Compress responses"
-                       Help="Brotli or gzip for text the upstream didn't compress. Off by default (BREACH)."
+                       Help="Brotli or gzip for text the upstream didn't compress. Off by default."
                        Label="Compress responses" Field="compression-enabled" Error="@E("/compression/enabled")" ReadOnly="@ReadOnly">
             <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
             <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>

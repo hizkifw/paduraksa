@@ -54,7 +54,7 @@
     <ChildContent>
         @if (Missing)
         {
-            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such host" Description="It may have been deleted, or the link is wrong." />
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such host" />
         }
         else if (Model is null || _current is null)
         {

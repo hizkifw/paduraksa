@@ -123,7 +123,7 @@ hosts:
 
 ## Compression
 
-A host can compress the upstream's responses with Brotli or gzip, whichever the client's `Accept-Encoding` prefers. Off by default; see [BREACH](https://www.breachattack.com/). Turn it on globally, per profile or per host (**Compress responses**, under *Compression*).
+A host can compress the upstream's responses with Brotli or gzip, whichever the client's `Accept-Encoding` prefers. Off by default (see [BREACH](https://www.breachattack.com/)). Turn it on globally, per profile or per host (**Compress responses**, under *Compression*).
 
 - It compresses text (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly, fonts) of at least **Smallest body** (1 KiB by default, 0 to 1 MiB). A body of unknown length is compressed too.
 - It leaves alone a response the upstream already compressed, a range, an event stream, a `Cache-Control: no-transform`, a `HEAD`, a WebSocket, and Paduraksa's own pages.
