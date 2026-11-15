@@ -47,7 +47,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
 | **Admin sessions and API tokens** | `paduraksa.db`, stored as SHA-256 of the secret (*code*: `SessionService.cs`, `ApiTokenService.cs`) | Act as a user with their permissions | C |
 | **Availability of proxied services** | The running process, snapshot, certificates | The whole point; one node, no HA ([PLAN section 0](../PLAN.md#0-goals--non-goals)) | A |
 | **Client data in transit and logs** | `/data/logs/access.log` (IPs, paths, queries, user agents, referers), analytics rollups, the live tail | Privacy of the proxied sites' visitors | C |
-| **Backups** (`*.pdkbak`) | wherever the operator puts them | Contain **everything** in `paduraksa.db` and `vault.db`, sealed by one passphrase ([vault-and-certificates.md, Backup and restore (M10)](vault-and-certificates.md#backup-and-restore)) | C |
+| **Backups** (`*.pdkbak`) | wherever the operator puts them | Contain **everything** in `paduraksa.db` and `vault.db`, sealed by one passphrase ([vault-and-certificates.md, Backup and restore](vault-and-certificates.md#backup-and-restore)) | C |
 
 ---
 
@@ -226,14 +226,14 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
   `restore`, `config export|import` are local administrative actions: they run as the invoking user with access to `/data`
   and the master key, and are audited as the `cli` actor, which "may do everything" ([identity.md, Admin auth](identity.md#admin-auth)). Whoever can run them already
   has the data directory. Passphrases and passwords come from a file, stdin, the environment or a no-echo prompt, **never
-  argv** (a test parses the command line and finds no such option, [vault-and-certificates.md, Backup and restore (M10)](vault-and-certificates.md#backup-and-restore)).
+  argv** (a test parses the command line and finds no such option, [vault-and-certificates.md, Backup and restore](vault-and-certificates.md#backup-and-restore)).
 - **`/data` permissions** (*code*): `master.key` created exclusively with mode 0600 and refused if others can read it
   (`KekProvider.cs`); `vault.db` 0600 (`VaultDatabase.cs`); `last-good.json` 0600 (`LastKnownGoodFile.cs`); `setup-token`
   0600; `run/` 0700 with `admin.sock` 0600; `logs/` 0700 with 0600 files (`RotatingLogFile.cs`); `paduraksa.db` and its WAL and
   shared-memory files 0600 (`PrivateSqliteFile.cs`, G7: an older install's wider modes are restricted at startup). The data
   directory itself keeps the mode its creator gave it (the image's `install -d -m 0750`, or 0700).
 - **One server per data directory:** `run/server.lock`, an exclusive OS file lock (`DataDirectoryLock`), so a second server or
-  a restore cannot run alongside ([vault-and-certificates.md, Backup and restore (M10)](vault-and-certificates.md#backup-and-restore)). Not enforced on file systems that ignore `flock` (a warning is logged).
+  a restore cannot run alongside ([vault-and-certificates.md, Backup and restore](vault-and-certificates.md#backup-and-restore)). Not enforced on file systems that ignore `flock` (a warning is logged).
 
 ---
 
@@ -441,7 +441,7 @@ reads it and is tricked into writing a malicious script, or a malicious operator
 | `paduraksa.db` | Users, PBKDF2 hashes of admin passwords, SHA-256 of session and API-token secrets (high-entropy, so not practically reversible), recovery-code hashes, TOTP references (not seeds), the config, the revision history, the audit log with client IPs, analytics. Admin password hashes are offline-crackable (PBKDF2-210000). | Mode 0600 with its WAL files (G7), inside the data directory's own mode. Backup is encrypted. |
 | `last-good.json` | The whole live config (no secrets). | 0600. |
 | `logs/` | Client IPs, paths (queries with sensitive keys redacted), user agents, referers. | 0700/0600; retention 30 files, 30 days, 1 GiB by default (`PaduraksaOptions.cs`). Paths are logged as sent, so a secret in a path is in the log ([observability.md, Overview](observability.md#overview) analytics). |
-| a `*.pdkbak` file | Nothing without the passphrase: Argon2id (64 MiB, 3 passes, 4 lanes) then a chunked AES-256-GCM stream, header authenticated, truncation and reordering detected; the source master key is **not** in the archive (keys re-wrapped under a backup-only key) ([vault-and-certificates.md, Backup and restore (M10)](vault-and-certificates.md#backup-and-restore)). | The passphrase's strength (12-1024 characters, no composition rules). Pinned by `Paduraksa.Tests.Vault/Backup` (RFC 9106 vector, tamper and truncation cases). |
+| a `*.pdkbak` file | Nothing without the passphrase: Argon2id (64 MiB, 3 passes, 4 lanes) then a chunked AES-256-GCM stream, header authenticated, truncation and reordering detected; the source master key is **not** in the archive (keys re-wrapped under a backup-only key) ([vault-and-certificates.md, Backup and restore](vault-and-certificates.md#backup-and-restore)). | The passphrase's strength (12-1024 characters, no composition rules). Pinned by `Paduraksa.Tests.Vault/Backup` (RFC 9106 vector, tamper and truncation cases). |
 | the **old** `vault.db` plus the old KEK after `rotate-kek` | `rotate-kek` re-wraps DEKs only; the data is not re-encrypted ([vault-and-certificates.md, At-rest encryption](vault-and-certificates.md#at-rest-encryption)). | To cut off an old copy, replace the secrets themselves. |
 | the setup token (before setup) | Become the Owner. | 0600 file, deleted once an Owner exists; also in `docker logs`. |
 
@@ -463,7 +463,7 @@ an environment variable. The audit log records CLI actions (not the identity of 
 - *Built:* central package versions (`Directory.Packages.props`); Dependabot weekly for NuGet, GitHub Actions and Docker base
   images (`.github/dependabot.yml`); the Dockerfile pins both base images **by digest**; libmsquic is pinned and its feed key
   fingerprint is checked in the build; the published image carries an SBOM (`ci.yml`, `sbom: true`); no native crypto
-  libraries beyond the runtime's (Argon2 is a managed library on purpose, [vault-and-certificates.md, Backup and restore (M10)](vault-and-certificates.md#backup-and-restore)); the vault holds the only references to
+  libraries beyond the runtime's (Argon2 is a managed library on purpose, [vault-and-certificates.md, Backup and restore](vault-and-certificates.md#backup-and-restore)); the vault holds the only references to
   `Konscious.Security.Cryptography.Argon2` (`BackupBoundaryTests`); the proxy project may not reference Data, Storage or EF.
   Notable third-party code on sensitive paths: YARP, Kestrel (framework), Jint (MCP child only), MailKit, SQLite
   (bundled), MudBlazor and Blazor (dashboard), CsCheck/SharpFuzz (test only), ArchUnitNET (test only).
