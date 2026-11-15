@@ -429,7 +429,7 @@ The filter returns `EPERM`, not a kill, so a library that probes does not take t
 
 **Landlock file system mask.** It follows the kernel's ABI (REFER from 2, TRUNCATE from 3, IOCTL_DEV from 5), because an access a ruleset does not name stays allowed. With only the first thirteen bits, `truncate(2)` could empty `paduraksa.db`, `vault.db` or `master.key`. The report names the ABI used.
 
-What stays open to an escaped script is what a process always has: the pipes it was given, local sockets, signals to itself and the rest of the runtime's system call surface. Docker's default seccomp profile and Landlock: see install.md "MCP" (G14).
+What stays open to an escaped script is what a process always has: the pipes it was given, local sockets, signals to itself and the rest of the runtime's system call surface. Docker's default seccomp profile and Landlock: see [MCP](../automation/mcp.md#how-the-assistants-code-is-contained) (threat model G14).
 
 #### The parent is the guard (`ChildProcess`, `RunProtocol`)
 

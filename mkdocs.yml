@@ -14,10 +14,6 @@ site_dir: site
 exclude_docs: |
   requirements.txt
 
-# The map from the old install guide's sections to the new pages: reachable by link, not a place to browse.
-not_in_nav: |
-  install.md
-
 hooks:
   - scripts/docs/hooks.py
 

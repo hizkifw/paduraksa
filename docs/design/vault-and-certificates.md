@@ -277,7 +277,7 @@ This is the key trick. A DNS-provider client in `Paduraksa.Acme` builds an `Http
   2. the `PADURAKSA_MASTER_KEY` env var;
   3. an auto-generated `data/master.key` (0600).
 - **A KEK beside the database.** The dashboard warns when the KEK sits in the same directory as `vault.db`.
-  - Built (threat model G3): the overview's "things need you" list carries it ("The master key is stored beside the vault"), with why (a copy of the data directory is a copy of every key) and a link to install.md "The master key".
+  - Built (threat model G3): the overview's "things need you" list carries it ("The master key is stored beside the vault"), with why (a copy of the data directory is a copy of every key) and a link to [Moving the key out of the data directory](../operating/master-key.md#moving-the-key-out-of-the-data-directory).
   - It comes from `VaultStatus.KekBesideDatabase`, for a user who holds `vault:manage`. That is the Owner: only the person who runs the server can move the key.
   - The shipped compose example uses the Docker secret by default, with the generation commands in its comments.
 - **`paduraksa vault rotate-kek --new-key-file <path|->`** re-wraps the DEKs.

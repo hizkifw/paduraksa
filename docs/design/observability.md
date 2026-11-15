@@ -194,7 +194,7 @@ That is 20 space-separated fields. The first 13 are the line as it was before th
 - A sink that throws is reported at Warning (at most once a minute) and the line is skipped. A whole pass that throws (a formatter bug) is reported the same way so the next pass carries on: a faulted hosted service would stop the core host. Dropped lines are reported the same way, with the count since the last report.
 - `SharedServices` creates the one ring, the formatter's options and the sink (the process's `AccessLogFileSink`) for all three hosts. `SharedServices.Builder.Replace` is how a test swaps it.
 
-**Options** (`Paduraksa:AccessLog`): `RingSize`, `SensitiveQueryKeys` (a list, comma-separated or indexed) and `LogQueryString`. They are validated in `PaduraksaOptionsValidator` before anything is built, and documented in `docs/install.md`.
+**Options** (`Paduraksa:AccessLog`): `RingSize`, `SensitiveQueryKeys` (a list, comma-separated or indexed) and `LogQueryString`. They are validated in `PaduraksaOptionsValidator` before anything is built, and documented in [Logs, metrics and notifications](../guide/observability.md#access-log-and-request-ids).
 
 **Not built there:** the dashboard's live tail (below). The simulator reports the response `X-Request-Id` in its response-headers step. Where the ID goes *upstream* is a request transform, so the trace says nothing about that leg.
 
@@ -414,7 +414,7 @@ How an outcome is chosen: the policy that refuses records its kind on the pooled
 
 **`/metrics`** on the admin port is `GET /api/v1/metrics` (`metrics:read`, in OpenAPI), with `/metrics` rewritten to it by `ApiPipelineMiddleware`. A scraper gets the API's bearer-token authentication, permission check and problem bodies instead of a copy. `Cache-Control: no-store`.
 
-`metrics:read` (a new `Permission`, scope `metrics:read`) is held by every role. The numbers say no more than the config the same roles read, and the live overview is for all of them. `GET /api/v1/metrics/overview?range=hour|day|week|month` returns the dashboard's data. Scrape config and the families are in `docs/install.md`.
+`metrics:read` (a new `Permission`, scope `metrics:read`) is held by every role. The numbers say no more than the config the same roles read, and the live overview is for all of them. `GET /api/v1/metrics/overview?range=hour|day|week|month` returns the dashboard's data. Scrape config and the families are in [Logs, metrics and notifications](../guide/observability.md#metrics).
 
 ### Sampler and rings
 

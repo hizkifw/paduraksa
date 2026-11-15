@@ -112,7 +112,7 @@ python3 scripts/docs/check-site.py site                           # the links of
 - `--strict` fails on a broken link or anchor between pages. `check-site.py` checks the rest of the built HTML. External links are not fetched.
 - The first build downloads the pinned API-reference bundle into `~/.cache/paduraksa-docs` and checks its integrity hash. After that it is offline.
 - The API reference is the committed `src/Paduraksa.Admin/OpenApi/openapi.v1.json`: regenerate that file when the API changes ([The API description](#the-api-description)) and the site follows.
-- A page has one home. Put a fact where the task is (`docs/guide/`, `docs/operating/`, `docs/automation/`), check it against the code, and link to it from elsewhere. `docs/install.md` only maps the old sections to the new pages.
+- A page has one home. Put a fact where the task is (`docs/guide/`, `docs/operating/`, `docs/automation/`), check it against the code, and link to it from elsewhere.
 - Write ASCII and check headings by their GitHub slug: other pages link to `page.md#the-slug`, and `--strict` tells you when one breaks.
 - Screenshots are real dashboard captures under `docs/assets/`, small and few. Take them with the Dashboard end-to-end tests (`PADURAKSA_E2E_CHROMIUM=/usr/bin/chromium PADURAKSA_E2E_SCREENSHOTS=<dir> dotnet test --project tests/Paduraksa.Tests.Dashboard -c Release --filter-class "*DraftsEndToEndTests"`), crush them to a palette (Pillow's `quantize` with libimagequant, 96 colours) and look at them before committing: a screenshot can show the machine's host name.
 

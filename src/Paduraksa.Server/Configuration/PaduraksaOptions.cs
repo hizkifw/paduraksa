@@ -574,7 +574,7 @@ internal sealed class PaduraksaNotificationOptions
 /// <summary>
 /// The public listeners' slow-client and connection limits (<c>Paduraksa:Limits</c>), set on Kestrel explicitly at startup (not
 /// reloadable). The defaults are <see cref="ServerLimits.Default"/>; each setting is described on
-/// <see cref="ServerLimits"/> and in docs/install.md. The admin listener keeps Kestrel's own limits.
+/// <see cref="ServerLimits"/> and in docs/operating/settings.md. The admin listener keeps Kestrel's own limits.
 /// </summary>
 internal sealed class PaduraksaLimitsOptions
 {

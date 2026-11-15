@@ -58,7 +58,7 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
 **`deploy/compose.yaml`:**
 - It builds the local image from the checkout by default (`image: paduraksa:local`; M11's published image replaces the `build:` block).
 - It maps the public ports 1:1 (including `443:443/udp`).
-- It publishes the admin as `127.0.0.1:9443:9443` (threat model G4). Docker's published ports sit ahead of the host firewall, so a bare mapping would offer the sign-in to every network. The LAN-address form is in a comment, and install.md "Exposing the admin" explains the choices.
+- It publishes the admin as `127.0.0.1:9443:9443` (threat model G4). Docker's published ports sit ahead of the host firewall, so a bare mapping would offer the sign-in to every network. The LAN-address form is in a comment, and [Exposing the admin port](../operating/admin-access.md) explains the choices.
 - It uses one named volume for `/data`, sets a stable `hostname`, `init: true`, `stop_grace_period: 35s` and `restart: unless-stopped`, and rotates its json-file log.
 - It documents the `cap_drop: [ALL]` and `NET_BIND_SERVICE` rule and the bind-mount `install -d -o 10001 -g 10001`.
 - It uses the `PADURAKSA_MASTER_KEY_FILE` Docker secret by default (`./master.key`, created before the first start, host owner 10001: non-swarm Compose bind-mounts keep the host owner and mode).
@@ -76,7 +76,7 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
 
 ### Docs
 
-`README.md` has the short install section. The site's [Getting started](../guide/getting-started.md) and [Operating it](../operating/docker.md) pages have the details (`docs/install.md` is only the map from its old sections to them):
+`README.md` has the short install section. The site's [Getting started](../guide/getting-started.md) and [Operating it](../operating/docker.md) pages have the details:
 - compose up, reading or reprinting the setup token;
 - the master key as a Docker secret with the uid-10001 chown;
 - trusting the local CA root from `root.pem` (PEM for `update-ca-certificates`; DER `root.crt` for Android and iOS);
@@ -93,7 +93,7 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
 Built on `docs-site`. The site is MkDocs with the Material theme over `docs/` (`mkdocs.yml` at the root, pins in `docs/requirements.txt`).
 
 - **Pages.** The user guide (`docs/guide/`), operating it (`docs/operating/`) and automation (`docs/automation/`) are written for someone running Paduraksa. The threat model, the changelog, the design docs and `development.md` are the same files the repository has, shown as reference.
-- **One home per fact.** The old `docs/install.md` was split into those pages, and what is left of it is a map from its old sections. The Overview's "How to move it" link and a test pin `install.md#the-master-key`, so the page keeps that heading.
+- **One home per fact.** The old `docs/install.md` was split into those pages and then deleted. The Overview's "How to move it" link and a test pin `operating/master-key/#moving-the-key-out-of-the-data-directory`, so that page keeps the heading.
 - **Written against the code.** Each page's defaults, bounds, paths and commands were read from the code, and the CLI and API examples were run against a real instance. Where the code and the older text disagreed, the code won.
 - **Hooks (`scripts/docs/hooks.py`).**
   - A link that leaves `docs/` (a source file, `deploy/`, `bench/`) becomes a link to the repository on GitHub, so the Markdown stays valid on GitHub and on the site.

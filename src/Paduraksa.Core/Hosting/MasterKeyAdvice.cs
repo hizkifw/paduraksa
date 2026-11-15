@@ -9,5 +9,5 @@ public static class MasterKeyAdvice
 
     public const string BesideDetail = "A copy of the data directory is a copy of every certificate key and secret in it. Keep the key in a Docker secret or a systemd credential, outside the data directory.";
 
-    public const string BesideGuide = "https://github.com/hizkifw/paduraksa/blob/main/docs/install.md#the-master-key";
+    public const string BesideGuide = "https://www.paduraksa.org/operating/master-key/#moving-the-key-out-of-the-data-directory";
 }

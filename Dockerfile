@@ -91,7 +91,7 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # The one volume (docs/design/deployment.md "Overview"). /data is created with the image's owner so a fresh named volume inherits it; a bind mount
-# must be chowned to 10001:10001 by the operator (docs/install.md, deploy/compose.yaml).
+# must be chowned to 10001:10001 by the operator (docs/operating/docker.md, deploy/compose.yaml).
 RUN groupadd --system --gid 10001 paduraksa \
     && useradd --system --uid 10001 --gid paduraksa --home-dir /data --shell /usr/sbin/nologin paduraksa \
     && install -d -o paduraksa -g paduraksa -m 0750 /data

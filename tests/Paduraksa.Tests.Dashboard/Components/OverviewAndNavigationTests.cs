@@ -72,7 +72,7 @@ public sealed class OverviewAndNavigationTests
         Assert.Contains("The master key is stored beside the vault", item.TextContent, StringComparison.Ordinal);
         Assert.Contains("A copy of the data directory is a copy of every certificate key and secret", item.TextContent, StringComparison.Ordinal);
         var link = item.QuerySelector("a")!;
-        Assert.EndsWith("/docs/install.md#the-master-key", link.GetAttribute("href"), StringComparison.Ordinal);
+        Assert.EndsWith("/operating/master-key/#moving-the-key-out-of-the-data-directory", link.GetAttribute("href"), StringComparison.Ordinal);
         Assert.Equal("_blank", link.GetAttribute("target"));
         Assert.Contains("noopener", link.GetAttribute("rel"), StringComparison.Ordinal);
     }
