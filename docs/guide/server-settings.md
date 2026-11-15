@@ -1,14 +1,18 @@
 # Server settings
 
-Settings, Server in the dashboard holds the settings of the server itself: how long data is kept, the sign-in policy, notifications, the
-integrations (Cloudflare, ACME, MCP) and the public connection limits. They are part of the config, so a change goes through the review
-drawer like any other: Apply now or Add to draft, a revision in History, an audit event, and Undo by rolling back. The API is
-`GET` and `PUT /api/v1/server-settings`.
+Settings, Server holds the settings of the server itself:
+
+- how long data is kept;
+- the sign-in policy;
+- notifications;
+- the integrations (Cloudflare, ACME, MCP);
+- the public connection limits.
+
+They are part of the config, so a change goes through the review drawer like any other. It makes a revision in History and an audit event, and you undo it by rolling back. The API is `GET` and `PUT /api/v1/server-settings`.
 
 Changing them needs the Owner or the Admin role (the `server:write` permission). Every role that reads the config can see them.
 
-Each setting has an address of its own, its key in kebab-case after `#`: `/settings/server#mcp-enabled` opens the page at *Serve /mcp*, moves focus to it and
-highlights it for a moment. The dashboard's own hints link this way, and so can your notes and runbooks.
+Each setting has its own address: its key in kebab-case after `#`. `/settings/server#mcp-enabled` opens the page at *Serve /mcp* and highlights it. Your notes and runbooks can link this way too.
 
 ## Where a value comes from
 
@@ -20,14 +24,12 @@ highlights it for a moment. The dashboard's own hints link this way, and so can 
 ## When a change applies
 
 - **Live** settings apply as soon as the change is applied, with no restart.
-- A lower retention deletes the older data at the next prune (within the hour for the databases, at once for the log files), and it can't
-  be recovered. The review says so.
-- A shorter session lifetime or idle timeout holds existing sessions to it at their next check, so some may end at once. A longer minimum
-  password length applies to new and changed passwords only.
-- MCP switched off answers `/mcp` with 404 and stops the sandbox processes. Switched on, the next call starts one.
-- The connection timeouts and data rates apply to new connections; open ones keep what they started with.
-- **After a restart:** the TLS handshake timeout and the two connection caps are read when the listeners bind. The page marks a stored value
-  the server isn't running with yet as *Restart pending*.
+- A lower retention deletes the older data at the next prune, within the hour. It can't be recovered. The review says so.
+- A shorter session lifetime or idle timeout applies to existing sessions at their next check, so some may end at once.
+- A longer minimum password length applies to new and changed passwords only.
+- MCP switched off answers `/mcp` with 404. Switched on, the next call starts it.
+- The connection timeouts and data rates apply to new connections. Open ones keep what they started with.
+- **After a restart:** the TLS handshake timeout and the two connection caps. The page marks a stored value the server isn't running with yet as *Restart pending*.
 
 ## Every setting
 
@@ -77,5 +79,5 @@ Durations are written `[d.]hh:mm:ss` in the environment (`90.00:00:00` is 90 day
 
 <!-- server-settings:end -->
 
-The other process settings (ports, the data directory, files, write intervals, the scheduler's timing) stay in the environment: see
+The other settings (ports, the data directory, files and timings) stay in the environment: see
 [Server settings](../operating/settings.md) in Operating.

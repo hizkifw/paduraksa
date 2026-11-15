@@ -129,8 +129,6 @@ Every config change goes through this review. [Hosts and routes](hosts-and-route
 curl -I https://jellyfin.example.com/
 ```
 
-The public listeners answer as soon as a host matches. The admin certificate never serves proxied traffic.
-
 !!! note
     The host's DNS record must point at the machine that runs Paduraksa. To test before changing DNS, use `curl --resolve jellyfin.example.com:443:<server ip> https://jellyfin.example.com/`. The **Simulator** (Insight) also answers "why was this routed, redirected or refused" for any request, against the live config or a draft.
 

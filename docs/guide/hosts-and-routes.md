@@ -55,9 +55,12 @@ A route can forward a different path from the one the client asked for. Use it t
 - **Add a prefix:** a fixed path goes in front. With both on `/api` and `/v2`, `/api/users` reaches the API as `/v2/users`. The prefix starts with `/` and has no trailing `/`.
 - The path is forwarded as the client sent it, without decoding or re-encoding (`%2F` stays `%2F`), and the query is untouched.
 - A stripping route tells the upstream what it took off in `X-Forwarded-Prefix` (`/grafana`), so an app that builds its own links can add it back.
-- **Redirects:** an upstream's `Location` under what the route sends gets the route's path back (`/login` reaches the client as `/grafana/login`). One that already starts with `/grafana`, from an app that reads `X-Forwarded-Prefix`, is left alone. An absolute `Location` on the name the upstream was sent gets the client's own scheme and host, so an internal address doesn't reach the browser.
-- **Turn the mapping off** (**Redirects from the upstream**: *As the upstream sends them*, `rewriteLocation: false`) when the upstream redirects to other routes of the same host, such as oauth2-proxy sending `/oauth2/sign_in`: mapped, that would become `/grafana/oauth2/sign_in` and 404.
-- **404 for a path that can't be rewritten without a guess:** a spelling of the prefix other than the route's own (`//grafana`, `/%67rafana`), and, on any rewritten route, a dot segment in any spelling (`..`, `%2e%2e`, `.%2E`, `..;`) or an escape a loose decoder could misread (`%25`, `%c0`, `%u`, control characters). Matching resolves dot segments first, but the path forwarded is the raw one, and the upstream would resolve it outside the prefix.
+- **Redirects from the upstream** are mapped back. A `Location` of `/login` reaches the client as `/grafana/login`. One that already starts with `/grafana` is left alone, for an app that reads `X-Forwarded-Prefix`. An absolute `Location` on the upstream's own name gets the client's scheme and host, so an internal address never reaches the browser.
+- **Turn the mapping off** (**Redirects from the upstream**: *As the upstream sends them*, `rewriteLocation: false`) when the upstream redirects to other routes of the same host. oauth2-proxy sending `/oauth2/sign_in` would otherwise become `/grafana/oauth2/sign_in` and 404.
+- **A path that can't be rewritten safely gets a `404`:**
+    - a spelling of the prefix other than the route's own (`//grafana`, `/%67rafana`);
+    - on any rewritten route, a dot segment in any spelling (`..`, `%2e%2e`, `.%2E`, `..;`);
+    - on any rewritten route, an escape a loose decoder could misread (`%25`, `%c0`, `%u`, control characters).
 
 ```yaml
 upstreams:
@@ -86,7 +89,11 @@ Rules set, add or remove a header on the request the upstream receives, or on th
 - **Layers merge by header name:** a rule for a name replaces the lower layer's rule for that name, and the other rules are kept. A route's rules go over its host's the same way. The form lists what a layer inherits and marks the rules it replaces.
 - At most 32 rules per direction, per layer and after the layers merge. A name is up to 64 characters; a value is up to 4096 visible ASCII characters, with no line breaks and no leading or trailing space. Values are sent as written: there are no placeholders.
 - **Response rules** go on the upstream's responses and on Paduraksa's own pages for the host (error pages, redirects, maintenance), after the built-in headers: a rule for `Server` wins over the **Server header** setting. A page's own `Content-Security-Policy` stays, whatever a rule says.
-- **Refused names**, because Paduraksa sets them itself or they frame the message: `Connection`, `Content-Encoding`, `Content-Length`, `Expect`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Proxy-Connection`, `TE`, `Trailer`, `Transfer-Encoding` and `Upgrade` in both directions; `Host`, every `X-Forwarded-*`, `Forwarded`, `X-Real-IP`, `X-Request-Id`, every `cf-*`, `True-Client-IP` and `X-Paduraksa-Internal` on the request; `Strict-Transport-Security`, `Alt-Svc`, `X-Request-Id` and `Location` on the response. A request rule can't set a header a sign-in provider of the host vouches for, and a response `Set-Cookie` rule can only add.
+- **Refused names**: Paduraksa sets these itself, or they frame the message.
+    - Both directions: `Connection`, `Content-Encoding`, `Content-Length`, `Expect`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Proxy-Connection`, `TE`, `Trailer`, `Transfer-Encoding` and `Upgrade`.
+    - On the request: `Host`, every `X-Forwarded-*`, `Forwarded`, `X-Real-IP`, `X-Request-Id`, every `cf-*`, `True-Client-IP` and `X-Paduraksa-Internal`.
+    - On the response: `Strict-Transport-Security`, `Alt-Svc`, `X-Request-Id` and `Location`.
+    - A request rule can't set a header the host's sign-in provider vouches for. A response `Set-Cookie` rule can only add.
 - **Values are config, not secrets:** a static `Authorization` to an upstream is stored in the config and in its YAML export like any setting. The Simulator shows such values (`Authorization`, `Cookie`, names ending in `-Key`, `-Token` or `-Secret`) as redacted.
 
 ```yaml
@@ -116,15 +123,12 @@ hosts:
 
 ## Compression
 
-A host can compress the upstream's responses with Brotli or gzip, whichever the client's `Accept-Encoding` prefers. It is off until you turn it on, globally, per profile or per host (**Compress responses**, under *Compression*).
+A host can compress the upstream's responses with Brotli or gzip, whichever the client's `Accept-Encoding` prefers. Off by default; see [BREACH](https://www.breachattack.com/). Turn it on globally, per profile or per host (**Compress responses**, under *Compression*).
 
-- It compresses text (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly, fonts) whose declared size is at least **Smallest body** (1 KiB by default, 0 to 1 MiB). A body without a declared length is compressed.
+- It compresses text (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly, fonts) of at least **Smallest body** (1 KiB by default, 0 to 1 MiB). A body of unknown length is compressed too.
 - It leaves alone a response the upstream already compressed, a range, an event stream, a `Cache-Control: no-transform`, a `HEAD`, a WebSocket, and Paduraksa's own pages.
-- A compressed response gets `Vary: Accept-Encoding`, a weak `ETag` (`W/"..."`, which still revalidates) and no `Content-Length` or `Accept-Ranges`.
+- A compressed response gets `Vary: Accept-Encoding` and a weak `ETag`, and loses `Content-Length` and `Accept-Ranges`.
 - The access log and the metrics count the compressed bytes.
-
-!!! warning "Compression and secrets (BREACH)"
-    A page that shows a secret (a CSRF token, a session-bound value) next to text the request put there (a search term echoed back) leaks the secret through its compressed size to an attacker who can make a victim's browser send many requests. Paduraksa can't tell which pages do that, so compression is off by default. Leave it off for such hosts, or let the app compress what it knows is safe: a response the upstream already compressed passes through untouched.
 
 ```yaml
 hosts:
@@ -137,7 +141,7 @@ hosts:
 
 ## Settings layers
 
-Every host setting can be set at four layers. A layer that does not set a value inherits it from the one below.
+A host setting comes from the first layer that sets it, looking from the top. A layer that does not set a value inherits it from the one below.
 
 1. **Built-in defaults.**
 2. **Global defaults** (Settings, *Global defaults*): what every host inherits.
@@ -254,15 +258,17 @@ A **draft** collects changes made on any page (hosts, upstreams, profiles, rate 
 
 ![The draft bar under the app bar, with Review and Discard.](../assets/draft-bar.png)
 
-- There is one draft per user. It is kept on the server, so a reload, a second tab and a restart keep it. After 30 days untouched it is dropped, and you get a notice.
+- There is one draft per user, kept on the server. A reload, a second tab and a restart keep it. After 30 days untouched it is dropped, with a notice.
 - A bar under the app bar shows the change count, with **Review** and **Discard**. Lists mark objects the draft creates or changes with a *Draft* chip, and the pickers offer them.
 - An object has one entry. Editing it again replaces its entry.
-- Adding an entry checks it against the config as the draft would leave it, so a form shows its errors at its fields.
+- A form checks an entry against the config as the draft would leave it, and shows errors at the fields.
 - **Review** opens the draft drawer: every entry with its diff, the whole set's warnings and a Simulate. **Apply** commits it.
 
 ![The draft drawer: each entry with its diff, and Apply.](../assets/draft-review.png)
 
-- A draft applies whole or not at all. If someone changed an object it touches since you added the entry, that entry shows *Changed elsewhere* and Apply is refused until you reload it. If the config moved under you in another way, you get the fresh review to confirm again, never an automatic apply.
+- A draft applies whole or not at all.
+    - If someone changed an object an entry touches, that entry shows *Changed elsewhere*, and Apply is refused until you reload it.
+    - If the config moved in another way, you get the fresh review to confirm. It never applies on its own.
 - Undoing the revision undoes the whole draft.
 - Certificates, ACME accounts, DNS providers, users, API tokens and notification channels are not config: they act at once, as do a YAML import, a rollback and an Undo.
 - An API token acts on its owner's draft: an assistant can propose, and you apply. See [MCP](../automation/mcp.md).

@@ -9,8 +9,8 @@ A destination is an address like `http://jellyfin:8096` or `https://nas.lan:8443
 - An `http://` or `https://` URL with a port if it is not the scheme's default, and optionally a base path.
 - No query, fragment or credentials.
 - At least one destination must be enabled. A disabled destination stays in the config and gets no traffic.
-- Each destination can be checked from the form (**Check that it answers**): Paduraksa opens a TCP connection to its host and port within 3 seconds, closes it and sends nothing.
-- Paduraksa re-resolves names by recycling pooled connections every 60 seconds, so a restarted container with a new address is picked up quickly. A destination that fails to connect is also marked unhealthy, which forces new connections and a fresh DNS lookup on the retry.
+- **Check that it answers**, in the form, opens a TCP connection to the destination's host and port, waits up to 3 seconds, and closes it. It sends nothing.
+- Names are looked up again every 60 seconds, so a restarted container with a new address is picked up quickly. A destination that fails to connect is marked unhealthy and looked up afresh on the retry.
 
 ## Load balancing
 
@@ -33,7 +33,7 @@ With more than one destination you choose how requests are spread (**Load balanc
 Both are off until you turn them on. A destination that is out of rotation is not sent requests while another one is healthy.
 
 - **Active:** Paduraksa sends a `GET` to the path you give (it must start with `/`, no query or fragment) on each destination every **15 seconds**, and waits **5 seconds** for an answer. Both are settable.
-- **Passive:** a destination with too many transport failures is taken out for a while. **Back in rotation after** sets how long; empty is YARP's default.
+- **Passive:** a destination with too many connection failures is taken out for a while. **Back in rotation after** sets how long. Empty uses the default.
 
 The Upstreams page, the upstream form, the Hosts list and the Overview show each destination's state (*Healthy*, *Unhealthy*, *Checking* or *Not health-checked*) and when it last changed. A host whose upstream is down gets a chip beside its name. To be told, add a [notification channel](observability.md#notifications): an upstream going down or up is an event, per upstream and per destination.
 
@@ -81,7 +81,9 @@ The `Host` header the upstream receives is a setting of the upstream, **Host hea
 
 The fixed name is a host name or IP address, with an optional port from 1 to 65535 (an IPv6 literal goes in brackets).
 
-On an HTTPS destination the TLS server name (SNI) follows the Host sent, and a system-trusted certificate is checked against it. A pinned fingerprint is not tied to a name. With a fixed name, active health probes send that name too, so an upstream that only answers to it does not fail them all.
+On an HTTPS destination, the TLS server name (SNI) follows the Host sent, and a system-trusted certificate is checked against it. A pinned fingerprint is not tied to a name.
+
+With a fixed name, active health checks send that name too, so an upstream that only answers to it still passes them.
 
 Two routes that need different Host headers need two upstreams: the setting belongs to the upstream, not the route.
 

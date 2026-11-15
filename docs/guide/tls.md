@@ -2,7 +2,7 @@
 
 Paduraksa serves a certificate per name (SNI) on 443. Certificates and the accounts and providers behind them live under **TLS** in the dashboard.
 
-Certificates are not part of the config document, and a change to one acts at once. It does not go through the review sheet or a draft. A certificate change republishes the live config without creating a revision.
+Certificates are not part of the config. A change to one acts at once, with no review sheet or draft, and makes no revision.
 
 ## How a host gets its certificate
 
@@ -61,12 +61,13 @@ Live progress shows each step: order, authorizations, challenge published, DNS p
 
 ### Renewal
 
-A background scheduler renews every ACME certificate:
+Paduraksa renews every ACME certificate by itself:
 
-- If the CA offers an ARI renewal window, it renews at a random point in that window.
-- Otherwise it renews when a third of the lifetime remains, with up to 10% of that third of jitter (for a 90-day certificate, 30 days before the end, or up to 3 days earlier).
-- After a failure it retries with backoff: transient failures after 5 minutes (doubling, up to 6 hours), permanent ones after an hour (up to 24 hours), and rate limits after at least an hour or the CA's `Retry-After`.
-- It runs every minute, starts 15 seconds after the process does, and resumes unfinished orders after a restart. `Paduraksa__Acme__Enabled=false` pauses everything it does on its own. You can still request and renew by hand (**Renew now**).
+- If the CA offers a renewal window (ARI), it renews inside that window.
+- Otherwise it renews when a third of the lifetime remains. For a 90-day certificate, that is about 30 days before the end.
+- After a failure it retries with a growing delay, and honours the CA's `Retry-After`. **Retry now** and **Renew now** skip the wait.
+- It resumes unfinished orders after a restart.
+- `Paduraksa__Acme__Enabled=false` pauses everything it does on its own. You can still request and renew by hand.
 
 Expiry notices cover every certificate, whatever its source: 30, 14, 7 and 1 days before expiry. See [notifications](observability.md#notifications).
 
@@ -74,18 +75,23 @@ Expiry notices cover every certificate, whatever its source: 30, 14, 7 and 1 day
 
 Add a provider under **DNS providers**: Cloudflare or deSEC, a label and an API token. The form names the one host the token is sent to (`api.cloudflare.com` or `desec.io`). The token is stored in the vault, never shown again and never sent anywhere else. **Test** checks it.
 
-- **Cloudflare:** use a scoped API token with DNS edit on the zone. The check reads the token's status and a zone, so a token that can read but not edit fails at the first issuance.
-- **deSEC:** writes are batched per domain because deSEC limits them.
+- **Cloudflare:** use a scoped API token with DNS edit on the zone. **Test** only reads, so a token that can read but not edit passes it and fails at the first issuance.
+- **deSEC:** a token for the domain.
 
 ### Propagation check
 
-Before the CA is told to validate, Paduraksa asks the zone's own name servers directly until each returns the TXT records. A name server that does not answer authoritatively for three rounds is left out. A check that cannot run falls back to a fixed wait (30 seconds; Settings, Server, Integrations, ACME, or `Paduraksa__Acme__DnsPropagationDelay`). A check that times out with no server holding any record fails the attempt and asks nothing of the CA, because a failed validation counts against the CA's limits.
+Before the CA is told to validate, Paduraksa asks the zone's own name servers until they return the TXT record. If the check cannot run, it waits a fixed 30 seconds instead. If it times out with no server holding the record, the attempt fails without asking the CA, because a failed validation counts against the CA's limits.
 
-Switch the check off, or change the wait, under Settings, Server, Integrations, ACME ([Server settings](server-settings.md)). Its timings and resolvers are environment settings, `Paduraksa__Acme__DnsPropagation__*`: see [Server settings](../operating/settings.md#acme-and-dns-01).
+Switch the check off, or change the wait, under Settings, Server, Integrations, ACME ([Server settings](server-settings.md)), or with `Paduraksa__Acme__DnsPropagationDelay`. Its timings and resolvers are environment settings, `Paduraksa__Acme__DnsPropagation__*`: see [Server settings](../operating/settings.md#acme-and-dns-01).
 
 ### CNAME delegation
 
-If `_acme-challenge.example.com` is a CNAME to a name in another zone, Paduraksa follows it (up to 8 names deep) and publishes the TXT record at the end of the chain. The provider's credential must reach the target's zone. There is no setting for it: a CNAME there can only mean "validate somewhere else". Use it to keep your main zone's DNS credentials out of the proxy. Turning the propagation check off turns following off too.
+If `_acme-challenge.example.com` is a CNAME to a name in another zone, Paduraksa follows it (up to 8 names deep) and publishes the TXT record at the end of the chain.
+
+- The provider's credential must reach the target's zone.
+- Use it to keep your main zone's DNS credentials out of the proxy.
+- Turning the propagation check off turns following off too.
+- There is no setting for it.
 
 ## Uploaded certificates
 
@@ -94,7 +100,7 @@ If `_acme-challenge.example.com` is a CNAME to a name in another zone, Paduraksa
 - a PEM chain and a PKCS#8 private key, in one file or two; or
 - a PFX with an optional password.
 
-The file is capped at 1 MiB. A password never leaves the form's memory and is not logged. Weak keys, a CA certificate in place of a leaf, and a key that does not match are refused with the reason.
+The file is capped at 1 MiB. Weak keys, a CA certificate in place of a leaf, and a key that does not match are refused with the reason.
 
 An upload is the way to use a Cloudflare Origin CA certificate (which only Cloudflare trusts) or one from your own CA.
 
@@ -123,10 +129,10 @@ These endpoints serve the current root only. On Linux, `update-ca-certificates` 
 
 ### Limit what the root may issue for (name constraints)
 
-A root is **unlimited by default**: it may issue for any name, so a first-run root never refuses a name you use. That also means that a device that trusts it trusts it for every site, so limiting it is safer.
+A root is **unlimited by default**: it may issue for any name. A device that trusts it then trusts it for every site, so limiting it is safer.
 
 - When you create or rotate the root, switch on **Limit what this root may issue for** and choose names.
-- The root then carries a critical name-constraints extension. A device that trusts it accepts a certificate from it only for a listed domain (and everything under it), network or address.
+- A device that trusts the root then accepts its certificates only for a listed domain (and everything under it), network or address.
 - The dialog suggests private-use domains (`home.arpa`, `lan`, `local`, `internal`, `home` and others), private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` and others), the admin certificate's names and the names the CA already issued for.
 - A limited root always keeps the admin certificate's names, so a rotation cannot lock you out of the admin port.
 - A root's constraints cannot be edited. To change them, rotate.
@@ -139,18 +145,22 @@ A root is **unlimited by default**: it may issue for any name, so a first-run ro
 - The old root stays listed as *retiring* and downloadable. Certificates it signed keep serving, so nothing breaks for devices that have not installed the new root yet.
 - **Re-issue** replaces those leaves under the same IDs from the new root. A leaf whose names the new constraints do not permit is left as it is and listed.
 - **Retire** deletes an old root. It is refused while a certificate it signed is still in use.
-- Nothing renews the root by itself (it lasts 10 years): rotation is the way.
+- The root lasts 10 years. Nothing renews it, so rotate it before then.
 
 ### The admin certificate
 
-The admin port's own certificate is a local-CA leaf that the process looks after. It covers `localhost`, the loopback addresses, `Paduraksa__Listen__AdminBind` (when it is a specific address) and the machine's host name, plus any names you add with `Paduraksa__Admin__CertificateNames` (a comma-separated list or indexed keys). It is renewed when its names change or a third of its life is left. You cannot delete it or bind a host to it.
+The admin port's own certificate is a local-CA leaf that Paduraksa looks after. You cannot delete it or bind a host to it.
+
+- It covers `localhost`, the loopback addresses, the machine's host name, and `Paduraksa__Listen__AdminBind` when that is a specific address.
+- Add names with `Paduraksa__Admin__CertificateNames`, a comma-separated list or indexed keys.
+- It is renewed when its names change or a third of its life is left.
 
 ## HTTP/3
 
 443/**udp** is HTTP/3. Map it one to one, like the TCP ports.
 
-- If UDP is missing or firewalled, browsers fall back to HTTP/2 over 443/tcp and nothing breaks. Paduraksa advertises `Alt-Svc` for HTTP/3 only when `libmsquic` loaded, and never over HTTP/3 itself.
-- The image installs `libmsquic` and logs `HTTP/3 is on: QUIC on UDP 443 ...` at startup. If it says HTTP/3 is off, the package did not load. On bare metal, install it yourself: see [Bare metal](../operating/bare-metal.md).
+- If UDP is missing or firewalled, browsers fall back to HTTP/2 over 443/tcp and nothing breaks.
+- The image installs `libmsquic` and logs `HTTP/3 is on: QUIC on UDP 443 ...` at startup. If the log says HTTP/3 is off, the package did not load. On bare metal, install it yourself: see [Bare metal](../operating/bare-metal.md).
 - Behind a port translation, set `Paduraksa__Listen__PublicHttpsPort` to the port clients use, because `Alt-Svc` and the HTTP to HTTPS redirect advertise it. Do not remap the container's own ports.
 - A host can turn HTTP/3 off (**HTTP/3** under TLS in its settings). A host with Authenticated Origin Pulls never serves it, because Cloudflare does not connect to origins over QUIC.
 - `Paduraksa__Listen__Http3=false` turns the listener off for every host.
