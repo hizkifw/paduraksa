@@ -80,8 +80,8 @@ public sealed record UpsertRateLimitPolicyCommand(RateLimitPolicyConfig Policy) 
 public sealed record DeleteRateLimitPolicyCommand(RateLimitPolicyId RateLimitPolicyId, long Version) : ConfigCommand;
 
 /// <summary>Creates an access list (<see cref="AccessListConfig.Version"/> 0) or replaces one. A user's
-/// <see cref="AccessListUserConfig.Password"/> is hashed before anything else happens to the command. A user sent with
-/// neither a password nor a hash keeps the hash the list already has for that name.</summary>
+/// <see cref="AccessListUserConfig.Password"/> goes to the vault before anything else happens to the command. A user sent with
+/// neither a password nor a credential ID keeps the credential the list already has for that name.</summary>
 /// <param name="AccessList">The list as it should be. Its <see cref="AccessListConfig.Version"/> is the version edited.</param>
 public sealed record UpsertAccessListCommand(AccessListConfig AccessList) : ConfigCommand;
 

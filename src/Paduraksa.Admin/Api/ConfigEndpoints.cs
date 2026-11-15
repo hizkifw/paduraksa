@@ -24,7 +24,7 @@ internal static class ConfigEndpoints
     {
         api.MapGet("/config", GetConfigAsync)
             .WithName("GetConfig").WithTags("Config").WithSummary("The current config document")
-            .WithDescription("The whole config as the latest revision has it, with versions. The ETag is the latest revision's ID. Access list users appear with their PBKDF2 password verifiers (never a password); see the access list endpoints.")
+            .WithDescription("The whole config as the latest revision has it, with versions. The ETag is the latest revision's ID. Access list users appear with their credential IDs (the vault's handle on their passwords). No read returns a password, a hash or a verifier; see the access list endpoints.")
             .Produces<CurrentConfig>()
             .RequirePermission(Permission.ConfigRead);
 
