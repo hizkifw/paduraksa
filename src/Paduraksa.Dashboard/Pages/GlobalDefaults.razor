@@ -179,7 +179,7 @@ else
             </div>
             <div class="pdk-setting-list">
                 <SettingRow Title="Open connections per address"
-                            Help="A client address over this has its next connection closed before TLS. An IPv6 /64 counts as one address. Trusted proxies are not counted, so visitors behind one are never refused here. 0 turns it off.">
+                            Help="If a client address goes over this, its next connection is closed before TLS. An IPv6 /64 counts as one address. Trusted proxies are not counted, so visitors behind one are never refused here. 0 turns it off.">
                     <CountField Value="_model.MaxConnectionsPerIp" ValueChanged="@(value => Set(() => _model.MaxConnectionsPerIp = value, "/connections/maxConnectionsPerIp"))"
                                 Inherited="@ConnectionSettings.DefaultMaxConnectionsPerIp" InheritWord="Built-in default" Label="Connections per address" Field="max-connections-per-ip"
                                 ReadOnly="!_mayWrite" Error="@E("/connections/maxConnectionsPerIp")" Class="pdk-setting-control" />

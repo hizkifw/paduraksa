@@ -327,7 +327,7 @@ public static class ServerSettingCatalog
     public static readonly ServerSetting<long> LimitsMinResponseRate = new(
         "limitsMinResponseRate", "Limits:MinResponseRate", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Slowest download (bytes per second)",
-        "After the grace, a client that takes the response slower than this is closed. 0 turns it off. " + NewConnections,
+        "After the grace, a client that reads the response slower than this is disconnected. 0 turns it off. " + NewConnections,
         static s => s.LimitsMinResponseRate, static (s, v) => s with { LimitsMinResponseRate = v },
         240, 0)
     {
