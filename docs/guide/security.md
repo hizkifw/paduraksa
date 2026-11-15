@@ -199,7 +199,7 @@ It is answered from memory with `Cache-Control: max-age=3600`, so a change is pi
 
 **Security overview** (Security) answers "what is protecting my hosts, and is it working".
 
-- One line: what the gate refused in the last 24 hours, and the reasons (rate limit, access list, rules, ...). It links to the security section of Analytics.
+- Four live tiles for the last hour: what the gate refused overall, and for the browser check, rate limits, and access lists and rules together, each with a small chart. A tile opens the Security tab of Analytics over the same hour.
 - A table of hosts with what protects each: browser check, rate limit, access list, `robots.txt`, rules and sign-in, and how many of its requests were refused in the last 24 hours. A route that differs from its host is grouped, such as "Off on 2 routes". Hosts with nothing on come last.
 
 It reads the live config, not the stored one, so it is what the gate is doing.

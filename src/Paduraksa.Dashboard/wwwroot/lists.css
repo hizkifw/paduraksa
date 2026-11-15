@@ -190,18 +190,7 @@
 .pdk-security-table.pdk-security-table-live { --pdk-dt-cols: minmax(168px, 1.5fr) minmax(0, 0.85fr) minmax(0, 0.95fr) minmax(0, 0.85fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(132px, 1.35fr) minmax(0, 1fr); }
 
 /* A counter tile reads top to bottom (label, the number with its live rate beside it, then what it is a share of), the same at
-   every width; the detail line keeps its height when empty so a row of tiles lines up. The security page's summary line sits under
-   its header. */
-.pdk-sec-since {
-    margin: 0 0 16px;
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.875rem;
-}
-
-.pdk-page-header:has(+ .pdk-sec-since) {
-    margin-bottom: 4px;
-}
-
+   every width; the detail line keeps its height when empty so a row of tiles lines up. */
 .pdk-sec-tiles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

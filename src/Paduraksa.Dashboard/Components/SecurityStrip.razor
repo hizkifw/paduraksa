@@ -1,0 +1,174 @@
+@implements IAsyncDisposable
+@using Paduraksa.Application.Security
+@using Paduraksa.Contracts.Metrics
+@using Paduraksa.Contracts.Security
+@using Paduraksa.Dashboard.Pages
+@inject SecurityOverviewService Service
+@inject TimeProvider Time
+@inject IJSRuntime JS
+@inject DisplayFormat Fmt
+@* The security overview's live glance: what the gate refused in the last hour, overall and for the main families, each with its sparkline,
+   and each a link to the refusals over that hour on Analytics. The last hour, not 24 h, because it is the sampler's memory: it needs no store
+   read, polls like the overview's strip, and still survives a restart (the hour before it is read back from the rollups). *@
+
+<section class="pdk-sec-tiles" data-section="security-strip" aria-label="Refusals in the last hour">
+    @{
+        // The tiles are the same markup before and after the first read, so the strip never changes size when the figures arrive.
+        var reasons = _overview?.Refusals;
+        var pending = reasons is null;
+    }
+    @foreach (var tile in Tiles)
+    {
+        <SecurityTile @key="tile.Name" Name="@tile.Name" Label="@tile.Label" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Count(tile.Of(reasons!)))" Detail="@tile.Detail"
+                      Href="@Href" LinkTitle="@tile.LinkTitle">
+            <Spark>
+                @if (_points.Count >= 2)
+                {
+                    <TimeSeriesChart Name="@tile.Name" Points="@_points" Lines="@_lines[tile.Name]" Format="@Fmt.PerSecond" Compact="true" />
+                }
+            </Spark>
+        </SecurityTile>
+    }
+</section>
+
+@code {
+    private sealed record Tile(string Name, string Label, string Detail, string LinkTitle, string Css, Func<RefusalReasons, long> Of, bool Area = false);
+
+    // Overall first, then the families that refuse the most requests in practice; the rest (sign-in, request limits, connections) are on
+    // the Analytics tab each tile leads to, and the hosts' own columns are on this page.
+    private static readonly Tile[] Tiles =
+    [
+        new("refused", "Refused", "in the last hour", "What the gate refused over the last hour, on Analytics", "pdk-chart-c", static reasons => reasons.Refused, Area: true),
+        new("proof-of-work", "Proof of work", "challenged or refused", "Proof-of-work refusals over the last hour, on Analytics", "pdk-chart-r4", static reasons => reasons.ProofOfWork),
+        new("rate-limited", "Rate limited", "turned away", "Rate-limited requests over the last hour, on Analytics", "pdk-chart-r1", static reasons => reasons.RateLimit),
+        new("denied", "Denied", "by access lists and rules", "Requests denied by access lists and rules over the last hour, on Analytics", "pdk-chart-r3", static reasons => reasons.AccessList + reasons.RuleSet),
+    ];
+
+    /// <summary>Every tile leads to the Security tab over the same hour, where each family has its card.</summary>
+    internal static readonly string Href = AnalyticsView.Href(AnalyticsTab.Security, MetricsRange.Hour);
+
+    private SecurityOverview? _overview;
+    private bool _visible = true;
+    private bool _started;
+    private bool _watching;
+    private IReadOnlyList<TimeSeriesChart.ChartPoint> _points = [];
+    private IReadOnlyDictionary<string, IReadOnlyList<TimeSeriesChart.ChartLine>> _lines = new Dictionary<string, IReadOnlyList<TimeSeriesChart.ChartLine>>();
+    private DotNetObjectReference<SecurityStrip>? _self;
+    private CancellationTokenSource? _stop;
+
+    /// <summary>
+    /// Whether the page may read: false until it has checked the caller's permission, so a role that can't read the security overview
+    /// never triggers a read. The tiles are drawn (pending) either way.
+    /// </summary>
+    [Parameter]
+    public bool Active { get; set; } = true;
+
+    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_started || !Active || !RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _started = true;
+        _stop = new CancellationTokenSource();
+        await LoadAsync();
+        _ = PollAsync(_stop);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_started && !_watching)
+        {
+            _watching = true;
+            _self = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", "security-strip", _self);
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone; nothing watches, and the strip polls until it is disposed.
+            }
+        }
+    }
+
+    /// <summary>The browser tab was hidden or shown: the polling pauses while it is hidden and reads at once when it is shown.</summary>
+    [JSInvokable]
+    public async Task PageVisibilityChangedAsync(bool visible)
+    {
+        await InvokeAsync(async () =>
+        {
+            _visible = visible;
+            if (visible)
+            {
+                await LoadAsync();
+            }
+        });
+    }
+
+    private async Task LoadAsync()
+    {
+        // The hour is the sampler's memory: it reads nothing that can fail, so there is no error state.
+        _overview = await Service.ReadAsync(MetricsRange.Hour, _stop?.Token ?? CancellationToken.None);
+        Shape(_overview);
+        StateHasChanged();
+    }
+
+    private async Task PollAsync(CancellationTokenSource stop)
+    {
+        var token = stop.Token;
+        try
+        {
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(5), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                if (_visible)
+                {
+                    await InvokeAsync(LoadAsync);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The strip is gone.
+        }
+    }
+
+    private void Shape(SecurityOverview overview)
+    {
+        var series = overview.Series;
+        _points = [.. series.Select(step => new TimeSeriesChart.ChartPoint(step.Start, TimeSpan.FromSeconds(step.WidthSeconds), step.CoveredSeconds == 0, TrafficFigures.Coverage(step.CoveredSeconds, step.WidthSeconds, Fmt)))];
+        // A rate, as the Security tab draws it: a step is not a fixed width, and a step nobody observed has no value and breaks the line.
+        _lines = Tiles.ToDictionary(
+            tile => tile.Name,
+            tile => (IReadOnlyList<TimeSeriesChart.ChartLine>)[new(tile.Label, tile.Css, [.. series.Select(step => step.CoveredSeconds == 0 ? (double?)null : (double)tile.Of(step.Refused) / step.CoveredSeconds)], Area: tile.Area)]);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_stop is { } stop)
+        {
+            await stop.CancelAsync();
+            stop.Dispose();
+        }
+
+        if (_self is not null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach", "security-strip");
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone.
+            }
+
+            _self.Dispose();
+        }
+    }
+}

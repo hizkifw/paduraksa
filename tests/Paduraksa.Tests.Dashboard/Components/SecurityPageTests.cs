@@ -223,7 +223,7 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
-    public async Task TheLineSaysWhatWasRefusedInTheLast24HoursByReasonAndLinksToTheStatistics()
+    public async Task TheStripCountsTheLastHoursRefusalsAndEveryTileLeadsToTheSecurityTab()
     {
         await using DashboardTestContext context = new();
         await using var shell = await StartAsync(context, Role.Operator);
@@ -236,19 +236,18 @@ public sealed class SecurityPageTests
 
         var page = context.Render<SecurityPage>();
 
-        var line = page.Find("[data-part=refused]");
-        Assert.Equal("Refused in the last 24 h: 1,204", line.QuerySelector("a")!.TextContent);
-        Assert.Equal("/analytics?tab=security&range=24h", line.QuerySelector("a")!.GetAttribute("href"));
-        Assert.Equal("(rate limit 900 · access list 250 · proof of work 54)", line.QuerySelector("[data-part=reasons]")!.TextContent.Trim());
+        Assert.Equal(["refused", "proof-of-work", "rate-limited", "denied"], page.FindAll("[data-section=security-strip] [data-tile]").Select(tile => tile.GetAttribute("data-tile")));
+        Assert.Equal("1,204", page.Find("[data-tile=refused] [data-part=value]").TextContent);
+        Assert.All(page.FindAll("[data-section=security-strip] a[data-part=link]"), link => Assert.Equal("/analytics?tab=security&range=1h", link.GetAttribute("href")));
         Assert.Equal("954", page.Find("[data-host='app.test'] [data-cell=refused]").TextContent.Trim());
         Assert.Equal("250", page.Find("[data-host='blog.test'] [data-cell=refused]").TextContent.Trim());
-        Assert.Empty(page.FindAll("[data-tile]"));
-        // The page's content is one section, so the title is its heading: the hosts card has none of its own.
+        // The old one-line summary is gone, and the page's content is one section, so the title is its heading.
+        Assert.Empty(page.FindAll("[data-part=refused]"));
         Assert.Empty(page.FindAll("h2"));
     }
 
     [Fact]
-    public async Task NothingRefusedIsSaidSoWithNoReasons()
+    public async Task NothingRefusedIsZeroOnEveryTile()
     {
         await using DashboardTestContext context = new();
         await using var shell = await StartAsync(context, Role.Operator);
@@ -256,8 +255,7 @@ public sealed class SecurityPageTests
 
         var page = context.Render<SecurityPage>();
 
-        Assert.Equal("Nothing refused in the last 24 h", page.Find("[data-part=refused] a").TextContent);
-        Assert.Empty(page.FindAll("[data-part=reasons]"));
+        Assert.All(page.FindAll("[data-section=security-strip] [data-part=value]"), value => Assert.Equal("0", value.TextContent));
     }
 
     [Fact]
@@ -270,7 +268,8 @@ public sealed class SecurityPageTests
         var page = context.Render<SecurityPage>();
 
         Assert.Contains("couldn't be read", page.Find("[data-part=failed]").TextContent, StringComparison.Ordinal);
-        Assert.Empty(page.FindAll("[data-part=refused]"));
+        // The strip is the hour, which is memory: it stays, and the 24-hour column goes.
+        Assert.Equal(4, page.FindAll("[data-section=security-strip] [data-tile]").Count);
         Assert.Empty(page.FindAll("[data-cell=refused]"));
         Assert.Equal(3, page.FindAll("[data-host]").Count);
         Assert.Contains("pdk-security-table-live", page.Find(".pdk-security-table").ClassName, StringComparison.Ordinal);
@@ -294,7 +293,7 @@ public sealed class SecurityPageTests
 
         await page.Find("[data-part=failed] button").ClickAsync(new());
         Assert.Empty(page.FindAll("[data-part=failed]"));
-        Assert.Single(page.FindAll("[data-part=refused]"));
+        Assert.NotEmpty(page.FindAll("[data-cell=refused]"));
     }
 
     [Fact]

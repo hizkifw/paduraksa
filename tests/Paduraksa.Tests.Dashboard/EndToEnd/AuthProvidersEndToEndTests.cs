@@ -180,7 +180,7 @@ public sealed class AuthProvidersEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "sign-in-security-390");
 
         // The providers' summed counters are a card of the security statistics on Analytics, where the page's link leads.
-        await page.Locator("[data-part=refused] a").ClickAsync();
+        await page.Locator("[data-tile=refused] a[data-part=link]").ClickAsync();
         await Expect(page.Locator("[data-section=sign-in] [data-reason=sign-in-allowed]")).ToHaveTextAsync("1", new() { Timeout = 15_000 });
         await page.SetViewportSizeAsync(1280, 900);
         await OpenFromNavigationAsync(page, "Security overview");

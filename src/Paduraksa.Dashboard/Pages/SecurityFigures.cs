@@ -31,12 +31,6 @@ internal static class SecurityFigures
 
     public static string? Share(long part, long whole) => DisplayFormat.Invariant.ShareOrNull(part, whole);
 
-    /// <summary>"rate limit 900 · access list 250": the reasons that refused anything, most first.</summary>
-    public static string ReasonsText(RefusalReasons reasons, DisplayFormat? format = null) => string.Join(
-        " · ",
-        RefusalKinds.Select(kind => (kind, count: kind.Of(reasons))).Where(static pair => pair.count > 0).OrderByDescending(static pair => pair.count)
-            .Select(pair => $"{pair.kind.Name.ToLowerInvariant()} {(format ?? DisplayFormat.Invariant).Count(pair.count)}"));
-
     /// <summary>"256", or "Off" for the limit that is turned off.</summary>
     public static string LimitText(int limit, DisplayFormat? format = null) => limit == 0 ? "Off" : (format ?? DisplayFormat.Invariant).Count(limit);
 

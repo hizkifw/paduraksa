@@ -8,8 +8,9 @@
 @inject TimeProvider Time
 @inject IJSRuntime JS
 @inject DisplayFormat Fmt
-@* What protects the hosts: each enabled host's protections from the live snapshot, read every couple of seconds, and what the gate
-   refused over the last 24 hours (overall by reason, and per host). The counters over time are the security section of Analytics. *@
+@* What protects the hosts: a strip of live tiles for what the gate refused in the last hour, and each enabled host's protections from the
+   live snapshot, read every couple of seconds, with what the gate refused for it over the last 24 hours. The counters over time are the
+   Security tab of Analytics, which the tiles lead to. *@
 
 <PageTitle>Security overview · Paduraksa</PageTitle>
 
@@ -27,27 +28,15 @@ else
     var current = _current;
     var pending = current is null;
 
+    @* The strip is its own component with its own hour of reads; it waits for the permission check (Active) and is drawn pending until then. *@
+    <SecurityStrip Active="@_started" />
+
     @if (_dayFailed)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
             The last 24 hours couldn't be read. The details are in the server log.
             <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
         </MudAlert>
-    }
-    else if (current is null)
-    {
-        <p class="pdk-sec-since" data-pending="refused" aria-busy="true"><span class="pdk-pending">Nothing refused in the last 24 h</span></p>
-    }
-    else
-    {
-    var refused = current.Refusals.Refused;
-    <p class="pdk-sec-since" data-part="refused">
-        <a class="pdk-row-link" href="@SecurityStatisticsHref" title="The refusals over time and every counter, on Analytics">@(refused == 0 ? "Nothing refused in the last 24 h" : $"Refused in the last 24 h: {Fmt.Count(refused)}")</a>
-        @if (refused > 0)
-        {
-            <span data-part="reasons"> (@SecurityFigures.ReasonsText(current.Refusals, Fmt))</span>
-        }
-    </p>
     }
 
     <div class="pdk-sec-body">
@@ -318,9 +307,6 @@ else
     private bool _started;
     private DotNetObjectReference<SecurityPage>? _self;
     private CancellationTokenSource? _stop;
-
-    /// <summary>The Security tab of Analytics over the same 24 hours.</summary>
-    private static string SecurityStatisticsHref => AnalyticsView.Href(AnalyticsTab.Security, MetricsRange.Day);
 
     /// <summary>A set's page; a built-in preset has none of its own, so it goes to the list that shows the presets.</summary>
     private static string RuleSetHref(RuleSetRef set) => set.BuiltIn ? DashboardRoutes.RuleSets : DashboardRoutes.RuleSet(set.Id);

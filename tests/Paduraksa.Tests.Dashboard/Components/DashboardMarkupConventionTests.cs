@@ -33,6 +33,7 @@ public sealed partial class DashboardMarkupConventionTests
     private static readonly string[] StatisticsSurfaces =
     [
         "Components/TrafficStrip.razor",
+        "Components/SecurityStrip.razor",
         "Components/TrafficStatistics.razor",
         "Components/VisitorsStatistics.razor",
         "Components/SecurityStatistics.razor",
@@ -59,6 +60,7 @@ public sealed partial class DashboardMarkupConventionTests
         var missing = new[]
             {
                 ("Components/TrafficStrip.razor", "<SecurityTile"),
+                ("Components/SecurityStrip.razor", "<SecurityTile"),
                 ("Components/TrafficStatistics.razor", "<StatsCard"),
                 ("Components/VisitorsStatistics.razor", "<StatsCard"),
                 ("Components/SecurityStatistics.razor", "<StatsCard"),

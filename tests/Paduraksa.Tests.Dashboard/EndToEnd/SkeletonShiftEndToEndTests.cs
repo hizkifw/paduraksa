@@ -93,11 +93,12 @@ public sealed class SkeletonShiftEndToEndTests
     }
 
     [Fact]
-    public async Task TheSecurityOverviewKeepsItsRefusalsLineAndTheTableBelowIt()
+    public async Task TheSecurityOverviewKeepsItsStripAndTheTableBelowIt()
     {
+        var strip = "[data-section=security-strip]";
         await VerifyAsync("/security", "security-overview",
-            [new Pair("[data-pending=refused]", "[data-part=refused]")],
-            [new Below(".pdk-page-header", "[data-pending=hosts]", "[data-section=hosts]")]);
+            [Same(strip), Tile("refused"), Tile("proof-of-work"), Tile("rate-limited"), Tile("denied")],
+            [new Below(".pdk-page-header", strip, strip), new Below(".pdk-page-header", "[data-pending=hosts]", "[data-section=hosts]")]);
     }
 
     private static async Task VerifyAsync(string path, string name, Pair[] pairs, Below[] below, bool seed = false, bool dismissed = false, string[]? absent = null)

@@ -34,7 +34,7 @@ Everything here is compiled per snapshot, so the gate does only lookups and arit
 
 **What the blocks did, over time** (`security-history`). Every block counts in process counters and in the request's gate outcome. The metric sampler keeps both as history: the refusals by kind in the minute rollups, and the blocks' own counters (proof of work, rate limits, access lists, the connection stage, each auth provider and each rule set) in a `SecurityRollups` table. A restart no longer resets the security overview. See "Security counters" in [observability.md](observability.md).
 - The security overview (`GET /api/v1/security/overview?range=hour|day|week|month`) reads them over a range: the counters, the refusals by reason and over time, and per host what it refused. The protections stay the live snapshot's.
-- The dashboard's Security overview page shows the protections and the last 24 hours in one line; the counters over time are the Security section of Analytics. See "The security overview" in [dashboard.md](dashboard.md).
+- The dashboard's Security overview page shows the protections and the last hour of refusals as four live tiles; the counters over time are the Security section of Analytics. See "The security overview" in [dashboard.md](dashboard.md).
 
 ## Rate limiting
 
