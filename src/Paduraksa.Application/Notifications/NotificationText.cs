@@ -39,7 +39,7 @@ internal static class NotificationText
         {
             kind = change.Down ? Down(change) : Up(change);
             title = $"{scope} keeps changing state";
-            body = $"It has changed state several times in {minutes} minutes and is {state} now. It is not reported again until it has been stable for {settle} minutes. Check the service and the network between Paduraksa and it.";
+            body = $"It has changed state several times in {minutes} minutes and is {state} now. Further changes are not reported until it has been stable for {settle} minutes. Check the service and the network between Paduraksa and it.";
             severity = NotificationSeverity.Warning;
         }
         else if (change.Settled)

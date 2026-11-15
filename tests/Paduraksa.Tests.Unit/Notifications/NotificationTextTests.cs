@@ -67,7 +67,7 @@ public sealed class NotificationTextTests
         var settled = Health(Change(HealthScope.Upstream, true, reading) with { Settled = true });
 
         Assert.Equal("Upstream media keeps changing state", flapping.Title);
-        Assert.Contains("not reported again until it has been stable for 10 minutes", flapping.Body, StringComparison.Ordinal);
+        Assert.Contains("Further changes are not reported until it has been stable for 10 minutes", flapping.Body, StringComparison.Ordinal);
         Assert.Equal(NotificationEventKind.UpstreamDown, flapping.Kind);
         Assert.Equal("Upstream media has settled: down", settled.Title);
     }

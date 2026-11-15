@@ -214,7 +214,7 @@ public static class ProxyConfigMapping
                         where,
                         string.Empty,
                         ConfigWarningCodes.CertificateAutoNoCoverage,
-                        $"no valid certificate covers {string.Join(", ", uncoveredNames)}; they are served with the default certificate, if any"));
+                        $"no valid certificate covers {string.Join(", ", uncoveredNames)}, so they are served with the default certificate, if any"));
                 }
 
                 return (null, byName.Count == 0 ? null : byName);
@@ -446,7 +446,7 @@ public static class ProxyConfigMapping
                 where,
                 "/settings/cloudflare",
                 ConfigWarningCodes.CloudflareNeedsMode,
-                "origin lockdown and Authenticated Origin Pulls do nothing while the trusted-proxy mode is neither Cloudflare proxy nor Cloudflare Tunnel"));
+                "origin lockdown and Authenticated Origin Pulls do nothing unless the trusted-proxy mode is Cloudflare proxy or Cloudflare Tunnel"));
             return;
         }
 
