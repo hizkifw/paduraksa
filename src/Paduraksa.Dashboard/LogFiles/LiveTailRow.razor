@@ -15,7 +15,7 @@
     <div role="cell" class="pdk-dt-cell pdk-tail-host" data-label="Host" title="@Entry.Host">
         @if (HostHref is not null)
         {
-            <a class="pdk-row-link" href="@HostHref" @onclick:stopPropagation="true" data-link="host">@Entry.MatchedHost</a>
+            <a class="pdk-ref-link" href="@HostHref" @onclick:stopPropagation="true" data-link="host">@Entry.MatchedHost</a>
         }
         else
         {

@@ -46,8 +46,7 @@
                     }
                 </div>
 
-                <section class="pdk-detail-section">
-                    <MudText Typo="Typo.overline" Class="pdk-muted">Certificates</MudText>
+                <FormSection Title="Certificates" Name="certificates">
                     @if (!_mayReadCertificates)
                     {
                         <MudText Typo="Typo.body2" Class="pdk-muted">Your role can't read the certificates.</MudText>
@@ -56,10 +55,9 @@
                     {
                         <CertificateLinks Certificates="_certificates" Now="_now" Empty="No certificate is ordered with this account." />
                     }
-                </section>
+                </FormSection>
 
-                <section class="pdk-detail-section">
-                    <MudText Typo="Typo.overline" Class="pdk-muted">Details</MudText>
+                <FormSection Title="Details" Name="details">
                     <dl class="pdk-facts">
                         <dt>Directory</dt>
                         <dd><CopyableCode Value="@_account.DirectoryUrl" Block="true" CopyAction="copy-directory" /></dd>
@@ -80,7 +78,7 @@
                         <dt>Added</dt>
                         <dd>@Fmt.DateTime(_account.CreatedAt)</dd>
                     </dl>
-                </section>
+                </FormSection>
             </div>
         }
     </ChildContent>

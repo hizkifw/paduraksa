@@ -44,8 +44,7 @@
                     </form>
                 }
 
-                <section class="pdk-detail-section">
-                    <MudText Typo="Typo.overline" Class="pdk-muted">Certificates</MudText>
+                <FormSection Title="Certificates" Name="certificates">
                     @if (!_mayReadCertificates)
                     {
                         <MudText Typo="Typo.body2" Class="pdk-muted">Your role can't read the certificates.</MudText>
@@ -54,10 +53,9 @@
                     {
                         <CertificateLinks Certificates="_certificates" Now="_now" Empty="No certificate is ordered through this provider." />
                     }
-                </section>
+                </FormSection>
 
-                <section class="pdk-detail-section">
-                    <MudText Typo="Typo.overline" Class="pdk-muted">Details</MudText>
+                <FormSection Title="Details" Name="details">
                     <dl class="pdk-facts">
                         <dt>Type</dt>
                         <dd>@ProviderDisplay.KindLabel(_provider.Kind)</dd>
@@ -68,7 +66,7 @@
                         <dt>Added</dt>
                         <dd>@Fmt.DateTime(_provider.CreatedAt)</dd>
                     </dl>
-                </section>
+                </FormSection>
 
                 @if (_testing || _result is not null)
                 {

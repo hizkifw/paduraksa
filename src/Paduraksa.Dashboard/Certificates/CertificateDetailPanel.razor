@@ -32,8 +32,7 @@
         </MudAlert>
     }
 
-    <section class="pdk-detail-section">
-        <MudText Typo="Typo.overline" Class="pdk-muted">Validity</MudText>
+    <FormSection Title="Validity" Name="validity">
         <div class="pdk-validity">
             <ExpiryCountdown NotAfter="S.NotAfter" Now="Now" ShowDate="false" />
             <MudProgressLinear Value="CertificateDisplay.LifetimeUsed(S.NotBefore, S.NotAfter, Now)" Rounded="true" Size="Size.Small"
@@ -43,23 +42,21 @@
                 <span>Until @Fmt.DateTime(S.NotAfter)</span>
             </div>
         </div>
-    </section>
+    </FormSection>
 
     @if (S.Names.Count > 0)
     {
-        <section class="pdk-detail-section">
-            <MudText Typo="Typo.overline" Class="pdk-muted">Hostnames</MudText>
+        <FormSection Title="Hostnames" Name="hostnames">
             <div class="pdk-name-chips">
                 @foreach (var name in S.Names)
                 {
                     <span class="pdk-name-chip pdk-mono">@name</span>
                 }
             </div>
-        </section>
+        </FormSection>
     }
 
-    <section class="pdk-detail-section">
-        <MudText Typo="Typo.overline" Class="pdk-muted">Used by</MudText>
+    <FormSection Title="Used by" Name="used-by">
         @if (!UsageKnown)
         {
             <MudText Typo="Typo.body2" Class="pdk-muted">Your role can't read the hosts.</MudText>
@@ -81,16 +78,15 @@
                 }
             </ul>
         }
-    </section>
+    </FormSection>
 
-    <section class="pdk-detail-section">
-        <MudText Typo="Typo.overline" Class="pdk-muted">Details</MudText>
+    <FormSection Title="Details" Name="details">
         <dl class="pdk-facts">
             <dt>Issuer</dt>
             <dd>
                 @if (Row.Origin == CertificateOrigin.LocalCa)
                 {
-                    <a class="pdk-row-link" href="@DashboardRoutes.LocalCa" data-link="local-ca">@CertificateDisplay.CommonName(S.Issuer)</a>
+                    <a class="pdk-ref-link" href="@DashboardRoutes.LocalCa" data-link="local-ca">@CertificateDisplay.CommonName(S.Issuer)</a>
                 }
                 else
                 {
@@ -121,13 +117,12 @@
             <dt>Added</dt>
             <dd>@Fmt.DateTime(S.CreatedAt)</dd>
         </dl>
-    </section>
+    </FormSection>
 
     @if (Row.Order is not null || _progress is not null)
     {
         var order = _order ?? Row.Order;
-        <section class="pdk-detail-section">
-            <MudText Typo="Typo.overline" Class="pdk-muted">ACME</MudText>
+        <FormSection Title="ACME" Name="acme">
             @if (_progress is { } progress)
             {
                 <OrderProgressView ChallengeType="progress.ChallengeType" Reports="_watched" Now="Now" Attempts="order?.Attempts" />
@@ -139,7 +134,7 @@
                     <dd>
                         @if (_accountName is not null)
                         {
-                            <a class="pdk-row-link" href="@DashboardRoutes.AcmeAccount(order.AccountId)" data-link="acme-account">@_accountName</a>
+                            <a class="pdk-ref-link" href="@DashboardRoutes.AcmeAccount(order.AccountId)" data-link="acme-account">@_accountName</a>
                         }
                         else
                         {
@@ -151,7 +146,7 @@
                     @if (order.DnsProviderId is { } dnsProvider && _dnsName is not null)
                     {
                         <dt>DNS provider</dt>
-                        <dd><a class="pdk-row-link" href="@DashboardRoutes.DnsProvider(dnsProvider)" data-link="dns-provider">@_dnsName</a></dd>
+                        <dd><a class="pdk-ref-link" href="@DashboardRoutes.DnsProvider(dnsProvider)" data-link="dns-provider">@_dnsName</a></dd>
                     }
                     <dt>Order</dt>
                     <dd><span class="pdk-pill pdk-tone-@OrderTone(order.Status)">@OrderLabel(order.Status)</span></dd>
@@ -182,7 +177,7 @@
                     </MudAlert>
                 }
             }
-        </section>
+        </FormSection>
     }
 
     @if (_detail is { PublicChainPem.Length: > 0 } pem)

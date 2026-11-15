@@ -15,7 +15,7 @@
                     <dd>
                         @if (ActorHref is not null)
                         {
-                            <a href="@ActorHref" class="pdk-row-link" data-link="actor">@Actor</a>
+                            <a href="@ActorHref" class="pdk-ref-link" data-link="actor">@Actor</a>
                         }
                         else
                         {
@@ -36,7 +36,7 @@
                         <dd class="pdk-mono">
                             @if (AuditText.LinkOf(target, Existing) is { } link)
                             {
-                                <a href="@link" class="pdk-row-link">@target</a>
+                                <a href="@link" class="pdk-ref-link">@target</a>
                             }
                             else
                             {
@@ -47,7 +47,7 @@
                 }
                 @if (Event.RevisionId is { } revision)
                 {
-                    <div class="pdk-fact"><dt>Revision</dt><dd><a href="@DashboardRoutes.Revision(revision)" class="pdk-row-link pdk-mono">@revision</a></dd></div>
+                    <div class="pdk-fact"><dt>Revision</dt><dd><a href="@DashboardRoutes.Revision(revision)" class="pdk-ref-link pdk-mono">@revision</a></dd></div>
                 }
                 <div class="pdk-fact"><dt>Event</dt><dd class="pdk-mono">@Event.Id</dd></div>
             </dl>

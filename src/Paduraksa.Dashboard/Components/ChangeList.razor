@@ -67,7 +67,7 @@ else
             <span class="pdk-list-icon pdk-tone-@Tones.Of(change.Kind).Css()"><MudIcon Icon="@Tones.IconOf(change.What)" Size="Size.Small" /></span>
             @if (LinkOf?.Invoke(change) is { } link)
             {
-                <a class="pdk-diff-title pdk-row-link" href="@link" data-link="object">@change.Title</a>
+                <a class="pdk-diff-title pdk-ref-link" href="@link" data-link="object">@change.Title</a>
             }
             else
             {

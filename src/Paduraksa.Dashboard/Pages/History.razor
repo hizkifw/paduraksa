@@ -111,7 +111,7 @@ else
                         <MudText Typo="Typo.caption" Class="pdk-muted">
                             @if (AuditText.ActorHref(detail.Revision.Actor, _me, _users) is { } actorHref)
                             {
-                                <a class="pdk-row-link" href="@actorHref" data-link="actor">@RevisionText.Actor(detail.Revision.Actor, _users, _me)</a>
+                                <a class="pdk-ref-link" href="@actorHref" data-link="actor">@RevisionText.Actor(detail.Revision.Actor, _users, _me)</a>
                             }
                             else
                             {

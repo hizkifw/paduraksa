@@ -129,7 +129,7 @@
                                     <li class="pdk-list-row">
                                         <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
                                         <span class="pdk-list-main">
-                                            <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
+                                            <a class="pdk-ref-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
                                             <span class="pdk-list-sub">Applies it to the routes that name none of their own</span>
                                         </span>
                                     </li>
@@ -139,7 +139,7 @@
                                     <li class="pdk-list-row">
                                         <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.AltRoute" Size="Size.Small" /></span>
                                         <span class="pdk-list-main">
-                                            <a class="pdk-row-link" href="@DashboardRoutes.Host(use.Host.Id)">@ChangeView.HostTitle(use.Host)</a>
+                                            <a class="pdk-ref-link" href="@DashboardRoutes.Host(use.Host.Id)">@ChangeView.HostTitle(use.Host)</a>
                                             <span class="pdk-list-sub">Route @use.Route.Path uses it</span>
                                         </span>
                                     </li>

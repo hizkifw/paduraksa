@@ -371,6 +371,31 @@
     font-size: 0.8125rem;
 }
 
+/* A link to another resource, in a drawer, a fact or a cell. The palette's accent is the text colour (cream on dark, charcoal on light), so colour can't
+   say "link": it is underlined at rest, softly, and fully when pointed at. A row's own title in its own list is .pdk-row-link. */
+.pdk-ref-link, a.pdk-tag-link {
+    color: var(--mud-palette-primary);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+.pdk-ref-link {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.pdk-ref-link:hover, a.pdk-tag-link:hover {
+    text-decoration-color: currentColor;
+}
+
+.pdk-ref-link:focus-visible {
+    border-radius: 4px;
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
 a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     border-color: var(--mud-palette-primary);
     color: var(--mud-palette-primary);

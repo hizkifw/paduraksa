@@ -535,7 +535,7 @@
     gap: 8px 12px;
 }
 
-.pdk-cert-links .pdk-row-link {
+.pdk-cert-links .pdk-ref-link {
     min-width: 0;
     flex: 1 1 12rem;
 }

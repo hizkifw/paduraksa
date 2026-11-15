@@ -132,7 +132,7 @@ else
                                         <MudIcon Icon="@Icons.Material.Rounded.East" Size="Size.Small" Class="pdk-dest-arrow" />
                                         @if (destination.UpstreamId is { } upstreamId)
                                         {
-                                            <a class="pdk-dest-label pdk-row-link" href="@DashboardRoutes.Upstream(upstreamId)" @onclick:stopPropagation="true" data-link="upstream">@destination.Label</a>
+                                            <a class="pdk-dest-label pdk-ref-link" href="@DashboardRoutes.Upstream(upstreamId)" @onclick:stopPropagation="true" data-link="upstream">@destination.Label</a>
                                         }
                                         else
                                         {

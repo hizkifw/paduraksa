@@ -13,7 +13,7 @@ else
                 <span class="pdk-list-icon pdk-tone-@CertificateDisplay.StatusTone(certificate.Status, certificate.NotBefore, certificate.NotAfter, Now)">
                     <MudIcon Icon="@CertificateDisplay.Icon(CertificateDisplay.OriginOf(certificate.Source))" Size="Size.Small" />
                 </span>
-                <a class="pdk-row-link" href="@DashboardRoutes.Certificate(certificate.Id)">@CertificateDisplay.DisplayName(certificate)</a>
+                <a class="pdk-ref-link" href="@DashboardRoutes.Certificate(certificate.Id)">@CertificateDisplay.DisplayName(certificate)</a>
                 <span class="pdk-pill pdk-tone-@CertificateDisplay.StatusTone(certificate.Status, certificate.NotBefore, certificate.NotAfter, Now)">@CertificateDisplay.StatusLabel(certificate.Status, certificate.NotBefore, certificate.NotAfter, Now)</span>
                 @if (certificate.Status != CertificateStatus.Pending)
                 {

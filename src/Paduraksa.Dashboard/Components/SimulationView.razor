@@ -48,7 +48,7 @@ else
                 Destinations of
                 @if (LinkObjects)
                 {
-                    <a class="pdk-row-link" href="@DashboardRoutes.Upstream(upstream.Id)" data-link="upstream">@(UpstreamName ?? upstream.Id.ToString())</a>
+                    <a class="pdk-ref-link" href="@DashboardRoutes.Upstream(upstream.Id)" data-link="upstream">@(UpstreamName ?? upstream.Id.ToString())</a>
                 }
                 else
                 {
