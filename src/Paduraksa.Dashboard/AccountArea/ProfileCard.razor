@@ -12,7 +12,6 @@
         <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Class="pdk-account-avatar">@UserMenu.Initials(User.DisplayName)</MudAvatar>
         <div class="pdk-list-main">
             <MudText Typo="Typo.h6" HtmlTag="h2">@User.DisplayName</MudText>
-            <span class="pdk-list-sub pdk-mono">@User.Username</span>
             <span class="pdk-tags">
                 @foreach (var role in User.Roles)
                 {
