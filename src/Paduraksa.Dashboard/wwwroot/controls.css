@@ -1,8 +1,10 @@
 /* The traffic overview and the segmented control. Loaded in order after app.css (App.razor): the order is the cascade. */
 
-/* The two heights a skeleton and its loaded component must share, so both read them from here: a sparkline in a tile, and a chart's plot. */
+/* The heights a skeleton and its loaded component must share, so both read them from here: a sparkline, a tile with a chart behind it, and a chart's plot. */
 :root {
     --pdk-spark-height: 36px;
+    --pdk-bleed-tile-height: 136px;
+    --pdk-bleed-headroom: 64px;
     --pdk-chart-plot-height: 140px;
 }
 
@@ -190,6 +192,35 @@
     pointer-events: none;
 }
 
+/* Over a tile's chart the tooltip is the tile's own figure: no box, the value at the figure's size and the time on the detail line. */
+.pdk-chart-tip.pdk-chart-tip-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+}
+
+.pdk-chart-tip-figure {
+    font-size: 1.75rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.pdk-chart-tip-tile .pdk-chart-tip-time {
+    min-height: 1.4em;
+    margin: 0;
+    overflow: hidden;
+    font-size: 0.75rem;
+    line-height: inherit;
+    text-overflow: ellipsis;
+}
+
 .pdk-chart-tip[hidden] {
     display: none;
 }
@@ -268,8 +299,12 @@
 .pdk-chart-r8 { --pdk-series: #8C9A5B; }
 .pdk-chart-r9 { --pdk-series: var(--pdk-muted); }
 .pdk-chart-line { stroke: var(--pdk-series); }
-.pdk-chart-area,
+.pdk-chart-area:not(.pdk-chart-fade),
 .pdk-chart-band { fill: var(--pdk-series); }
+.pdk-chart-area.pdk-chart-fade { opacity: 1; }
+.pdk-chart-fade-stops stop { stop-color: var(--pdk-series); }
+.pdk-chart-fade-stops stop:first-child { stop-opacity: 0.38; }
+.pdk-chart-fade-stops stop:last-child { stop-opacity: 0; }
 .pdk-chart-swatch.pdk-chart-up { background: repeating-linear-gradient(90deg, var(--pdk-series) 0 5px, transparent 5px 8px); }
 
 .pdk-traffic-scroll {

@@ -256,7 +256,7 @@
     font-size: 0.75rem;
 }
 
-/* A tile that is a link: the label's anchor is stretched over the whole tile, and the sparkline sits above it so its tooltip still works. */
+/* A tile that is a link: the label's anchor is stretched over the whole tile. */
 .pdk-sec-tile-linked.mud-paper {
     position: relative;
 }
@@ -289,6 +289,48 @@
     position: relative;
     height: var(--pdk-spark-height);
     margin-top: 6px;
+}
+
+/* A tile with a sparkline: the chart fills the tile behind the text. The tile is its own stacking context, so the chart (z-index -1)
+   paints over the tile's background and under the text, and the link's stretched ::after stays on top of both. Hovering finds the
+   chart's column under the link (paduraksa.js) and draws that step's value in the figure's place, so the live figure and detail hide. */
+.pdk-sec-tile-bleed.mud-paper {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: var(--pdk-bleed-tile-height);
+}
+
+.pdk-sec-tile-bleed .pdk-sec-spark {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    height: auto;
+    margin: 0;
+    /* Headroom: the line peaks under the figure, so it never runs through the number. */
+    padding-top: var(--pdk-bleed-headroom);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.pdk-sec-tile-bleed .pdk-sec-spark .pdk-pending-block {
+    height: var(--pdk-spark-height);
+    border-radius: 0;
+}
+
+.pdk-sec-tile-bleed .pdk-chart-compact,
+.pdk-sec-tile-bleed .pdk-chart-compact .pdk-chart-body,
+.pdk-sec-tile-bleed .pdk-chart-compact .pdk-chart-plot {
+    height: 100%;
+}
+
+.pdk-sec-tile-bleed .pdk-sec-detail {
+    text-shadow: 0 0 4px var(--mud-palette-surface), 0 0 8px var(--mud-palette-surface);
+}
+
+.pdk-sec-tile-bleed:has(.pdk-chart-hit.is-active) :is(.pdk-sec-figure, .pdk-sec-detail) {
+    visibility: hidden;
 }
 
 .pdk-sec-body {

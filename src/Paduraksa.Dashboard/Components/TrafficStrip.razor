@@ -149,9 +149,9 @@
         _points = TrafficFigures.Points(series, Fmt);
         _requests = [new("Requests", "pdk-chart-a", TrafficFigures.Values(series, point => point.RequestsPerSecond), Area: true)];
         // The share of a step's requests that failed; a step with none has no share to draw, and reads as no errors.
-        _errors = [new("5xx", "pdk-chart-err", TrafficFigures.Values(series, point => point.RequestsPerSecond > 0 ? point.ErrorsPerSecond / point.RequestsPerSecond : 0))];
+        _errors = [new("5xx", "pdk-chart-err", TrafficFigures.Values(series, point => point.RequestsPerSecond > 0 ? point.ErrorsPerSecond / point.RequestsPerSecond : 0), Area: true)];
         _refused = [new("Refused", "pdk-chart-c", TrafficFigures.Values(series, point => point.RefusedPerSecond), Area: true)];
-        _latency = [new("p95", "pdk-chart-b", TrafficFigures.Values(series, point => point.Total.P95Ms, timed: true))];
+        _latency = [new("p95", "pdk-chart-b", TrafficFigures.Values(series, point => point.Total.P95Ms, timed: true), Area: true)];
     }
 
     public async ValueTask DisposeAsync()

@@ -382,6 +382,14 @@
 
         const hitOf = (target) => target instanceof Element ? target.closest(".pdk-chart-hit") : null;
 
+        // A tile's chart lies under the tile's link, so the pointer's target is the link: the column is the one under it.
+        const hitAt = (target, x, y) => hitOf(target)
+            ?? (target instanceof Element && target.closest(".pdk-sec-tile-bleed")
+                ? document.elementsFromPoint(x, y).find((element) => element.matches(".pdk-chart-hit")) ?? null
+                : null);
+
+        const tileOf = (hit) => hit.closest(".pdk-sec-tile-bleed");
+
         const parse = (text) => {
             try {
                 const values = JSON.parse(text ?? "[]");
@@ -391,8 +399,29 @@
             }
         };
 
+        // Over a tile, the step's value takes the figure's place and its time the detail line's.
+        const fillTile = (hit) => {
+            const box = element();
+            const figure = document.createElement("div");
+            figure.className = "pdk-chart-tip-figure";
+            figure.textContent = parse(hit.dataset.values)[0] ?? "-";
+            const time = document.createElement("div");
+            time.className = "pdk-chart-tip-time";
+            // The tile is always the last hour, so the date ("yyyy-MM-dd HH:mm:ss zone") is dropped.
+            const at = hit.dataset.time ?? "";
+            time.textContent = hit.dataset.note || at.slice(at.indexOf(" ") + 1);
+            box.replaceChildren(figure, time);
+        };
+
         const fill = (hit) => {
             const box = element();
+            const tile = tileOf(hit) !== null;
+            box.classList.toggle("pdk-chart-tip-tile", tile);
+            if (tile) {
+                fillTile(hit);
+                return;
+            }
+
             const figure = hit.closest(".pdk-chart");
             const keys = figure ? figure.querySelectorAll(".pdk-chart-key") : [];
             const values = parse(hit.dataset.values);
@@ -437,6 +466,15 @@
         // Beside the column (to its right, else to its left), level with the top of the plot, and always inside the chart and the viewport.
         const place = (hit) => {
             const box = element();
+            const figureOfTile = tileOf(hit)?.querySelector(".pdk-sec-figure");
+            if (figureOfTile) {
+                const at = figureOfTile.getBoundingClientRect();
+                box.style.width = `${Math.round(at.width)}px`;
+                box.style.transform = `translate(${Math.round(at.left)}px, ${Math.round(at.top)}px)`;
+                return;
+            }
+
+            box.style.width = "";
             const column = hit.getBoundingClientRect();
             const figure = (hit.closest(".pdk-chart") ?? hit).getBoundingClientRect();
             const plot = (hit.ownerSVGElement ?? hit).getBoundingClientRect();
@@ -515,7 +553,7 @@
                 return;
             }
 
-            const next = touch ? null : hitOf(document.elementFromPoint(pointerX, pointerY));
+            const next = touch ? null : hitAt(document.elementFromPoint(pointerX, pointerY), pointerX, pointerY);
             if (next) {
                 active = null;
                 show(next);
@@ -532,7 +570,7 @@
             touch = false;
             pointerX = event.clientX;
             pointerY = event.clientY;
-            const hit = hitOf(event.target);
+            const hit = hitAt(event.target, pointerX, pointerY);
             if (hit) {
                 show(hit);
             } else if (active) {

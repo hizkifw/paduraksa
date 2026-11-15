@@ -27,6 +27,17 @@
                 <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@(Height / 2)" y2="@(Height / 2)" />
                 <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@Height" y2="@Height" />
             }
+            @if (Compact)
+            {
+                @* A sparkline's area fades from the line down: one gradient per line, in the line's colour (its class sets --pdk-series). *@
+                @for (var l = 0; l < Lines.Count; l++)
+                {
+                    <linearGradient id="@FadeId(l)" class="pdk-chart-fade-stops @Lines[l].Css" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" />
+                        <stop offset="1" />
+                    </linearGradient>
+                }
+            }
             @foreach (var (from, to) in GapBands())
             {
                 <rect class="pdk-chart-gap" x="@Coord(from)" y="0" width="@Coord(to - from)" height="@Height" />
@@ -36,7 +47,11 @@
                 var line = Lines[l];
                 @foreach (var run in Runs(l))
                 {
-                    @if (line.Area || Stacked)
+                    @if (Compact && line.Area)
+                    {
+                        <path class="pdk-chart-area pdk-chart-fade @line.Css" d="@AreaPath(run)" fill="url(#@FadeId(l))" />
+                    }
+                    else if (line.Area || Stacked)
                     {
                         <path class="@(Stacked ? "pdk-chart-band" : "pdk-chart-area") @line.Css" d="@AreaPath(run)" />
                     }
@@ -81,7 +96,14 @@
     private const double Width = 600;
     private const double Height = 140;
 
+    private static int _instances;
+
     private double _max = 1;
+
+    // Gradient ids are document-wide, so each chart's are its own.
+    private readonly int _instance = Interlocked.Increment(ref _instances);
+
+    private string FadeId(int line) => $"pdk-fade-{_instance}-{line}";
 
     /// <summary>One point in time: where it starts, how long it lasts, and whether anything was observed during it.</summary>
     /// <param name="Start">The first instant of the point's step.</param>

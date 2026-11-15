@@ -1,4 +1,4 @@
-<MudPaper Class="@("pdk-card pdk-sec-tile" + (Href is null ? null : " pdk-sec-tile-linked"))" Elevation="0" Outlined="true"
+<MudPaper Class="@("pdk-card pdk-sec-tile" + (Href is null ? null : " pdk-sec-tile-linked") + (Spark is null ? null : " pdk-sec-tile-bleed"))" Elevation="0" Outlined="true"
           data-tile="@(Pending ? null : Name)" data-pending="@(Pending ? Name : null)" aria-busy="@(Pending ? "true" : null)">
     @if (Href is null)
     {
@@ -62,7 +62,10 @@
     [Parameter]
     public string? LinkTitle { get; set; }
 
-    /// <summary>A small chart under the figure (a compact <c>TimeSeriesChart</c>).</summary>
+    /// <summary>
+    /// A compact <c>TimeSeriesChart</c> filling the tile behind the figure. Hovering it shows the hovered step's value and time in the
+    /// figure's place (paduraksa.js).
+    /// </summary>
     [Parameter]
     public RenderFragment? Spark { get; set; }
 }

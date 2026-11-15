@@ -32,13 +32,13 @@
 </section>
 
 @code {
-    private sealed record Tile(string Name, string Label, string Detail, string LinkTitle, string Css, Func<RefusalReasons, long> Of, bool Area = false);
+    private sealed record Tile(string Name, string Label, string Detail, string LinkTitle, string Css, Func<RefusalReasons, long> Of);
 
     // Overall first, then the families that refuse the most requests in practice; the rest (sign-in, request limits, connections) are on
     // the Analytics tab each tile leads to, and the hosts' own columns are on this page.
     private static readonly Tile[] Tiles =
     [
-        new("refused", "Refused", "in the last hour", "What the gate refused over the last hour, on Analytics", "pdk-chart-c", static reasons => reasons.Refused, Area: true),
+        new("refused", "Refused", "in the last hour", "What the gate refused over the last hour, on Analytics", "pdk-chart-c", static reasons => reasons.Refused),
         new("proof-of-work", "Proof of work", "challenged or refused", "Proof-of-work refusals over the last hour, on Analytics", "pdk-chart-r4", static reasons => reasons.ProofOfWork),
         new("rate-limited", "Rate limited", "turned away", "Rate-limited requests over the last hour, on Analytics", "pdk-chart-r1", static reasons => reasons.RateLimit),
         new("denied", "Denied", "by access lists and rules", "Requests denied by access lists and rules over the last hour, on Analytics", "pdk-chart-r3", static reasons => reasons.AccessList + reasons.RuleSet),
@@ -146,7 +146,7 @@
         // A rate, as the Security tab draws it: a step is not a fixed width, and a step nobody observed has no value and breaks the line.
         _lines = Tiles.ToDictionary(
             tile => tile.Name,
-            tile => (IReadOnlyList<TimeSeriesChart.ChartLine>)[new(tile.Label, tile.Css, [.. series.Select(step => step.CoveredSeconds == 0 ? (double?)null : (double)tile.Of(step.Refused) / step.CoveredSeconds)], Area: tile.Area)]);
+            tile => (IReadOnlyList<TimeSeriesChart.ChartLine>)[new(tile.Label, tile.Css, [.. series.Select(step => step.CoveredSeconds == 0 ? (double?)null : (double)tile.Of(step.Refused) / step.CoveredSeconds)], Area: true)]);
     }
 
     public async ValueTask DisposeAsync()

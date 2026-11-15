@@ -22,6 +22,10 @@ Section numbers written as `(§7.4)` in the entries below refer to the numbering
 | 16 | `docs/design/deployment.md` |
 | 17 | `docs/PLAN.md` (open questions) |
 
+## Unreleased
+
+- **Dashboard:** the live tiles (Overview, Security overview) draw the last hour behind the figure, filling the tile with a fading area. Hovering the chart shows the hovered step's value and time in the figure's place.
+
 ## v0.1.0 (2026-11-15)
 
 The first release: a single-node reverse proxy for homelabs with a web dashboard, a REST API, MCP and a CLI. The image is `ghcr.io/hizkifw/paduraksa:0.1.0` (also `0.1`), for amd64 and arm64. What it contains is the design as of Plan r31 below, plus these changes made after it:
