@@ -3,8 +3,8 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
-/// What each forward-auth preset assumes, and the one function that turns a <see cref="ForwardAuthConfig"/> into the values the proxy uses:
-/// the validator, the mapping and the dashboard all read it, so a preset means one thing everywhere.
+/// What each forward-auth preset assumes, and the one function that turns a <see cref="ForwardAuthConfig"/> into the values the proxy uses.
+/// The validator, the mapping and the dashboard all read it, so a preset means one thing everywhere.
 /// </summary>
 public static class ForwardAuthPresets
 {
@@ -12,10 +12,10 @@ public static class ForwardAuthPresets
     public const string DefaultReturnParameter = "rd";
 
     /// <summary>Client headers every request to an endpoint carries: the credentials it decides on and what it uses to tell a browser from a script.
-    /// The rest of the client's headers (and every hop-by-hop one) are not sent.</summary>
+    /// The client's other headers, and every hop-by-hop header, are not sent.</summary>
     public static IReadOnlyList<string> StandardRequestHeaders => ForwardAuthLimits.StandardRequestHeaders;
 
-    /// <summary>The path a preset's endpoint has; null for <see cref="ForwardAuthPreset.Custom"/>, whose URL is the whole address.</summary>
+    /// <summary>The path a preset's endpoint uses; null for <see cref="ForwardAuthPreset.Custom"/>, whose URL is the whole address.</summary>
     public static string? DefaultPath(ForwardAuthPreset preset) => preset switch
     {
         ForwardAuthPreset.Authentik => "/outpost.goauthentik.io/auth/traefik",
@@ -24,7 +24,7 @@ public static class ForwardAuthPresets
         _ => null,
     };
 
-    /// <summary>The identity headers the provider returns, which are copied upstream and stripped from the client's own request (a trailing <c>*</c> is a prefix).</summary>
+    /// <summary>The identity headers the provider returns. The proxy copies them upstream and strips them from the client's own request (a trailing <c>*</c> is a prefix).</summary>
     public static IReadOnlyList<string> DefaultResponseHeaders(ForwardAuthPreset preset) => preset switch
     {
         ForwardAuthPreset.Authentik => ["X-authentik-*"],
@@ -40,14 +40,14 @@ public static class ForwardAuthPresets
         _ => ForwardAuthCacheScope.Request,
     };
 
-    /// <summary>The preset's sign-in redirect: oauth2-proxy answers an unauthenticated <c>/oauth2/auth</c> with a bare 401 and expects the
-    /// proxy to send the browser to <c>/oauth2/start</c>; the others answer with their own redirect or page.</summary>
+    /// <summary>The preset's sign-in redirect. oauth2-proxy answers an unauthenticated <c>/oauth2/auth</c> with a bare 401 and expects the
+    /// proxy to send the browser to <c>/oauth2/start</c>; the other presets answer with their own redirect or page.</summary>
     public static ForwardAuthSignInConfig? DefaultSignIn(ForwardAuthPreset preset) =>
         preset == ForwardAuthPreset.OAuth2Proxy ? new ForwardAuthSignInConfig("/oauth2/start", DefaultReturnParameter) : null;
 
     /// <summary>
-    /// <paramref name="config"/> with every default filled in. The URL gets the preset's path when it names none (a bare address, or a lone
-    /// <c>/</c>); an unparseable URL is left as it is, for the validator to report.
+    /// <paramref name="config"/> with every default filled in. The URL gets the preset's path if it has none (a bare address, or a lone
+    /// <c>/</c>). An unparseable URL is left as it is, for the validator to report.
     /// </summary>
     public static ResolvedForwardAuth Resolve(ForwardAuthConfig config)
     {
@@ -78,11 +78,11 @@ public static class ForwardAuthPresets
 /// <param name="Preset">The provider.</param>
 /// <param name="Url">The full endpoint URL.</param>
 /// <param name="Timeout">How long to wait for the answer.</param>
-/// <param name="CacheTtl">How long an allow is remembered; zero = not at all.</param>
+/// <param name="CacheTtl">How long an allow is remembered; zero = never.</param>
 /// <param name="CacheScope">What a remembered allow covers.</param>
 /// <param name="RequestHeaders">Extra client headers sent to the endpoint, sorted ignoring case.</param>
 /// <param name="ResponseHeaders">The headers copied upstream and stripped from the client's request, sorted ignoring case.</param>
-/// <param name="SignInUrl">Where an unauthenticated browser is sent; null = the 401 is relayed.</param>
+/// <param name="SignInUrl">Where an unauthenticated browser is sent; null = the proxy relays the 401.</param>
 /// <param name="SignInReturnParameter">The query parameter that carries the original URL; null when there is no sign-in URL.</param>
 public sealed record ResolvedForwardAuth(
     ForwardAuthPreset Preset,

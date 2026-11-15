@@ -19,7 +19,7 @@ internal static class VersionEndpoint
     public static void Map(RouteGroupBuilder api) =>
         api.MapGet("/version", () => EndpointSupport.Json(Current, AdminJsonContext.Default.VersionInfo))
             .WithName("GetVersion").WithTags("Server").WithSummary("The version and build commit")
-            .WithDescription("The product version and the commit it was built from. The API is versioned by its path (v1); a change that breaks it would be a v2.")
+            .WithDescription("The product version and the commit it was built from. The API is versioned by its path (v1); a breaking change would be v2.")
             .Produces<VersionInfo>().RequireAuthenticated();
 
     internal static VersionInfo Read(Assembly assembly)

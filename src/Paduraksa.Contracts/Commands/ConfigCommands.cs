@@ -12,9 +12,9 @@ namespace Paduraksa.Contracts.Commands;
 /// <remarks>
 /// <para><b>Object commands</b> edit one top-level object (a host, upstream or profile, or the global settings) and name
 /// the <c>Version</c> they edited: the object's own <c>Version</c> field for an upsert, 0 to create, and the
-/// <c>Version</c> parameter for a delete. They conflict only when that object changed since, so two admins editing
-/// different hosts never conflict. The version is the pipeline's: whatever a command sends, the stored object gets
-/// the version the pipeline assigns.</para>
+/// <c>Version</c> parameter for a delete. They conflict only if that object has changed since, so two admins editing
+/// different hosts never conflict. The version belongs to the pipeline: the stored object gets the version the pipeline
+/// assigns, whatever a command sends.</para>
 /// <para><b>Whole-document commands</b> (<see cref="ReplaceConfigCommand"/>, <see cref="RollbackConfigCommand"/>)
 /// name the revision they were based on, which must still be the latest.</para>
 /// </remarks>
@@ -42,9 +42,9 @@ public abstract record ConfigCommand
     public bool DryRun { get; init; }
 
     /// <summary>
-    /// Do the change even though it cuts the caller's own way into the admin. When a command arrives through the
+    /// Do the change even though it cuts the caller's own way into the admin. If a command arrives through the
     /// admin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless
-    /// this is set (the API's <c>?force=true</c>, a command's <c>force</c>); on any other surface it has no effect.
+    /// this is set (the API's <c>?force=true</c>, a command's <c>force</c>). On any other surface it has no effect.
     /// </summary>
     public bool Force { get; init; }
 
@@ -80,7 +80,7 @@ public sealed record UpsertRateLimitPolicyCommand(RateLimitPolicyConfig Policy) 
 public sealed record DeleteRateLimitPolicyCommand(RateLimitPolicyId RateLimitPolicyId, long Version) : ConfigCommand;
 
 /// <summary>Creates an access list (<see cref="AccessListConfig.Version"/> 0) or replaces one. A user's
-/// <see cref="AccessListUserConfig.Password"/> is hashed before anything else happens to the command; a user sent with
+/// <see cref="AccessListUserConfig.Password"/> is hashed before anything else happens to the command. A user sent with
 /// neither a password nor a hash keeps the hash the list already has for that name.</summary>
 /// <param name="AccessList">The list as it should be. Its <see cref="AccessListConfig.Version"/> is the version edited.</param>
 public sealed record UpsertAccessListCommand(AccessListConfig AccessList) : ConfigCommand;
@@ -94,7 +94,7 @@ public sealed record DeleteAccessListCommand(AccessListId AccessListId, long Ver
 /// <param name="RuleSet">The set as it should be. Its <see cref="RuleSetConfig.Version"/> is the version edited.</param>
 public sealed record UpsertRuleSetCommand(RuleSetConfig RuleSet) : ConfigCommand;
 
-/// <summary>Deletes a rule set; no host may still resolve to it, directly, through its profile or the global defaults, and no route may name it.</summary>
+/// <summary>Deletes a rule set. No host may still resolve to it, directly, through its profile or the global defaults, and no route may name it.</summary>
 /// <param name="RuleSetId">The set.</param>
 /// <param name="Version">The version the caller saw.</param>
 public sealed record DeleteRuleSetCommand(RuleSetId RuleSetId, long Version) : ConfigCommand;
@@ -103,7 +103,7 @@ public sealed record DeleteRuleSetCommand(RuleSetId RuleSetId, long Version) : C
 /// <param name="AuthProvider">The provider as it should be. Its <see cref="AuthProviderConfig.Version"/> is the version edited.</param>
 public sealed record UpsertAuthProviderCommand(AuthProviderConfig AuthProvider) : ConfigCommand;
 
-/// <summary>Deletes an auth provider; no host may still resolve to it, directly, through its profile or the global defaults, and no route may name it.</summary>
+/// <summary>Deletes an auth provider. No host may still resolve to it, directly, through its profile or the global defaults, and no route may name it.</summary>
 /// <param name="AuthProviderId">The provider.</param>
 /// <param name="Version">The version the caller saw.</param>
 public sealed record DeleteAuthProviderCommand(AuthProviderId AuthProviderId, long Version) : ConfigCommand;
@@ -122,11 +122,11 @@ public sealed record DeleteProfileCommand(ProfileId ProfileId, long Version) : C
 public sealed record UpdateSettingsCommand(GlobalSettings Settings) : ConfigCommand;
 
 /// <summary>
-/// Replaces the whole document: the import path. The versions in <paramref name="Document"/> are ignored:
-/// an object whose config doesn't change keeps its version, every other one gets a new one.
+/// Replaces the whole document: the import path. The versions in <paramref name="Document"/> are ignored.
+/// An object whose config doesn't change keeps its version, and every other object gets a new one.
 /// </summary>
 /// <param name="Document">The config as it should be.</param>
-/// <param name="BaseRevision">The revision the document was based on: must be the latest. Null only while there is
+/// <param name="BaseRevision">The revision the document was based on, which must be the latest. Null only while there is
 /// no revision yet.</param>
 public sealed record ReplaceConfigCommand(ConfigDocument Document, ConfigRevisionId? BaseRevision = null) : ConfigCommand;
 

@@ -9,10 +9,10 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="Id">Identity; also the YARP cluster ID.</param>
 /// <param name="Name">Human label, unique ignoring case.</param>
 /// <param name="Version">Concurrency version.</param>
-/// <param name="Destinations">At least one. Canonical order: by ID. Their IDs must stay stable for YARP health state to
-/// survive.</param>
-/// <param name="LoadBalancing">Null: whatever YARP's default is (today power of two choices); a value pins the
-/// policy, so null and <see cref="LoadBalancingPolicy.PowerOfTwoChoices"/> are kept apart.</param>
+/// <param name="Destinations">At least one. Canonical order: by ID. Changing a destination's ID resets its YARP health
+/// state.</param>
+/// <param name="LoadBalancing">Null uses YARP's default (today power of two choices). A value pins the policy, so null and
+/// <see cref="LoadBalancingPolicy.PowerOfTwoChoices"/> are different settings.</param>
 /// <param name="SessionAffinity">Cookie-based session affinity.</param>
 /// <param name="PassiveHealth">Passive health (transport failure rate); null = off.</param>
 /// <param name="ActiveHealth">Active health probes; null = off.</param>
@@ -39,9 +39,9 @@ public sealed record UpstreamConfig(
     public IReadOnlyList<DestinationConfig> Destinations { get; init; } = Destinations ?? [];
 }
 
-/// <summary>How long the proxy waits on an upstream. Each value left null is the built-in default.</summary>
+/// <summary>How long the proxy waits on an upstream. A null value uses the built-in default.</summary>
 /// <param name="Connect">TCP and TLS connect to a destination, 100 ms to 5 minutes; null = 10 seconds.</param>
-/// <param name="Idle">How long a request, a response stream or an upgraded connection (a WebSocket) may go with no data in either direction before the proxy closes it, 1 second to 24 hours; zero = never; null = 1 hour.</param>
+/// <param name="Idle">How long a request, response stream or upgraded connection (a WebSocket) can carry no data in either direction before the proxy closes it, 1 second to 24 hours; zero = never; null = 1 hour.</param>
 public sealed record UpstreamTimeoutsConfig(TimeSpan? Connect = null, TimeSpan? Idle = null)
 {
     public static readonly TimeSpan DefaultConnect = TimeSpan.FromSeconds(10);
@@ -75,14 +75,14 @@ public enum LoadBalancingPolicy
     FirstAlphabetical,
 }
 
-/// <summary>Passive health: a destination with too many transport failures is taken out for a while.</summary>
+/// <summary>Passive health: the proxy takes a destination with too many transport failures out of rotation for a while.</summary>
 public sealed record PassiveHealthConfig
 {
     /// <summary>How long an unhealthy destination stays out; null = YARP's default.</summary>
     public TimeSpan? ReactivationPeriod { get; init; }
 }
 
-/// <summary>Active health: a GET of <paramref name="Path"/> on each destination every <paramref name="Interval"/>.</summary>
+/// <summary>Active health: every <paramref name="Interval"/>, the proxy sends a GET to <paramref name="Path"/> on each destination.</summary>
 /// <param name="Path">Starts with <c>/</c>, no query or fragment; appended to each destination's address.</param>
 /// <param name="Interval">Positive; null = <see cref="DefaultInterval"/> (canonical form: set).</param>
 /// <param name="Timeout">Positive; null = <see cref="DefaultTimeout"/> (canonical form: set).</param>
@@ -99,8 +99,8 @@ public sealed record ActiveHealthConfig(string Path = "/", TimeSpan? Interval = 
 /// accept, 64 hex digits each (colons allowed, as <c>openssl x509 -noout -fingerprint -sha256</c> prints them).</param>
 public sealed record UpstreamTlsConfig(UpstreamTlsTrust Trust = UpstreamTlsTrust.System, IReadOnlyList<string>? PinnedSha256 = null);
 
-/// <summary>The <c>Host</c> header an upstream receives. SNI follows it on an HTTPS destination, so the certificate is asked for
-/// and checked against the name sent (a pinned fingerprint is not tied to any name).</summary>
+/// <summary>The <c>Host</c> header an upstream receives. On an HTTPS destination SNI follows it, so the certificate is requested for
+/// and checked against the name sent (a pinned fingerprint isn't tied to a name).</summary>
 /// <param name="Mode">Which name is sent.</param>
 /// <param name="Value">With <see cref="UpstreamHostHeaderMode.Custom"/>: a host name or IP address, with a port when the
 /// upstream's virtual host needs one (<c>app.internal</c>, <c>app.internal:8080</c>, <c>[::1]:8080</c>). Absent otherwise.</param>

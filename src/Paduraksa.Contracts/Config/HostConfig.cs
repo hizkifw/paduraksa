@@ -12,12 +12,12 @@ namespace Paduraksa.Contracts.Config;
 /// hosts.</param>
 /// <param name="Version">Concurrency version.</param>
 /// <param name="Kind">What the host does with requests.</param>
-/// <param name="Enabled">False: validated, but serves nothing; its names may then repeat an enabled host's.</param>
+/// <param name="Enabled">False: validated but serves nothing, and its names may repeat an enabled host's.</param>
 /// <param name="ProfileId">The profile layer, between the global defaults and this host; null = none.</param>
 /// <param name="Certificate">Which certificate this host's names are served with; null = <see cref="CertificateBindingMode.Auto"/>.</param>
 /// <param name="Settings">The host layer of settings; unset fields inherit.</param>
-/// <param name="Routes">Proxy hosts only (at least one). The most specific path wins, whatever the list order: exact
-/// routes before prefixes, then a longer prefix before a shorter one, then <see cref="RouteConfig.Order"/>, then the
+/// <param name="Routes">Proxy hosts only, at least one. The most specific path wins regardless of list order: exact
+/// routes before prefixes, then longer prefixes before shorter ones, then <see cref="RouteConfig.Order"/>, then the
 /// listed order. Canonical order: that evaluation order.</param>
 /// <param name="Redirect">Redirect hosts only (required).</param>
 /// <param name="Respond">Respond hosts only (required).</param>
@@ -78,10 +78,10 @@ public enum CertificateBindingMode
 /// equal orders keep their listed order.</param>
 /// <param name="Match">How <paramref name="Path"/> matches.</param>
 /// <param name="Path">Starts with <c>/</c>; decoded and canonical (no <c>\</c>, <c>//</c>, <c>;</c>, dot segments,
-/// percent-encoding, query or fragment). Matching ignores case, but the path keeps the case it was written in; two
+/// percent-encoding, query or fragment). Matching ignores case and the path keeps the case it was written in. Two
 /// routes of a host with the same match kind can't have paths that differ only in case.</param>
 /// <param name="Settings">The route layer: the route-level subset of the host settings.</param>
-/// <param name="Rewrite">How the path the upstream receives differs from the client's; null forwards it as received.</param>
+/// <param name="Rewrite">How the path sent to the upstream differs from the client's; null forwards it unchanged.</param>
 public sealed record RouteConfig(
     RouteId Id,
     UpstreamId UpstreamId,
@@ -97,19 +97,19 @@ public sealed record RouteConfig(
 /// <summary>
 /// The path a route forwards: the client's, with the route's own path taken off the front, a fixed prefix put on, or both
 /// (<c>/app/x</c> becomes <c>/x</c>, or <c>/api/x</c>). It works on the path as the client sent it, without decoding or
-/// re-encoding it, and the query is untouched. With <see cref="StripPrefix"/> the upstream is told the stripped prefix in
-/// <c>X-Forwarded-Prefix</c>, and a <c>Location</c> it answers with that points into its own paths gets the client's
-/// prefix back.
+/// re-encoding it, and leaves the query untouched. With <see cref="StripPrefix"/> the proxy sends the stripped prefix to
+/// the upstream in <c>X-Forwarded-Prefix</c>, and puts the client's prefix back on a <c>Location</c> the upstream answers
+/// with that points into its own paths.
 /// </summary>
-/// <param name="StripPrefix">Take the route's path off the front. A request that spells the prefix differently from the
-/// route (encoded, with <c>//</c>, <c>;</c> or dot segments) can't be stripped without guessing, and gets 404. Not on a route
-/// whose path is <c>/</c>.</param>
-/// <param name="AddPrefix">Put this in front of what is forwarded: starts with <c>/</c>, no trailing <c>/</c>, at most 256
+/// <param name="StripPrefix">Take the route's path off the front. If a request spells the prefix differently from the
+/// route (encoded, with <c>//</c>, <c>;</c> or dot segments), the proxy can't strip it without guessing and answers 404.
+/// Not allowed on a route whose path is <c>/</c>.</param>
+/// <param name="AddPrefix">A prefix put in front of the forwarded path: starts with <c>/</c>, no trailing <c>/</c>, at most 256
 /// characters of a URL path (letters, digits, <c>-._~!$&amp;'()*+,;=:@/</c> and percent escapes), with no empty or dot
 /// segments. Sent as written.</param>
-/// <param name="RewriteLocation">With <paramref name="StripPrefix"/>: give an upstream's <c>Location</c> the client's prefix back
-/// (<c>/login</c> becomes <c>/app/login</c>; one that already starts with <c>/app</c> is left alone). Null is on; turn it off for an
-/// upstream that redirects to other routes of the host, which the mapping would put under this one. Only with a strip.</param>
+/// <param name="RewriteLocation">With <paramref name="StripPrefix"/>: puts the client's prefix back on an upstream's <c>Location</c>
+/// (<c>/login</c> becomes <c>/app/login</c>; one that already starts with <c>/app</c> is left alone). Null is on. Off suits an
+/// upstream that redirects to other routes of the host, which the mapping would otherwise put under this one. Allowed only with a strip.</param>
 public sealed record PathRewriteConfig(bool StripPrefix = false, string? AddPrefix = null, bool? RewriteLocation = null);
 
 /// <summary>A Redirect host's target.</summary>

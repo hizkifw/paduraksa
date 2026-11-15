@@ -6,9 +6,9 @@ namespace Paduraksa.Contracts.Config;
 
 /// <summary>
 /// The pages a host answers with in place of the built-in ones, one entry per status the gate and the upstream can answer
-/// with a page, and whether an upstream's own error bodies are replaced by them. Each entry inherits on its own and is
-/// replaced whole by a layer that sets it (a heading from one layer and a document from another make no page). A status with
-/// no entry in any layer is served from the built-in page.
+/// with a page, and whether they replace an upstream's own error bodies. Each entry inherits on its own, and a layer that sets
+/// an entry replaces it whole (a heading from one layer and a document from another make no page). If no layer has an
+/// entry for a status, the built-in page is served.
 /// </summary>
 public sealed record ErrorPagesSettings : ISettingsLayer
 {
@@ -57,8 +57,8 @@ public sealed record ErrorPagesSettings : ISettingsLayer
     public ErrorPageContent? Maintenance { get; init; }
 
     /// <summary>
-    /// Answer with the page above when the upstream's own response is an error with a page here (the statuses of this
-    /// record), decided from the status and content type when the response starts: the upstream's body is discarded unread. Never for
+    /// Answer with the page above when the upstream's own response is an error that has a page here (the statuses of this
+    /// record). The proxy decides from the status and content type when the response starts, and discards the upstream's body unread. Never for
     /// an upgrade, an event stream or gRPC. Built-in default: <see cref="UpstreamErrorReplacement.Off"/>.
     /// </summary>
     public UpstreamErrorReplacement? ReplaceUpstream { get; init; }
@@ -142,14 +142,14 @@ public sealed record ErrorPageContent
 }
 
 /// <summary>
-/// A host that is down on purpose. While <see cref="Enabled"/>, every request but the bypassed ones is answered with the
-/// maintenance page and <see cref="Status"/> instead of reaching the upstream: after the host's access list, rules and HTTPS
+/// A host that is down on purpose. While <see cref="Enabled"/>, every request except the bypassed ones gets the
+/// maintenance page and <see cref="Status"/> instead of reaching the upstream. This happens after the host's access list, rules and HTTPS
 /// redirect, so a refused client is still refused and plain HTTP still redirects, and after the managed <c>robots.txt</c>.
 /// Each field inherits on its own.
 /// </summary>
 public sealed record MaintenanceSettings : ISettingsLayer
 {
-    /// <summary>Serve the maintenance page. Built-in default: off. Not applied to an admin host (the config warns), so a layer
+    /// <summary>Serve the maintenance page. Built-in default: off. It doesn't apply to an admin host (the config warns), so a layer
     /// that turns it on for every host can't lock the dashboard out.</summary>
     public bool? Enabled { get; init; }
 

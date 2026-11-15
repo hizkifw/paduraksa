@@ -6,8 +6,8 @@ namespace Paduraksa.Contracts.Config;
 
 /// <summary>
 /// Custom headers: rules for the request the upstream receives and for the response the client receives. The layers merge
-/// rule by rule, keyed on the header name (ignoring case) per direction: a layer's rule for a name replaces the rule a lower
-/// layer has for it, and every other inherited rule stays. A route's rules go over its host's the same way.
+/// rule by rule, keyed on the header name (ignoring case) per direction. A layer's rule for a name replaces a lower
+/// layer's rule for that name, and every other inherited rule stays. A route's rules merge over its host's the same way.
 /// </summary>
 /// <remarks>
 /// A rule can't name a header the proxy owns (framing and hop-by-hop headers, <c>Host</c>, the forwarding, request-ID and

@@ -10,17 +10,17 @@ namespace Paduraksa.Contracts.Config;
 /// keyed by its typed ID. It feeds the dashboard's review sheet, <c>dryRun</c> responses and revision summaries.
 /// </summary>
 /// <remarks>
-/// <para>Routes and destinations are entries of their own, listed right after their parent and only when the parent
+/// <para>Routes and destinations are entries of their own, listed right after their parent and only if the parent
 /// exists on both sides. Route order is config as the last tiebreaker (same match kind, path length and
-/// <c>Order</c>): the canonical order is the one the host evaluates, so when the routes a host keeps come in a
-/// different relative order, the host lists its <c>routes</c> field.</para>
+/// <c>Order</c>): the canonical order is the one the host evaluates, so if the routes a host keeps change their relative
+/// order, the host lists its <c>routes</c> field.</para>
 /// <para>Version changes alone aren't changes: the version is concurrency metadata, not config.</para>
 /// </remarks>
 /// <param name="Kind">What happened to the object.</param>
 /// <param name="Path">JSON pointer of the object: into the new document for added and modified objects, into the old
 /// one for removed objects.</param>
 /// <param name="Fields">Modified only: JSON pointers (into the new document) of the fields that changed, in
-/// document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side
+/// document order. A list counts as one field and is named as a whole, and so is a nested object set on one side
 /// only. Child objects (routes, destinations) aren't fields of their parent.</param>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "object")]
 [JsonDerivedType(typeof(DocumentChange), "document")]

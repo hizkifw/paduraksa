@@ -9,7 +9,7 @@ namespace Paduraksa.Contracts.Config;
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
 /// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>, <see cref="RuleSet"/>, <see cref="AuthProvider"/>, <see cref="ErrorPages"/>, <see cref="Maintenance"/>, <see cref="Headers"/>, <see cref="Compression"/>) merge field by field.
 /// </summary>
-/// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
+/// <remarks>A new setting is a new nullable field at the end: stored documents don't set it.</remarks>
 public sealed record HostSettings
 {
     /// <summary>Redirect plain-HTTP requests to HTTPS before anything else. Built-in default: off.</summary>
@@ -22,15 +22,15 @@ public sealed record HostSettings
     public HstsSettings? Hsts { get; init; }
 
     /// <summary>
-    /// Write a line for every request of this host to the access log. Built-in default: on. A host that turns
-    /// it off is still proxied, and its requests still carry a request ID; they just aren't logged (the drop counter and
+    /// Write a line for every request of this host to the access log. Built-in default: on. With it off the host is still
+    /// proxied and its requests still carry a request ID, but they aren't logged (the drop counter and
     /// the error log are unaffected).
     /// </summary>
     public bool? AccessLog { get; init; }
 
     /// <summary>
     /// Where the request ID travels (<see cref="RequestIdPropagation"/>). Built-in default: upstream and client, which is
-    /// what correlates a request across the proxy's log, the app's log and an error page.
+    /// which correlates a request across the proxy's log, the app's log and an error page.
     /// </summary>
     public RequestIdPropagation? RequestIdPropagation { get; init; }
 
@@ -76,9 +76,9 @@ public sealed record HostSettings
 }
 
 /// <summary>
-/// A nested settings record: one that merges field by field with the same record in the layers below. One that sets none of
-/// its fields is no layer at all, so canonical JSON writes no key for it and a stored revision keeps the bytes it had
-/// before the record existed. Every field belongs in <see cref="SetsNothing"/>; a new one that is left out of it would be
+/// A nested settings record that merges field by field with the same record in the layers below. If a record sets none of
+/// its fields, it is no layer at all, so canonical JSON writes no key for it and a stored revision keeps the bytes it had
+/// before the record existed. Every field belongs in <see cref="SetsNothing"/>; a new field left out of it would be
 /// dropped from a document that sets it.
 /// </summary>
 public interface ISettingsLayer
@@ -100,7 +100,7 @@ public sealed record RouteSettings
 
     /// <summary>
     /// The route-level subset of <see cref="RateLimitSettings"/>: only <see cref="RateLimitSettings.Enabled"/> and
-    /// <see cref="RateLimitSettings.PolicyId"/> are accepted here, field by field over the host's resolved values. So a
+    /// <see cref="RateLimitSettings.PolicyId"/> are accepted here, field by field over the host's resolved values, so a
     /// route can inherit its host's policy, name another one, or turn the limit off for its own paths.
     /// </summary>
     public RateLimitSettings? RateLimit { get; init; }
@@ -129,14 +129,14 @@ public sealed record RouteSettings
 }
 
 /// <summary>
-/// Compressing the upstream's responses with Brotli or gzip, for a client whose <c>Accept-Encoding</c> takes one. Only a
-/// text-like content type (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly) over <see cref="MinimumSize"/>, and
-/// never a response the upstream already encoded, a range, an event stream or the proxy's own answers. Each field inherits on
+/// Compresses the upstream's responses with Brotli or gzip for a client whose <c>Accept-Encoding</c> accepts one. Only a
+/// text-like content type (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly) over <see cref="MinimumSize"/> is compressed, and
+/// never a response the upstream already encoded, a range, an event stream or one of the proxy's own answers. Each field inherits on
 /// its own.
 /// </summary>
 public sealed record CompressionSettings : ISettingsLayer
 {
-    /// <summary>Compress. Built-in default: off: a response that carries a secret next to input an attacker controls leaks the
+    /// <summary>Compress. Built-in default: off, because a response that carries a secret next to attacker-controlled input leaks the
     /// secret through its compressed size (BREACH), and the proxy can't tell which responses do.</summary>
     public bool? Enabled { get; init; }
 
@@ -148,7 +148,7 @@ public sealed record CompressionSettings : ISettingsLayer
     public bool SetsNothing => Enabled is null && MinimumSize is null;
 }
 
-/// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>
+/// <summary>TLS settings; each field inherits on its own. If a layer sets none, it counts as no layer.</summary>
 public sealed record TlsSettings : ISettingsLayer
 {
     /// <summary>Lowest TLS version over TCP (QUIC is always 1.3). Built-in default: TLS 1.2.</summary>
@@ -167,7 +167,7 @@ public sealed record TlsSettings : ISettingsLayer
 /// <summary>
 /// HTTP Strict Transport Security: the host's HTTPS responses tell a browser to keep the host on HTTPS for
 /// <see cref="MaxAge"/> seconds, and with <see cref="IncludeSubDomains"/> every subdomain too. Each field inherits on its
-/// own. Paduraksa sends it only to HTTPS requests, and never for an IP literal or a loopback name.
+/// own. Paduraksa sends it only in answers to HTTPS requests, never for an IP literal or a loopback name.
 /// </summary>
 public sealed record HstsSettings : ISettingsLayer
 {
@@ -180,13 +180,13 @@ public sealed record HstsSettings : ISettingsLayer
     public int? MaxAge { get; init; }
 
     /// <summary>Cover every subdomain too (<c>includeSubDomains</c>). Built-in default: off, because a subdomain that has
-    /// no certificate of its own stops working over plain HTTP. A browser begins to trust the setting when it sees it, and
-    /// keeps it for <see cref="MaxAge"/>, so a wrong one is felt for as long as that.</summary>
+    /// no certificate of its own stops working over plain HTTP. A browser applies the setting as soon as it sees it and
+    /// keeps it for <see cref="MaxAge"/>, so a wrong value lasts that long.</summary>
     public bool? IncludeSubDomains { get; init; }
 
     /// <summary>Ask the browser vendors' preload lists to ship the host as HTTPS-only (<c>preload</c>). Built-in default:
-    /// off. It needs <see cref="IncludeSubDomains"/> and a <see cref="MaxAge"/> of at least a year, and it is hard to undo:
-    /// browsers that ship the list keep refusing plain HTTP even after the header stops.</summary>
+    /// off. It needs <see cref="IncludeSubDomains"/> and a <see cref="MaxAge"/> of at least a year, and is hard to undo:
+    /// browsers that ship the list keep refusing plain HTTP after the header stops.</summary>
     public bool? Preload { get; init; }
 
     [JsonIgnore]
@@ -204,8 +204,8 @@ public sealed record ServerHeaderSettings : ISettingsLayer
     public ServerHeaderMode? Mode { get; init; }
 
     /// <summary>The header <see cref="ServerHeaderMode.Custom"/> sends: 1-128 visible ASCII characters or spaces, with no
-    /// leading or trailing space. Required once the resolved mode is <see cref="ServerHeaderMode.Custom"/>; ignored by
-    /// every other mode.</summary>
+    /// leading or trailing space. Required when the resolved mode is <see cref="ServerHeaderMode.Custom"/>; the other
+    /// modes ignore it.</summary>
     public string? Value { get; init; }
 
     [JsonIgnore]
@@ -213,8 +213,8 @@ public sealed record ServerHeaderSettings : ISettingsLayer
 }
 
 /// <summary>
-/// The browser check: a visitor without a valid token gets a small page that solves a SHA-256 proof of work, then a
-/// signed, expiring cookie bound to this host and client address lets it through. Each field inherits on its own.
+/// The browser check: a visitor without a valid token gets a small page that solves a SHA-256 proof of work. The solution earns a
+/// signed, expiring cookie, bound to this host and client address, that lets the visitor through. Each field inherits on its own.
 /// </summary>
 public sealed record ProofOfWorkSettings : ISettingsLayer
 {
@@ -233,10 +233,10 @@ public sealed record ProofOfWorkSettings : ISettingsLayer
 }
 
 /// <summary>
-/// Which rate-limit policy a layer applies. <see cref="PolicyId"/> names a policy the document declares; it inherits
-/// field by field, so a host can turn an inherited policy off without forgetting which one it was, and a route can
-/// inherit its host's, name another, or turn it off. A layer that names a policy without stating
-/// <see cref="Enabled"/> leaves the switch to the built-in default, which is on: naming a policy is the whole job.
+/// Which rate-limit policy a layer applies. <see cref="PolicyId"/> names a policy the document declares and inherits
+/// field by field, so a host can turn an inherited policy off and still remember which one it was, and a route can
+/// inherit its host's policy, name another, or turn it off. If a layer names a policy without stating
+/// <see cref="Enabled"/>, the switch takes the built-in default, which is on: naming a policy is enough.
 /// </summary>
 public sealed record RateLimitSettings : ISettingsLayer
 {
@@ -252,8 +252,8 @@ public sealed record RateLimitSettings : ISettingsLayer
 }
 
 /// <summary>
-/// What the host answers at <c>/robots.txt</c>. There is no route-level override: a host has one file, and every route
-/// shares it. Each field inherits on its own, so a layer can change the mode and keep the text below it.
+/// What the host answers at <c>/robots.txt</c>. A host has one file that every route shares, so there is no route-level
+/// override. Each field inherits on its own, so a layer can change the mode and keep the text below it.
 /// </summary>
 public sealed record RobotsSettings : ISettingsLayer
 {
@@ -261,8 +261,8 @@ public sealed record RobotsSettings : ISettingsLayer
     public RobotsMode? Mode { get; init; }
 
     /// <summary>
-    /// The text <see cref="RobotsMode.Custom"/> serves. Set with that mode at its layer, or inherited from one that set it;
-    /// any other mode ignores it. Line endings are normalised when the proxy compiles it, not in the stored document.
+    /// The text <see cref="RobotsMode.Custom"/> serves. Set with that mode at its layer, or inherited from a layer that set it;
+    /// the other modes ignore it. Line endings are normalised when the proxy compiles it, not in the stored document.
     /// </summary>
     public string? CustomText { get; init; }
 
@@ -280,14 +280,14 @@ public sealed record CloudflareSettings : ISettingsLayer
     /// <summary>
     /// Refuse a request whose connection peer isn't Cloudflare's edge (<c>CloudflareProxy</c>) or the configured
     /// <c>cloudflared</c> address (<c>CloudflareTunnel</c>), before anything else the host does. Built-in default: off. When
-    /// every host in the config has it on, such a peer is dropped before the TLS handshake whichever mode is chosen.
+    /// every host in the config has it on, the proxy drops such a peer before the TLS handshake, in either mode.
     /// </summary>
     public OriginLockdownMode? OriginLockdown { get; init; }
 
     /// <summary>
     /// Require Cloudflare's client certificate (Authenticated Origin Pulls) on the TLS handshake, checked against
     /// Cloudflare's origin-pull CA. Built-in default: off. Cloudflare doesn't connect to origins over HTTP/3, so a host with
-    /// this on is not served over it, and it needs the setting turned on in the zone's Cloudflare dashboard too.
+    /// this on is not served over HTTP/3. It also needs the setting turned on in the zone's Cloudflare dashboard.
     /// </summary>
     public bool? AuthenticatedOriginPulls { get; init; }
 
@@ -296,13 +296,13 @@ public sealed record CloudflareSettings : ISettingsLayer
 }
 
 /// <summary>
-/// How much of a request a host takes. Each field inherits on its own. A request over a limit is refused before the upstream
+/// How much of a request a host takes. Each field inherits on its own. The proxy refuses a request over a limit before the upstream
 /// sees it: 413 for the body, 431 for the headers, 414 for the request target. Sizes are bytes.
 /// </summary>
 public sealed record RequestLimitsSettings : ISettingsLayer
 {
-    /// <summary>Largest request body in bytes; 0 is no limit. Built-in default: 100 MiB. Over it is 413: at once when the request declares
-    /// its size, mid-upload when it doesn't. A route may set its own.</summary>
+    /// <summary>Largest request body in bytes; 0 is no limit. Built-in default: 100 MiB. A request over it gets 413, at once if it declares
+    /// its size and mid-upload if not. A route may set its own.</summary>
     public long? MaxBodySize { get; init; }
 
     /// <summary>Most header lines a request may carry, 8 to 128. Built-in default: 100. Host-wide: a route can't set it.</summary>

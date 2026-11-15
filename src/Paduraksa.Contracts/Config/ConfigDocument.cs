@@ -10,12 +10,12 @@ namespace Paduraksa.Contracts.Config;
 /// </summary>
 /// <remarks>
 /// <para><b>Evolving it.</b> A new field goes at the end of its record's parameters, is nullable, means "as before"
-/// when null, and is omitted when null; then every stored revision still reads and no object's config changes meaning.
+/// when null, and is omitted when null. Every stored revision then still reads and no object's config changes meaning.
 /// A new top-level list is written as an empty list, because the document always names its lists; a stored revision's
 /// own bytes are never rewritten, so its hash still matches. Removing or renaming a field, or changing what an existing
 /// value means, needs a new <see cref="ApiVersion"/>.</para>
 /// <para><b>Defaults are constructor defaults.</b> The JSON source generator sets init-only properties in an object
-/// initializer, so a property initializer would be overwritten when the property is absent; a field whose default isn't
+/// initializer, so a property initializer would be overwritten if the property is absent. A field whose default isn't
 /// <c>default(T)</c> is therefore a constructor parameter.</para>
 /// <para><b>Equality.</b> The records hold lists, so <c>==</c> compares them by reference: two documents mean the same
 /// config exactly when their canonical bytes are equal.</para>
@@ -64,10 +64,10 @@ public sealed record ConfigDocument(
 /// <param name="Version">Concurrency version, incremented by the command pipeline on every change.</param>
 /// <param name="Defaults">The bottom settings layer: what every host inherits unless its profile, itself or a route
 /// overrides it. Unset fields fall back to the built-in defaults.</param>
-/// <param name="UnknownHost">What a request for a name that no enabled host serves gets.</param>
-/// <param name="DefaultCertificateId">Certificate served when the SNI matches no host or is absent, and to hosts whose
+/// <param name="UnknownHost">How the proxy answers a request for a name that no enabled host serves.</param>
+/// <param name="DefaultCertificateId">The certificate served when the SNI matches no host or is absent, and to hosts whose
 /// binding resolves to no certificate of their own. Null: such handshakes are rejected.</param>
-/// <param name="TrustedProxies">Who may tell us the client IP and scheme.</param>
+/// <param name="TrustedProxies">Which proxies may supply the client IP and scheme.</param>
 /// <param name="Connections">The connection stage, before TLS: the per-IP connection cap and the connection deny list; null =
 /// the built-in cap and no list.</param>
 /// <param name="Server">The server's own settings (retention, sign-in, ...); null = every one at its default or the environment's value.</param>
@@ -98,7 +98,7 @@ public sealed record GlobalSettings(
 /// the cap and its visitors are judged by their real addresses later, at the gate.
 /// </summary>
 /// <param name="MaxConnectionsPerIp">Open connections one client address may hold (an IPv6 /64 counts as one address), 0 to
-/// 100000; 0 turns the cap off. Null = the built-in 256. Over it a connection is closed at once, before TLS.</param>
+/// 100000; 0 turns the cap off. Null = the built-in 256. A connection over the cap is closed at once, before TLS.</param>
 /// <param name="DenyListId">The access list whose <c>ip.deny</c> addresses are refused before TLS, trusted proxies
 /// included. Only its deny addresses apply here: its allow addresses, countries and users are request rules. Null = none.</param>
 public sealed record ConnectionSettings(int? MaxConnectionsPerIp = null, AccessListId? DenyListId = null)
@@ -113,10 +113,10 @@ public sealed record ConnectionSettings(int? MaxConnectionsPerIp = null, AccessL
 }
 
 /// <summary>
-/// Trusted proxies in front of Paduraksa. Only a peer inside the trusted set may supply the
-/// client IP through a header; anyone else is the client.
+/// Trusted proxies in front of Paduraksa. Only a peer in the trusted set can supply the
+/// client IP in a header; any other peer is the client.
 /// </summary>
-/// <param name="Mode">How the client IP reaches us.</param>
+/// <param name="Mode">How the client IP reaches Paduraksa.</param>
 /// <param name="Proxies">Addresses or CIDRs of the trusted peers; a set (canonical order: sorted, no duplicates).
 /// <see cref="TrustedProxyMode.Generic"/>: the proxies (required). <see cref="TrustedProxyMode.CloudflareTunnel"/>:
 /// where cloudflared connects from (required). <see cref="TrustedProxyMode.Off"/> and

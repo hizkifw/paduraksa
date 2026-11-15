@@ -95,7 +95,7 @@ internal static class ApiQueries
         "limit", $"How many items a page holds, 1 to {Pagination.MaxLimit} (default {Pagination.DefaultLimit}).", 1, Pagination.MaxLimit, Pagination.DefaultLimit);
 
     public static QueryParameter Cursor { get; } = QueryParameter.Text(
-        "cursor", "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.", maxLength: 96);
+        "cursor", "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.", maxLength: 96);
 
     public static QueryParameter DryRun { get; } = QueryParameter.Flag(
         "dryRun", "true validates and compiles the change and returns the plan without committing it.");

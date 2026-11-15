@@ -1052,7 +1052,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -1299,7 +1299,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -1708,7 +1708,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -2184,7 +2184,7 @@
           "Server"
         ],
         "summary": "The version and build commit",
-        "description": "The product version and the commit it was built from. The API is versioned by its path (v1); a change that breaks it would be a v2.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "The product version and the commit it was built from. The API is versioned by its path (v1); a breaking change would be v2.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "GetVersion",
         "responses": {
           "200": {
@@ -2231,7 +2231,7 @@
           "Config"
         ],
         "summary": "The current config document",
-        "description": "The whole config as the latest revision has it, versions included. The ETag is the latest revision's ID. It includes access lists' users with their PBKDF2 password verifiers (never a password); see the access list endpoints.\n\nRequires the `config:read` permission.",
+        "description": "The whole config as the latest revision has it, with versions. The ETag is the latest revision's ID. Access list users appear with their PBKDF2 password verifiers (never a password); see the access list endpoints.\n\nRequires the `config:read` permission.",
         "operationId": "GetConfig",
         "responses": {
           "200": {
@@ -2345,7 +2345,7 @@
           "Settings"
         ],
         "summary": "Replace the global settings",
-        "description": "Needs If-Match with the settings' version (428 without it, 412 when stale).\n\nRequires the `config:write` permission.",
+        "description": "Requires If-Match with the settings' version (428 without it, 412 if stale).\n\nRequires the `config:write` permission.",
         "operationId": "PutSettings",
         "parameters": [
           {
@@ -2492,7 +2492,7 @@
           "Settings"
         ],
         "summary": "The server settings",
-        "description": "Every server setting with its default, its bounds, what the config stores, the value in force and where it comes from: the server's environment (an explicit Paduraksa__... variable or appsettings key, which wins), the config, or the default. A setting that applies after a restart also names the value the process runs with. The ETag is the global settings' version.\n\nRequires the `config:read` permission.",
+        "description": "Every server setting with its default, its bounds, what the config stores, the value in force and where it comes from: the server's environment (an explicit Paduraksa__... variable or appsettings key, which wins), the config, or the default. A setting that applies after a restart also shows the value the process runs with. The ETag is the global settings' version.\n\nRequires the `config:read` permission.",
         "operationId": "GetServerSettings",
         "responses": {
           "200": {
@@ -2548,7 +2548,7 @@
           "Settings"
         ],
         "summary": "Replace the server settings",
-        "description": "The body is what the config stores: a member left out or null goes back to its default. Values are held to each setting's bounds (422, server.setting.invalid). A value the environment sets is stored but not used while the environment sets it. Needs server:write besides config:write, and If-Match with the global settings' version (428 without it, 412 when stale).\n\nRequires the `server:write` permission.",
+        "description": "The body is what the config stores. A member left out or null goes back to its default. Each value must be within its setting's bounds (422, server.setting.invalid). A value the environment sets is stored but unused while the environment sets it. Requires server:write as well as config:write, and If-Match with the global settings' version (428 without it, 412 if stale).\n\nRequires the `server:write` permission.",
         "operationId": "PutServerSettings",
         "parameters": [
           {
@@ -2695,7 +2695,7 @@
           "Config"
         ],
         "summary": "The config as YAML",
-        "description": "The latest revision's document, or the one asked for, in the YAML format of docs/design/admin-surfaces.md, YAML import and export. The ETag is the revision exported. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.\n\nRequires the `config:read` permission.",
+        "description": "The latest revision's document, or the revision asked for, in the YAML format of docs/design/admin-surfaces.md, YAML import and export. The ETag is the exported revision. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.\n\nRequires the `config:read` permission.",
         "operationId": "ExportConfig",
         "parameters": [
           {
@@ -2788,13 +2788,13 @@
           "Config"
         ],
         "summary": "Import a YAML config",
-        "description": "The body is YAML (application/yaml), at most 4 MiB. The mode says whether what the YAML leaves out is kept or deleted. Objects are matched by id, else by name (a host by its first host name). A dry run runs every check and returns the changes and warnings without committing. If-Match, when sent, is the revision the YAML was prepared against (412 when it is no longer the latest). A user's credentialId must be one the vault holds a password under (422 otherwise, in a dry run too). Errors (422) point into the YAML, with its line.\n\nRequires the `config:write` permission.",
+        "description": "The body is YAML (application/yaml), at most 4 MiB. The mode says whether anything the YAML leaves out is kept or deleted. Objects are matched by id, else by name (a host by its first host name). A dry run runs every check and returns the changes and warnings without committing. If sent, If-Match is the revision the YAML was prepared against (412 if it is no longer the latest). A user's credentialId must name a password the vault holds (422 otherwise, in a dry run too). Errors (422) point into the YAML, with its line.\n\nRequires the `config:write` permission.",
         "operationId": "ImportConfig",
         "parameters": [
           {
             "name": "mode",
             "in": "query",
-            "description": "merge adds or updates the objects the YAML names and deletes nothing; replace makes the config the YAML, deleting what it leaves out.",
+            "description": "merge adds or updates the objects the YAML names and deletes nothing. replace makes the config match the YAML, deleting what it leaves out.",
             "schema": {
               "enum": [
                 "merge",
@@ -2995,7 +2995,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -3275,7 +3275,7 @@
           "Simulator"
         ],
         "summary": "Simulate a request against the live config, a revision or a draft",
-        "description": "target is {kind: live} (the default), {kind: revision, revision}, {kind: draftDocument, document}, {kind: draftCommand, command} or {kind: draft, draft: <draft id>} (your own stored draft, applied as its review does; it needs config:write like reading the draft, 404 when it is not yours); a draft is validated and compiled as a real change would be, and never stored or published. Nothing here changes any counter or state.\n\nRequires the `simulate` permission.",
+        "description": "target is {kind: live} (the default), {kind: revision, revision}, {kind: draftDocument, document}, {kind: draftCommand, command} or {kind: draft, draft: <draft id>} (your own stored draft, applied as its review does; it needs config:write like reading the draft, and answers 404 if the draft isn't yours); a draft is validated and compiled as a real change would be, but never stored or published. Nothing here changes a counter or any state.\n\nRequires the `simulate` permission.",
         "operationId": "Simulate",
         "requestBody": {
           "content": {
@@ -3430,7 +3430,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -3501,7 +3501,7 @@
           "Hosts"
         ],
         "summary": "Create a host",
-        "description": "The body is the host with a client-chosen ID; its version is ignored (a new object is version 0). 409 when the ID exists.\n\nRequires the `config:write` permission.",
+        "description": "The body is the host with a client-chosen ID. Its version is ignored (a new object is version 0). Returns 409 if the ID exists.\n\nRequires the `config:write` permission.",
         "operationId": "CreateHost",
         "parameters": [
           {
@@ -3719,7 +3719,7 @@
           "Hosts"
         ],
         "summary": "Replace a host",
-        "description": "Replaces the host and its routes. Needs If-Match with the version you read (428 without it, 412 when stale). The body's ID must be the path's.\n\nRequires the `config:write` permission.",
+        "description": "Replaces the host and its routes. Requires If-Match with the version you read (428 without it, 412 if stale). The body's ID must match the path's.\n\nRequires the `config:write` permission.",
         "operationId": "ReplaceHost",
         "parameters": [
           {
@@ -4060,7 +4060,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -4237,7 +4237,7 @@
           "Hosts"
         ],
         "summary": "Create or replace a route of a host",
-        "description": "A route belongs to its host: this is a change of the host, so If-Match is the host's version. A new route goes last (201 with Location); error paths are relative to the host.\n\nRequires the `config:write` permission.",
+        "description": "A route belongs to its host, so changing a route changes the host and If-Match takes the host's version. A new route goes last (201 with Location). Error paths are relative to the host.\n\nRequires the `config:write` permission.",
         "operationId": "PutRoute",
         "parameters": [
           {
@@ -4601,7 +4601,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -5228,7 +5228,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -5855,7 +5855,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -5926,7 +5926,7 @@
           "Access lists"
         ],
         "summary": "Create an access list",
-        "description": "A user's plain 'password' goes to the vault before the list is validated or stored, and is never returned; the list keeps the user's 'credentialId'.\n\nRequires the `config:write` permission.",
+        "description": "The vault receives a user's plain 'password' before the list is validated or stored, and the API never returns it. The list keeps the user's 'credentialId'.\n\nRequires the `config:write` permission.",
         "operationId": "CreateAccessList",
         "parameters": [
           {
@@ -6144,7 +6144,7 @@
           "Access lists"
         ],
         "summary": "Replace an access list",
-        "description": "A user sent without 'password' or 'credentialId' keeps the password the list has for that username. A password change commits a revision (the list is modified) that records no password.\n\nRequires the `config:write` permission.",
+        "description": "A user sent without 'password' or 'credentialId' keeps the password the list has for that username. A password change commits a revision that modifies the list and records no password.\n\nRequires the `config:write` permission.",
         "operationId": "ReplaceAccessList",
         "parameters": [
           {
@@ -6465,7 +6465,7 @@
           "Rule sets"
         ],
         "summary": "List rule sets",
-        "description": "The document's own sets. The built-in presets are at /rule-sets/presets and are named in a setting like any other set.\n\nRequires the `config:read` permission.",
+        "description": "The document's own sets. The built-in presets are at /rule-sets/presets, and a setting names a preset like any other set.\n\nRequires the `config:read` permission.",
         "operationId": "ListRuleSets",
         "parameters": [
           {
@@ -6482,7 +6482,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -6553,7 +6553,7 @@
           "Rule sets"
         ],
         "summary": "Create a rule set",
-        "description": "Rules are tried in order and the first match decides. A regex that can't be built, or a rule that states no condition, is refused (422).\n\nRequires the `config:write` permission.",
+        "description": "Rules are tried in order and the first match decides. If a regex can't be built or a rule states no condition, the request is refused (422).\n\nRequires the `config:write` permission.",
         "operationId": "CreateRuleSet",
         "parameters": [
           {
@@ -6690,7 +6690,7 @@
           "Rule sets"
         ],
         "summary": "List the built-in rule-set presets",
-        "description": "Read-only, refreshed with each release. Copy one into a set of your own to change it.\n\nRequires the `config:read` permission.",
+        "description": "Read-only; each release refreshes them. To change one, copy it into a set of your own.\n\nRequires the `config:read` permission.",
         "operationId": "ListRuleSetPresets",
         "parameters": [
           {
@@ -6707,7 +6707,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -7199,7 +7199,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -7270,7 +7270,7 @@
           "Auth providers"
         ],
         "summary": "Create an auth provider",
-        "description": "A forward-auth endpoint: every request to a host or route that names the provider is checked against it first (authentik, Authelia, oauth2-proxy or any other). The preset (authentik, authelia, oauth2Proxy) fills in the endpoint's path when the URL is a bare address, the identity headers its answer carries, whether a remembered allow covers one path or the whole host, and oauth2-proxy's sign-in redirect; a field that is set wins. A URL with credentials, a header the proxy owns and a sign-in URL that isn't a path on the host or an absolute http(s) URL are refused (422).\n\nRequires the `config:write` permission.",
+        "description": "A forward-auth endpoint (authentik, Authelia, oauth2-proxy or any other). The proxy checks every request to a host or route that names the provider against it first. The preset (authentik, authelia, oauth2Proxy) fills in the endpoint's path when the URL is a bare address, the identity headers its answer carries, whether a remembered allow covers one path or the whole host, and oauth2-proxy's sign-in redirect; a field that is set wins. The API refuses (422) a URL with credentials, a header the proxy owns, and a sign-in URL that isn't a path on the host or an absolute http(s) URL.\n\nRequires the `config:write` permission.",
         "operationId": "CreateAuthProvider",
         "parameters": [
           {
@@ -7488,7 +7488,7 @@
           "Auth providers"
         ],
         "summary": "Replace an auth provider",
-        "description": "A change to what the endpoint is asked or how its answer is read starts the provider with an empty decision cache; a rename or new notes keep it.\n\nRequires the `config:write` permission.",
+        "description": "If the change affects what the endpoint is asked or how its answer is read, the provider starts with an empty decision cache. A rename or new notes keep the cache.\n\nRequires the `config:write` permission.",
         "operationId": "ReplaceAuthProvider",
         "parameters": [
           {
@@ -7826,7 +7826,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -8453,7 +8453,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -9450,7 +9450,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -9915,7 +9915,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -11362,7 +11362,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -11735,7 +11735,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -12415,7 +12415,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -13028,7 +13028,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -13508,7 +13508,7 @@
           {
             "name": "cursor",
             "in": "query",
-            "description": "The nextCursor of the previous page, to continue after it. An opaque string only the API that issued it understands.",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
             "schema": {
               "maxLength": 96,
               "type": "string"
@@ -14849,17 +14849,17 @@
               "any"
             ],
             "type": "string",
-            "description": "AccessListSatisfy.All (built-in): the address must pass and then, when the list has\n        users, the credentials. AccessListSatisfy.Any: either passes, so an address in the allow list needs no\n        password. A denied address is refused either way.",
+            "description": "AccessListSatisfy.All (built-in): the address must pass and, when the list has\n        users, the credentials too. AccessListSatisfy.Any: either passes, so an address in the allow list needs no\n        password. A denied address is refused either way.",
             "default": "all"
           },
           "passCredentialsUpstream": {
             "type": "boolean",
-            "description": "Forward the `Authorization` header to the upstream. Off: the proxy's\n            credentials are removed once the list has accepted them, because the upstream has no use for them.",
+            "description": "Forward the `Authorization` header to the upstream. Off: the proxy removes its\n            credentials once the list has accepted them, because the upstream has no use for them.",
             "default": false
           }
         },
         "additionalProperties": false,
-        "description": "A named set of rules that hosts and routes apply to who may reach them: IP allow and deny entries, and HTTP basic-auth\nusers, combined as AccessListSatisfy AccessListConfig.Satisfy says. It is a top-level object, so one list can guard several hosts and\nroutes, and it replaces the inline IP allow list the settings used to carry."
+        "description": "A named set of rules that hosts and routes apply to decide who may reach them: IP allow and deny entries and HTTP basic-auth\nusers, combined as AccessListSatisfy AccessListConfig.Satisfy says. It is a top-level object, so one list can guard several hosts and\nroutes, and it replaces the inline IP allow list the settings used to carry."
       },
       "AccessListCounters": {
         "required": [
@@ -14963,7 +14963,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The country rules of an access list. The country is the one Cloudflare reports in `CF-IPCountry`, so they only\n            apply in a Cloudflare trusted-proxy mode; elsewhere every request's country is unknown (the config warns:\n            `accessList.countries.noSource`). Codes are ISO 3166-1 alpha-2 (`DE`, upper case in a stored document) plus\n            `T1` (Tor exit nodes) and `XX` (country unknown)."
+        "description": "The country rules of an access list. The country is the one Cloudflare reports in `CF-IPCountry`, so they only\n            apply in a Cloudflare trusted-proxy mode; elsewhere every request's country is unknown (the config warns with\n            `accessList.countries.noSource`). Codes are ISO 3166-1 alpha-2 (`DE`, upper case in a stored document) plus\n            `T1` (Tor exit nodes) and `XX` (country unknown)."
       },
       "AccessListId": {
         "examples": [
@@ -15012,7 +15012,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The address rules of an access list. Deny wins over allow; an empty allow list means any address that isn't\n            denied, and a non-empty one means only those. The countries are part of the same rules: a request must pass every allow list\n            that has entries and match no deny list."
+        "description": "The address rules of an access list. Deny wins over allow. An empty allow list admits any address that isn't\n            denied, and a non-empty one admits only those. The countries are part of the same rules: a request must pass every allow list\n            that has entries and match no deny list."
       },
       "AccessListOverride": {
         "required": [
@@ -15144,7 +15144,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Which access list a layer applies. AccessListId? AccessListSettings.AccessListId names a list the document declares; both fields\n            inherit on their own, so a host can turn an inherited list off without forgetting which one it was, and a route can\n            inherit its host's, name another, or turn it off. A layer that names a list without stating\n            bool? AccessListSettings.Enabled leaves the switch to the built-in default, which is on."
+        "description": "Which access list a layer applies. AccessListId? AccessListSettings.AccessListId names a list the document declares. Both fields\n            inherit on their own, so a host can turn an inherited list off and still remember which one it was, and a route can\n            inherit its host's list, name another, or turn it off. If a layer names a list without stating\n            bool? AccessListSettings.Enabled, the switch takes the built-in default, which is on."
       },
       "AccessListUserConfig": {
         "required": [
@@ -15165,18 +15165,18 @@
               "null",
               "string"
             ],
-            "description": "The vault's handle on this user's password. The server makes it when a user is first written with a\n            Password and keeps it when the password changes, so a rollback restores the user but not an older password.\n            A user whose credential the vault doesn't hold (deleted since, or never set) can't sign in, and the config says so in a warning\n            (`accessList.user.noPassword`). A write that names a user already on the list and sends neither a password nor an ID keeps\n            the credential the list has."
+            "description": "The vault's handle on this user's password. The server makes it when a user is first written with a\n            Password and keeps it when the password changes, so a rollback restores the user but not an older password.\n            If the vault doesn't hold the user's credential (deleted since, or never set), the user can't sign in and the config warns with\n            `accessList.user.noPassword`. A write that names a user already on the list and sends neither a password nor an ID keeps\n            the credential the list has."
           },
           "password": {
             "type": [
               "null",
               "string"
             ],
-            "description": "Write-only: the plain password of a new or changed user, 1-256 bytes in UTF-8. The server hands it to the\n            vault before anything is validated, stored or audited and never returns it, so it is null in every document it hands out."
+            "description": "Write-only: the plain password of a new or changed user, 1-256 bytes in UTF-8. The server hands it to the\n            vault before anything is validated, stored or audited, and never returns it, so it is null in every document it returns."
           }
         },
         "additionalProperties": false,
-        "description": "One basic-auth user. The document names the user's password in the vault and never holds it, or anything that\n            verifies it: no read returns a password or a hash."
+        "description": "One basic-auth user. The document names the user's password in the vault. It never holds the password or anything that\n            verifies it: no read returns a password or a hash."
       },
       "AcmeAccountId": {
         "examples": [
@@ -15445,7 +15445,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Active health: a GET of Path on each destination every Interval."
+        "description": "Active health: every Interval, the proxy sends a GET to Path on each destination."
       },
       "ActorKind": {
         "enum": [
@@ -16035,14 +16035,14 @@
               "null",
               "string"
             ],
-            "description": "The resource the problem is about, when there is one (the certificate a failed issuance kept)."
+            "description": "The resource the problem is about, if there is one (the certificate a failed issuance kept)."
           },
           "traceId": {
             "type": [
               "null",
               "string"
             ],
-            "description": "(wire name `traceId`) Identifies the request in the server's log; an unexpected failure's details are only there."
+            "description": "(wire name `traceId`) Identifies the request in the server's log, which is the only place an unexpected failure's details appear."
           },
           "errors": {
             "type": [
@@ -16090,7 +16090,7 @@
               "null",
               "string"
             ],
-            "description": "A stable machine-readable name for the kind of failure (`csrf`, `setup_required`, `publish_failed`), when there is one."
+            "description": "A stable machine-readable name for the kind of failure (`csrf`, `setup_required`, `publish_failed`), if there is one."
           },
           "revision": {
             "oneOf": [
@@ -16119,14 +16119,14 @@
                 "type": "null"
               },
               {
-                "description": "For a draft that was not applied because what it would commit is not what was reviewed: the review as it is now, with its token.",
+                "description": "For a draft that was not applied because it would commit something other than what was reviewed: the review as it is now, with its token.",
                 "$ref": "#/components/schemas/DraftOutcome"
               }
             ]
           }
         },
         "additionalProperties": false,
-        "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error\nthe admin app answers under `/api` has this shape, whoever produced it: `type`, `title`, `status`,\n`detail` and `traceId` are the standard members, the rest are extension members that appear when they apply."
+        "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error\nthe admin app answers under `/api` has this shape. `type`, `title`, `status`,\n`detail` and `traceId` are the standard members; the rest are extension members that appear when they apply."
       },
       "ApiTokenId": {
         "examples": [
@@ -16410,14 +16410,14 @@
                 "type": "null"
               },
               {
-                "description": "The forward-auth endpoint. Required today; a later kind (native OIDC) is another property, and exactly one is set.",
+                "description": "The forward-auth endpoint. Required today. A later kind (native OIDC) will be another property, and exactly one is set.",
                 "$ref": "#/components/schemas/ForwardAuthConfig"
               }
             ]
           }
         },
         "additionalProperties": false,
-        "description": "A named way to ask who a request is: today a forward-auth endpoint, which every request is checked against before it is\nforwarded. It is a top-level object, so one provider can guard several hosts and routes. It holds no secret: the session lives\nin the browser's cookie and the endpoint is the operator's own service."
+        "description": "A named way to ask who a request is. Today that is a forward-auth endpoint that checks every request before it is\nforwarded. It is a top-level object, so one provider can guard several hosts and routes. It holds no secret: the session lives\nin the browser's cookie and the endpoint is the operator's own service."
       },
       "AuthProviderId": {
         "examples": [
@@ -16562,7 +16562,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Which auth provider a layer applies. AuthProviderId? AuthProviderSettings.AuthProviderId names a provider the document declares; both fields inherit on their\n            own, so a host can turn an inherited provider off without forgetting which one it was, and a route can inherit its host's, name another or turn\n            it off (the route that serves the provider's own sign-in pages has to). A layer that names a provider without stating bool? AuthProviderSettings.Enabled\n            leaves the switch to the built-in default, which is on."
+        "description": "Which auth provider a layer applies. AuthProviderId? AuthProviderSettings.AuthProviderId names a provider the document declares. Both fields inherit on their\n            own, so a host can turn an inherited provider off and still remember which one it was, and a route can inherit its host's provider, name another or turn\n            it off (the route that serves the provider's own sign-in pages must). If a layer names a provider without stating bool? AuthProviderSettings.Enabled,\n            the switch takes the built-in default, which is on."
       },
       "BackupRequest": {
         "required": [
@@ -17000,7 +17000,7 @@
                 "type": "null"
               },
               {
-                "description": "Refuse a request whose connection peer isn't Cloudflare's edge (`CloudflareProxy`) or the configured\n`cloudflared` address (`CloudflareTunnel`), before anything else the host does. Built-in default: off. When\nevery host in the config has it on, such a peer is dropped before the TLS handshake whichever mode is chosen.",
+                "description": "Refuse a request whose connection peer isn't Cloudflare's edge (`CloudflareProxy`) or the configured\n`cloudflared` address (`CloudflareTunnel`), before anything else the host does. Built-in default: off. When\nevery host in the config has it on, the proxy drops such a peer before the TLS handshake, in either mode.",
                 "$ref": "#/components/schemas/OriginLockdownMode"
               }
             ]
@@ -17010,7 +17010,7 @@
               "null",
               "boolean"
             ],
-            "description": "Require Cloudflare's client certificate (Authenticated Origin Pulls) on the TLS handshake, checked against\nCloudflare's origin-pull CA. Built-in default: off. Cloudflare doesn't connect to origins over HTTP/3, so a host with\nthis on is not served over it, and it needs the setting turned on in the zone's Cloudflare dashboard too."
+            "description": "Require Cloudflare's client certificate (Authenticated Origin Pulls) on the TLS handshake, checked against\nCloudflare's origin-pull CA. Built-in default: off. Cloudflare doesn't connect to origins over HTTP/3, so a host with\nthis on is not served over HTTP/3. It also needs the setting turned on in the zone's Cloudflare dashboard."
           }
         },
         "additionalProperties": false,
@@ -17024,7 +17024,7 @@
               "null",
               "boolean"
             ],
-            "description": "Compress. Built-in default: off: a response that carries a secret next to input an attacker controls leaks the\n            secret through its compressed size (BREACH), and the proxy can't tell which responses do."
+            "description": "Compress. Built-in default: off, because a response that carries a secret next to attacker-controlled input leaks the\n            secret through its compressed size (BREACH), and the proxy can't tell which responses do."
           },
           "minimumSize": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -17038,7 +17038,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Compressing the upstream's responses with Brotli or gzip, for a client whose `Accept-Encoding` takes one. Only a\ntext-like content type (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly) over int? CompressionSettings.MinimumSize, and\nnever a response the upstream already encoded, a range, an event stream or the proxy's own answers. Each field inherits on\nits own."
+        "description": "Compresses the upstream's responses with Brotli or gzip for a client whose `Accept-Encoding` accepts one. Only a\ntext-like content type (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly) over int? CompressionSettings.MinimumSize is compressed, and\nnever a response the upstream already encoded, a range, an event stream or one of the proxy's own answers. Each field inherits on\nits own."
       },
       "ConfigChange": {
         "required": [
@@ -17128,7 +17128,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17163,7 +17163,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17202,7 +17202,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17233,7 +17233,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false,
@@ -17269,7 +17269,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17313,7 +17313,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17348,7 +17348,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17387,7 +17387,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17422,7 +17422,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17453,7 +17453,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false,
@@ -17489,7 +17489,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field, so it is named as a whole; so is a nested object that is set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
+            "description": "Modified only: JSON pointers (into the new document) of the fields that changed, in\n            document order. A list counts as one field and is named as a whole, and so is a nested object set on one side\n            only. Child objects (routes, destinations) aren't fields of their parent."
           }
         },
         "additionalProperties": false
@@ -17607,7 +17607,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17651,7 +17651,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17662,7 +17662,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Deletes an auth provider; no host may still resolve to it, directly, through its profile or the global defaults, and no route may name it."
+        "description": "Deletes an auth provider. No host may still resolve to it, directly, through its profile or the global defaults, and no route may name it."
       },
       "ConfigCommandDeleteHostCommand": {
         "required": [
@@ -17695,7 +17695,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17739,7 +17739,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17783,7 +17783,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17827,7 +17827,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17838,7 +17838,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Deletes a rule set; no host may still resolve to it, directly, through its profile or the global defaults, and no route may name it."
+        "description": "Deletes a rule set. No host may still resolve to it, directly, through its profile or the global defaults, and no route may name it."
       },
       "ConfigCommandDeleteUpstreamCommand": {
         "required": [
@@ -17871,7 +17871,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17908,7 +17908,7 @@
               "null",
               "string"
             ],
-            "description": "The revision the document was based on: must be the latest. Null only while there is\n            no revision yet."
+            "description": "The revision the document was based on, which must be the latest. Null only while there is\n            no revision yet."
           },
           "dryRun": {
             "type": "boolean",
@@ -17916,7 +17916,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -17927,7 +17927,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Replaces the whole document: the import path. The versions in Document are ignored:\nan object whose config doesn't change keeps its version, every other one gets a new one."
+        "description": "Replaces the whole document: the import path. The versions in Document are ignored.\nAn object whose config doesn't change keeps its version, and every other object gets a new one."
       },
       "ConfigCommandResult": {
         "required": [
@@ -17956,7 +17956,7 @@
                 "type": "null"
               },
               {
-                "description": "How publishing went: set exactly when a revision was committed.",
+                "description": "How publishing went: set when a revision was committed, and only then.",
                 "$ref": "#/components/schemas/PublishOutcome"
               }
             ]
@@ -17967,7 +17967,7 @@
                 "type": "null"
               },
               {
-                "description": "Set exactly for ConfigCommandStatus.Conflict.",
+                "description": "Set for ConfigCommandStatus.Conflict, and only then.",
                 "$ref": "#/components/schemas/ConfigConflict"
               }
             ]
@@ -18048,7 +18048,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18097,7 +18097,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18131,7 +18131,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18142,7 +18142,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Creates an access list (long AccessListConfig.Version 0) or replaces one. A user's\n            string? AccessListUserConfig.Password is hashed before anything else happens to the command; a user sent with\n            neither a password nor a hash keeps the hash the list already has for that name."
+        "description": "Creates an access list (long AccessListConfig.Version 0) or replaces one. A user's\n            string? AccessListUserConfig.Password is hashed before anything else happens to the command. A user sent with\n            neither a password nor a hash keeps the hash the list already has for that name."
       },
       "ConfigCommandUpsertAuthProviderCommand": {
         "required": [
@@ -18165,7 +18165,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18199,7 +18199,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18233,7 +18233,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18267,7 +18267,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18301,7 +18301,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18335,7 +18335,7 @@
           },
           "force": {
             "type": "boolean",
-            "description": "Do the change even though it cuts the caller's own way into the admin. When a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`); on any other surface it has no effect."
+            "description": "Do the change even though it cuts the caller's own way into the admin. If a command arrives through the\nadmin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless\nthis is set (the API's `?force=true`, a command's `force`). On any other surface it has no effect."
           },
           "message": {
             "type": [
@@ -18379,7 +18379,7 @@
               "integer",
               "string"
             ],
-            "description": "Object commands: the object's current version. (An update or delete of an object that\n            no longer exists is ConfigCommandStatus.NotFound, not a conflict; a create of one that already exists\n            is a conflict with its version here.) Whole-document commands: null.",
+            "description": "Object commands: the object's current version. (Updating or deleting an object that\n            no longer exists is ConfigCommandStatus.NotFound, not a conflict. Creating one that already exists\n            is a conflict, with its version here.) Whole-document commands: null.",
             "format": "int64"
           }
         },
@@ -18549,7 +18549,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "JSON pointer (RFC 6901) into the document, e.g. `/hosts/3/routes/0/path`; `\"\"` is the\n            whole document. Indices count in the document as validated: as the client sent it, before canonicalisation;\n            validation and compile errors both point at what the client wrote, and an object command's errors are relative to\n            the object it sent."
+            "description": "JSON pointer (RFC 6901) into the document, e.g. `/hosts/3/routes/0/path`; `\"\"` is the\n            whole document. Indices count in the document as validated, which is as the client sent it, before canonicalisation.\n            Validation and compile errors both point at what the client wrote, and an object command's errors are relative to\n            the object it sent."
           },
           "code": {
             "type": "string",
@@ -18593,7 +18593,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Something about a config that compiles but probably isn't what the admin wants: a host without a certificate that\ncovers it, a binding to a certificate that expired. Surfaced next to the result (the dashboard's \"hosts without\ncoverage\"), never blocks a change on its own."
+        "description": "Something about a config that compiles but probably isn't what the admin wants: a host without a certificate that\ncovers it, a binding to a certificate that expired. It appears next to the result (the dashboard's \"hosts without\ncoverage\") and never blocks a change on its own."
       },
       "ConnectionCounters": {
         "required": [
@@ -18704,7 +18704,7 @@
               "integer",
               "string"
             ],
-            "description": "Open connections one client address may hold (an IPv6 /64 counts as one address), 0 to\n            100000; 0 turns the cap off. Null = the built-in 256. Over it a connection is closed at once, before TLS.",
+            "description": "Open connections one client address may hold (an IPv6 /64 counts as one address), 0 to\n            100000; 0 turns the cap off. Null = the built-in 256. A connection over the cap is closed at once, before TLS.",
             "format": "int32"
           },
           "denyListId": {
@@ -19252,7 +19252,7 @@
         "properties": {
           "html": {
             "type": "string",
-            "description": "The page's document, which a client shows in a sandboxed frame without scripts."
+            "description": "The page's document, which a client shows in a sandboxed frame with scripts off."
           },
           "contentSecurityPolicy": {
             "type": "string",
@@ -19290,13 +19290,13 @@
               "integer",
               "string"
             ],
-            "description": "The status it is served with, 100 to 599; its `{status}` and `{statusText}` say it. For a page of one of the\n            statuses that is the status itself, for the maintenance page the status the host answers maintenance with.",
+            "description": "The status it is served with, 100 to 599; its `{status}` and `{statusText}` show it. For an error page that is its\n            own status, and for the maintenance page it is the status the host answers maintenance with.",
             "format": "int32",
             "default": 503
           },
           "maintenance": {
             "type": "boolean",
-            "description": "The page is a maintenance page, which a host may serve with another status than an error page's.",
+            "description": "The page is a maintenance page, which a host can serve with a different status than an error page's.",
             "default": false
           }
         },
@@ -19443,14 +19443,14 @@
                 "type": "null"
               },
               {
-                "description": "Answer with the page above when the upstream's own response is an error with a page here (the statuses of this\nrecord), decided from the status and content type when the response starts: the upstream's body is discarded unread. Never for\nan upgrade, an event stream or gRPC. Built-in default: UpstreamErrorReplacement.Off.",
+                "description": "Answer with the page above when the upstream's own response is an error that has a page here (the statuses of this\nrecord). The proxy decides from the status and content type when the response starts, and discards the upstream's body unread. Never for\nan upgrade, an event stream or gRPC. Built-in default: UpstreamErrorReplacement.Off.",
                 "$ref": "#/components/schemas/UpstreamErrorReplacement"
               }
             ]
           }
         },
         "additionalProperties": false,
-        "description": "The pages a host answers with in place of the built-in ones, one entry per status the gate and the upstream can answer\nwith a page, and whether an upstream's own error bodies are replaced by them. Each entry inherits on its own and is\nreplaced whole by a layer that sets it (a heading from one layer and a document from another make no page). A status with\nno entry in any layer is served from the built-in page."
+        "description": "The pages a host answers with in place of the built-in ones, one entry per status the gate and the upstream can answer\nwith a page, and whether they replace an upstream's own error bodies. Each entry inherits on its own, and a layer that sets\nan entry replaces it whole (a heading from one layer and a document from another make no page). If no layer has an\nentry for a status, the built-in page is served."
       },
       "ForwardAuthConfig": {
         "required": [
@@ -19492,7 +19492,7 @@
               "integer",
               "string"
             ],
-            "description": "How long an allow is remembered; null = int ForwardAuthLimits.DefaultCacheSeconds, 0 = never. A session the provider has\n            revoked still works for that long.",
+            "description": "How long an allow is remembered; null = int ForwardAuthLimits.DefaultCacheSeconds, 0 = never. A session the provider has\n            revoked keeps working for that long.",
             "format": "int32"
           },
           "cacheScope": {
@@ -19504,7 +19504,7 @@
               "null",
               "string"
             ],
-            "description": "What a remembered allow covers; null = the preset's. `host` reuses an allow for every path only when the provider named\n            someone (copied an identity header); an allow without one is remembered for its own method and path."
+            "description": "What a remembered allow covers; null = the preset's. `host` reuses an allow for every path only if the provider named\n            someone (copied an identity header); an allow without one is remembered for its own method and path."
           },
           "requestHeaders": {
             "type": [
@@ -19524,7 +19524,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The endpoint's response headers copied to the upstream when it allows a request, and removed from the client's own\n            request first. A trailing `*` makes a name a prefix. Null = the preset's; an empty list = none. `Authorization`, `Cookie` and\n            `Proxy-Authorization` can't be listed: the client's own are forwarded as they were."
+            "description": "The endpoint's response headers that the proxy copies to the upstream when the endpoint allows a request, after removing them from the client's own\n            request. A trailing `*` makes a name a prefix. Null = the preset's; an empty list = none. `Authorization`, `Cookie` and\n            `Proxy-Authorization` can't be listed: the client's own are forwarded unchanged."
           },
           "signIn": {
             "oneOf": [
@@ -19532,14 +19532,14 @@
                 "type": "null"
               },
               {
-                "description": "Where a browser without a session is sent when the endpoint answers 401; null = the preset's. Without one the 401 is relayed as it is.",
+                "description": "Where a browser without a session is sent when the endpoint answers 401; null = the preset's. Without one the proxy relays the 401.",
                 "$ref": "#/components/schemas/ForwardAuthSignInConfig"
               }
             ]
           }
         },
         "additionalProperties": false,
-        "description": "A forward-auth endpoint. For each request the proxy asks it with a `GET` that carries the client's credentials and the original\nrequest in `X-Forwarded-Method`, `-Proto`, `-Host`, `-Uri` and `-For`: a 2xx lets the request through with the\nconfigured response headers copied upstream, a 401, 403 or redirect is relayed to the client, anything else (and a timeout) refuses.\nA field left null takes the preset's value (ForwardAuthPresets); ResolvedForwardAuth ForwardAuthPresets.Resolve(ForwardAuthConfig config) is the one\nplace that says which."
+        "description": "A forward-auth endpoint. For each request the proxy sends the endpoint a `GET` that carries the client's credentials and the original\nrequest in `X-Forwarded-Method`, `-Proto`, `-Host`, `-Uri` and `-For`. A 2xx lets the request through with the\nconfigured response headers copied upstream, a 401, 403 or redirect is relayed to the client, and anything else (or a timeout) refuses it.\nA field left null takes the preset's value (ForwardAuthPresets); ResolvedForwardAuth ForwardAuthPresets.Resolve(ForwardAuthConfig config) is the one\nplace that decides which."
       },
       "ForwardAuthSignInConfig": {
         "required": [
@@ -19582,7 +19582,7 @@
               "close"
             ],
             "type": "string",
-            "description": "What a request for a name that no enabled host serves gets.",
+            "description": "How the proxy answers a request for a name that no enabled host serves.",
             "default": "notFound"
           },
           "defaultCertificateId": {
@@ -19594,7 +19594,7 @@
               "null",
               "string"
             ],
-            "description": "Certificate served when the SNI matches no host or is absent, and to hosts whose\n            binding resolves to no certificate of their own. Null: such handshakes are rejected."
+            "description": "The certificate served when the SNI matches no host or is absent, and to hosts whose\n            binding resolves to no certificate of their own. Null: such handshakes are rejected."
           },
           "defaults": {
             "$ref": "#/components/schemas/HostSettings"
@@ -19684,7 +19684,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Custom headers: rules for the request the upstream receives and for the response the client receives. The layers merge\nrule by rule, keyed on the header name (ignoring case) per direction: a layer's rule for a name replaces the rule a lower\nlayer has for it, and every other inherited rule stays. A route's rules go over its host's the same way."
+        "description": "Custom headers: rules for the request the upstream receives and for the response the client receives. The layers merge\nrule by rule, keyed on the header name (ignoring case) per direction. A layer's rule for a name replaces a lower\nlayer's rule for that name, and every other inherited rule stays. A route's rules merge over its host's the same way."
       },
       "HealthChangeView": {
         "required": [
@@ -19754,7 +19754,7 @@
           },
           "enabled": {
             "type": "boolean",
-            "description": "False: validated, but serves nothing; its names may then repeat an enabled host's.",
+            "description": "False: validated but serves nothing, and its names may repeat an enabled host's.",
             "default": true
           },
           "profileId": {
@@ -19956,7 +19956,7 @@
               "null",
               "boolean"
             ],
-            "description": "Write a line for every request of this host to the access log. Built-in default: on. A host that turns\nit off is still proxied, and its requests still carry a request ID; they just aren't logged (the drop counter and\nthe error log are unaffected)."
+            "description": "Write a line for every request of this host to the access log. Built-in default: on. With it off the host is still\nproxied and its requests still carry a request ID, but they aren't logged (the drop counter and\nthe error log are unaffected)."
           },
           "requestIdPropagation": {
             "oneOf": [
@@ -19964,7 +19964,7 @@
                 "type": "null"
               },
               {
-                "description": "Where the request ID travels (RequestIdPropagation? HostSettings.RequestIdPropagation). Built-in default: upstream and client, which is\nwhat correlates a request across the proxy's log, the app's log and an error page.",
+                "description": "Where the request ID travels (RequestIdPropagation? HostSettings.RequestIdPropagation). Built-in default: upstream and client, which is\nwhich correlates a request across the proxy's log, the app's log and an error page.",
                 "$ref": "#/components/schemas/RequestIdPropagation"
               }
             ]
@@ -20200,18 +20200,18 @@
               "null",
               "boolean"
             ],
-            "description": "Cover every subdomain too (`includeSubDomains`). Built-in default: off, because a subdomain that has\n            no certificate of its own stops working over plain HTTP. A browser begins to trust the setting when it sees it, and\n            keeps it for int? HstsSettings.MaxAge, so a wrong one is felt for as long as that."
+            "description": "Cover every subdomain too (`includeSubDomains`). Built-in default: off, because a subdomain that has\n            no certificate of its own stops working over plain HTTP. A browser applies the setting as soon as it sees it and\n            keeps it for int? HstsSettings.MaxAge, so a wrong value lasts that long."
           },
           "preload": {
             "type": [
               "null",
               "boolean"
             ],
-            "description": "Ask the browser vendors' preload lists to ship the host as HTTPS-only (`preload`). Built-in default:\n            off. It needs bool? HstsSettings.IncludeSubDomains and a int? HstsSettings.MaxAge of at least a year, and it is hard to undo:\n            browsers that ship the list keep refusing plain HTTP even after the header stops."
+            "description": "Ask the browser vendors' preload lists to ship the host as HTTPS-only (`preload`). Built-in default:\n            off. It needs bool? HstsSettings.IncludeSubDomains and a int? HstsSettings.MaxAge of at least a year, and is hard to undo:\n            browsers that ship the list keep refusing plain HTTP after the header stops."
           }
         },
         "additionalProperties": false,
-        "description": "HTTP Strict Transport Security: the host's HTTPS responses tell a browser to keep the host on HTTPS for\nint? HstsSettings.MaxAge seconds, and with bool? HstsSettings.IncludeSubDomains every subdomain too. Each field inherits on its\nown. Paduraksa sends it only to HTTPS requests, and never for an IP literal or a loopback name."
+        "description": "HTTP Strict Transport Security: the host's HTTPS responses tell a browser to keep the host on HTTPS for\nint? HstsSettings.MaxAge seconds, and with bool? HstsSettings.IncludeSubDomains every subdomain too. Each field inherits on its\nown. Paduraksa sends it only in answers to HTTPS requests, never for an IP literal or a loopback name."
       },
       "IssuanceOutcome": {
         "enum": [
@@ -21007,7 +21007,7 @@
               "null",
               "boolean"
             ],
-            "description": "Serve the maintenance page. Built-in default: off. Not applied to an admin host (the config warns), so a layer\n            that turns it on for every host can't lock the dashboard out."
+            "description": "Serve the maintenance page. Built-in default: off. It doesn't apply to an admin host (the config warns), so a layer\n            that turns it on for every host can't lock the dashboard out."
           },
           "status": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -21042,7 +21042,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A host that is down on purpose. While bool? MaintenanceSettings.Enabled, every request but the bypassed ones is answered with the\nmaintenance page and int? MaintenanceSettings.Status instead of reaching the upstream: after the host's access list, rules and HTTPS\nredirect, so a refused client is still refused and plain HTTP still redirects, and after the managed `robots.txt`.\nEach field inherits on its own."
+        "description": "A host that is down on purpose. While bool? MaintenanceSettings.Enabled, every request except the bypassed ones gets the\nmaintenance page and int? MaintenanceSettings.Status instead of reaching the upstream. This happens after the host's access list, rules and HTTPS\nredirect, so a refused client is still refused and plain HTTP still redirects, and after the managed `robots.txt`.\nEach field inherits on its own."
       },
       "MetricsFigures": {
         "required": [
@@ -21837,7 +21837,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -21861,7 +21861,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -21885,7 +21885,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -21909,7 +21909,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -21933,7 +21933,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -21957,7 +21957,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -21981,7 +21981,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22005,7 +22005,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22029,7 +22029,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22053,7 +22053,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22077,7 +22077,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22101,7 +22101,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22125,7 +22125,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22149,7 +22149,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22173,7 +22173,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22197,7 +22197,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22221,7 +22221,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22245,7 +22245,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22269,7 +22269,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22293,7 +22293,7 @@
               "null",
               "string"
             ],
-            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape whichever context wrote it."
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
           }
         },
         "additionalProperties": false,
@@ -22312,7 +22312,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Passive health: a destination with too many transport failures is taken out for a while."
+        "description": "Passive health: the proxy takes a destination with too many transport failures out of rotation for a while."
       },
       "PasswordConfirmation": {
         "required": [
@@ -22333,7 +22333,7 @@
         "properties": {
           "stripPrefix": {
             "type": "boolean",
-            "description": "Take the route's path off the front. A request that spells the prefix differently from the\n            route (encoded, with `//`, `;` or dot segments) can't be stripped without guessing, and gets 404. Not on a route\n            whose path is `/`.",
+            "description": "Take the route's path off the front. If a request spells the prefix differently from the\n            route (encoded, with `//`, `;` or dot segments), the proxy can't strip it without guessing and answers 404.\n            Not allowed on a route whose path is `/`.",
             "default": false
           },
           "addPrefix": {
@@ -22341,18 +22341,18 @@
               "null",
               "string"
             ],
-            "description": "Put this in front of what is forwarded: starts with `/`, no trailing `/`, at most 256\n            characters of a URL path (letters, digits, `-._~!$&amp;'()*+,;=:@/` and percent escapes), with no empty or dot\n            segments. Sent as written."
+            "description": "A prefix put in front of the forwarded path: starts with `/`, no trailing `/`, at most 256\n            characters of a URL path (letters, digits, `-._~!$&amp;'()*+,;=:@/` and percent escapes), with no empty or dot\n            segments. Sent as written."
           },
           "rewriteLocation": {
             "type": [
               "null",
               "boolean"
             ],
-            "description": "With StripPrefix: give an upstream's `Location` the client's prefix back\n            (`/login` becomes `/app/login`; one that already starts with `/app` is left alone). Null is on; turn it off for an\n            upstream that redirects to other routes of the host, which the mapping would put under this one. Only with a strip."
+            "description": "With StripPrefix: puts the client's prefix back on an upstream's `Location`\n            (`/login` becomes `/app/login`; one that already starts with `/app` is left alone). Null is on. Off suits an\n            upstream that redirects to other routes of the host, which the mapping would otherwise put under this one. Allowed only with a strip."
           }
         },
         "additionalProperties": false,
-        "description": "The path a route forwards: the client's, with the route's own path taken off the front, a fixed prefix put on, or both\n(`/app/x` becomes `/x`, or `/api/x`). It works on the path as the client sent it, without decoding or\nre-encoding it, and the query is untouched. With bool PathRewriteConfig.StripPrefix the upstream is told the stripped prefix in\n`X-Forwarded-Prefix`, and a `Location` it answers with that points into its own paths gets the client's\nprefix back."
+        "description": "The path a route forwards: the client's, with the route's own path taken off the front, a fixed prefix put on, or both\n(`/app/x` becomes `/x`, or `/api/x`). It works on the path as the client sent it, without decoding or\nre-encoding it, and leaves the query untouched. With bool PathRewriteConfig.StripPrefix the proxy sends the stripped prefix to\nthe upstream in `X-Forwarded-Prefix`, and puts the client's prefix back on a `Location` the upstream answers\nwith that points into its own paths."
       },
       "ProfileConfig": {
         "required": [
@@ -22521,7 +22521,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The browser check: a visitor without a valid token gets a small page that solves a SHA-256 proof of work, then a\nsigned, expiring cookie bound to this host and client address lets it through. Each field inherits on its own."
+        "description": "The browser check: a visitor without a valid token gets a small page that solves a SHA-256 proof of work. The solution earns a\nsigned, expiring cookie, bound to this host and client address, that lets the visitor through. Each field inherits on its own."
       },
       "PublishOutcome": {
         "required": [
@@ -22561,7 +22561,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "How the snapshot publish after a commit went. The publisher only publishes the latest snapshot:\nwhen a newer revision is queued before this one went live, this one is superseded, and its outcome is that of the\npublish that carries it (Revision then names the newer revision)."
+        "description": "How the snapshot publish after a commit went. The publisher only publishes the latest snapshot.\nIf a newer revision is queued before this one goes live, this one is superseded and its outcome is that of the\npublish that carries it (Revision then names the newer revision)."
       },
       "PublishOutcomeStatus": {
         "enum": [
@@ -22685,7 +22685,7 @@
               "integer",
               "string"
             ],
-            "description": "The bucket's size in tokens, at least 1: how many requests may arrive at once before the rate\n            has to earn more.",
+            "description": "The bucket's size in tokens, at least 1: how many requests can arrive at once before the rate\n            limits them.",
             "format": "int32",
             "default": 60
           },
@@ -22704,7 +22704,7 @@
               "null",
               "string"
             ],
-            "description": "With RateLimitKey.Header: the request header whose value is the partition key.\n            Required exactly then, and a valid header name (a token)."
+            "description": "With RateLimitKey.Header: the request header whose value is the partition key.\n            Required with that key and not allowed otherwise; must be a valid header name (a token)."
           },
           "notes": {
             "type": [
@@ -22715,7 +22715,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A named token bucket that hosts and routes apply: int RateLimitPolicyConfig.Requests per RateLimitPeriod RateLimitPolicyConfig.Per seconds, with a\nbucket of int RateLimitPolicyConfig.Burst tokens, keyed the way RateLimitKey RateLimitPolicyConfig.Key says. It is a top-level object, so two hosts\ncan name one policy and still keep their own buckets (docs/design/config.md \"State that survives a publish\")."
+        "description": "A named token bucket that hosts and routes apply: int RateLimitPolicyConfig.Requests per RateLimitPeriod RateLimitPolicyConfig.Per seconds, with a\nbucket of int RateLimitPolicyConfig.Burst tokens, keyed by RateLimitKey RateLimitPolicyConfig.Key. It is a top-level object, so two hosts\ncan name one policy and still keep their own buckets (docs/design/config.md \"State that survives a publish\")."
       },
       "RateLimitPolicyId": {
         "examples": [
@@ -22795,7 +22795,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Which rate-limit policy a layer applies. RateLimitPolicyId? RateLimitSettings.PolicyId names a policy the document declares; it inherits\nfield by field, so a host can turn an inherited policy off without forgetting which one it was, and a route can\ninherit its host's, name another, or turn it off. A layer that names a policy without stating\nbool? RateLimitSettings.Enabled leaves the switch to the built-in default, which is on: naming a policy is the whole job."
+        "description": "Which rate-limit policy a layer applies. RateLimitPolicyId? RateLimitSettings.PolicyId names a policy the document declares and inherits\nfield by field, so a host can turn an inherited policy off and still remember which one it was, and a route can\ninherit its host's policy, name another, or turn it off. If a layer names a policy without stating\nbool? RateLimitSettings.Enabled, the switch takes the built-in default, which is on: naming a policy is enough."
       },
       "RecoveryCodes": {
         "required": [
@@ -23096,7 +23096,7 @@
               "integer",
               "string"
             ],
-            "description": "Largest request body in bytes; 0 is no limit. Built-in default: 100 MiB. Over it is 413: at once when the request declares\n            its size, mid-upload when it doesn't. A route may set its own.",
+            "description": "Largest request body in bytes; 0 is no limit. Built-in default: 100 MiB. A request over it gets 413, at once if it declares\n            its size and mid-upload if not. A route may set its own.",
             "format": "int64"
           },
           "maxHeaderCount": {
@@ -23131,7 +23131,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "How much of a request a host takes. Each field inherits on its own. A request over a limit is refused before the upstream\nsees it: 413 for the body, 431 for the headers, 414 for the request target. Sizes are bytes."
+        "description": "How much of a request a host takes. Each field inherits on its own. The proxy refuses a request over a limit before the upstream\nsees it: 413 for the body, 431 for the headers, 414 for the request target. Sizes are bytes."
       },
       "RespondConfig": {
         "required": [
@@ -23358,11 +23358,11 @@
               "null",
               "string"
             ],
-            "description": "The text RobotsMode.Custom serves. Set with that mode at its layer, or inherited from one that set it;\nany other mode ignores it. Line endings are normalised when the proxy compiles it, not in the stored document."
+            "description": "The text RobotsMode.Custom serves. Set with that mode at its layer, or inherited from a layer that set it;\nthe other modes ignore it. Line endings are normalised when the proxy compiles it, not in the stored document."
           }
         },
         "additionalProperties": false,
-        "description": "What the host answers at `/robots.txt`. There is no route-level override: a host has one file, and every route\nshares it. Each field inherits on its own, so a layer can change the mode and keep the text below it."
+        "description": "What the host answers at `/robots.txt`. A host has one file that every route shares, so there is no route-level\noverride. Each field inherits on its own, so a layer can change the mode and keep the text below it."
       },
       "RotateDnsCredentialBody": {
         "required": [
@@ -23414,7 +23414,7 @@
           },
           "path": {
             "type": "string",
-            "description": "Starts with `/`; decoded and canonical (no `\\`, `//`, `;`, dot segments,\n            percent-encoding, query or fragment). Matching ignores case, but the path keeps the case it was written in; two\n            routes of a host with the same match kind can't have paths that differ only in case.",
+            "description": "Starts with `/`; decoded and canonical (no `\\`, `//`, `;`, dot segments,\n            percent-encoding, query or fragment). Matching ignores case and the path keeps the case it was written in. Two\n            routes of a host with the same match kind can't have paths that differ only in case.",
             "default": "/"
           },
           "rewrite": {
@@ -23423,7 +23423,7 @@
                 "type": "null"
               },
               {
-                "description": "How the path the upstream receives differs from the client's; null forwards it as received.",
+                "description": "How the path sent to the upstream differs from the client's; null forwards it unchanged.",
                 "$ref": "#/components/schemas/PathRewriteConfig"
               }
             ]
@@ -23463,7 +23463,7 @@
                 "type": "null"
               },
               {
-                "description": "The route-level subset of RateLimitSettings: only bool? RateLimitSettings.Enabled and\nRateLimitPolicyId? RateLimitSettings.PolicyId are accepted here, field by field over the host's resolved values. So a\nroute can inherit its host's policy, name another one, or turn the limit off for its own paths.",
+                "description": "The route-level subset of RateLimitSettings: only bool? RateLimitSettings.Enabled and\nRateLimitPolicyId? RateLimitSettings.PolicyId are accepted here, field by field over the host's resolved values, so a\nroute can inherit its host's policy, name another one, or turn the limit off for its own paths.",
                 "$ref": "#/components/schemas/RateLimitSettings"
               }
             ]
@@ -23590,7 +23590,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The conditions of a rule; one that is left out isn't tested."
+        "description": "The conditions of a rule; a condition left out isn't tested."
       },
       "RulePathConfig": {
         "required": [
@@ -23664,7 +23664,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A named, ordered list of request rules that hosts and routes apply: each rule names a path, methods and a user agent a\nrequest must all match, and what to do with one that does. The first rule that matches decides; a request no rule matches\ngoes on through the rest of the chain. It is a top-level object, so one set can guard several hosts and routes."
+        "description": "A named, ordered list of request rules that hosts and routes apply. Each rule has a path, methods and a user agent that a\nrequest must all match, and an action for a request that does. The first matching rule decides. If no rule matches, the request\ngoes on through the rest of the chain. It is a top-level object, so one set can guard several hosts and routes."
       },
       "RuleSetId": {
         "examples": [
@@ -23829,7 +23829,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Which rule set a layer applies. RuleSetId? RuleSetSettings.RuleSetId names a set the document declares or a built-in preset;\n            both fields inherit on their own, so a host can turn an inherited set off without forgetting which one it was, and a route\n            can inherit its host's, name another, or turn it off. A layer that names a set without stating bool? RuleSetSettings.Enabled\n            leaves the switch to the built-in default, which is on. One set per layer: several concerns are several rules in one set."
+        "description": "Which rule set a layer applies. RuleSetId? RuleSetSettings.RuleSetId names a set the document declares or a built-in preset.\n            Both fields inherit on their own, so a host can turn an inherited set off and still remember which one it was, and a route\n            can inherit its host's set, name another, or turn it off. If a layer names a set without stating bool? RuleSetSettings.Enabled,\n            the switch takes the built-in default, which is on. A layer has one set; several concerns are several rules in that set."
       },
       "RuleUserAgentConfig": {
         "type": "object",
@@ -24028,7 +24028,7 @@
               "null",
               "string"
             ],
-            "description": "The header ServerHeaderMode.Custom sends: 1-128 visible ASCII characters or spaces, with no\n            leading or trailing space. Required once the resolved mode is ServerHeaderMode.Custom; ignored by\n            every other mode."
+            "description": "The header ServerHeaderMode.Custom sends: 1-128 visible ASCII characters or spaces, with no\n            leading or trailing space. Required when the resolved mode is ServerHeaderMode.Custom; the other\n            modes ignore it."
           }
         },
         "additionalProperties": false,
@@ -24125,7 +24125,7 @@
           },
           "environmentVariable": {
             "type": "string",
-            "description": "The environment variable that sets it, and then wins over the config."
+            "description": "The environment variable that sets it and wins over the config."
           },
           "default": {
             "type": "string",
@@ -24455,7 +24455,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The server's own settings that the dashboard may change (docs/design/config.md \"Server settings\"): how long data is kept, the sign-in\npolicy and the like, as opposed to how requests are routed. Part of GlobalSettings, so a change is a revision with its audit\nevent, its diff and its undo. Every field is nullable: null is the built-in default. A value the server's environment sets\nexplicitly (`Paduraksa__Metrics__Retention`) wins over the stored one."
+        "description": "The server's own settings that the dashboard can change (docs/design/config.md \"Server settings\"), such as how long data is kept and the sign-in\npolicy, as opposed to how requests are routed. Part of GlobalSettings, so a change is a revision with its audit\nevent, diff and undo. Every field is nullable: null is the built-in default. A value set in the server's environment\n(`Paduraksa__Metrics__Retention`) wins over the stored one."
       },
       "ServerSettingsView": {
         "required": [
@@ -25493,7 +25493,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "TLS settings; each field inherits on its own. A layer that sets none is the same as no layer."
+        "description": "TLS settings; each field inherits on its own. If a layer sets none, it counts as no layer."
       },
       "TokenRejections": {
         "required": [
@@ -25584,7 +25584,7 @@
               "cloudflareTunnel"
             ],
             "type": "string",
-            "description": "How the client IP reaches us.",
+            "description": "How the client IP reaches Paduraksa.",
             "default": "off"
           },
           "header": {
@@ -25620,7 +25620,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Trusted proxies in front of Paduraksa. Only a peer inside the trusted set may supply the\nclient IP through a header; anyone else is the client."
+        "description": "Trusted proxies in front of Paduraksa. Only a peer in the trusted set can supply the\nclient IP in a header; any other peer is the client."
       },
       "UpdateApiTokenRequest": {
         "type": "object",
@@ -25743,7 +25743,7 @@
               "null",
               "string"
             ],
-            "description": "Null: whatever YARP's default is (today power of two choices); a value pins the\n            policy, so null and LoadBalancingPolicy.PowerOfTwoChoices are kept apart."
+            "description": "Null uses YARP's default (today power of two choices). A value pins the policy, so null and\n            LoadBalancingPolicy.PowerOfTwoChoices are different settings."
           },
           "sessionAffinity": {
             "type": "boolean",
@@ -25917,7 +25917,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The `Host` header an upstream receives. SNI follows it on an HTTPS destination, so the certificate is asked for\n            and checked against the name sent (a pinned fingerprint is not tied to any name)."
+        "description": "The `Host` header an upstream receives. On an HTTPS destination SNI follows it, so the certificate is requested for\n            and checked against the name sent (a pinned fingerprint isn't tied to a name)."
       },
       "UpstreamId": {
         "examples": [
@@ -25944,11 +25944,11 @@
               "null",
               "string"
             ],
-            "description": "How long a request, a response stream or an upgraded connection (a WebSocket) may go with no data in either direction before the proxy closes it, 1 second to 24 hours; zero = never; null = 1 hour."
+            "description": "How long a request, response stream or upgraded connection (a WebSocket) can carry no data in either direction before the proxy closes it, 1 second to 24 hours; zero = never; null = 1 hour."
           }
         },
         "additionalProperties": false,
-        "description": "How long the proxy waits on an upstream. Each value left null is the built-in default."
+        "description": "How long the proxy waits on an upstream. A null value uses the built-in default."
       },
       "UpstreamTlsConfig": {
         "type": "object",
@@ -26115,7 +26115,7 @@
               "null",
               "string"
             ],
-            "description": "The full SHA of the commit the build came from; null for a build that was not given one (the container image build passes it as `-p:SourceRevisionId`). Always written."
+            "description": "The full SHA of the commit the build came from; null for a build without one (the container image build passes it as `-p:SourceRevisionId`). Always written."
           }
         },
         "additionalProperties": false,

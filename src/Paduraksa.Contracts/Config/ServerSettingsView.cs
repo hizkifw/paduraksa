@@ -15,7 +15,7 @@ public sealed record ServerSettingsView(long Version, ServerSettings Stored, IRe
 /// <param name="Title">Its name.</param>
 /// <param name="Description">What it does.</param>
 /// <param name="ConfigurationKey">The appsettings key (<c>Paduraksa:Metrics:Retention</c>).</param>
-/// <param name="EnvironmentVariable">The environment variable that sets it, and then wins over the config.</param>
+/// <param name="EnvironmentVariable">The environment variable that sets it and wins over the config.</param>
 /// <param name="Default">The built-in default.</param>
 /// <param name="Min">The least value accepted, for an ordered kind.</param>
 /// <param name="Max">The largest value accepted, for an ordered kind.</param>

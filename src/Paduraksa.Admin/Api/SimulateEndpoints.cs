@@ -15,7 +15,7 @@ internal static class SimulateEndpoints
 {
     public static void Map(RouteGroupBuilder api) =>
         api.MapPost("/simulate", SimulateAsync).WithName("Simulate").WithTags("Simulator").WithSummary("Simulate a request against the live config, a revision or a draft")
-            .WithDescription("target is {kind: live} (the default), {kind: revision, revision}, {kind: draftDocument, document}, {kind: draftCommand, command} or {kind: draft, draft: <draft id>} (your own stored draft, applied as its review does; it needs config:write like reading the draft, 404 when it is not yours); a draft is validated and compiled as a real change would be, and never stored or published. Nothing here changes any counter or state.")
+            .WithDescription("target is {kind: live} (the default), {kind: revision, revision}, {kind: draftDocument, document}, {kind: draftCommand, command} or {kind: draft, draft: <draft id>} (your own stored draft, applied as its review does; it needs config:write like reading the draft, and answers 404 if the draft isn't yours); a draft is validated and compiled as a real change would be, but never stored or published. Nothing here changes a counter or any state.")
             .Accepts<SimulateBody>("application/json").Produces<SimulationResult>().ProducesApiProblems(400, 404, 409, 410, 415, 422, 503)
             .WithAdminBodyLimit(ApiEndpointConventions.SimulateBodyLimit)
             .RequirePermission(Permission.Simulate);

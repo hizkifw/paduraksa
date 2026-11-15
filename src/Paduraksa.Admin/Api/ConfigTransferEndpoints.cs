@@ -26,21 +26,21 @@ internal static class ConfigTransferEndpoints
     private static readonly string[] YamlTypes = ["application/yaml", "application/x-yaml", "text/yaml", "text/x-yaml"];
 
     private static readonly QueryParameter Revision = QueryParameter.Id<ConfigRevisionId>("revision", "Export this revision (rev_...) instead of the latest.");
-    private static readonly QueryParameter Mode = QueryParameter.Choice("mode", "merge adds or updates the objects the YAML names and deletes nothing; replace makes the config the YAML, deleting what it leaves out.", ["merge", "replace"], "merge");
+    private static readonly QueryParameter Mode = QueryParameter.Choice("mode", "merge adds or updates the objects the YAML names and deletes nothing. replace makes the config match the YAML, deleting what it leaves out.", ["merge", "replace"], "merge");
 
     public static void Map(RouteGroupBuilder api)
     {
         api.MapGet("/config/export", ExportAsync)
             .WithName("ExportConfig").WithTags("Config").WithSummary("The config as YAML")
-            .WithDescription("The latest revision's document, or the one asked for, in the YAML format of docs/design/admin-surfaces.md, YAML import and export. The ETag is the revision exported. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.")
+            .WithDescription("The latest revision's document, or the revision asked for, in the YAML format of docs/design/admin-surfaces.md, YAML import and export. The ETag is the exported revision. It holds no secret: an access list's users are a username and a credentialId, never a password. Importing it in replace mode on a fresh instance gives the same revision hash.")
             .WithQuery(Revision).Produces<string>(200, "application/yaml").ProducesApiProblems(400, 404)
             .RequirePermission(Permission.ConfigRead);
 
         api.MapPost("/config/import", ImportAsync)
             .WithName("ImportConfig").WithTags("Config").WithSummary("Import a YAML config")
-            .WithDescription("The body is YAML (application/yaml), at most 4 MiB. The mode says whether what the YAML leaves out is kept or deleted. "
-                + "Objects are matched by id, else by name (a host by its first host name). A dry run runs every check and returns the changes and warnings without committing. If-Match, when sent, is the revision the YAML was prepared against (412 when it is no longer the latest). "
-                + "A user's credentialId must be one the vault holds a password under (422 otherwise, in a dry run too). Errors (422) point into the YAML, with its line.")
+            .WithDescription("The body is YAML (application/yaml), at most 4 MiB. The mode says whether anything the YAML leaves out is kept or deleted. "
+                + "Objects are matched by id, else by name (a host by its first host name). A dry run runs every check and returns the changes and warnings without committing. If sent, If-Match is the revision the YAML was prepared against (412 if it is no longer the latest). "
+                + "A user's credentialId must name a password the vault holds (422 otherwise, in a dry run too). Errors (422) point into the YAML, with its line.")
             .WithQuery(Mode).Accepts<string>(YamlTypes[0], [.. YamlTypes[1..], "text/plain"]).Produces<ConfigCommandResult>().ProducesApiProblems(400, 403, 409, 412, 413, 415, 422)
             .MayFailToPublish()
             .WithAdminBodyLimit(ImportBodyLimit).AcceptsAdminContentTypes(YamlTypes)

@@ -18,7 +18,7 @@ public enum ConfigCommandStatus
     /// it would change.</summary>
     DryRun,
 
-    /// <summary>The command changes nothing (the config already is that way); nothing was committed.</summary>
+    /// <summary>The command changes nothing (the config already matches); nothing was committed.</summary>
     Unchanged,
 
     /// <summary>Validation or compilation failed (<see cref="ConfigCommandResult.Errors"/>); nothing was persisted.</summary>
@@ -35,13 +35,13 @@ public enum ConfigCommandStatus
     Denied,
 
     /// <summary>The revision was committed, but publishing it failed (<see cref="ConfigCommandResult.Publish"/>): the
-    /// previous snapshot stays live. The commit stands, so the change goes live with the next successful publish or
+    /// previous snapshot stays live. The commit stands, and the change goes live with the next successful publish or
     /// the next start.</summary>
     PublishFailed,
 
     /// <summary>The config store is unavailable: the process started degraded, serving the last-known-good config
     /// because the database couldn't be opened or its latest revision is corrupt (<see cref="ConfigCommandResult.Errors"/>
-    /// says why). Nothing was read or persisted; fix the database and restart.</summary>
+    /// says why). Nothing was read or persisted. Fix the database and restart.</summary>
     Unavailable,
 }
 
@@ -57,17 +57,17 @@ public enum ConfigCommandStatus
 /// <param name="Errors">
 /// Errors about what the caller sent. Object commands: JSON pointers relative to the object
 /// (<c>/names/0</c>; <c>""</c> is the object itself). Whole-document commands: pointers into the document as sent
-/// (a rollback: as stored in the target revision). Validation errors index what was sent; compile errors, a backstop
-/// that only fires on what validation can't see, index its canonical form.
+/// (a rollback: as stored in the target revision). Validation errors index what was sent. Compile errors are a backstop
+/// that only fires on what validation can't see, and index the canonical form.
 /// </param>
 /// <param name="RelatedErrors">Object commands only: errors the change causes elsewhere in the config, e.g. a deleted
 /// upstream that a route still uses, or a name another host already serves. Pointers into the canonical document
 /// after the change, like <paramref name="Changes"/>.</param>
-/// <param name="Publish">How publishing went: set exactly when a revision was committed.</param>
-/// <param name="Conflict">Set exactly for <see cref="ConfigCommandStatus.Conflict"/>.</param>
+/// <param name="Publish">How publishing went: set when a revision was committed, and only then.</param>
+/// <param name="Conflict">Set for <see cref="ConfigCommandStatus.Conflict"/>, and only then.</param>
 /// <param name="Version">Object commands that upsert: the object's version after the change (committed or, for a dry
 /// run, the one it would get).</param>
-/// <param name="Warnings">What compiles but probably isn't intended, against the certificate inventory as it is now: a
+/// <param name="Warnings">What compiles but probably isn't intended, checked against the current certificate inventory: a
 /// host no certificate covers, a binding to a certificate that expired. Set for committed and dry-run commands; paths
 /// index the canonical document after the change.</param>
 public sealed record ConfigCommandResult(
@@ -103,17 +103,17 @@ public sealed record RevisionRef(ConfigRevisionId Id, long Seq)
 /// What a conflict dialog needs: what the command was based on against what is current.
 /// </summary>
 /// <param name="CurrentRevision">The latest revision; null while there is none.</param>
-/// <param name="CurrentVersion">Object commands: the object's current version. (An update or delete of an object that
-/// no longer exists is <see cref="ConfigCommandStatus.NotFound"/>, not a conflict; a create of one that already exists
-/// is a conflict with its version here.) Whole-document commands: null.</param>
+/// <param name="CurrentVersion">Object commands: the object's current version. (Updating or deleting an object that
+/// no longer exists is <see cref="ConfigCommandStatus.NotFound"/>, not a conflict. Creating one that already exists
+/// is a conflict, with its version here.) Whole-document commands: null.</param>
 /// <param name="ChangedSinceBase">Whole-document commands: what changed from the base revision to the latest (empty
 /// when the base revision is unknown). Object commands: empty; <see cref="ConfigCommandResult.Changes"/> holds what the
 /// command would change on top of the current config.</param>
 public sealed record ConfigConflict(IReadOnlyList<ConfigChange> ChangedSinceBase, RevisionRef? CurrentRevision = null, long? CurrentVersion = null);
 
 /// <summary>
-/// How the snapshot publish after a commit went. The publisher only publishes the latest snapshot:
-/// when a newer revision is queued before this one went live, this one is superseded, and its outcome is that of the
+/// How the snapshot publish after a commit went. The publisher only publishes the latest snapshot.
+/// If a newer revision is queued before this one goes live, this one is superseded and its outcome is that of the
 /// publish that carries it (<paramref name="Revision"/> then names the newer revision).
 /// </summary>
 /// <param name="Status">The verdict.</param>
@@ -132,7 +132,7 @@ public enum PublishOutcomeStatus
     /// <summary>Live.</summary>
     Published,
 
-    /// <summary>Still queued or in progress when the pipeline stopped waiting; it goes live when the publisher gets to
+    /// <summary>Still queued or in progress when the pipeline stopped waiting. It goes live when the publisher gets to
     /// it (before the proxy has started, at its start). A later failure is logged and audited.</summary>
     Pending,
 

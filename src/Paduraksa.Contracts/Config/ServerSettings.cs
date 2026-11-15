@@ -3,10 +3,10 @@ using System.Text.Json.Serialization;
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
-/// The server's own settings that the dashboard may change (docs/design/config.md "Server settings"): how long data is kept, the sign-in
-/// policy and the like, as opposed to how requests are routed. Part of <see cref="GlobalSettings"/>, so a change is a revision with its audit
-/// event, its diff and its undo. Every field is nullable: null is the built-in default. A value the server's environment sets
-/// explicitly (<c>Paduraksa__Metrics__Retention</c>) wins over the stored one.
+/// The server's own settings that the dashboard can change (docs/design/config.md "Server settings"), such as how long data is kept and the sign-in
+/// policy, as opposed to how requests are routed. Part of <see cref="GlobalSettings"/>, so a change is a revision with its audit
+/// event, diff and undo. Every field is nullable: null is the built-in default. A value set in the server's environment
+/// (<c>Paduraksa__Metrics__Retention</c>) wins over the stored one.
 /// </summary>
 /// <remarks>
 /// Each property has exactly one declaration in <see cref="ServerSettingCatalog"/>, which gives its key, bounds, default and environment key;

@@ -24,12 +24,12 @@ internal static class ServerSettingsEndpoints
         api.MapGet("/server-settings", GetAsync).WithName("GetServerSettings").WithTags("Settings").WithSummary("The server settings")
             .WithDescription("Every server setting with its default, its bounds, what the config stores, the value in force and where it comes from: "
                 + "the server's environment (an explicit Paduraksa__... variable or appsettings key, which wins), the config, or the default. "
-                + "A setting that applies after a restart also names the value the process runs with. The ETag is the global settings' version.")
+                + "A setting that applies after a restart also shows the value the process runs with. The ETag is the global settings' version.")
             .Produces<ServerSettingsView>().RequirePermission(Permission.ConfigRead);
         api.MapPut("/server-settings", PutAsync).WithName("PutServerSettings").WithTags("Settings").WithSummary("Replace the server settings")
-            .WithDescription("The body is what the config stores: a member left out or null goes back to its default. Values are held to each setting's bounds (422, "
-                + "server.setting.invalid). A value the environment sets is stored but not used while the environment sets it. Needs server:write besides "
-                + "config:write, and If-Match with the global settings' version (428 without it, 412 when stale).")
+            .WithDescription("The body is what the config stores. A member left out or null goes back to its default. Each value must be within its setting's bounds (422, "
+                + "server.setting.invalid). A value the environment sets is stored but unused while the environment sets it. Requires server:write as well as "
+                + "config:write, and If-Match with the global settings' version (428 without it, 412 if stale).")
             .Accepts<ServerSettings>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ServerWrite);
     }

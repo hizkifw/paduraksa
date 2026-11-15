@@ -24,7 +24,7 @@ internal static class ConfigEndpoints
     {
         api.MapGet("/config", GetConfigAsync)
             .WithName("GetConfig").WithTags("Config").WithSummary("The current config document")
-            .WithDescription("The whole config as the latest revision has it, versions included. The ETag is the latest revision's ID. It includes access lists' users with their PBKDF2 password verifiers (never a password); see the access list endpoints.")
+            .WithDescription("The whole config as the latest revision has it, with versions. The ETag is the latest revision's ID. Access list users appear with their PBKDF2 password verifiers (never a password); see the access list endpoints.")
             .Produces<CurrentConfig>()
             .RequirePermission(Permission.ConfigRead);
 
@@ -34,11 +34,11 @@ internal static class ConfigEndpoints
         hosts.MapGet("/{id:HostId}", GetHostAsync).WithName("GetHost").WithSummary("Get a host")
             .Produces<HostConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         hosts.MapPost("/", CreateHostAsync).WithName("CreateHost").WithSummary("Create a host")
-            .WithDescription("The body is the host with a client-chosen ID; its version is ignored (a new object is version 0). 409 when the ID exists.")
+            .WithDescription("The body is the host with a client-chosen ID. Its version is ignored (a new object is version 0). Returns 409 if the ID exists.")
             .Accepts<HostConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         hosts.MapPut("/{id:HostId}", ReplaceHostAsync).WithName("ReplaceHost").WithSummary("Replace a host")
-            .WithDescription("Replaces the host and its routes. Needs If-Match with the version you read (428 without it, 412 when stale). The body's ID must be the path's.")
+            .WithDescription("Replaces the host and its routes. Requires If-Match with the version you read (428 without it, 412 if stale). The body's ID must match the path's.")
             .Accepts<HostConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         hosts.MapDelete("/{id:HostId}", DeleteHostAsync).WithName("DeleteHost").WithSummary("Delete a host and its routes")
@@ -49,7 +49,7 @@ internal static class ConfigEndpoints
         hosts.MapGet("/{hostId:HostId}/routes/{routeId:RouteId}", GetRouteAsync).WithName("GetRoute").WithSummary("Get a route")
             .Produces<RouteConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         hosts.MapPut("/{hostId:HostId}/routes/{routeId:RouteId}", PutRouteAsync).WithName("PutRoute").WithSummary("Create or replace a route of a host")
-            .WithDescription("A route belongs to its host: this is a change of the host, so If-Match is the host's version. A new route goes last (201 with Location); error paths are relative to the host.")
+            .WithDescription("A route belongs to its host, so changing a route changes the host and If-Match takes the host's version. A new route goes last (201 with Location). Error paths are relative to the host.")
             .Accepts<RouteConfig>("application/json").Produces<ConfigCommandResult>().Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         hosts.MapDelete("/{hostId:HostId}/routes/{routeId:RouteId}", DeleteRouteAsync).WithName("DeleteRoute").WithSummary("Delete a route of a host")
@@ -92,11 +92,11 @@ internal static class ConfigEndpoints
         accessLists.MapGet("/{id:AccessListId}", GetAccessListAsync).WithName("GetAccessList").WithSummary("Get an access list")
             .Produces<AccessListConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         accessLists.MapPost("/", CreateAccessListAsync).WithName("CreateAccessList").WithSummary("Create an access list")
-            .WithDescription("A user's plain 'password' goes to the vault before the list is validated or stored, and is never returned; the list keeps the user's 'credentialId'.")
+            .WithDescription("The vault receives a user's plain 'password' before the list is validated or stored, and the API never returns it. The list keeps the user's 'credentialId'.")
             .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         accessLists.MapPut("/{id:AccessListId}", ReplaceAccessListAsync).WithName("ReplaceAccessList").WithSummary("Replace an access list")
-            .WithDescription("A user sent without 'password' or 'credentialId' keeps the password the list has for that username. A password change commits a revision (the list is modified) that records no password.")
+            .WithDescription("A user sent without 'password' or 'credentialId' keeps the password the list has for that username. A password change commits a revision that modifies the list and records no password.")
             .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         accessLists.MapDelete("/{id:AccessListId}", DeleteAccessListAsync).WithName("DeleteAccessList").WithSummary("Delete an access list")
@@ -105,15 +105,15 @@ internal static class ConfigEndpoints
 
         var ruleSets = api.MapGroup("/rule-sets").WithTags("Rule sets");
         ruleSets.MapGet("/", ListRuleSetsAsync).WithName("ListRuleSets").WithSummary("List rule sets")
-            .WithDescription("The document's own sets. The built-in presets are at /rule-sets/presets and are named in a setting like any other set.")
+            .WithDescription("The document's own sets. The built-in presets are at /rule-sets/presets, and a setting names a preset like any other set.")
             .WithPage().Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         ruleSets.MapGet("/presets", ListRuleSetPresetsAsync).WithName("ListRuleSetPresets").WithSummary("List the built-in rule-set presets")
-            .WithDescription("Read-only, refreshed with each release. Copy one into a set of your own to change it.")
+            .WithDescription("Read-only; each release refreshes them. To change one, copy it into a set of your own.")
             .WithPage().Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
         ruleSets.MapGet("/{id:RuleSetId}", GetRuleSetAsync).WithName("GetRuleSet").WithSummary("Get a rule set")
             .Produces<RuleSetConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         ruleSets.MapPost("/", CreateRuleSetAsync).WithName("CreateRuleSet").WithSummary("Create a rule set")
-            .WithDescription("Rules are tried in order and the first match decides. A regex that can't be built, or a rule that states no condition, is refused (422).")
+            .WithDescription("Rules are tried in order and the first match decides. If a regex can't be built or a rule states no condition, the request is refused (422).")
             .Accepts<RuleSetConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         ruleSets.MapPut("/{id:RuleSetId}", ReplaceRuleSetAsync).WithName("ReplaceRuleSet").WithSummary("Replace a rule set")
@@ -129,13 +129,13 @@ internal static class ConfigEndpoints
         authProviders.MapGet("/{id:AuthProviderId}", GetAuthProviderAsync).WithName("GetAuthProvider").WithSummary("Get an auth provider")
             .Produces<AuthProviderConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         authProviders.MapPost("/", CreateAuthProviderAsync).WithName("CreateAuthProvider").WithSummary("Create an auth provider")
-            .WithDescription("A forward-auth endpoint: every request to a host or route that names the provider is checked against it first (authentik, Authelia, oauth2-proxy or any other). "
+            .WithDescription("A forward-auth endpoint (authentik, Authelia, oauth2-proxy or any other). The proxy checks every request to a host or route that names the provider against it first. "
                 + "The preset (authentik, authelia, oauth2Proxy) fills in the endpoint's path when the URL is a bare address, the identity headers its answer carries, whether a remembered allow covers one path or the whole host, "
-                + "and oauth2-proxy's sign-in redirect; a field that is set wins. A URL with credentials, a header the proxy owns and a sign-in URL that isn't a path on the host or an absolute http(s) URL are refused (422).")
+                + "and oauth2-proxy's sign-in redirect; a field that is set wins. The API refuses (422) a URL with credentials, a header the proxy owns, and a sign-in URL that isn't a path on the host or an absolute http(s) URL.")
             .Accepts<AuthProviderConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         authProviders.MapPut("/{id:AuthProviderId}", ReplaceAuthProviderAsync).WithName("ReplaceAuthProvider").WithSummary("Replace an auth provider")
-            .WithDescription("A change to what the endpoint is asked or how its answer is read starts the provider with an empty decision cache; a rename or new notes keep it.")
+            .WithDescription("If the change affects what the endpoint is asked or how its answer is read, the provider starts with an empty decision cache. A rename or new notes keep the cache.")
             .Accepts<AuthProviderConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         authProviders.MapDelete("/{id:AuthProviderId}", DeleteAuthProviderAsync).WithName("DeleteAuthProvider").WithSummary("Delete an auth provider")
@@ -161,7 +161,7 @@ internal static class ConfigEndpoints
             .WithDescription("The ETag is the settings' version.")
             .Produces<GlobalSettings>().RequirePermission(Permission.ConfigRead);
         api.MapPut("/settings", PutSettingsAsync).WithName("PutSettings").WithTags("Settings").WithSummary("Replace the global settings")
-            .WithDescription("Needs If-Match with the settings' version (428 without it, 412 when stale).")
+            .WithDescription("Requires If-Match with the settings' version (428 without it, 412 if stale).")
             .Accepts<GlobalSettings>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
     }
