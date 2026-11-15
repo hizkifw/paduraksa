@@ -63,14 +63,14 @@ A host's stop does not wait for the log writer's tick: `RotatingLogFile.Flush` w
 - A Content Security Policy violation or a console error fails the test. Exceptions: a failure the test asks for, and Blazor's own "Connection disconnected" report, which is a circuit reconnect under load and not an app error.
 - Pages are waited on by signal (the shell's `data-circuit=live`, a finite animation finishing), not by delay.
 
-**The two 0 B assertions** (`MacKeyTests`, `AllocationTests`) measure after warm-up on a thread of their own and take the smallest of three rounds. A one-off on that thread cannot fail them, while a real allocation still does.
+**The two 0 B assertions** (`MacKeyTests`, `AllocationTests`) measure after warm-up on a thread of their own and take the smallest of three rounds. A one-off allocation on that thread can't fail them, and a real allocation still does.
 
 ## What CI runs, and sleeping in tests
 
 **Skips must not hide a gap.** The Playwright tests skip when no Chromium is found, the QUIC tests when libmsquic is missing, and the Pebble tests when Docker can't pull the image. CI once had neither of the first two, so 19 browser tests and 19 QUIC tests skipped on every run.
 
 - `.github/workflows/ci.yml` installs Playwright's own Chromium for the pinned package version (`playwright.ps1 install --with-deps chromium`, cached by version, because Ubuntu's `chromium` is a snap) and libmsquic at the version the Dockerfile pins. The Test step sets `PADURAKSA_REQUIRE=playwright,quic,pebble`.
-- `tests/Shared/Requirements.cs` reads it. `Requirements.SkipOrFail` is what the three skip sites call (`PlaywrightBrowser.LaunchOrSkipAsync`, the two QUIC `Require` helpers, the Pebble fixtures' `SkipReason`). A named capability that is missing fails the test with the reason, and an unnamed one skips.
+- `tests/Shared/Requirements.cs` reads it. `Requirements.SkipOrFail` is what the three skip sites call (`PlaywrightBrowser.LaunchOrSkipAsync`, the two QUIC `Require` helpers, the Pebble fixtures' `SkipReason`). If a named capability is missing, the test fails with the reason. If it isn't named, the test skips.
 - `run-quic-tests.sh` stays for machines without libmsquic (it sets `PADURAKSA_REQUIRE=quic`). CI covers the QUIC tests in the normal run.
 - The build-test job's timeout is 30 minutes.
 
