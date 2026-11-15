@@ -474,7 +474,7 @@ public sealed class SettingsPagesTests
     }
 
     private static ApiTokenSummary Token(UserId owner, string name) =>
-        new(ApiTokenId.New(), owner, name, [Permission.ConfigRead], null, DateTimeOffset.UtcNow.AddDays(-1), null, false);
+        new(ApiTokenId.New(), owner, name, [Permission.ConfigRead], null, DateTimeOffset.UtcNow.AddDays(-1), null, false, false);
 
     private static object? Field(object instance, string name) =>
         instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance);

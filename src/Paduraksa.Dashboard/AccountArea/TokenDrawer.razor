@@ -51,43 +51,7 @@
                     }
                 </FormSection>
 
-                <FormSection Title="Scopes" Name="scopes">
-                    <DescriptionContent>
-                        A token never exceeds its owner: only what your roles allow is offered, and if your roles shrink, the token's scopes shrink with them.
-                        Tokens can't manage tokens or sessions.
-                    </DescriptionContent>
-                    <Aside>
-                        <span class="pdk-scope-presets">
-                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectReadOnly" data-preset="read">Read-only</MudButton>
-                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectEverything" data-preset="all">All you can</MudButton>
-                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => _scopes.Clear()" data-preset="none">None</MudButton>
-                        </span>
-                    </Aside>
-                    <ChildContent>
-                        <div class="pdk-scope-areas">
-                            @foreach (var (area, scopes) in Offered)
-                            {
-                                <div class="pdk-scope-area" data-area="@area">
-                                    <span class="pdk-scope-area-name">@area</span>
-                                    @foreach (var scope in scopes)
-                                    {
-                                        <label class="pdk-scope-option @(_scopes.Contains(scope) ? "pdk-selected" : null)" data-scope="@scope.ToName()">
-                                            <MudCheckBox T="bool" Value="_scopes.Contains(scope)" ValueChanged="@(value => ToggleScope(scope, value))" Color="Color.Primary" Dense="true" />
-                                            <span class="pdk-role-text">
-                                                <span class="pdk-role-name pdk-mono">@scope.ToName()</span>
-                                                <span class="pdk-role-help">@IdentityText.Describe(scope)</span>
-                                            </span>
-                                        </label>
-                                    }
-                                </div>
-                            }
-                        </div>
-                        @if (_attempted && _scopes.Count == 0)
-                        {
-                            <div class="pdk-field-error">Pick at least one scope.</div>
-                        }
-                    </ChildContent>
-                </FormSection>
+                <ScopePicker Held="Held" Selected="_scopes" ShowEmptyError="_attempted" />
             </div>
         }
     </ChildContent>
@@ -142,11 +106,6 @@
         Custom,
     }
 
-    private IEnumerable<(string Area, IReadOnlyList<Permission> Scopes)> Offered =>
-        IdentityText.ScopeAreas
-            .Select(area => (area.Area, (IReadOnlyList<Permission>)[.. area.Scopes.Where(Held.Contains)]))
-            .Where(area => area.Item2.Count > 0);
-
     private DateTimeOffset? ExpiresAt => _lifetime switch
     {
         TokenLifetime.Week => _now.AddDays(7),
@@ -177,25 +136,11 @@
     /// <summary>The secret goes with the drawer, however it goes.</summary>
     public void Dispose() => _issued = null;
 
-    private void ToggleScope(Permission scope, bool on)
-    {
-        if (on)
-        {
-            _scopes.Add(scope);
-        }
-        else
-        {
-            _scopes.Remove(scope);
-        }
-    }
-
     private void SelectReadOnly()
     {
         _scopes.Clear();
-        _scopes.UnionWith(Offered.SelectMany(a => a.Scopes).Where(IdentityText.IsRead));
+        _scopes.UnionWith(IdentityText.OfferedScopes(Held).SelectMany(a => a.Scopes).Where(IdentityText.IsRead));
     }
-
-    private void SelectEverything() => _scopes.UnionWith(Offered.SelectMany(a => a.Scopes));
 
     private async Task IssueAsync()
     {

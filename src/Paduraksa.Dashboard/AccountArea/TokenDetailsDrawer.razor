@@ -1,0 +1,333 @@
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject TimeProvider Time
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+@inject DisplayFormat Fmt
+@inject Microsoft.Extensions.Logging.ILogger<TokenDetailsDrawer> Logger
+@* An API token in a drawer: its facts, and for someone who may change it, its name and scopes, switching it off and on, and revoking it.
+   Changes go straight to the service as users' do (a token is not a config revision). The secret is never here. *@
+
+<DrawerShell Title="@_token.Name" Icon="@Icons.Material.Outlined.Key" IconTone="_tone" Name="token-details" OnSubmit="Submit">
+    <Banner>
+        @if (_error is { } error)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-form="error">@error</MudAlert>
+        }
+    </Banner>
+    <ChildContent>
+        <div class="pdk-form" data-form="token-details">
+            <div class="pdk-detail-chips">
+                <StatusChip Tone="_tone" Dot="true" Text="@_label" Name="status" />
+            </div>
+
+            @if (Editable)
+            {
+                <MudTextField T="string" Value="_name" ValueChanged="SetName" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Immediate="true" AutoFocus="true" MaxLength="128"
+                              Error="@(_attempted && string.IsNullOrWhiteSpace(_name))" ErrorText="A token needs a name." data-field="token-name" />
+            }
+            else
+            {
+                <ReadOnlyField Field="token-name" Label="Name" Value="@_token.Name" />
+            }
+
+            <FormSection Title="Details" Name="details">
+                <dl class="pdk-facts" data-facts="token">
+                    <dt>Owner</dt>
+                    <dd data-fact="owner">@Owner</dd>
+                    <dt>Created</dt>
+                    <dd data-fact="created">@Fmt.Exact(_token.CreatedAt)</dd>
+                    <dt>Last used</dt>
+                    <dd data-fact="last-used">
+                        @if (_token.LastUsedAt is { } used)
+                        {
+                            @Fmt.Exact(used)
+                        }
+                        else
+                        {
+                            <span class="pdk-muted">Never</span>
+                        }
+                    </dd>
+                    <dt>Expires</dt>
+                    <dd data-fact="expires">
+                        @if (_token.ExpiresAt is { } end)
+                        {
+                            @Fmt.Exact(end)
+                        }
+                        else
+                        {
+                            <span class="pdk-muted">Never</span>
+                        }
+                    </dd>
+                    <dt>Token ID</dt>
+                    <dd data-fact="id"><CopyableCode Value="@_token.Id.ToString()" /></dd>
+                </dl>
+            </FormSection>
+
+            @if (Editable)
+            {
+                <ScopePicker Held="Assignable" Selected="_scopes" OnChange="Touch" ShowEmptyError="_attempted && ScopesChanged">
+                    <Description>Only what the token's owner holds is offered, and if their roles shrink, the token's scopes shrink with them.</Description>
+                    <Notice>
+                        @if (_dropped.Count > 0)
+                        {
+                            <div class="pdk-scope-dropped" data-notice="dropped-scopes">
+                                <span class="pdk-muted">The owner no longer holds these, or a token can't carry them. Saving changed scopes removes them.</span>
+                                <span class="pdk-dt-chips">
+                                    @foreach (var scope in _dropped)
+                                    {
+                                        <span class="pdk-tag pdk-mono pdk-tag-off" data-dropped="@scope.ToName()">@scope.ToName()</span>
+                                    }
+                                </span>
+                            </div>
+                        }
+                    </Notice>
+                </ScopePicker>
+            }
+            else
+            {
+                <FormSection Title="Scopes" Name="scopes">
+                    <span class="pdk-dt-chips" data-fact="scopes">
+                        @foreach (var scope in _token.Scopes)
+                        {
+                            <span class="pdk-tag pdk-mono">@scope.ToName()</span>
+                        }
+                    </span>
+                </FormSection>
+            }
+        </div>
+    </ChildContent>
+    <Footer>
+        @if (Editable)
+        {
+            <DrawerActions OnCancel="() => Level?.RequestClose()" Busy="_saving" PrimaryLabel="Save" PrimaryAction="save-token" Submit="true">
+                <Start>
+                    <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.KeyOff" OnClick="AskRevokeAsync" Disabled="_saving"
+                               Class="pdk-drawer-actions-start" data-action="revoke">Revoke</MudButton>
+                </Start>
+                <ChildContent>
+                    @if (_token.Disabled)
+                    {
+                        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.PlayArrow" OnClick="() => SwitchAsync(false)" Disabled="_saving" data-action="enable">Enable</MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Block" OnClick="() => SwitchAsync(true)" Disabled="_saving" data-action="disable">Disable</MudButton>
+                    }
+                </ChildContent>
+            </DrawerActions>
+        }
+        else
+        {
+            <DrawerActions OnCancel="() => Level?.RequestClose()" CancelLabel="Close" />
+        }
+    </Footer>
+</DrawerShell>
+
+@code {
+    private ApiTokenSummary _token = default!;
+    private string _name = string.Empty;
+    private readonly HashSet<Permission> _scopes = [];
+    private HashSet<Permission> _openedScopes = [];
+    private List<Permission> _dropped = [];
+    private string _label = string.Empty;
+    private Config.Tone _tone;
+    private bool _attempted;
+    private bool _saving;
+    private string? _error;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>The token as the list read it.</summary>
+    [Parameter, EditorRequired]
+    public ApiTokenSummary Token { get; set; } = default!;
+
+    /// <summary>Whose it is, in words ("You", or the user's name).</summary>
+    [Parameter, EditorRequired]
+    public string Owner { get; set; } = string.Empty;
+
+    /// <summary>What the token's owner holds now: the scopes offered. A token can't be given more than that, whoever edits it.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlySet<Permission> OwnerHolds { get; set; } = new HashSet<Permission>();
+
+    /// <summary>The caller may change this token (their own with <c>tokens:own</c>, anyone's with <c>tokens:all</c>). A revoked one is read-only whatever this says.</summary>
+    [Parameter]
+    public bool CanEdit { get; set; }
+
+    /// <summary>What the owner holds and a token may carry.</summary>
+    private IReadOnlySet<Permission> Assignable => _assignable ??= OwnerHolds.Where(ApiTokenService.IsAssignableScope).ToHashSet();
+
+    private HashSet<Permission>? _assignable;
+
+    private bool Editable => CanEdit && !_token.Revoked;
+
+    private EventCallback Submit => Editable ? EventCallback.Factory.Create(this, SaveAsync) : default;
+
+    protected override void OnInitialized()
+    {
+        Show(Token);
+        _name = _token.Name;
+        // What the token has that it can no longer use stays out of the selection, and out of the request unless the scopes are saved.
+        _scopes.UnionWith(_token.Scopes.Where(Assignable.Contains));
+        _dropped = [.. _token.Scopes.Where(scope => !Assignable.Contains(scope))];
+        _openedScopes = [.. _scopes];
+    }
+
+    private void Show(ApiTokenSummary token)
+    {
+        _token = token;
+        (_label, _tone) = IdentityText.State(token, Time.GetUtcNow());
+    }
+
+    private bool ScopesChanged => !_scopes.SetEquals(_openedScopes);
+
+    private void SetName(string value)
+    {
+        _name = value;
+        Touch();
+    }
+
+    private void Touch()
+    {
+        if (Level is not null)
+        {
+            Level.IsDirty = _name != _token.Name || ScopesChanged;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        _attempted = true;
+        var name = _name.Trim();
+        // Scopes are only judged when they were changed: a token whose scopes are all gone can still be renamed.
+        if (name.Length == 0 || (ScopesChanged && _scopes.Count == 0))
+        {
+            return;
+        }
+
+        UpdateApiTokenRequest request = new(name != _token.Name ? name : null, ScopesChanged ? [.. _scopes.Order()] : null);
+        if (request is { Name: null, Scopes: null })
+        {
+            Level?.Close();
+            return;
+        }
+
+        var result = await RunAsync(request, "The token couldn't be saved.");
+        if (result is { Succeeded: true })
+        {
+            Snackbar.Add($"Saved {name}.", Severity.Success);
+            Level?.Close(result.Token);
+        }
+    }
+
+    /// <summary>Switches the token off or on at once; the drawer stays, with its status changed, and what was typed stays as it is.</summary>
+    private async Task SwitchAsync(bool disabled)
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        var result = await RunAsync(new UpdateApiTokenRequest(Disabled: disabled), disabled ? "The token couldn't be disabled." : "The token couldn't be enabled.");
+        if (result is { Succeeded: true, Token: { } token })
+        {
+            Show(token);
+            Snackbar.Add(disabled ? $"Disabled {token.Name}." : $"Enabled {token.Name}.", Severity.Success);
+        }
+    }
+
+    private async Task AskRevokeAsync()
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        var confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            $"Revoke {_token.Name}?",
+            "Whatever uses it is refused from now on.",
+            "Revoke",
+            "This can't be undone; a new token is a new secret.",
+            icon: Icons.Material.Outlined.KeyOff);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (await Caller.OriginAsync() is not { } origin)
+            {
+                return;
+            }
+
+            var result = await Identity.RevokeTokenAsync(origin, _token.Id);
+            if (result.Succeeded)
+            {
+                Snackbar.Add($"Revoked {_token.Name}.", Severity.Success);
+                Level?.Close(result.Token);
+                return;
+            }
+
+            _error = IdentityText.Refusal(result.Status, result.Problem);
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't revoke an API token.");
+            _error = StoreFailures.Message("The token couldn't be revoked.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    /// <summary>Sends a change; the refusal, or the store failing, is shown in the drawer and null comes back.</summary>
+    private async Task<ApiTokenResult?> RunAsync(UpdateApiTokenRequest request, string failure)
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (await Caller.OriginAsync() is not { } origin)
+            {
+                return null;
+            }
+
+            var result = await Identity.UpdateTokenAsync(origin, _token.Id, request);
+            if (!result.Succeeded)
+            {
+                _error = IdentityText.Refusal(result.Status, result.Problem);
+            }
+
+            return result;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, failure);
+            _error = StoreFailures.Message(failure);
+            return null;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
+    public static IReadOnlyDictionary<string, object?> For(ApiTokenSummary token, string owner, IReadOnlySet<Permission> ownerHolds, bool canEdit) =>
+        new Dictionary<string, object?> { [nameof(Token)] = token, [nameof(Owner)] = owner, [nameof(OwnerHolds)] = ownerHolds, [nameof(CanEdit)] = canEdit };
+}

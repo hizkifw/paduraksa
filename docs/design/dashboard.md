@@ -292,6 +292,13 @@ There is a line of help per setting. Inline validation is the real validator wit
 - Only what the user holds is offered ("a token never exceeds its owner"), and never `tokens:*` or `sessions:all` (tokens cannot manage tokens or sessions).
 - The secret shows once in the same dialog, with Copy and a "you won't see it again" notice. A click beside the dialog does not close it, and closing it drops the secret from the page's state.
 - Revoke is confirmed.
+- **A row opens the token's drawer** (`TokenDetailsDrawer`, address `/settings/tokens/{tok_...}`, the list with that drawer open, as hosts have). An address that names someone else's token opens it from the list of everyone's when the caller has `tokens:all`; anything else is the "not found" drawer.
+- The drawer shows the status (active, disabled, expired or revoked), owner, created, last used, expires and the token ID in a copy box; never the secret. The owner is plain text, since users have no address of their own to link to.
+- Whoever may revoke it can change it (`tokens:own` for one's own, `tokens:all` for anyone's): the name, and the scopes with the same picker as issuing (`ScopePicker`). The picker offers what the token's *owner* holds, not the editor, so an Owner editing a Viewer's token is not offered `config:write`. Save goes straight to the service, as a user's edit does: a token is not a config revision, so there is no review sheet or draft. Only what changed is sent.
+- **Disable and Enable** act at once and keep the drawer open (a user's disable has no confirmation either). **Revoke** moved here from the list and keeps its confirmation.
+- A revoked token, or one the caller may not change, shows the name as a `ReadOnlyField` (it stands where an input would be), the scopes as chips, and no fields and no actions. The Details rows (owner, dates, ID) stay in the `pdk-facts` grid, which is the drawer pattern for facts (audit event, certificate details); `ReadOnlyField` is for a value that would otherwise be an input. The token ID is one of those rows, with its copy box.
+- Scopes the token has but can't use (its owner lost them, or tokens may not carry them) are shown as struck-through chips with one line saying that saving changed scopes removes them. A rename alone never sends scopes, so it never shrinks the stored set.
+- The list gives a disabled token an amber "Disabled" pill (the revoked one stays grey, since disabled can be undone) and dims its row, and it is listed by default: it can come back, unlike a revoked or expired one, which "Show revoked and expired" reveals.
 
 **My account:**
 - **Profile.** Username is read-only. The display name is editable with `users:write`, as the service allows, read-only otherwise.
@@ -321,7 +328,7 @@ There is a line of help per setting. Inline validation is the real validator wit
 - Toasts are at most 420 px wide with 20 px margins (full width less 8 px on a phone), and pages leave room below their last card to scroll clear of one. The drawer and dialogs sit above them.
 
 **Tests.**
-- bUnit (`SettingsPagesTests`, `AccountAndAuditTests`): a token's secret shown once and gone from markup and state after closing, only held scopes offered; the last-Owner refusal and what an edit sends; the add-user form's checks; the users, defaults and audit pages per role; the defaults through the drawer with mode options dropped; a profile in use refused; the TOTP enrolment's states and what each drops; recovery codes once; sessions and ending one; the password change; the audit filters, a row's details and the chain card intact and broken; the export line.
+- bUnit (`SettingsPagesTests`, `AccountAndAuditTests`, `TokenDetailsTests`): a token's secret shown once and gone from markup and state after closing, only held scopes offered; the last-Owner refusal and what an edit sends; the add-user form's checks; the users, defaults and audit pages per role; the defaults through the drawer with mode options dropped; a profile in use refused; the TOTP enrolment's states and what each drops; recovery codes once; sessions and ending one; the password change; the audit filters, a row's details and the chain card intact and broken; the export line.
 - Playwright (`SettingsEndToEndTests`): a Viewer added and, in a second browser, offered no change; a token made on the page answers `GET /api/v1/auth/me` as a token; a global default through review and apply, with Apply inside the window at 1366 and 390 px; the audit page with those events and an intact chain; My account (TOTP enrolment, two sessions, ending the other browser's, which lands on the sign-in page); no sideways scroll at 390 px on the new pages.
 
 **Not yet:** changing one's own display name without `users:write` (the service does not allow it; an Owner can); identity changes made through the API or CLI reaching open pages live; a CSV export. Built since: notifications (M9), the YAML export and import page (see [admin-surfaces.md](admin-surfaces.md)) and the backup page (see [vault-and-certificates.md](vault-and-certificates.md)).
@@ -398,7 +405,7 @@ With `OnSubmit` the drawer is one form, so Enter submits. A form that brings its
 
 ### Addresses
 
-`RoutedDrawer` ties a list page's route key to its root drawer. These addresses are the list with that drawer open: `/hosts/{host_...}`, `/hosts/new`, `/upstreams/{ups_...}`, `/upstreams/new`, `/settings/profiles/{prof_...}`, `/settings/profiles/new` and `/certificates/{crt_...}`.
+`RoutedDrawer` ties a list page's route key to its root drawer. These addresses are the list with that drawer open: `/hosts/{host_...}`, `/hosts/new`, `/upstreams/{ups_...}`, `/upstreams/new`, `/settings/profiles/{prof_...}`, `/settings/profiles/new`, `/certificates/{crt_...}` and `/settings/tokens/{tok_...}`.
 - A row opens its address. Closing the drawer goes back to the list's address. The browser's back closes it. Leaving the page closes it with every level stacked on it.
 - The key is parsed at the edge as before. One that is not an ID of the right type opens a "not found" drawer (`NotFoundDrawer`), and an object deleted under an open drawer says so in it.
 

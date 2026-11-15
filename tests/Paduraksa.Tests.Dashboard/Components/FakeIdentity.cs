@@ -36,6 +36,13 @@ internal sealed class FakeDashboardIdentity : IDashboardIdentity
 
     public List<IssueApiTokenRequest> Issued { get; } = [];
 
+    public List<(ApiTokenId Id, UpdateApiTokenRequest Request)> TokenUpdates { get; } = [];
+
+    /// <summary>The answer to a token update; succeeds by default.</summary>
+    public IdentityStatus TokenUpdateStatus { get; set; } = IdentityStatus.Succeeded;
+
+    public string? TokenUpdateProblem { get; set; }
+
     /// <summary>The answer to an update; succeeds by default.</summary>
     public IdentityStatus UpdateStatus { get; set; } = IdentityStatus.Succeeded;
 
@@ -158,16 +165,51 @@ internal sealed class FakeDashboardIdentity : IDashboardIdentity
     public Task<ApiTokenResult> IssueTokenAsync(CommandOrigin origin, IssueApiTokenRequest request, CancellationToken cancellationToken = default)
     {
         Issued.Add(request);
-        ApiTokenSummary summary = new(ApiTokenId.New(), origin.Actor.UserId!.Value, request.Name, request.Scopes, request.ExpiresAt, DateTimeOffset.UtcNow, null, false);
+        ApiTokenSummary summary = new(ApiTokenId.New(), origin.Actor.UserId!.Value, request.Name, request.Scopes, request.ExpiresAt, DateTimeOffset.UtcNow, null, false, false);
         Tokens.Add(summary);
         return Task.FromResult(new ApiTokenResult(IdentityStatus.Succeeded, new IssuedApiToken(summary, TokenSecret)));
     }
 
+    public Task<ApiTokenResult> UpdateTokenAsync(CommandOrigin origin, ApiTokenId id, UpdateApiTokenRequest request, CancellationToken cancellationToken = default)
+    {
+        TokenUpdates.Add((id, request));
+        if (TokenUpdateStatus != IdentityStatus.Succeeded)
+        {
+            return Task.FromResult(new ApiTokenResult(TokenUpdateStatus, Problem: TokenUpdateProblem));
+        }
+
+        var index = Tokens.FindIndex(t => t.Id == id);
+        if (index < 0)
+        {
+            return Task.FromResult(new ApiTokenResult(IdentityStatus.NotFound));
+        }
+
+        Tokens[index] = Tokens[index] with
+        {
+            Name = request.Name ?? Tokens[index].Name,
+            Scopes = request.Scopes ?? Tokens[index].Scopes,
+            Disabled = request.Disabled ?? Tokens[index].Disabled,
+        };
+        Announce();
+        return Task.FromResult(new ApiTokenResult(IdentityStatus.Succeeded, Token: Tokens[index]));
+    }
+
     public Task<ApiTokenResult> RevokeTokenAsync(CommandOrigin origin, ApiTokenId id, CancellationToken cancellationToken = default)
     {
+        Calls.Add($"revoke {id}");
         var index = Tokens.FindIndex(t => t.Id == id);
         Tokens[index] = Tokens[index] with { Revoked = true };
+        Announce();
         return Task.FromResult(new ApiTokenResult(IdentityStatus.Succeeded, Token: Tokens[index]));
+    }
+
+    /// <summary>What the real seam does after a change: the pages that follow the identity feed read again.</summary>
+    private void Announce()
+    {
+        foreach (var watcher in _watchers.ToList())
+        {
+            _ = watcher();
+        }
     }
 
     public IDisposable Watch(Func<Task> onChanged)

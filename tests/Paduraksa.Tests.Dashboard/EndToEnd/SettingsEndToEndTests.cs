@@ -239,6 +239,86 @@ public sealed class SettingsEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "logs-phone");
     }
 
+    [Fact]
+    public async Task AnApiTokenIsOpenedFromTheListRenamedAndDisabled_AndTheListShowsThePill()
+    {
+        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using var ownedPlaywright = playwright;
+        await using var ownedBrowser = browser;
+        await using var host = await DashboardHost.StartAsync(Ct);
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = host.Admin.ToString(),
+            IgnoreHTTPSErrors = true,
+            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+            ColorScheme = ColorScheme.Dark,
+        });
+        var page = await context.NewPageAsync();
+        var problems = PlaywrightBrowser.CollectProblems(page);
+        await SetUpAsync(page, host);
+
+        await page.GotoAsync("/settings/tokens");
+        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
+        await page.ClickAsync("[data-action=add-token]");
+        await page.FillAsync("input[data-field=token-name]", "ci script");
+        await page.ClickAsync("[data-preset=read]");
+        await page.ClickAsync("[data-action=issue]");
+        var secret = page.Locator("[data-secret=token] .pdk-copy-text");
+        await Expect(secret).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        var token = (await secret.TextContentAsync())!.Trim();
+        await page.ClickAsync("[data-action=done]");
+        await Expect(page.Locator("[data-secret=token]")).ToHaveCountAsync(0);
+        await Expect(page.Locator("[data-token='ci script']")).ToBeVisibleAsync();
+
+        // A row opens the token's address with its drawer; the secret is nowhere in it.
+        await page.Locator("[data-token='ci script']").ClickAsync();
+        await Expect(page).ToHaveURLAsync(new Regex("/settings/tokens/tok_[0-9A-Za-z]{22}$"));
+        var drawer = page.Locator(".pdk-sheet [data-drawer=token-details]");
+        await Expect(drawer).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        await Expect(drawer.Locator("[data-fact=id] .pdk-copy-text")).ToContainTextAsync("tok_");
+        Assert.DoesNotContain(token, await page.ContentAsync(), StringComparison.Ordinal);
+        await PlaywrightBrowser.ScreenshotAsync(page, "token-details", fullPage: false);
+
+        await page.FillAsync("input[data-field=token-name]", "deploy script");
+        await page.ClickAsync("[data-action=save-token]");
+        await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
+        await Expect(page).ToHaveURLAsync(new Regex("/settings/tokens$"));
+        var row = page.Locator("[role=row]", new() { Has = page.Locator("[data-token='deploy script']") });
+        await Expect(row).ToBeVisibleAsync();
+        await Expect(row.Locator("[data-chip=status]")).ToHaveTextAsync("Active");
+
+        await row.ClickAsync();
+        await Expect(drawer).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        await page.ClickAsync("[data-action=disable]");
+        await Expect(drawer.Locator("[data-chip=status]")).ToHaveTextAsync("Disabled", new() { Timeout = 15_000 });
+        await PlaywrightBrowser.ScreenshotAsync(page, "token-details-disabled", fullPage: false);
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0);
+        await Expect(row.Locator("[data-chip=status]")).ToHaveTextAsync("Disabled");
+        await PlaywrightBrowser.ScreenshotAsync(page, "tokens-disabled");
+
+        // Switched off means refused at once, and back on works again with the same secret.
+        await using (var api = await playwright.APIRequest.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true }))
+        {
+            var headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" };
+            Assert.Equal(401, (await api.GetAsync("api/v1/auth/me", new() { Headers = headers })).Status);
+
+            await row.ClickAsync();
+            await page.ClickAsync("[data-action=enable]");
+            await Expect(drawer.Locator("[data-chip=status]")).ToHaveTextAsync("Active", new() { Timeout = 15_000 });
+            Assert.Equal(200, (await api.GetAsync("api/v1/auth/me", new() { Headers = headers })).Status);
+        }
+
+        // Phone width: the drawer fits without scrolling sideways.
+        await page.SetViewportSizeAsync(390, 844);
+        await PlaywrightBrowser.SettleAsync(page);
+        Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"), "the token drawer scrolls sideways at 390 px");
+        await ExpectInsideWindowAsync(page, page.Locator(".pdk-sheet [data-action=save-token]"));
+        await PlaywrightBrowser.ScreenshotAsync(page, "token-details-phone", fullPage: false);
+
+        Assert.Empty(problems);
+    }
+
     private static async Task ExpectInsideWindowAsync(IPage page, ILocator element)
     {
         var box = await element.BoundingBoxAsync();

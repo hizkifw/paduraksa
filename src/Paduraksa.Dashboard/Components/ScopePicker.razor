@@ -1,0 +1,112 @@
+@* The scopes of an API token, by area, with the read-only and "all you can" presets: shared by the drawer that issues a token and the one
+   that changes it. It offers only what Held says (what the token's owner holds), and changes Selected in place. Scopes in Selected that
+   it does not offer (the owner lost them, or tokens can't have them) are left as they are. *@
+
+<FormSection Title="Scopes" Name="scopes">
+    <DescriptionContent>
+        @if (Description is not null)
+        {
+            @Description
+        }
+        else
+        {
+            <text>A token never exceeds its owner: only what your roles allow is offered, and if your roles shrink, the token's scopes shrink with them.
+            Tokens can't manage tokens or sessions.</text>
+        }
+    </DescriptionContent>
+    <Aside>
+        <span class="pdk-scope-presets">
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectReadOnlyAsync" data-preset="read">Read-only</MudButton>
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectEverythingAsync" data-preset="all">All you can</MudButton>
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectNoneAsync" data-preset="none">None</MudButton>
+        </span>
+    </Aside>
+    <ChildContent>
+        @Notice
+        <div class="pdk-scope-areas">
+            @foreach (var (area, scopes) in Offered)
+            {
+                <div class="pdk-scope-area" data-area="@area">
+                    <span class="pdk-scope-area-name">@area</span>
+                    @foreach (var scope in scopes)
+                    {
+                        <label class="pdk-scope-option @(Selected.Contains(scope) ? "pdk-selected" : null)" data-scope="@scope.ToName()">
+                            <MudCheckBox T="bool" Value="Selected.Contains(scope)" ValueChanged="@(value => ToggleAsync(scope, value))" Color="Color.Primary" Dense="true" />
+                            <span class="pdk-role-text">
+                                <span class="pdk-role-name pdk-mono">@scope.ToName()</span>
+                                <span class="pdk-role-help">@IdentityText.Describe(scope)</span>
+                            </span>
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+        @if (ShowEmptyError && Selected.Count == 0)
+        {
+            <div class="pdk-field-error">Pick at least one scope.</div>
+        }
+    </ChildContent>
+</FormSection>
+
+@code {
+    /// <summary>What may be offered: the permissions the token's owner holds.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlySet<Permission> Held { get; set; } = new HashSet<Permission>();
+
+    /// <summary>The chosen scopes, changed in place.</summary>
+    [Parameter, EditorRequired]
+    public HashSet<Permission> Selected { get; set; } = [];
+
+    /// <summary>Called after the choice changed.</summary>
+    [Parameter]
+    public EventCallback OnChange { get; set; }
+
+    /// <summary>Says "Pick at least one scope" while none is chosen: the form was submitted.</summary>
+    [Parameter]
+    public bool ShowEmptyError { get; set; }
+
+    /// <summary>Between the heading and the areas (what the choice leaves out).</summary>
+    [Parameter]
+    public RenderFragment? Notice { get; set; }
+
+    /// <summary>Replaces the line under the heading.</summary>
+    [Parameter]
+    public RenderFragment? Description { get; set; }
+
+    private IEnumerable<(string Area, IReadOnlyList<Permission> Scopes)> Offered => IdentityText.OfferedScopes(Held);
+
+    private IEnumerable<Permission> OfferedScopes => Offered.SelectMany(a => a.Scopes);
+
+    private async Task ToggleAsync(Permission scope, bool on)
+    {
+        if (on)
+        {
+            Selected.Add(scope);
+        }
+        else
+        {
+            Selected.Remove(scope);
+        }
+
+        await OnChange.InvokeAsync();
+    }
+
+    private async Task SelectReadOnlyAsync()
+    {
+        Selected.ExceptWith(OfferedScopes);
+        Selected.UnionWith(OfferedScopes.Where(IdentityText.IsRead));
+        await OnChange.InvokeAsync();
+    }
+
+    private async Task SelectEverythingAsync()
+    {
+        Selected.UnionWith(OfferedScopes);
+        await OnChange.InvokeAsync();
+    }
+
+    private async Task SelectNoneAsync()
+    {
+        Selected.ExceptWith(OfferedScopes);
+        await OnChange.InvokeAsync();
+    }
+}

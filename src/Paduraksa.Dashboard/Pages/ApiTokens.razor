@@ -1,4 +1,5 @@
 @attribute [Route(SettingsRoutes.Tokens)]
+@attribute [Route(SettingsRoutes.Tokens + "/{Key}")]
 @implements IDisposable
 @using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Commands
@@ -10,10 +11,12 @@
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
 @inject DrawerStack Drawers
+@inject NavigationManager Navigation
 @inject ILogger<ApiTokens> Logger
 @inject DisplayFormat Fmt
 @* Settings: API tokens. One's own, and everyone's with tokens:all. A new token is made in a drawer, which shows its
-   secret once; the page never holds it. *@
+   secret once; the page never holds it. A row opens the token's own drawer (its address is the list with that drawer open),
+   where it is changed, switched off and on, and revoked. *@
 
 <PageTitle>API tokens · Settings · Paduraksa</PageTitle>
 
@@ -45,7 +48,7 @@
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-3" data-alert="load-failed">
             The tokens couldn't be read. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="RetryAsync" Class="ml-2">Try again</MudButton>
         </MudAlert>
     }
 
@@ -88,16 +91,16 @@
                 <span role="columnheader">Last used</span>
                 <span role="columnheader">Expires</span>
                 <span role="columnheader">Status</span>
-                <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
             </div>
             @foreach (var row in Shown)
             {
                 var (label, tone) = IdentityText.State(row.Token, _now);
-                <div class="pdk-dt-row" role="row" @key="row.Token.Id">
+                <div class="pdk-dt-row pdk-dt-link @(row.Token.Disabled || row.Token.Revoked ? "pdk-dt-off" : null)" role="row" @key="row.Token.Id"
+                     @onclick="() => Open(row.Token)">
                     <div class="pdk-dt-main" role="cell">
                         <span class="pdk-list-icon pdk-tone-@tone.Css()"><MudIcon Icon="@Icons.Material.Outlined.Key" Size="Size.Small" /></span>
                         <span class="pdk-dt-titles" data-token="@row.Token.Name">
-                            <span class="pdk-list-title">@row.Token.Name</span>
+                            <a class="pdk-list-title pdk-row-link" href="@DashboardRoutes.Token(row.Token.Id)" @onclick:stopPropagation="true">@row.Token.Name</a>
                             <span class="pdk-dt-note" title="@Fmt.Exact(row.Token.CreatedAt)">Created @Fmt.Ago(row.Token.CreatedAt, _now)</span>
                         </span>
                     </div>
@@ -129,12 +132,6 @@
                     </span>
                     <span role="cell" class="pdk-dt-cell" data-label="Expires"><span class="@(row.Token.ExpiresAt is null ? "pdk-muted" : null)">@IdentityText.Until(row.Token.ExpiresAt, _now, Fmt)</span></span>
                     <span role="cell" class="pdk-dt-cell" data-label="Status"><StatusChip Tone="tone" Dot="true" Text="@label" Name="status" /></span>
-                    <span role="cell" class="pdk-dt-cell pdk-dt-actions">
-                        @if (!row.Token.Revoked && (row.Mine || _mayAll))
-                        {
-                            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => AskRevokeAsync(row)" data-action="revoke">Revoke</MudButton>
-                        }
-                    </span>
                 </div>
             }
         </div>
@@ -153,29 +150,63 @@
     private bool _showRevoked;
     private bool _failed;
     private IDisposable? _watch;
+    private RoutedDrawer? _drawer;
+    private bool _loaded;
 
-    /// <summary>One row: the token, whose it is, and whether it is the caller's.</summary>
-    internal sealed record TokenRow(ApiTokenSummary Token, string Owner, bool Mine);
+    /// <summary>The address's last segment: a token's ID; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
+
+    /// <summary>One row: the token, whose it is, whether it is the caller's, and what its owner holds.</summary>
+    /// <param name="Token">The token.</param>
+    /// <param name="Owner">Whose it is, in words.</param>
+    /// <param name="Mine">It is the caller's.</param>
+    /// <param name="OwnerHolds">What the owner holds now, which bounds the scopes the token may be given.</param>
+    internal sealed record TokenRow(ApiTokenSummary Token, string Owner, bool Mine, IReadOnlySet<Permission> OwnerHolds);
 
     private IReadOnlyList<TokenRow> Shown =>
         _rows is null ? [] : [.. _rows.Where(r => _showRevoked || IdentityText.IsLive(r.Token, _now))];
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         if (!RendererInfo.IsInteractive)
         {
             return;
         }
 
-        _watch = Identity.Watch(() => InvokeAsync(async () =>
+        if (!_loaded)
         {
+            _loaded = true;
+            _drawer = new RoutedDrawer(Navigation, SettingsRoutes.Tokens);
+            _watch = Identity.Watch(() => InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            }));
             await LoadAsync();
-            StateHasChanged();
-        }));
-        await LoadAsync();
+        }
+
+        // Someone else's token is in the other list: an address that names one looks there when this one doesn't have it.
+        if (_rows is not null && !_everyone && _mayAll && ApiTokenId.TryParse(Key, out var wanted) && !_rows.Any(r => r.Token.Id == wanted))
+        {
+            _everyone = true;
+            await LoadAsync();
+        }
+
+        _drawer!.Show(_rows is null ? null : Key, OpenDrawer);
     }
 
-    public void Dispose() => _watch?.Dispose();
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        _drawer?.Dispose();
+    }
+
+    private async Task RetryAsync()
+    {
+        await LoadAsync();
+        _drawer?.Show(_rows is null ? null : Key, OpenDrawer);
+    }
 
     private async Task LoadAsync()
     {
@@ -197,15 +228,22 @@
             List<TokenRow> rows = [];
             if (_everyone && _mayAll)
             {
-                // One read for the tokens and one for their owners' names, however many users there are.
-                var names = (await Identity.ListUsersAsync(origin)).Users.ToDictionary(u => u.Id, u => u.DisplayName);
+                // One read for the tokens and one for their owners, however many users there are.
+                var owners = (await Identity.ListUsersAsync(origin)).Users.ToDictionary(u => u.Id);
                 var tokens = await Identity.ListAllTokensAsync(origin);
-                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, t.UserId == me ? "You" : names.GetValueOrDefault(t.UserId, t.UserId.ToString()), t.UserId == me)));
+                rows.AddRange(tokens.Tokens.Select(t => t.UserId == me
+                    ? new TokenRow(t, "You", true, _held)
+                    : new TokenRow(
+                        t,
+                        owners.TryGetValue(t.UserId, out var owner) ? owner.DisplayName : t.UserId.ToString(),
+                        false,
+                        // An owner nobody can read the roles of is offered only what the token has already.
+                        owner is null ? new HashSet<Permission>(t.Scopes) : RolePermissions.Of(owner.Roles))));
             }
             else
             {
                 var tokens = await Identity.ListTokensAsync(origin);
-                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, "You", true)));
+                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, "You", true, _held)));
             }
 
             _rows = rows;
@@ -231,35 +269,18 @@
         await LoadAsync();
     }
 
-    private async Task AskRevokeAsync(TokenRow row)
+    private void Open(ApiTokenSummary token) => Navigation.NavigateTo(DashboardRoutes.Token(token.Id));
+
+    /// <summary>The drawer an address names. Blazor's router has no typed-ID constraint: the segment is parsed here, and anything that isn't one of the listed tokens is not found.</summary>
+    private DrawerLevel OpenDrawer(string key)
     {
-        var confirmed = await ConfirmActionDialog.AskAsync(
-            Dialogs,
-            $"Revoke {row.Token.Name}?",
-            "Whatever uses it is refused from now on.",
-            "Revoke",
-            "This can't be undone; a new token is a new secret.",
-            icon: Icons.Material.Outlined.KeyOff);
-        if (!confirmed || await Caller.OriginAsync() is not { } origin)
+        if (ApiTokenId.TryParse(key, out var id) && _rows?.FirstOrDefault(r => r.Token.Id == id) is { } row)
         {
-            return;
+            return Drawers.Push<TokenDetailsDrawer>(
+                TokenDetailsDrawer.For(row.Token, row.Owner, row.OwnerHolds, (row.Mine && _mayIssue) || _mayAll),
+                DrawerWidth.Medium);
         }
 
-        ApiTokenResult? result = null;
-        if (!await Logger.TryAsync(Snackbar, $"Couldn't revoke {row.Token.Name}.", async () => result = await Identity.RevokeTokenAsync(origin, row.Token.Id))
-            || result is null)
-        {
-            return;
-        }
-
-        if (result.Succeeded)
-        {
-            Snackbar.Add($"Revoked {row.Token.Name}.", Severity.Success);
-            await LoadAsync();
-        }
-        else
-        {
-            Snackbar.Add($"Couldn't revoke {row.Token.Name}. {IdentityText.Refusal(result.Status, result.Problem)}", Severity.Error);
-        }
+        return Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Token not found", "There is no such token", "Back to the tokens"), DrawerWidth.Narrow);
     }
 }

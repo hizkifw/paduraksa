@@ -66,6 +66,9 @@ public interface IDashboardIdentity
     /// <summary>Issues a token for the caller: its secret, once.</summary>
     Task<ApiTokenResult> IssueTokenAsync(CommandOrigin origin, IssueApiTokenRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>Renames a token, replaces its scopes and/or disables or enables it: the caller's own, or anyone's with <c>tokens:all</c>. Its secret is untouched.</summary>
+    Task<ApiTokenResult> UpdateTokenAsync(CommandOrigin origin, ApiTokenId id, UpdateApiTokenRequest request, CancellationToken cancellationToken = default);
+
     /// <summary>Revokes a token: the caller's own, or anyone's with <c>tokens:all</c>.</summary>
     Task<ApiTokenResult> RevokeTokenAsync(CommandOrigin origin, ApiTokenId id, CancellationToken cancellationToken = default);
 

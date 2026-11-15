@@ -73,6 +73,15 @@ public static class IdentityText
         ("Backup", [Permission.BackupCreate]),
     ];
 
+    /// <summary>The scopes offered to a token whose owner holds <paramref name="held"/>: <see cref="ScopeAreas"/> narrowed to those, without the empty areas.</summary>
+    public static IEnumerable<(string Area, IReadOnlyList<Permission> Scopes)> OfferedScopes(IReadOnlySet<Permission> held)
+    {
+        ArgumentNullException.ThrowIfNull(held);
+        return ScopeAreas
+            .Select(area => (area.Area, (IReadOnlyList<Permission>)[.. area.Scopes.Where(held.Contains)]))
+            .Where(area => area.Item2.Count > 0);
+    }
+
     /// <summary>Whether a scope only reads.</summary>
     public static bool IsRead(Permission permission) =>
         permission is Permission.ConfigRead or Permission.CertificatesRead or Permission.ProvidersRead or Permission.UsersRead
@@ -141,16 +150,17 @@ public static class IdentityText
         return id.Length > 14 ? string.Concat(id.AsSpan(0, 12), "...") : id;
     }
 
-    /// <summary>A token's state: active, expired or revoked, as a word.</summary>
+    /// <summary>A token's state: revoked, disabled, expired or active, as a word.</summary>
     public static (string Label, Config.Tone Tone) State(ApiTokenSummary token, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(token);
         return token.Revoked ? ("Revoked", Config.Tone.Default)
+            : token.Disabled ? ("Disabled", Config.Tone.Warning)
             : !IsLive(token, now) ? ("Expired", Config.Tone.Warning)
             : ("Active", Config.Tone.Success);
     }
 
-    /// <summary>Whether a token still works: not revoked, and not past its expiry.</summary>
+    /// <summary>Whether a token is still in play: not revoked and not past its expiry. A disabled one is, since it can be enabled again; it is refused all the same.</summary>
     public static bool IsLive(ApiTokenSummary token, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(token);

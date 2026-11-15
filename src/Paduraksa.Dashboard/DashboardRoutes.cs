@@ -85,6 +85,9 @@ public static class DashboardRoutes
     /// <summary>A host: <c>/hosts/host_...</c>, the hosts with its drawer open. The page parses the segment back into a <see cref="HostId"/>.</summary>
     public static string Host(HostId id) => $"{Hosts}/{id}";
 
+    /// <summary>An API token: <c>/settings/tokens/tok_...</c>, the tokens with its drawer open. The page parses the segment back into an <see cref="ApiTokenId"/>.</summary>
+    public static string Token(ApiTokenId id) => $"{SettingsRoutes.Tokens}/{id}";
+
     public static string Upstream(UpstreamId id) => $"{Upstreams}/{id}";
 
     /// <summary>A profile: <c>/profiles/prof_...</c>, the profiles with its drawer open. The page parses the segment back into a <see cref="ProfileId"/>.</summary>

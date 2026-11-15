@@ -359,6 +359,18 @@
     text-decoration: none;
 }
 
+.pdk-tag-off {
+    opacity: 0.65;
+    text-decoration: line-through;
+}
+
+.pdk-scope-dropped {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.8125rem;
+}
+
 a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     border-color: var(--mud-palette-primary);
     color: var(--mud-palette-primary);
