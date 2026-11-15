@@ -71,7 +71,7 @@ Route parameters carry the ID's route constraint (`users/{id:UserId}`, `sessions
 | `POST me/recovery-codes` | |
 | `GET sessions[?userId]`, `DELETE sessions/{id}` | The list is a page like every collection; the delete is 204. |
 | `POST sessions/revoke-others` | Needs a session. A token caller is refused by that requirement first with 403 `auth.sessionRequired`, so there is no 422 branch. |
-| `GET tokens[?userId]`, `POST tokens`, `DELETE tokens/{id}` | `POST` is 201 with the secret once; the list is a page. |
+| `GET tokens[?userId]`, `POST tokens`, `PATCH`/`DELETE tokens/{id}` | `POST` is 201 with the secret once; the list is a page. `PATCH` takes `name`, `scopes` and `disabled`, all optional, and answers 200 with the summary (never a secret); it is 422 for an empty change or a scope the token's owner lacks, and 409 for a revoked token. The summary says `disabled` and `revoked` apart. |
 | `GET`/`POST users`, `GET`/`PATCH`/`DELETE users/{id}` | The list is a page, `POST` is 201 with `Location`, `DELETE` is 204. `PATCH` takes `displayName`, `roles` and `disabled`, applied by one `UserService.UpdateAsync` call in one transaction, the last-Owner guard included: it all applies or none of it does. |
 
 **A token cannot manage tokens or sessions.** Every `tokens` and `sessions` endpoint answers a token caller with a 403 (`code: auth.sessionRequired`, "API tokens can't manage tokens or sessions; use a signed-in session"). A leaked token therefore cannot mint a longer life for itself or end the session that is watching it.

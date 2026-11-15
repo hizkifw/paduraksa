@@ -95,7 +95,8 @@ public sealed record SessionSummary(
 /// <param name="ExpiresAt">When it stops working, or null for never.</param>
 /// <param name="CreatedAt">When it was issued.</param>
 /// <param name="LastUsedAt">When it was last used (to within the touch interval), or null.</param>
-/// <param name="Revoked">It was revoked.</param>
+/// <param name="Revoked">It was revoked: final.</param>
+/// <param name="Disabled">It was switched off and can be switched on again; until then it is refused like a revoked one.</param>
 public sealed record ApiTokenSummary(
     ApiTokenId Id,
     UserId UserId,
@@ -104,13 +105,20 @@ public sealed record ApiTokenSummary(
     DateTimeOffset? ExpiresAt,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastUsedAt,
-    bool Revoked);
+    bool Revoked,
+    bool Disabled);
 
 /// <summary>Issues an API token for the signed-in user.</summary>
 /// <param name="Name">1 to 128 characters.</param>
 /// <param name="Scopes">At least one, each a permission the user holds.</param>
 /// <param name="ExpiresAt">In the future, or null for a token that never expires.</param>
 public sealed record IssueApiTokenRequest(string Name, IReadOnlyList<Permission> Scopes, DateTimeOffset? ExpiresAt = null);
+
+/// <summary>Changes an API token; a null member stays as it is. The secret is never touched.</summary>
+/// <param name="Name">The new name, 1 to 128 characters.</param>
+/// <param name="Scopes">The complete new set of scopes (not a delta): at least one, each a permission the token's <i>owner</i> holds now.</param>
+/// <param name="Disabled">True switches the token off, false switches it on again. A revoked token can't be changed.</param>
+public sealed record UpdateApiTokenRequest(string? Name = null, IReadOnlyList<Permission>? Scopes = null, bool? Disabled = null);
 
 /// <summary>A newly issued token: the only time its secret is shown.</summary>
 /// <param name="Summary">The token's public facts.</param>

@@ -53,6 +53,9 @@ internal static class AccountEndpoints
         tokens.MapPost(string.Empty, IssueTokenAsync).WithName("IssueToken").WithSummary("Issue an API token")
             .WithDescription("The token's secret is in the answer and nowhere else, ever again.")
             .Accepts<IssueApiTokenRequest>("application/json").Produces<IssuedApiToken>(StatusCodes.Status201Created).ProducesApiProblems(400, 403, 404, 415, 422);
+        tokens.MapPatch("{id:ApiTokenId}", UpdateTokenAsync).WithName("UpdateToken").WithSummary("Change an API token")
+            .WithDescription("Renames it, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token is 409.")
+            .Accepts<UpdateApiTokenRequest>("application/json").Produces<ApiTokenSummary>().ProducesApiProblems(400, 403, 404, 409, 415, 422);
         tokens.MapDelete("{id:ApiTokenId}", RevokeTokenAsync).WithName("RevokeToken").WithSummary("Revoke an API token")
             .Produces(StatusCodes.Status204NoContent).ProducesApiProblems(403, 404);
     }
@@ -155,6 +158,12 @@ internal static class AccountEndpoints
         var result = await tokens.IssueAsync(caller.Origin, request, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem)
             ?? Results.Created($"/api/v1/tokens/{result.Issued!.Summary.Id}", result.Issued);
+    }
+
+    private static async Task<IResult> UpdateTokenAsync(ApiTokenId id, UpdateApiTokenRequest request, AdminCaller caller, HttpContext http, ApiTokenService tokens)
+    {
+        var result = await tokens.UpdateAsync(caller.Origin, id, request, http.RequestAborted).ConfigureAwait(false);
+        return AdminProblems.OfFailure(result.Status, "token", result.Problem) ?? Results.Ok(result.Token);
     }
 
     private static async Task<IResult> RevokeTokenAsync(ApiTokenId id, AdminCaller caller, HttpContext http, ApiTokenService tokens)

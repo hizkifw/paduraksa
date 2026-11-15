@@ -120,7 +120,7 @@ public sealed class RolePermissionTests
     public void TheIdentityDtosRoundTripThroughTheirJsonContextWithNamesAndTypedIds()
     {
         var user = new UserSummary(UserId.New(), "alice", "Alice", [Role.Admin, Role.Auditor], true, false, false, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
-        var token = new ApiTokenSummary(ApiTokenId.New(), user.Id, "ci", [Permission.ConfigRead, Permission.Simulate], null, DateTimeOffset.UnixEpoch, null, false);
+        var token = new ApiTokenSummary(ApiTokenId.New(), user.Id, "ci", [Permission.ConfigRead, Permission.Simulate], null, DateTimeOffset.UnixEpoch, null, false, false);
 
         var userJson = JsonSerializer.Serialize(user, IdentityJsonContext.Default.UserSummary);
         var tokenJson = JsonSerializer.Serialize(token, IdentityJsonContext.Default.ApiTokenSummary);
@@ -150,7 +150,7 @@ public sealed class RolePermissionTests
     public void RequestsAndSecretsPrintRedacted()
     {
         var token = new IssuedApiToken(
-            new ApiTokenSummary(ApiTokenId.New(), UserId.New(), "ci", [Permission.ConfigRead], null, DateTimeOffset.UnixEpoch, null, false), "pdk_SECRET");
+            new ApiTokenSummary(ApiTokenId.New(), UserId.New(), "ci", [Permission.ConfigRead], null, DateTimeOffset.UnixEpoch, null, false, false), "pdk_SECRET");
 
         Assert.DoesNotContain("hunter2", new LoginRequest("alice", "hunter2").ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("hunter2", new CreateUserRequest("alice", null, "hunter2", [Role.Viewer]).ToString(), StringComparison.Ordinal);

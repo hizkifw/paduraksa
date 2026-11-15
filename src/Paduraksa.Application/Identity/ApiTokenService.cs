@@ -10,10 +10,10 @@ using Paduraksa.Data.Identity;
 
 namespace Paduraksa.Application.Identity;
 
-/// <summary>The outcome of issuing or revoking an API token.</summary>
+/// <summary>The outcome of issuing, changing or revoking an API token.</summary>
 /// <param name="Status">How it ended.</param>
 /// <param name="Issued">The new token with its secret, shown once, for an issue.</param>
-/// <param name="Token">The token's public facts, for a revoke.</param>
+/// <param name="Token">The token's public facts, for a change or a revoke.</param>
 /// <param name="Problem">Why it was refused (for <see cref="IdentityStatus.Invalid"/>), safe to show.</param>
 public sealed record ApiTokenResult(IdentityStatus Status, IssuedApiToken? Issued = null, ApiTokenSummary? Token = null, string? Problem = null)
 {
@@ -42,14 +42,22 @@ public sealed record ApiTokenVerification(ApiTokenPrincipal? Principal)
 /// </summary>
 /// <remarks>
 /// Verification parses the string (a wrong prefix, length or checksum never reaches the database), looks the token up by ID,
-/// compares the hash in constant time (also when the ID is unknown, so the time does not tell), then checks revoked, expiry and
-/// owner. The last-used time is written at most once per <see cref="IdentityOptions.TouchInterval"/>. A token cannot issue tokens:
+/// compares the hash in constant time (also when the ID is unknown, so the time does not tell), then checks revoked, disabled,
+/// expiry and owner. The last-used time is written at most once per <see cref="IdentityOptions.TouchInterval"/>. A token cannot issue tokens:
 /// persistence of access is a decision for a signed-in person.
 /// </remarks>
 public sealed class ApiTokenService
 {
-    /// <summary>The most live (not revoked) tokens a user may hold.</summary>
+    /// <summary>The most live (not revoked) tokens a user may hold; a disabled one counts, since it can come back.</summary>
     public const int MaxTokensPerUser = 100;
+
+    /// <summary>
+    /// Whether a token may carry <paramref name="permission"/> as a scope. Managing tokens and sessions is for a person at a session
+    /// (the API refuses a token caller on those endpoints too): a token that could carry the scope would one day be handed a way to
+    /// keep itself alive, so the scope is refused as unknown, not left to the picker and the endpoint gates.
+    /// </summary>
+    public static bool IsAssignableScope(Permission permission) =>
+        Enum.IsDefined(permission) && permission is not (Permission.TokensOwn or Permission.TokensAll or Permission.SessionsAll);
 
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly TimeProvider _time;
@@ -90,7 +98,7 @@ public sealed class ApiTokenService
         var now = _time.GetUtcNow();
         var problem = name is null ? "A token needs a name."
             : scopes.Count == 0 ? "A token needs at least one scope."
-            : scopes.Exists(s => !Enum.IsDefined(s)) ? "Unknown scope."
+            : scopes.Exists(s => !IsAssignableScope(s)) ? "Unknown scope."
             : scopes.Exists(s => !held.Contains(s)) ? "A token cannot have a scope its owner lacks."
             : request.ExpiresAt is { } expiry && expiry <= now ? "The expiry must be in the future."
             : null;
@@ -199,8 +207,7 @@ public sealed class ApiTokenService
                     return new ApiTokenResult(IdentityStatus.NotFound);
                 }
 
-                var held = await _permissions.GetPermissionsAsync(origin.Actor, cancellationToken).ConfigureAwait(false);
-                if (!held.Contains(Permission.TokensAll) && !(row.UserId == origin.Actor.UserId && held.Contains(Permission.TokensOwn)))
+                if (!await MayManageAsync(origin, row, cancellationToken).ConfigureAwait(false))
                 {
                     // Audited, but answered like a token that does not exist: ids are not a way to find out whose tokens there are.
                     await _audit.AppendAsync(context, IdentityAudit.Entry(origin, "token.revoke", AuditOutcome.Denied, id.ToString()), cancellationToken).ConfigureAwait(false);
@@ -218,6 +225,130 @@ public sealed class ApiTokenService
         }
     }
 
+    /// <summary>
+    /// Renames a token, replaces its scopes and/or switches it off or on, in one transaction. Who may is who may revoke it. The scopes are held to what
+    /// the token's <i>owner</i> holds now, not the caller (an Owner can't hand another user's token anything its owner lacks). A revoked token is
+    /// final: it is a conflict. The secret is never shown or rotated. Takes effect on the token's next use: verification reads the row each time.
+    /// </summary>
+    public async Task<ApiTokenResult> UpdateAsync(CommandOrigin origin, ApiTokenId id, UpdateApiTokenRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        ArgumentNullException.ThrowIfNull(request);
+        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await using (transaction.ConfigureAwait(false))
+            {
+                var row = await context.ApiTokens.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, cancellationToken).ConfigureAwait(false);
+                if (row is null)
+                {
+                    return new ApiTokenResult(IdentityStatus.NotFound);
+                }
+
+                if (!await MayManageAsync(origin, row, cancellationToken).ConfigureAwait(false))
+                {
+                    await _audit.AppendAsync(context, IdentityAudit.Entry(origin, "token.update", AuditOutcome.Denied, id.ToString()), cancellationToken).ConfigureAwait(false);
+                    await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    return new ApiTokenResult(IdentityStatus.NotFound);
+                }
+
+                if (row.RevokedAt is not null)
+                {
+                    return new ApiTokenResult(IdentityStatus.Conflict, Problem: "A revoked token can't be changed.");
+                }
+
+                if (request is { Name: null, Scopes: null, Disabled: null })
+                {
+                    return new ApiTokenResult(IdentityStatus.Invalid, Problem: "Nothing to change: give a name, scopes or disabled.");
+                }
+
+                string? name = null;
+                if (request.Name is not null && (name = IdentityMapping.Clean(request.Name, IdentityConfiguration.MaxTokenNameLength)) is null)
+                {
+                    return new ApiTokenResult(IdentityStatus.Invalid, Problem: "A token needs a name.");
+                }
+
+                List<Permission>? scopes = null;
+                if (request.Scopes is not null)
+                {
+                    scopes = [.. request.Scopes.Distinct().Order()];
+                    var owner = await PermissionEvaluator.OfUserAsync(context, row.UserId, cancellationToken).ConfigureAwait(false);
+                    var problem = scopes.Count == 0 ? "A token needs at least one scope."
+                        : scopes.Exists(s => !IsAssignableScope(s)) ? "Unknown scope."
+                        : scopes.Exists(s => !owner.Contains(s)) ? "A token cannot have a scope its owner lacks."
+                        : null;
+                    if (problem is not null)
+                    {
+                        return new ApiTokenResult(IdentityStatus.Invalid, Problem: problem);
+                    }
+                }
+
+                var renamed = name is not null && name != row.Name;
+                var previousName = row.Name;
+                var rescoped = scopes is not null && IdentityMapping.FormatScopes(scopes) != row.Scopes;
+                var previousScopes = row.Scopes;
+                var switched = request.Disabled is { } disabled && disabled != (row.DisabledAt is not null);
+                var newName = renamed ? name! : row.Name;
+                var newScopes = rescoped ? IdentityMapping.FormatScopes(scopes!) : row.Scopes;
+                var newDisabledAt = switched ? (request.Disabled == true ? _time.GetUtcNow() : (DateTimeOffset?)null) : row.DisabledAt;
+
+                // One conditional statement, so a revoke that lands between the read and this write can't be followed by a change or an audit
+                // event for a token that is already final. (The transaction's write lock already keeps two writers apart; this does not rest on it.)
+                var applied = await context.ApiTokens.Where(t => t.Id == id && t.RevokedAt == null).ExecuteUpdateAsync(
+                    u => u.SetProperty(t => t.Name, newName).SetProperty(t => t.Scopes, newScopes).SetProperty(t => t.DisabledAt, newDisabledAt),
+                    cancellationToken).ConfigureAwait(false);
+                if (applied == 0)
+                {
+                    return new ApiTokenResult(IdentityStatus.Conflict, Problem: "A revoked token can't be changed.");
+                }
+
+                if (renamed || rescoped)
+                {
+                    await _audit.AppendAsync(
+                        context,
+                        IdentityAudit.Entry(origin, "token.update", AuditOutcome.Success, id.ToString(), w =>
+                        {
+                            w.WriteString("user", row.UserId.ToString());
+                            if (renamed)
+                            {
+                                w.WriteString("name", newName);
+                                w.WriteString("previousName", previousName);
+                            }
+
+                            if (rescoped)
+                            {
+                                w.WriteString("scopes", newScopes);
+                                w.WriteString("previousScopes", previousScopes);
+                            }
+                        }),
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (switched)
+                {
+                    await _audit.AppendAsync(
+                        context,
+                        IdentityAudit.Entry(origin, newDisabledAt is null ? "token.enable" : "token.disable", AuditOutcome.Success, id.ToString(), w => w.WriteString("user", row.UserId.ToString())),
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                var updated = await context.ApiTokens.AsNoTracking().SingleAsync(t => t.Id == id, cancellationToken).ConfigureAwait(false);
+                return new ApiTokenResult(IdentityStatus.Succeeded, Token: IdentityMapping.ToSummary(updated));
+            }
+        }
+    }
+
+    /// <summary>Whether the caller may change or revoke <paramref name="row"/>: anyone's with <see cref="Permission.TokensAll"/>, their own with <see cref="Permission.TokensOwn"/>.</summary>
+    private async Task<bool> MayManageAsync(CommandOrigin origin, ApiTokenRow row, CancellationToken cancellationToken)
+    {
+        var held = await _permissions.GetPermissionsAsync(origin.Actor, cancellationToken).ConfigureAwait(false);
+        return held.Contains(Permission.TokensAll) || (row.UserId == origin.Actor.UserId && held.Contains(Permission.TokensOwn));
+    }
+
     /// <summary>Authenticates a presented token (the Bearer value). Anything wrong is simply not valid.</summary>
     public async Task<ApiTokenVerification> VerifyAsync(string? presented, CancellationToken cancellationToken = default)
     {
@@ -233,7 +364,7 @@ public sealed class ApiTokenService
             // Compared even when there is no such token, so that the time taken does not tell an unknown ID from a wrong secret.
             var matches = CryptographicOperations.FixedTimeEquals(SHA256.HashData(secret), row?.SecretHash ?? new byte[32]);
             var now = _time.GetUtcNow();
-            if (row is null || !matches || row.RevokedAt is not null || (row.ExpiresAt is { } expires && expires <= now))
+            if (row is null || !matches || row.RevokedAt is not null || row.DisabledAt is not null || (row.ExpiresAt is { } expires && expires <= now))
             {
                 return new ApiTokenVerification(null);
             }

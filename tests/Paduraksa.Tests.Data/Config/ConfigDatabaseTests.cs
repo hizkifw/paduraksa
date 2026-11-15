@@ -107,7 +107,7 @@ public sealed class ConfigDatabaseTests
 
         var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
 
-        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn", "20261113023752_AnalyticsRollupBytesIn", "20261114051015_MetricRollupRefusals", "20261114051633_SecurityRollups"], result.AppliedMigrations);
+        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn", "20261113023752_AnalyticsRollupBytesIn", "20261114051015_MetricRollupRefusals", "20261114051633_SecurityRollups", "20261115040341_ApiTokenDisabled"], result.AppliedMigrations);
         var tables = (await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).Select(r => (string)r[0]!).ToList();
         Assert.All(["GlobalSettings", "Profiles", "Upstreams", "Destinations", "Hosts", "HostNames", "Routes"], dropped => Assert.DoesNotContain(dropped, tables));
         Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM ConfigRevisions WHERE Seq = 1"));
@@ -154,5 +154,25 @@ public sealed class ConfigDatabaseTests
         Assert.Equal(7, minute.Refused);
         Assert.Equal(default, minute.Refusals);
         Assert.Equal(7, minute.UnknownRefused);
+    }
+
+    [Fact]
+    public async Task ATokenStoredBeforeTokensCouldBeDisabledIsNotDisabled()
+    {
+        await using var db = Empty();
+        await using (var context = db.NewContext())
+        {
+            await context.GetService<IMigrator>().MigrateAsync("20261114051633_SecurityRollups", Ct);
+        }
+
+        await db.ExecuteAsync(
+            "INSERT INTO Users (Id, Username, DisplayName, PasswordHash, TotpEnabled, Disabled, FailedAttempts, CreatedAt, UpdatedAt) "
+            + "VALUES (x'01', 'alice', 'Alice', 'h', 0, 0, 0, '2026-11-08T12:00:00.0000000Z', '2026-11-08T12:00:00.0000000Z'); "
+            + "INSERT INTO ApiTokens (Id, UserId, Name, Scopes, SecretHash, CreatedAt) "
+            + "VALUES (x'02', x'01', 'ci', 'config:read', zeroblob(32), '2026-11-08T12:00:00.0000000Z')");
+
+        await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
+
+        Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM ApiTokens WHERE DisabledAt IS NULL AND RevokedAt IS NULL"));
     }
 }

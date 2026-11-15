@@ -1481,6 +1481,136 @@
       }
     },
     "/api/v1/tokens/{id}": {
+      "patch": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Change an API token",
+        "description": "Renames it, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token is 409.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "operationId": "UpdateToken",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "examples": [
+                "tok_0A1b2C3d4E5f6G7h8I9j0K"
+              ],
+              "pattern": "^tok_[0-9A-Za-z]{22}$",
+              "type": "string",
+              "description": "An API token."
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApiTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiTokenSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not do this.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no such object.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It clashes with what exists, or with something in progress.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not in a type this operation takes.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request is well-formed but can't be applied; errors lists why, with a pointer into the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ]
+      },
       "delete": {
         "tags": [
           "Identity"
@@ -15894,7 +16024,8 @@
           "expiresAt",
           "createdAt",
           "lastUsedAt",
-          "revoked"
+          "revoked",
+          "disabled"
         ],
         "type": "object",
         "properties": {
@@ -15937,7 +16068,11 @@
           },
           "revoked": {
             "type": "boolean",
-            "description": "It was revoked."
+            "description": "It was revoked: final."
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "It was switched off and can be switched on again; until then it is refused like a revoked one."
           }
         },
         "additionalProperties": false,
@@ -25351,6 +25486,34 @@
         },
         "additionalProperties": false,
         "description": "Trusted proxies in front of Paduraksa. Only a peer inside the trusted set may supply the\nclient IP through a header; anyone else is the client."
+      },
+      "UpdateApiTokenRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The new name, 1 to 128 characters."
+          },
+          "scopes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "description": "The complete new set of scopes (not a delta): at least one, each a permission the token's <i>owner</i> holds now."
+          },
+          "disabled": {
+            "type": [
+              "null",
+              "boolean"
+            ],
+            "description": "True switches the token off, false switches it on again. A revoked token can't be changed."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Changes an API token; a null member stays as it is. The secret is never touched."
       },
       "UpdateUserRequest": {
         "type": "object",

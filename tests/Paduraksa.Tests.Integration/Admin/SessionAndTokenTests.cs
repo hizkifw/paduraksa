@@ -198,19 +198,28 @@ public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixt
     {
         var h = shared.Harness;
         var owner = shared.OwnerCookie;
-        var (id, secret) = await h.IssueTokenAsync(owner, "tokens:own", "tokens:all", "sessions:all", "users:read");
+        var (id, secret) = await h.IssueTokenAsync(owner, "users:read");
+        foreach (var scope in new[] { "tokens:own", "tokens:all", "sessions:all" })
+        {
+            // The scopes that would reach these endpoints can't be given to a token in the first place.
+            using var refusedScope = await h.PostAsync("/api/v1/tokens", $$"""{"name":"x","scopes":["{{scope}}"]}""", owner);
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, refusedScope.Status);
+        }
+
 
         foreach (var (method, path) in new[]
         {
             (HttpMethod.Get, "/api/v1/tokens"),
             (HttpMethod.Post, "/api/v1/tokens"),
             (HttpMethod.Delete, "/api/v1/tokens/" + id),
+            (HttpMethod.Patch, "/api/v1/tokens/" + id),
             (HttpMethod.Get, "/api/v1/sessions"),
             (HttpMethod.Delete, "/api/v1/sessions/" + SessionId.New()),
             (HttpMethod.Post, "/api/v1/sessions/revoke-others"),
         })
         {
-            using var refused = await h.SendAsync(method, path, method == HttpMethod.Post && path.EndsWith("tokens", StringComparison.Ordinal) ? """{"name":"x","scopes":["config:read"],"expiresAt":null}""" : null, bearer: secret);
+            using var refused = await h.SendAsync(method, path, method == HttpMethod.Post && path.EndsWith("tokens", StringComparison.Ordinal) ? """{"name":"x","scopes":["config:read"],"expiresAt":null}"""
+                : method == HttpMethod.Patch ? """{"disabled":true}""" : null, bearer: secret);
             Assert.Equal(HttpStatusCode.Forbidden, refused.Status);
             Assert.Equal("auth.sessionRequired", refused.Json.GetProperty("code").GetString());
             Assert.Contains("use a signed-in session", refused.Json.GetProperty("detail").GetString(), StringComparison.Ordinal);
@@ -218,6 +227,106 @@ public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixt
 
         using var stillWorks = await h.GetAsync("/api/v1/users", bearer: secret);
         Assert.Equal(HttpStatusCode.OK, stillWorks.Status);
+    }
+
+    [Fact]
+    public async Task ATokenIsRenamedRescopedAndDisabledInOnePatch_AndTheNextRequestFeelsIt()
+    {
+        var h = shared.Harness;
+        var owner = shared.OwnerCookie;
+        var userId = await h.CreateUserAsync(owner, "patched-viewer", "viewer");
+        var viewer = await h.SignInAsync("patched-viewer");
+        var (id, secret) = await h.IssueTokenAsync(viewer, "config:read");
+
+        using (var renamed = await h.SendAsync(HttpMethod.Patch, "/api/v1/tokens/" + id, """{"name":"deploy","scopes":["config:read","metrics:read"]}""", viewer))
+        {
+            Assert.Equal(HttpStatusCode.OK, renamed.Status);
+            Assert.Equal("deploy", renamed.Json.GetProperty("name").GetString());
+            Assert.False(renamed.Json.GetProperty("disabled").GetBoolean());
+            Assert.Equal(["config:read", "metrics:read"], renamed.Json.GetProperty("scopes").EnumerateArray().Select(e => e.GetString()));
+            Assert.DoesNotContain(secret, renamed.Body, StringComparison.Ordinal);
+        }
+
+        using (var disabled = await h.SendAsync(HttpMethod.Patch, "/api/v1/tokens/" + id, """{"disabled":true}""", viewer))
+        {
+            Assert.Equal(HttpStatusCode.OK, disabled.Status);
+            Assert.True(disabled.Json.GetProperty("disabled").GetBoolean());
+            Assert.False(disabled.Json.GetProperty("revoked").GetBoolean());
+        }
+
+        using (var refused = await h.GetAsync("/api/v1/auth/me", bearer: secret))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, refused.Status);
+        }
+
+        using (var enabled = await h.SendAsync(HttpMethod.Patch, "/api/v1/tokens/" + id, """{"disabled":false}""", viewer))
+        {
+            Assert.Equal(HttpStatusCode.OK, enabled.Status);
+        }
+
+        using (var works = await h.GetAsync("/api/v1/auth/me", bearer: secret))
+        {
+            Assert.Equal(HttpStatusCode.OK, works.Status);
+        }
+
+        using (var list = await h.GetAsync("/api/v1/tokens?userId=" + userId, owner))
+        {
+            Assert.Equal("deploy", Assert.Single(list.Json.GetProperty("items").EnumerateArray()).GetProperty("name").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task PatchingATokenUsesTheProblemResponses()
+    {
+        var h = shared.Harness;
+        var owner = shared.OwnerCookie;
+        await h.CreateUserAsync(owner, "patch-problems", "viewer");
+        var viewer = await h.SignInAsync("patch-problems");
+        await h.CreateUserAsync(owner, "patch-bystander", "viewer");
+        var bystander = await h.SignInAsync("patch-bystander");
+        var (id, _) = await h.IssueTokenAsync(viewer, "config:read");
+        var path = "/api/v1/tokens/" + id;
+
+        using (var nothing = await h.SendAsync(HttpMethod.Patch, path, "{}", viewer))
+        {
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, nothing.Status);
+        }
+
+        using (var lacking = await h.SendAsync(HttpMethod.Patch, path, """{"scopes":["config:write"]}""", owner))
+        {
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, lacking.Status);
+            Assert.Contains("a scope its owner lacks", lacking.Body, StringComparison.Ordinal);
+        }
+
+        using (var empty = await h.SendAsync(HttpMethod.Patch, path, """{"name":" "}""", viewer))
+        {
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, empty.Status);
+        }
+
+        using (var notYours = await h.SendAsync(HttpMethod.Patch, path, """{"name":"mine"}""", bystander))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, notYours.Status);
+        }
+
+        using (var unknown = await h.SendAsync(HttpMethod.Patch, "/api/v1/tokens/" + ApiTokenId.New(), """{"name":"x"}""", viewer))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, unknown.Status);
+        }
+
+        using (var anonymous = await h.SendAsync(HttpMethod.Patch, path, """{"name":"x"}"""))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, anonymous.Status);
+        }
+
+        using (var revoked = await h.SendAsync(HttpMethod.Delete, path, cookie: viewer))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, revoked.Status);
+        }
+
+        using (var final = await h.SendAsync(HttpMethod.Patch, path, """{"disabled":false}""", viewer))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, final.Status);
+        }
     }
 
     [Fact]

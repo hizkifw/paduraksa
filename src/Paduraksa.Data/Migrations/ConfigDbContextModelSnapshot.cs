@@ -330,6 +330,9 @@ namespace Paduraksa.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DisabledAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ExpiresAt")
                         .HasColumnType("TEXT");
 

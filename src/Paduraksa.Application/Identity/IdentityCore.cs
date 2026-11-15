@@ -105,7 +105,7 @@ internal sealed class PermissionEvaluator(IDbContextFactory<ConfigDbContext> con
                 {
                     var tokenId = actor.TokenId!.Value;
                     var token = await tokenContext.ApiTokens.AsNoTracking().SingleOrDefaultAsync(t => t.Id == tokenId, cancellationToken).ConfigureAwait(false);
-                    if (token is null || token.RevokedAt is not null || (token.ExpiresAt is { } expires && expires <= time.GetUtcNow()))
+                    if (token is null || token.RevokedAt is not null || token.DisabledAt is not null || (token.ExpiresAt is { } expires && expires <= time.GetUtcNow()))
                     {
                         return Empty;
                     }
@@ -212,7 +212,8 @@ internal static class IdentityMapping
         token.ExpiresAt,
         token.CreatedAt,
         token.LastUsedAt,
-        token.RevokedAt is not null);
+        token.RevokedAt is not null,
+        token.DisabledAt is not null);
 
     /// <summary>The scopes as stored: permission names in enum order, comma-separated.</summary>
     public static string FormatScopes(IEnumerable<Permission> scopes) =>

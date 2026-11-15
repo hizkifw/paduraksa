@@ -33,6 +33,7 @@ namespace Paduraksa.Contracts.Identity;
 [JsonSerializable(typeof(ApiTokenSummary))]
 [JsonSerializable(typeof(Paduraksa.Contracts.Api.Page<ApiTokenSummary>))]
 [JsonSerializable(typeof(IssueApiTokenRequest))]
+[JsonSerializable(typeof(UpdateApiTokenRequest))]
 [JsonSerializable(typeof(IssuedApiToken))]
 [JsonSerializable(typeof(TotpEnrollmentStarted))]
 [JsonSerializable(typeof(RecoveryCodes))]

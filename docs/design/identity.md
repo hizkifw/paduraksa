@@ -52,6 +52,17 @@ Only Owner holds `users:write`, `vault:manage`, `tokens:all` and `sessions:all`.
 
 A token's scopes are permission names (`config:write`). Its effective permissions are the intersection with its owner's current ones, evaluated on every use. A token cannot issue tokens.
 
+**Changing a token.** A token can be renamed, given other scopes, and switched off and on without a new secret (`ApiTokenService.UpdateAsync`, `PATCH /api/v1/tokens/{id}`).
+
+- Who may: whoever may revoke it. One's own needs `tokens:own`, anyone's needs `tokens:all`; anyone else gets 404, audited as denied.
+- The name follows the issue rules. At least one scope is kept, and each must be a permission the token's *owner* holds now, not the caller. An Owner can't hand another user's token anything its owner lacks.
+- Disabled is a state of its own (`DisabledAt`), not a revoke. A disabled token fails verification at the same point and by the same early return as a revoked one, so the time doesn't tell them apart, and the permission evaluator gives it nothing. Enabling clears it.
+- A disabled token still counts towards the 100 live tokens a user may hold, since it can come back.
+- A revoked token is final: any change to it, enabling included, is a 409, an empty change too (the revoked check comes first). The write is one statement conditional on the token not being revoked, so a revoke that lands in between is a 409 and writes no audit event.
+- A token can't carry `tokens:own`, `tokens:all` or `sessions:all`: issuing and editing refuse them as an unknown scope (`ApiTokenService.IsAssignableScope`), so tokens can't manage tokens or sessions whatever the picker offers.
+- Nothing is cached. `VerifyAsync` reads the row on every request, so an edit applies on the token's next request.
+- The secret is never shown or rotated by an edit.
+
 ### Sessions
 
 - The cookie is 32 random bytes in base64url. Only the SHA-256 is stored.
@@ -71,7 +82,7 @@ After `MaxFailedAttempts` consecutive failures (password, second factor, or a wr
 - Unknown usernames are audited without the typed name (people type passwords there, and the chain is permanent).
 - Starting a TOTP enrolment, like disabling it and regenerating recovery codes, needs the current password. Confirming the enrolment does not (the code from the authenticator is the proof).
 - The last enabled Owner cannot be demoted, disabled or deleted.
-- All identity events are audited in the transaction that makes them: `auth.login`, `auth.second_factor`, `auth.lockout`, `auth.logout`, `auth.session.revoke*`, `token.issue`, `token.revoke`, `user.*` and `setup.complete`.
+- All identity events are audited in the transaction that makes them: `auth.login`, `auth.second_factor`, `auth.lockout`, `auth.logout`, `auth.session.revoke*`, `token.issue`, `token.update`, `token.disable`, `token.enable`, `token.revoke`, `user.*` and `setup.complete`. `token.update` carries the token's owner and, for what changed, the new and previous name and scopes; a change that changes nothing writes no event.
 
 ## Admin auth
 

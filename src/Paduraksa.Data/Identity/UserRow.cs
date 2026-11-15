@@ -75,6 +75,9 @@ internal sealed class ApiTokenRow
     public DateTimeOffset? LastUsedAt { get; set; }
 
     public DateTimeOffset? RevokedAt { get; set; }
+
+    /// <summary>Set while the token is switched off: verification refuses it exactly as it refuses a revoked one, and enabling clears it. Revoking is final; this is not.</summary>
+    public DateTimeOffset? DisabledAt { get; set; }
 }
 
 /// <summary>

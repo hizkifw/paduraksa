@@ -97,7 +97,7 @@ internal sealed class AdminApiHarness : IAsyncDisposable
         _users[name] = user;
         var issued = await Host.Shared.ApiTokens.IssueAsync(
             new CommandOrigin(Actor.ForUser(user), Channel.Api, IPAddress.Loopback),
-            new IssueApiTokenRequest($"test {name}", [.. scopes]),
+            new IssueApiTokenRequest($"test {name}", [.. scopes.Where(ApiTokenService.IsAssignableScope)]),
             ct);
         _tokenIds[name] = issued.Issued!.Summary.Id;
         _tokens[name] = issued.Issued?.Token ?? throw new InvalidOperationException($"No token for {name}: {issued.Status} {issued.Problem}");
