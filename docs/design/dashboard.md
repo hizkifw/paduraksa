@@ -441,7 +441,7 @@ Shared pieces:
 - `FormSection`: a heading, an optional line, an optional control, the fields. Sections are divided by a rule instead of cards.
 - `RefPicker`, `DrawerShell`.
 
-A line of copy stays only if it says what the title, the navigation or the data does not, and helps the person decide or act. `app.css` gained the Drawers and Lists sections and lost the editor pages' and card lists' rules. `certificates.css` lost its own table.
+A line of copy stays only if it says what the title, the navigation or the data does not, and helps the person decide or act. A sweep of every page, drawer and helper text applied that: what went was a restated title or value, "it is in the vault", an ordering note, and a mechanism the person can't act on; consequences, constraints, warnings and calls to action stayed. `app.css` gained the Drawers and Lists sections and lost the editor pages' and card lists' rules. `certificates.css` lost its own table.
 
 ### Tests
 
