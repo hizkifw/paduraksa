@@ -285,11 +285,16 @@ public sealed partial class RequestSimulator : IDisposable
 
     private const string InventoryNote = "The certificate table couldn't be read, so only the built-in certificates were considered: hosts may show no certificate.";
 
+    // A commit between reading the head and planning on it is a conflict that says nothing about the draft, so the head is read again.
+    // Two tries were not enough while commits landed back to back (APendingCommitDoesNotFailADraftDocument failed once on CI); a bound
+    // still ends a storm of commits with the honest "rejected" answer instead of looping.
+    private const int HeadMovedAttempts = 8;
+
     /// <summary>A whole document is a replace on the current head.</summary>
     private async Task<Resolved> ResolveDraftDocumentAsync(ConfigDocument document, CommandOrigin origin, CancellationToken cancellationToken)
     {
         Resolved resolved = default!;
-        for (var attempt = 0; attempt < 2; attempt++)
+        for (var attempt = 0; attempt < HeadMovedAttempts; attempt++)
         {
             var head = (await _config.GetCurrentAsync(cancellationToken).ConfigureAwait(false)).Revision?.Id;
             resolved = await ResolveDraftAsync(new ReplaceConfigCommand(document, head), SimulationTargetKind.DraftDocument, origin, cancellationToken).ConfigureAwait(false);
@@ -310,7 +315,7 @@ public sealed partial class RequestSimulator : IDisposable
     {
         SimulationSource source = new(SimulationTargetKind.Draft);
         Resolved resolved = default!;
-        for (var attempt = 0; attempt < 2; attempt++)
+        for (var attempt = 0; attempt < HeadMovedAttempts; attempt++)
         {
             var (read, document) = await _drafts.ReadForSimulationAsync(origin, id, cancellationToken).ConfigureAwait(false);
             switch (read.Status)
