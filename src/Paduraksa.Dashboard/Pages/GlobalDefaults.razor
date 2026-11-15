@@ -108,7 +108,7 @@ else
                             </MudSelect>
                             @if (_model.DefaultCertificateId is { } defaultCertificate && _certificates.Any(c => c.Id == defaultCertificate))
                             {
-                                <MudIconButton Icon="@Icons.Material.Outlined.OpenInNew" Size="Size.Small" Href="@DashboardRoutes.Certificate(defaultCertificate)"
+                                <MudIconButton Icon="@Icons.Material.Outlined.ArrowOutward" Size="Size.Small" Href="@DashboardRoutes.Certificate(defaultCertificate)"
                                                aria-label="Open the default certificate" title="Open the default certificate" Class="pdk-ref-open" data-action="open-ref" />
                             }
                         </div>

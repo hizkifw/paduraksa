@@ -500,6 +500,11 @@
     color: var(--mud-palette-primary);
 }
 
+.pdk-rename.pdk-detail-section {
+    padding-top: 0;
+    border-top: 0;
+}
+
 .pdk-rename {
     display: flex;
     align-items: flex-start;
