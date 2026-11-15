@@ -1,5 +1,6 @@
 using System.Reflection;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -253,7 +254,7 @@ public sealed class SettingsPagesTests
         var page = context.Render<Users>();
         await page.WaitForStateAsync(() => page.FindAll("[data-action=edit]").Count == 1);
 
-        _ = page.Find("[data-action=edit]").ClickAsync(new());
+        await OpenUserAsync(context, page, me.Id);
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-role]").Count == 5);
         await dialogs.Find("[data-role=owner] input").ChangeAsync(new() { Value = false });
         await dialogs.Find("[data-role=admin] input").ChangeAsync(new() { Value = true });
@@ -268,16 +269,24 @@ public sealed class SettingsPagesTests
         Assert.Null(sent.Disabled);
     }
 
+    /// <summary>Edit goes to the user's address; the page, rendered here without a router, is told the address's key as the router would.</summary>
+    private static async Task OpenUserAsync(DashboardTestContext context, IRenderedComponent<Users> page, UserId user)
+    {
+        await page.Find("[data-action=edit]").ClickAsync(new());
+        Assert.EndsWith(SettingsRoutes.User(user), context.Services.GetRequiredService<NavigationManager>().Uri, StringComparison.Ordinal);
+        page.Render(p => p.Add(x => x.Key, user.ToString()));
+    }
+
     [Fact]
     public async Task AUserDrawer_TypedBackToWhatItWas_HoldsNoChange()
     {
         await using DashboardTestContext context = new();
-        SignInOwner(context);
+        var (_, _, _, me) = SignInOwner(context);
         context.Render<MudPopoverProvider>();
         var dialogs = context.Render<DrawerHost>();
         var page = context.Render<Users>();
         await page.WaitForStateAsync(() => page.FindAll("[data-action=edit]").Count == 1);
-        var editing = page.Find("[data-action=edit]").ClickAsync(new());
+        await OpenUserAsync(context, page, me.Id);
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=display-name]").Count == 1);
         var name = dialogs.Find("input[data-field=display-name]").GetAttribute("value")!;
 
@@ -286,7 +295,6 @@ public sealed class SettingsPagesTests
         await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
 
         Assert.Empty(dialogs.FindAll("[data-drawer=discard]"));
-        await editing.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
         Assert.Empty(dialogs.FindAll(".pdk-sheet"));
     }
 

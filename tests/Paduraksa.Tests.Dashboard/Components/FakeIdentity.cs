@@ -276,6 +276,7 @@ internal static class IdentityPages
         FakeDashboardAudit audit = new();
         context.Services.AddSingleton<IDashboardIdentity>(identity);
         context.Services.AddSingleton<IDashboardAudit>(audit);
+        context.Services.AddSingleton<Paduraksa.Dashboard.Providers.IDashboardProviders>(new FakeProviders());
         context.Services.AddScoped<DashboardBrowser>();
         var config = ConfigPages.SignIn(context, role, out var session);
         DashboardPrincipal user = new(session, RolePermissions.Of(session.Session.Roles));

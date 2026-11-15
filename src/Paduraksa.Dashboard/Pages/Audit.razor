@@ -7,9 +7,11 @@
 @using Paduraksa.Application.Identity
 @using Paduraksa.Contracts.Audit
 @using Paduraksa.Contracts.Identity
+@using Paduraksa.Dashboard.Providers
 @inject IDashboardAudit AuditLog
 @inject IDashboardConfig Config
 @inject IDashboardIdentity Identity
+@inject IDashboardProviders Providers
 @inject DashboardCaller Caller
 @inject DashboardBrowser Browser
 @inject DrawerStack Drawers
@@ -221,6 +223,9 @@ else
     private bool _denied;
     private bool _mayRead;
     private UserId? _me;
+    private bool _mayReadConfig;
+    private bool _mayReadCertificates;
+    private bool _mayReadProviders;
     private IReadOnlyDictionary<UserId, string> _users = new Dictionary<UserId, string>();
     private IReadOnlyDictionary<ApiTokenId, string> _tokens = new Dictionary<ApiTokenId, string>();
     private List<AuditEventSummary>? _events;
@@ -305,6 +310,9 @@ else
         }
 
         _mayRead = true;
+        _mayReadConfig = user.Has(Permission.ConfigRead);
+        _mayReadCertificates = user.Has(Permission.CertificatesRead);
+        _mayReadProviders = user.Has(Permission.ProvidersRead);
         _me = user.UserId;
         await LoadNamesAsync(user);
         _configWatch = Config.Watch(_ => InvokeAsync(OnNewEventsAsync));
@@ -486,8 +494,50 @@ else
     }
 
     /// <summary>An event's details, in a drawer.</summary>
-    private Task OpenAsync(AuditEventSummary auditEvent) =>
-        Drawers.OpenAsync<AuditEventDrawer>(AuditEventDrawer.For(auditEvent, AuditText.Actor(auditEvent.Actor, _me, _users, _tokens)), DrawerWidth.Medium);
+    private async Task OpenAsync(AuditEventSummary auditEvent) =>
+        await Drawers.OpenAsync<AuditEventDrawer>(
+            AuditEventDrawer.For(
+                auditEvent, AuditText.Actor(auditEvent.Actor, _me, _users, _tokens), await ExistingAsync(auditEvent.Target), AuditText.ActorHref(auditEvent.Actor, _me, _users)),
+            DrawerWidth.Medium);
+
+    /// <summary>
+    /// What exists now of the kinds the viewer may read, so a target that was deleted since stays plain text. Read when a drawer opens (not per row),
+    /// and only when the event has a target.
+    /// </summary>
+    private async Task<IReadOnlySet<string>?> ExistingAsync(string? target)
+    {
+        if (target is null)
+        {
+            return null;
+        }
+
+        HashSet<string> ids = [];
+        try
+        {
+            if (_mayReadConfig)
+            {
+                AuditText.AddIds(ids, (await Config.GetCurrentAsync()).Document);
+            }
+
+            if (_mayReadCertificates)
+            {
+                ids.UnionWith((await Config.ListCertificatesAsync()).Select(c => c.Id.ToString()));
+            }
+
+            if (_mayReadProviders)
+            {
+                ids.UnionWith((await Providers.ListAccountsAsync()).Select(a => a.Id.ToString()));
+                ids.UnionWith((await Providers.ListDnsProvidersAsync()).Select(p => p.Id.ToString()));
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A link is a nicety: without the list the target shows as text.
+            Logger.LogWarning(ex, "Couldn't read what exists for the audit event's target.");
+        }
+
+        return ids;
+    }
 
     private async Task VerifyAsync()
     {

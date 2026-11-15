@@ -1,4 +1,5 @@
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Dashboard;
 
@@ -20,8 +21,14 @@ public static class SettingsRoutes
     /// <summary>The users and their roles.</summary>
     public const string Users = "/settings/users";
 
+    /// <summary>A user: <c>/settings/users/user_...</c>, the users with their drawer open (for a person who may change them; the list alone for one who may only read). The page parses the segment back into a <see cref="UserId"/>.</summary>
+    public static string User(UserId id) => $"{Users}/{id}";
+
     /// <summary>The notification channels: where an upstream going down, a certificate about to expire and the like are sent.</summary>
     public const string Notifications = "/settings/notifications";
+
+    /// <summary>A notification channel: <c>/settings/notifications/chan_...</c>, the channels with its drawer open. The page parses the segment back into a <see cref="NotificationChannelId"/>.</summary>
+    public static string NotificationChannel(NotificationChannelId id) => $"{Notifications}/{id}";
 
     /// <summary>What was sent to the channels: each event with its outcome on every channel, and a failed delivery sent again.</summary>
     public const string NotificationHistory = "/settings/notifications/history";

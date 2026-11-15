@@ -10,7 +10,19 @@
                 <StatusChip Tone="AuditText.AreaTone(Event.Action)" Class="pdk-mono" Text="@Event.Action" Name="action" />
             </div>
             <dl class="pdk-facts">
-                <div class="pdk-fact"><dt>Who</dt><dd>@Actor</dd></div>
+                <div class="pdk-fact">
+                    <dt>Who</dt>
+                    <dd>
+                        @if (ActorHref is not null)
+                        {
+                            <a href="@ActorHref" class="pdk-row-link" data-link="actor">@Actor</a>
+                        }
+                        else
+                        {
+                            @Actor
+                        }
+                    </dd>
+                </div>
                 <div class="pdk-fact"><dt>When</dt><dd>@Fmt.Exact(Event.Timestamp)</dd></div>
                 <div class="pdk-fact"><dt>Channel</dt><dd>@RevisionText.Channel(Event.Channel)</dd></div>
                 @if (Event.ClientIp is { } ip)
@@ -22,7 +34,7 @@
                     <div class="pdk-fact">
                         <dt>Target</dt>
                         <dd class="pdk-mono">
-                            @if (AuditText.LinkOf(target) is { } link)
+                            @if (AuditText.LinkOf(target, Existing) is { } link)
                             {
                                 <a href="@link" class="pdk-row-link">@target</a>
                             }
@@ -61,7 +73,15 @@
     [Parameter, EditorRequired]
     public string Actor { get; set; } = string.Empty;
 
+    /// <summary>Where the actor goes (a user's page); null for one with none.</summary>
+    [Parameter]
+    public string? ActorHref { get; set; }
+
+    /// <summary>The IDs of what exists now, so a target that was deleted since stays plain text.</summary>
+    [Parameter]
+    public IReadOnlySet<string>? Existing { get; set; }
+
     /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
-    public static IReadOnlyDictionary<string, object?> For(AuditEventSummary auditEvent, string actor) =>
-        new Dictionary<string, object?> { [nameof(Event)] = auditEvent, [nameof(Actor)] = actor };
+    public static IReadOnlyDictionary<string, object?> For(AuditEventSummary auditEvent, string actor, IReadOnlySet<string>? existing = null, string? actorHref = null) =>
+        new Dictionary<string, object?> { [nameof(Event)] = auditEvent, [nameof(Actor)] = actor, [nameof(Existing)] = existing, [nameof(ActorHref)] = actorHref };
 }

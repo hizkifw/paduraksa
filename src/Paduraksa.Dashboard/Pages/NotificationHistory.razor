@@ -114,7 +114,7 @@ else
                             @foreach (var delivery in e.Deliveries)
                             {
                                 <span class="pdk-nh-delivery" data-delivery="@delivery.Id" data-state="@delivery.State.ToName()">
-                                    <DeliveryChip Delivery="delivery" />
+                                    <DeliveryChip Delivery="delivery" Href="@(_channelIds.Contains(delivery.ChannelId) ? SettingsRoutes.NotificationChannel(delivery.ChannelId) : null)" />
                                     @if (_mayRetry && DeliveryDisplay.CanRetry(delivery))
                                     {
                                         <MudTooltip Text="@($"Send to {DeliveryDisplay.Channel(delivery)} again")" Arrow="true">
@@ -158,6 +158,7 @@ else
     private bool _denied;
     private bool _mayRetry;
     private IReadOnlyList<NotificationChannelSummary> _channels = [];
+    private HashSet<NotificationChannelId> _channelIds = [];
     private List<NotificationHistoryEvent>? _events;
     private NotificationEventId? _after;
     private DateTimeOffset _now;
@@ -228,6 +229,7 @@ else
         try
         {
             _channels = [.. (await History.ChannelsAsync()).OrderBy(c => c.Label, StringComparer.OrdinalIgnoreCase)];
+            _channelIds = [.. _channels.Select(c => c.Id)];
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

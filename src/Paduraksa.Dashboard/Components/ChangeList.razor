@@ -27,6 +27,13 @@ else
     [Parameter, EditorRequired]
     public IReadOnlyList<ChangeGroup> Groups { get; set; } = [];
 
+    /// <summary>
+    /// Where an object's title links to, when it has a page to go to (null: plain). A review leaves it out: it is about to change the object,
+    /// and leaving it would drop the change. A past revision's diff gives it for the objects that still exist.
+    /// </summary>
+    [Parameter]
+    public Func<ObjectChange, string?>? LinkOf { get; set; }
+
     [Parameter]
     public string EmptyTitle { get; set; } = "Nothing changes";
 
@@ -58,7 +65,14 @@ else
     {
         <div class="pdk-diff-head">
             <span class="pdk-list-icon pdk-tone-@Tones.Of(change.Kind).Css()"><MudIcon Icon="@Tones.IconOf(change.What)" Size="Size.Small" /></span>
-            <span class="pdk-diff-title">@change.Title</span>
+            @if (LinkOf?.Invoke(change) is { } link)
+            {
+                <a class="pdk-diff-title pdk-row-link" href="@link" data-link="object">@change.Title</a>
+            }
+            else
+            {
+                <span class="pdk-diff-title">@change.Title</span>
+            }
             @if (change.Kind is not null)
             {
                 <span class="pdk-badge pdk-tone-@Tones.Of(change.Kind).Css()">@Tones.Word(change.Kind)</span>

@@ -1,4 +1,5 @@
 @attribute [Route(SettingsRoutes.Users)]
+@attribute [Route(SettingsRoutes.Users + "/{Key}")]
 @implements IDisposable
 @using Paduraksa.Application.Commands
 @using Paduraksa.Application.Identity
@@ -10,6 +11,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
 @inject DrawerStack Drawers
+@inject NavigationManager Navigation
 @inject Microsoft.Extensions.Logging.ILogger<Users> Logger
 @inject DisplayFormat Fmt
 @* Settings: users and roles. The list needs users:read; adding, changing and deleting need users:write (the Owner). The
@@ -82,12 +84,19 @@ else
                 @foreach (var user in _users)
                 {
                     <div class="pdk-dt-row @(_mayWrite ? "pdk-dt-link" : null) @(user.Disabled ? "pdk-dt-off" : null)" role="row" @key="user.Id"
-                         @onclick="@(_mayWrite ? () => OpenAsync(user) : () => Task.CompletedTask)">
+                         @onclick="@(_mayWrite ? () => Open(user) : () => Task.CompletedTask)">
                         <div class="pdk-dt-main" role="cell" data-user="@user.Username">
                             <MudAvatar Size="Size.Small" Color="@(user.Disabled ? Color.Default : Color.Primary)" Variant="Variant.Outlined" Class="pdk-avatar">@UserMenu.Initials(user.DisplayName)</MudAvatar>
                             <span class="pdk-dt-titles">
                                 <span class="pdk-list-title">
-                                    @user.DisplayName
+                                    @if (_mayWrite)
+                                    {
+                                        <a class="pdk-row-link" href="@SettingsRoutes.User(user.Id)" @onclick:stopPropagation="true" data-link="user">@user.DisplayName</a>
+                                    }
+                                    else
+                                    {
+                                        @user.DisplayName
+                                    }
                                     @if (user.Id == _me)
                                     {
                                         <StatusChip Tone="Tone.Primary" Text="You" />
@@ -144,7 +153,7 @@ else
                         <span role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
                             @if (_mayWrite)
                             {
-                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => OpenAsync(user)" aria-label="@($"Edit {user.Username}")" data-action="edit" />
+                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => Open(user)" aria-label="@($"Edit {user.Username}")" data-action="edit" />
                                 <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => AskDeleteAsync(user)" aria-label="@($"Delete {user.Username}")" data-action="delete" />
                             }
                         </span>
@@ -182,6 +191,45 @@ else
     private string? _refusal;
     private string? _refusalKind;
     private IDisposable? _watch;
+    private RoutedDrawer? _drawer;
+
+    /// <summary>The address's last segment: a user's ID; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (RendererInfo.IsInteractive && _users is not null)
+        {
+            ShowDrawer();
+        }
+    }
+
+    /// <summary>
+    /// Opens the drawer the address names, for someone who may change users (the list alone for one who may only read). It waits for the
+    /// list, which holds the user it shows: the first load calls this once it has it.
+    /// </summary>
+    private void ShowDrawer()
+    {
+        if (!_mayWrite)
+        {
+            return;
+        }
+
+        _drawer ??= new RoutedDrawer(Navigation, SettingsRoutes.Users);
+        _drawer.Show(Key, OpenDrawer);
+    }
+
+    private DrawerLevel OpenDrawer(string key) =>
+        UserId.TryParse(key, out var id) && _users?.FirstOrDefault(u => u.Id == id) is { } user
+            ? Drawers.Push<UserDrawer>(UserDrawer.For(user, _me), DrawerWidth.Medium)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("User not found", "There is no such user", "Back to the users"), DrawerWidth.Narrow);
+
+    private Task Open(UserSummary user)
+    {
+        Navigation.NavigateTo(SettingsRoutes.User(user.Id));
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -196,9 +244,14 @@ else
             StateHasChanged();
         }));
         await LoadAsync();
+        ShowDrawer();
     }
 
-    public void Dispose() => _watch?.Dispose();
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        _drawer?.Dispose();
+    }
 
     private async Task LoadAsync()
     {

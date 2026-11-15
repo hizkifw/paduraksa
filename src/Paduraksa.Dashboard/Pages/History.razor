@@ -109,7 +109,15 @@ else
                     <div>
                         <MudText Typo="Typo.h6" HtmlTag="h2">Revision #@detail.Revision.Seq</MudText>
                         <MudText Typo="Typo.caption" Class="pdk-muted">
-                            @RevisionText.Actor(detail.Revision.Actor, _users, _me) · @RevisionText.Channel(detail.Revision.Channel) · @Fmt.Exact(detail.Revision.CreatedAt)
+                            @if (AuditText.ActorHref(detail.Revision.Actor, _me, _users) is { } actorHref)
+                            {
+                                <a class="pdk-row-link" href="@actorHref" data-link="actor">@RevisionText.Actor(detail.Revision.Actor, _users, _me)</a>
+                            }
+                            else
+                            {
+                                @RevisionText.Actor(detail.Revision.Actor, _users, _me)
+                            }
+                            · @RevisionText.Channel(detail.Revision.Channel) · @Fmt.Exact(detail.Revision.CreatedAt)
                         </MudText>
                         @if (detail.Revision.Message is { } message)
                         {
@@ -146,7 +154,7 @@ else
                 }
                 else
                 {
-                    <ChangeList Groups="_groups" EmptyTitle="No differences" EmptyDescription="Both revisions hold the same config." />
+                    <ChangeList Groups="_groups" LinkOf="LinkOf" EmptyTitle="No differences" EmptyDescription="Both revisions hold the same config." />
                 }
             }
             else
@@ -169,6 +177,7 @@ else
     private RevisionDetail? _selected;
     private ConfigRevisionId? _compareWith;
     private IReadOnlyList<ChangeGroup> _groups = [];
+    private IReadOnlySet<string>? _existing;
     private string? _diffCaption;
     private bool _diffLoading;
     private bool _loadingOlder;
@@ -242,6 +251,7 @@ else
                 _users = (await Config.ListUsersAsync(user.Session.OriginFor(Channel.Dashboard))).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.DisplayName) ? u.Username : u.DisplayName);
             }
 
+            await ReadExistingAsync();
             var page = await Config.ListRevisionsAsync(PageSize, null);
             _entries = [.. page?.Items ?? []];
             _next = page?.Next;
@@ -256,9 +266,20 @@ else
         }
     }
 
+    /// <summary>The IDs of the objects the config has now: a past revision's diff links only to those, since the others have no page.</summary>
+    private async Task ReadExistingAsync()
+    {
+        HashSet<string> ids = [];
+        AuditText.AddIds(ids, (await Config.GetCurrentAsync()).Document);
+        _existing = ids;
+    }
+
+    private string? LinkOf(ObjectChange change) => AuditText.LinkOf(change.Key, _existing);
+
     /// <summary>A commit happened: put the new revisions on top, keeping what is loaded and selected.</summary>
     private async Task RefreshAsync()
     {
+        await ReadExistingAsync();
         var page = await Config.ListRevisionsAsync(PageSize, null);
         if (page is null || _entries is null)
         {

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Components;
 using MudBlazor;
 
 using Paduraksa.Contracts.Audit;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Core.Model;
@@ -177,12 +178,35 @@ public sealed class AccountAndAuditTests
     }
 
     [Fact]
+    public async Task AnAuditTargetThatIsGone_StaysPlainText_InsteadOfLinkingToANotFoundDrawer()
+    {
+        await using DashboardTestContext context = new();
+        var (_, audit, config, _) = IdentityPages.SignIn(context, Role.Auditor);
+        config.Document = new ConfigDocument();
+        var deleted = HostId.New();
+        audit.Events.Add(Event(1, "config.host.delete", AuditOutcome.Success, target: deleted.ToString()));
+        audit.Verification = new AuditVerification(true, 1, audit.Events[0].Id, new string('a', 64));
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        var page = context.Render<Audit>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-event]").Count == 1);
+
+        _ = page.Find("[data-event] button").ClickAsync(new());
+
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=audit-event]").Count == 1);
+        Assert.Contains(deleted.ToString(), drawers.Markup, StringComparison.Ordinal);
+        Assert.Empty(drawers.FindAll("a[href^='/hosts/host_']"));
+    }
+
+    [Fact]
     public async Task TheAuditPage_FiltersByOutcome_AndShowsTheChain()
     {
         await using DashboardTestContext context = new();
-        var (_, audit, _, _) = IdentityPages.SignIn(context, Role.Auditor);
+        var (_, audit, config, _) = IdentityPages.SignIn(context, Role.Auditor);
+        var host = HostId.New();
+        config.Document = new ConfigDocument(Hosts: [new HostConfig(host, ["app.test"])]);
         audit.Events.Add(Event(1, "auth.login", AuditOutcome.Success, details: """{"method":"password"}"""));
-        audit.Events.Add(Event(2, "config.host.delete", AuditOutcome.Denied, target: HostId.New().ToString()));
+        audit.Events.Add(Event(2, "config.host.delete", AuditOutcome.Denied, target: host.ToString()));
         audit.Verification = new AuditVerification(true, 2, audit.Events[1].Id, new string('a', 64));
         context.Render<MudPopoverProvider>();
         var drawers = context.Render<DrawerHost>();

@@ -130,30 +130,74 @@ public static class AuditText
         };
     }
 
-    /// <summary>Where a target links to in the dashboard, when it is something with a page: a host, an upstream, a profile, a revision.</summary>
-    public static string? LinkOf(string? target)
+    /// <summary>
+    /// Where a user actor goes: "You" is My account, another user is their drawer on the users page, and only when the page could read the users
+    /// (so the name is shown). A token, the CLI and the system have no page to go to here.
+    /// </summary>
+    public static string? ActorHref(ActorRef actor, UserId? me, IReadOnlyDictionary<UserId, string> users)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(users);
+        return actor is { Kind: ActorKind.User, User: { } user }
+            ? user == me ? DashboardRoutes.Account : users.ContainsKey(user) ? SettingsRoutes.User(user) : null
+            : null;
+    }
+
+    /// <summary>
+    /// Where a target links to in the dashboard, when it is something with a page that still exists: a host, an upstream, a profile, a rate
+    /// limit, an access list, a rule set, an auth provider, a certificate, an ACME account, a DNS provider or a revision. An audit event outlives
+    /// what it names, so an object counts only when it is in <paramref name="existing"/> (the IDs the viewer's page could read just now): a
+    /// deleted one stays plain text instead of opening a "not found" drawer. A revision is always kept.
+    /// </summary>
+    public static string? LinkOf(string? target, IReadOnlySet<string>? existing)
     {
         if (target is null)
         {
             return null;
         }
 
-        if (HostId.TryParse(target, out var host))
+        if (ConfigRevisionId.TryParse(target, out var revision))
         {
-            return DashboardRoutes.Host(host);
+            return DashboardRoutes.Revision(revision);
         }
 
-        if (UpstreamId.TryParse(target, out var upstream))
+        if (existing is null || !existing.Contains(target))
         {
-            return DashboardRoutes.Upstream(upstream);
+            return null;
         }
 
-        if (ProfileId.TryParse(target, out var profile))
+        return HostId.TryParse(target, out var host) ? DashboardRoutes.Host(host)
+            : UpstreamId.TryParse(target, out var upstream) ? DashboardRoutes.Upstream(upstream)
+            : ProfileId.TryParse(target, out var profile) ? DashboardRoutes.Profile(profile)
+            : RateLimitPolicyId.TryParse(target, out var rateLimit) ? DashboardRoutes.RateLimit(rateLimit)
+            : AccessListId.TryParse(target, out var accessList) ? DashboardRoutes.AccessList(accessList)
+            : RuleSetId.TryParse(target, out var ruleSet) ? DashboardRoutes.RuleSet(ruleSet)
+            : AuthProviderId.TryParse(target, out var authProvider) ? DashboardRoutes.AuthProvider(authProvider)
+            : CertificateId.TryParse(target, out var certificate) ? DashboardRoutes.Certificate(certificate)
+            : AcmeAccountId.TryParse(target, out var account) ? DashboardRoutes.AcmeAccount(account)
+            : DnsProviderId.TryParse(target, out var dns) ? DashboardRoutes.DnsProvider(dns)
+            : null;
+    }
+
+    /// <summary>The IDs of what exists now in <paramref name="document"/> (null: none readable), for <see cref="LinkOf"/>.</summary>
+    public static void AddIds(ISet<string> into, Paduraksa.Contracts.Config.ConfigDocument? document)
+    {
+        ArgumentNullException.ThrowIfNull(into);
+        if (document is null)
         {
-            return DashboardRoutes.Profile(profile);
+            return;
         }
 
-        return ConfigRevisionId.TryParse(target, out var revision) ? DashboardRoutes.Revision(revision) : null;
+        foreach (var id in document.Hosts.Select(x => x.Id.ToString())
+                     .Concat(document.Upstreams.Select(x => x.Id.ToString()))
+                     .Concat(document.Profiles.Select(x => x.Id.ToString()))
+                     .Concat(document.RateLimitPolicies.Select(x => x.Id.ToString()))
+                     .Concat(document.AccessLists.Select(x => x.Id.ToString()))
+                     .Concat(document.RuleSets.Select(x => x.Id.ToString()))
+                     .Concat(document.AuthProviders.Select(x => x.Id.ToString())))
+        {
+            into.Add(id);
+        }
     }
 
     /// <summary>The details, indented, for the expanded row.</summary>

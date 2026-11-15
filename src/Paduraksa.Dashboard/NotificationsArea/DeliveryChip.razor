@@ -1,13 +1,27 @@
 @inject DisplayFormat Fmt
 @* One delivery as a chip: the channel and what became of the message, the error or the time in its tooltip. *@
-<StatusChip Tone="DeliveryDisplay.ToneOf(Delivery.State)" Icon="@DeliveryDisplay.IconOf(Delivery.State)" Text="@DeliveryDisplay.Label(Delivery, WithChannel, Fmt)"
-            Detail="@DeliveryDisplay.Detail(Delivery, Fmt)" Name="@("delivery-" + Delivery.State.ToName())" Class="pdk-nh-chip" />
+@if (Href is not null)
+{
+    <a class="pdk-row-link pdk-chip-link" href="@Href" data-link="channel">
+        <StatusChip Tone="DeliveryDisplay.ToneOf(Delivery.State)" Icon="@DeliveryDisplay.IconOf(Delivery.State)" Text="@DeliveryDisplay.Label(Delivery, WithChannel, Fmt)"
+                    Detail="@DeliveryDisplay.Detail(Delivery, Fmt)" Name="@("delivery-" + Delivery.State.ToName())" Class="pdk-nh-chip" />
+    </a>
+}
+else
+{
+    <StatusChip Tone="DeliveryDisplay.ToneOf(Delivery.State)" Icon="@DeliveryDisplay.IconOf(Delivery.State)" Text="@DeliveryDisplay.Label(Delivery, WithChannel, Fmt)"
+                Detail="@DeliveryDisplay.Detail(Delivery, Fmt)" Name="@("delivery-" + Delivery.State.ToName())" Class="pdk-nh-chip" />
+}
 
 @code {
     [Parameter, EditorRequired]
     public NotificationDeliverySummary Delivery { get; set; } = null!;
 
     /// <summary>Whether the chip names the channel (the history does; a channel's own drawer does not).</summary>
+    /// <summary>Where the chip goes (the channel's drawer); null when the channel is gone, and the chip is plain.</summary>
+    [Parameter]
+    public string? Href { get; set; }
+
     [Parameter]
     public bool WithChannel { get; set; } = true;
 }

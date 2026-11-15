@@ -1,5 +1,6 @@
 @attribute [Authorize]
 @attribute [Route(SettingsRoutes.Notifications)]
+@attribute [Route(SettingsRoutes.Notifications + "/{Key}")]
 @implements IDisposable
 @using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Commands
@@ -13,6 +14,7 @@
 @inject DashboardCaller Caller
 @inject IDialogService Dialogs
 @inject DrawerStack Drawers
+@inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject TimeProvider Time
 @inject ILogger<Notifications> Logger
@@ -69,7 +71,16 @@ else
             <MudPaper Class="pdk-card pdk-provider pdk-channel-row" Elevation="0" Outlined="true" data-channel="@channel.Id" data-kind="@channel.Kind.ToName()">
                 <span class="pdk-stat-icon pdk-tone-@(channel.Enabled ? "primary" : "default")"><MudIcon Icon="@NotificationDisplay.KindIcon(channel.Kind)" Size="Size.Small" /></span>
                 <div class="pdk-provider-main">
-                    <span class="pdk-provider-title">@channel.Label</span>
+                    <span class="pdk-provider-title">
+                        @if (_mayWrite)
+                        {
+                            <a class="pdk-row-link" href="@SettingsRoutes.NotificationChannel(channel.Id)" data-link="channel">@channel.Label</a>
+                        }
+                        else
+                        {
+                            @channel.Label
+                        }
+                    </span>
                     <span class="pdk-provider-sub">@NotificationDisplay.KindLabel(channel.Kind) · @NotificationDisplay.Target(channel) · @Wording.Plural(channel.Events.Count, "event", "events")</span>
                     <span class="pdk-provider-sub pdk-channel-state" data-section="state">
                         @if (!channel.Enabled)
@@ -97,7 +108,7 @@ else
                     {
                         <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Send"
                                    OnClick="() => TestAsync(channel)" Disabled="_testing.Contains(channel.Id)" Class="pdk-channel-test" data-action="test">Send test</MudButton>
-                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditAsync(channel)" Class="pdk-channel-edit" data-action="edit">Edit</MudButton>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => Edit(channel)" Class="pdk-channel-edit" data-action="edit">Edit</MudButton>
                         <MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="() => DeleteAsync(channel)"
                                        aria-label="@($"Delete {channel.Label}")" Class="pdk-channel-delete" />
                     }
@@ -144,6 +155,11 @@ else
     private bool _failed;
     private LiveUpdates? _live;
     private CancellationTokenSource? _stop;
+    private RoutedDrawer? _drawer;
+
+    /// <summary>The address's last segment: a channel's ID; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
 
     /// <summary>How often the list is read again, for the delivery state the dispatcher changes (an edit refreshes it at once).</summary>
     [Parameter]
@@ -166,7 +182,36 @@ else
 
         _mayWrite = user.Has(Permission.ProvidersWrite);
         await LoadAsync();
+        ShowDrawer();
     }
+
+    protected override void OnParametersSet()
+    {
+        if (RendererInfo.IsInteractive && _channels is not null)
+        {
+            ShowDrawer();
+        }
+    }
+
+    /// <summary>
+    /// Opens the drawer the address names. It waits for the list, which holds the channel it shows: the first load calls this once it has it.
+    /// </summary>
+    private void ShowDrawer()
+    {
+        // The channel's drawer is a form: someone who may not change channels gets the list alone, as the users page does.
+        if (!_mayWrite)
+        {
+            return;
+        }
+
+        _drawer ??= new RoutedDrawer(Navigation, SettingsRoutes.Notifications);
+        _drawer.Show(Key, OpenDrawer);
+    }
+
+    private DrawerLevel OpenDrawer(string key) =>
+        NotificationChannelId.TryParse(key, out var id) && _channels?.FirstOrDefault(c => c.Id == id) is { } channel
+            ? Drawers.Push<NotificationDrawer>(NotificationDrawer.For(channel), DrawerWidth.Narrow)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Channel not found", "There is no such notification channel", "Back to the channels"), DrawerWidth.Narrow);
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -181,6 +226,7 @@ else
     public void Dispose()
     {
         _live?.Dispose();
+        _drawer?.Dispose();
         _stop?.Cancel();
         _stop?.Dispose();
     }
@@ -236,11 +282,10 @@ else
         }
     }
 
-    private async Task EditAsync(NotificationChannelSummary channel)
+    private void Edit(NotificationChannelSummary channel)
     {
-        await Drawers.OpenAsync<NotificationDrawer>(NotificationDrawer.For(channel), DrawerWidth.Narrow);
         _results.Remove(channel.Id);
-        await LoadAsync();
+        Navigation.NavigateTo(SettingsRoutes.NotificationChannel(channel.Id));
     }
 
     private async Task TestAsync(NotificationChannelSummary channel)
