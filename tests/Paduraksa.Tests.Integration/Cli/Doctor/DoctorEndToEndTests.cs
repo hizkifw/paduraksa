@@ -94,7 +94,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(Options(data));
 
-        Assert.Equal(0, exit);
+        Assert.True(exit == 0, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[warn] data-directory:", output, StringComparison.Ordinal);
         Assert.Contains("[info] master-key: There is no master key yet", output, StringComparison.Ordinal);
         Assert.False(Directory.Exists(data));
@@ -108,7 +108,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(Options(data));
 
-        Assert.Equal(1, exit);
+        Assert.True(exit == 1, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[FAIL] config-database:", output, StringComparison.Ordinal);
         Assert.Contains("29991231000000_FromTheFuture", output, StringComparison.Ordinal);
         Assert.Contains("downgrade", output, StringComparison.Ordinal);
@@ -124,7 +124,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(Options(data));
 
-        Assert.Equal(1, exit);
+        Assert.True(exit == 1, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[FAIL] vault-database:", output, StringComparison.Ordinal);
     }
 
@@ -136,7 +136,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(Options(data));
 
-        Assert.Equal(0, exit);
+        Assert.True(exit == 0, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[info] config-database: paduraksa.db needs 1 migration", output, StringComparison.Ordinal);
     }
 
@@ -151,7 +151,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, error) = await DoctorAsync(Options(data));
 
-        Assert.Equal(1, exit);
+        Assert.True(exit == 1, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[FAIL] master-key: The master key", output, StringComparison.Ordinal);
         Assert.Contains("not the one vault.db was written under", output, StringComparison.Ordinal);
         Assert.DoesNotContain(original, output + error, StringComparison.Ordinal);
@@ -171,7 +171,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(Options(data));
 
-        Assert.Equal(1, exit);
+        Assert.True(exit == 1, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[FAIL] master-key:", output, StringComparison.Ordinal);
         Assert.Contains("accessible to other users", output, StringComparison.Ordinal);
     }
@@ -189,7 +189,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(Options(data));
 
-        Assert.Equal(0, exit);
+        Assert.True(exit == 0, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[warn] file-permissions:", output, StringComparison.Ordinal);
         Assert.Contains("vault.db (mode 640)", output, StringComparison.Ordinal);
     }
@@ -205,7 +205,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(Options(data, ("Paduraksa:Listen:Http", port)));
 
-        Assert.Equal(1, exit);
+        Assert.True(exit == 1, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains($"[FAIL] listener-http: public HTTP (tcp {port}) is held by another process", output, StringComparison.Ordinal);
         Assert.Contains("[ ok ] listener-https:", output, StringComparison.Ordinal);
     }
@@ -222,7 +222,7 @@ public sealed class DoctorEndToEndTests
 
             var (exit, output, _) = await DoctorAsync(Options(data, ("Paduraksa:Listen:Admin", port), ("Paduraksa:Listen:AdminBind", "127.0.0.1")));
 
-            Assert.Equal(0, exit);
+            Assert.True(exit == 0, $"doctor exited {exit}; its report:\n{output}");
             Assert.Contains($"[ ok ] listener-admin: admin (tcp {port}) is held by the running Paduraksa", output, StringComparison.Ordinal);
             Assert.Contains("[ ok ] server: A server is running", output, StringComparison.Ordinal);
             Assert.Contains("[ ok ] config-database:", output, StringComparison.Ordinal);
@@ -242,7 +242,7 @@ public sealed class DoctorEndToEndTests
 
         var (exit, output, _) = await DoctorAsync(options);
 
-        Assert.Equal(1, exit);
+        Assert.True(exit == 1, $"doctor exited {exit}; its report:\n{output}");
         Assert.Contains("[FAIL] options:", output, StringComparison.Ordinal);
         Assert.Contains("[info] listener", output.Replace("listeners:", "listener:", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("[info] clock:", output, StringComparison.Ordinal);
@@ -260,7 +260,7 @@ public sealed class DoctorEndToEndTests
         var root = document.RootElement;
         Assert.Equal(["version", "passed", "summary", "checks"], root.EnumerateObject().Select(p => p.Name));
         Assert.False(root.GetProperty("passed").GetBoolean());
-        Assert.Equal(1, exit);
+        Assert.True(exit == 1, $"doctor exited {exit}; its report:\n{output}");
         var summary = root.GetProperty("summary");
         Assert.Equal(["ok", "info", "warning", "failure"], summary.EnumerateObject().Select(p => p.Name));
         var checks = root.GetProperty("checks").EnumerateArray().ToList();
@@ -288,7 +288,7 @@ public sealed class DoctorEndToEndTests
 
         using var document = JsonDocument.Parse(output);
         Assert.True(document.RootElement.GetProperty("passed").GetBoolean());
-        Assert.Equal(0, exit);
+        Assert.True(exit == 0, $"doctor exited {exit}; its report:\n{output}");
     }
 
     [Fact]
