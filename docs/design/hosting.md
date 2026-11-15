@@ -105,12 +105,12 @@ Compose needs `stop_grace_period: 35s`. The stop can run about a reserve past `S
 - **HTTP/3** (`Listen:Https`, udp). On when `Listen:Http3` is on and libmsquic is present. Its TLS callback selects the certificate and attaches `ClientInfo`. Without libmsquic it is off, with one Information log at startup, and `Alt-Svc` is never sent.
 - **One `TlsHandshakeSelector` per process.** It is a shared singleton because its rejection counters are process state. The same options derive the compiler's `SnapshotCompilerOptions` (public port, whether H3 is advertised, the certificate resolver), so listeners and snapshots cannot disagree.
 
-**Certificates.** The process's `IServerCertificateSource` is the vault's. Only when `Paduraksa:Development:PlaceholderCertificate` is on does `PlaceholderCertificates` cover the IDs the vault does not know ([vault-and-certificates.md](vault-and-certificates.md)).
+**Certificates.** The process's `IServerCertificateSource` is the vault's. `PlaceholderCertificates` covers the IDs the vault does not know only when `Paduraksa:Development:PlaceholderCertificate` is on ([vault-and-certificates.md](vault-and-certificates.md)).
 
 The placeholder:
 - is an in-memory self-signed certificate under the stable `PlaceholderCertificates.Id`;
 - is also a built-in inventory entry and the inventory's fallback default. With it on, a config that names no default certificate still answers HTTPS for every host, and a stored document that names the ID keeps compiling across restarts;
-- defaults to **on in a Debug build and off in a release build**. In a release build, a name no vault certificate covers is rejected at the handshake;
+- defaults to **on in a Debug build and off in a release build**. In a release build, if no vault certificate covers a name, the handshake rejects it;
 - is switched on explicitly by tests and the benchmark runner. A release process with it on warns at startup;
 - is only the admin listener's last-resort fallback: that listener's certificate comes from the local CA (below).
 
@@ -185,9 +185,9 @@ Nothing in the document can bind the admin certificate, by construction:
 
 ### Fallback
 
-- Whatever the inventory step does (it fails, or the store is degraded), the run still serves the certificate the vault holds. It falls back to the placeholder only when the vault has nothing servable: none, or outside its validity period (`AdminCertificatePolicy.IsServable`).
+- Even if the inventory step fails or the store is degraded, the run still serves the certificate the vault holds. It falls back to the placeholder only when the vault has nothing servable: none, or outside its validity period (`AdminCertificatePolicy.IsServable`).
 - A failure must not discard a valid certificate. The admin sends HSTS for non-loopback names, so a browser that trusted the root has pinned the name, and the self-signed placeholder would be a hard error with no click-through.
-- A rollback must not either: a failed creation for the admin ID keeps the vault's key (the ID is fixed, so the pair it holds may be the only servable one) and rolls back only its row. The next run adopts whatever the vault has.
+- A rollback must not discard it either: a failed creation for the admin ID keeps the vault's key (the ID is fixed, so the pair it holds may be the only servable one) and rolls back only its row. The next run adopts whatever the vault has.
 - Failures are logged at Error, with the exception.
 - There is deliberately no Debug/Release switch here: the placeholder is the last resort, not a mode.
 
@@ -240,7 +240,7 @@ Some people want `proxy.example.com` to be the admin UI, with the wildcard certi
 - **The public proxy therefore removes that one cookie from every forwarded request.** It is a request transform: one ordinal search of the `Cookie` values when the cookie is absent, a rebuilt header without it when present, every other cookie untouched. An upstream never receives a live admin session.
 - Antiforgery works unchanged because everything stays same-origin.
 
-**Warning: proxying a host to the admin port makes every client look like loopback.** Whoever forwards a public name to `127.0.0.1:9443` (a proxy on this machine, or this one) hides each client's address behind the proxy's. All clients then share one throttle bucket, and a source allowlist that lists loopback lets the whole internet in.
+**Warning: proxying a host to the admin port makes every client look like loopback.** If anything forwards a public name to `127.0.0.1:9443` (a proxy on this machine, or this one), each client's address is hidden behind the proxy's. All clients then share one throttle bucket, and a source allowlist that lists loopback lets the whole internet in.
 - Don't do that with the main admin port. The internal listener is the supported way, and it carries the forwarded address under the authenticated hop rule below.
 - Leave loopback out of `AdminAllowedSources` unless you mean it.
 
@@ -285,7 +285,7 @@ An enabled admin host compiles to one implicit prefix route (`/`, whose `Compile
 ### Allowlist
 
 - On the main admin port, `Paduraksa:Listen:AdminAllowedSources` runs per connection, before TLS.
-- On the internal listener the peer is always the process, so the same list is applied per request to the **forwarded** client address (403 `admin.sourceDenied` when refused). A request without a usable forwarded address is unknown, and refused while the list is non-empty.
+- On the internal listener the peer is always the process, so the same list is applied per request to the **forwarded** client address (403 `admin.sourceDenied` when refused). If a request has no usable forwarded address, it is unknown and refused while the list is non-empty.
 - The public host's own policies (IP allow list, rate limits and the rest of the WAF) are the primary gate for a proxied admin. The admin's list is a second, independent restriction.
 - First-run setup (`GET`/`POST /api/v1/setup`) is refused on the internal listener (403 `setup.viaProxy`). Setup is reachable only on the admin port or the loopback plain-HTTP fallback.
 
@@ -315,7 +315,7 @@ What it catches:
 - a non-covering certificate;
 - a trusted-proxies change.
 
-A replace or rollback that recreates the admin host under a new ID but keeps it reachable is allowed.
+A replace or rollback is allowed if it recreates the admin host under a new ID but keeps it reachable.
 
 Overrides and scope:
 - The CLI, the normal admin port and the loopback fallback carry no `AdminRequest`, so they need no force.
@@ -326,7 +326,7 @@ Overrides and scope:
 Modelling limits:
 - The probe is a `GET /` over the caller's host, scheme and resolved client address, not the actual path or method.
 - A change to the trusted proxies is refused outright while the request arrives through the proxy, because the caller facts cannot faithfully model the new proxy chain.
-- The rule is before/after. A condition that already fails the probe (a Specific certificate not covering the name, an existing modelling gap) does not block unrelated commands. Only one that currently forwards and would stop doing so does.
+- The rule is before/after: a change is refused only if the probe forwards now and would stop. A condition that already fails the probe (a Specific certificate not covering the name, an existing modelling gap) doesn't block unrelated commands.
 
 ### The simulator
 
