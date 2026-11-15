@@ -5,11 +5,11 @@ For contributors: the experiment behind the TLS selector and the single-H3-certi
 **Status: S1 is partially closed. The browser H3 upgrade is still pending.**
 
 What's done:
-- Per-SNI certificate selection works on Kestrel's QUIC/HTTP/3 listener, and so does hot-swap. So the [hot-path.md, HTTP/3 strategy](../design/hot-path.md#http3-strategy)
-  single-H3-certificate fallback isn't needed. It still works (tested), so it stays available as a contingency.
+- Per-SNI certificate selection works on Kestrel's QUIC/HTTP/3 listener, and so does hot-swap. The [hot-path.md, HTTP/3 strategy](../design/hot-path.md#http3-strategy)
+  single-H3-certificate fallback is therefore not needed. It still works (tested) and stays available as a contingency.
 - `Alt-Svc` with the public port, unknown-SNI rejection and a connection-stage IP gate on QUIC were all verified.
 
-What's pending: the [milestones.md, Risks and spikes](../design/milestones.md#risks-and-spikes) exit criterion also requires that **a real browser actually upgrades to H3** in the Docker
+What's pending: the [milestones.md, Risks and spikes](../design/milestones.md#risks-and-spikes) exit criterion also requires that **a real browser upgrades to H3** in the Docker
 deployment. That hasn't been tested (see [Not covered](#not-covered--follow-ups)).
 
 ## What was tested
