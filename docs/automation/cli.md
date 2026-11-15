@@ -1,6 +1,6 @@
 # The command line
 
-The `paduraksa` binary is the server and its command line. In the container it is `paduraksa`; from the host, run it with `docker compose exec paduraksa paduraksa ...` (or `docker compose run --rm paduraksa ...` when the service is stopped). `paduraksa --help` lists the commands.
+The `paduraksa` binary is the server and its command line. In the container it is `paduraksa`; from the machine, run it with `docker compose exec paduraksa paduraksa ...` (or `docker compose run --rm paduraksa ...` when the service is stopped). `paduraksa --help` lists the commands.
 
 | Command | What it does | Needs |
 |---|---|---|
@@ -13,7 +13,7 @@ The `paduraksa` binary is the server and its command line. In the container it i
 | `paduraksa vault rotate-kek --new-key-file <file>` | Re-wraps every vault key under a new master key | The server **stopped** |
 | `paduraksa config export` | Writes the config as YAML | The running server, an API token |
 | `paduraksa config import <file>` | Imports a YAML config as one revision | The running server, an API token |
-| `paduraksa doctor` | Checks the host: data directory, master key, databases, ports, HTTP/3, clock. Changes nothing | The data directory. The server may run |
+| `paduraksa doctor` | Checks the machine: data directory, master key, databases, ports, HTTP/3, clock. Changes nothing | The data directory. The server may run |
 | `paduraksa doctor --liveness` | Exits 0 if the admin `/healthz` answers over loopback, 1 if not | The running server |
 
 `paduraksa mcp-sandbox` is the process the [MCP](mcp.md) server starts for an assistant's code. Do not run it yourself.
@@ -48,10 +48,10 @@ docker compose exec paduraksa paduraksa admin disable-2fa alice
 
 ## Doctor
 
-`paduraksa doctor` is a read-only check of the host, safe to run while the server runs. Run it after an upgrade, after changing a port or the master key, and before asking for help:
+`paduraksa doctor` is a read-only check of the machine, safe to run while the server runs. Run it after an upgrade, after changing a port or the master key, and before asking for help:
 
 ```sh
-# Check the host
+# Check the machine
 docker compose exec paduraksa paduraksa doctor
 ```
 

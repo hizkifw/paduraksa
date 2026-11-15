@@ -82,12 +82,12 @@ Open `https://localhost:9443/` (or `https://<host>:9443/`). The setup page asks 
 
 ![The first-run setup page: the setup token, then the Owner account.](../assets/setup.png)
 
-You land on the Overview, whose **Finish setting up** checklist lists what is left: two-step sign-in, an ACME account, a certificate and a first host.
+You land on the Overview, whose **Setup** checklist lists what is left: two-step sign-in, an ACME account, a certificate and a first host.
 
 ![The Overview on a fresh install, with the setup checklist.](../assets/overview.png)
 
 !!! tip
-    Set up two-step sign-in (TOTP) from **My account** now. It is optional, and nothing forces it, but every Owner and Admin should have one. The dashboard shows ten recovery codes once. Keep them.
+    Set up two-step sign-in (TOTP) from **My account** now. It is optional, and nothing forces it, but every Owner and Admin should have one. The dashboard shows ten recovery codes once.
 
 A plain `http://<host>:9443/` request is answered with a redirect to the same URL over `https://`. No page is ever served over plain HTTP.
 

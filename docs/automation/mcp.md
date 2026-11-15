@@ -41,7 +41,7 @@ The process also closes its own file system and network access. A script that es
 
 - The process is still limited and killed from outside, but a script that escaped could read files and open TCP connections.
 - To fix it, copy your runtime's default seccomp profile and add those three calls to the allowed names. Then start the container with `--security-opt seccomp=profile.json` (Compose: `security_opt: [seccomp=./profile.json]`).
-- On a host kernel older than 6.7, the log says `Landlock network: not available`. The seccomp filter still closes the sockets.
+- On a Linux kernel older than 6.7, the log says `Landlock network: not available`. The seccomp filter still closes the sockets.
 
 ## What an assistant can change
 

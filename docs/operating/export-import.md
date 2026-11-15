@@ -55,11 +55,11 @@ paduraksa config import --dry-run paduraksa.yaml
 # Import, replacing the config, with a note for History
 paduraksa config import --mode replace paduraksa.yaml --message "from git"
 
-# In Docker, from the host
+# In Docker, from the machine
 docker compose exec -e PADURAKSA_TOKEN paduraksa paduraksa config export
 ```
 
 - The address defaults to this installation's own admin listener on loopback. Use `--url` or `PADURAKSA_URL` for another.
 - A loopback address is not certificate-checked, because the admin certificate is signed by the instance's own CA. Any other address must present a certificate your system trusts.
 - The CLI refuses to send the token over plain `http://` to a non-loopback address unless you pass `--allow-insecure-http`.
-- Keep the token file private (`chmod 600`). The CLI warns when others can read it.
+- The CLI warns when others can read the token file (`chmod 600`).

@@ -21,12 +21,12 @@ Paduraksa is a reverse proxy and WAF in **one process on one node**. It faces th
 - **A malicious upstream.** It cannot read or plant the admin session cookie, see the admin routes, or choose a forward-auth identity.
 - **A hostile forward-auth provider or notification endpoint.** Forward-auth fails closed, and notification senders refuse redirects and never echo a response.
 - **A prompt-injected MCP script.** MCP is off by default, and a script runs in a separate, killable process with no network, no files and no secrets ([MCP](automation/mcp.md)).
-- **Someone who copies `/data` or a backup file.** Secrets are encrypted under the master key, and a backup is encrypted under its own passphrase. Keep the key off the volume.
+- **Someone who copies `/data` or a backup file.** Secrets are encrypted under the master key, and a backup is encrypted under its own passphrase. A key kept on the volume is copied with it.
 - **Dependencies.** Pinned base images, weekly dependency updates, a vulnerability audit in CI and an SBOM on the image.
 
 ## What it does not defend against
 
-1. **Root on the host, or a shell as the process's user.** Either can read the data directory, the master key and process memory. The vault is a boundary inside one process, not a defence against a local attacker.
+1. **Root on the machine, or a shell as the process's user.** Either can read the data directory, the master key and process memory. The vault is a boundary inside one process, not a defence against a local attacker.
 2. **The master key together with the data directory**, or with a backup's source vault. That is a total compromise of every stored secret and the local CA.
 3. **A malicious Owner.** The Owner holds every permission, including backups. Operator and Admin are trusted with the node's network position too: `config:write` lets them route to any internal address.
 4. **Volumetric DDoS and anything beyond one node.** There is no clustering and no scrubbing. Put Cloudflare in front and lock down the origin.

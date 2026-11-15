@@ -15,6 +15,7 @@ Contents:
 - [Drafts](#drafts-m10)
 - [Notification history](#notification-history)
 - [Dashboard conventions](#dashboard-conventions-ui-consistency-pass)
+- [Voice and vocabulary](#voice-and-vocabulary)
 - [First-run setup](#first-run-setup)
 
 ## Stack and principles
@@ -290,7 +291,7 @@ There is a line of help per setting. Inline validation is the real validator wit
 **API tokens.** One's own, and "Everyone's" with `tokens:all`. Revoked and expired ones are shown on request.
 - Create: name, expiry (7, 30, 90 days, a year, never, or a date), and scopes by area with read-only and "all you can" presets.
 - Only what the user holds is offered ("a token never exceeds its owner"), and never `tokens:*` or `sessions:all` (tokens cannot manage tokens or sessions).
-- The secret shows once in the same dialog, with Copy and a "you won't see it again" notice. A click beside the dialog does not close it, and closing it drops the secret from the page's state.
+- The secret shows once in the same dialog, with Copy and a "This token won't be shown again" notice. A click beside the dialog does not close it, and closing it drops the secret from the page's state.
 - Revoke is confirmed.
 - **A row opens the token's drawer** (`TokenDetailsDrawer`, address `/settings/tokens/{tok_...}`, the list with that drawer open, as hosts have). An address that names someone else's token opens it from the list of everyone's when the caller has `tokens:all`; anything else is the "not found" drawer.
 - The drawer shows the status (active, disabled, expired or revoked), owner, created, last used, expires and the token ID in a copy box; never the secret. The owner is plain text, since users have no address of their own to link to.
@@ -476,7 +477,7 @@ A line of copy stays only if it says what the title, the navigation or the data 
 - an upstream a host uses with no destination switched on;
 - a master key beside the vault, for a user who holds `vault:manage` (threat model G3);
 - a degraded config store;
-- or "Nothing needs you".
+- or nothing, and the card is not shown.
 
 A missing second factor is not on the overview (threat model G4, the owner's call). The setup checklist's "Two-step sign-in" asks the viewer, and Users shows each account's two-step status. A link that leaves the dashboard (the install guide) opens in a tab of its own.
 
@@ -642,7 +643,7 @@ The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOvervie
 - Every tile links to `/analytics?tab=security&range=1h`, each with a title of its own.
 - The hosts table has no card heading: the page's content is one section, so the title is its heading (see "Headings"). Protected hosts by name, then those with nothing on, each cell a muted "None" when empty. A stacked card per host on a phone. Its **Refused, 24 h** column is the host's refusals from the host series (cheap: the same summary the overview's busiest-hosts table reads). The Rules and Sign-in cells count over the same 24 hours.
 - It reads `ReadAsync(Day)` every 2 s (`PollInterval`): the protections are the live snapshot's on each read, the 24 hours come from the service's 30 s cache. Polling pauses while the tab is hidden (`paduraksa.pageVisibility`) and reads at once on return. While the day fails (the rollups can't be read) the poll reads only the hour, so the protections stay live and the failing read isn't retried every 2 s; "Try again" and a tab shown again read the day once more.
-- **Rollups that can't be read don't hide the protections.** The page falls back to the hour (memory) for the table, drops the Refused column and shows an alert with "Try again"; the strip is the hour and stays.
+- **Rollups that can't be read don't hide the protections.** The page falls back to the hour (memory) for the table, drops the Refused column and shows an alert with "Retry"; the strip is the hour and stays.
 - The counter cards and the per-second rates between two samples are gone from the page; its tiles are the hour's refusals above.
 
 **Gaps:**
@@ -656,7 +657,7 @@ A component (`Components/SecurityStatistics.razor`) with no page of its own: it 
 - **Refused per second**, stacked by reason: a `TimeSeriesChart` with `Stacked` (each line a filled band on the lines before it, the top their sum; the tooltip gives each reason's own rate). Only the reasons that refused something in the range are drawn, so the legend is short. Unknown reason is a neutral grey; the reasons have `pdk-chart-r1` to `r9`. Gaps are shaded as on the overview's charts, and the total refused is beside the title.
 - Cards: proof of work (served, solved with its share, bad solution, not a browser, the four cookie reasons), rate limits (checked, limited with its share), access lists, connections (the live limit and deny list, what was refused, counted now, and table full once it happened), sign-in, and "Not served" (unknown host, no route, unavailable, dropped) once there are some.
 - Numbers and times go through `DisplayFormat` (`Fmt`): counts, shares, the chart's per-second axis and its tooltip times in the browser's zone, and the partly observed note.
-- Polling as the overview's: the hour every 2 s, the longer ranges a tenth as often, paused while hidden and read at once when shown. A range that can't be read is an alert with "Try again" (`data-part=security-failed`). A role without `config:read` sees a lock (every built-in role has it).
+- Polling as the overview's: the hour every 2 s, the longer ranges a tenth as often, paused while hidden and read at once when shown. A range that can't be read is an alert with "Retry" (`data-part=security-failed`). A role without `config:read` sees a lock (every built-in role has it).
 - **On Analytics** it is the Security tab, under the page's one range picker (1 h reads the live ring). It has no section heading (the tab is the heading) and no host scope: the host picker belongs to the Visitors tab, so the old "All hosts" note and the `#security` anchor are gone.
 
 **Tests.** bUnit: `SecurityPageTests` (the strip and its links, per-host counts, the 24-hour cells, the fallback, hidden-tab polling, the protections), `SecurityStripTests` (the four tiles from the hour, their links, the pending frame, sparklines, a hidden tab), `SecurityStatisticsTests` (every card from the sampler's hour, the connection card, the stacked chart and its legend, a longer range from the rollups and a range switch, polling and a hidden tab, a range that can't be read), and `AnalyticsPageTests` (the tab follows the page's range). They share `SecurityRig`: the gate's runtimes, a sampler, a real rollup database and a clock that steps.
@@ -1033,7 +1034,7 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 - Recovery codes keep their Copy and Download pair.
 - A command to run on the server is never a bare `<code>`: it is `CliHint`, which shows the Docker form (`docker compose exec paduraksa paduraksa ...`, or `run --rm` when the server must be stopped) and the bare form for a systemd install, each in a `CopyableCode`.
 - The sign-in and setup pages are plain HTML, so their `CopyableCode` is `Static`: a native button that `paduraksa.js` answers. The text is in the markup, so it is never a secret.
-- Sign-in keeps the password-reset commands behind a muted "Forgot password?" button that opens a native popover (`popovertarget`): light dismiss, Escape and the close button need no circuit. The copy buttons inside answer to the same `paduraksa.js` listener, since a popover stays in the document.
+- Sign-in keeps the password-reset commands behind a muted "Reset password" button that opens a native popover (`popovertarget`): light dismiss, Escape and the close button need no circuit. The copy buttons inside answer to the same `paduraksa.js` listener, since a popover stays in the document.
 - Inline `<code>` stays for a name inside a sentence (a setting, a flag), never for something to run.
 
 **Linking to a field** (`settings-links`). An element with an `id` and `data-highlight-target` is a place an address's fragment can name, and `paduraksa.js` (`highlights`) does the rest.
@@ -1113,6 +1114,84 @@ Shared pieces first. A page that needs its own look for one of these is a sign t
 **A drawer that throws.** Each level of the drawer stack has its own `ErrorBoundary` (`DrawerHost`). The failed level shows `DrawerError`: the drawer's frame, "This drawer couldn't be shown", a compact message and Close. The page and the levels below keep running, and closing it does not ask about what it held. The details are in the server log.
 
 **The connection snippets** of an AI assistant (`McpConnect`) take the token just issued and fill it into the commands. The token drawer shows them open, with the token only in that component's parameter and the markup built from it (it goes with the drawer, as the token's own box does), and says how to turn MCP on when it is off.
+
+## Voice and vocabulary
+
+Paduraksa is an appliance and reads like a tool: it states things as they are, in a fixed vocabulary. This applies to every string a person reads: the dashboard, the built-in visitor pages, the CLI and `doctor` output, notification messages, API problem texts and the user docs.
+
+**Register.** A string is a neutral declarative. Rewrite any string that:
+- addresses the person warmly or chattily ("needs you", "you're all set", "nice", "let's", "just", "simply", "oops", "welcome back");
+- uses an exclamation mark;
+- personifies the software ("we couldn't", "Paduraksa thinks");
+- turns a status into a question or a conversation where a statement would do;
+- instructs where the fact would do. A one-time secret says "This token won't be shown again.", beside its copy button, and not "Copy this now" or "Make sure to save this". An instruction stays only where the action is not obvious from the screen and the fact alone would not say it ("Change your password"), phrased neutrally.
+
+Errors say what failed and what to do, without apologising. The second person is for an instruction that needs it, not for warmth. A confirmation the person states themselves ("I have saved the recovery codes", "I have read and agree to the CA's terms") is theirs, not the software's voice, and stays.
+
+**Terms.** One word per concept. The words in the last column are not used for it.
+
+| Concept | Use | Not |
+|---|---|---|
+| A proxy entry: names, routes, settings | host | site, domain, virtual host |
+| A name a host answers for | hostname (a host's "name" in a list) | domain |
+| The computer Paduraksa runs on | the machine (or "the server" for the process) | host |
+| What a route forwards to; its addresses | upstream (the object), destination (one address of it) | backend, origin, target service |
+| X.509 | certificate | cert |
+| A named set of path, method and user-agent rules | rule set (a list of "rules") | ruleset |
+| Who may reach a host: addresses, countries, users | access list | ACL, allow list, IP allow list |
+| Forward-auth in front of a host | auth provider; "sign-in" as its setting and nav name | login, forward-auth provider |
+| Entering the dashboard | sign in (verb), sign-in (noun, adjective) | log in, login |
+| The routing configuration in the database | config | configuration |
+| Startup configuration (environment, appsettings) | configuration, "setting" for one value | config |
+| A config change waiting to be applied | draft | batch, staging |
+| One stored version of the config | revision | version (an object's version is its own) |
+| Refusing a request | refuse (answered), drop (closed without an answer) | block, reject, deny (except an access list's own deny rules) |
+| A host's, route's or profile's setting | setting | option, preference |
+
+**Button verbs.**
+
+| Verb | Means |
+|---|---|
+| Apply now | Makes a config change live, in the review drawer. |
+| Add to draft | Collects the change for a later, single apply. |
+| Review changes | Opens the review of an edit. Nothing applies without it. |
+| Save | Stores a change that is not config: a name, a user, a token's scopes, a notification channel. |
+| Add | A new entry in a list on a page, or a row in a form ("Add host", "Add route", "Add hostname"). No article. |
+| New | Creates the referenced object from beside its picker. |
+| Create | Makes something Paduraksa generates: a token, recovery codes, the Owner, the local CA. |
+| Edit | Opens a stored object's form. A row that is only read opens ("Open", "Details"). |
+| Cancel | Leaves a form or dialog and changes nothing. |
+| Discard | Throws away work that is not stored or applied: a draft, a drawer's edits. |
+| Close | Leaves a view that has nothing to save. |
+| Done | Closes a view that showed a one-time secret. |
+| Retry | Reads again after a failed read. |
+| Reload | Drops what the page shows and reads the object again (it changed elsewhere). |
+| Refresh | Reads a list again in place. |
+| Continue | The next step of a short flow. |
+
+"Confirm" is a dialog's title and a password field's label, never a button. "Update" and "Commit" are not used in the interface; a revision "saved as #N, but it isn't live" is stored and not yet published.
+
+**Removal verbs.** Each has one meaning.
+
+| Verb | Means | Undo |
+|---|---|---|
+| Delete | Removes a stored object for good (host, upstream, certificate, profile). Confirmed. | The history, for config objects. |
+| Remove | Takes an item out of a list inside a form or the draft (a route, a hostname, a header, a draft entry, a chosen file). Stored data is unchanged until it is applied or saved. | Cancel. |
+| Revoke | Ends a credential for good (an API token). | None. |
+| End | Closes a session. | Sign in again. |
+| Disable | Turns an object off and keeps it (user, token, channel, destination). | Enable. |
+| Deactivate | Ends an ACME account at the CA. | None. |
+| Retire | Stops offering a replaced local-CA root; what it signed keeps working. | None. |
+| Clear | Empties filters or the live tail's rows. Stores nothing. | None. |
+
+**Status words.**
+- **On** and **Off** are the values of a setting. **Enabled** and **Disabled** are an object's switch (a destination, a channel, a user, a token). A disabled channel is "Disabled", not "paused".
+- **Active** and **Deactivated** are an ACME account. **Live** is the revision being served. **Serving** is a host or upstream answering. **Paused** is only the live tail's own pause.
+- **Refused**, **Failed**, **Expired**, **Revoked** and **Disabled** are final words of their own; none stands for another.
+
+**Time and counts.** A sentence says "in the last hour" and "the last 24 hours". A tight table header or tile takes the compact unit ("1 h", "24 h", "7 d", "5 min"). A count is a figure before its noun ("3 errors to fix", "1 item needs attention"); "now" is the moment, never "just now".
+
+**Contracts are not renamed.** API fields and codes (`ipAllowList`, `Enabled` on a channel), YAML keys, CLI flags and the `data-*` attributes keep their names whatever the interface says. The interface calls a channel's `Enabled` flag "Enabled" and "Disabled"; the contract's comments say the same.
 
 ## About Paduraksa
 
@@ -1195,7 +1274,7 @@ M5 built a trimmed wizard: setup token, Owner, two-step sign-in, ACME account, D
 Decided:
 - The setup page is still the one static form (token, then Owner), and its rules are unchanged: refused through the proxy, the setup token required, the gate open only to it while no Owner exists. It has a password strength hint (`setup.js`, a classic script from this origin; the form works without it).
 - On success it sends the Owner to the overview (`SetupCompletedPage` is the home page).
-- Everything else is done on its own page, when the person wants. The overview's "Finish setting up" checklist (`SetupChecklist`, from `SetupProgress`, read from the data) lists the open tasks (`SetupTasks`): two-step sign-in, an ACME account, a DNS provider once there is an account, a certificate, a first host. Each links to the page that does it (My account, ACME accounts, DNS providers, Certificates, New host). The checklist stays until they are done or it is dismissed (remembered in the `paduraksa-checklist` cookie, see below). What the user cannot read is not listed.
+- Everything else is done on its own page, when the person wants. The overview's "Setup" checklist (`SetupChecklist`, from `SetupProgress`, read from the data) lists the open tasks (`SetupTasks`): two-step sign-in, an ACME account, a DNS provider once there is an account, a certificate, a first host. Each links to the page that does it (My account, ACME accounts, DNS providers, Certificates, New host). The checklist stays until they are done or it is dismissed (remembered in the `paduraksa-checklist` cookie, see below). What the user cannot read is not listed.
 - **The checklist is in the prerender.** It used to read local storage through JS interop and load its progress after the first render, so on a fresh install it appeared once the circuit was live and pushed the whole overview down by its height. Now what is open comes from the data in `OnInitializedAsync` (the same read as before, as the signed-in user), and the dismissal is the `paduraksa-checklist` cookie, which `App` reads and `Routes` hands to the scoped `ChecklistPreference`, like the theme and the time zone. The open tasks are carried into the circuit with `[PersistentState]`, so nothing is read twice and nothing moves. A dismissed checklist reads nothing and renders nothing, in both states, with no gap.
 - **Dismissing** writes the cookie through `paduraksa.dismissSetupChecklist` (ten years, `SameSite=Strict`). Its close button is disabled in the prerender, because nothing listens to a click before the circuit is live.
 - **A dismissal from local storage moves to the cookie.** On the first load after the upgrade `paduraksa.js` writes the cookie, removes the stored key and hides the checklist with a `data-checklist-dismissed` attribute on the page (the server, not having the cookie yet, rendered it), so it is never seen to come back; from the next load the server leaves it out.

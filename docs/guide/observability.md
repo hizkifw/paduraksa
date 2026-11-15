@@ -201,7 +201,7 @@ Add channels (ntfy, Gotify, Discord, a webhook, email) in the dashboard under Se
 
 | Setting | Default | What |
 |---|---|---|
-| `Paduraksa__Notifications__AdminUrl` | none | The address the dashboard is reached at (`https://admin.example.com`: http or https, no login, query or fragment). Messages link to the page that shows what happened. Empty sends no link, because Paduraksa can't know which name or port you reach it by |
+| `Paduraksa__Notifications__AdminUrl` | none | The address the dashboard is reached at (`https://admin.example.com`: http or https, no user info, query or fragment). Messages link to the page that shows what happened. Empty sends no link, because Paduraksa can't know which name or port you reach it by |
 | `Paduraksa__Notifications__HealthHold` | `00:00:10` | How long a destination's new health state must hold before it is reported (1 second to 10 minutes), so one failed probe sends nothing |
 | `Paduraksa__Notifications__CoalesceWindow` | `00:00:03` | How long a channel waits after a message for more of the same kind, so ten upstreams going down at once is one digest (0 to 1 minute) |
 | `Paduraksa__Notifications__MaxDeliveryAge` | `01:00:00` | A message still waiting after this long is marked expired instead of sent, so a long outage does not end in a burst of stale messages (1 minute to 7 days) |
@@ -226,7 +226,7 @@ Add them under **Settings**, **Notifications**. Adding one sends it a test messa
 | Gotify | `POST /message`, with the token in `X-Gotify-Key` |
 | Discord | An embed, with mentions off |
 | Webhook | JSON. With a signing key it sends `X-Paduraksa-Timestamp` and `X-Paduraksa-Signature: sha256=hex(HMAC-SHA-256("<timestamp>." + body))` |
-| Email | SMTP. STARTTLS can be required, so a server that does not offer it is refused and never sent the password. A login without TLS is refused |
+| Email | SMTP. STARTTLS can be required, so a server that does not offer it is refused and never sent the password. Credentials without TLS are refused |
 
 A channel's URL or SMTP host may be any address, including loopback and the admin port, because only someone with `providers:write` can set it. Redirects are refused. A service's response is never shown, only a fixed line such as "The server refused the credentials (HTTP 401)."
 

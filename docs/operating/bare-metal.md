@@ -2,7 +2,7 @@
 
 Use this when you do not want Docker. The service is the same binary, run by systemd with a master key in a credential file.
 
-1. Publish a self-contained build, so the host needs no .NET runtime:
+1. Publish a self-contained build, so the machine needs no .NET runtime:
 
    ```sh
    # Build into /opt/paduraksa

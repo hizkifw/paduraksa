@@ -19,10 +19,10 @@ cd deploy
 docker compose up -d --build
 ```
 
-After the upgrade, run the host check. It reports a downgraded database, a master key that no longer opens the vault, a port something else took, and a running server that is still the old version:
+After the upgrade, run `paduraksa doctor`. It reports a downgraded database, a master key that no longer opens the vault, a port something else took, and a running server that is still the old version:
 
 ```sh
-# Check the host
+# Check the machine
 docker compose exec paduraksa paduraksa doctor
 ```
 

@@ -38,7 +38,7 @@ docker compose up -d
 docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"
 ```
 
-**Keep a copy of `master.key` somewhere other than this machine.** Nothing else opens the vault.
+**`master.key` is the only key to the vault.** A backup does not contain it.
 
 Then open `https://localhost:9443/` on the server, or through `ssh -L 9443:127.0.0.1:9443 you@server`, and create the Owner with the setup token. The compose file maps ports **80/tcp, 443/tcp and 443/udp** one to one. 443/udp is HTTP/3.
 

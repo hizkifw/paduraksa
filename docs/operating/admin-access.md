@@ -2,7 +2,7 @@
 
 The admin port (9443) holds the dashboard, the REST API and, if you turn it on, MCP. It is HTTPS only. Sign-in is throttled, locked out after repeated failures and protected by an optional second factor. Even so, it is built for a trusted network, not the internet.
 
-The compose file publishes it as `127.0.0.1:9443:9443`. Docker puts published ports ahead of the host's firewall rules, so `ufw` does not see them, and an unqualified `9443:9443` would answer on every interface the host has.
+The compose file publishes it as `127.0.0.1:9443:9443`. Docker puts published ports ahead of the machine's firewall rules, so `ufw` does not see them, and an unqualified `9443:9443` would answer on every interface the machine has.
 
 From the safest to the most open:
 
@@ -19,7 +19,7 @@ For a headless setup reached through an SSH tunnel, `Paduraksa__Listen__AdminLoo
 
 A host of kind **Admin** serves the admin app (dashboard, API and `/mcp`) under a name of your choice. The proxy's certificate, access lists, rate limits and sign-in sit in front of it. It reaches the admin through a socket inside the process (`<data dir>/run/admin.sock`), so the admin port can stay on loopback. `Paduraksa__Listen__AdminInternal` (on by default) controls that listener.
 
-**Never forward a public name to `127.0.0.1:9443` yourself.** Every client would look like loopback, share one throttle and pass an allowlist that lists loopback. The admin host is the supported way. Put an IP access list on it.
+**Never forward a public name to `127.0.0.1:9443` yourself.** Every client would look like loopback, share one throttle and pass an access list that allows loopback. The admin host is the supported way. Put an IP access list on it.
 
 - There is at most one admin host. It has no routes, redirect or answer of its own. Its certificate cannot be *None*, and HTTPS is forced.
 - The admin sees the real client address, scheme and host, so its sign-in throttle and audit log record the visitor, not the proxy.

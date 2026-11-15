@@ -9,7 +9,7 @@ The messages below are the ones Paduraksa prints.
 ## It will not start
 
 **The container restarts in a loop, and the log says `The master key file ... cannot be read by ...`.**
-The full message ends with `This is a permissions problem, not a missing key.` A Docker file secret keeps the host's owner and mode, and the container runs as uid 10001. Run `sudo chown 10001:10001 master.key && sudo chmod 400 master.key`. See [The master key](master-key.md).
+The full message ends with `This is a permissions problem, not a missing key.` A Docker file secret keeps the machine's owner and mode, and the container runs as uid 10001. Run `sudo chown 10001:10001 master.key && sudo chmod 400 master.key`. See [The master key](master-key.md).
 
 **`The value is sealed under a different master key.`**
 The key you gave is not the one that created `vault.db`. Nothing can open a vault without its key. Find the original key, or [restore a backup](backups.md) onto a fresh data directory. A backup restores under the new machine's own key.
@@ -35,12 +35,12 @@ It comes from the local CA, which your browser does not trust yet. Install its r
 The compose file publishes it on loopback only. Use an SSH tunnel, or see [Exposing the admin port](admin-access.md).
 
 **I forgot a password, or lost my authenticator.**
-On the host: `paduraksa admin reset-password <user>` (reads the password from standard input or a prompt, ends the user's sessions and clears a lockout) or `paduraksa admin disable-2fa <user>`. See [The command line](../automation/cli.md).
+On the machine: `paduraksa admin reset-password <user>` (reads the password from standard input or a prompt, ends the user's sessions and clears a lockout) or `paduraksa admin disable-2fa <user>`. See [The command line](../automation/cli.md).
 
 **Sign-in answers 429, or the account is locked.**
-Five wrong passwords in a row lock the account for 15 minutes. Sign-in is also limited to 20 attempts a minute per client address. Wait, or reset the password from the host.
+Five wrong passwords in a row lock the account for 15 minutes. Sign-in is also limited to 20 attempts a minute per client address. Wait, or reset the password on the server machine.
 
-## A site does not work
+## A host does not work
 
 **`502 Bad Gateway` and the error log shows `The remote certificate is invalid ... RemoteCertificateNameMismatch, RemoteCertificateChainErrors`.**
 An `https://` destination with a self-signed certificate. Pin its fingerprint: [HTTPS upstreams](../guide/upstreams.md#https-upstreams).

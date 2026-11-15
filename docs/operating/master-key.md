@@ -2,7 +2,7 @@
 
 The master key opens `vault.db`, which holds every certificate key, DNS and notification secret, and TOTP seed. It is one line of text: 32 random bytes in base64.
 
-**Losing it loses the vault. Keep a copy somewhere other than the data volume.** A [backup](backups.md) does not contain the key and does not need it to restore.
+**Losing it loses the vault.** A [backup](backups.md) does not contain the key and does not need it to restore, so a copy outside the data volume is the only other copy.
 
 Paduraksa reads the key from, in this order:
 
@@ -22,7 +22,7 @@ Do this on an install that generated its own key, which is what the Overview's w
 # Stop the server
 docker compose stop
 
-# Copy the key to the host and lock it down
+# Copy the key to the machine and lock it down
 docker compose cp paduraksa:/data/master.key ./master.key
 sudo chown 10001:10001 master.key && sudo chmod 400 master.key
 

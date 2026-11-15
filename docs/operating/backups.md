@@ -41,7 +41,7 @@ shred -u auth.hdr body.json
 
 A routine that works for a homelab:
 
-1. **Run it on a schedule.** A nightly cron job or systemd timer on the host will do. Name each file with the date.
+1. **Run it on a schedule.** A nightly cron job or systemd timer on the machine will do. Name each file with the date.
 2. **Copy the files off the machine.** `/data/backups` is on the same disk as the data it protects. Use `docker cp`, `rsync` or your backup tool. The files are encrypted, so where they go is not a secret.
 3. **Keep the passphrase off this machine**, in a password manager for example.
 4. **Prune** old files by date, and **try a restore** on a spare machine once, so the first time is not the day you need it.
@@ -68,7 +68,7 @@ The restore:
 - checks the whole file before it touches anything: the passphrase, the contents, and that the backup is not from a newer Paduraksa than this one (upgrade first if it is);
 - moves the databases it replaces to `/data/pre-restore-<time>/`. Delete them once you have checked the result;
 - re-wraps the vault under **this machine's** master key;
-- generates `/data/master.key` if the machine has no key at all, as a first start does. Keep a copy of it apart from the data;
+- generates `/data/master.key` if the machine has no key at all, as a first start does. A copy apart from the data is the only other copy;
 - puts everything back and says so, if it fails after it began.
 
 Then sign in as you did before. The users, their sessions and API tokens are the backup's.
