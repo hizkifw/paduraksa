@@ -70,7 +70,11 @@ internal static class AdminOpenApi
                 .DisableDefaultFonts()
                 .DisableTelemetry()
                 .DisableAgent()
-                .DisableMcp())
+                .DisableMcp()
+                // Scalar's toolbar (Configure, Share, Generate SDK, Deploy) and its "open in client" button lead to Scalar's hosted
+                // services; the static docs site hides them too (scripts/docs/hooks.py).
+                .HideDeveloperTools()
+                .HideClientButton())
             .AllowAnonymousAdmin();
     }
 
