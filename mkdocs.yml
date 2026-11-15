@@ -119,6 +119,7 @@ nav:
       - Changelog: changelog.md
   - Design:
       - Overview: PLAN.md
+      - Threat model (full analysis): design/threat-model.md
       - Process and hosting: design/hosting.md
       - Config: design/config.md
       - The hot path: design/hot-path.md

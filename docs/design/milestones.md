@@ -124,7 +124,7 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
 - **Deferred:** overview and live logs (M9), security page (M7), profiles UI, inheritance badges, command palette, ApexCharts, mobile polish. Passkeys dropped for now. Backups stay in M10.
 - **Done when:** a new user goes from `docker run` to a proxied host via the UI only (a browser-driven exit test).
 - **Outcome:** a Noble container with compose, a systemd unit and install docs; the admin Data Protection ring in the vault; the Blazor dashboard with sign-in and TOTP, hosts, upstreams, review-before-apply with Undo, history, simulator, certificates with ACME progress, ACME accounts, DNS providers, settings, users, API tokens, My account and audit; the first-run wizard (later removed, see [dashboard.md](dashboard.md)). The exit path is covered by the wizard's browser test and the container smoke test, run separately.
-- **As built:** `Dockerfile` at the root (Noble, pinned libmsquic 2.5.10, non-root, 80, 443 tcp+udp, 9443), `deploy/compose.yaml`, `deploy/paduraksa.service`, `docs/install.md`, `doctor --liveness` (the full `doctor` came in M11). The Data Protection key ring lives in the vault and both web apps use it.
+- **As built:** `Dockerfile` at the root (Noble, pinned libmsquic 2.5.10, non-root, 80, 443 tcp+udp, 9443), `deploy/compose.yaml`, `deploy/paduraksa.service`, the install guide (since split into the user guide and operating pages), `doctor --liveness` (the full `doctor` came in M11). The Data Protection key ring lives in the vault and both web apps use it.
 
 ### M6 HSTS and logs (done)
 
@@ -208,7 +208,7 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
 - **Scope:**
   - multi-arch image publishing;
   - the docs site (**built** on `docs-site`: MkDocs Material over `docs/`, a user guide split from the old install guide, the API reference rendered from the shipped OpenAPI document, built `--strict` on every push; **published** at https://www.paduraksa.org/ with a landing page, the apex redirecting to www, see "The documentation site" in [deployment.md](deployment.md#the-documentation-site));
-  - the threat model doc (**done**: [../threat-model.md](../threat-model.md), with its gaps list). The small gaps G2, G3, G4, G5, G7, G9 and G13 are closed on `security-gaps`; G12 waits for the fuzz run;
+  - the threat model doc (**done**: [threat-model.md](threat-model.md), with its gaps list; the short operator page is [../threat-model.md](../threat-model.md)). The small gaps G2, G3, G4, G5, G7, G9 and G13 are closed on `security-gaps`; G12 waits for the fuzz run;
   - the PROXY protocol parser as two NuGet packages (`Paduraksa.ProxyProtocol`, `Paduraksa.ProxyProtocol.AspNetCore`; **built** on `proxyprotocol-package`: packed on every CI run, pushed to nuget.org by a `proxyprotocol-v*` tag through trusted publishing once a `NUGET_USER` variable exists, see [../development.md](../development.md#publishing-the-nuget-packages));
   - per-upstream connect and idle timeouts (**done** on `upstream-timeouts`: YARP's 100 s activity timeout was cutting quiet WebSockets and event streams; see "Upstream timeouts" in [hot-path.md](hot-path.md));
   - the REST API made consistent (**done** on `api-consistency`: kebab-case paths, one status per verb, `{ items, nextCursor }` on every collection, `GET /api/v1/version`, every query parameter and response in the OpenAPI document, kept by a test; see "Conventions for a new endpoint" in [admin-surfaces.md](admin-surfaces.md#conventions-for-a-new-endpoint));
