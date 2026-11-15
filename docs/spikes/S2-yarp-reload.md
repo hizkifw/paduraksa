@@ -1,5 +1,7 @@
 # Spike S2: YARP config churn + endpoint metadata binding
 
+For contributors: the experiment behind the decision that the gate selects the YARP endpoint, and routes carry no Host match ([config.md](../design/config.md)). The write-up is the record of one run, kept as it was.
+
 **Status:** done, review findings addressed. **YARP:** 2.3.0. **Runtime:** .NET 10 (SDK 10.0.113), Release, Server GC.
 **Box:** 20 cores / 62 GB, Linux. Client, proxy and upstream all ran in one process, and other agents' builds were running on the same machine at the same time. Treat the numbers as indicative, not as benchmarks. Latency and cost numbers are more reliable than the throughput deltas.
 

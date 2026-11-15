@@ -27,7 +27,7 @@ A self-hosted reverse proxy for homelabs, built on .NET with the Kestrel web ser
 | Lock a service down | [Access control and WAF](guide/security.md) |
 | Install it properly, back it up, upgrade it | [Operating it](operating/docker.md) |
 | Script it | [The REST API](automation/api.md), [The command line](automation/cli.md) |
-| Find out how it works, or what it defends against | [Threat model](threat-model.md), [Design overview](PLAN.md) |
+| Find out how it works, or what it defends against | [Threat model](threat-model.md), [How it is built](design/index.md) |
 | Fix something that does not work | [Troubleshooting](operating/troubleshooting.md) |
 
 ## The image

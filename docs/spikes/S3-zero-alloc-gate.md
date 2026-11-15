@@ -1,5 +1,7 @@
 # Spike S3: Zero-allocation gate on Kestrel
 
+For contributors: the experiment behind the 0 B request budget ([hot-path.md](../design/hot-path.md)). The write-up is the record of one run, kept as it was.
+
 **Status:** done. **Runtime:** .NET 10.0.13 (SDK 10.0.113), ASP.NET Core / Kestrel 10.0.13, **YARP 2.3.0**, BenchmarkDotNet 0.15.8. Release build, Server GC for the server runs.
 **Box:** 20 cores / 62 GB, Linux (CachyOS), shared with other agents. Byte counts are exact and reproducible. Nanosecond and rps numbers are indicative only (ShortRun, shared machine).
 

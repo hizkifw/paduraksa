@@ -1,5 +1,7 @@
 # Spike S1: HTTP/3 + per-SNI certificate selection
 
+For contributors: the experiment behind the TLS selector and the single-H3-certificate fallback ([hot-path.md](../design/hot-path.md#http3-strategy)). The write-up is the record of one run, kept as it was.
+
 **Status: S1 is partially closed. The browser H3 upgrade is still pending.**
 
 What's done:

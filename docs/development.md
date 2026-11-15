@@ -1,5 +1,18 @@
 # Developing Paduraksa
 
+For contributors: how to build, test and publish, and how to write tests that don't flake.
+
+## In short
+
+- Build with the .NET 10 SDK. Warnings are errors, and CI runs `dotnet build`, `dotnet test` and `dotnet format --verify-no-changes`.
+- Write ASCII in every tracked file. `NoConfusableCharactersTests` fails on a smart quote, an en dash or a homoglyph.
+- Tests that need Chromium, libmsquic or Docker skip locally. CI sets `PADURAKSA_REQUIRE` so that a missing one fails instead.
+- Property tests run in `dotnet test`, and fuzz corpora replay on every commit. Deep runs are manual or nightly.
+- `scripts/test-ci-like.sh` (official SDK, Release, 4 cores) reproduces what CI sees. Fix a flake at its cause, and see [Writing tests that don't flake](#writing-tests-that-dont-flake).
+- The API description is a committed copy, `openapi.v1.json`. Regenerate it when the API changes.
+- A new database table, migration or third-party package has a step each, listed below.
+- The docs site builds with `mkdocs build --strict`, and publishes only from a manual run.
+
 You need the .NET 10 SDK. Docker, a Chromium and libmsquic are optional locally: the tests that need them skip without them (see [Tests that need something installed](#tests-that-need-something-installed)).
 
 ## Build and test
@@ -28,7 +41,7 @@ Three kinds of test need more than the SDK, and skip when it is missing:
 | libmsquic | the QUIC and HTTP/3 tests (trait `Transport=Quic`) | install it, or `tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh` runs them in Docker |
 | Docker and the Pebble image | the ACME tests against Pebble (`Paduraksa.Tests.Issuance`, `Paduraksa.Tests.Integration/Acme`); the container smoke test is separate and needs `PADURAKSA_CONTAINER_TESTS=1` | `docker pull` works; `PADURAKSA_PEBBLE=off` skips them on purpose |
 
-A skip hides a gap, and it once hid one for good: CI had no Chromium and no libmsquic, so 19 browser tests and 19 QUIC tests skipped on every run. **`PADURAKSA_REQUIRE`** turns a skip into a failure for what it names, a comma-separated list of `playwright`, `quic` and `pebble` (`tests/Shared/Requirements.cs`). CI installs all three and sets `PADURAKSA_REQUIRE=playwright,quic,pebble`, so a runner that loses one goes red. Nothing changes locally unless you set it, for example `PADURAKSA_REQUIRE=quic` to check that a QUIC run is not all skips (`run-quic-tests.sh` sets it).
+**`PADURAKSA_REQUIRE`** turns a skip into a failure for what it names, a comma-separated list of `playwright`, `quic` and `pebble` (`tests/Shared/Requirements.cs`). CI installs all three and sets all three, so a runner that loses one goes red ([testing.md](design/testing.md#what-ci-runs-and-sleeping-in-tests) says why). Nothing changes locally unless you set it, for example `PADURAKSA_REQUIRE=quic` to check that a QUIC run is not all skips (`run-quic-tests.sh` sets it).
 
 ## Property tests and fuzzing
 
@@ -97,7 +110,7 @@ It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemb
 
 ## The documentation site
 
-The site you read (`mkdocs.yml`, the pages under `docs/`) is MkDocs with the Material theme. The design is in [deployment.md](design/deployment.md#the-documentation-site).
+The site you read (`mkdocs.yml`, the pages under `docs/`) is MkDocs with the Material theme. The design is in [deployment.md](design/deployment.md#the-documentation-site). The pages for contributors (`docs/design/`, `docs/spikes/`, `PLAN.md` and this page) form the **Contributors** section, and a build hook puts a note under each title that says so. A new design page goes in `docs/design/`, in the nav and in the table of `docs/design/index.md`.
 
 Build it locally with a virtualenv outside the repository:
 
@@ -243,4 +256,4 @@ no backup-specific step.
 - `bench/`: BenchmarkDotNet micro-benchmarks, the end-to-end runner and the nginx/Caddy baseline
   ([bench/README.md](../bench/README.md)).
 - `spikes/`: throwaway experiments, excluded from the solution. Their findings are in [spikes/](spikes/).
-- `docs/`: the design plan, the install guide, this page and the spike write-ups.
+- `docs/`: the site: the user guide, operating and automation pages, and the contributor pages (the plan, the design pages, this page and the spike write-ups).

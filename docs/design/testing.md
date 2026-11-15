@@ -74,15 +74,7 @@ A host's stop does not wait for the log writer's tick: `RotatingLogFile.Flush` w
 - `run-quic-tests.sh` stays for machines without libmsquic (it sets `PADURAKSA_REQUIRE=quic`). CI covers the QUIC tests in the normal run.
 - The build-test job's timeout is 30 minutes.
 
-**Sleeping in tests.** Where a sleep stands in for a signal or a fake clock, use the signal. Each remaining `Task.Delay` or `Thread.Sleep` carries a one-line comment naming which allowed kind it is, and the rule is in [development.md](../development.md) ("Writing tests that don't flake"):
-- poll steps of bounded waits;
-- slow or hung peers, in tests about slowness;
-- absence windows (nothing can signal that something did not happen, and the comment says what would show in it);
-- pacing of a concurrent loop;
-- soak durations;
-- steps of the fake-clock pump;
-- real-time gaps of a real host's timers (`UpstreamHealthNotificationTests`: the health hold);
-- bounds on a signal wait.
+**Sleeping in tests.** Where a sleep stands in for a signal or a fake clock, use the signal. Each remaining `Task.Delay` or `Thread.Sleep` carries a one-line comment naming which of the allowed kinds it is. The kinds, and what to do instead, are in [development.md](../development.md#writing-tests-that-dont-flake).
 
 ## Architecture tests
 
