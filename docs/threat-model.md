@@ -1,16 +1,14 @@
 # Paduraksa threat model (v0.1)
 
-This is the threat model for the single-node v0.1 release ([PLAN section 14](PLAN.md#14-milestones), M11). It is written for three readers: a homelab
-operator who wants to know what they are trusting, a contributor who wants to know which rules not to break, and a
-security reviewer who wants to know what is claimed, where it is enforced and what is not covered.
+This is the threat model for the single-node v0.1 release ([PLAN section 14](PLAN.md#14-milestones), M11). It has three readers:
 
-It describes the code **as built** at the time of writing (PLAN v0.29, M0-M10 done, plus traffic analytics). Where the
-code and PLAN disagree, or a mitigation is missing, it says so in [Gaps found](#8-gaps-found) instead of repeating the
-intention. File paths are relative to the repository root. References to the design are links into [PLAN.md](PLAN.md) or a page under [design/](design/); "PLAN" in this document means that set of pages.
+- a homelab operator who wants to know what they are trusting. Start at [Operational guidance](#6-operational-guidance) and [Non-goals](#5-explicit-non-goals);
+- a contributor who wants to know which rules not to break;
+- a security reviewer who wants to know what is claimed, where it is enforced and what is not covered.
 
-**Evidence levels.** A claim marked *(code)* was checked against the source while writing this document. A claim marked
-*(PLAN)* rests on PLAN's "As built" text and the named tests, which were read but not re-run. Tests were not run for this
-document; "pinned by" names the test that is meant to hold the claim.
+It describes the code **as built** (PLAN v0.29, M0-M10 done, plus traffic analytics). Where the code and PLAN disagree, or a mitigation is missing, [Gaps found](#8-gaps-found) says so. File paths are relative to the repository root. "PLAN" means [PLAN.md](PLAN.md) and the pages under [design/](design/).
+
+**Evidence levels.** A claim marked *(code)* was checked against the source. A claim marked *(PLAN)* rests on PLAN's "As built" text and the named tests, which were read but not re-run. "Pinned by" names the test that is meant to hold the claim.
 
 Contents: [1 Deployment](#1-what-paduraksa-is-and-how-it-is-deployed) |
 [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-and-data-flows) |
@@ -209,30 +207,28 @@ the same process. The design leans on three structural decisions, each of which 
   and `LD_LIBRARY_PATH` (*code*: `src/Paduraksa.Mcp/ChildProcess.cs`), so the master key and setup token are not in it. It
   holds no token, configuration or data directory. It talks length-prefixed JSON over stdin/stdout; every frame is bound to
   a per-run random ID.
-- **The parent is the guard:** wall time 10 s (for a run that blocks without computing, which the CPU limit never ends: `Atomics.wait` did until the engine
-  was told to refuse it), CPU 5 s (for one that computes inside a single native call, which `MaxStatements` never counts: regex backtracking, now also cut
-  by a 1 s regex timeout), resident 384 MiB, 50 requests, 64 KiB result, a watchdog that kills
-  the process tree, a pool of at most 4 children, replacement after any breach ([admin-surfaces.md, MCP in code mode (M10)](design/admin-surfaces.md#mcp-in-code-mode-m10)). The child also applies
-  `RLIMIT_CPU`, `RLIMIT_NOFILE`, `RLIMIT_CORE`, `PR_SET_NO_NEW_PRIVS`, `PR_SET_PDEATHSIG` and **Landlock for the file
-  system** (*code*: `src/Paduraksa.Mcp/ProcessHardening.cs`); cgroup v2 limits where delegated.
-- **Network and the routes back to the parent:** Landlock network rules (ABI 4, Linux 6.7) deny every TCP bind and connect, and a seccomp
-  filter (`src/Paduraksa.Mcp/SyscallFilter.cs`) refuses `socket` and `socketpair` of any domain but `AF_UNIX` (UDP, raw sockets and kernels older
-  than 6.7), `io_uring_setup`, `_enter` and `_register`, and the ways from the child to its parent, which is the same user in the same container
-  with the vault, the tokens and the network: `ptrace`, `process_vm_readv` and `_writev`, `pidfd_open`, `pidfd_getfd`, `kcmp`, `bpf`,
-  `userfaultfd` and `perf_event_open`, with `EPERM` (G2, fixed). Signals: `kill`, `tkill`, `tgkill`, `rt_sigqueueinfo` and `rt_tgsigqueueinfo` only to the
-  child's own pid (the runtime signals its own threads; not 0, since the child is in the server's process group), `pidfd_send_signal` refused, and the
-  `F_SETOWN`/`FIOSETOWN` commands that would have the kernel signal the parent on I/O refused; where the kernel has it (Linux 6.12, with `TSYNC`) Landlock's
-  signal scope refuses every signal out of the sandbox as well. The list is one table with a reason per row; [admin-surfaces.md, MCP in code mode (M10)](design/admin-surfaces.md#mcp-in-code-mode-m10) shows it, and a test pins every
-  number per architecture. The rest of the syscall surface is the runtime's: there is no profile of the runtime's calls. The file system mask follows
-  Landlock's ABI (a ruleset allows what it does not name, so an ABI-1 mask left `truncate(2)` open on the databases and the key file).
-- **The request policy never leaves the parent** (`RequestPolicy`, `EndpointRules`, `RequestBridge`): only paths of the
-  generated OpenAPI document under `/api/v1/`, no encoding tricks, five methods; an explicit **refused list** (backups,
-  restore, token and user management, sessions, sign-in and setup, anything that carries a secret into a model, the live
-  tail, raw metrics, the API description); two-step writes (dry run or 428 unless `confirm: true`); the API's own permission
-  filters still run. What the policy treats as a read (a GET, `ReadOnlyPosts`) must write nothing in any state: until 2026-11-14 a read, review or simulation of an
-  expired draft deleted it, wrote its notice and cleared its vault values without a confirm; they now answer 410 `draft.expired` and only the expiry job,
-  a discard or a new draft removes one. A guard test fails when a sensitive-looking operation is on neither the refused nor the reviewed list
-  (`McpRequestPolicyApiTests`). A fuzz target (`mcp-sandbox`) feeds the parent's protocol arbitrary bytes as the child's output.
+- **The parent is the guard.** It enforces these from outside the child:
+  - wall time 10 s, which ends a run that blocks without computing (the CPU limit never does; `Atomics.wait` did until the engine was told to refuse it);
+  - CPU 5 s, for a run that computes inside one native call, which `MaxStatements` never counts (regex backtracking is also cut by a 1 s regex timeout);
+  - resident memory 384 MiB, 50 requests and a 64 KiB result;
+  - a watchdog that kills the process tree, a pool of at most 4 children, and replacement after any breach ([admin-surfaces.md, MCP in code mode (M10)](design/admin-surfaces.md#mcp-in-code-mode-m10)).
+- **The child also confines itself** (*code*: `src/Paduraksa.Mcp/ProcessHardening.cs`): `RLIMIT_CPU`, `RLIMIT_NOFILE`, `RLIMIT_CORE`, `PR_SET_NO_NEW_PRIVS`, `PR_SET_PDEATHSIG`, **Landlock for the file system**, and cgroup v2 limits where delegated. The file system mask follows Landlock's ABI, because a ruleset allows what it does not name.
+- **Network, and the routes back to the parent.** Landlock network rules (ABI 4, Linux 6.7) deny every TCP bind and connect. A seccomp filter (`src/Paduraksa.Mcp/SyscallFilter.cs`) refuses:
+  - `socket` and `socketpair` of any domain but `AF_UNIX`, which covers UDP, raw sockets and kernels older than 6.7;
+  - `io_uring_setup`, `_enter` and `_register`;
+  - the ways from the child to its parent, which is the same user in the same container with the vault, the tokens and the network: `ptrace`, `process_vm_readv` and `_writev`, `pidfd_open`, `pidfd_getfd`, `kcmp`, `bpf`, `userfaultfd` and `perf_event_open`, with `EPERM` (G2, fixed);
+  - signals to any process but the child's own pid, and the `F_SETOWN`/`FIOSETOWN` commands that would have the kernel signal the parent on I/O. Where the kernel has it (Linux 6.12, with `TSYNC`), Landlock's signal scope refuses every signal out of the sandbox as well.
+
+  The list is one table with a reason per row, shown in [admin-surfaces.md](design/admin-surfaces.md#mcp-in-code-mode-m10), and a test pins every number per architecture. The rest of the syscall surface is the runtime's: there is no profile of the runtime's calls.
+- **The request policy never leaves the parent** (`RequestPolicy`, `EndpointRules`, `RequestBridge`):
+  - only paths of the generated OpenAPI document under `/api/v1/`, no encoding tricks, five methods;
+  - an explicit **refused list**: backups, restore, token and user management, sessions, sign-in and setup, anything that carries a secret into a model, the live tail, raw metrics and the API description;
+  - two-step writes (a dry run, or 428, unless `confirm: true`);
+  - the API's own permission filters still run.
+
+  What the policy treats as a read (a GET, `ReadOnlyPosts`) must write nothing in any state. Until 2026-11-14 a read, review or simulation of an expired draft deleted it. They now answer 410 `draft.expired`, and only the expiry job, a discard or a new draft removes one.
+
+  A guard test fails when a sensitive-looking operation is on neither the refused nor the reviewed list (`McpRequestPolicyApiTests`). A fuzz target (`mcp-sandbox`) feeds the parent's protocol arbitrary bytes as the child's output.
 
 ### B6. Outbound calls (SSRF posture)
 
@@ -283,25 +279,15 @@ Severity labels refer to the numbered gaps in section 8.
   with a grace, a TLS handshake timeout, a global connection cap and a WebSocket cap. Refusals are counted (`/metrics`, the
   Security overview's Connections card) and logged at Information at most every 10 s. `ConnectionTableTests`,
   `ConnectionRuntimeTests`, `ConnectionLimitMiddlewareTests`, `PublicConnectionLimitsTests`, `ServerLimitsKestrelTests`.
-- *Residual:* a flood **from many addresses** is bounded only by the global cap (10 000 connections by default) and the table's
-  size: past the table's 65 536 entries a new address isn't counted (it fails open, `paduraksa_connections_events_total{event="table_full"}`),
-  and an attacker with many IPv6 /64s or botnet addresses is not slowed by a per-address cap. A flood that reaches the global
-  cap makes Kestrel stop accepting for everyone, which is the cost of having a cap at all; the per-address cap is what keeps one
-  host from doing that alone. **Behind Cloudflare or another trusted proxy that doesn't speak PROXY protocol the connection stage sees
-  only the proxy**, so it caps and denies nothing per visitor there (a visitor is judged at the gate, by rate limits and access lists, which are **opt-in per
-  host**; a new host has none, G10): use origin lockdown. Over **QUIC** a burst of simultaneous handshakes from one address can pass
-  the cap by the size of the burst, because a place is only taken once the connection is established (Kestrel signals no close for
-  a handshake that fails after its callback). There is **no limit on the rate of new connections**, and the **admin listener keeps
-  Kestrel's own limits** (it has `AdminAllowedSources`). Volumetric DDoS is a non-goal (5.4).
+- *Residual:*
+  - A flood **from many addresses** is bounded only by the global cap (10 000 connections by default) and the table's size. Past 65 536 entries a new address isn't counted (it fails open, `paduraksa_connections_events_total{event="table_full"}`). An attacker with many IPv6 /64s or botnet addresses is not slowed by a per-address cap.
+  - A flood that reaches the global cap makes Kestrel stop accepting for everyone. The per-address cap is what keeps one host from doing that alone.
+  - **Behind Cloudflare or another trusted proxy that doesn't speak PROXY protocol, the connection stage sees only the proxy**, so it caps and denies nothing per visitor. A visitor is judged at the gate, by rate limits and access lists, which are **opt-in per host** (a new host has none, G10). Use origin lockdown.
+  - Over **QUIC** a burst of simultaneous handshakes from one address can pass the cap by the size of the burst, because a place is only taken once the connection is established.
+  - There is **no limit on the rate of new connections**, and the **admin listener keeps Kestrel's own limits** (it has `AdminAllowedSources`).
+  - Volumetric DDoS is a non-goal (5.4).
 
-**Compression side channels (BREACH).**
-- *Built:* response compression is **off by default** at every layer and opt-in per host; it never touches a response the
-  upstream already encoded, a range, an event stream or the proxy's own answers. The dashboard field says why it is off.
-- *Residual:* on a host where it is turned on, a response that carries a secret next to attacker-reflected input (a CSRF token
-  beside an echoed search term) leaks the secret through its compressed length to an attacker who can make the victim's browser
-  send many requests and watch the sizes (BREACH). The proxy can't tell which responses do that; the remedies are the app's
-  (masking tokens per response, not reflecting input next to secrets) or leaving compression to the app. There is no
-  per-route switch yet to exempt one path.
+**Compression side channels ([BREACH](https://www.breachattack.com/)).** Response compression is off by default at every layer and opt-in per host.
 
 **Custom headers and path rewrites.**
 - *Built:* a header rule can't name a framing, hop-by-hop, forwarding, request-ID or Cloudflare header, nor (a compile error) an
@@ -401,7 +387,7 @@ permission metadata and a test checks every mapped `/api/*` endpoint declares on
 
 | Token scope | What a thief gets |
 |---|---|
-| read-only (`config:read`, `logs:read`, `metrics:read`, `certificates:read`) | Full topology and traffic metadata; access-log contents (client IPs, paths, user agents) with `logs:read`. No changes, no secrets. Not literally state-free: each use writes the token's `LastUsedAt` (as a session's use writes `LastSeenAt`), at most once a minute; by design, so the token list shows it. |
+| read-only (`config:read`, `logs:read`, `metrics:read`, `certificates:read`) | Full topology and traffic metadata; access-log contents (client IPs, paths, user agents) with `logs:read`. No changes, no secrets. Each use writes the token's `LastUsedAt`, at most once a minute, so the token list can show it. |
 | `config:write` | Everything an Operator can do (4.2), including taking the site down or exposing internal services. Reversible through revisions and rollback, and visible in History and Audit. |
 | `certificates:write` | Upload or replace certificates, order ACME certificates, issue from the local CA. Can serve a different certificate for a name; cannot read keys. |
 | `providers:write` | Replace DNS credentials, create notification channels pointing at any address (SSRF accepted, B6), change ACME accounts. |
