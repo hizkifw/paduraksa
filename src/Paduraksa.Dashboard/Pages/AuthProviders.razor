@@ -10,11 +10,11 @@
 @inject ISnackbar Snackbar
 @inject ILogger<AuthProviders> Logger
 @* Security: the auth providers (forward-auth endpoints). Each row says which provider and endpoint a provider is and which hosts and routes ask it; one in use
-   can't be deleted, so its delete button is not offered. /sign-in/authp_... is that provider with its drawer open; /sign-in/new starts a new one. *@
+   can't be deleted, so its delete button is not offered. /auth-providers/authp_... is that provider with its drawer open; /auth-providers/new starts a new one. *@
 
-<PageTitle>Sign-in · Paduraksa</PageTitle>
+<PageTitle>Auth providers · Paduraksa</PageTitle>
 
-<PageHeader Title="Sign-in" ListEmpty="@(_document is { AuthProviders.Count: 0 })">
+<PageHeader Title="Auth providers" ListEmpty="@(_document is { AuthProviders.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {

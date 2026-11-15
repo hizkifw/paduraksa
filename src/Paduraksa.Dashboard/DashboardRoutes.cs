@@ -28,9 +28,9 @@ public static class DashboardRoutes
 
     public const string AccessLists = "/access-lists";
 
-    public const string RuleSets = "/rules";
+    public const string RuleSets = "/rule-sets";
 
-    public const string AuthProviders = "/sign-in";
+    public const string AuthProviders = "/auth-providers";
 
     public const string Certificates = "/certificates";
 
@@ -110,13 +110,13 @@ public static class DashboardRoutes
     /// <summary>An access list: <c>/access-lists/acl_...</c>, the lists with its drawer open. The page parses the segment back into an <see cref="AccessListId"/>.</summary>
     public static string AccessList(AccessListId id) => $"{AccessLists}/{id}";
 
-    /// <summary>A rule set: <c>/rules/rs_...</c>, the rule sets with its drawer open. The page parses the segment back into a <see cref="RuleSetId"/>.</summary>
+    /// <summary>A rule set: <c>/rule-sets/rs_...</c>, the rule sets with its drawer open. The page parses the segment back into a <see cref="RuleSetId"/>.</summary>
     public static string RuleSet(RuleSetId id) => $"{RuleSets}/{id}";
 
-    /// <summary>An auth provider: <c>/sign-in/authp_...</c>, the providers with its drawer open. The page parses the segment back into an <see cref="AuthProviderId"/>.</summary>
+    /// <summary>An auth provider: <c>/auth-providers/authp_...</c>, the providers with its drawer open. The page parses the segment back into an <see cref="AuthProviderId"/>.</summary>
     public static string AuthProvider(AuthProviderId id) => $"{AuthProviders}/{id}";
 
-    /// <summary>A new rule set that starts as a copy of a preset: <c>/rules/new?copy=rs_...</c>.</summary>
+    /// <summary>A new rule set that starts as a copy of a preset: <c>/rule-sets/new?copy=rs_...</c>.</summary>
     public static string CopyRuleSet(RuleSetId preset) => $"{NewRuleSet}?{CopyParameter}={preset}";
 
     public static string Certificate(CertificateId id) => $"{Certificates}/{id}";

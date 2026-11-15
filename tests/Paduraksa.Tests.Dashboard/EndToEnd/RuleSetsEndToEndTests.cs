@@ -37,7 +37,7 @@ public sealed class RuleSetsEndToEndTests
         await SetUpAsync(page, host);
 
         // Nothing yet: the page says what a set is for, and the presets are there to start from.
-        await OpenFromNavigationAsync(page, "Rules");
+        await OpenFromNavigationAsync(page, "Rule sets");
         await Expect(page.GetByText("No rule sets yet")).ToBeVisibleAsync();
         await Expect(page.Locator("[data-preset]")).ToHaveCountAsync(3);
         await PlaywrightBrowser.ScreenshotAsync(page, "rules-empty-1280");
@@ -45,7 +45,7 @@ public sealed class RuleSetsEndToEndTests
         // Create from a preset: a new set with the preset's rules under a name of its own.
         await page.Locator("[data-preset='Block known scanners'] [data-action=create-from-preset]").ClickAsync();
         await ExpectDrawerTitleAsync(page, "New rule set");
-        await Expect(page).ToHaveURLAsync(new Regex("/rules/new\\?copy=rs_"));
+        await Expect(page).ToHaveURLAsync(new Regex("/rule-sets/new\\?copy=rs_"));
         await Expect(page.Locator(".pdk-sheet[data-top] input[data-field=name]")).ToHaveValueAsync("Block known scanners (custom)");
         await FillAsync(page, "name", "Scanners and admin");
         await Expect(page.Locator(".pdk-sheet[data-top] [data-rule]")).ToHaveCountAsync(1);

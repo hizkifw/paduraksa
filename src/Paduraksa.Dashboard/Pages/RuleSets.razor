@@ -11,11 +11,11 @@
 @inject ILogger<RuleSets> Logger
 @* Security: the rule sets. Each row says what a set's rules do and which hosts and routes apply it; one in use can't be deleted, so its
    delete button is not offered. The built-in presets are listed under them: read-only, copied into a set of your own to change them.
-   /rules/rs_... is that set with its drawer open; /rules/new?copy=rs_... starts a new one from a preset. *@
+   /rule-sets/rs_... is that set with its drawer open; /rule-sets/new?copy=rs_... starts a new one from a preset. *@
 
-<PageTitle>Rules · Paduraksa</PageTitle>
+<PageTitle>Rule sets · Paduraksa</PageTitle>
 
-<PageHeader Title="Rules" ListEmpty="@(_document is { RuleSets.Count: 0 })">
+<PageHeader Title="Rule sets" ListEmpty="@(_document is { RuleSets.Count: 0 })">
     <Actions>
         @if (_mayWrite)
         {

@@ -52,14 +52,14 @@ public sealed class AuthProvidersEndToEndTests
         await SetUpAsync(page, host);
 
         // Nothing yet: the page says what a provider is for.
-        await OpenFromNavigationAsync(page, "Sign-in");
+        await OpenFromNavigationAsync(page, "Auth providers");
         await Expect(page.GetByText("No auth providers yet")).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "sign-in-empty-1280");
 
         // A provider: an address with credentials is refused at its field, then the Authelia preset and a bare address.
         await page.Locator("[data-action=add-auth-provider]").First.ClickAsync();
         await ExpectDrawerTitleAsync(page, "New auth provider");
-        await Expect(page).ToHaveURLAsync(new Regex("/sign-in/new$"));
+        await Expect(page).ToHaveURLAsync(new Regex("/auth-providers/new$"));
         await FillAsync(page, "name", "Authelia");
         await FillAsync(page, "url", "http://user:secret@authelia:9091");
         await Expect(page.Locator(".pdk-sheet[data-top]")).ToContainTextAsync("can't carry a user name or password", new() { Timeout = 15_000 });
@@ -194,7 +194,7 @@ public sealed class AuthProvidersEndToEndTests
         await page.SetViewportSizeAsync(1280, 900);
         await PlaywrightBrowser.SettleAsync(page);
         await PlaywrightBrowser.ScreenshotAsync(page, "sign-in-security-1280-light");
-        await OpenFromNavigationAsync(page, "Sign-in");
+        await OpenFromNavigationAsync(page, "Auth providers");
         await Expect(page.Locator("[data-auth-provider='Authelia']")).ToContainTextAsync("1 host");
         await PlaywrightBrowser.ScreenshotAsync(page, "sign-in-page-1280-light");
         await page.Locator("[data-auth-provider='Authelia'] a.pdk-row-link").ClickAsync();

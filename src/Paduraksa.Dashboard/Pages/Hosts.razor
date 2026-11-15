@@ -82,7 +82,7 @@ else
             <div class="pdk-dt pdk-hosts-table" role="table" aria-label="Hosts">
                 <div class="pdk-dt-row pdk-dt-head" role="row">
                     <span role="columnheader">Host</span>
-                    <span role="columnheader">Destination</span>
+                    <span role="columnheader">Target</span>
                     <span role="columnheader">HTTPS</span>
                     <span role="columnheader">Status</span>
                 </div>
@@ -120,7 +120,7 @@ else
                                 }
                             </div>
                         </div>
-                        <div role="cell" class="pdk-dt-cell" data-label="Destination">
+                        <div role="cell" class="pdk-dt-cell" data-label="Target">
                             <ul class="pdk-dest-list">
                                 @foreach (var destination in row.Destinations.Take(3))
                                 {

@@ -776,7 +776,7 @@
         text-transform: uppercase;
     }
 
-    .pdk-hosts-table .pdk-dt-cell[data-label="Destination"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label],
+    .pdk-hosts-table .pdk-dt-cell[data-label="Target"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label],
     .pdk-rate-limits-table .pdk-dt-cell[data-label], .pdk-access-lists-table .pdk-dt-cell[data-label], .pdk-auth-providers-table .pdk-dt-cell[data-label], .pdk-rule-sets-table .pdk-dt-cell[data-label],
     .pdk-presets-table .pdk-dt-cell[data-label], .pdk-presets-table .pdk-dt-actions {
         grid-column: 1 / -1;
