@@ -66,20 +66,20 @@ public sealed record SimulationTls(
 /// <param name="Method">Default <c>GET</c>. Case matters, as on the wire: <c>get</c> is not <c>GET</c>.</param>
 /// <param name="Headers">Request headers (user agent, cookies, <c>X-Forwarded-Proto</c>, <c>CF-Visitor</c>, ...). A
 /// <c>Content-Length</c> declares a body, which the host's request limits judge. A
-/// header the arrival would add (the client-IP header) is added only when absent here. <c>Host</c> headers given here are the
-/// ones sent over HTTP/1.1 (two of them, or one that isn't a host, is a 400 from the server); over HTTP/2 and HTTP/3 the
+/// header the arrival would add (the client-IP header) is added only if absent here. <c>Host</c> headers given here are
+/// sent over HTTP/1.1 (two of them, or one that isn't a host, gets a 400 from the server). Over HTTP/2 and HTTP/3 the
 /// URL's authority is the host and a <c>Host</c> header is ignored.</param>
 /// <param name="Arrival">How the request reaches Paduraksa. Default: directly.</param>
 /// <param name="PeerIp">The connection-level peer, for a request that comes through a proxy (<paramref name="Arrival"/> other
 /// than direct) or with <paramref name="ProxyProtocol"/>. Default: an address the config trusts as that kind of proxy
 /// (loopback when it trusts none). A direct request's peer is the client, so setting it there is refused.</param>
 /// <param name="ProxyProtocol">A PROXY protocol header arrived first: <paramref name="PeerIp"/> is the address it carried.
-/// The listener must expect one: otherwise the connection is rejected, as the real one would be.</param>
+/// The listener must expect one; otherwise the connection is rejected, as the real one would be.</param>
 /// <param name="TransportIp">With <paramref name="ProxyProtocol"/> only: the socket's remote address (the load balancer; it must
 /// be one of the listener's trusted sources). Default: loopback.</param>
 /// <param name="Country">The country Cloudflare would report for the client (<c>CF-IPCountry</c>): a two-letter ISO 3166-1 code, <c>T1</c>
-/// for Tor or <c>XX</c> for unknown. Only a request that arrives through Cloudflare (<paramref name="Arrival"/>) carries it; to see
-/// the gate ignore one a client forged, send a <c>CF-IPCountry</c> header on another arrival. Default: no header, so the country is unknown.</param>
+/// for Tor or <c>XX</c> for unknown. Only a request that arrives through Cloudflare (<paramref name="Arrival"/>) carries it. To see
+/// the gate ignore a forged one, send a <c>CF-IPCountry</c> header on another arrival. Default: no header, so the country is unknown.</param>
 /// <param name="Tls">The TLS context; <c>https</c> URLs only (a plain-HTTP listener speaks HTTP/1.1 and has no handshake).
 /// Default: SNI from the URL, HTTP/2, TLS 1.3.</param>
 public sealed record SimulationRequest(

@@ -253,10 +253,10 @@ public sealed record SimulationSource(SimulationTargetKind Kind, ConfigRevisionI
 /// </summary>
 /// <param name="Status">Whether it ran.</param>
 /// <param name="Source">What it ran against.</param>
-/// <param name="Outcome">The verdict; set exactly when <paramref name="Status"/> is <see cref="SimulationStatus.Simulated"/>.</param>
+/// <param name="Outcome">The verdict; set when <paramref name="Status"/> is <see cref="SimulationStatus.Simulated"/>, and only then.</param>
 /// <param name="Trace">What the gate did, in order.</param>
 /// <param name="Upstream">The route's upstream, when the outcome forwards.</param>
-/// <param name="Errors">Why not, when it didn't run: the draft's validation and compile errors (paths as the dry run reports
+/// <param name="Errors">Why not, if it didn't run: the draft's validation and compile errors (paths as the dry run reports
 /// them), or the request's problems.</param>
 /// <param name="RelatedErrors">Draft commands: errors the change causes elsewhere in the config (a dry run's related errors).</param>
 /// <param name="Warnings">A draft's compile warnings (a host no certificate covers).</param>

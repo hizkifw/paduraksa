@@ -99,7 +99,7 @@ public sealed record AddDraftEntriesRequest(IReadOnlyList<ConfigCommand> Command
 /// <summary>The outcome of a review or an apply.</summary>
 /// <param name="Result">The dry run over the ready entries (<see cref="ConfigCommandStatus.DryRun"/>, invalid, ...), or the commit.</param>
 /// <param name="Draft">The draft after the call; null when it is gone (it was applied, whole).</param>
-/// <param name="ReviewToken">A review that passed and could be applied: what apply must send back as <c>If-Match</c> to commit exactly this. Absent when the
+/// <param name="ReviewToken">Present for a review that passed and can be applied: apply must send it back as <c>If-Match</c> to commit exactly this. Absent if the
 /// draft has blocked entries (it applies whole or not at all) or the set doesn't pass.</param>
 public sealed record DraftOutcome(ConfigCommandResult Result, ConfigDraft? Draft = null, string? ReviewToken = null);
 

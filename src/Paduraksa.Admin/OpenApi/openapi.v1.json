@@ -8436,7 +8436,7 @@
           "Drafts"
         ],
         "summary": "The caller's open draft",
-        "description": "A list of at most one: the caller's open draft (a token's is its owner's), each entry marked Ready or ChangedElsewhere against the latest revision. Empty when there is none.\n\nRequires the `config:write` permission.",
+        "description": "A list of at most one item: the caller's open draft (a token's is its owner's), with each entry marked Ready or ChangedElsewhere against the latest revision. Empty if there is none.\n\nRequires the `config:write` permission.",
         "operationId": "ListDrafts",
         "parameters": [
           {
@@ -8524,7 +8524,7 @@
           "Drafts"
         ],
         "summary": "Open a draft",
-        "description": "Starts an empty draft on the latest revision. 409 when the caller has one open already (see Location).\n\nRequires the `config:write` permission.",
+        "description": "Starts an empty draft on the latest revision. Returns 409 if the caller already has one open (see Location).\n\nRequires the `config:write` permission.",
         "operationId": "CreateDraft",
         "responses": {
           "201": {
@@ -8769,7 +8769,7 @@
           "Drafts"
         ],
         "summary": "The config with the draft applied",
-        "description": "The latest revision's document with every entry that is not changed elsewhere applied in order: what a page reads while the draft is open. Versions are the latest revision's.\n\nRequires the `config:write` permission.",
+        "description": "The latest revision's document with every entry that isn't changed elsewhere applied in order. This is what a page reads while the draft is open. Versions are the latest revision's.\n\nRequires the `config:write` permission.",
         "operationId": "GetDraftConfig",
         "parameters": [
           {
@@ -8862,7 +8862,7 @@
           "Drafts"
         ],
         "summary": "Add or replace entries",
-        "description": "The body is a list of object commands (upsert or delete of a host, upstream, profile, rate limit, access list, rule set or auth provider, or the settings), each with the version it was made against, like the object endpoints' If-Match. Each is checked as a dry run on the latest revision with the draft's other entries applied, with the same errors a live command gives, and replaces the draft's earlier entry for its object; one that leaves its object as it is takes the entry out, and deleting an object the draft creates removes its entry. If one is refused (422, 412 or 404 like the live command) none is added. A password in an access list goes to the vault as a pending value bound to the draft; it is never stored in the draft or returned.\n\nRequires the `config:write` permission.",
+        "description": "The body is a list of object commands (upsert or delete of a host, upstream, profile, rate limit, access list, rule set or auth provider, or the settings), each with the version it was made against, like the object endpoints' If-Match. The API checks each as a dry run on the latest revision with the draft's other entries applied, and gives the same errors a live command gives. A command replaces the draft's earlier entry for its object. If a command leaves its object as it is, the entry is taken out, and deleting an object the draft creates removes its entry. If any command is refused (422, 412 or 404 like the live command), none is added. A password in an access list goes to the vault as a pending value bound to the draft, and is never stored in the draft or returned.\n\nRequires the `config:write` permission.",
         "operationId": "AddDraftEntries",
         "parameters": [
           {
@@ -9015,7 +9015,7 @@
           "Drafts"
         ],
         "summary": "Remove an entry",
-        "description": "Takes one entry out of the draft, whatever its state: this is also how an entry that is changed elsewhere is reloaded (read the object again and add it afresh). The ETag of the answer is the draft's new version.\n\nRequires the `config:write` permission.",
+        "description": "Takes one entry out of the draft, whatever its state. This is also how to reload an entry that is changed elsewhere: read the object again and add it afresh. The ETag of the answer is the draft's new version.\n\nRequires the `config:write` permission.",
         "operationId": "RemoveDraftEntry",
         "parameters": [
           {
@@ -9111,7 +9111,7 @@
           "Drafts"
         ],
         "summary": "Review the draft as a dry run",
-        "description": "Replays the entries on the latest revision and dry-runs them as one change: the diff, the compiler's warnings, the admin lock-out guard (?force=true overrides it) and the errors of the whole set. The answer's reviewToken (also its ETag) is what apply must send back as If-Match to commit exactly this: it covers what the draft would do, so a change to the draft, to an object it writes or refers to, or to what the compiler says about it makes it stale, while an unrelated commit does not. A draft with entries that are changed elsewhere has no token (409 draft.blocked when every entry is); the answer shows the rest. Commits and audits nothing.\n\nRequires the `config:write` permission.",
+        "description": "Replays the entries on the latest revision and dry-runs them as one change, reporting the diff, the compiler's warnings, the admin lock-out guard (?force=true overrides it) and the errors of the whole set. The answer's reviewToken (also its ETag) is what apply must send back as If-Match to commit exactly this. It covers what the draft would do, so a change to the draft, to an object it writes or refers to, or to what the compiler says about it makes the token stale, while an unrelated commit doesn't. If any entry is changed elsewhere, the draft has no token (409 draft.blocked if every entry is), and the answer shows the rest. Commits and audits nothing.\n\nRequires the `config:write` permission.",
         "operationId": "ReviewDraft",
         "parameters": [
           {
@@ -9253,7 +9253,7 @@
           "Drafts"
         ],
         "summary": "Apply the draft as one revision",
-        "description": "Commits the whole draft as ONE revision, audited once with every entry listed, or nothing: what is confirmed is exactly what is applied. Needs If-Match with the review's token (428 without it, with the fresh review in the problem's review). Under the writer's lock the draft is replayed on the current head; unless that is what the review showed, 412 draft.changedSinceReview commits nothing and returns the fresh review (and its token) in the problem's review. Any entry that is changed elsewhere, or depends on one that is, refuses the whole draft (409 draft.blocked, errors naming each); remove or reload them and review again. ?message= is the revision's note (it defaults to a summary of the entries). ?dryRun=true is the review. Undo of the revision undoes the whole draft.\n\nRequires the `config:write` permission.",
+        "description": "Commits the whole draft as ONE revision, audited once with every entry listed, or commits nothing: what is confirmed is exactly what is applied. Requires If-Match with the review's token (428 without it, with the fresh review in the problem's review). Under the writer's lock the draft is replayed on the current head. If the result differs from what the review showed, nothing is committed and the answer is 412 draft.changedSinceReview with the fresh review (and its token) in the problem's review. If any entry is changed elsewhere, or depends on one that is, the whole draft is refused (409 draft.blocked, with errors naming each); remove or reload those entries and review again. ?message= is the revision's note (it defaults to a summary of the entries). ?dryRun=true is the review. Undoing the revision undoes the whole draft.\n\nRequires the `config:write` permission.",
         "operationId": "ApplyDraft",
         "parameters": [
           {
@@ -9712,7 +9712,7 @@
           "Revisions"
         ],
         "summary": "Restore an earlier revision as a new one",
-        "description": "Needs If-Match with the latest revision's ID, as the ETag of GET /config (428 without it, 412 when it is no longer the latest). Supports ?dryRun=true.\n\nRequires the `config:write` permission.",
+        "description": "Requires If-Match with the latest revision's ID, as the ETag of GET /config (428 without it, 412 if it is no longer the latest). Supports ?dryRun=true.\n\nRequires the `config:write` permission.",
         "operationId": "RollbackToRevision",
         "parameters": [
           {
@@ -19194,7 +19194,7 @@
               "null",
               "string"
             ],
-            "description": "A review that passed and could be applied: what apply must send back as `If-Match` to commit exactly this. Absent when the\n            draft has blocked entries (it applies whole or not at all) or the set doesn't pass."
+            "description": "Present for a review that passed and can be applied: apply must send it back as `If-Match` to commit exactly this. Absent if the\n            draft has blocked entries (it applies whole or not at all) or the set doesn't pass."
           }
         },
         "additionalProperties": false,
@@ -24973,7 +24973,7 @@
           },
           "proxyProtocol": {
             "type": "boolean",
-            "description": "A PROXY protocol header arrived first: PeerIp is the address it carried.\n            The listener must expect one: otherwise the connection is rejected, as the real one would be.",
+            "description": "A PROXY protocol header arrived first: PeerIp is the address it carried.\n            The listener must expect one; otherwise the connection is rejected, as the real one would be.",
             "default": false
           },
           "transportIp": {
@@ -24999,7 +24999,7 @@
               "null",
               "string"
             ],
-            "description": "The country Cloudflare would report for the client (`CF-IPCountry`): a two-letter ISO 3166-1 code, `T1`\n            for Tor or `XX` for unknown. Only a request that arrives through Cloudflare (Arrival) carries it; to see\n            the gate ignore one a client forged, send a `CF-IPCountry` header on another arrival. Default: no header, so the country is unknown."
+            "description": "The country Cloudflare would report for the client (`CF-IPCountry`): a two-letter ISO 3166-1 code, `T1`\n            for Tor or `XX` for unknown. Only a request that arrives through Cloudflare (Arrival) carries it. To see\n            the gate ignore a forged one, send a `CF-IPCountry` header on another arrival. Default: no header, so the country is unknown."
           },
           "headers": {
             "type": [
@@ -25035,7 +25035,7 @@
                 "type": "null"
               },
               {
-                "description": "The verdict; set exactly when Status is SimulationStatus.Simulated.",
+                "description": "The verdict; set when Status is SimulationStatus.Simulated, and only then.",
                 "$ref": "#/components/schemas/SimulationOutcome"
               }
             ]

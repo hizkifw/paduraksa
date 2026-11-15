@@ -35,7 +35,7 @@ internal static class RevisionEndpoints
         revisions.MapGet("/{id:ConfigRevisionId}", GetAsync).WithName("GetRevision").WithSummary("Get a revision with its document")
             .Produces<RevisionDetail>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         revisions.MapPost("/{id:ConfigRevisionId}/rollback", RollbackAsync).WithName("RollbackToRevision").WithSummary("Restore an earlier revision as a new one")
-            .WithDescription("Needs If-Match with the latest revision's ID, as the ETag of GET /config (428 without it, 412 when it is no longer the latest). Supports ?dryRun=true.")
+            .WithDescription("Requires If-Match with the latest revision's ID, as the ETag of GET /config (428 without it, 412 if it is no longer the latest). Supports ?dryRun=true.")
             .Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
     }
 
