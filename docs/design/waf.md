@@ -7,7 +7,7 @@ For contributors: how the policies that refuse, limit and challenge requests wor
 - The WAF is deliberately simple and fast. Named policy objects (access lists, rule sets, rate limits, auth providers) are compiled into each snapshot, and the gate evaluates them in a fixed order with no allocation. How the chain runs is in [hot-path.md](hot-path.md).
 - Everything is compiled per snapshot, so the gate does only lookups and arithmetic at request time. Expensive work (PBKDF2, a forward-auth call) is deferred and bounded, and never blocks a thread.
 - The chain order is fixed: access list, rule set, rate limit, auth, proof of work. A cheaper refusal always runs before a costlier check.
-- Stateful policies keep their state outside snapshots, so a config change never resets them. A simulation never changes it.
+- Stateful policies keep their state outside snapshots. A config change never resets it, and a simulation never changes it.
 - Config is by reference: a host or route names a policy object, and layers inherit, override or switch it off.
 - Geo is `CF-IPCountry` only. There is no local country database.
 - Code: `src/Paduraksa.Proxy` (`RateLimiting/`, `AccessLists/`, `RuleSets/`, `ForwardAuth/`, `Gate/`, `Pages/`). Validation codes and shared bounds live in `Paduraksa.Core` and `Paduraksa.Contracts`.
@@ -41,7 +41,7 @@ Contents:
 | Maintenance mode | Per host (layered like the rest): a toggle with a status, a page and a bypass named by an access list. See [Maintenance mode](#maintenance-mode). |
 
 **What the blocks did, over time.** Every block counts in process counters and in the request's gate outcome. The metric sampler keeps both as history: the refusals by kind in the minute rollups, and the blocks' own counters (proof of work, rate limits, access lists, the connection stage, each auth provider and each rule set) in a `SecurityRollups` table, so a restart does not reset the security overview. See "Security counters" in [observability.md](observability.md).
-- The security overview (`GET /api/v1/security/overview?range=hour|day|week|month`) reads them over a range: the counters, the refusals by reason and over time, and per host what it refused. The protections stay the live snapshot's.
+- The security overview (`GET /api/v1/security/overview?range=hour|day|week|month`) reads them over a range: the counters, the refusals by reason and over time, and per host what it refused. The protections always come from the live snapshot.
 - The dashboard's Security overview page shows the protections and the last hour of refusals as four live tiles. The counters over time are the Security section of Analytics. See "The security overview" in [dashboard.md](dashboard.md).
 
 ## Rate limiting
@@ -73,20 +73,20 @@ Contents:
 - A thread between another's key claim and its state write sees the previous occupant's state: a full bucket, once.
 - The sweeper's cleared state (0) is a bucket a request refills from zero.
 
-None is unbounded:
+Each is bounded:
 - Every touch recomputes the tokens from the state it read and clamps them to its policy's burst.
 - After four probes that each lost their slot, the request is let through without a token rather than stalled.
-- A clock sample older than the stored time earns no refill and never moves the time back, in a take and in the sweeper. Masked, it would read as 2^40 ms.
+- If a clock sample is older than the stored time, it earns no refill and never moves the time back, in a take or in the sweeper. Masked, it would read as 2^40 ms.
 
 **Policy slots.** `RateLimitPolicySlots` maps a stable identity (a string; the compiler passes the policy and host typed IDs' string forms) to its 16-bit slot.
 - `GetOrAdd(identity, nowMs)` runs on the compiler's cold path (one lock). `IsLive(slot)` and `Parameters` are lock-free, for the sweeper.
 - Slot 0 is "no policy".
 - Retirement makes a slot non-live at once but reusable only after a grace period (one minute, like the metric slots). The reuse clears its buckets first, so a new policy never reads an old one's tokens.
 - `Publish` swaps an immutable `RateLimitPolicyParameters` (slot to parameters) atomically.
-- With all 65 535 slots in use, it throws with a message that says so.
+- When all 65 535 slots are in use, it throws and the message says so.
 
 **The sweeper.** `RateLimitSweeper` is a `BackgroundService` that runs every 30 s (`Sweep(nowMs)` is public for tests).
-- It clears an entry whose slot is no longer live, or whose last refill is older than its policy's `FullRefillMs`. An entry whose slot has no published parameters is left alone.
+- It clears an entry if its slot is no longer live or its last refill is older than its policy's `FullRefillMs`. It leaves an entry alone if its slot has no published parameters.
 - It clears with a CAS on the state it read, so a request that touched the entry in between wins.
 - A sweep across a publish may use either set of parameters, which moves a clear by one pass at most.
 
@@ -108,18 +108,18 @@ None is unbounded:
 **Layering.**
 - `HostSettings.RateLimit` is a nested `RateLimitSettings` record (`enabled`, `policyId`), merged field by field through global defaults, profile and host.
 - `RouteSettings.RateLimit` is the same record on top of the host. A route inherits the host's policy, names another, or turns it off with `enabled: false`. The reference is kept while off.
-- The built-in switch is on, so naming a policy is the whole job. Naming none means no limit.
+- The built-in switch is on, so naming a policy is enough. Without a policy there is no limit.
 
 **Where it runs.**
 - The policy runs in the ROUTE chain after the route's access policies and before proof of work, so a client over budget gets 429 and not a challenge page.
 - The effective policy is the route's own, else the host's.
 - Redirect and Respond hosts have no routes and are never limited. The admin host's implicit route carries the host's policy.
-- **Gaps:** unknown hosts, 404s, ACME challenges and requests the proof-of-work verify endpoint answers are not limited. The verify endpoint is answered before route matching, so there is no route policy to apply.
+- **Gaps:** the limit does not apply to unknown hosts, 404s, ACME challenges or requests the proof-of-work verify endpoint answers. The verify endpoint is answered before route matching, so there is no route policy to apply.
 
 **Buckets belong to a (policy, host) pair.**
 - The slot identity is `{policyId}/{hostId}`, from stable IDs. Two hosts that name one policy do not share a client's budget. A route that resolves to the host's policy shares the host's buckets, and one that names another policy gets that pair's.
 - A compile that will be published calls `GetOrAdd` for every enabled Proxy or Admin host's pair and puts the slot, parameters and identity in the snapshot's registrations.
-- A draft, a dry run or a simulation only looks an existing pair's slot up. A new pair compiles with slot 0 (the simulator reports its full burst), so no compile that never goes live can leak a slot.
+- A draft, a dry run or a simulation only looks up an existing pair's slot. A new pair compiles with slot 0 (the simulator reports its full burst), so no compile that never goes live can leak a slot.
 - **Only the publisher publishes them.** Just before a snapshot goes live it re-asserts each pair's slot (an older publish that retired a pair a newer one re-added must not leave the live snapshot on a non-live slot), swaps in the parameters for that snapshot's slots and retires the pairs it no longer has. The sweeper clears a retired pair's buckets.
 - A slot already rented to another identity is logged, and the pair starts on a fresh slot at the next compile, so the two never share buckets.
 - A rate or burst edit keeps the slot and therefore the buckets. Deleting a policy, or removing it from a host, retires the pair.
@@ -168,8 +168,8 @@ It protects a route from clients that will not do work: a browser solves a small
 - `GET`/`HEAD /robots.txt` and the verify endpoint are never challenged.
 - **The key** is one vault secret of kind `HmacSigningKey` (HMAC-SHA-256, 32 random bytes) under a reserved ID (`ProofOfWorkKey.Id`). It is created at first start and opened into the process runtime by a core-host step after the vault and before the public listener binds. Rotation is the vault's `ReplaceAsync` plus its `Verify` grace window.
 - **If the key cannot be opened,** every protected route answers `503` and one Error is logged. A request never goes through unchallenged.
-- **Replay.** The challenge is stateless, so a solved one can be redeemed again within its ten minutes. That only yields a cookie for the same host and client address. It is the accepted trade-off: no table to grow, and nothing a second solve would not give.
-- **Warning.** A host with the gate on that answers plain HTTP without forcing HTTPS is reported, because the cookie cannot be `Secure` there.
+- **Replay.** The challenge is stateless, so a solved one can be redeemed again within its ten minutes. Redeeming it again only yields a cookie for the same host and client address. This is the accepted trade-off: no table to grow, and a second solve gives nothing more.
+- **Warning.** If a host has the gate on and answers plain HTTP without forcing HTTPS, it is reported, because the cookie cannot be `Secure` there.
 - `IMacKey.VerifyTruncated` compares a tag of 16 bytes or more as the prefix of the full tag (constant time), which is how the 16-byte token and challenge tags are checked. `Verify` takes only whole tags.
 
 ## Access lists
@@ -186,7 +186,7 @@ An `AccessList` is a top-level named object, like a rate-limit policy.
 - Country allow and deny lists sit under `ip` (see [Country rules](#country-rules)).
 - `HostSettings.AccessList` and `RouteSettings.AccessList` are one nested record, `{ enabled, accessListId }`, merged field by field through global defaults, profile, host and route, like the rate limit.
   - A route inherits the host's list, names another, or turns it off with `enabled: false`. The reference is kept while off.
-  - The built-in `enabled` is on, so naming a list is the whole job.
+  - The built-in `enabled` is on, so naming a list is enough.
 - The inline `ipAllowList` is not part of the contract. Old documents are upgraded (see below).
 - Canonical JSON orders lists by ID, users by name (ordinal) and CIDRs as the parser prints them. A list with no rules writes none.
 
@@ -215,14 +215,14 @@ A user is *written* with a plain `password` (create and update through the API a
   - for a command that will commit, that its credentials are about to be set, so a new user carries no warning the command is about to resolve;
   - for a dry run or a draft, a handle per pending password that carries the prepared, already-hashed password for that compile alone (`PrepareAsync`), so nothing reaches the vault or its cache until a real commit.
 - The validator refuses a password that is still there, so no write path can store it. Canonical JSON drops the property. The audit entry holds the action and the ID only.
-- A user written with neither a password nor a credential keeps the one the list has for that name, so an edit does not ask for every password again. A new user with neither is `accessList.user.password.missing`.
+- If a user is written with neither a password nor a credential, it keeps the credential the list has for that name, so an edit does not ask for every password again. A new user with neither gets `accessList.user.password.missing`.
 
 **A password is a change.**
-- The document's users do not differ when only a password does. So the pipeline reports the list as modified (field `users`) when a command carries one: it commits a revision, moves the list's version (an editor holding the old one conflicts), and is audited like any change to the list. The revision records that the list changed, never the password.
+- The document's users stay the same when only a password changes. So the pipeline reports the list as modified (field `users`) when a command carries one: it commits a revision, moves the list's version (an editor holding the old one conflicts), and is audited like any change to the list. The revision records that the list changed, never the password.
 - The API returns `credentialId` and never `password`.
 - Whether the vault holds the password shows as the compile warning `accessList.user.noPassword`, in the command's result and in the live warnings. It points at the user's own entry (`/accessLists/N/basicAuth/users/M`), which the dashboard's drawer reads to say "No password is set, so this user can't sign in".
 
-**Rollback and import** bring back the users a revision named and give them the passwords the vault holds then. For a credential deleted since, that is none, and the warning appears. The credential lifecycle (deleted when the live config stops naming it) is in [vault-and-certificates.md](vault-and-certificates.md).
+**Rollback and import** bring back the users a revision named and give them the passwords the vault holds then. If the credential was deleted since, the user has no password and the warning appears. The credential lifecycle (deleted when the live config stops naming it) is in [vault-and-certificates.md](vault-and-certificates.md).
 
 **Gaps.** An existing bcrypt `htpasswd` line cannot be imported (PBKDF2 only). A dry run or a draft hashes each pending password (one PBKDF2, tens of milliseconds) so it can be simulated.
 
@@ -267,13 +267,13 @@ The mapping builds `AccessListPolicySpec`s.
 - `Authorization: Basic` is read from the header string into a `stackalloc` buffer: at most 64 + 1 + 256 decoded bytes, split on the first colon, UTF-8.
 - The name is compared in constant time with every user's, with no early exit.
 - The password is checked by the vault's verifier (`IPasswordVerifier`): a cache probe, then PBKDF2 against the credential's verifier, which the gate never sees.
-- A name nobody has, and a user the vault holds no password for, still pay one PBKDF2 against a dummy verifier, so neither can be told from a wrong password by timing.
+- If the name is unknown, or the vault holds no password for the user, the gate still runs one PBKDF2 against a dummy verifier, so neither can be told from a wrong password by timing.
 
 **Answers.**
 - A missing or wrong credential is `401` with `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` (precomputed per list, the realm quoted), `Cache-Control: no-store`, and the built-in `401 Unauthorized` page for `Accept: text/html` (plain text `authentication required` otherwise).
 - The 403 is the existing access-denied page.
 - When the list accepted the credentials, `GateRequestState.StripAuthorization` makes the forwarding transform remove the `Authorization` header before the upstream sees it, unless the list sets `passCredentialsUpstream`.
-- A list that let an allowed address through without asking consumed nothing, so a bearer token meant for the upstream still reaches it.
+- If a list let an allowed address through without asking for credentials, it consumed nothing, so a bearer token meant for the upstream still reaches it.
 
 ### The verification cache
 
@@ -304,11 +304,11 @@ A cache miss does not run PBKDF2 inside the synchronous decision and does not an
   - **32 places per slot** (256 at the default 8). At tens of milliseconds a check, the last of a full line waits a few seconds, inside the wait cap whatever the machine's size;
   - **16 places per client**, queued and running together, by the masked address as the cache keys it (a table of 1024 in-flight counters striped by a keyed hash, 4 KiB, and as many running counts);
   - a **10 second maximum wait**.
-- A request that cannot enter (line full, or its client already holds its 16) or that waits the maximum gets 429 with `Retry-After: 1`.
-- A request whose client went away (`RequestAborted`) leaves the line at once, frees its place and is dropped without an answer.
+- If a request cannot enter (line full, or its client already holds its 16) or waits the maximum, it gets 429 with `Retry-After: 1`.
+- If a request's client goes away (`RequestAborted`), the request leaves the line at once, frees its place and is dropped without an answer.
 
 **Fairness.** Two rules decide who runs next, so a place is never wasted and nobody is starved.
-- **One client runs at most 2 checks at once.** Its other requests wait in the line. A free slot goes to the first waiter in arrival order whose client is under that cap, so others overtake them.
+- **One client runs at most 2 checks at once.** Its other requests wait in the line. A free slot goes to the first waiter in arrival order whose client is under that cap, so requests from other clients overtake the capped client's.
 - **Identical credentials never run twice at once.** Each deferred request carries its attempt's key (the vault's opaque name for these credentials from this client, `PasswordCacheProbe.AttemptKey`; 0 for a name nobody has, or a user with no password, which have no identity to share). A waiter whose fingerprint is running waits for it, then finds the result in the cache and pays no PBKDF2. A dozen identical cold requests cost one check. Identical *wrong* passwords are checked one after the other, each its own.
 - **Why 16 places per client.** A smaller share (4) refused the fifth credentialed request of an ordinary HTTP/2 page burst, the very 429 the line exists to remove. Places are cheap (a pooled waiter), so the share only has to stop one source taking the whole line: a single source holds at most 16 of 256 places and eats only its own 429s. The share is a concurrency limit, not a rate.
 
@@ -372,7 +372,7 @@ Geo is `CF-IPCountry` only. There is no local country database, so a country exi
   - `accessList.countries.code.invalid`: not in the list, reported at the entry (`/accessLists/N/ip/countries/allow/M`);
   - `.duplicate` (in either case) and `.conflict` (a code in both lists);
   - `accessList.ip.dropDenied.withoutAddresses` counts countries as something to refuse.
-- Warning `accessList.countries.noSource` (at the host's `/settings/accessList`): an enabled host uses a list with country rules while the trusted-proxy mode is not `CloudflareProxy` or `CloudflareTunnel`. Every country is then unknown, so an allow list refuses everyone and a deny list nobody.
+- Warning `accessList.countries.noSource` (at the host's `/settings/accessList`): an enabled host uses a list with country rules while the trusted-proxy mode is not `CloudflareProxy` or `CloudflareTunnel`. Every country is then unknown, so an allow list refuses everyone and a deny list refuses no one.
 - The compile reports a code it does not know too.
 - A list compiles to two `CountrySet`s (678 bits in 11 words), and a check is one bit test.
 
@@ -405,7 +405,7 @@ The country is part of the **address side**.
 
 ### Gaps
 
-1. **No local country database.** A request not behind Cloudflare, or whose Cloudflare header is missing, is unknown.
+1. **No local country database.** If a request is not behind Cloudflare, or its Cloudflare header is missing, its country is unknown.
    - The seam for DB-IP Lite or GeoLite2: the country is produced in one place, `ClientIpResolver.Resolve`, and carried as `ClientIpResolution.Country`.
    - A database would fill it when the header did not: a lookup of the resolved client address in a snapshot-held, sorted `UInt128` range array with a `CountryCode` per range, binary-searched like `CidrSet`, built by a background job and compiled into the snapshot.
    - Rules, gate, trace and dashboard would stay as they are, and `accessList.countries.noSource` would stop applying.
@@ -427,7 +427,7 @@ A rule has a `match` and an `action`.
   - `userAgent`: `contains` (case-insensitive substrings) and `empty`, which also takes a missing or blank user agent.
 - A rule needs at least one condition, because one with none would match every request. Every condition it states has to hold.
 - `action` is `deny` (403 and the built-in page), `drop` (abort, no answer) or `allow`.
-- The first rule a request matches decides. An allow carves an exception out of the denies after it: it ends the set, and the rest of the chain still runs. A request no rule matches goes on.
+- The first rule a request matches decides. An allow carves an exception out of the denies after it: it ends the set, and the rest of the chain still runs. If no rule matches, the request goes on.
 - `HostSettings.RuleSet` and `RouteSettings.RuleSet` are one nested record, `{ enabled, ruleSetId }`, merged field by field through defaults, profile, host and route like the access list's.
 
 **One set per layer.** A second concern is more rules in the same set, in the order the operator wants. One list a request walks can express that, and two lists could not: an allow that must beat a deny sits in the same list as the deny. The cost is that a preset and an operator's own rules cannot be stacked without copying the preset into a set of one's own, which "Create from preset" does.
@@ -446,7 +446,7 @@ A rule has a `match` and an `action`.
 | `ruleSet.rule.userAgent.invalid` | Printable ASCII, at most 100 of 128 characters. |
 | `host.ruleSet.unknown`, `route.ruleSet.unknown` | Reference to a set that does not exist. |
 
-- A regex that backtracks catastrophically on a backtracking engine (`^(a+)+$`) is **accepted**: it runs in time linear in the path.
+- The validator **accepts** a regex that would backtrack catastrophically on a backtracking engine (`^(a+)+$`): it runs in time linear in the path.
 - Canonical JSON orders sets by ID, writes methods upper case and sorted, and user-agent substrings trimmed, unique ignoring case and sorted. A stored document without `ruleSets` reads as none.
 
 ### Presets
@@ -469,15 +469,15 @@ The set runs before the access list that asks for passwords, so a refused reques
 
 Precisely:
 - The mapping inserts the policy immediately **before the first `AccessListPolicySpec` with `Stage: Full` whose list has users**. That is the whole policy, address checks included, so on a route whose own list has users, the list's address rules run *after* the set.
-- What always runs before the set is the host chain's refusal by address: the `AddressOnly` policy, or the union of the routes' lists. It is cheap, and a denied address must still be dropped, not answered with a rule's 403.
-- With no such list, the set goes after the access policies there are. A `Full` list without users is address rules only.
+- The host chain's refusal by address always runs before the set: the `AddressOnly` policy, or the union of the routes' lists. It is cheap, and a denied address must still be dropped, not answered with a rule's 403.
+- If there is no such list, the set goes after whatever access policies exist. A `Full` list without users is address rules only.
 
 The resulting orders:
 - In a route chain: set, then the list (addresses, then passwords), then rate limit, then proof of work.
 - In a host chain: the address-only check or union, then the set. A host with no routes carries the whole list there, and the set goes before it when it has users.
 
 **Host chain or route chain** follows the access list's rule (see [config.md](config.md)).
-- When every route resolves to the same set, or the host has no routes (Redirect, Respond, Admin), it is in the **host chain**. It then also guards the 404 for a path no route takes and the HTTPS redirect: a denied client gets 403, not a 301 that maps the host.
+- When every route resolves to the same set, or the host has no routes (Redirect, Respond, Admin), the set is in the **host chain**. It then also guards the 404 for a path no route takes and the HTTPS redirect: a denied client gets 403, not a 301 that maps the host.
 - Otherwise each route carries its own set. A deny cannot be lifted by a union as an address allow list can.
 
 **Exemptions.**
@@ -499,7 +499,7 @@ The resulting orders:
 
 Every verdict is 0 B: the deny answer is precomputed, and a non-canonical path is rewritten on the stack or in a pooled array. It is proved through `GateMiddleware.Decide` for each verdict and path shape, and on Kestrel (`RuleSetsAllocateNothingOnKestrel`).
 
-A **regex** is the one thing that may not be.
+The one exception is a **regex**.
 - The NonBacktracking engine builds its automaton lazily as it meets characters it has not seen, so a first match over a new shape can allocate once. A regex rule matched repeated path shapes at 0 B once warmed (`ARegexRuleMatchesWithoutAllocatingOncePathShapesAreKnown`, on the distro runtime and on Microsoft's 10.0.403).
 - A set without a regex never pays for it, and a rule runs its regex last, after the conditions that could rule it out.
 - The regex has a 50 ms match timeout. The rule's action decides it, so it **fails closed**: a deny or a drop counts a timeout as a match, an allow as no match. `RuleSetCounters.Timeouts` counts it (shown under the set on the overview once above 0). The engine is linear in the path and a request line is at most 8 KiB, so it should never happen.
@@ -512,9 +512,9 @@ A **regex** is the one thing that may not be.
 
 ### Simulator
 
-- The policy's step names the set, the rule (counted from 1, as the dashboard numbers them), what matched (`path starts with /admin, method POST`, `user agent contains 'sqlmap'`, `no user agent`) and the action, as a sentence and as facts (`ruleSet`, `rule`, `matched`, `action`). It says when none matched or that robots.txt is exempt.
+- The policy's step names the set, the rule (counted from 1, as the dashboard numbers them), what matched (`path starts with /admin, method POST`, `user agent contains 'sqlmap'`, `no user agent`) and the action, as a sentence and as facts (`ruleSet`, `rule`, `matched`, `action`). It also says when no rule matched or when robots.txt is exempt.
 - `RuleSetSimulationTests` put a matrix of paths (non-canonical spellings included), methods and user agents through the simulator and the real gate and compare the outcomes.
-- The lock-out guard sends the caller's own `User-Agent` in its probe (`AdminRequestFacts.UserAgent`). A rule set that refuses the caller on a proxied admin host is caught, and one that refuses only other agents is not.
+- The lock-out guard sends the caller's own `User-Agent` in its probe (`AdminRequestFacts.UserAgent`). The guard catches a rule set that refuses the caller on a proxied admin host, and does not catch one that refuses only other agents.
 
 ### API and dashboard
 
@@ -553,9 +553,9 @@ The `forwardAuth` block holds:
 A field left unset takes the preset's value. `ForwardAuthPresets.Resolve` (Contracts) is the one place that says which, for the validator, the mapping and the dashboard.
 
 **Settings.** `HostSettings.AuthProvider` and `RouteSettings.AuthProvider` are one nested record, `{ enabled, authProviderId }`, merged field by field through global defaults, profile, host and route like the access list's.
-- A route inherits the host's provider, names another, or turns sign-in off. The route that serves the provider's own pages has to.
+- A route inherits the host's provider, names another, or turns sign-in off. The route that serves the provider's own pages must turn it off.
 - The reference survives while it is off, and naming a provider is enough (the built-in switch is on).
-- **Naming does not imply on.** A layer that names a provider above a layer that switched sign-in off (the defaults or a profile says `enabled: false`, the host names one and leaves the switch alone) merges to off, like an access list's. That is also how "off, reference kept" keeps working. Through the API that would otherwise fail open without a word.
+- **Naming does not imply on.** If a layer names a provider above a layer that switched sign-in off (the defaults or a profile says `enabled: false`, the host names one and leaves the switch alone), the merge is off, like an access list's. That is also how "off, reference kept" keeps working. Through the API that would otherwise fail open without a word.
 - So the mapping warns (`authProvider.namedButOff`) **at the layer that named it**: the host's `/settings/authProvider`, the profile's (`/profiles/{i}/settings/authProvider`, once however many hosts use the profile), or the route's, which names one under a host with sign-in off. Naming below the switch, or in the same layer, is deliberate and silent.
 
 **Validation codes:**
@@ -606,7 +606,7 @@ Each is what its project documents, and nothing more.
 
 **2xx lets the request on.** The provider's response headers (exact names, or any with a listed prefix) are collected: at most 64, and a value the upstream cannot carry is dropped (see below).
 
-**Identity headers and stripping.** On the upstream request (`ForwardedHeadersTransform`), every client header that matches one of the provider's names is **removed first**, and the provider's are added. On a protected route an identity header can therefore only come from the provider, also for an allow with no headers.
+**Identity headers and stripping.** On the upstream request (`ForwardedHeadersTransform`), every client header that matches one of the provider's names is **removed first**, and the provider's are added. On a protected route an identity header can therefore only come from the provider, including for an allow with no headers.
 - **Stripping is a property of the host, not of the route.** `CompiledHost.IdentityProviders` is every provider the host's routes ask: the host's own, resolved, and any a route names. The transform removes the identity headers of all of them on **every** route of the host, a route with sign-in off (the provider's own `/outpost.goauthentik.io/` or `/oauth2/` pages) included. A client's forged `Remote-User` cannot reach an upstream through the one route that skips the check.
 - **`_` and `-` are one character** when deciding what a provider owns, for exact names and prefixes, ignoring case. A CGI or WSGI upstream folds `Remote_User` and `Remote-User` into the same variable, so the client's `Remote_Groups` or `X_authentik_username` is removed as the provider's `Remote-Groups` or `X-authentik-*` would be.
 - A host with no provider asks none and strips none.
@@ -617,25 +617,25 @@ Each is what its project documents, and nothing more.
 **A 401 to a browser navigation** (a `GET` or `HEAD` that accepts `text/html` and is not a script's XHR) goes to the configured sign-in URL instead. The original address is percent-encoded in the return parameter, as the one `Location` (the provider's own is replaced, never added to).
 
 **A request for the sign-in page itself is never redirected.** When the request path (in the canonical matching view, ignoring case and a trailing `/`) is the sign-in path (a relative URL, or an absolute one on the request's own host), the provider's 401 is relayed as it is. Otherwise a page behind the same provider would send the browser to itself with `rd=` nested in `rd=` each time.
-- The mapping warns when that could happen (`authProvider.signInUnreachable`): a provider's sign-in path on a host (a relative URL, or an absolute one whose host is one of the host's names, a wildcard name covering its subdomains) whose first route to take it, in matching order, is behind a provider too, or none takes it.
+- The mapping warns when that could happen (`authProvider.signInUnreachable`): the provider's sign-in path is on a host (a relative URL, or an absolute one whose host is one of the host's names, a wildcard name covering its subdomains) and the first route in matching order to take it is behind a provider too, or no route takes it.
 - A route takes a request by its match kind and path alone. The model has no method or header matcher, so the route the warning finds is the one a GET and a POST, with any headers, both reach.
 
-**Relayed headers.** Every relayed header (`Location`, `Set-Cookie`, `WWW-Authenticate`, `Proxy-Authenticate`) must be printable ASCII or a tab. A control character would split the message, and a byte Kestrel cannot write would make it throw on the way out (a 500). So a provider that sends one is a **502** and an error.
+**Relayed headers.** Every relayed header (`Location`, `Set-Cookie`, `WWW-Authenticate`, `Proxy-Authenticate`) must be printable ASCII or a tab. A control character would split the message, and a byte Kestrel cannot write would make it throw on the way out (a 500). So if a provider sends one, the request is answered **502** and counted as an error.
 
 **Identity values may be any text but control characters.**
 - An authentik user's `X-authentik-name` can hold an accent or Japanese text, and refusing it would answer 502 to that user on every uncached request.
 - .NET 10's `SocketsHttpHandler` writes request header values as ASCII unless it has a `RequestHeaderEncodingSelector` (the default throws, which YARP answers as a 502), and reads response header values as Latin-1 unless it has a `ResponseHeaderEncodingSelector`, so a UTF-8 name would arrive as one character per byte.
 - Both ends are therefore UTF-8, as Kestrel reads a client's headers. The provider's client decodes a response as UTF-8. The forwarder's handler (`PaduraksaForwarderHttpClientFactory.ApplyDefaults`) writes every upstream header value as UTF-8, so the name reaches the upstream as the bytes the provider sent.
 - A UTF-8 encoding of non-ASCII text never contains a CR, LF or NUL byte, so it cannot split the message.
-- A value with a C0 control character other than tab, DEL, U+FFFD (the decoder's mark for bytes that were not UTF-8) or a lone surrogate **costs that one header, not the request**. It is left off and the request is let on. The client's own copy is removed with the rest (the provider owns the name). A warning names the provider and the header, never the value, at most once a minute per provider.
+- If a value has a C0 control character other than tab, DEL, U+FFFD (the decoder's mark for bytes that were not UTF-8) or a lone surrogate, it **costs that one header, not the request**. It is left off and the request is let on. The client's own copy is removed with the rest (the provider owns the name). A warning names the provider and the header, never the value, at most once a minute per provider.
 - Only a call that fails outright, or a provider that sends more than 64 owned headers, is a 502.
-- Any exception the call raises that nobody listed is the same: counted as an error, answered 502, never an allow. Only cancellation (the client going away) and out-of-memory escape.
+- Any other exception the call raises is handled the same way: counted as an error, answered 502, never an allow. Only cancellation (the client going away) and out-of-memory escape.
 
 **Failure closes.**
 - Any other status, an endpoint that cannot be reached or answers with something the proxy cannot forward, and a refusal body over the limit all answer **502**.
 - A timeout is **504**.
-- A client that goes away while the call runs is dropped without an answer and counts as neither.
-- A request that finds 64 calls to the provider already running is **503** with `Retry-After: 1`.
+- If the client goes away while the call runs, the request is dropped without an answer and counts as neither.
+- If a request finds 64 calls to the provider already running, it gets **503** with `Retry-After: 1`.
 - Each has a built-in page. A failing endpoint is logged once a minute per provider.
 
 **`robots.txt` is not exempt**, unlike the rate limit and the proof-of-work gate. Auth protects what the upstream serves, and a managed robots.txt is answered before the route chain anyway.
@@ -662,8 +662,8 @@ So two requests that differ in anything the provider is sent never share an entr
 - What a request carries cannot decide it. Any visitor can send an analytics cookie or junk in a header the provider reads, so "carries credentials" says nothing about whether the allow was for someone. An anonymous allow for authentik's "Unauthenticated Paths" `/public` would otherwise be served for `/admin` too. Such an allow stands only for the same address, host, method, target and credentials.
 - **A provider configured with no identity headers always caches at request grain, even under `host` scope.** It has no way to say an allow names someone, so each path costs a call once per time-to-live.
 - A `host` scope **assumes the provider decides per identity, not per path** for the allows that name someone (authentik and oauth2-proxy decide per application). It is the wrong grain for one that decides per path (Authelia, and a custom endpoint, which defaults to `request`). The operator picks it knowing that.
-- A provider whose anonymous allows also carry owned headers (a prefix such as `X-authentik-*` copies whatever the provider sends under it) would have them taken for an identity, so the response list should name only headers that identify a user.
-- The time-to-live is **the delay a revoked session keeps working**, and the dashboard says so.
+- If a provider's anonymous allows also carry owned headers (a prefix such as `X-authentik-*` copies whatever the provider sends under it), they would be taken for an identity, so the response list should name only headers that identify a user.
+- A revoked session keeps working for **the time-to-live**, and the dashboard says so.
 
 **Why SHA-256 and not an HMAC.** The banned-symbol rule keeps keyed MACs in the vault, and a key that no one ever sees needs none (as with the password verification cache). A restart empties the caches anyway, so no forward-auth key is stored in the vault.
 
@@ -703,11 +703,11 @@ So two requests that differ in anything the provider is sent never share an entr
 
 ### Deviations from the original design, and gaps
 
-- **Route chain only, no host chain.** A forward-auth check is never made before the HTTPS redirect, a 404 or a Redirect/Respond answer. A host that answers plain HTTP without forcing HTTPS is warned (`authProvider.insecureSession`). The admin host is never behind a provider (`authProvider.ignored`). A trusted-header admin login behind forward-auth (see [identity.md](identity.md)) is not built.
+- **Route chain only, no host chain.** A forward-auth check is never made before the HTTPS redirect, a 404 or a Redirect/Respond answer. The mapping warns about a host that answers plain HTTP without forcing HTTPS (`authProvider.insecureSession`). The admin host is never behind a provider (`authProvider.ignored`). A trusted-header admin login behind forward-auth (see [identity.md](identity.md)) is not built.
 - **Keyed by the credentials, the address and the request**, not a "session-cookie hash". The whole `Cookie` header is hashed, so an unrelated cookie that changes costs a call, which is the safe side of the trade.
-- **No single flight and no queue.** Identical cold requests each make their own call (they differ in target for `request` scope anyway). A request that finds the 64 places taken is refused 503 rather than waiting. A dead endpoint is bounded by the 64-call cap and the timeout, not by coalescing.
+- **No single flight and no queue.** Identical cold requests each make their own call (they differ in target for `request` scope anyway). If a request finds the 64 places taken, it is refused with 503 rather than waiting. A dead endpoint is bounded by the 64-call cap and the timeout, not by coalescing.
 - **Allows only are cached,** an anonymous one at request grain only. A flood of distinct unauthenticated requests therefore reaches the endpoint at up to the cap. A rate limit before it (the order is fixed) is the defence.
-- **No `Set-Cookie` relay on a 2xx.** A refusal's `Set-Cookie` is relayed but an allow's is not, so a provider that refreshes its session cookie on an allow does not refresh it through the proxy.
+- **No `Set-Cookie` relay on a 2xx.** The proxy relays a refusal's `Set-Cookie` but not an allow's, so a provider that refreshes its session cookie on an allow does not refresh it through the proxy.
 - `OPTIONS` preflights carry no credentials and are asked like any request. A CORS API behind a provider needs the preflight's route with sign-in off.
 - No per-provider TLS trust setting (no pinning, no "accept any").
 - A provider's own logout or `/oauth2/sign_out` is just a route.
@@ -734,12 +734,12 @@ So two requests that differ in anything the provider is sent never share an entr
 - The proof-of-work challenge page uses the template too, with the challenge, return target and difficulty as slots.
 - `ErrorPages` holds the built-in set: 403 (IP access, no JavaScript, failed check), 404, 413 (also a body over a host's limit), 414, 421, 429, 431, 502, 503 (no healthy destination, and the proof-of-work key unavailable) and 504.
 - Each page has a muted status line, an h1, one sentence and the request ID in monospace. All ASCII, with no script or external resource.
-- A request whose `Accept` includes `text/html` gets the page. Anything else gets plain text. `HEAD` gets headers only. `Cache-Control: no-store` and `Retry-After` are kept.
+- If a request's `Accept` includes `text/html`, it gets the page. Anything else gets plain text. `HEAD` gets headers only. `Cache-Control: no-store` and `Retry-After` are kept.
 - YARP's upstream errors (502, 503, 504) get the page from the response-start hook that already re-applies the gate's headers. It does work only when `IForwarderErrorFeature` is set and adds no wrapper, continuation or allocation to the successful path.
 
 ### Custom error pages
 
-`HostSettings.ErrorPages` is a layered setting: built-in, global defaults, profile, host. Each **entry is replaced whole** by a layer that sets it (a heading from one layer and a document from another make no page). A status no layer sets is served from its built-in page.
+`HostSettings.ErrorPages` is a layered setting: built-in, global defaults, profile, host. Each **entry is replaced whole** by a layer that sets it (a heading from one layer and a document from another make no page). If no layer sets a status, it is served from its built-in page.
 
 **Entries.**
 - The statuses are the ones `ErrorPages` has built-ins for (403, 404, 413, 414, 421, 429, 431, 502, 503, 504) and the maintenance page.
@@ -788,8 +788,8 @@ The page is the host's `maintenance` entry, else a built-in message ("Down for m
 
 **The bypass** is the named list's **address side**.
 - A request skips the page when the list's allow rules (addresses, and countries in a Cloudflare mode) admit it and its deny rules do not refuse it.
-- A list with only deny rules, or a request outside every allow rule, is served the page.
-- A password is never asked for there. It is one way to express IP rules: no inline list.
+- If the list has only deny rules, or the request is outside every allow rule, the request is served the page.
+- The bypass never asks for a password. It is one way to express IP rules, so there is no inline list.
 
 **Compile and cost.** Precomputed per snapshot (`CompiledMaintenance` on the host, null when off), 0 B (`MaintenanceGateTests`).
 
@@ -868,7 +868,7 @@ All three answer from precomputed pages (`ErrorPages`: 413, 414, 431, HTML for a
 What is counted:
 - The target is the raw request target in UTF-8 wire bytes.
 - The headers are counted as lines (a header sent twice is two) and bytes of names plus values.
-- A body without a declared length (chunked, or HTTP/2 and HTTP/3 without one) is Kestrel's to cut off at the limit. It throws mid-read, which YARP reports as 413 to the client when the upstream has not answered yet. A response that has already started cannot change its status, so the client sees a reset stream.
+- Kestrel cuts off a body without a declared length (chunked, or HTTP/2 and HTTP/3 without one) at the limit. It throws mid-read, which YARP reports as 413 to the client when the upstream has not answered yet. A response that has already started cannot change its status, so the client sees a reset stream.
 
 Checked on HTTP/1.1 and HTTP/2 (`RequestLimitsEndToEndTests`), through `PaduraksaHost` (`PublicRequestLimitsTests`: the upstream never receives a refused body, or more than the limit of a cut-off one), and on HTTP/3 in the Docker QUIC run (`PublicHttp3Tests.RequestLimitsHoldOverHttp3`).
 
@@ -908,7 +908,7 @@ The checks allocate 0 B on every path, on Kestrel (`GateAllocationTests.RequestL
 A simulated request declares a body with a `Content-Length` header, which must be one number (`simulation.request.headers`). `GateReason.RequestLimits` is the outcome's reason (a fixed answer). `SimulatorParityTests` sweeps every limit on both sides and both routes.
 
 The dashboard has a **Request limits** section in the host settings (global defaults, profiles, hosts) with four rows, and "Body size on this route" in a route's settings.
-- `SizeField` is the reusable size control: inherit (naming the layer below's size), "No limit" where 0 means that, presets, or a number with a unit (KiB, MiB, GiB) and the bytes that follow. A size no unit holds exactly (an API value of 1500 bytes) shows in KiB with decimals.
+- `SizeField` is the reusable size control: inherit (naming the layer below's size), "No limit" where 0 means that, presets, or a number with a unit (KiB, MiB, GiB) and the bytes that follow. If no unit holds a size exactly (an API value of 1500 bytes), it shows in KiB with decimals.
 - `CountField` is the header lines' (empty inherits).
 
 ### Not built
