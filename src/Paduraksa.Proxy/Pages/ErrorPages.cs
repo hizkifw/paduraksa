@@ -31,7 +31,7 @@ internal static class ErrorPages
     /// <summary>The connection is weaker than the host's TLS settings, so an H2 coalesced connection must retry.</summary>
     public static HtmlPageTemplate Misdirected { get; } = Page("421 Misdirected Request", "This connection can't be used for this site. Reload the page to open a new one.");
 
-    public static HtmlPageTemplate TooManyRequests { get; } = Page("429 Too Many Requests", "You've sent too many requests in a short time. Wait a moment, then try again.");
+    public static HtmlPageTemplate TooManyRequests { get; } = Page("429 Too Many Requests", "Too many requests in a short time. Try again in a moment.");
 
     public static HtmlPageTemplate BadGateway { get; } = Page("502 Bad Gateway", "The server behind this site didn't respond properly. Try again in a moment.");
 
@@ -53,7 +53,7 @@ internal static class ErrorPages
     public static HtmlPageTemplate PayloadTooLarge { get; } = Page("413 Content Too Large", "The browser check sent more data than expected. Reload the page to try again.", customizable: false);
 
     /// <summary>A declared body over the host's or route's limit.</summary>
-    public static HtmlPageTemplate RequestTooLarge { get; } = Page("413 Content Too Large", "What you sent is larger than this site accepts. Send less and try again.");
+    public static HtmlPageTemplate RequestTooLarge { get; } = Page("413 Content Too Large", "The request is larger than this site accepts.");
 
     /// <summary>A request target over the host's limit.</summary>
     public static HtmlPageTemplate UriTooLong { get; } = Page("414 URI Too Long", "The address is longer than this site accepts.");

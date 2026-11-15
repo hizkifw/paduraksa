@@ -113,7 +113,7 @@ public sealed class ErrorPagesTests
     public async Task TheHtmlRateLimitPageKeepsRetryAfter()
     {
         var (context, body) = Context("text/html");
-        var response = PrecomputedResponse.Text(429, "Too many requests. Please slow down.\n", htmlPage: ErrorPages.TooManyRequests);
+        var response = PrecomputedResponse.Text(429, "Too many requests. Try again later.\n", htmlPage: ErrorPages.TooManyRequests);
 
         await ResponseWriter.WriteAsync(context, response, retryAfter: "7");
 

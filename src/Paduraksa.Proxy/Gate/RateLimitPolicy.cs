@@ -33,7 +33,7 @@ namespace Paduraksa.Proxy.Gate;
 public sealed class RateLimitPolicy : IRequestPolicy
 {
     private static readonly PrecomputedResponse TooManyRequests =
-        PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Please slow down.\n", htmlPage: ErrorPages.TooManyRequests);
+        PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Try again later.\n", htmlPage: ErrorPages.TooManyRequests);
 
     private readonly RateLimitTable _table;
     private readonly RateLimitPartition _partition;

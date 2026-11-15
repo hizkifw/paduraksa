@@ -46,7 +46,7 @@ internal sealed class ProofOfWorkPage
         var workers=[];
         var found=false;
         function stop(n){if(found){return;}found=true;for(var i=0;i<workers.length;i++){workers[i].terminate();}solution.value=String(n);form.submit();}
-        function fail(){progress.textContent="Your browser couldn't run the check. Reload to try again.";}
+        function fail(){progress.textContent="The browser check could not run. Reload the page to try again.";}
         try{
         var url=URL.createObjectURL(new Blob([workerSource],{type:"text/javascript"}));
         for(var i=0;i<count;i++){(function(start){

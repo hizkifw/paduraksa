@@ -204,7 +204,7 @@ public sealed class MaintenanceGateTests : IDisposable
         Assert.Equal(503, builtIn.Status);
         Assert.Equal("120", builtIn.RetryAfter);
         Assert.Contains("<h1>Down for maintenance</h1>", builtIn.Body, StringComparison.Ordinal);
-        Assert.Contains("This site is being worked on.", builtIn.Body, StringComparison.Ordinal);
+        Assert.Contains("Try again later.", builtIn.Body, StringComparison.Ordinal);
         Assert.StartsWith("default-src 'none'; style-src 'sha256-", builtIn.Csp, StringComparison.Ordinal);
 
         var custom = await ServeAsync("custom.test", "text/html");

@@ -51,7 +51,7 @@ public enum AccessListStage : byte
 public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
 {
     private static readonly PolicyDecision Busy = PolicyDecision.Respond(
-        PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Please slow down.\n", htmlPage: ErrorPages.TooManyRequests), "1");
+        PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Try again later.\n", htmlPage: ErrorPages.TooManyRequests), "1");
 
     private readonly CompiledAccessList _list;
     private readonly AccessListStage _stage;

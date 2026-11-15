@@ -70,7 +70,7 @@ internal sealed class CustomErrorPage
 
     /// <summary>The page the built-in set serves when a host has none of its own: a message about maintenance, for <paramref name="status"/>.</summary>
     public static CustomErrorPage BuiltInMaintenance(int status) => Compile(
-        new ErrorPageSpec { Heading = "Down for maintenance", Text = "This site is being worked on. Try again in a little while." },
+        new ErrorPageSpec { Heading = "Down for maintenance", Text = "Try again later." },
         status);
 
     /// <summary>Compiles <paramref name="spec"/> for <paramref name="status"/>. The validator has judged the text; a spec that doesn't hold up (a message without a heading) still gets a page, from what it has.</summary>
