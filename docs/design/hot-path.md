@@ -531,7 +531,7 @@ What timing every request by stage costs. What the stages are: "Request timing" 
 - Kestrel's automatic header is disabled (`DisableAltSvcHeader`).
 - Ours is precomputed per host, only for H3-eligible hosts, using the **public** HTTPS port from settings (default 443), not the bound port. A port-mapped deployment therefore cannot advertise the wrong port.
 
-H3 is off globally if `libmsquic` is not available (`QuicListener.IsSupported`), and `paduraksa doctor` reports this. The stock `aspnet` image does not ship it: install `libmsquic` from packages.microsoft.com (about 21 MB including `libnuma1`; tested 2.6.3 on Ubuntu 24.04).
+H3 is off globally if `libmsquic` is not available (`QuicListener.IsSupported`), and `paduraksa doctor` reports this. The stock `aspnet` image does not ship it: install `libmsquic` from packages.microsoft.com (about 21 MB including `libnuma1`). The image pins 2.5.10 (`deployment.md`); the S1 spike tested 2.6.3.
 
 ## Request simulator ("Why was this blocked?")
 

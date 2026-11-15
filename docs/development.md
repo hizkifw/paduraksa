@@ -152,8 +152,8 @@ leaves the thing unprotected. What has caused them so far:
 - **A clock moved before the code armed its wait.** A fake clock advanced before the code under test has started its timer never fires it. Advance until the effect is seen,
   bounded (`AdvanceUntilAsync` in `NotificationDispatcherTests`), or wait for an internal signal that the wait is armed (the dispatcher's `Routed` counter).
 - **A signal counted from the wrong moment.** A test that takes a baseline count and then waits for it to grow is satisfied by the next unrelated tick. Count from the
-  state the test cares about (`LogFilesPageTests`: scrolls are counted from the render that shows the new line). A fixed-interval poll in the code under test makes the same mistake in
-  `VerifyInvoke(id)`, which means exactly once.
+  state the test cares about (`LogFilesPageTests`: scrolls are counted from the render that shows the new line). If the code under test polls on a
+  fixed interval, bUnit's `VerifyInvoke(id)` fails the same way: it asserts exactly one call, and the poll makes more.
 - **Parallel classes sharing process state.** Environment variables set process-wide, every child process of the test process, a static. Scope to the test's own instance
   (`McpShutdownTests` asks its own server) or use a harmless sentinel.
 - **A wall-clock assertion, or a rate the test keeps.** "Under 150 us a call", "20 000 entries a second": a starved runner fails them without anything being wrong. Assert the cause

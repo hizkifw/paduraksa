@@ -495,7 +495,7 @@ an environment variable. The audit log records CLI actions (not the identity of 
 | Fuzz targets (`fuzz/Paduraksa.Fuzz.Targets`) | `proxy-protocol`, `pow-cookie`, `pow-form`, `basic-auth`, `client-address`, `forward-auth-answer`, `error-page`, `upstream-error-replacement`, `access-log-tail`, `yaml-import`, `mcp-sandbox`; every committed corpus and regression input is replayed on each commit by `tests/Paduraksa.Tests.Fuzz`; `scripts/fuzz.sh` and `.github/workflows/fuzz.yml` run them ([testing.md, Security](testing.md#security)). Property tests use CsCheck. |
 
 Not fuzzed ([testing.md, Security](testing.md#security) "Left out"): the dashboard's parsing, the live tail's SSE framing, the notification senders' payloads, the ACME
-response parser, multipart upload parsing (listed in [testing.md, Security](testing.md#security) "Security" as a target). The release-length run
+response parser, and multipart upload parsing. The release-length run
 (`scripts/fuzz.sh --time 3600 --merge`) was done on the existing targets before v0.1: two hours each, about 1.6 billion inputs, no crash.
 
 ---

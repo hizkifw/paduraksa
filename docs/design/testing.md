@@ -122,7 +122,7 @@ They check:
 
 ## Security
 
-Threat model doc, dependency scanning, CodeQL, fuzzing of the ACME, JSON, YAML and multipart parsers, and an audit-chain verifier.
+Threat model doc, dependency scanning, CodeQL, fuzzing of the parsers that read untrusted input (see [Fuzzing](#fuzzing) for the targets), and an audit-chain verifier.
 
 ### CodeQL and the NuGet audit (threat model G9)
 
