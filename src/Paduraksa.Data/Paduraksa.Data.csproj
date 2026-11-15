@@ -12,6 +12,8 @@
     <!-- Entities are internal: only Data and Application (the stores) see row types. -->
     <InternalsVisibleTo Include="Paduraksa.Application" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
+    <!-- The browser tests seed an ACME account and an order the way the services leave them, since a CA is not reachable from a test. -->
+    <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Issuance" />
   </ItemGroup>
 </Project>
