@@ -1,6 +1,6 @@
 # Server settings
 
-Settings, Server holds the settings of the server itself:
+Settings, Server holds the server's own settings:
 
 - how long data is kept;
 - the sign-in policy;
@@ -8,28 +8,28 @@ Settings, Server holds the settings of the server itself:
 - the integrations (Cloudflare, ACME, MCP);
 - the public connection limits.
 
-They are part of the config, so a change goes through the review drawer like any other. It makes a revision in History and an audit event, and you undo it by rolling back. The API is `GET` and `PUT /api/v1/server-settings`.
+They are part of the config, so a change goes through the review drawer like any other. It creates a revision in History and an audit event, and a rollback undoes it. The API is `GET` and `PUT /api/v1/server-settings`.
 
-Changing them needs the Owner or the Admin role (the `server:write` permission). Every role that reads the config can see them.
+Changing them needs the Owner or Admin role (the `server:write` permission). Every role that can read the config can see them.
 
-Each setting has its own address: its key in kebab-case after `#`. `/settings/server#mcp-enabled` opens the page at *Serve /mcp* and highlights it. Your notes and runbooks can link this way too.
+Each setting has its own address: its key in kebab-case after `#`. `/settings/server#mcp-enabled` opens the page at *Serve /mcp* and highlights it. Notes and runbooks can link this way too.
 
 ## Where a value comes from
 
 1. **The server's environment.** A value set in `appsettings.json` or as an environment variable (`Paduraksa__Metrics__Retention=7.00:00:00`)
-   wins. The dashboard shows it read-only with the variable's name. Remove the variable and restart to manage it from the dashboard.
+   wins. The dashboard shows it read-only with the variable's name. To manage it from the dashboard, remove the variable and restart.
 2. **The config.** What you set on the page.
 3. **The built-in default.** An empty field, or Default on a switch.
 
 ## When a change applies
 
 - **Live** settings apply as soon as the change is applied, with no restart.
-- A lower retention deletes the older data at the next prune, within the hour. It can't be recovered. The review says so.
-- A shorter session lifetime or idle timeout applies to existing sessions at their next check, so some may end at once.
+- A lower retention deletes the older data at the next prune, within the hour, and the data can't be recovered. The review says so.
+- A shorter session lifetime or idle timeout applies to existing sessions at their next check, so some can end at once.
 - A longer minimum password length applies to new and changed passwords only.
-- MCP switched off answers `/mcp` with 404. Switched on, the next call starts it.
+- If MCP is switched off, `/mcp` answers 404. If it is switched on, the next call starts it.
 - The connection timeouts and data rates apply to new connections. Open ones keep what they started with.
-- **After a restart:** the TLS handshake timeout and the two connection caps. The page marks a stored value the server isn't running with yet as *Restart pending*.
+- **After a restart:** the TLS handshake timeout and the two connection caps. The page marks a stored value the server isn't running yet as *Restart pending*.
 
 ## Every setting
 

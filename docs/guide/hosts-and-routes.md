@@ -1,6 +1,6 @@
 # Hosts and routes
 
-A **host** is a set of names and what Paduraksa does with requests for them. A proxy host also has **routes**, each sending a path to an upstream. Settings (HTTPS, HSTS, access lists, limits and the rest) are layered, so you state a rule once and hosts inherit it.
+A **host** is a set of names and what Paduraksa does with requests for them. A proxy host also has **routes**, each sending a path to an upstream. Settings (HTTPS, HSTS, access lists, limits and the rest) are layered, so a rule set once is inherited by hosts.
 
 ## Host kinds
 
@@ -17,17 +17,17 @@ Static file serving is not in v0.1.
 
 A host's names are exact names (`app.example.com`), wildcards (`*.example.com`) or IP addresses.
 
-- Names are normalised when saved: trimmed, lowercased, internationalised names converted to punycode.
+- Paduraksa normalises names when they are saved: trimmed, lowercased, and internationalised names converted to punycode.
 - A name has at most 253 characters, each label at most 63. A wildcard is only the leftmost label, and there is no trailing dot.
-- A name is unique across enabled hosts, ignoring case. A disabled host keeps its names without serving them, so they may repeat an enabled host's.
+- A name is unique across enabled hosts, ignoring case. A disabled host keeps its names without serving them, so they can repeat an enabled host's.
 
-A request for a name no enabled host serves gets the global **unknown host** behaviour: `404` (the default), `421 Misdirected Request`, or the connection closed. Set it under **Global defaults**.
+If no enabled host serves a request's name, the global **unknown host** behaviour applies: `404` (the default), `421 Misdirected Request`, or a closed connection. It is set under **Global defaults**.
 
 ### Redirect hosts
 
 - **Target:** an absolute `http` or `https` URL.
 - **Status:** 301 (the default), 302, 303, 307 or 308.
-- **Preserve path:** on by default. The request's path and query are appended to the target, so the target has no query or fragment of its own.
+- **Preserve path:** on by default. It appends the request's path and query to the target, so the target has no query or fragment of its own.
 
 ### Fixed-answer hosts
 
@@ -41,22 +41,22 @@ A route has a **match**, a **path** and an **upstream**.
 
 - **Match:** *Exact* matches that path only. *Prefix* matches the path and everything under it, by whole path segment (`/api` matches `/api/x`, not `/apix`).
 - **Path:** starts with `/`, written decoded and canonical: no `\`, `//`, `;`, dot segments, percent-encoding, query or fragment. Matching ignores case, and two routes of a host with the same match kind cannot differ only in case.
-- **Specificity:** the most specific route wins, whatever the list order. Exact routes come before prefixes, then a longer prefix before a shorter one, then the route's **Order** (lower first), then the listed order.
+- **Specificity:** the most specific route wins, regardless of list order. Exact routes come before prefixes, then a longer prefix before a shorter one, then the route's **Order** (lower first), then the listed order.
 
 A request that matches no route gets a `404`.
 
-Each route can carry a few overrides of its own: proof of work, rate limit, access list, rule set, sign-in provider, body size and custom headers. It can also rewrite the path it forwards (below). See [Access control and WAF](security.md) and [Connections, limits and client addresses](connections-and-limits.md).
+A route can override proof of work, rate limit, access list, rule set, sign-in provider, body size and custom headers, and can rewrite the path it forwards (below). See [Access control and WAF](security.md) and [Connections, limits and client addresses](connections-and-limits.md).
 
 ### Rewriting the path
 
-A route can forward a different path from the one the client asked for. Use it to put an app that expects to live at `/` under a path of a shared host, or to reach an API's versioned path. In the dashboard: the route's menu, **Route settings**, **Path sent upstream** and **Prefix to add**.
+A route can forward a different path from the one the client asked for. Use it to put an app that expects to live at `/` under a path of a shared host, or to reach an API's versioned path. In the dashboard, the settings are in the route's menu, **Route settings**: **Path sent upstream** and **Prefix to add**.
 
-- **Strip the prefix:** the route's own path comes off. On `/grafana`, `/grafana/d/x` reaches Grafana as `/d/x`, and `/grafana` as `/`. Not on a route whose path is `/`.
-- **Add a prefix:** a fixed path goes in front. With both on `/api` and `/v2`, `/api/users` reaches the API as `/v2/users`. The prefix starts with `/` and has no trailing `/`.
-- The path is forwarded as the client sent it, without decoding or re-encoding (`%2F` stays `%2F`), and the query is untouched.
-- A stripping route tells the upstream what it took off in `X-Forwarded-Prefix` (`/grafana`), so an app that builds its own links can add it back.
-- **Redirects from the upstream** are mapped back. A `Location` of `/login` reaches the client as `/grafana/login`. One that already starts with `/grafana` is left alone, for an app that reads `X-Forwarded-Prefix`. An absolute `Location` on the upstream's own name gets the client's scheme and host, so an internal address never reaches the browser.
-- **Turn the mapping off** (**Redirects from the upstream**: *As the upstream sends them*, `rewriteLocation: false`) when the upstream redirects to other routes of the same host. oauth2-proxy sending `/oauth2/sign_in` would otherwise become `/grafana/oauth2/sign_in` and 404.
+- **Strip the prefix:** removes the route's own path. On `/grafana`, `/grafana/d/x` reaches Grafana as `/d/x`, and `/grafana` as `/`. It is not available on a route whose path is `/`.
+- **Add a prefix:** puts a fixed path in front. With both on `/api` and `/v2`, `/api/users` reaches the API as `/v2/users`. The prefix starts with `/` and has no trailing `/`.
+- Paduraksa forwards the path as the client sent it, without decoding or re-encoding (`%2F` stays `%2F`), and leaves the query untouched.
+- A stripping route sends the removed prefix to the upstream in `X-Forwarded-Prefix` (`/grafana`), so an app that builds its own links can add it back.
+- **Redirects from the upstream** are mapped back. A `Location` of `/login` reaches the client as `/grafana/login`. A `Location` that already starts with `/grafana` is left alone, for an app that reads `X-Forwarded-Prefix`. An absolute `Location` on the upstream's own name gets the client's scheme and host, so an internal address never reaches the browser.
+- **Turn the mapping off** (**Redirects from the upstream**: *As the upstream sends them*, `rewriteLocation: false`) if the upstream redirects to other routes of the same host. Otherwise oauth2-proxy's `/oauth2/sign_in` becomes `/grafana/oauth2/sign_in` and gives a 404.
 - **A path that can't be rewritten safely gets a `404`:**
     - a spelling of the prefix other than the route's own (`//grafana`, `/%67rafana`);
     - on any rewritten route, a dot segment in any spelling (`..`, `%2e%2e`, `.%2E`, `..;`);
@@ -83,18 +83,18 @@ hosts:
 
 ## Custom headers
 
-Rules set, add or remove a header on the request the upstream receives, or on the response the client receives. They are a host setting, so the global defaults, a profile, a host and a route can each carry some. In the dashboard: **Request headers** and **Response headers**, under *Headers and logging*.
+Rules set, add or remove a header on the request the upstream receives or the response the client receives. They are a host setting, so the global defaults, a profile, a host and a route can each carry some. In the dashboard, they are **Request headers** and **Response headers**, under *Headers and logging*.
 
-- **Set** replaces every value the header had, **add** appends a value, **remove** takes the header off, whoever set it.
-- **Layers merge by header name:** a rule for a name replaces the lower layer's rule for that name, and the other rules are kept. A route's rules go over its host's the same way. The form lists what a layer inherits and marks the rules it replaces.
-- At most 32 rules per direction, per layer and after the layers merge. A name is up to 64 characters; a value is up to 4096 visible ASCII characters, with no line breaks and no leading or trailing space. Values are sent as written: there are no placeholders.
-- **Response rules** go on the upstream's responses and on Paduraksa's own pages for the host (error pages, redirects, maintenance), after the built-in headers: a rule for `Server` wins over the **Server header** setting. A page's own `Content-Security-Policy` stays, whatever a rule says.
-- **Refused names**: Paduraksa sets these itself, or they frame the message.
+- **Set** replaces every value the header had, **add** appends a value, and **remove** deletes the header, whoever set it.
+- **Layers merge by header name:** a rule for a name replaces the lower layer's rule for that name, and the other rules are kept. A route's rules override its host's the same way. The form lists what a layer inherits and marks the rules it replaces.
+- There are at most 32 rules per direction, per layer and after the layers merge. A name has up to 64 characters, and a value up to 4096 visible ASCII characters, with no line breaks and no leading or trailing space. Values are sent as written, with no placeholders.
+- **Response rules** apply to the upstream's responses and to Paduraksa's own pages for the host (error pages, redirects, maintenance), after the built-in headers, so a rule for `Server` wins over the **Server header** setting. A page's own `Content-Security-Policy` stays, whatever a rule says.
+- **Refused names:** Paduraksa sets these itself, or they frame the message.
     - Both directions: `Connection`, `Content-Encoding`, `Content-Length`, `Expect`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `Proxy-Connection`, `TE`, `Trailer`, `Transfer-Encoding` and `Upgrade`.
     - On the request: `Host`, every `X-Forwarded-*`, `Forwarded`, `X-Real-IP`, `X-Request-Id`, every `cf-*`, `True-Client-IP` and `X-Paduraksa-Internal`.
     - On the response: `Strict-Transport-Security`, `Alt-Svc`, `X-Request-Id` and `Location`.
-    - A request rule can't set a header the host's sign-in provider vouches for. A response `Set-Cookie` rule can only add.
-- **Values are config, not secrets:** a static `Authorization` to an upstream is stored in the config and in its YAML export like any setting. The Simulator shows such values (`Authorization`, `Cookie`, names ending in `-Key`, `-Token` or `-Secret`) as redacted.
+    - A request rule can't set a header the host's sign-in provider vouches for, and a response `Set-Cookie` rule can only add.
+- **Values are config, not secrets:** a static `Authorization` to an upstream is stored in the config and its YAML export like any setting. The Simulator redacts such values (`Authorization`, `Cookie`, names ending in `-Key`, `-Token` or `-Secret`).
 
 ```yaml
 profiles:
@@ -123,10 +123,10 @@ hosts:
 
 ## Compression
 
-A host can compress the upstream's responses with Brotli or gzip, whichever the client's `Accept-Encoding` prefers. Off by default (see [BREACH](https://www.breachattack.com/)). Turn it on globally, per profile or per host (**Compress responses**, under *Compression*).
+A host can compress the upstream's responses with Brotli or gzip, whichever the client's `Accept-Encoding` prefers. It is off by default (see [BREACH](https://www.breachattack.com/)). **Compress responses**, under *Compression*, turns it on globally, per profile or per host.
 
-- It compresses text (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly, fonts) of at least **Smallest body** (1 KiB by default, 0 to 1 MiB). A body of unknown length is compressed too.
-- It leaves alone a response the upstream already compressed, a range, an event stream, a `Cache-Control: no-transform`, a `HEAD`, a WebSocket, and Paduraksa's own pages.
+- It compresses text (HTML, CSS, JavaScript, JSON, XML, SVG, plain text, WebAssembly, fonts) of at least **Smallest body** (1 KiB by default, 0 to 1 MiB), including a body of unknown length.
+- It leaves alone a response the upstream already compressed, a range, an event stream, a `Cache-Control: no-transform` response, a `HEAD`, a WebSocket and Paduraksa's own pages.
 - A compressed response gets `Vary: Accept-Encoding` and a weak `ETag`, and loses `Content-Length` and `Accept-Ranges`.
 - The access log and the metrics count the compressed bytes.
 
@@ -141,7 +141,7 @@ hosts:
 
 ## Settings layers
 
-A host setting comes from the first layer that sets it, looking from the top. A layer that does not set a value inherits it from the one below.
+A host setting comes from the first layer that sets it, starting from the top. A layer that does not set a value inherits it from the one below.
 
 1. **Built-in defaults.**
 2. **Global defaults** (Settings, *Global defaults*): what every host inherits.
@@ -152,7 +152,7 @@ A host setting comes from the first layer that sets it, looking from the top. A 
 How layers combine:
 
 - Each setting is either set or inherited. Grouped settings, such as HSTS, merge field by field: a layer can change `max-age` and keep the `includeSubDomains` below it.
-- A rate limit, access list, rule set or sign-in provider that a lower layer applies can be lifted by turning it **off** at a higher layer. The choice of policy is kept while it is off.
+- A higher layer can lift a rate limit, access list, rule set or sign-in provider that a lower layer applies by turning it **off**. The choice of policy is kept while it is off.
 - Error pages merge entry by entry, and each entry is replaced whole. Custom headers merge by header name.
 - The dashboard shows where each value comes from ("inherited from Global", "from profile *LAN only*") and offers "override here" and "reset to inherited".
 
@@ -178,31 +178,31 @@ The settings a host can carry:
 
 ### HTTPS and HSTS
 
-- **HTTPS redirect** redirects plain-HTTP requests to HTTPS before anything else. The redirect goes to the public HTTPS port (443, or `Paduraksa__Listen__PublicHttpsPort` behind a port mapping).
+- **HTTPS redirect** redirects plain-HTTP requests to HTTPS before anything else, to the public HTTPS port (443, or `Paduraksa__Listen__PublicHttpsPort` behind a port mapping).
 - A host with no certificate (**Certificate: None**) cannot force HTTPS.
-- **HSTS** is sent only on HTTPS responses, and never for an IP address or a loopback name. A request for a name no host serves never carries it.
+- **HSTS** is sent only on HTTPS responses, never for an IP address or a loopback name, and never on the answer to a name no host serves.
 - `max-age` is 0 to 63 072 000 seconds (two years). 0 tells a browser to forget the host.
 - `preload` needs `includeSubDomains` and a `max-age` of at least a year, and it is hard to undo: browsers that ship the list keep refusing plain HTTP after the header stops.
-- A browser keeps the policy for `max-age`, so turn HSTS on only when every name under it works over HTTPS.
+- A browser keeps the policy for `max-age`, so turn HSTS on only if every name under it works over HTTPS.
 
 ### The `Server` header
 
 | Mode | Effect |
 |---|---|
-| `Paduraksa` (default) | Sends the name, never a version, replacing the upstream's header |
+| `Paduraksa` (default) | Sends the name without a version, replacing the upstream's header |
 | `Custom` | Sends your value (1 to 128 visible ASCII characters), replacing the upstream's |
-| `Upstream` | The upstream's own header passes through |
-| `Remove` | Sends none, the upstream's included |
+| `Upstream` | Passes the upstream's own header through |
+| `Remove` | Sends no header, and removes the upstream's |
 
 ### TLS and HTTP/3 per host
 
 - **Lowest TLS version** over TCP is 1.2 by default. QUIC is always 1.3.
 - **HTTP/1.1 only** stops offering HTTP/2 over TCP.
-- A connection weaker than the host allows gets `421 Misdirected Request`, so browsers retry on a connection of their own.
+- A connection weaker than the host allows gets `421 Misdirected Request`, so browsers retry on a new connection.
 
 ### Request ID
 
-Every request gets an `X-Request-Id`. Paduraksa generates one, or keeps the one a **trusted proxy** sent. A client that is not a trusted proxy cannot choose its own. Per host, profile or globally you choose where it travels: upstream and client (the default), upstream only, client only, or nowhere.
+Every request gets an `X-Request-Id`. Paduraksa generates one, or keeps the one a **trusted proxy** sent. Other clients cannot choose their own. Per host, profile or globally, you choose where it travels: upstream and client (the default), upstream only, client only, or nowhere.
 
 ## Maintenance mode
 
@@ -210,55 +210,55 @@ Maintenance mode answers every request to a host with a page instead of forwardi
 
 - **Status:** 503 (the default), 200, 500, 502, 504, 403, 404 or 410.
 - **Retry-After:** 0 sends none, up to a week.
-- **Bypass:** a named access list. A request skips the page when the list's allow rules (addresses, and countries behind Cloudflare) admit it and its deny rules do not refuse it. A password is never asked for here.
+- **Bypass:** a named access list. A request skips the page if the list's allow rules (addresses, and countries behind Cloudflare) admit it and its deny rules do not refuse it. It never asks for a password.
 - **Page:** the host's `maintenance` error page, or the built-in "Down for maintenance".
 
-Use the wrench in the Hosts list to switch it on. It asks for the options first, then opens the review sheet like any other change.
+The wrench in the Hosts list switches it on. It asks for the options first, then opens the review sheet like any other change.
 
-Maintenance mode covers every host kind except Admin: a layer that turns it on for every host cannot lock the dashboard out. A refused client is still refused (access lists and rules run first), and plain HTTP is still redirected to HTTPS first.
+Maintenance mode covers every host kind except Admin, so a layer that turns it on for every host cannot lock the dashboard out. Access lists and rules run first, so a refused client is still refused, and plain HTTP is still redirected to HTTPS first.
 
 ## Error pages
 
-Paduraksa answers its own refusals with built-in pages: 403, 404, 413, 414, 421, 429, 431, 502, 503 and 504. A browser (an `Accept` that includes `text/html`) gets the page and anything else gets plain text. Each page carries the request ID.
+Paduraksa answers its own refusals with built-in pages: 403, 404, 413, 414, 421, 429, 431, 502, 503 and 504. A browser (an `Accept` that includes `text/html`) gets the page, and any other client gets plain text. Each page carries the request ID.
 
 You can replace any of them, plus the maintenance page, globally, per profile or per host:
 
 - a **message**: a heading of up to 120 characters and a sentence of up to 500, shown in the built-in layout; or
-- a **document**: your own HTML, up to 64 KiB. It has no script, and only inline styles and `data:` images and fonts.
+- a **document**: your own HTML, up to 64 KiB, with no script and only inline styles and `data:` images and fonts.
 
 Variables are written `{status}`, `{statusText}`, `{requestId}`, `{host}` and `{cfRay}`. Any other brace is literal, so CSS needs no escaping, and `{{` writes a literal `{`.
 
-**Replace the upstream's error pages** is a separate choice: *off* (the default), *HTML* (replace an upstream's `text/html` error bodies) or *any* (also an API's JSON errors). It never touches a WebSocket upgrade, an event stream or gRPC.
+**Replace the upstream's error pages** is a separate choice: *off* (the default), *HTML* (replace an upstream's `text/html` error bodies) or *any* (also an API's JSON errors). It never changes a WebSocket upgrade, an event stream or gRPC.
 
-The Simulator tells you which page a browser would get and which layer it came from.
+The Simulator shows which page a browser would get and which layer it came from.
 
 ## Review, apply and undo
 
-Every config change goes through the review sheet. Nothing applies silently, including the switch in the Hosts list.
+Every config change goes through the review sheet, including the switch in the Hosts list. Nothing applies silently.
 
 ![The review sheet: Cancel, Add to draft, Apply now.](../assets/review.png)
 
 The sheet shows:
 
 - the diff, grouped by object, field by field;
-- the compiler's warnings (a name no certificate covers, a sign-in provider that is named but off);
-- the lock-out guard: a change that would cut you off from the admin through the proxy is refused unless you force it;
+- the compiler's warnings (a name that no certificate covers, a sign-in provider that is named but off);
+- the lock-out guard, which refuses a change that would cut you off from the admin through the proxy unless you force it;
 - a **Simulate** check against the change.
 
 Then you choose:
 
-- **Apply now** makes a revision and publishes it. It goes live in milliseconds without dropping requests, and the toast offers **Undo**.
+- **Apply now** creates a revision and publishes it. It goes live within milliseconds without dropping requests, and the toast offers **Undo**.
 - **Add to draft** keeps it for later.
 
 The review sheet's note (up to 1000 characters) becomes the revision's note in **History**, where each revision can be rolled back. A rollback is a revision too.
 
 ### Drafts
 
-A **draft** collects changes made on any page (hosts, upstreams, profiles, rate limits, access lists, rules, sign-in providers, global defaults) and applies them as **one revision**. A change that spans several pages then goes live all at once or not at all.
+A **draft** collects changes made on any page (hosts, upstreams, profiles, rate limits, access lists, rules, sign-in providers, global defaults) and applies them as **one revision**. A change that spans several pages goes live all at once or not at all.
 
 ![The draft bar under the app bar, with Review and Discard.](../assets/draft-bar.png)
 
-- There is one draft per user, kept on the server. A reload, a second tab and a restart keep it. After 30 days untouched it is dropped, with a notice.
+- Each user has one draft, kept on the server, so it survives a reload, a second tab and a restart. After 30 days untouched it is dropped, with a notice.
 - A bar under the app bar shows the change count, with **Review** and **Discard**. Lists mark objects the draft creates or changes with a *Draft* chip, and the pickers offer them.
 - An object has one entry. Editing it again replaces its entry.
 - A form checks an entry against the config as the draft would leave it, and shows errors at the fields.
@@ -268,11 +268,11 @@ A **draft** collects changes made on any page (hosts, upstreams, profiles, rate 
 
 - A draft applies whole or not at all.
     - If someone changed an object an entry touches, that entry shows *Changed elsewhere*, and Apply is refused until you reload it.
-    - If the config moved in another way, you get the fresh review to confirm. It never applies on its own.
+    - If the config changed in another way, you get the fresh review to confirm. The draft never applies on its own.
 - Undoing the revision undoes the whole draft.
-- Certificates, ACME accounts, DNS providers, users, API tokens and notification channels are not config: they act at once, as do a YAML import, a rollback and an Undo.
+- Certificates, ACME accounts, DNS providers, users, API tokens and notification channels are not config, so they act at once. So do a YAML import, a rollback and an Undo.
 - An API token acts on its owner's draft: an assistant can propose, and you apply. See [MCP](../automation/mcp.md).
 
 ## Ask the Simulator
 
-**Simulator** (Insight) answers "why was this request routed, redirected or refused?" for a made-up request, against the live config, an older revision, the change you are reviewing or your open draft ("My draft"). It walks the same steps the gate does and says what each decided: client address, access list, rules, rate limit, sign-in, route, upstream and the Host sent. Simulating never spends a rate-limit token or sends a request.
+**Simulator** (Insight) shows why a made-up request is routed, redirected or refused, against the live config, an older revision, the change you are reviewing or your open draft ("My draft"). It walks the same steps as the gate and reports what each decided: client address, access list, rules, rate limit, sign-in, route, upstream and the Host sent. Simulating never spends a rate-limit token or sends a request.
