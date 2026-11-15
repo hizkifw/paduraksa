@@ -17,7 +17,7 @@
                   HelperText="@ProviderDisplay.CredentialHint(RotateFor?.Kind ?? _kind)" Class="pdk-dns-credential" />
     <div class="pdk-secret-note">
         <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" />
-        <span>Stored in the vault and usable only against @DnsProviderService.ApiHostOf(RotateFor?.Kind ?? _kind). It is never shown again.</span>
+        <span>The token is never shown again.</span>
     </div>
 
     @if (_errors.Count > 0)
