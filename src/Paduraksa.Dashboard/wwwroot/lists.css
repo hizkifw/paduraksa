@@ -179,7 +179,9 @@
 .pdk-profiles-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.2fr) 40px; }
 .pdk-rate-limits-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
 .pdk-access-lists-table, .pdk-auth-providers-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
-.pdk-rule-sets-table, .pdk-presets-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 140px; }
+.pdk-rule-sets-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 140px; }
+/* The last column holds "Create from preset" on one line. */
+.pdk-presets-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 172px; }
 .pdk-users-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) 80px; }
 .pdk-users-table.pdk-users-seen { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(90px, 0.7fr) 80px; }
 .pdk-tokens-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.8fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }

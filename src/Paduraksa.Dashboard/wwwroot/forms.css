@@ -370,14 +370,14 @@
     align-items: start;
 }
 
-/* A fixed value in a grid of fields: as tall as a dense outlined field (and offset the way MudBlazor offsets one), with no box. */
+/* A fixed value in a grid of fields: as tall as a dense outlined field (and offset the way MudBlazor offsets one), with no box, so it
+   starts at the edge of the card's content rather than inset like text inside a box. */
 .pdk-readonly {
     display: flex;
     flex-direction: column;
     justify-content: center;
     min-height: 40px;
     margin: 6px 0 2px;
-    padding: 0 14px;
     min-width: 0;
 }
 
