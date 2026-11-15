@@ -150,32 +150,58 @@ def _is_contributor_page(src_uri: str) -> bool:
     return src_uri in CONTRIBUTOR_PAGES or src_uri.startswith(CONTRIBUTOR_PREFIXES)
 
 
-LIST_ITEM = re.compile(r"^(?P<indent>[ ]*)(?:[-*+]|\d+[.)])[ ]+\S")
+LIST_ITEM = re.compile(r"^(?P<indent>[ ]*)(?P<marker>[-*+]|\d+[.)])(?P<gap>[ ]+)\S")
 FENCE = re.compile(r"^[ ]*(```|~~~)")
 # Lines a list may follow directly without being run into them: a heading, a table row, an HTML line, an admonition opener.
 NOT_PARAGRAPH = re.compile(r"^[ ]*(#|\||<|!!!|\?\?\?|>)")
 
 
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
 def _separate_lists(markdown: str) -> str:
+    """Rewrites lists the way Python-Markdown needs them, from the CommonMark the sources are written in (GitHub renders them as is).
+
+    - A list straight after a paragraph line gets a blank line before it; without one the items run into the paragraph.
+    - A nested item, and an item's continuation lines, are indented 4 per level. The sources indent them by the marker's width
+      (2, or 3 under "1."), and with less than 4 the children came out flat, as siblings of their parent.
+    """
     out: list[str] = []
+    stack: list[tuple[int, int]] = []  # per open list level: (its content column in the source, that column on the site)
     fenced = False
-    list_indent: int | None = None  # the indent of the list the previous lines belong to, until a blank line ends it
+    fence_shift = 0
     previous = ""
     for line in markdown.split("\n"):
-        if FENCE.match(line):
-            fenced = not fenced
-        elif not fenced:
-            item = LIST_ITEM.match(line)
-            if not line.strip():
-                list_indent = None
-            elif item:
-                indent = len(item["indent"])
-                previous_indent = len(previous) - len(previous.lstrip(" "))
-                paragraph = previous.strip() and not LIST_ITEM.match(previous) and not NOT_PARAGRAPH.match(previous)
-                if paragraph and previous_indent == indent and list_indent != indent:
+        if fenced:
+            if FENCE.match(line):
+                fenced = False
+            out.append(" " * fence_shift + line if fence_shift and line.strip() else line)
+            previous = line
+            continue
+        if not line.strip():
+            out.append(line)
+            previous = line
+            continue
+        indent = _indent(line)
+        item = LIST_ITEM.match(line)
+        while stack and indent < stack[-1][0]:
+            stack.pop()
+        if item:
+            if stack:
+                target = stack[-1][1]
+            else:
+                target = indent
+                after_paragraph = previous.strip() and not LIST_ITEM.match(previous) and not NOT_PARAGRAPH.match(previous)
+                if after_paragraph and _indent(previous) == indent:
                     out.append("")
-                list_indent = indent if list_indent is None or indent < list_indent else list_indent
-        out.append(line)
+            stack.append((indent + len(item["marker"]) + len(item["gap"]), target + 4))
+            out.append(" " * target + line.lstrip(" "))
+        else:
+            shift = stack[-1][1] - stack[-1][0] if stack else 0
+            if FENCE.match(line):
+                fenced, fence_shift = True, shift
+            out.append(" " * shift + line if shift else line)
         previous = line
     return "\n".join(out)
 
