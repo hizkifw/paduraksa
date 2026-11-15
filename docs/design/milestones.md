@@ -1,235 +1,214 @@
 # Risks, spikes and milestones
 
-This page keeps the spikes that de-risked the design and the scope, exit criteria and outcome of each milestone. The overview of status is in [../PLAN.md](../PLAN.md).
+For contributors: what each spike proved, and what each milestone built. The overview of status is in [the plan](../PLAN.md).
 
-Contents:
+## In short
+
+- Seven spikes de-risked the design before the features that needed them. All are done. Two changed the design: S2 (the gate selects the YARP endpoint) and S4 (EF discovery is replaced, JSON stores strings).
+- Two spikes are partial: S1 (a real browser upgrading to H3 is untested) and S6 (the metric-slot test came with M9).
+- Milestones M0 to M11 are done. The NPM importer (M10) is not built, and the v0.1 tag (M11) waits for sign-off.
+- This page is the history. The current state of each area is on its own page, linked from every entry.
+- Items still open inside done milestones are listed at the end of each milestone, and the roadmap is under [Later](#later).
+
+## Contents
+
 - [Risks and spikes](#risks-and-spikes)
 - [Milestones](#milestones)
+- [Later](#later)
 
 ## Risks and spikes
 
-These were done first, before the features that depend on them. Each has an exit criterion; the result is what was recorded.
+These were done first. Each has an exit criterion, and the result is what was recorded.
 
-### S1: HTTP/3 and per-SNI certificate selection (done, partial: browser upgrade pending)
+### S1: HTTP/3 and per-SNI certificate selection (partial)
 
-- **Why:** unverified whether Kestrel's QUIC listener invokes per-SNI selection, and whether libmsquic is available in the container.
-- **Exit criterion:** either per-SNI works on QUIC with hot-swap, or the single-H3-cert fallback (see [hot-path.md](hot-path.md)) is implemented. Plus: the browser actually upgrades to H3 in the Docker deployment (`Alt-Svc` carries the public port, UDP 443 reachable).
-- **Status:** per-SNI works on QUIC. The browser upgrade is still pending.
+- **Question:** does Kestrel's QUIC listener invoke per-SNI selection, and is libmsquic available in the container?
+- **Exit criterion:** per-SNI works on QUIC with hot-swap, or the single-H3-certificate fallback ([hot-path.md](hot-path.md)) is implemented. A browser must also upgrade to H3 in the Docker deployment (`Alt-Svc` carries the public port, UDP 443 is reachable).
+- **Result:** per-SNI works on QUIC. The browser upgrade is still pending. Detail: [S1](../spikes/S1-http3-sni.md).
 
-### S2: YARP config churn and metadata binding (done, design changed: the gate selects the endpoint)
+### S2: YARP config churn and metadata binding (design changed)
 
-- **Why:** many hosts (500 and more) and frequent publishes, so endpoint rebuild cost matters. `ConfigureEndpoints(Action<IEndpointConventionBuilder, RouteConfig>)` exists in YARP 2.3.0, but it had to be confirmed that it re-runs on every dynamic reload with the new `RouteConfig`.
-- **Exit criterion:** publish under 50 ms at 500 hosts; no request errors during swaps under load; typed metadata on every endpoint matches its generation (or the route-ID fallback is in place).
-- **Result:** the design changed. The gate picks the YARP endpoint itself, and routes carry no Host match (see [config.md](config.md)).
+- **Question:** 500 or more hosts and frequent publishes make endpoint rebuild cost matter. `ConfigureEndpoints` exists in YARP 2.3.0, but does it re-run on every dynamic reload with the new `RouteConfig`?
+- **Exit criterion:** publish under 50 ms at 500 hosts, no request errors during swaps under load, and typed metadata on every endpoint matching its generation (or the route-ID fallback in place).
+- **Result:** the gate picks the YARP endpoint itself, and routes carry no Host match ([config.md](config.md)). Detail: [S2](../spikes/S2-yarp-reload.md).
 
-### S3: Zero-alloc gate on Kestrel (done, 0 B gate)
+### S3: Zero-allocation gate on Kestrel (0 B)
 
-- **Why:** request-scoped state without `Items`, span-based host lookup, feature reuse per connection.
-- **Exit criterion:** BenchmarkDotNet plus an in-process test show 0 B per request from Paduraksa code.
-- **Result:** see [hot-path.md](hot-path.md).
+- **Question:** can request-scoped state live without `Items`, with span-based host lookup and feature reuse per connection?
+- **Exit criterion:** BenchmarkDotNet and an in-process test show 0 B per request from Paduraksa code.
+- **Result:** met. See [hot-path.md](hot-path.md) and [S3](../spikes/S3-zero-alloc-gate.md).
 
-### S4: Typed IDs x EF Core 10 x SQLite (done, partial: the `FrozenDictionary` lookup is not covered)
+### S4: Typed IDs, EF Core 10 and SQLite (partial)
 
-- **Why:** convention converters, BLOB big-endian GUIDs (`UuidV7Generator` plus `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types containing typed IDs, LINQ translation of comparisons, and the `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup.
+- **Question:** do convention converters, big-endian BLOB GUIDs (`UuidV7Generator` plus `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types holding typed IDs and LINQ comparisons work? Does the `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup?
 - **Exit criterion:** round-trip, query and index-ordering tests pass.
-- **Result:** done as real code in `Paduraksa.Data` (the generic parts moved to `Paduraksa.Storage` in M3), tested in `tests/Paduraksa.Tests.Data` on real SQLite. Everything worked as planned:
-  - BLOB, INTEGER and JSON-string storage;
-  - `ORDER BY` equals `CompareTo` equals string order (same millisecond too);
-  - comparisons translate directly;
-  - an Int64Ordered key is the rowid alias without `AUTOINCREMENT`.
-- **Changes:** discovery replaces EF's `PropertyDiscoveryConvention` instead of scanning (see [config.md](config.md)), and JSON stores strings.
+- **Result:** built as real code in `Paduraksa.Data` (the generic parts live in `Paduraksa.Storage`), tested in `tests/Paduraksa.Tests.Data` on real SQLite.
+  - BLOB, INTEGER and JSON-string storage all work.
+  - `ORDER BY` equals `CompareTo` equals string order, including within one millisecond.
+  - An Int64Ordered key is the rowid alias without `AUTOINCREMENT`.
+  - The `FrozenDictionary` lookup is not covered by that test.
+- **Changes:** discovery replaces EF's `PropertyDiscoveryConvention` instead of scanning ([config.md](config.md)), and JSON stores strings.
 
-### S5: Two WebApplications, one process (done, implemented as the real host)
+### S5: Two web apps, one process
 
-- **Why:** shared singletons, graceful shutdown order, logging, health.
+- **Question:** shared singletons, graceful shutdown order, logging and health.
 - **Exit criterion:** both apps start and stop cleanly, and integration tests can host both.
+- **Result:** implemented as the real host ([hosting.md](hosting.md)).
 
-### S6: State continuity across publishes (done, partial: YARP health and rate-limit continuity tested)
+### S6: State continuity across publishes (partial)
 
-- **Why:** rate limits and metrics must not reset on config edits (see "State that survives a publish" in [config.md](config.md)).
-- **Exit criterion:** a load test with publishes every 100 ms shows:
-  1. continuous 429 behaviour;
-  2. monotonic counters;
-  3. **YARP destination health preserved**: a destination marked unhealthy (active or passive) stays unhealthy across reloads that do not touch its cluster, and no healthy destination flaps.
-- **Results:**
-  - M1 (`StateContinuityTests`): no request errors, and (3), over real YARP reloads, policy-only edits and unchanged configs.
-  - M7 (`RateLimitContinuityTests`): (1), buckets carried over publishes under load (the 2xx count stays within burst + rate x elapsed and 429s keep coming), plus a lowered burst taking effect on the next touch.
-  - (2) is tested with the metric slots (M9).
-  - At load (`soak`, `bench/soak/run-soak.sh`): publishes every 100 ms for 60 s under mixed traffic. The 429 client, the counters and a down destination are checked through the burst; see "Soak test" in [testing.md](testing.md#soak-test) for the run and what it found.
+- **Question:** rate limits and metrics must not reset on config edits ("State that survives a publish" in [config.md](config.md)).
+- **Exit criterion:** under a load test with a publish every 100 ms:
+  1. 429 behaviour is continuous;
+  2. counters are monotonic;
+  3. YARP destination health is preserved. A destination marked unhealthy (active or passive) stays unhealthy across reloads that don't touch its cluster, and no healthy destination flaps.
+- **Result:**
+  - `StateContinuityTests` covers no request errors and (3) over real YARP reloads, policy-only edits and unchanged configs.
+  - `RateLimitContinuityTests` covers (1): buckets carry over publishes (the 2xx count stays within burst + rate x elapsed and 429s keep coming), and a lowered burst takes effect on the next touch.
+  - (2) is tested with the metric slots.
+  - The soak (`bench/soak/run-soak.sh`) publishes every 100 ms for 60 s under mixed traffic. See [Soak test](testing.md#soak-test).
 
-### S7: Baseline performance vs nginx and Caddy (done: baseline recorded; the tail stalls are under investigation)
+### S7: Baseline against nginx and Caddy (recorded)
 
-- **Why:** know where we stand early.
 - **Exit criterion:** `oha` or `wrk2` numbers on the same box recorded in `bench/README.md`.
-- **Result** (`bench/results/2026-11-07-baseline.md`, raw data alongside; current tables in `bench/RESULTS.md`):
-  - Paduraksa reaches about 0.54 to 0.71x nginx's throughput and 2.1 to 3.6x Caddy's.
-  - At fixed rates its median latency is within 0.15 ms of nginx's, but its p99 is 1.4 to 2.3x nginx's. The cause is process-wide stalls that are not GC-driven and are still under investigation.
-- The harness now also runs HAProxy, Traefik, Envoy and a bare Kestrel + YARP reference, adds `body-64k` and `handshake` scenarios, and records run-to-run history with `RECORD=1`.
-- The comparison scenarios also cover response compression, custom header rules, path rewrite, and a `Location` mapped back through a rewrite, each configured with the stock equivalent of every proxy that has one (bench/README.md lists the skips). Their numbers are not recorded yet.
+- **Result** (`bench/results/2026-11-07-baseline.md`, current tables in `bench/RESULTS.md`):
+  - Throughput is about 0.54 to 0.71x nginx's and 2.1 to 3.6x Caddy's.
+  - At fixed rates the median latency is within 0.15 ms of nginx's, but p99 is 1.4 to 2.3x nginx's. The cause is process-wide stalls that are not GC-driven, and it is still under investigation.
+  - The final bench on a quiet machine (`bench/results/2026-11-15-0406-baseline`) has Paduraksa at 0.93 to 1.01 of bare YARP.
+- The harness also runs HAProxy, Traefik, Envoy and a bare Kestrel + YARP reference, has `body-64k` and `handshake` scenarios, and records history with `RECORD=1`.
+- Comparison scenarios for response compression, header rules, path rewrite and a `Location` mapped back through a rewrite exist for every proxy that has an equivalent (`bench/README.md` lists the skips). Their numbers are not recorded yet.
 
 ## Milestones
 
-Each milestone ends with a working, testable increment. M0 to M9 are done. M10 is done except where noted. M11 is the v0.1 release: everything in it is done but the tag.
+Each milestone ended with a working, testable increment.
 
-### M0 Foundations (done)
+### M0: Foundations
 
-- **Scope:** repo, CI (build, test, format, arch tests), the `[TypedId]` generator plus base62 plus EF, JSON and Yaml converters, Result types, clock abstraction, spikes S1 to S5.
-- **Done when:** generator tests green and arch rules enforced in CI.
-- **Outcome:** typed IDs, CI, arch tests, host, data layer, spikes S1 to S5.
+- **Scope:** repo, CI (build, test, format, architecture tests), the `[TypedId]` generator with base62 and EF, JSON and YAML converters, Result types, the clock abstraction, spikes S1 to S5.
+- **Done when:** generator tests are green and architecture rules are enforced in CI.
 
-### M1 Proxy core (done)
+### M1: Proxy core
 
-- **Scope:**
-  - snapshot model and store, gate middleware, host table;
-  - client-IP resolution including Cloudflare `Proxy` and `Tunnel` modes with baked-in ranges;
-  - TLS SNI selection, YARP provider, H1, H2 and H3;
-  - HTTP-to-HTTPS redirect, default host, a hard-coded test config.
+- **Scope:** snapshot model and store, gate middleware, host table, client-IP resolution (including Cloudflare `Proxy` and `Tunnel` with baked-in ranges), TLS SNI selection, the YARP provider, H1, H2 and H3, the HTTP-to-HTTPS redirect, a default host.
 - **Done when:**
-  - benchmarks and the S7 baseline exist;
-  - the S6 continuity test passes (YARP health, no request errors under publishes);
-  - zero-alloc tests pass (the gate including client-IP resolution in every trusted-proxy mode);
-  - end-to-end tests through `PaduraksaHost` pass: per-SNI certs and hot swap, redirect port, PROXY protocol, Cloudflare and generic client IP, upstream headers, `Alt-Svc`, H3 in Docker.
-- **Outcome:** proxy core, end-to-end tests, benchmarks, S6 in scope, S7 baseline.
+  - the benchmarks and the S7 baseline exist;
+  - the S6 continuity test passes;
+  - zero-allocation tests pass, including client-IP resolution in every trusted-proxy mode;
+  - end-to-end tests through `PaduraksaHost` pass: per-SNI certificates and hot swap, redirect port, PROXY protocol, Cloudflare and generic client IP, upstream headers, `Alt-Svc`, H3 in Docker.
 
-### M2 Config store (done)
+### M2: Config store
 
-- **Scope:** EF model, migrations, the Application command pipeline, validation, compiler, revisions, diff, rollback, audit (hash chain), last-known-good.
-- **Done when:** change to revision to live in under 100 ms; rollback works.
-- **Outcome:** config store wired into the process, startup recompile, last-known-good with degraded starts. Change to live median 11 to 15 ms end to end.
+- **Scope:** the EF model, migrations, the Application command pipeline, validation, the compiler, revisions, diff, rollback, audit (hash chain), last-known-good.
+- **Done when:** change to revision to live takes under 100 ms, and rollback works.
+- **Result:** the median from change to live is 11 to 15 ms end to end. Startup recompiles, and last-known-good gives degraded starts ([config.md](config.md)).
 
-### M3 Vault and certificates (done)
+### M3: Vault and certificates
 
-- **Scope:** KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01, then DNS-01 with Cloudflare and deSEC), renewal scheduler, ARI.
-- **Done when:** Pebble-based integration tests issue and renew; banned-API rules hold.
+- **Scope:** the KEK/DEK store, capabilities, upload, self-signed, the local CA, the ACME client (HTTP-01, then DNS-01 with Cloudflare and deSEC), the renewal scheduler, ARI.
+- **Done when:** Pebble-based integration tests issue and renew, and the banned-API rules hold.
 - **Decisions:**
   - Shared EF/SQLite infrastructure lives in `Paduraksa.Storage`.
-  - The compiler tolerates a missing or unusable certificate (a warning, never a failed start), and the placeholder has a stable ID and is the fallback default (see [vault-and-certificates.md](vault-and-certificates.md)).
-- **Outcome:** a vault with envelope encryption and KEK rotation; certificate upload, self-signed and local CA; ACME issuance and renewal with ARI; HTTP-01 and DNS-01 (Cloudflare and deSEC) with the authoritative-NS propagation check; Pebble issue and renew with the real stack.
-- **Closed on `host-header-acme`:** DNS-01 against Pebble end to end, `_acme-challenge` CNAME delegation, local CA name constraints and root rotation.
+  - The compiler tolerates a missing or unusable certificate (a warning, never a failed start). The placeholder has a stable ID and is the fallback default ([vault-and-certificates.md](vault-and-certificates.md)).
+- **Closed later:** DNS-01 against Pebble end to end, `_acme-challenge` CNAME delegation, local CA name constraints and root rotation.
 
-### M4 Admin backend (done)
+### M4: Admin backend
 
-- **Scope:** the admin app, local users, cookies, TOTP, roles, API tokens, the REST API plus OpenAPI, the first-run setup-token gate, and the **request simulator core** (the gate tracer, `SimulateAsync` over live, revision and draft, `POST /api/v1/simulate`, parity tests).
-- **Done when:** an API-only end-to-end setup is possible, and the simulator explains every gate outcome M1 to M3 can produce and matches the real gate in parity tests.
-- **Outcome:** identity core, admin auth and setup gate, resource REST API with OpenAPI and offline docs, request simulator with parity tests, admin certificate from the local CA, admin through the proxy. `ApiOnlySetupEndToEndTests` walks the API-only first run.
-- **Deferred:** passkeys (to M5, then dropped for now), and local CA root rotation (later built, see M3).
+- **Scope:** the admin app, local users, cookies, TOTP, roles, API tokens, the REST API with OpenAPI, the first-run setup-token gate, and the request simulator core (the gate tracer, `SimulateAsync` over live, revision and draft, `POST /api/v1/simulate`, parity tests).
+- **Done when:** an API-only end-to-end setup works (`ApiOnlySetupEndToEndTests`), and the simulator explains every gate outcome and matches the real gate in parity tests.
+- **Deferred:** passkeys (dropped for now).
 
-### M5 Dashboard and container (done)
+### M5: Dashboard and container
 
 - **Scope:**
-  - **Container** (from M11): Dockerfile (Noble plus libmsquic, non-root, 80, 443 tcp+udp, 9443, `/data`, `HEALTHCHECK`), a `compose.yaml` example, an install and first-run README.
-  - **Dashboard foundation:** Blazor Server plus MudBlazor on the admin listener over the Application services, sign-in with password plus TOTP, session revocation reaching open circuits, the Data Protection key ring in the vault, CSP.
-  - **Wizard (trimmed):** setup token, Owner (plus TOTP), ACME account, DNS provider with live test (skippable), certificate with progress, first host with an upstream check, done.
-  - **Pages:** hosts, upstreams, certificates, review-before-apply (dry-run diff plus warnings, Apply, Undo), history (diff, rollback), audit, simulator, settings (defaults, ACME accounts, DNS providers, users and roles, tokens, my account).
-- **Deferred:** overview and live logs (M9), security page (M7), profiles UI, inheritance badges, command palette, ApexCharts, mobile polish. Passkeys dropped for now. Backups stay in M10.
-- **Done when:** a new user goes from `docker run` to a proxied host via the UI only (a browser-driven exit test).
-- **Outcome:** a Noble container with compose, a systemd unit and install docs; the admin Data Protection ring in the vault; the Blazor dashboard with sign-in and TOTP, hosts, upstreams, review-before-apply with Undo, history, simulator, certificates with ACME progress, ACME accounts, DNS providers, settings, users, API tokens, My account and audit; the first-run wizard (later removed, see [dashboard.md](dashboard.md)). The exit path is covered by the wizard's browser test and the container smoke test, run separately.
-- **As built:** `Dockerfile` at the root (Noble, pinned libmsquic 2.5.10, non-root, 80, 443 tcp+udp, 9443), `deploy/compose.yaml`, `deploy/paduraksa.service`, the install guide (since split into the user guide and operating pages), `doctor --liveness` (the full `doctor` came in M11). The Data Protection key ring lives in the vault and both web apps use it.
+  - Container: `Dockerfile` (Noble, pinned libmsquic, non-root, 80, 443 tcp+udp, 9443, `/data`, `HEALTHCHECK`), `deploy/compose.yaml`, `deploy/paduraksa.service`, install docs, `doctor --liveness`.
+  - Dashboard foundation: Blazor Server and MudBlazor over the Application services, sign-in with password and TOTP, session revocation reaching open circuits, the Data Protection key ring in the vault (both web apps use it), CSP.
+  - Pages: hosts, upstreams, certificates with ACME progress, review-before-apply (dry-run diff, warnings, Apply, Undo), history, audit, simulator, settings.
+  - A first-run wizard, later removed ([dashboard.md](dashboard.md)).
+- **Done when:** a new user goes from `docker run` to a proxied host through the UI alone. The wizard's browser test and the container smoke test cover it, run separately.
 
-### M6 HSTS and logs (done)
+### M6: HSTS and logs
 
 - **Scope:**
-  - **HSTS** as a host setting (global default, profile, host): `max-age`, `includeSubDomains`, `preload`. Sent only on HTTPS responses, never for IP-literal or loopback names, precomputed per host (0 B).
-  - **Access log:** one plaintext line per request (a documented combined-style format: time, client IP, host, method, path, status, bytes, durations, upstream, request ID, `CF-Ray`, user agent), per-host on or off, written to `<data dir>/logs/access.log`. The hot path only fills a fixed-size struct ring, and a background writer formats and writes.
-  - **Error log:** the process's own logs (Warning and above by default, level configurable) to `<data dir>/logs/error.log` in plaintext alongside the console.
-  - **Rotation and compression:** by size and daily, rotated files gzip-compressed in the background, retention by count, age and total size. A full ring drops lines and counts the drops, never blocks a request.
-  - `X-Request-Id` (honoured from trusted proxies, else generated).
-  - **Dashboard:** HSTS fields, and a log page to browse and download the files.
-- **Done when:** the gate stays at 0 B with logging on; rotation and compression run under load without blocking requests or losing ordering; no secrets in either log (cookies, `Authorization` and query strings marked sensitive are redacted).
-- **Outcome:** HSTS, the `Server` header, the access-log switch and where the request ID is sent as host settings; `X-Request-Id`; the access log through a lock-free ring into `access.log`, the error log into `error.log`, both rotated, gzip-compressed and trimmed; the Logs page and API behind `logs:read`.
+  - HSTS as a host setting (`max-age`, `includeSubDomains`, `preload`). It is sent only on HTTPS responses, never for IP-literal or loopback names, and precomputed per host.
+  - The access log: one plaintext line per request in a documented combined-style format, per-host on or off, in `<data dir>/logs/access.log`. The hot path only fills a fixed-size struct ring and a background writer formats it.
+  - The error log: the process's own logs (Warning and above by default) in `<data dir>/logs/error.log`.
+  - Rotation by size and daily, gzip in the background, retention by count, age and total size. A full ring drops and counts lines and never blocks.
+  - `X-Request-Id`: honoured from trusted proxies, otherwise generated.
+  - The `Server` header setting and the Logs page.
+- **Done when:** the gate stays at 0 B with logging on, rotation runs under load without blocking or losing ordering, and no secret reaches a log (cookies, `Authorization` and query strings marked sensitive are redacted).
 
-### M7 Access lists, auth and WAF (done)
+### M7: Access lists, auth and WAF
 
 - **Scope:**
-  - **Access lists** (IP allow/deny plus HTTP basic auth).
-  - **Forward-auth** (authentik, Authelia, oauth2-proxy presets).
-  - **PoW gate** (HMAC-signed, IP-bound, expiring tokens; difficulty per host; JS worker solver; vault `IMacKey`; moved forward from Later).
-  - IP, geo, rate-limit, size, path and UA policies.
-  - Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown and Authenticated Origin Pulls.
-  - Presets, the dashboard's security page, and a simulator trace step for every new policy.
-- **Done when:** policy unit tests and simulator parity tests pass; S6 rate-limit continuity holds (429 behaviour continuous across publishes); a PoW challenge is solved in a real browser.
-- **Outcome:**
-  - named access lists with IP and country rules and basic auth whose passwords live in the vault;
-  - forward-auth with authentik, Authelia and oauth2-proxy presets;
-  - the PoW gate, solved in a real browser;
-  - rate-limit policies with S6 continuity;
-  - request limits;
-  - a per-IP connection cap, a connection deny list and explicit slow-client and connection limits before TLS;
-  - rule sets with presets;
-  - Cloudflare edge ranges refreshed daily, origin lockdown and Authenticated Origin Pulls;
-  - the managed robots.txt, the built-in error pages, the security overview;
-  - a simulator step for every new policy with parity tests.
-- **Open:**
-  - a local country database (see [waf.md](waf.md));
-  - bcrypt `htpasswd` import;
-  - native OIDC (see [identity.md](identity.md));
-  - a forward-auth trace that makes the real call;
-  - a warning for a rule no request can reach.
-- Upstream Host header modes were built on `host-header-acme` (see [config.md](config.md)).
-- Property tests and fuzzing followed at once (see [testing.md](testing.md)).
+  - Named access lists with IP and country rules and basic auth, whose passwords live in the vault.
+  - Forward-auth with authentik, Authelia and oauth2-proxy presets.
+  - The proof-of-work gate: HMAC-signed, IP-bound, expiring tokens, difficulty per host, a JS worker solver, the vault's `IMacKey`.
+  - Rate-limit policies, request limits, rule sets with presets, a per-IP connection cap, a connection deny list and slow-client limits before TLS.
+  - Cloudflare edge ranges refreshed daily, `CF-IPCountry` for country rules, origin lockdown, Authenticated Origin Pulls.
+  - The managed robots.txt, the built-in error pages, the security overview, and a simulator step for every new policy.
+- **Done when:** policy unit tests and simulator parity tests pass, S6 rate-limit continuity holds, and a PoW challenge is solved in a real browser.
+- **Open:** a local country database ([waf.md](waf.md)), bcrypt `htpasswd` import, native OIDC ([identity.md](identity.md)), a forward-auth trace that makes the real call, a warning for a rule no request can reach.
+- Built after: upstream Host header modes ([config.md](config.md)), property tests and fuzzing ([testing.md](testing.md)).
 
-### M8 Custom error pages (done)
+### M8: Custom error pages
 
+- **Scope:**
+  - Custom pages per status at every layer: a message in the built-in layout, or the operator's own document with a style-only CSP. Placeholders are `{status}`, `{statusText}`, `{requestId}`, `{host}` and `{cfRay}`, written from byte segments at 0 B.
+  - Maintenance mode per host with a status, `Retry-After`, a page and a bypass named by an access list.
+  - Opt-in replacement of an upstream's error bodies at response-header time, never buffered.
+  - A sandboxed preview in the dashboard that is the proxy's own rendering, and the simulator's step.
 - **Done when:** every gate and upstream error answers with the configured page, and previews match what is served.
-- **Outcome:**
-  - custom pages per status at every layer (a message in the built-in layout, or the operator's own document with a style-only CSP) with `{status}`, `{statusText}`, `{requestId}`, `{host}` and `{cfRay}`, written from byte segments at 0 B;
-  - maintenance mode per host with a status, `Retry-After`, a page and a bypass named by an access list;
-  - opt-in replacement of an upstream's error bodies at response-header time, never buffered;
-  - the dashboard's rows with a sandboxed preview that is the proxy's own rendering, the maintenance wrench and badge;
-  - the simulator's step and page.
-- **Open:** per-route pages, localisation, statuses beyond the ten, the security overview's maintenance column. See "Error pages" in [waf.md](waf.md).
+- **Open:** per-route pages, localisation, statuses beyond the ten, the security overview's maintenance column ("Error pages" in [waf.md](waf.md)).
 
-### M9 Observability (done)
+### M9: Observability
 
-- **Scope:** counters, histograms, `/metrics`, health checks, notifications, the live tail (over the M6 access-log ring), rollups, the dashboard's live overview.
-- **Done when:** the dashboard overview is fully live, and S6 metric continuity holds (counters monotonic across publishes).
-- **Outcome**, in the order it was built (details in [observability.md](observability.md)):
-  1. Counters and latency histograms by host, route, upstream and destination at 0 B on the request path, `System.Diagnostics.Metrics`, Prometheus `/metrics` behind `metrics:read`. The one-second sampler (ticks on whole seconds, every window recording the seconds it observed) with an hour of rings seeded from the persisted one-minute rollups, a flush at shutdown, and downtime drawn as gaps. The live overview on the home page.
+- **Scope**, in build order ([observability.md](observability.md)):
+  1. Counters and latency histograms by host, route, upstream and destination at 0 B, `System.Diagnostics.Metrics`, Prometheus `/metrics` behind `metrics:read`, the one-second sampler seeded from one-minute rollups, and the live overview.
   2. Upstream health state and notifications (ntfy, Gotify, Discord, webhook, email).
-  3. The live tail: the drain fans out to a bounded in-memory hub, a Live tail page under Insight and `GET /api/v1/logs/tail` as SSE, with the request path untouched at 0 B.
-  4. Traffic analytics: a third drain consumer with sketches, a user-agent classifier and rollups, `GET /api/v1/analytics` and an Analytics page.
-  5. Body bytes counted as they pass, both ways, by host, route and upstream at 0 B a request, into the counters, the access log, the analytics and Prometheus.
-  6. Durable notification delivery with a history: a database outbox fed by a buffered flusher, per-channel workers, at-least-once with an event ID for webhooks, retention, `GET /api/v1/notifications/history` with a retry, and a Notification history page.
+  3. The live tail: the drain fans out to a bounded in-memory hub, with a Live tail page and `GET /api/v1/logs/tail` as SSE.
+  4. Traffic analytics: a third drain consumer with sketches, a user-agent classifier and rollups, `GET /api/v1/analytics` and a page.
+  5. Body bytes counted as they pass, both ways, at 0 B a request.
+  6. Durable notification delivery: a database outbox, per-channel workers, at-least-once with an event ID for webhooks, a history API with retry.
+- **Done when:** the overview is fully live, and S6 metric continuity holds (counters monotonic across publishes).
 
-### M10 Interop (partly done: drafts done, NPM importer not built)
+### M10: Interop
 
-- **Scope and status:**
-  - YAML import and export: **done**.
-  - The CLI's `config export` and `config import`: **done**.
-  - MCP server: **done** (code mode).
-  - Backup and restore: **done**. An Owner-only, passphrase-encrypted, online archive of the config and the vault that restores on a fresh machine: `paduraksa backup|restore`, `POST /api/v1/backup`, Settings > Backup.
-  - **Drafts:** **done**. Change sets across pages applied as one revision.
-  - NPM importer: nice to have.
+- **Scope:** YAML import and export, the CLI's `config export` and `config import`, the MCP server (code mode), backup and restore (an Owner-only, passphrase-encrypted, online archive that restores on a fresh machine), and drafts (change sets across pages applied as one revision). The NPM importer is a nice-to-have and is not built.
 - **Done when:** a round-trip export then import yields an identical revision hash.
-- Details: [admin-surfaces.md](admin-surfaces.md), [vault-and-certificates.md](vault-and-certificates.md), [dashboard.md](dashboard.md).
+- Detail: [admin-surfaces.md](admin-surfaces.md), [vault-and-certificates.md](vault-and-certificates.md), [dashboard.md](dashboard.md).
 
-### M11 Release v0.1 (done but the tag)
+### M11: Release v0.1
 
-- **Scope:**
-  - multi-arch image publishing;
-  - the docs site (**built** on `docs-site`: MkDocs Material over `docs/`, a user guide split from the old install guide, the API reference rendered from the shipped OpenAPI document, built `--strict` on every push; **published** at https://www.paduraksa.org/ with a landing page, the apex redirecting to www, see "The documentation site" in [deployment.md](deployment.md#the-documentation-site));
-  - the threat model doc (**done**: [threat-model.md](threat-model.md), with its gaps list; the short operator page is [../threat-model.md](../threat-model.md)). The small gaps G2, G3, G4, G5, G7, G9 and G13 are closed on `security-gaps`; G12 waits for the fuzz run;
-  - the PROXY protocol parser as two NuGet packages (`Paduraksa.ProxyProtocol`, `Paduraksa.ProxyProtocol.AspNetCore`; **built** on `proxyprotocol-package`: packed on every CI run, pushed to nuget.org by a `proxyprotocol-v*` tag through trusted publishing once a `NUGET_USER` variable exists, see [../development.md](../development.md#publishing-the-nuget-packages));
-  - per-upstream connect and idle timeouts (**done** on `upstream-timeouts`: YARP's 100 s activity timeout was cutting quiet WebSockets and event streams; see "Upstream timeouts" in [hot-path.md](hot-path.md));
-  - the REST API made consistent (**done** on `api-consistency`: kebab-case paths, one status per verb, `{ items, nextCursor }` on every collection, `GET /api/v1/version`, every query parameter and response in the OpenAPI document, kept by a test; see "Conventions for a new endpoint" in [admin-surfaces.md](admin-surfaces.md#conventions-for-a-new-endpoint));
-  - custom request and response headers per host and route, strip-prefix and add-prefix per route, and response compression per host (**built** on `route-transforms`; see "Custom headers", "Path rewrite" and "Response compression" in [hot-path.md](hot-path.md)). Left out: regex rewrites, header placeholders, zstd (not in .NET 10) and a per-route compression switch;
-  - server settings in the dashboard (**built** on `server-settings`: retention, the admin sign-in policy, notification timing, the access log's query strings, the Cloudflare range refresh, the DNS-01 check and wait, MCP and the public connection limits, stored in `settings.server` with an explicit environment value winning, mostly live; retention now defaults to 90 days for metrics and analytics; see "Server settings" in [config.md](config.md#server-settings)); each setting's row has an address (`/settings/server#mcp-enabled`) that scrolls to it, focuses and highlights it, and the dashboard's hints link to a setting instead of naming its variable (`settings-links`; see "Linking to a field" in [dashboard.md](dashboard.md));
-  - request timing by stage (**built** on `request-timing`: the TLS handshake on a connection's first request, the body read, the gate, the upstream connect and wait, and the response send, in the access log, the live tail with a waterfall, and two histograms on `/metrics`; request headers left out, Kestrel has no first-byte time; on `timing-waterfall` each stage's start is recorded too, the wait is DevTools' "Waiting for server response", and the waterfall is DevTools' Timing tab; see "Request timing" in [observability.md](observability.md#request-timing); on `waterfall-gaps` the waterfall fills the time between stages with derived rows (the proxy forwarding the request, preparing the response, unaccounted) and every row has a tooltip saying what happens in its stage);
-  - the full `paduraksa doctor` (**built** on `doctor`: a read-only check of the data directory, the master key, both databases' migrations (a downgrade fails), the effective options and the settings the environment locks, the listeners' ports, libmsquic, the clock and the running server's version, with `--json` and an opt-in `--check-clock` (no outward request unless asked); the CLI's `reset-password` and `backup` now follow the server's precedence for the sign-in policy, so a minimum length raised in the dashboard binds them; `config export` and `import` exit 3 on invalid local settings like the other commands; see "`doctor`" in [admin-surfaces.md](admin-surfaces.md#doctor)). The stale "M5 implements --liveness" help text is gone;
-  - a time-boxed run of every fuzz harness (**done**: two parallel hours on each of the sixteen targets before the tag, about 1.6 billion inputs, no crash, the new coverage merged into `fuzz/corpus`);
-  - the final bench and review (**done**: the bench on a quiet machine in `bench/results/2026-11-15-0406-baseline`, Paduraksa at 0.93-1.01 of bare YARP; the closed-upstream 502 page's connect timing moved off a connect callback, which cost about 10 µs per failed connect; a review of everything since v0.30 found no security or hot-path issue, and its fixes are in);
-  - load tests (**done**: `bench/soak/run-soak.sh`, an hour of mixed traffic with publishes, a flap, a burst, MCP, a dashboard and a restart, judged on errors, leaks, latency drift and S6; see [testing.md](testing.md#soak-test); the 2-hour runs before the tag show memory levelling off after a 30-minute climb, see "The two-hour runs before v0.1" in [bench/soak/README.md](../../bench/soak/README.md)).
+Everything below is done. Only the tag waits for sign-off.
+
+- **Images and docs:**
+  - Multi-arch image publishing.
+  - The docs site: MkDocs Material over `docs/`, the API reference rendered from the shipped OpenAPI document, built `--strict` on every push, published at https://www.paduraksa.org/ ([deployment.md](deployment.md#the-documentation-site)).
+  - The threat model: the operator page [threat-model.md](../threat-model.md) and the full analysis [threat-model.md](threat-model.md). Gaps G2, G3, G4, G5, G7, G9 and G13 are closed, and G12 waits for the fuzz run.
+- **Packages:** the PROXY protocol parser as two NuGet packages, pushed to nuget.org by a `proxyprotocol-v*` tag through trusted publishing once a `NUGET_USER` variable exists ([publishing](../development.md#publishing-the-nuget-packages)).
+- **Proxy features:**
+  - Per-upstream connect and idle timeouts, because YARP's 100 s activity timeout cut quiet WebSockets and event streams ("Upstream timeouts" in [hot-path.md](hot-path.md)).
+  - Custom request and response headers per host and route, strip-prefix and add-prefix per route, response compression per host ("Custom headers", "Path rewrite" and "Response compression" in [hot-path.md](hot-path.md)). Left out: regex rewrites, header placeholders, zstd (not in .NET 10) and a per-route compression switch.
+  - Request timing by stage in the access log, the live tail's waterfall and two histograms on `/metrics`. Request headers are left out, because Kestrel has no first-byte time ("Request timing" in [observability.md](observability.md#request-timing)).
+- **API and settings:**
+  - The REST API made consistent: kebab-case paths, one status per verb, `{ items, nextCursor }` on every collection, `GET /api/v1/version`, and every query parameter and response in the OpenAPI document, kept by a test ("Conventions for a new endpoint" in [admin-surfaces.md](admin-surfaces.md#conventions-for-a-new-endpoint)).
+  - Server settings in the dashboard, stored in `settings.server`, with an explicit environment value winning ("Server settings" in [config.md](config.md#server-settings)). Retention defaults to 90 days for metrics and analytics. Each setting has an address such as `/settings/server#mcp-enabled`, and hints link to a setting instead of naming its variable ("Linking to a field" in [dashboard.md](dashboard.md)).
+  - The full `paduraksa doctor`: a read-only check with `--json` and an opt-in `--check-clock`, which makes no outward request unless asked ("`doctor`" in [admin-surfaces.md](admin-surfaces.md#doctor)). The CLI's `reset-password` and `backup` follow the server's sign-in policy precedence, and `config export` and `import` exit 3 on invalid local settings.
+- **Verification:**
+  - Fuzzing: two parallel hours on each of the sixteen targets, about 1.6 billion inputs, no crash, with the new coverage merged into `fuzz/corpus`.
+  - The final bench and review: the bench result is above. The closed-upstream 502 page's connect timing moved off a connect callback, which cost about 10 us per failed connect. A review of everything since v0.30 found no security or hot-path issue.
+  - Load tests: `bench/soak/run-soak.sh` runs an hour of mixed traffic with publishes, a flap, a burst, MCP, a dashboard and a restart, judged on errors, leaks, latency drift and S6 ([Soak test](testing.md#soak-test)). The 2-hour runs before the tag show memory levelling off after a 30-minute climb ([bench/soak/README.md](../../bench/soak/README.md)).
 - **Done when:** a tagged release.
 
-### Later
+## Later
 
-- Forward-auth to native OIDC (admin and per-host).
+- Native OIDC for the admin and per host.
 - Bot heuristics and header rules.
 - Per-tag RBAC.
 - L4 streams.
-- Declarative mode (watched YAML or ConfigMap files, managed objects read-only, secrets by file reference). See [admin-surfaces.md](admin-surfaces.md).
-- **Fleet mode** (control plane and data plane, local bundle sync, vault-to-vault key transfer, staged rollouts, pushed fleet statistics). See [deployment.md](deployment.md).
-- Geo and a country map, protection-over-time series and top client IPs for the analytics.
+- Declarative mode: watched YAML or ConfigMap files, managed objects read-only, secrets by file reference ([admin-surfaces.md](admin-surfaces.md)).
+- Fleet mode: control plane and data plane, local bundle sync, vault-to-vault key transfer, staged rollouts, pushed fleet statistics ([deployment.md](deployment.md)).
+- Geo, a country map, protection-over-time series and top client IPs for the analytics.
 - A plugin model for policies.
 - An out-of-process vault.
 - A `pass` operation for custom header rules, to un-inherit a rule a lower layer sets without replacing it.
