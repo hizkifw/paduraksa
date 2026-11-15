@@ -194,8 +194,27 @@
     font-size: 0.75rem;
 }
 
-.pdk-diff-card-head {
-    flex-wrap: wrap;
+/* The actions keep the top right whatever the message's length: the text column takes the rest and wraps inside it. Only a phone
+   puts them on a line of their own. */
+.pdk-diff-card-head > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.pdk-diff-card-head > .pdk-page-header-actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 599px) {
+    .pdk-diff-card-head {
+        flex-wrap: wrap;
+    }
+
+    .pdk-diff-card-head > .pdk-page-header-actions {
+        flex-wrap: wrap;
+    }
 }
 
 .pdk-revision-message {

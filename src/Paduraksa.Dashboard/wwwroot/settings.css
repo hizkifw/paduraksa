@@ -1013,6 +1013,11 @@
     min-width: 0;
 }
 
+.pdk-drop + .pdk-import-text,
+.pdk-field-error + .pdk-import-text {
+    margin-top: 16px;
+}
+
 .pdk-import-text textarea {
     font-size: 0.8125rem;
     line-height: 1.45;

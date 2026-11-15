@@ -161,7 +161,6 @@
             <div class="pdk-card-head pdk-card-head-padded">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">Recent changes</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">Each can be rolled back.</MudText>
                 </div>
                 <MudButton Href="@DashboardRoutes.History" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">History</MudButton>
             </div>
@@ -233,8 +232,8 @@
 
     private int ExpiringCount => Snapshot?.Expiring?.Count ?? 0;
 
-    private string ExpiringDetail => ExpiringCount == 0
-        ? (Snapshot?.ExpiringInUse == true ? "None in use expire soon" : "None expire soon")
+    private string? ExpiringDetail => ExpiringCount == 0
+        ? null
         : $"{Fmt.Count(ExpiringCount)}{(Snapshot?.ExpiringInUse == true ? " in use" : string.Empty)} {(ExpiringCount == 1 ? "expires" : "expire")} within {HomeSnapshot.ExpiryHorizonDays} days";
 
     protected override Task OnInitializedAsync() => LoadAsync(force: false);
