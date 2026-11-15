@@ -4,7 +4,7 @@ namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
 /// What one series did during one bucket of the sampler's ring or one minute of a rollup: counts, the sum of the durations and the
-/// percentiles the bucket's histogram gave (docs/design/observability.md "Metrics (M9)"), and how many of the bucket's seconds the process was there to see.
+/// percentiles the bucket's histogram gave (docs/design/observability.md "Metrics"), and how many of the bucket's seconds the process was there to see.
 /// Percentiles are whole microseconds, 0 when nothing was timed.
 /// A host series fills every field; an upstream series fills the requests, <see cref="Errors"/>, the bytes and the upstream-time fields;
 /// the totals series is the sum over every host, the unmatched slot included.

@@ -48,7 +48,7 @@ public sealed class AccessLogMiddleware
     private readonly Http.UpgradedConnections? _upgraded;
 
     /// <param name="ring">Where the lines go.</param>
-    /// <param name="metrics">The request counters, which this completion callback also feeds (docs/design/observability.md "Metrics (M9)"); null: none are kept.</param>
+    /// <param name="metrics">The request counters, which this completion callback also feeds (docs/design/observability.md "Metrics"); null: none are kept.</param>
     /// <param name="upgraded">Where accepted upgrades are tracked for the stop to close; null: not tracked.</param>
     public AccessLogMiddleware(AccessLogRing ring, MetricsRegistry? metrics = null, Http.UpgradedConnections? upgraded = null)
     {

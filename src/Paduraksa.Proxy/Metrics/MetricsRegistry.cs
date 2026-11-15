@@ -1,7 +1,7 @@
 
 namespace Paduraksa.Proxy.Metrics;
 
-/// <summary>One finished request, as the access-log completion hands it over (docs/design/observability.md "Metrics (M9)"). Slots are none when the request had no such object.</summary>
+/// <summary>One finished request, as the access-log completion hands it over (docs/design/observability.md "Metrics"). Slots are none when the request had no such object.</summary>
 public readonly struct RequestMetrics
 {
     public MetricSlot Host { get; init; } = MetricSlot.None;
@@ -44,7 +44,7 @@ public readonly struct RequestMetrics
 }
 
 /// <summary>
-/// The process's request counters and latency histograms (docs/design/config.md "State that survives a publish", docs/design/observability.md "Metrics (M9)"): four append-only slot registries (host, route,
+/// The process's request counters and latency histograms (docs/design/config.md "State that survives a publish", docs/design/observability.md "Metrics"): four append-only slot registries (host, route,
 /// upstream, destination), the striped tables the hot path adds to, and the cold-path reads the sampler, the Prometheus
 /// endpoint and the OpenTelemetry instruments use.
 /// </summary>

@@ -7,7 +7,7 @@ using Paduraksa.Data;
 namespace Paduraksa.Application.Notifications;
 
 /// <summary>
-/// The two admin sign-in anomalies worth a notification, kept minimal (docs/design/observability.md "Health state and notifications (M9 part 2a)"):
+/// The two admin sign-in anomalies worth a notification, kept minimal (docs/design/observability.md "Health state and notifications"):
 /// <list type="bullet">
 /// <item><b>An account is locked</b> by failed sign-ins (the lockout the identity core already decides).</item>
 /// <item><b>An Owner or Admin signs in from a new address:</b> an address with no completed sign-in (a password-only sign-in, or a second factor

@@ -11,7 +11,7 @@ using Paduraksa.Vault.Persistence;
 namespace Paduraksa.Vault.Backup;
 
 /// <summary>
-/// Full backup and restore (<see cref="IVaultBackup"/>); the format and the reasons for it are in docs/design/vault-and-certificates.md "Backup and restore (M10)".
+/// Full backup and restore (<see cref="IVaultBackup"/>); the format and the reasons for it are in docs/design/vault-and-certificates.md "Backup and restore".
 /// </summary>
 /// <remarks>
 /// <para>

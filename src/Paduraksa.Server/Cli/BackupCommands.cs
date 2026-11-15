@@ -23,7 +23,7 @@ using Paduraksa.Vault;
 namespace Paduraksa.Server.Cli;
 
 /// <summary>
-/// <c>paduraksa backup --out &lt;file&gt;</c> and <c>paduraksa restore &lt;file&gt;</c>: the full backup of docs/design/vault-and-certificates.md "Backup and restore (M10)". Both
+/// <c>paduraksa backup --out &lt;file&gt;</c> and <c>paduraksa restore &lt;file&gt;</c>: the full backup of docs/design/vault-and-certificates.md "Backup and restore". Both
 /// work on the data directory directly, so they run in the container as <c>docker exec paduraksa paduraksa backup ...</c> and, with the
 /// service stopped, <c>docker compose run --rm paduraksa restore ...</c>.
 /// </summary>
