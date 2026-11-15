@@ -8,7 +8,7 @@ For contributors: who may use the admin surfaces, who may reach a proxied host, 
 - Admin users are local: a password (PBKDF2-SHA-512, 210 000 iterations by default), TOTP, recovery codes. Passkeys and OIDC are not built.
 - Roles are permission sets: Owner, Admin, Operator, Viewer, Auditor. **Operator is effectively a trusted role**, because `config:write` can reach internal addresses and edit credentials (threat model G5).
 - One permission check, `IPermissionEvaluator`, serves every surface. There is no allow-everything default.
-- API tokens (`pdk_...`) carry scopes, and their effective permissions are the intersection with the owner's current ones, evaluated on every use. A token cannot manage tokens or sessions.
+- API tokens (`pdk_...`) carry scopes. A token's effective permissions are the intersection of its scopes and its owner's current permissions, evaluated on every use. A token cannot manage tokens or sessions.
 - Sessions are opaque cookies (only the SHA-256 is stored), with absolute and idle expiry.
 - Lockout counts an attempt before evaluating it, in one `BEGIN IMMEDIATE` transaction, so parallel guesses cannot outrun it. A lockout at the password stage ends no session, so a known username cannot be used to sign the owner out.
 - Login, second factor and setup are rate limited, and password derivation runs in a bounded number of slots.
@@ -64,7 +64,7 @@ Only Owner holds `users:write`, `vault:manage`, `tokens:all` and `sessions:all`.
 
 **The sign-in policy is a server setting.** Lockout, the session lifetimes, the shortest password, the authenticator name and the sign-in rate limit can be changed from the dashboard and apply live. PBKDF2's iterations and the touch interval stay in the environment.
 
-A token's scopes are permission names (`config:write`). Its effective permissions are the intersection with its owner's current ones, evaluated on every use. A token cannot issue tokens.
+A token's scopes are permission names (`config:write`). Its effective permissions are the intersection of its scopes and its owner's current permissions, evaluated on every use. A token cannot issue tokens.
 
 **Changing a token.** A token can be renamed, given other scopes, and switched off and on without a new secret (`ApiTokenService.UpdateAsync`, `PATCH /api/v1/tokens/{id}`).
 
@@ -72,7 +72,7 @@ A token's scopes are permission names (`config:write`). Its effective permission
 - The name follows the issue rules. At least one scope is kept, and each must be a permission the token's *owner* holds now, not the caller. An Owner can't hand another user's token anything its owner lacks.
 - Disabled is a state of its own (`DisabledAt`), not a revoke. A disabled token fails verification at the same point and by the same early return as a revoked one, so the time doesn't tell them apart, and the permission evaluator gives it nothing. Enabling clears it.
 - A disabled token still counts towards the 100 live tokens a user may hold, since it can come back.
-- A revoked token is final: any change to it, enabling included, is a 409, an empty change too (the revoked check comes first). The write is one statement conditional on the token not being revoked, so a revoke that lands in between is a 409 and writes no audit event.
+- A revoked token is final: any change to it is a 409, enabling and empty changes included (the revoked check comes first). The write is one statement conditional on the token not being revoked, so a revoke that lands in between is a 409 and writes no audit event.
 - A token can't carry `tokens:own`, `tokens:all` or `sessions:all`: issuing and editing refuse them as an unknown scope (`ApiTokenService.IsAssignableScope`), so tokens can't manage tokens or sessions whatever the picker offers.
 - Nothing is cached. `VerifyAsync` reads the row on every request, so an edit applies on the token's next request.
 - The secret is never shown or rotated by an edit.
@@ -89,7 +89,7 @@ After `MaxFailedAttempts` consecutive failures (password, second factor, or a wr
 
 **Counting is race-proof.** The attempt is counted *before* it is evaluated, in one write transaction (`BEGIN IMMEDIATE`) that refuses a locked account. It is re-checked (lock, disabled, second factor on) inside the success transaction. Parallel guesses therefore cannot outrun the limit or sign in past a lock. A success clears the count.
 
-**What a lockout ends.** A lockout ends the user's sessions only where the attacker already holds the password: at the second factor, or at a sensitive step of a signed-in session (change password, TOTP enrol or disable, recovery codes), where a wrong current password counts too. A lockout at the password stage ends nothing, so someone who merely knows a username cannot keep signing the owner out.
+**What a lockout ends.** A lockout ends the user's sessions only where the attacker already holds the password: at the second factor, or at a sensitive step of a signed-in session (change password, TOTP enrol or disable, recovery codes), where a wrong current password counts too. A lockout at the password stage ends no session, so someone who merely knows a username cannot keep signing the owner out.
 
 ### Other rules
 
@@ -224,7 +224,7 @@ Every admin response carries:
 - HSTS (`max-age=31536000`) on HTTPS requests, except for a loopback host name (`localhost`, `127.0.0.1`, `[::1]`), so a browser does not pin it.
 
 Request bodies:
-- Limited to `Paduraksa:Admin:MaxRequestBodyBytes` (default 64 KiB, range 1 KiB to 16 MiB). Over it is 413.
+- Limited to `Paduraksa:Admin:MaxRequestBodyBytes` (default 64 KiB, range 1 KiB to 16 MiB). A body over it gets 413.
 - An endpoint raises its own with `.WithAdminBodyLimit(bytes)`.
 - Bodies of unknown length (chunked, HTTP/2 without Content-Length) are counted as they are read, so the limit holds for them too.
 
@@ -240,7 +240,7 @@ Request bodies:
 
 - The cookie is still sent `Secure` (ASP.NET Core does not check the scheme). Chromium and Firefox store and send a `Secure` cookie for `http://localhost` and `http://127.0.0.1`. Safari does not.
 - HSTS is not sent there, and the same-origin check uses the request's own `http` scheme.
-- **DNS rebinding.** On that listener only a `Host` of `localhost`, `127.0.0.1` or `[::1]` with the listener's port is served. Any other is a 400 before anything else runs.
+- **DNS rebinding.** That listener serves only a `Host` of `localhost`, `127.0.0.1` or `[::1]` with its own port. Any other `Host` gets a 400 before anything else runs.
 - The allowlist does not apply to it (it is loopback-only by construction).
 
 ### Wrong scheme
