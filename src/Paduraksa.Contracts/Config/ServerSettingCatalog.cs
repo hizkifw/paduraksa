@@ -202,7 +202,7 @@ public static class ServerSettingCatalog
     public static readonly ServerSetting<TimeSpan> NotificationMaxDeliveryAge = new(
         "notificationMaxDeliveryAge", "Notifications:MaxDeliveryAge", ServerSettingGroup.Notifications, "Timing", ServerSettingApply.Live,
         "Oldest message sent",
-        "A delivery still waiting for an event older than this is expired, not sent, so a long outage doesn't end in a burst of stale messages.",
+        "When an event is older than this, its deliveries still waiting expire and are not sent, so a long outage doesn't end in a burst of stale messages.",
         static s => s.NotificationMaxDeliveryAge, static (s, v) => s with { NotificationMaxDeliveryAge = v },
         TimeSpan.FromHours(1), TimeSpan.FromMinutes(1), TimeSpan.FromDays(7))
     {
@@ -247,7 +247,7 @@ public static class ServerSettingCatalog
     public static readonly ServerSetting<bool> McpEnabled = new(
         "mcpEnabled", "Mcp:Enabled", ServerSettingGroup.Integrations, "MCP", ServerSettingApply.Live,
         "Serve /mcp",
-        "The endpoint an AI assistant with an API token uses to call the admin API from a sandbox. Off, it answers 404 and the sandbox stops.",
+        "The endpoint through which an AI assistant with an API token calls the admin API from a sandbox. When off, it answers 404 and the sandbox stops.",
         static s => s.McpEnabled, static (s, v) => s with { McpEnabled = v },
         false)
     {
@@ -307,7 +307,7 @@ public static class ServerSettingCatalog
     public static readonly ServerSetting<long> LimitsMinRequestBodyRate = new(
         "limitsMinRequestBodyRate", "Limits:MinRequestBodyRate", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Slowest upload (bytes per second)",
-        "Below this, after the grace, a request body is cut off. 0 turns it off. " + NewConnections,
+        "After the grace, a request body slower than this is cut off. 0 turns it off. " + NewConnections,
         static s => s.LimitsMinRequestBodyRate, static (s, v) => s with { LimitsMinRequestBodyRate = v },
         120, 0)
     {
@@ -327,7 +327,7 @@ public static class ServerSettingCatalog
     public static readonly ServerSetting<long> LimitsMinResponseRate = new(
         "limitsMinResponseRate", "Limits:MinResponseRate", ServerSettingGroup.Connections, "Slow clients", ServerSettingApply.Live,
         "Slowest download (bytes per second)",
-        "Below this, after the grace, a client that won't take the response is closed. 0 turns it off. " + NewConnections,
+        "After the grace, a client that takes the response slower than this is closed. 0 turns it off. " + NewConnections,
         static s => s.LimitsMinResponseRate, static (s, v) => s with { LimitsMinResponseRate = v },
         240, 0)
     {

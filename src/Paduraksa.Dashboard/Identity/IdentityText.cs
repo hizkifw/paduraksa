@@ -171,7 +171,7 @@ public static class IdentityText
     public const string CantReadConfig = "Your role can't read the config";
 
     /// <summary>What to do about <see cref="CantReadConfig"/>.</summary>
-    public const string CantReadConfigHelp = "Every role can read it. An Owner can give you one; Viewer reads without changing anything.";
+    public const string CantReadConfigHelp = "Every role can read it. An Owner can give you a role; Viewer reads without changing anything.";
 
     /// <summary>The refusal when a role can't change the config, naming the roles that can (config:write).</summary>
     public const string CantChangeConfig = "Your role can't change the config. An Owner can give you the Operator, Admin or Owner role.";

@@ -124,7 +124,7 @@
 
     private string ExpiryText => ExpiresAt is { } end
         ? $"Stops working on {Fmt.Date(end)}."
-        : "Works until you revoke it. An expiry limits the harm of a token that leaks.";
+        : "Works until you revoke it. An expiry limits the harm if the token leaks.";
 
     protected override void OnInitialized()
     {

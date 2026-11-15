@@ -80,7 +80,7 @@
             @if (Editable)
             {
                 <ScopePicker Held="Assignable" Selected="_scopes" OnChange="Touch" ShowEmptyError="_attempted && ScopesChanged">
-                    <Description>Only what the token's owner holds is offered, and if their roles shrink, the token's scopes shrink with them.</Description>
+                    <Description>The token offers only what its owner holds. If the owner's roles shrink, the token's scopes shrink with them.</Description>
                     <Notice>
                         @if (_dropped.Count > 0)
                         {
@@ -269,7 +269,7 @@
         var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             $"Revoke {_token.Name}?",
-            "Whatever uses it is refused from now on.",
+            "Anything using it is refused from now on.",
             "Revoke",
             "This can't be undone; a new token is a new secret.",
             icon: Icons.Material.Outlined.KeyOff);

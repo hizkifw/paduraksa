@@ -56,8 +56,8 @@ public sealed class SignInPageTests
     [Theory]
     [InlineData("auth.invalidCredentials", "The username or password is wrong.")]
     [InlineData("auth.rateLimited", "Too many attempts. Wait a minute, then try again.")]
-    [InlineData("csrf.refused", "The form expired. Please try again.")]
-    [InlineData("<script>alert(1)</script>", "That didn't work. Please try again.")]
+    [InlineData("csrf.refused", "The form expired. Try again.")]
+    [InlineData("<script>alert(1)</script>", "That didn't work. Try again.")]
     public void SignIn_ShowsTheMessageOfAKnownCode_AndOnlyAGenericOneOtherwise(string code, string message)
     {
         using DashboardTestContext context = new();

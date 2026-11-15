@@ -16,7 +16,7 @@ public static class SignInMessages
         ["auth.sessionExpired"] = "The sign-in took too long. Start again with your password.",
         ["auth.rateLimited"] = "Too many attempts. Wait a minute, then try again.",
         ["auth.busy"] = "The server is busy checking other sign-ins. Try again in a moment.",
-        ["csrf.refused"] = "The form expired. Please try again.",
+        ["csrf.refused"] = "The form expired. Try again.",
         ["setup.complete"] = "Setup is already complete. Sign in with the Owner account.",
         ["setup.invalidToken"] = "The setup token is wrong. It is in the server log, and paduraksa setup-token prints it.",
         ["identity.refused"] = "That username or password can't be used. Check the hints below the fields.",
@@ -34,7 +34,7 @@ public static class SignInMessages
 
     /// <summary>The message for <paramref name="code"/>; a generic one for a code this page does not know; null for none.</summary>
     public static string? Error(string? code) =>
-        string.IsNullOrEmpty(code) ? null : Errors.GetValueOrDefault(code, "That didn't work. Please try again.");
+        string.IsNullOrEmpty(code) ? null : Errors.GetValueOrDefault(code, "That didn't work. Try again.");
 
     /// <summary>The notice for <paramref name="code"/>, or null (unknown notices are not shown).</summary>
     public static string? Notice(string? code) => code is null ? null : Notices.GetValueOrDefault(code);

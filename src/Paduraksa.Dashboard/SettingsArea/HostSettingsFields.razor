@@ -127,7 +127,7 @@
 
         <InheritSelect T="RobotsMode" Value="_current.Robots?.Mode" ValueChanged="SetRobotsMode"
                        Inherited="@Resolved.Robots!.Mode!.Value" Format="@(mode => SettingsSummary.RobotsModeText(mode))" InheritWord="@InheritWord"
-                       Title="robots.txt" Help="The file a crawler reads at /robots.txt. It is cached for an hour, so a change is picked up within the hour."
+                       Title="robots.txt" Help="The file a crawler reads at /robots.txt. It is cached for an hour, so a change takes up to an hour to show."
                        Label="robots.txt" Field="robots-mode" Error="@E("/robots/mode")" ReadOnly="@ReadOnly">
             <MudSelectItem T="RobotsMode?" Value="RobotsMode.Passthrough">Pass through to the upstream</MudSelectItem>
             <MudSelectItem T="RobotsMode?" Value="RobotsMode.DisallowAll">Disallow all crawlers</MudSelectItem>
@@ -138,7 +138,7 @@
         <div class="pdk-setting-children">
             @if (EffectiveRobotsMode == RobotsMode.Custom)
             {
-                <SettingRow Title="Custom text" Help="Served as typed, with a final newline. Left empty, an inherited text is used if there is one." Wide="true">
+                <SettingRow Title="Custom text" Help="Served as typed, with a final newline. If left empty, the inherited text is used, if there is one." Wide="true">
                     <MudTextField T="string" Value="@(_current.Robots?.CustomText ?? string.Empty)"
                                   ValueChanged="@(value => Update(WithRobots(robots => robots with { CustomText = string.IsNullOrEmpty(value) ? null : value }), "/robots/customText"))"
                                   Label="Text" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="8" ReadOnly="@ReadOnly"
@@ -279,7 +279,7 @@
         <InheritSelect T="AccessListId" Value="_current.Maintenance?.BypassAccessListId" ValueChanged="@(value => Update(WithMaintenance(maintenance => maintenance with { BypassAccessListId = value }), "/maintenance/bypassAccessListId"))"
                        Inherited="@(Resolved.Maintenance!.BypassAccessListId ?? AccessListId.Empty)" Format="@(id => BypassText(id))" InheritWord="@InheritWord"
                        Title="Let through"
-                       Help="Addresses (and countries) the list allows reach the site as usual. A list needs an allow rule to let anyone through."
+                       Help="Visitors from addresses (or countries) the list allows reach the host as usual. A list needs an allow rule to let anyone through."
                        Label="Let through" Field="maintenance-bypass" Error="@E("/maintenance/bypassAccessListId")" ReadOnly="@ReadOnly">
             @foreach (var list in AccessLists)
             {
@@ -333,7 +333,7 @@
 
         <InheritSelect T="bool" Value="_current.AccessLog" ValueChanged="@(value => Update(_current with { AccessLog = value }, "/accessLog"))"
                       Inherited="@Resolved.AccessLog!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                      Title="Access log" Help="One line per request, whatever answered it. Turn it off for a host whose app keeps its own log."
+                      Title="Access log" Help="One line per request. Turn it off for a host whose app keeps its own log."
                       Label="Access log" Field="access-log" Error="@E("/accessLog")" ReadOnly="@ReadOnly">
             <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
             <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
