@@ -138,8 +138,8 @@ else
                         <div role="cell" class="pdk-dt-cell pdk-dt-actions">
                             @if (_mayWrite)
                             {
-                                <MudButton Href="@DashboardRoutes.CopyRuleSet(preset.Id)" Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.ContentCopy"
-                                           data-action="copy-preset" aria-label="@($"Copy {preset.Name} to edit")">Copy to edit</MudButton>
+                                <MudButton Href="@DashboardRoutes.CopyRuleSet(preset.Id)" Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add"
+                                           data-action="create-from-preset" aria-label="@($"Create a rule set from {preset.Name}")">Create from preset</MudButton>
                             }
                         </div>
                     </div>

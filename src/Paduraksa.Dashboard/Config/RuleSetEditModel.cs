@@ -57,7 +57,7 @@ public sealed class RuleSetEditModel
     public static RuleSetEditModel CopyOf(RuleSetConfig preset)
     {
         ArgumentNullException.ThrowIfNull(preset);
-        return new RuleSetEditModel(null, RuleSetId.New(), preset, $"{preset.Name} (copy)", copy: true);
+        return new RuleSetEditModel(null, RuleSetId.New(), preset, $"{preset.Name} (custom)", copy: true);
     }
 
     public RuleSetConfig ToConfig() => new(

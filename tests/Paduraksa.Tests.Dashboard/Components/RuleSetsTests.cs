@@ -96,7 +96,7 @@ public sealed class RuleSetsTests
         var scanners = page.Find("[data-preset='Block known scanners']");
         Assert.Contains("sqlmap", scanners.TextContent, StringComparison.Ordinal);
         Assert.Contains("1 host", scanners.TextContent, StringComparison.Ordinal);
-        Assert.Equal(DashboardRoutes.CopyRuleSet(RuleSetPresets.KnownScanners.Id), scanners.QuerySelector("[data-action=copy-preset]")!.GetAttribute("href"));
+        Assert.Equal(DashboardRoutes.CopyRuleSet(RuleSetPresets.KnownScanners.Id), scanners.QuerySelector("[data-action=create-from-preset]")!.GetAttribute("href"));
         Assert.All(page.FindAll("[data-preset]"), row => Assert.Empty(row.QuerySelectorAll("[data-action=delete]")));
         Assert.Contains("1 rule: deny", page.Find("[data-preset='Block empty user agent']").TextContent, StringComparison.Ordinal);
     }
@@ -113,7 +113,7 @@ public sealed class RuleSetsTests
         context.Render<RuleSets>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
 
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=rule-set] input[data-field=name]").Count == 1);
-        Assert.Equal("Block AI crawlers (copy)", drawers.Find("[data-drawer=rule-set] input[data-field=name]").GetAttribute("value"));
+        Assert.Equal("Block AI crawlers (custom)", drawers.Find("[data-drawer=rule-set] input[data-field=name]").GetAttribute("value"));
         Assert.Single(drawers.FindAll("[data-rule]"));
         Assert.Contains("GPTBot", drawers.Find("textarea[data-field=agents-0]").TextContent, StringComparison.Ordinal);
 
@@ -290,7 +290,7 @@ public sealed class RuleSetsTests
         Assert.Empty(drawers.FindAll("[data-action=remove-rule-0]"));
         Assert.Empty(drawers.FindAll("[data-action=review]"));
         Assert.Empty(page.FindAll("[data-action=add-rule-set]"));
-        Assert.Empty(page.FindAll("[data-action=copy-preset]"));
+        Assert.Empty(page.FindAll("[data-action=create-from-preset]"));
     }
 
     private static RuleSetSettings Use(RuleSetId set) => new() { RuleSetId = set };

@@ -109,7 +109,7 @@ The first rule a request matches decides. A request no rule matches goes on.
 
 ### Built-in presets
 
-Three read-only sets that you can name directly. **Copy to edit** makes your own copy, which is how you add to one.
+Three read-only sets that you can name directly. **Create from preset** makes a rule set of your own with the same rules, which is how you add to one.
 
 | Preset | Refuses |
 |---|---|

@@ -441,7 +441,7 @@ A rule has a `match` and an `action`.
 - The first rule a request matches decides. An allow carves an exception out of the denies after it: it ends the set, and the rest of the chain still runs. A request no rule matches goes on.
 - `HostSettings.RuleSet` and `RouteSettings.RuleSet` are one nested record, `{ enabled, ruleSetId }`, merged field by field through defaults, profile, host and route like the access list's.
 
-**One set per layer** was enough. A second concern is more rules in the same set, in the order the operator wants. One list a request walks can express that, and two lists could not: an allow that must beat a deny sits in the same list as the deny. What it costs is that a preset and an operator's own rules cannot be stacked without copying the preset into a set of one's own, which "Copy to edit" does.
+**One set per layer** was enough. A second concern is more rules in the same set, in the order the operator wants. One list a request walks can express that, and two lists could not: an allow that must beat a deny sits in the same list as the deny. What it costs is that a preset and an operator's own rules cannot be stacked without copying the preset into a set of one's own, which "Create from preset" does.
 
 **Validation codes:**
 
@@ -473,7 +473,7 @@ A rule has a `match` and an `action`.
 
 - The scanner list is deliberately short and conservative: one name each whose default user agent contains it and no browser's does. It removes noise, not attackers; a real one changes the header.
 - Like the crawler list, the presets are refreshed with each release.
-- "Copy to edit" makes a new set (a fresh ID, "name (copy)") holding the same rules.
+- "Create from preset" makes a new set (a fresh ID, "name (custom)") holding the same rules.
 
 ### Where it sits
 
@@ -540,7 +540,7 @@ A **regex** is the one thing that may not be.
 ### API and dashboard
 
 - `/api/v1/rule-sets` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.rule_set.*` audit actions. `GET /rule-sets/presets` lists the presets, and `GET /rule-sets/{id}` also reads one. A delete of a set a host still resolves to is refused.
-- The dashboard has Security > **Rules**: the sets with what their rules do and who applies them, and the presets read-only under them with "Copy to edit" (`/rules/new?copy=...`).
+- The dashboard has Security > **Rules**: the sets with what their rules do and who applies them, and the presets read-only under them with "Create from preset" (`/rules/new?copy=...`).
 - The drawer's rules read "When [path] [methods] [user agent] then [action]", with add, move and remove, and the real validator's messages at the fields (a regex's parse error, a rule with no condition).
 - The settings of a host, profile, the defaults and a route pick a set by name in the Access section: inherit, none, a set, a preset, or a staged "New rule set..." that goes in with the host in one revision.
 - The review shows a set's rules as numbered sentences.
