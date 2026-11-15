@@ -69,7 +69,7 @@ These were done first, before the features that depend on them. Each has an exit
 
 ## Milestones
 
-Each milestone ends with a working, testable increment. M0 to M9 are done. M10 is done except where noted. M11 is the v0.1 release.
+Each milestone ends with a working, testable increment. M0 to M9 are done. M10 is done except where noted. M11 is the v0.1 release: everything in it is done but the tag.
 
 ### M0 Foundations (done)
 
@@ -203,11 +203,11 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
 - **Done when:** a round-trip export then import yields an identical revision hash.
 - Details: [admin-surfaces.md](admin-surfaces.md), [vault-and-certificates.md](vault-and-certificates.md), [dashboard.md](dashboard.md).
 
-### M11 Release v0.1 (open)
+### M11 Release v0.1 (done but the tag)
 
 - **Scope:**
   - multi-arch image publishing;
-  - the docs site (**built** on `docs-site`: MkDocs Material over `docs/`, a user guide split from the old install guide, the API reference rendered from the shipped OpenAPI document, built `--strict` on every push; publishing to GitHub Pages waits for the owner, see "The documentation site" in [deployment.md](deployment.md#the-documentation-site));
+  - the docs site (**built** on `docs-site`: MkDocs Material over `docs/`, a user guide split from the old install guide, the API reference rendered from the shipped OpenAPI document, built `--strict` on every push; **published** at https://www.paduraksa.org/ with a landing page, the apex redirecting to www, see "The documentation site" in [deployment.md](deployment.md#the-documentation-site));
   - the threat model doc (**done**: [../threat-model.md](../threat-model.md), with its gaps list). The small gaps G2, G3, G4, G5, G7, G9 and G13 are closed on `security-gaps`; G12 waits for the fuzz run;
   - the PROXY protocol parser as two NuGet packages (`Paduraksa.ProxyProtocol`, `Paduraksa.ProxyProtocol.AspNetCore`; **built** on `proxyprotocol-package`: packed on every CI run, pushed to nuget.org by a `proxyprotocol-v*` tag through trusted publishing once a `NUGET_USER` variable exists, see [../development.md](../development.md#publishing-the-nuget-packages));
   - per-upstream connect and idle timeouts (**done** on `upstream-timeouts`: YARP's 100 s activity timeout was cutting quiet WebSockets and event streams; see "Upstream timeouts" in [hot-path.md](hot-path.md));
@@ -216,8 +216,9 @@ Each milestone ends with a working, testable increment. M0 to M9 are done. M10 i
   - server settings in the dashboard (**built** on `server-settings`: retention, the admin sign-in policy, notification timing, the access log's query strings, the Cloudflare range refresh, the DNS-01 check and wait, MCP and the public connection limits, stored in `settings.server` with an explicit environment value winning, mostly live; retention now defaults to 90 days for metrics and analytics; see "Server settings" in [config.md](config.md#server-settings)); each setting's row has an address (`/settings/server#mcp-enabled`) that scrolls to it, focuses and highlights it, and the dashboard's hints link to a setting instead of naming its variable (`settings-links`; see "Linking to a field" in [dashboard.md](dashboard.md));
   - request timing by stage (**built** on `request-timing`: the TLS handshake on a connection's first request, the body read, the gate, the upstream connect and wait, and the response send, in the access log, the live tail with a waterfall, and two histograms on `/metrics`; request headers left out, Kestrel has no first-byte time; on `timing-waterfall` each stage's start is recorded too, the wait is DevTools' "Waiting for server response", and the waterfall is DevTools' Timing tab; see "Request timing" in [observability.md](observability.md#request-timing); on `waterfall-gaps` the waterfall fills the time between stages with derived rows (the proxy forwarding the request, preparing the response, unaccounted) and every row has a tooltip saying what happens in its stage);
   - the full `paduraksa doctor` (**built** on `doctor`: a read-only check of the data directory, the master key, both databases' migrations (a downgrade fails), the effective options and the settings the environment locks, the listeners' ports, libmsquic, the clock and the running server's version, with `--json` and an opt-in `--check-clock` (no outward request unless asked); the CLI's `reset-password` and `backup` now follow the server's precedence for the sign-in policy, so a minimum length raised in the dashboard binds them; `config export` and `import` exit 3 on invalid local settings like the other commands; see "`doctor`" in [admin-surfaces.md](admin-surfaces.md#doctor)). The stale "M5 implements --liveness" help text is gone;
-  - a time-boxed run of every fuzz harness (`scripts/fuzz.sh --time 3600 --merge`; the harnesses and property tests are built, YAML and ACME harnesses with M10);
-  - load tests (**built** on `soak`: `bench/soak/run-soak.sh`, an hour of mixed traffic with publishes, a flap, a burst, MCP, a dashboard and a restart, judged on errors, leaks, latency drift and S6; see [testing.md](testing.md#soak-test)).
+  - a time-boxed run of every fuzz harness (**done**: two parallel hours on each of the sixteen targets before the tag, about 1.6 billion inputs, no crash, the new coverage merged into `fuzz/corpus`);
+  - the final bench and review (**done**: the bench on a quiet machine in `bench/results/2026-11-15-0406-baseline`, Paduraksa at 0.93-1.01 of bare YARP; the closed-upstream 502 page's connect timing moved off a connect callback, which cost about 10 µs per failed connect; a review of everything since v0.30 found no security or hot-path issue, and its fixes are in);
+  - load tests (**done**: `bench/soak/run-soak.sh`, an hour of mixed traffic with publishes, a flap, a burst, MCP, a dashboard and a restart, judged on errors, leaks, latency drift and S6; see [testing.md](testing.md#soak-test); the 2-hour runs before the tag show memory levelling off after a 30-minute climb, see "The two-hour runs before v0.1" in [bench/soak/README.md](../../bench/soak/README.md)).
 - **Done when:** a tagged release.
 
 ### Later

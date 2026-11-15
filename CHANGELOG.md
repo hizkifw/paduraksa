@@ -22,6 +22,64 @@ Section numbers written as `(§7.4)` in the entries below refer to the numbering
 | 16 | `docs/design/deployment.md` |
 | 17 | `docs/PLAN.md` (open questions) |
 
+## v0.31
+
+The v0.1 candidate. M11 is done: request timing, server settings in the dashboard, security history, the Analytics tabs, `paduraksa doctor` and the docs site on www.paduraksa.org, then a final pass of bench, fuzz, soak and review.
+
+- **Request timing ([observability.md](docs/design/observability.md)):** each request is timed by stage. The stages are the TLS handshake (on a connection's first request), body read, gate, upstream connect, upstream wait and response send. Each stage records where it starts, still within the 192-byte access-log slot at 0 B per request. The live tail draws them as DevTools' Timing tab: chronological, on one axis, with a tooltip per stage. Derived rows (forwarding the request, preparing the response, unaccounted) make the rows add up to the total. The bench shows no measurable cost.
+- **Server settings ([config.md](docs/design/config.md)):** retention (90 days by default), the sign-in policy, notifications, access-log query strings, the Cloudflare refresh, the DNS-01 check, MCP and the public connection limits move from the environment into the config (`settings.server`).
+  - Each setting is declared once in `ServerSettingCatalog`.
+  - The precedence is an explicitly set environment value (shown read-only), then the stored value, then the default.
+  - Most apply live. Changing them needs the `server:write` permission.
+  - Settings, Server has a card per group. Each setting has an address (`/settings/server#mcp-enabled`) that scrolls to it, focuses it and highlights it, and the hints that used to name environment variables now link to it.
+- **Security history ([observability.md](docs/design/observability.md)):** the gate's refusals by kind and its security counters are rolled up per minute. The security overview is read over a range, so a restart no longer resets it.
+- **Statistics layout ([dashboard.md](docs/design/dashboard.md)):**
+  - Analytics is three tabs (Traffic, Visitors, Security) under one range picker kept in the address.
+  - The overview leads with a live one-hour strip.
+  - Chart hover is a real tooltip in local time.
+  - Every time, date, duration and number a person reads goes through `DisplayFormat`, ready for user preferences.
+  - The skeletons are the loaded components' own frames, so nothing shifts when the data arrives.
+- **Proxy:**
+  - Upstream connect and idle timeouts. The idle one defaults to an hour, so a quiet WebSocket is no longer cut at 100 s.
+  - Strip-prefix and add-prefix on routes.
+  - Custom request and response headers per host and route.
+  - Brotli and gzip compression, off by default.
+  - A workaround for Kestrel losing an HTTP/2 response on a reused stream ([dotnet/aspnetcore#69690](https://github.com/dotnet/aspnetcore/issues/69690)). It turns itself off once the runtime has the fix.
+  - A passive health policy that keeps the upstream's reactivation period.
+- **Graceful stop ([hosting.md](docs/design/hosting.md)):**
+  - WebSockets get 1001 Going Away when the drain starts.
+  - Kestrel's minimum data rates stay enforced while draining.
+  - The core's flush has its own budget.
+- **PROXY protocol:** the parser is two NuGet packages (`Paduraksa.ProxyProtocol` and `Paduraksa.ProxyProtocol.AspNetCore`), released on their own `proxyprotocol-v*` tag.
+- **API ([admin-surfaces.md](docs/design/admin-surfaces.md)):**
+  - Kebab-case paths everywhere.
+  - One pagination shape and one status per verb.
+  - `GET /api/v1/version`.
+  - Every query parameter and response is described in the shipped OpenAPI file.
+  - The simulator takes a draft target (`{kind: "draft"}`) and simulates the caller's draft as its review would apply it.
+- **MCP:**
+  - Agents put changes in the user's draft unless asked to apply, and simulate the draft before reporting.
+  - The sandbox child closes every inherited descriptor first.
+  - It can signal only itself.
+  - Its regular expressions time out after 1 s (Jint 4.18).
+  - `Atomics.wait` is refused.
+  - An expired draft is changed by nothing (410 `draft.expired`).
+- **CLI ([cli.md](docs/automation/cli.md)):** `paduraksa doctor` checks the host. It covers the data directory and file modes, free space, the master key's source and whether it opens the vault, both databases' migrations, and the configuration's validity. It makes no outward request unless run with `--check-clock`.
+- **Docs:**
+  - The install guide is a task-oriented user guide with screenshots.
+  - The site is MkDocs Material on www.paduraksa.org, with a landing page.
+  - The README has a new screenshot and an Open Graph card.
+- **Final pass:**
+  - The bench was recorded on a quiet machine, in `bench/results/2026-11-15-0406-baseline`. Against bare YARP, Paduraksa is at 0.98 on HTTP/1.1, 0.94 on HTTP/2 and 0.93-1.01 elsewhere, as before request timing.
+  - The closed-upstream 502 page is 190.6 µs of CPU per request: the upstream connect is timed from the plaintext filter alone, since a connect callback cost about 10 µs per failed connect.
+  - The fuzz ran two parallel hours on each of the sixteen targets, about 1.6 billion inputs, with no crash. New coverage was merged into the corpora.
+  - The 2-hour soak at 4 134 requests a second, about 29.8 million requests per run, had no unexpected error. With one process alive for 101 minutes, memory levels off after a 30-minute climb: RSS +42 MiB/h, GC heap retained +8.5 MiB/h, descriptors and threads flat. Its harness faults are fixed: the upstream pinging the silent WebSockets, the analytics check that compared a sliding hour, and a dashboard check during the restart counted as stale.
+  - A final review of everything since v0.30 found no security or hot-path issue. Its fixes are in, including two real bugs:
+    - an MCP sandbox pool built just as MCP was switched off outlived the switch;
+    - a WebSocket offered on a multi-value `Upgrade` header was aborted at shutdown instead of closed with 1001.
+  - The three statistics tabs share one polling base.
+- **Dependencies:** the .NET 10.0.15 servicing packages, Jint 4.18, MudBlazor 9.13 and System.CommandLine 2.0.15. Dependabot ignores the .NET 11 majors.
+
 ## v0.30
 
 Drafts finish M10; the threat model's gaps closed; counted body bytes; the dashboard made consistent; the design document split into an overview and per-area pages.
