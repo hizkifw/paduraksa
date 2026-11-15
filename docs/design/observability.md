@@ -145,8 +145,8 @@ Kestrel keeps the callback stack per connection (or pooled H2/H3 stream) and cle
 - The total duration is from the top of the pipeline to the end of the response.
 - The status is what the client got, as Kestrel has settled it by the time the callback runs: an unhandled exception before anything was sent is 500, a connection that ended without a response is 499, and a request body Kestrel rejected mid-read is the 4xx Kestrel answers with. Kestrel settles that status only after the callback, so the callback reads it from `IBadRequestExceptionFeature`.
 - The callback then clears the start timestamp, so the gate's skipped reset stays request-scoped.
-- A request the gate dropped without a response is recorded as no status at all, written `-`. An aborted connection has no status, and the 200 a response object would still report is not invented.
-- A request that never reaches the gate (a test app's `WithoutGate`) has no snapshot and logs under the default rule, with no invented request ID.
+- If the gate dropped a request without a response, the entry has no status at all, written `-`. An aborted connection has no status, and the 200 a response object would still report is not invented.
+- If a request never reaches the gate (a test app's `WithoutGate`), it has no snapshot and logs under the default rule, with no invented request ID.
 
 **Upstream duration** comes from YARP's own transforms (`AccessLogTransform`): a `Stopwatch` timestamp in the first request transform, then the elapsed time and `IReverseProxyFeature.ProxiedDestination` in the response transform. That is the cheapest source that covers the forward and the upstream's answer.
 - Load balancing picks the destination just before the request transforms run, so that one step sits outside the measured window.
@@ -187,7 +187,7 @@ That is 20 space-separated fields. The first 13 keep their order and format; the
 
 `AccessLogDrainService` is a hosted service of the core host, the one reader.
 - It drains every 200 ms and on shutdown (then flushes the sink and so the file). It formats each entry into its one buffer and hands it over.
-- A sink that throws is reported at Warning (at most once a minute) and the line is skipped. A whole pass that throws (a formatter bug) is reported the same way so the next pass carries on: a faulted hosted service would stop the core host. Dropped lines are reported the same way, with the count since the last report.
+- If a sink throws, the failure is reported at Warning (at most once a minute) and the line is skipped. If a whole pass throws (a formatter bug), it is reported the same way so the next pass carries on: a faulted hosted service would stop the core host. Dropped lines are reported the same way, with the count since the last report.
 - `SharedServices` creates the one ring, the formatter's options and the sink for all three hosts.
 
 **Options** (`Paduraksa:AccessLog`): `RingSize`, `SensitiveQueryKeys` (a list, comma-separated or indexed) and `LogQueryString`, validated in `PaduraksaOptionsValidator` and documented in [Logs, metrics and notifications](../guide/observability.md#access-log-and-request-ids).
@@ -214,7 +214,7 @@ Everything is passed through and the bytes written to the client and read from i
 
 **Upgraded connections.** A WebSocket's frames pass through the stream the upgrade returns, which the counter wraps too (reads are bytes in, writes bytes out). The request is counted when it ends, so a WebSocket's bytes land when it closes. Accepting an upgrade costs Kestrel's own task once, never anything per message.
 
-**What "written" means.** The bytes handed to the server for the client. A client that leaves mid-body has been counted what the proxy wrote before it noticed, which can include what still sat in Kestrel's and the kernel's send buffers. Nothing more exact is visible to a process. A request that reads `HttpRequest.BodyReader` gets Kestrel's pipe reader over the counting stream, which allocates. Nothing on the public pipeline reads that way.
+**What "written" means.** The bytes handed to the server for the client. If a client leaves mid-body, the count is what the proxy wrote before it noticed, which can include what still sat in Kestrel's and the kernel's send buffers. Nothing more exact is visible to a process. If a request reads `HttpRequest.BodyReader`, it gets Kestrel's pipe reader over the counting stream, which allocates. Nothing on the public pipeline reads that way.
 
 **Where the numbers go.**
 - The access log's bytes field. Request bytes reach the live tail's entry, whose drawer shows the request size when there was a body.
@@ -274,7 +274,7 @@ The live tail's waterfall (see [dashboard.md](dashboard.md)) reads like DevTools
 - **Starts**: the completion turns the forward's start (the access-log transform's timestamp) and the body's first read into microseconds from the request's start.
 - **Gate**: one timestamp in `FinishAsync`.
 - **Upstream connect** (`Yarp.UpstreamConnects`): the forwarder's handlers get a plaintext-stream filter and no connect callback. The filter gets the request message that made the pool open the connection and stamps the connect's end in a `ConditionalWeakTable` keyed by it. The connect's start is the forward's start (`UpstreamStartedTimestamp`), so a new connection's figure is the end minus that, capped at the upstream leg. The access-log transform keeps the request's message on the pooled state, and the completion looks it up.
-  - A connect that failed never reaches the filter and leaves no entry. The forwarder's error feature, read at the completion, says whether it was the connect that failed: an `HttpRequestException` whose error is `ConnectionError`, `NameResolutionError` or `SecureConnectionError`, or the handler's connect timeout (a cancellation with a `TimeoutException` inside). The connect is then the whole upstream leg. A forward that failed on a pooled connection (a reset, say) is no connect failure and reports 0.
+  - If a connect fails, it never reaches the filter and leaves no entry. The forwarder's error feature, read at the completion, says whether it was the connect that failed: an `HttpRequestException` whose error is `ConnectionError`, `NameResolutionError` or `SecureConnectionError`, or the handler's connect timeout (a cancellation with a `TimeoutException` inside). The connect is then the whole upstream leg. If a forward fails on a pooled connection (a reset, say), it is no connect failure and reports 0.
 - **Send**: a response-start callback, registered next to the completion one, whose state is the pooled request state.
 
 ### Decisions
@@ -311,8 +311,8 @@ The live tail's waterfall (see [dashboard.md](dashboard.md)) reads like DevTools
 
 **Slot versions.**
 - Every slot has a version. A rent makes it odd, clears the counters, sets the owner and makes it even again. A compiled `MetricSlot` carries the version it was handed out under.
-- `RecordRequest` drops a record whose slot version is no longer current (one compare per slot, still 0 B). A WebSocket, SSE stream or slow upload on a deleted host that finishes after its slot went to another host is therefore never counted into the new owner. A request mid-record at the very instant of a rent (nanoseconds, once per rent) can still land one stale increment.
-- A publish that cannot reclaim an object's slot (another object holds it by then) is logged at Warning, as the rate-limit case is, *and* made harmless: that object's compiled slot is stale, so it records nothing, and the exporters leave it out until the next compile gives it a fresh slot.
+- `RecordRequest` drops a record whose slot version is no longer current (one compare per slot, still 0 B). If a WebSocket, SSE stream or slow upload on a deleted host finishes after its slot went to another host, it is therefore never counted into the new owner. A request mid-record at the very instant of a rent (nanoseconds, once per rent) can still land one stale increment.
+- If a publish cannot reclaim an object's slot (another object holds it by then), it is logged at Warning, as the rate-limit case is, *and* made harmless: that object's compiled slot is stale, so it records nothing, and the exporters leave it out until the next compile gives it a fresh slot.
 
 **Who gets slots.** Only enabled hosts, their routes, the upstreams they route to and those upstreams' destinations. The admin host's implicit route has none. Host slot 0 is reserved for requests no host owns, shown as `(unmatched)`: scanners and typos show up as traffic that belongs to nobody.
 
@@ -388,9 +388,9 @@ The policy that refuses records its kind on the pooled request state (`IRequestP
 
 **Monotonic time.** Coverage and splitting come from monotonic time (`TimeProvider.GetTimestamp`, the elapsed time between ticks). The wall clock only says which bucket and minute a moment belongs to.
 - A wall clock stepped backwards therefore never reopens a closed bucket or minute and never doubles a second. The labels run on at the monotonic rate until the wall clock catches up, and a window's coverage cannot exceed its width.
-- The clock stepping forwards is a gap in the labels: the second before the new time is observed, the time skipped is not.
+- When the clock steps forwards, the labels have a gap: the second before the new time is observed, the time skipped is not.
 
-**Alignment and splitting.** Ticks are aligned to whole seconds of the clock (`MetricSamplerService` waits `UntilNextSecond` on the injected `TimeProvider`), so an interval crosses a ten-second or minute boundary only by the few milliseconds a tick is late. A tick that does cross one **splits its gain in proportion to the time on each side** (`TickSplit`).
+**Alignment and splitting.** Ticks are aligned to whole seconds of the clock (`MetricSamplerService` waits `UntilNextSecond` on the injected `TimeProvider`), so an interval crosses a ten-second or minute boundary only by the few milliseconds a tick is late. If a tick does cross one, it **splits its gain in proportion to the time on each side** (`TickSplit`).
 - Every counter and every latency histogram count is divided by rounding the cumulative share to the nearest whole count at each piece's end. The pieces are whole numbers, add up to the gain exactly, and none is more than one count off its proportion.
 - A tick 4 ms late keeps its three requests in the window they happened in. A tick 5 s late over a boundary splits 4 s to 1 s.
 
@@ -409,7 +409,7 @@ The policy that refuses records its kind on the pooled request state (`IRequestP
 - Before the sampler's first tick, `MetricRollupJob.StartAsync` reads the last hour (and the minute before, for the window's edge) of rollups, every subject, once, and hands it to `MetricSampler.Seed`.
 - It is a snapshot held in memory (`MetricHistory`, minute points keyed by object, trimmed as they leave the hour) and never reread. That makes the boot minute right: its first half is the database row from before the stop, its second half is the ring. When the job later merges the live half into the row, the snapshot does not see it, so nothing is counted twice.
 - The busiest-hosts and upstream tables for the hour sum the seed and the live series. The tiles ("last 30 s") read the ring alone and, right after boot, divide by the time actually observed.
-- An unreadable database at startup logs a warning and leaves the view starting at boot.
+- If the database is unreadable at startup, the sampler logs a warning and the view starts at boot.
 
 ### Rollups
 
@@ -461,7 +461,7 @@ The longer ranges are summed in SQL (`GROUP BY` the object or the step, `SUM`s o
 
 **Gaps are in the data, not in the drawing** (`MetricTimeline`).
 - The series runs from the first step the server observed to the last. Every step between them is present.
-- A step the server was not running for has `coveredSeconds` 0 (and every figure 0) next to `widthSeconds`. That is distinct from a covered step that saw no requests (a rate of 0, no latency).
+- If the server was not running during a step, the step has `coveredSeconds` 0 (and every figure 0) next to `widthSeconds`. That is distinct from a covered step that saw no requests (a rate of 0, no latency).
 - A step has its own width, because the hour mixes minute-wide steps with ten-second ones. A longer range's step covers the sum of its minutes' coverage, and its rates are over those seconds.
 
 **Decision: the part of the range before the first observed step, and any step after the last, are not gaps** and are left out. A fresh install's 30-day view starts where its data does, and the minute the rollups have not been written for yet is not drawn as downtime.
@@ -478,7 +478,7 @@ The longer ranges are summed in SQL (`GROUP BY` the object or the step, `SUM`s o
 - A line is **one polyline per unbroken run of values**. A lone point is a mark the width of its step. The latency lines also break where a covered step timed nothing.
 - A stretch with no data is a quiet shaded band whose tooltip says "No data: Paduraksa was not running" (`pdk-chart-gap`, a 6 % tint of the text colour, so it reads in both themes and at phone width).
 
-**Polling.** On the Traffic and Security tabs the hour polls every two seconds while the browser tab is visible (the `paduraksa.pageVisibility` pause), the strip every five, and the Visitors tab every ten. Only the open tab polls. The rollup ranges poll a tenth as often (a sixth on Visitors). A range that cannot be read shows an alert with "Try again". The pages need `metrics:read`.
+**Polling.** On the Traffic and Security tabs the hour polls every two seconds while the browser tab is visible (the `paduraksa.pageVisibility` pause), the strip every five, and the Visitors tab every ten. Only the open tab polls. The rollup ranges poll a tenth as often (a sixth on Visitors). If a range cannot be read, the page shows an alert with "Try again". The pages need `metrics:read`.
 
 **Left out, with the seams.**
 - The per-host page's own traffic (the Traffic tab's table links to it): one more call to the same service.
@@ -523,7 +523,7 @@ The ring keeps its one reader and the request path is untouched (no new field, n
 ### The hub
 
 `AccessLogTail` (`Paduraksa.Proxy.Logging`) holds the newest `Paduraksa:AccessLog:TailSize` entries (default 4 096, range 64 to 65 536, validated and documented in [the user guide](../guide/observability.md)) and a bounded channel per subscriber.
-- `AccessLogDrainService` calls `Offer` after `sink.WriteLine`, in its own `try`. A failure in the tail is reported like a failing sink and never costs the file a line.
+- `AccessLogDrainService` calls `Offer` after `sink.WriteLine`, in its own `try`. If the tail fails, the failure is reported like a failing sink's and never costs the file a line.
 - **Per-host on or off needs no code of its own.** A host with its access log off never reaches the ring (`AccessLogMiddleware.Record` returns first), so it is in neither the file nor the tail.
 - **Decision, recorded because privacy depends on it:** "off" means not recorded anywhere. A test proves it through a real listener.
 - The tail is memory only (a restart empties it) and holds what the file holds, no more.
@@ -549,7 +549,7 @@ A parity test formats an entry both ways and compares each field with the file l
 ### Hosts
 
 The entry carries only the `Host` header. The host that owned the request is resolved against the live snapshot (`HostTable.Find`) when the entry is converted: `MatchedHostNames` (all of the host's names) or none.
-- A backlog entry of a host deleted since reads as "no host matched". A streamed entry is resolved as the drain offers it, within 200 ms of the request.
+- If an entry's host was deleted since, a backlog entry reads as "no host matched". A streamed entry is resolved as the drain offers it, within 200 ms of the request.
 - A field on `AccessLogEntry` set by the request path was refused: the request path stays as it is.
 
 ### Subscribers
@@ -593,7 +593,7 @@ Per entry through `AccessLogDrainService.Drain` (`AccessLogDrainBenchmarks`, in-
 ## Traffic analytics
 
 Nothing is new on the request path. The ring entry already carries the host, path, method, protocol, status, body bytes both ways, durations, user agent, referer and client address. So analytics is a **third consumer in the drain** (`Paduraksa.Proxy.Analytics.TrafficAnalytics`), offered each entry after the file's line and the tail, in a `try` of its own.
-- A failure in it is reported like a failing sink and never costs the file a line.
+- If it fails, the failure is reported like a failing sink's and never costs the file a line.
 - A host with its access log off never reaches the ring, so **it is in neither the file nor the analytics** (a test proves it through a real listener, as for the tail).
 - `TrafficAnalyticsDrainTests` and `AccessLogAllocationTests.TheGateAllocatesNothingWhileTheAnalyticsAreFedByTheDrain` keep the gate at 0 B.
 - Query strings are never counted: a path is the decoded path without its query.
@@ -602,7 +602,7 @@ Nothing is new on the request path. The ring entry already carries the host, pat
 
 - A bucket is five minutes wide: one `TrafficBucket` per host that had traffic, plus one for the requests no host owns. Hosts are resolved against the live snapshot when the drain reaches the entry, like the tail. At most 1 024 per bucket; the rest are counted with the unowned.
 - A bucket closes five seconds after its end (so entries still in the ring land in it) into `AnalyticsBacklog`, bounded to 4 096 rollups. A database that stays down loses the oldest, never memory. A shutdown closes the open bucket as partial.
-- A late entry (its bucket closed already) is filed in the oldest open bucket, since dropping a served request would lose it.
+- If an entry is late (its bucket closed already), it is filed in the oldest open bucket, since dropping a served request would lose it.
 - **Memory is fixed by construction:** the open buckets (one or two) times the hosts with traffic. A bucket is:
   - 4 KiB of visitor registers;
   - four Space-Saving sketches (paths 64 keys, referers 32, user agents 32, largest responses 16);
@@ -651,7 +651,7 @@ It reads the first 1 024 characters for a bot's token (bots name themselves late
 - A 1 KiB agent with no token in it takes about 3 us, one made of nothing but tokens about 5 us. The first version took 34 to 400 us.
 - The cache (`UserAgentCache`, 4 096, LRU) is keyed on the capped copy, so a 32 KB agent pins 1 KiB.
 
-Honest limits: Brave and most forks are Chrome, an iPad on iPadOS 13+ sends a Mac's agent, and a scanner that sends a browser's agent is a browser. It is tested against about 90 real agent strings. A `BotKey` (`SearchEngine|Googlebot`) is the counted label, built once with the cached classification.
+Limits: Brave and most forks are Chrome, an iPad on iPadOS 13+ sends a Mac's agent, and a scanner that sends a browser's agent is a browser. It is tested against about 90 real agent strings. A `BotKey` (`SearchEngine|Googlebot`) is the counted label, built once with the cached classification.
 
 ### The drain never pays for analytics with a file line
 
@@ -794,7 +794,7 @@ The senders live in `Paduraksa.Notifications` (Core only), so MailKit stays out 
 A webhook URL, token and SMTP password are vault `NotificationSecret`s. A webhook's signing key is an `HmacSigningKey` read through `IMacKeySource` (HMAC stays banned outside the vault).
 - Migration `NotificationSecrets` rebuilds `Secrets` to widen its kind check. A test pins that `TotpStates` survives and that its Down deletes the notification secrets first (the narrower check would refuse them). EF's non-transactional-PRAGMA warning is ignored for the vault only.
 - **The vault's fourth sanctioned egress**, the narrowest: `INotificationSecretSource.UseAsync` lends a `NotificationSecret`'s value to a callback as a view of the pinned buffer, zeroed when the callback returns. A webhook URL, token or password has to be used by the sender, which no handler or MAC handle can do. Every other kind answers as absent, nothing returns the value, and the arch test lists the position.
-- A secret is in no config document, response, OpenAPI document, audit entry or log. Tests walk them all.
+- No config document, response, OpenAPI document, audit entry or log holds a secret. Tests walk them all.
 - A replacement keeps, replaces in place or removes (empty) a secret. A failed change takes back what it stored.
 - Failures read as fixed lines ("The server refused the credentials (HTTP 401).", "Could not connect to the server.") and say whether a retry can help.
 - **No TLS with a login is refused.** A channel with `smtpSecurity: none` may carry neither a login nor a password (`notification.smtp.insecureLogin`). A trusted-network relay takes neither.
@@ -803,7 +803,7 @@ A webhook URL, token and SMTP password are vault `NotificationSecret`s. A webhoo
 ### Events
 
 - **Upstream down and up, and destination down and up** (above). New channels start without the destination pair, which a one-destination upstream says twice.
-- **Certificate expiry.** `CertificateExpiryMonitor` looks hourly at every active certificate whatever its source. It sends the smallest crossed threshold of 30/14/7/1 days **once per chain and threshold**.
+- **Certificate expiry.** `CertificateExpiryMonitor` looks hourly at every active certificate. It sends the smallest crossed threshold of 30/14/7/1 days **once per chain and threshold**.
   - `ExpiryNotices` (certificate, `NotAfter`, days; cascade on delete) records it, so a restart does not repeat it. A renewal (a new `NotAfter`) starts over. Several crossed thresholds are one message with all marked.
   - **Nothing is marked while no enabled channel subscribes**, so a channel added at 5 days still hears the next one.
 - **ACME.** The first failure of a streak (not every retry; the expiry notices cover a certificate that stays unrenewed), and the recovery after it.
@@ -861,13 +861,13 @@ Config database, migration `NotificationOutbox`, `Int64Ordered` IDs `nev_`, `ndl
 
 - One read of the enabled channels per flush (not one per event; a test counts the statements).
 - For each event, one `pending` delivery per enabled channel subscribed to its kind, in the same transaction as the event.
-- An event nothing subscribes to is stored with no delivery, so the history shows it ("No channel was subscribed").
+- If nothing subscribes to an event, it is stored with no delivery, so the history shows it ("No channel was subscribed").
 
 ### Workers
 
 One per channel: a task, created by the first wake or at start for a channel with pending rows. The flusher wakes it in process. A slow poll (`PollInterval`, 30 s) is the safety net, and a retry's own time is the usual wake.
 
-**The first send goes at once.** A channel that has not sent within the last `CoalesceWindow` (3 s) claims what is due the moment it is woken. Only a channel that has (a burst) waits out the rest of the window. It **claims the due `pending` rows** (`next attempt <= now`, in due order, at most `ClaimBatchSize` (500) a pass, going on at once when a pass was full).
+**The first send goes at once.** If a channel has not sent within the last `CoalesceWindow` (3 s), it claims what is due the moment it is woken. If it has (a burst), it waits out the rest of the window. It **claims the due `pending` rows** (`next attempt <= now`, in due order, at most `ClaimBatchSize` (500) a pass, going on at once when a pass was full).
 
 **Coalescing.**
 - The first event of a burst goes alone. The second and later ones, which arrive inside the window, go together.
@@ -885,16 +885,16 @@ One per channel: a task, created by the first wake or at start for a channel wit
 - One process, one worker per channel, one send at a time. A row cannot be sent twice in process.
 - Every row update says `State = pending`, so a delivery dropped meanwhile stays dropped.
 - A channel's settings are read again before each group (an edit, a deletion and a pause take effect).
-- A message already in flight when its channel is paused or deleted is sent, and its row stays `dropped`. The pause or the delete marks every pending row, in flight or not, and recording a send touches only rows still pending. The history can therefore show a dropped delivery that did reach the service: the safe side of at-least-once.
-- A worker whose channel is gone marks its pending rows `dropped` ("The channel was deleted.") and leaves. A paused one marks them "The channel is paused.". `NotificationService` does the same in the transaction of the delete or the pause, so the history is right at once.
+- If a channel is paused or deleted while a message is in flight, the message is still sent and its row stays `dropped`. The pause or the delete marks every pending row, in flight or not, and recording a send touches only rows still pending. The history can therefore show a dropped delivery that did reach the service: the safe side of at-least-once.
+- If a worker's channel is gone, the worker marks its pending rows `dropped` ("The channel was deleted.") and leaves. If the channel is paused, it marks them "The channel is paused.". `NotificationService` does the same in the transaction of the delete or the pause, so the history is right at once.
 
 ### Restart and outages
 
 - At start, pending rows resume. The pending rows of channels that no longer exist are dropped.
 - **Rows that have been due for longer than `Paduraksa:Notifications:MaxDeliveryAge` (1 hour; 1 minute to 7 days, validated) are marked `expired` instead of sent.** A long outage does not end in a burst of stale "upstream down" messages. The same rule is applied when a worker claims, so events that waited out a database outage in the flusher's buffer (they keep their publish time) are expired when the database returns.
 - "Due for" is the row's due time. A new row is due from the moment its event was published. A manual retry is due from the retry, so an old event sent again on purpose is not expired again.
-- A row whose event is missing (retention keeps an event with a pending delivery, so it should not happen) is marked `dropped` ("The event is gone.") at claim, instead of being found every pass.
-- **Recovery heals itself.** A start whose recovery failed is retried by every upkeep tick. Each tick wakes every channel with a due `pending` row (one seek per channel on the claim index), so a channel is never left without a worker.
+- If a row's event is missing (retention keeps an event with a pending delivery, so it should not happen), the claim marks the row `dropped` ("The event is gone."), instead of finding it every pass.
+- **Recovery heals itself.** If a start's recovery failed, every upkeep tick retries it. Each tick wakes every channel with a due `pending` row (one seek per channel on the claim index), so a channel is never left without a worker.
 - The certificate-expiry monitor's own dedup (`ExpiryNotices`) is separate.
 
 ### Guarantee: at least once
