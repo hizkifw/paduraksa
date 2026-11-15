@@ -189,12 +189,13 @@
         {
             _ = InvokeAsync(() =>
             {
-                foreach (var level in Stack.Levels)
+                // Only the levels stacked on this root go: a drawer the page just navigated to has an address (Routed) and is not this root's.
+                foreach (var level in Stack.OwnedBy(root))
                 {
                     level.IsDirty = false;
                 }
 
-                root.Cancel();
+                root.CancelOwned();
             });
         }
     }

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Bunit;
 
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 
 using MudBlazor;
 
@@ -308,6 +309,47 @@ public sealed class AccountAndAuditTests
     }
 
     private static string Phase(IRenderedComponent<TwoStepEnrollment> step) => step.Find(".pdk-two-step").GetAttribute("data-phase")!;
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ALinkInADrawerThatHasNoAddress_ClosesThatDrawerAndLeavesTheOneTheNextPageOpened(bool nextPageOpensFirst)
+    {
+        // The audit event's drawer has no address of its own. Its Target link goes to the host's drawer; whichever happens first (the host page
+        // pushing its drawer, or the location change closing the audit one), only the audit drawer goes.
+        await using DashboardTestContext context = new();
+        var (_, audit, config, _) = IdentityPages.SignIn(context, Role.Auditor);
+        var host = HostId.New();
+        config.Document = new ConfigDocument(Hosts: [new HostConfig(host, ["app.test"])]);
+        audit.Events.Add(Event(1, "config.host.update", AuditOutcome.Success, target: host.ToString()));
+        audit.Verification = new AuditVerification(true, 1, audit.Events[0].Id, new string('a', 64));
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        var page = context.Render<Audit>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-event]").Count == 1);
+        _ = page.Find("[data-event] button").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=audit-event] a[href^='/hosts/']").Count == 1);
+        var href = drawers.Find("[data-drawer=audit-event] a[href^='/hosts/']").GetAttribute("href")!;
+        Assert.Equal(Paduraksa.Dashboard.DashboardRoutes.Host(host), href);
+
+        // The router's part: the host page is rendered with the address's key; the browser's part: the location changes.
+        if (nextPageOpensFirst)
+        {
+            context.Render<Hosts>(p => p.Add(x => x.Key, host.ToString()));
+            await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host]").Count == 1);
+            navigation.NavigateTo(href);
+        }
+        else
+        {
+            navigation.NavigateTo(href);
+            context.Render<Hosts>(p => p.Add(x => x.Key, host.ToString()));
+        }
+
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host]").Count == 1 && drawers.FindAll("[data-drawer=audit-event]").Count == 0);
+        Assert.EndsWith($"/hosts/{host}", navigation.Uri, StringComparison.Ordinal);
+        Assert.Single(drawers.FindAll(".pdk-sheet"));
+    }
 
     private static AuditEventSummary Event(long order, string action, AuditOutcome outcome, string? target = null, string? details = null) =>
         new(

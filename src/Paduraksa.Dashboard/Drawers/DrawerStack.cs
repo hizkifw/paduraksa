@@ -131,6 +131,49 @@ public sealed class DrawerStack
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Closes <paramref name="level"/> and the levels stacked on it, but not another page's drawer that opened above it. A link from a drawer to a
+    /// drawer on another page makes the new page push its level (its parameters are set first) before the old page is disposed; closing the old one with
+    /// <see cref="Remove"/> would take the new one along with everything above it. A level with an address (<see cref="DrawerLevel.Routed"/>) is a page's
+    /// root, so the levels from the first such one above <paramref name="level"/> stay.
+    /// </summary>
+    internal void RemoveOwned(DrawerLevel level)
+    {
+        var closing = OwnedBy(level);
+        if (closing.Count == 0)
+        {
+            return;
+        }
+
+        var index = _levels.IndexOf(level);
+        var end = index + closing.Count;
+        _levels.RemoveRange(index, end - index);
+        for (var i = closing.Count - 1; i >= 0; i--)
+        {
+            closing[i].Complete(closing[i].CancelResult);
+        }
+
+        Changed?.Invoke();
+    }
+
+    /// <summary><paramref name="level"/> and the levels stacked on it, up to the first level with an address (another page's drawer) above it; empty when it isn't open.</summary>
+    internal List<DrawerLevel> OwnedBy(DrawerLevel level)
+    {
+        var index = _levels.IndexOf(level);
+        if (index < 0)
+        {
+            return [];
+        }
+
+        var end = index + 1;
+        while (end < _levels.Count && !_levels[end].Routed)
+        {
+            end++;
+        }
+
+        return _levels.GetRange(index, end - index);
+    }
+
     internal int DepthOf(DrawerLevel level) => _levels.IndexOf(level);
 
     internal void Notify() => Changed?.Invoke();
@@ -215,6 +258,12 @@ public sealed class DrawerLevel
 
     /// <summary>Closes without a result and without asking (the owner went away, or the drawer itself decided).</summary>
     public void Cancel() => _stack.Remove(this, CancelResult);
+
+    /// <summary>
+    /// <see cref="Cancel"/> for a page's own drawer going away: the levels stacked on it go, but not the drawer another page opened above it in the
+    /// meantime (see <see cref="DrawerStack.RemoveOwned"/>).
+    /// </summary>
+    internal void CancelOwned() => _stack.RemoveOwned(this);
 
     /// <summary>The person asked to close it (Escape, the backdrop, Cancel, the close button): asks first when it holds unsaved changes.</summary>
     public void RequestClose()

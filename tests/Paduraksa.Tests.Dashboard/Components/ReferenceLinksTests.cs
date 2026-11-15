@@ -258,6 +258,30 @@ public sealed class ReferenceLinksTests
         Assert.Empty(readOnly.FindAll("a[data-link=user]"));
     }
 
+    [Fact]
+    public async Task ADrawerOpenedByAnotherPageBeforeThisOneGoes_StaysOpen_WhileThisPagesOwnLevelsClose()
+    {
+        // A link from a drawer to a drawer on another page: the new page pushes its level (its parameters are set first), and only then is the old
+        // page disposed. The old page's levels close; the new page's drawer, above them in the stack, must not.
+        await using DashboardTestContext context = new();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        DrawerStack stack = new();
+        RoutedDrawer certificates = new(navigation, DashboardRoutes.Certificates);
+        certificates.Show("crt", _ => stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Certificate", "c")));
+        var stackedOnIt = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Stacked", "s"));
+        RoutedDrawer hosts = new(navigation, DashboardRoutes.Hosts);
+        hosts.Show("host", _ => stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Host", "h")));
+
+        certificates.Dispose();
+
+        Assert.Same(hosts.Level, Assert.Single(stack.Levels));
+        Assert.True(hosts.Level!.IsOpen);
+        Assert.False(stackedOnIt.IsOpen);
+        Assert.True((await stackedOnIt.Result).Canceled);
+        hosts.Dispose();
+        Assert.Empty(stack.Levels);
+    }
+
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;

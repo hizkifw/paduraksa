@@ -51,7 +51,7 @@ public sealed class RoutedDrawer(NavigationManager navigation, string listAddres
         {
             _root = null;
             Key = null;
-            root.Cancel();
+            root.CancelOwned();
         }
     }
 
