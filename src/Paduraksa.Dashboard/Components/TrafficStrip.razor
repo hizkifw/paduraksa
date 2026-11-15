@@ -7,7 +7,7 @@
 @inject IJSRuntime JS
 @inject DisplayFormat Fmt
 @* The overview's live glance: four tiles for the pace of the last half minute, each with the last hour behind it from the sampler's
-   memory, and each a link to the traffic over that hour on Analytics. It is always the live hour (no range), read every few seconds while
+   memory, and each a link to that figure over the hour on Analytics (the refused tile to the Security tab, the others to Traffic). It is always the live hour (no range), read every few seconds while
    the browser tab is visible. *@
 
 <section class="pdk-sec-tiles pdk-traffic-strip" data-section="traffic-strip" aria-label="Traffic in the last hour">
@@ -16,7 +16,7 @@
         var now = _overview?.Now;
         var pending = now is null;
     }
-    <SecurityTile Name="requests" Label="Requests" Pending="@pending" Value="@(pending ? string.Empty : Fmt.PerSecond(now!.RequestsPerSecond))" Href="@Href" LinkTitle="@LinkTitle">
+    <SecurityTile Name="requests" Label="Requests" Pending="@pending" Value="@(pending ? string.Empty : Fmt.PerSecond(now!.RequestsPerSecond))" Href="@TrafficHref" LinkTitle="The requests over the last hour, on Analytics">
         <Spark>
             @if (_points.Count >= 2)
             {
@@ -24,7 +24,7 @@
             }
         </Spark>
     </SecurityTile>
-    <SecurityTile Name="errors" Label="Errors" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Percent(now!.ErrorRate))" Detail="5xx answers" Href="@Href" LinkTitle="@LinkTitle">
+    <SecurityTile Name="errors" Label="Errors" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Percent(now!.ErrorRate))" Detail="5xx answers" Href="@TrafficHref" LinkTitle="The errors over the last hour, on Analytics">
         <Spark>
             @if (_points.Count >= 2)
             {
@@ -32,7 +32,7 @@
             }
         </Spark>
     </SecurityTile>
-    <SecurityTile Name="refused" Label="Refused" Pending="@pending" Value="@(pending ? string.Empty : Fmt.PerSecond(now!.RefusedPerSecond))" Detail="by a policy or limit" Href="@Href" LinkTitle="@LinkTitle">
+    <SecurityTile Name="refused" Label="Refused" Pending="@pending" Value="@(pending ? string.Empty : Fmt.PerSecond(now!.RefusedPerSecond))" Detail="by a policy or limit" Href="@RefusedHref" LinkTitle="What the gate refused over the last hour, on Analytics">
         <Spark>
             @if (_points.Count >= 2)
             {
@@ -40,7 +40,7 @@
             }
         </Spark>
     </SecurityTile>
-    <SecurityTile Name="latency" Label="Latency p95" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Latency(now!.Total.P95Ms))" Href="@Href" LinkTitle="@LinkTitle">
+    <SecurityTile Name="latency" Label="Latency p95" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Latency(now!.Total.P95Ms))" Href="@TrafficHref" LinkTitle="The latency over the last hour, on Analytics">
         <Spark>
             @if (_points.Count >= 2)
             {
@@ -51,9 +51,10 @@
 </section>
 
 @code {
-    private static readonly string Href = AnalyticsView.Href(AnalyticsTab.Traffic, MetricsRange.Hour);
+    internal static readonly string TrafficHref = AnalyticsView.Href(AnalyticsTab.Traffic, MetricsRange.Hour);
 
-    private const string LinkTitle = "The traffic over the last hour, on Analytics";
+    /// <summary>Refusals are the Security tab's, not Traffic's.</summary>
+    internal static readonly string RefusedHref = AnalyticsView.Href(AnalyticsTab.Security, MetricsRange.Hour);
 
     private MetricsOverview? _overview;
     private bool _visible = true;

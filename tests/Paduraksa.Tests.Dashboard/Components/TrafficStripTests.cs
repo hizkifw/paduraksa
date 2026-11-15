@@ -37,7 +37,7 @@ public sealed class TrafficStripTests
     }
 
     [Fact]
-    public async Task EveryTileLinksToTheTrafficTabOverTheLastHour()
+    public async Task TheRefusedTileLeadsToTheSecurityTabAndTheOthersToTheTrafficTabEachWithATitleOfItsOwn()
     {
         await using MetricsRig rig = new();
         var context = rig.SignIn();
@@ -48,7 +48,13 @@ public sealed class TrafficStripTests
 
         var links = page.FindAll("[data-tile] a[data-part=link]");
         Assert.Equal(4, links.Count);
-        Assert.All(links, link => Assert.Equal("/analytics?tab=traffic&range=1h", link.GetAttribute("href")));
+        Assert.Equal("/analytics?tab=security&range=1h", page.Find("[data-tile=refused] a[data-part=link]").GetAttribute("href"));
+        foreach (var tile in new[] { "requests", "errors", "latency" })
+        {
+            Assert.Equal("/analytics?tab=traffic&range=1h", page.Find($"[data-tile={tile}] a[data-part=link]").GetAttribute("href"));
+        }
+
+        Assert.Equal(4, links.Select(link => link.GetAttribute("title")).Distinct().Count());
     }
 
     [Fact]
