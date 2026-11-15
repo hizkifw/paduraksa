@@ -122,7 +122,7 @@ interface IPasswordVerifier          // the gate's check: a hit or miss without 
 - PEM must carry a PKCS#8 key (plain or encrypted). Otherwise PFX, under the vault's own `Pkcs12LoaderLimits`. At most 1 MiB is read.
 - Every failure surfaces as `CertificateImportException` with a reason.
 - The leaf is refused if it is an RSA key under 2048 bits (`WeakKey`) or a CA certificate (`CaCertificate`). An expired leaf is accepted: the inventory treats it as unusable until renewed.
-- A leaf with no DNS or IP SAN is refused before anything is stored (`CertificateImportFailure.NoUsableName`), since nothing could ever select it.
+- The vault refuses a leaf with no DNS or IP SAN before storing anything (`CertificateImportFailure.NoUsableName`), since nothing could ever select it.
 - "Usable name" is decided by `ICertificateNameRules`, implemented by the inventory's normaliser (`CertificateNameRules`) and handed to `AddPaduraksaVault`. The vault therefore never accepts names the inventory drops. A vault built without one uses its strict rule.
 - The KDF cost of an encrypted PKCS#8 is bounded before it runs (iteration count at most 600000, else `Unreadable`). It runs once per key type the certificate could have, normally once.
 - Anything wrong found while reading the extensions after parsing is `Unreadable`, never an exception.
@@ -169,7 +169,7 @@ The subject has a CN only for a DNS name of at most 64 characters, otherwise it 
   - a version that is both in the AAD and a concurrency token;
   - a unique-where-true `IsLocalCaRoot`.
 - A replacement is an update of that row in one `SaveChanges`, which is what makes key and chain swap atomically.
-- `StagedKeys` holds at most one row per certificate: the key sealed to its own `StagedKeyId` (and a digest of the requested names). Staging again updates the row in place, so the earlier token no longer names it. A staging deletes staged keys older than 30 days (abandoned orders).
+- `StagedKeys` holds at most one row per certificate: the key sealed to its own `StagedKeyId` (and a digest of the requested names). Staging again updates the row in place, so the earlier token no longer names it. Each staging deletes staged keys older than 30 days (abandoned orders).
 - Every replacement route drops the ID's staged key in the same transaction. `DeleteAsync` takes both rows. KEK rotation re-wraps both tables (counted as `CertificateKeys` and `StagedKeys`).
 - `CertificateInfo` is recomputed from the stored chain. No metadata is duplicated.
 
@@ -179,7 +179,7 @@ The subject has a CN only for a DNS name of at most 64 characters, otherwise it 
 - requires its SANs to cover every requested name (exact, or the wildcard of the parent; a wildcard does not cover the apex or a deeper name);
 - requires it to be valid now (not expired, not starting later than a five-minute tolerance);
 - orders the rest behind it;
-- throws `CryptographicException` otherwise (the staged key keeps waiting). No staged row for the token is `StagedKeyMismatchException`, including after a replacement or delete.
+- throws `CryptographicException` otherwise (the staged key keeps waiting). If there is no staged row for the token, it throws `StagedKeyMismatchException`, including after a replacement or delete.
 
 **Chain assembly** (also for imports). A certificate counts as the issuer of the one before only if the names link up, the key identifiers agree where both carry them, the issuer is a CA, and its key verifies the signature (ECDSA or RSA PKCS#1 v1.5 with SHA-2). Strays, same-name impostors, intermediates expired now and the root are dropped.
 
@@ -194,7 +194,7 @@ The subject has a CN only for a DNS name of at most 64 characters, otherwise it 
 - A load on a miss takes the vault's gate, and writers invalidate inside it. A context built from a replaced row can therefore never be cached afterwards.
 - The cache is per process. A second process writing the same database would not invalidate it. The proxy's vault is the only writer, and the KEK-rotating CLI does not change certificates.
 - **Seals check the key.** Every operation that seals (certificate keys, staged keys, secrets, account keys) begins a transaction and re-reads the database's KEK check value first, refusing when it is not this process's KEK. A `rotate-kek` run while the service serves therefore cannot make it seal under the old key.
-- A start whose generated `master.key` does not match the database names `master.key.old` or `master.key.new` when that one does (an interrupted rotation).
+- If a start's generated `master.key` does not match the database, the start names `master.key.old` or `master.key.new` when that one does match (an interrupted rotation).
 
 ## The Data Protection key ring
 
@@ -202,7 +202,7 @@ The subject has a CN only for a DNS name of at most 64 characters, otherwise it 
 - `ReadAllAsync` returns every element. `StoreAsync` seals one element under its friendly name. `IDeletableXmlRepository` is not implemented, so a retired key stays in the ring until it expires.
 - Each element is a row in the vault's `DataProtectionKeys` table, sealed under the purpose `data-protection-key\n<friendly name>`, with its typed `DataProtectionKeyId` and version in the AAD, inside the KEK-check sealing transaction. Editing the name or moving the ciphertext fails to open it.
 - `vault rotate-kek` re-wraps the table (counted as `DataProtectionKeys`). A restore keeps the ring because it is inside `vault.db`.
-- A row that fails to open is logged at Error and skipped, so one damaged element does not take the ring down.
+- If a row fails to open, it is logged at Error and skipped, so one damaged element does not take the ring down.
 
 **The element XML is key material**, so `DataProtectionKey.KeyXml` is the **third sanctioned egress** (after Kestrel's and the upstream mTLS contexts). The admin's `VaultXmlRepository` is its only reader and hands each element straight back to Data Protection in-process. `DataProtectionKey`'s printing hides it.
 
@@ -215,20 +215,20 @@ Decisions:
 
 ## Password credentials
 
-An access-list user's password is a **credential** in the vault, named by a `pwc_` ID that the config document carries (`{ username, credentialId }`). No hash, no password and nothing that verifies one is in the document, a revision, an audit entry, an API response, the simulator's trace, a log or an exception.
+An access-list user's password is a **credential** in the vault, named by a `pwc_` ID that the config document carries (`{ username, credentialId }`). The document, a revision, an audit entry, an API response, the simulator's trace, a log and an exception never hold a hash, a password or anything that verifies one.
 
 **The hash.**
-- `PasswordHash` is the PHC string `$pbkdf2-sha256$i=210000$salt$hash`: a 16-byte salt and a 32-byte hash. A cost outside 100 000 to 10 000 000, a non-canonical encoding or another shape is refused.
+- `PasswordHash` is the PHC string `$pbkdf2-sha256$i=210000$salt$hash`: a 16-byte salt and a 32-byte hash. It refuses a cost outside 100 000 to 10 000 000, a non-canonical encoding or another shape.
 - It is `internal` to the vault, with its parsed form, the cache, the registry and the store. An architecture test holds each of them out of every other assembly.
 - The proxy's `BannedSymbols.txt` also bans `Rfc2898DeriveBytes`, so the gate cannot hash a password either.
 
 **Storage.** `PasswordCredentials` (vault migration `PasswordCredentials`) has one row per credential.
 - The verifier is sealed by the envelope cipher: AAD purpose `password-credential`, version in the AAD and a concurrency token, inside the KEK-check sealing transaction.
 - It is re-wrapped by `vault rotate-kek` (counted as `PasswordCredentials`) and carried by a backup of `vault.db`.
-- A row that does not open is logged at Error with its ID and skipped. Its user cannot sign in until a password is set again.
+- If a row does not open, it is logged at Error with its ID and skipped, and its user cannot sign in until a password is set again.
 
 **Memory.**
-- Verifiers are loaded once, on first use. `Open` is synchronous because the snapshot compiler is, so it never starts the vault itself. Called before `IVaultLifecycle.InitializeAsync` it throws an `InvalidOperationException` that names the fix, instead of blocking a thread on an asynchronous start.
+- Verifiers are loaded once, on first use. `Open` is synchronous because the snapshot compiler is, so it never starts the vault itself. If called before `IVaultLifecycle.InitializeAsync`, it throws an `InvalidOperationException` that names the fix, instead of blocking a thread on an asynchronous start.
 - They are parsed into a slot per credential ID that is never removed. A handle held by a compiled snapshot therefore sees a later `SetAsync` or `DeleteAsync` without a recompile.
 - `SetAsync` hashes outside the vault's gate (a fresh salt, 210 000 iterations), then seals and swaps the slot's state inside it.
 - `ImportAsync` keeps an existing verifier as it is (no re-hash) and does nothing if the credential already has a password.
@@ -238,7 +238,7 @@ An access-list user's password is a **credential** in the vault, named by a `pwc
 - The cache key is a keyed SHA-256 over: the key, the credential's **stamp** (a hash of its salt and verifier, so a password change, a delete or a re-import makes every old entry miss with nothing to sweep), the masked client address (16 bytes, as the caller masks it), and the user name and password as sent. The name is in it because a credential can be renamed without changing its password.
 - It builds the key on the stack, so a hit and a miss are 0 B (`PasswordCredentialStoreTests` measures both with `AllocAssert`).
 - The probe returns hit, and an **attempt key**: a 64-bit value from that hash, 0 for a credential with no password. The proxy's line uses it to run identical attempts one after the other (see "Access lists" in [waf.md](waf.md)). It says nothing about what was sent.
-- `Verify` is the PBKDF2 path. A null credential (a name nobody has) and a credential with no password pay the same PBKDF2 against a dummy verifier, so neither can be told from a wrong password by timing. The verdicts differ (`Rejected`, `NoPassword`) for the simulator's trace. With `remember` a success is cached and a failure never is; a simulation passes false.
+- `Verify` is the PBKDF2 path. For a null credential (a name nobody has) and for a credential with no password, `Verify` runs the same PBKDF2 against a dummy verifier, so neither can be told from a wrong password by timing. The verdicts differ (`Rejected`, `NoPassword`) for the simulator's trace. With `remember` a success is cached and a failure never is; a simulation passes false.
 
 **Taking a change back.**
 - Every `SetAsync` keeps, in memory until kept or reverted, what it replaced: the previous sealed row as it was (bytes, version, times) or the fact that there was none, and the slot's previous verifier. It returns a `PasswordChange` that names it.
@@ -295,7 +295,7 @@ A DNS-provider client in `Paduraksa.Acme` builds an `HttpClient` over a vault-ow
   - It comes from `VaultStatus.KekBesideDatabase`, for a user who holds `vault:manage`. That is the Owner: only the person who runs the server can move the key.
   - The shipped compose example uses the Docker secret by default, with the generation commands in its comments.
 - **`paduraksa vault rotate-kek --new-key-file <path|->`** re-wraps the DEKs.
-  - The new key is read from a file or stdin, never argv. Standard input that is a terminal is refused, and a group-readable key file is warned about.
+  - The new key is read from a file or stdin, never argv. The command refuses standard input that is a terminal and warns about a group-readable key file.
   - With the generated `master.key`, the command stores the new key itself: the old file is kept as `master.key.old`, the new one is written through `master.key.new`, all 0600 and flushed with the directory, and the old file is put back if the rotation fails.
   - With a key file or the environment as the source, the new key must come from a file the operator keeps.
 - Plaintext buffers are pinned and zeroed (`CryptographicOperations.ZeroMemory`) after use, best effort.
@@ -314,8 +314,8 @@ A DNS-provider client in `Paduraksa.Acme` builds an `HttpClient` over a vault-ow
 **The KEK.**
 - It is base64 of 32 bytes from all three sources, and never becomes a string inside the vault when written.
 - A source that is set but unusable is an error, never a fall-through.
-- `master.key` is created exclusively: written whole to a private 0600 temp file, then given its name with an atomic hard link that cannot replace an existing file. It is never overwritten. A concurrent reader replays its open and waits for the whole key. A new one is not generated if `vault.db` already holds data.
-- An existing generated `master.key` readable by other users is refused (group access warns), judged on the open handle. An explicit key file is only warned about, since Docker secrets are mounted 0444.
+- `master.key` is created exclusively: written whole to a private 0600 temp file, then given its name with an atomic hard link that cannot replace an existing file. It is never overwritten. A concurrent reader replays its open and waits for the whole key. The vault does not generate a new one if `vault.db` already holds data.
+- The vault refuses an existing generated `master.key` that other users can read (group access warns), judged on the open handle. It only warns about an explicit key file, since Docker secrets are mounted 0444.
 - `vault.db` stores an HMAC check value of the KEK, compared at startup (`IVaultLifecycle.InitializeAsync`, which also reports whether the KEK sits beside the database). It runs with `secure_delete`.
 
 **KEK rotation** (`IVaultKekRotation`) re-wraps every DEK in one transaction and checkpoints the write-ahead log, so the old wraps are overwritten.
@@ -399,7 +399,7 @@ A parser refuses an unknown version or algorithm, non-zero reserved bytes, and c
 
 **Permission.** `backup:create` is held by the **Owner only**.
 - An API token can carry it as a scope, but only if its owner holds it. A token never exceeds its owner, and an Admin cannot mint one.
-- The refusal of a caller without it is the endpoint filter's 403 (not audited, like every filter refusal). A refusal inside the service (the dashboard, the CLI's evaluator) is audited as `denied`.
+- A caller without it gets the endpoint filter's 403 (not audited, like every filter refusal). A refusal inside the service (the dashboard, the CLI's evaluator) is audited as `denied`.
 
 **Audit.** `backup.create`: success with `{"bytes": N}`, `denied`, `invalid` (a weak passphrase) and `failed`. Never the passphrase: a test searches the audit log, every log line, the CLI output and the archive for it. The CLI audits under the `cli` actor.
 
@@ -497,7 +497,7 @@ The internal listener's socket probe cannot see a server with `Listen:AdminInter
 - Every change is audited in its own transaction (`certificate.add`, `certificate.update`, `certificate.delete`; refusals too) and creates **no revision**.
 - When a change affects serving (validity, names, chain, status), it recompiles the latest revision with the new inventory and publishes it through the config writer (`ConfigService.ApplyCertificateChangeAsync`), so publishes stay ordered.
 - Deleting a certificate that a Specific binding or the default certificate uses is refused, with the paths of the referencing hosts.
-- Names that are no DNS name, wildcard or IP address are dropped. None left is invalid.
+- Names that are not a DNS name, wildcard or IP address are dropped. If none are left, the certificate is invalid.
 - Built-in IDs (`IBuiltInCertificates`) cannot be registered in the table: the built-in would silently win.
 
 ### Preload and selection
@@ -509,31 +509,31 @@ The internal listener's socket probe cannot see a server with `Listen:AdminInter
 4. loads exactly those through `IServerCertificateSource`;
 5. hands the compiler an immutable `CertificateInventory` whose resolver covers the loaded ones.
 
-A certificate the source cannot load (null or an exception) is left out and the selection runs again, so Auto falls to the next best. An unchanged certificate keeps its instance, so the proxy's certificate table keeps one options object per certificate. A renewal (a new instance) takes effect with the next publish.
+If the source cannot load a certificate (null or an exception), the certificate is left out and the selection runs again, so Auto falls to the next best. An unchanged certificate keeps its instance, so the proxy's certificate table keeps one options object per certificate. A renewal (a new instance) takes effect with the next publish.
 
 **Selection is per name.** The proxy's certificate table maps names to certificates, so each DNS name of a host gets its own best certificate (`HostSpec.NameCertificates`).
 - A certificate covers a name when it lists it, or lists the wildcard of its parent. `*.example.com` covers `www.example.com`, not `example.com` or `a.b.example.com`. A wildcard host name is covered by the same wildcard.
 - The best match is exact over wildcard, then the latest `NotAfter`, then the latest `NotBefore`, then the smallest ID.
 - IP names never reach the table and ride the default certificate.
-- Specific gives every name of the host that certificate. A certificate that does not cover them is a warning.
+- Specific gives every name of the host that certificate. If the certificate does not cover them, that is a warning.
 
 **Degraded, never failed.**
-- A name no valid certificate covers gets no certificate of its own. It is served with the default certificate, or rejected when there is none. The compile reports `certificate.auto.noCoverage` (a `ConfigWarning` on the compilation, `ConfigService.Warnings` and the command result).
-- A Specific binding or named default whose certificate is missing, expired, pending, failed or without a key degrades the same way (`certificate.specific.unusable`, `certificate.default.unusable`), at startup, for the last-known-good fallback and for republishes. One bad certificate never fails the whole config.
-- An unreadable certificate table gives an inventory of the built-in certificates only.
-- A **command** may not introduce such a binding. A new or changed Specific binding, or a changed default, naming an unusable certificate is `host.certificate.unusable` or `settings.defaultCertificate.unusable`, also in dry runs. A command is not blocked by a binding that went bad since.
+- If no valid certificate covers a name, the name gets no certificate of its own. It is served with the default certificate, or rejected when there is none. The compile reports `certificate.auto.noCoverage` (a `ConfigWarning` on the compilation, `ConfigService.Warnings` and the command result).
+- If a Specific binding's or named default's certificate is missing, expired, pending, failed or without a key, the binding degrades the same way (`certificate.specific.unusable`, `certificate.default.unusable`), at startup, for the last-known-good fallback and for republishes. One bad certificate never fails the whole config.
+- If the certificate table is unreadable, the inventory holds only the built-in certificates.
+- A **command** may not introduce such a binding. If a new or changed Specific binding, or a changed default, names an unusable certificate, the command gets `host.certificate.unusable` or `settings.defaultCertificate.unusable`, also in dry runs. A binding that went bad since does not block a command.
 - A rollback and the system's restore after a lost database are exempt. They put back a config that was accepted once, and degrade with warnings like startup does.
 
 **The placeholder** has a year of validity: it is dev-only and new in every process, so a restart replaces it.
 - `PlaceholderCertificates` is a source and a built-in inventory entry for the in-memory certificate under a well-known stable ID, and the inventory's fallback default.
 - It is composed **after** the vault (`CompositeServerCertificateSource`: a certificate the vault holds is never shadowed), and wired in only when `Paduraksa:Development:PlaceholderCertificate` is on (default: Debug builds yes, release builds no; see [hosting.md](hosting.md)).
-- Off, there is no built-in entry, and a document that still names the ID degrades like any missing certificate.
+- When it is off, there is no built-in entry, and a document that still names the ID degrades like any missing certificate.
 
 ### Validity follows the clock
 
 - A certificate counts as valid from five minutes before its `NotBefore` (one named tolerance, for clock skew) until a second after its `NotAfter`.
 - The inventory reports the earliest such boundary still ahead (`NextBoundary`, carried on the compilation as `ValidityChangesAt`). When a snapshot goes live, the config service arms one `TimeProvider` timer for it (replaced by every newer live snapshot, cancelled on dispose). When it fires it republishes the live config under the writer lock, coalesced with other publishes. Expiry and activation need no other trigger.
-- A renewal under the same ID whose `NotBefore` is in the future leaves the names uncovered (with a warning) until that boundary, because the one row now describes the new certificate.
+- If a renewal under the same ID has a `NotBefore` in the future, the names stay uncovered (with a warning) until that boundary, because the one row now describes the new certificate.
 
 **Republishing never publishes the empty config.** A certificate change or a validity republish compiles the database's latest revision. When the start is degraded on the last-known-good file, or the database has no revision, it compiles the last-known-good document. Without either it publishes nothing and logs why. A last-known-good republish does not end a degraded start. The compile happens inside the change's transaction, before the commit, so after the commit nothing can fail the call.
 
@@ -543,7 +543,7 @@ The certificate rows are gone while the vault still holds the keys.
 
 **The catalog.** `ICertificateCatalog` (`ListAsync`, `DescribeAsync`) returns the ID, whether it is the local CA root and the `CertificateInfo` of the stored chain.
 - It is public data, read from the chain stored beside the sealed key, so no key is opened and no gate is taken.
-- A row whose chain cannot be read is left out and logged. The query never names the sealed column, which a test pins.
+- If a row's chain cannot be read, the row is left out and logged. The query never names the sealed column, which a test pins.
 
 **Recovery.** `CertificateRecovery` (Application) registers every certificate the vault holds that the inventory has no row for, through `CertificateService.RegisterRecoveredAsync`.
 - It acts as the system (audited). Registrations are quiet, and the startup step queues one publish afterwards, so restored Specific bindings serve again.
@@ -610,7 +610,7 @@ The certificate rows are gone while the vault still holds the keys.
 - the admin certificate's names;
 - the names of the certificates the local CA has issued.
 
-**The admin names are always kept in a limited root.** They are the **desired** ones (`CertificateOperations.DesiredAdminNames`, set by the serving service from the process's settings and the machine's current name), not those the certificate was last issued for. A machine renamed since therefore cannot be locked out of its own admin port by a rotation.
+**The admin names are always kept in a limited root.** They are the **desired** ones (`CertificateOperations.DesiredAdminNames`, set by the serving service from the process's settings and the machine's current name), not those the certificate was last issued for. A rotation therefore cannot lock a machine renamed since out of its own admin port.
 
 **Enforcement.**
 - The vault enforces the limits on every leaf it signs (`LocalCaNameNotPermittedException`, answered as `certificate.localCa.nameNotPermitted` with the permitted list).
@@ -630,7 +630,7 @@ The certificate rows are gone while the vault still holds the keys.
 - A root row that is not the newest active one is **retiring** (`GetLocalCaAsync`, `GET /api/v1/certificates/local-ca`: the root, what it is limited to, and each retiring root with the number of certificates it signed, counted by issuer name, which is random per root).
 - Everything the old root signed keeps serving unchanged (the proxy's chain is the leaf and its issuer, not the root), so nothing breaks for devices that have not installed the new root yet.
 
-**Re-issuing leaves.** `ReissueLocalCaLeavesAsync` (`POST .../local-ca/reissue`, the page's "Re-issue N certificates") issues those leaves again from the current root under the same IDs (Specific bindings survive). One whose names the new constraints do not permit is left as it is and listed.
+**Re-issuing leaves.** `ReissueLocalCaLeavesAsync` (`POST .../local-ca/reissue`, the page's "Re-issue N certificates") issues those leaves again from the current root under the same IDs (Specific bindings survive). If the new constraints do not permit a leaf's names, the leaf is left as it is and listed.
 
 **Retiring** is the existing delete. It is refused (`certificate.localCa.inUse`) while a certificate that root signed is still in use. The page's Replaced roots card offers PEM and .crt downloads of each retiring root until then. The anonymous `/api/v1/ca/root.*` endpoints serve the current root only. The newest active root is the one `EnsureLocalCaAsync` and the admin certificate's flow treat as the root.
 
@@ -681,7 +681,7 @@ Accounts and providers are audited through `ConfigService.ApplyOperationalChange
 - An unfinished or `failed` row continues.
 
 **A run follows the CA's order status.**
-1. Read the stored order. An order that is `invalid` or `expired`, or that the CA refuses to show with a permanent problem such as 404, is forgotten. `accountDoesNotExist` is not: it marks the account deactivated.
+1. Read the stored order. The service forgets an order that is `invalid` or `expired`, or that the CA refuses to show with a permanent problem such as 404. `accountDoesNotExist` is not: it marks the account deactivated.
 2. Else `newOrder` (URL saved, row `ordered`).
 3. `pending`: fulfil every pending authorization (publish, respond, wait, always clean up).
 4. `ready`: `CreateKeyAndCsrAsync`, save the staged-key token and the CSR (row `finalizing`) **before** `finalize`.
@@ -807,7 +807,7 @@ Failures are logged and kept on the order and the certificate. Notifications com
 - 429, 5xx, timeouts and network errors are **transient**.
 - Other statuses, a body that is not the expected JSON, an oversized body and "no zone/domain for this name" are **permanent**.
 - A 429 is also flagged `DnsProviderException.IsRateLimited`, which the orchestrator maps to `AcmeFailureKind.RateLimited` (1 h base, `Retry-After` as a floor). A 5xx with `Retry-After` stays transient with the hint as a floor.
-- A 429 whose `Retry-After` is within `DnsProviderOptions.MaxInlineRetryAfter` (65 s, so deSEC's per-domain write limit is waited out) is waited out once inside the call, with the hint as the floor plus up to 25% jitter so a burst of throttled clients does not return in lockstep. A longer one throws.
+- If a 429's `Retry-After` is within `DnsProviderOptions.MaxInlineRetryAfter` (65 s, so deSEC's per-domain write limit is waited out), the call waits it out once, with the hint as the floor plus up to 25% jitter so a burst of throttled clients does not return in lockstep. A longer one throws.
 
 ### Cloudflare (API v4, scoped token)
 
@@ -841,7 +841,7 @@ Parsing is bounded:
 - every length checked against the message and the record's RDLENGTH;
 - at most 256 answers; authority and additional sections never read.
 
-Queries carry a random 16-bit ID (`RandomNumberGenerator`) and an EDNS0 OPT (1232 bytes), each on its own connected socket. A datagram whose ID, question name (case-insensitive), type or class do not match, or that does not parse, is ignored until the timeout. A FORMERR answer to the OPT record is retried once without it.
+Queries carry a random 16-bit ID (`RandomNumberGenerator`) and an EDNS0 OPT (1232 bytes), each on its own connected socket. The client ignores a datagram whose ID, question name (case-insensitive), type or class do not match, or that does not parse, until the timeout. A FORMERR answer to the OPT record is retried once without it.
 
 Not done: 0x20 case randomisation and DNSSEC validation (the check informs a wait, not a trust decision).
 
@@ -898,10 +898,10 @@ Outcomes: `Propagated`, `TimedOut` (with `AnyServerHadRecords`) and `Unverifiabl
 **Decision: auto-detection, no setting of its own.** A name that has a CNAME can hold no TXT record, so a CNAME at `_acme-challenge.name` can only mean "validate somewhere else", which is what a CA does when it follows it.
 
 - Before publishing, the orchestrator asks `IDnsChallengeNames` (`CnameDelegation`) for the name each record goes to. It reads the CNAME at the name through the same recursive resolvers as the propagation check (`Paduraksa:Acme:DnsPropagation:Resolvers`) and follows the chain, at most 8 names deep. A loop or a longer chain is a permanent failure naming it.
-- The provider publishes at the end of the chain. It finds the zone of *that* name, so the DNS provider's credential must reach the target's zone, same account or not. A zone it cannot reach is the provider's own "no zone" refusal.
+- The provider publishes at the end of the chain. It finds the zone of *that* name, so the DNS provider's credential must reach the target's zone, same account or not. If the provider cannot reach a zone, it gives its own "no zone" refusal.
 - The propagation check finds the delegated zone's name servers and asks them for the delegated name. Cleanup deletes at the same name. The progress line says which CNAME it followed.
 - Several names delegated to one target (a wildcard and its base name) are two values at the target.
-- A resolver that cannot be asked means no delegation is assumed. The providers' own CNAME refusal says the record would have gone to the target.
+- If no resolver can be asked, no delegation is assumed. The providers' own CNAME refusal says the record would have gone to the target.
 - Turning `DnsPropagation:Enabled` off turns following off too: both need to send DNS queries.
 
 ### Tests
