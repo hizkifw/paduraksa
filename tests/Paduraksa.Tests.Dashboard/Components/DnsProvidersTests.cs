@@ -110,7 +110,8 @@ public sealed class DnsProvidersTests
         Assert.Equal("Cloudflare home", drawer.QuerySelector("input[data-field=label]")!.GetAttribute("value"));
         Assert.Contains("Cloudflare", drawer.TextContent, StringComparison.Ordinal);
         Assert.Contains("api.cloudflare.com", drawer.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Stored in the vault", drawer.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Token updated", drawer.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("vault", drawer.TextContent, StringComparison.OrdinalIgnoreCase);
         var link = Assert.Single(drawer.QuerySelectorAll(".pdk-cert-links li a"));
         Assert.Equal(("*.home.test", DashboardRoutes.Certificate(wildcard.Id)), (link.TextContent.Trim(), link.GetAttribute("href")));
         Assert.Contains("10 days", drawer.QuerySelector($"[data-certificate='{wildcard.Id}']")!.TextContent, StringComparison.Ordinal);
