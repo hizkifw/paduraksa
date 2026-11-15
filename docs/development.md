@@ -83,7 +83,7 @@ It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemb
 - **The packages have their own tag.** They ship when they change, not with every release of the app: a `proxyprotocol-v*` tag publishes them and builds no image, and the app's `v*` tags publish no package.
   For a `proxyprotocol-v*` tag, once `build-test` and `pack` pass, the `publish-nuget` job pushes the `.nupkg` files to nuget.org with one `dotnet nuget push --skip-duplicate`, which also pushes the `.snupkg` symbol package beside each. A version already there is skipped.
 - **No API key is stored.** The job uses nuget.org's [trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing): it asks GitHub for an OIDC token (`id-token: write`, on that job only), `NuGet/login` exchanges it for an API key that lives one hour, and nuget.org grants it only to the repository and workflow file a policy names.
-  It does nothing until the repository has a variable named `NUGET_USER`: without it the push is skipped and the job says so.
+  Until the repository has a variable named `NUGET_USER`, the push is skipped and the job says so.
 - **To enable it,** on nuget.org open your username, Trusted Publishing, and add a policy: Repository Owner `hizkifw`, Repository `paduraksa`, Workflow File `ci.yml` (the file name only, no `.github/workflows/`), Environment empty.
   Then set the variable to your nuget.org profile name (not the email address): `gh variable set NUGET_USER --body <profile name>`. The next `proxyprotocol-v*` tag then publishes.
   Renaming `ci.yml` or moving the job to another workflow file breaks the policy until it is edited to match.
@@ -168,8 +168,8 @@ leaves the thing unprotected. What has caused them so far:
 - **Waiting a stretch of wall time for something to happen.** A child that must burn CPU, a timer that must fire: a loaded runner gives it a fraction of the time. Wait for the
   measured thing itself (`SandboxHostileChildTests` polls the child's CPU time), bounded.
 - **A typed value applied by a timer that races the leave.** MudBlazor applies a form field's text when its 250 ms debounce timer fires or the field is left. A test that types and leaves
-  meant the second, but on a loaded runner the timer can fire first: the value is then queued behind the leave, a re-render that runs before it sets the unfocused field's text back to the
-  old value, and the form stays invalid with nothing to say so (`DrawerStackTests` timed out waiting for a stacked drawer that never submitted). The page tests' clock (`ConfigPages.SignIn`)
+  meant the second, but on a loaded runner the timer can fire first. The value is then queued behind the leave, and a re-render that runs before it sets the unfocused field's text back to the
+  old value, so the form stays invalid with no error shown (`DrawerStackTests` timed out waiting for a stacked drawer that never submitted). The page tests' clock (`ConfigPages.SignIn`)
   is `HeldDebounceTimeProvider`, which never fires that timer, so leaving the field is the only way a typed value is applied. A test that needs the debounce itself (a search box, 300-400 ms)
   is unaffected. `HandedBackAsync` names the stack, the form's errors and its fields when a stacked drawer doesn't hand back.
 - **Playwright.** Each browser test starts its own Chromium and server; run in parallel on 4 cores they starve one another (page loads over 30 s). Every one is in the
@@ -180,23 +180,23 @@ leaves the thing unprotected. What has caused them so far:
   finds nothing to close: wait for the state the key acts on (the new drawer visible), not for something the list shows earlier. `.pdk-sheet` also matches a sheet sliding out for 280 ms.
   The list's switch is the other case: the page behind a drawer is inert, but the browser moves focus off it only at its next frame, so an Escape on a loaded runner found the switch as its target
   and the drawer ignored it (`ConfigPagesEndToEndTests`, the sheet stayed for the 15 s). The Escape listener now acts on any target, and the test dispatches the key from the switch.
-- **A cold first call.** The first request of a boot runs cold code, and a probe or client with a contract timeout of its own (the 3 s of `doctor --liveness`) takes a longer
-  one in tests (`LivenessAsync`'s `timeout`), as the timeout is not what the test checks.
+- **A cold first call.** The first request of a boot runs cold code, and a probe or client with a contract timeout of its own (the 3 s of `doctor --liveness`) gets a longer
+  one in tests (`LivenessAsync`'s `timeout`), because the timeout is not what the test checks.
 - **A local port prober.** On the dev machine a Node tool sends `GET /` to every new localhost port within seconds. A fake or a log that counts requests must count only what
   the proxy sent (`X-Forwarded-Proto`: `FakeAuthServer`, `BodyCountingUpstream`) or only the names the test sent (`*.test` in `AccessLogPipelineTests`). CI doesn't have it, so such a failure shows locally only.
 - **Ports.** Bind port 0 and read the real one back (`TestHost.Endpoint`). If a number must be known before the bind, `TestPorts.StartOnFreePortAsync` retries the whole start with a new port; never probe, release and rebind by hand.
-- **Sleeping for time.** A `Task.Delay` or `Thread.Sleep` in a test waits for a signal or it is one of a few things that really are time, and says which in a one-line comment beside it:
+- **Sleeping for time.** A `Task.Delay` or `Thread.Sleep` in a test is either a wait for a signal or one of a few things that really are time, and a one-line comment beside it says which:
   a short poll step inside a bounded wait for a condition; a step of the fake clock's pump (real time for loops to run between steps, `AdvanceUntilAsync`); the pacing of a load or soak test whose subject is running for that long; a deliberately slow or hung peer
   in a test about slowness; an absence window, where nothing can signal that something did not happen (keep it short and name what would show in it); a real-time gap that cannot be faked (a real host's timers). Anything else becomes a signal (a `TaskCompletionSource` the code completes, a counter, the armed timer of a fake clock,
   a failing fake's own count) or a fake clock: a quiet period after the fact is replaced by waiting for the cause.
-- **Waiting for something that arrives by an event.** Wait on the event (a `TaskCompletionSource` completed by the code, `WaitForState` in bUnit), with a bound for the failure
-  case that a loaded runner can't reach: not a poll of a fixed number of 50 ms steps.
+- **Waiting for something that arrives by an event.** Wait on the event (a `TaskCompletionSource` completed by the code, `WaitForState` in bUnit), bounded by a timeout
+  that a loaded runner can't reach. Don't poll a fixed number of 50 ms steps.
 
 ## The API description
 
 `/api/v1/openapi.json` is served from a copy of the generated document, `src/Paduraksa.Admin/OpenApi/openapi.v1.json`, embedded in the assembly. ASP.NET builds the schema of
-every request and response type again for every operation, so generating it takes seconds of CPU and gigabytes of allocation, which the first `/api/docs` visit and the
-first MCP `search` of every boot would otherwise wait for. `OpenApiSnapshotTests` fails when the copy no longer equals a fresh generation (after you add or change an
+every request and response type again for every operation, so generating it takes seconds of CPU and gigabytes of allocation. Without the copy, the first `/api/docs` visit and the
+first MCP `search` of every boot would wait for that. `OpenApiSnapshotTests` fails when the copy no longer equals a fresh generation (after you add or change an
 endpoint, a DTO, an enum, a description or an XML comment on one). Regenerate it, commit it with the change, and rebuild:
 
 ```sh
