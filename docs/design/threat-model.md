@@ -43,7 +43,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
 | **PoW HMAC key** | `vault.db`, reserved ID `ProofOfWorkKey.Id` | Forging proof-of-work cookies, bypassing the challenge | C and I |
 | **The master key (KEK)** | env, file or `data/master.key` | Opens everything above | C and I |
 | **Config and its history** | `paduraksa.db` revisions, `last-good.json` | Controls what the proxy does; the history reveals topology (hosts, upstream addresses, access-list usernames). Holds **no secrets** by design (config export carries none, [vault-and-certificates.md, At-rest encryption](vault-and-certificates.md#at-rest-encryption)) | I mainly, C moderately |
-| **Audit log** | `paduraksa.db`, hash chain ([identity.md, Identity entities](identity.md#identity-entities), [config.md, Build decisions (M2)](config.md#build-decisions-m2)) | Accountability for every change and sign-in; includes client IPs | I (tamper-evidence) |
+| **Audit log** | `paduraksa.db`, hash chain ([identity.md, Identity entities](identity.md#identity-entities), [config.md, The config document and the compiler](config.md#the-config-document-and-the-compiler)) | Accountability for every change and sign-in; includes client IPs | I (tamper-evidence) |
 | **Admin sessions and API tokens** | `paduraksa.db`, stored as SHA-256 of the secret (*code*: `SessionService.cs`, `ApiTokenService.cs`) | Act as a user with their permissions | C |
 | **Availability of proxied services** | The running process, snapshot, certificates | The whole point; one node, no HA ([PLAN section 0](../PLAN.md#0-goals--non-goals)) | A |
 | **Client data in transit and logs** | `/data/logs/access.log` (IPs, paths, queries, user agents, referers), analytics rollups, the live tail | Privacy of the proxied sites' visitors | C |
@@ -177,9 +177,9 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
 ### B5. The MCP child process
 
 - **Off by default** (`Paduraksa:Mcp:Enabled=false`, a server setting): `/mcp` answers 404 before authentication and no child starts; switching it off
-  stops the pool ([admin-surfaces.md, MCP in code mode (M10)](admin-surfaces.md#mcp-in-code-mode-m10)). Since `server-settings`, the Owner or an Admin can switch it
+  stops the pool ([admin-surfaces.md, MCP in code mode](admin-surfaces.md#mcp-in-code-mode)). Since `server-settings`, the Owner or an Admin can switch it
   on from the dashboard. Decided by the owner: someone holding a stolen Owner session can do worse than that anyway. An environment value locks it either way.
-- **Transport:** stateless, bearer token only; a cookie, alone or with a token, is a 401 ([admin-surfaces.md, MCP in code mode (M10)](admin-surfaces.md#mcp-in-code-mode-m10)). Channel `mcp` in the audit
+- **Transport:** stateless, bearer token only; a cookie, alone or with a token, is a 401 ([admin-surfaces.md, MCP in code mode](admin-surfaces.md#mcp-in-code-mode)). Channel `mcp` in the audit
   log, the token as the actor.
 - **The child** is `paduraksa mcp-sandbox`, started with its environment cleared except `DOTNET_*` runtime paths, `PATH`
   and `LD_LIBRARY_PATH` (*code*: `src/Paduraksa.Mcp/ChildProcess.cs`), so the master key and setup token are not in it. It
@@ -189,7 +189,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
   - wall time 10 s, which ends a run that blocks without computing (the CPU limit never does; `Atomics.wait` did until the engine was told to refuse it);
   - CPU 5 s, for a run that computes inside one native call, which `MaxStatements` never counts (regex backtracking is also cut by a 1 s regex timeout);
   - resident memory 384 MiB, 50 requests and a 64 KiB result;
-  - a watchdog that kills the process tree, a pool of at most 4 children, and replacement after any breach ([admin-surfaces.md, MCP in code mode (M10)](admin-surfaces.md#mcp-in-code-mode-m10)).
+  - a watchdog that kills the process tree, a pool of at most 4 children, and replacement after any breach ([admin-surfaces.md, MCP in code mode](admin-surfaces.md#mcp-in-code-mode)).
 - **The child also confines itself** (*code*: `src/Paduraksa.Mcp/ProcessHardening.cs`): `RLIMIT_CPU`, `RLIMIT_NOFILE`, `RLIMIT_CORE`, `PR_SET_NO_NEW_PRIVS`, `PR_SET_PDEATHSIG`, **Landlock for the file system**, and cgroup v2 limits where delegated. The file system mask follows Landlock's ABI, because a ruleset allows what it does not name.
 - **Network, and the routes back to the parent.** Landlock network rules (ABI 4, Linux 6.7) deny every TCP bind and connect. A seccomp filter (`src/Paduraksa.Mcp/SyscallFilter.cs`) refuses:
   - `socket` and `socketpair` of any domain but `AF_UNIX`, which covers UDP, raw sockets and kernels older than 6.7;
@@ -197,7 +197,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
   - the ways from the child to its parent, which is the same user in the same container with the vault, the tokens and the network: `ptrace`, `process_vm_readv` and `_writev`, `pidfd_open`, `pidfd_getfd`, `kcmp`, `bpf`, `userfaultfd` and `perf_event_open`, with `EPERM` (G2, fixed);
   - signals to any process but the child's own pid, and the `F_SETOWN`/`FIOSETOWN` commands that would have the kernel signal the parent on I/O. Where the kernel has it (Linux 6.12, with `TSYNC`), Landlock's signal scope refuses every signal out of the sandbox as well.
 
-  The list is one table with a reason per row, shown in [admin-surfaces.md](admin-surfaces.md#mcp-in-code-mode-m10), and a test pins every number per architecture. The rest of the syscall surface is the runtime's: there is no profile of the runtime's calls.
+  The list is one table with a reason per row, shown in [admin-surfaces.md](admin-surfaces.md#mcp-in-code-mode), and a test pins every number per architecture. The rest of the syscall surface is the runtime's: there is no profile of the runtime's calls.
 - **The request policy never leaves the parent** (`RequestPolicy`, `EndpointRules`, `RequestBridge`):
   - only paths of the generated OpenAPI document under `/api/v1/`, no encoding tricks, five methods;
   - an explicit **refused list**: backups, restore, token and user management, sessions, sign-in and setup, anything that carries a secret into a model, the live tail, raw metrics and the API description;
@@ -430,7 +430,7 @@ reads it and is tricked into writing a malicious script, or a malicious operator
   - Hardening is Linux only; elsewhere the child has the parent's limits and kill but no system-call hardening (it says so in its
     `ready` frame). On a kernel older than 6.7 there is no Landlock network rule and the seccomp filter alone closes the sockets; on a
     runtime whose seccomp profile blocks the `landlock_*` calls there is no Landlock at all (G14: the default profile of Docker 29 does
-    not, checked on the real image). The server logs what applied and what did not ([admin-surfaces.md, MCP in code mode (M10)](admin-surfaces.md#mcp-in-code-mode-m10), [MCP](../automation/mcp.md)).
+    not, checked on the real image). The server logs what applied and what did not ([admin-surfaces.md, MCP in code mode](admin-surfaces.md#mcp-in-code-mode), [MCP](../automation/mcp.md)).
 
 ### 4.7 Someone with read access to `/data` or a backup file
 

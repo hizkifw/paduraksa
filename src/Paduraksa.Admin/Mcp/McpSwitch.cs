@@ -6,7 +6,7 @@ namespace Paduraksa.Admin.Mcp;
 
 /// <summary>
 /// Whether <c>/mcp</c> answers, and how long an idle sandbox child lives, as the server settings say while the process runs
-/// (docs/design/admin-surfaces.md "MCP in code mode (M10)", "Switched live"). The endpoint is always mapped; while this is off a request to it is
+/// (docs/design/admin-surfaces.md "MCP in code mode", "Switched live"). The endpoint is always mapped; while this is off a request to it is
 /// answered 404 before authentication, as if it were not, and the sandbox pool has been stopped.
 /// </summary>
 /// <param name="enabled">Read on every request.</param>

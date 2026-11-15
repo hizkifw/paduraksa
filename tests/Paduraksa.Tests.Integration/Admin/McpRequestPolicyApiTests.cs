@@ -9,7 +9,7 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// The refused list against the real API description (docs/design/admin-surfaces.md "MCP in code mode (M10)"). An endpoint that looks sensitive (a path with a backup, a token, a user, a
+/// The refused list against the real API description (docs/design/admin-surfaces.md "MCP in code mode"). An endpoint that looks sensitive (a path with a backup, a token, a user, a
 /// secret, a credential in it) must be classified by someone: on the refused list, or on the reviewed list with the reason it is allowed. A new
 /// endpoint that matches and is on neither fails here, so it cannot slip into what a script may call.
 /// </summary>

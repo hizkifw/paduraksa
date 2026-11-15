@@ -499,7 +499,7 @@ internal sealed class PaduraksaMetricsOptions
 
 
 /// <summary>
-/// MCP (<c>Paduraksa:Mcp</c>, docs/design/admin-surfaces.md "MCP in code mode (M10)"). The tools run a model's JavaScript in a child process the server starts, bounds from outside and kills on a breach; the operator opts in.
+/// MCP (<c>Paduraksa:Mcp</c>, docs/design/admin-surfaces.md "MCP in code mode"). The tools run a model's JavaScript in a child process the server starts, bounds from outside and kills on a breach; the operator opts in.
 /// </summary>
 internal sealed class PaduraksaMcpOptions
 {

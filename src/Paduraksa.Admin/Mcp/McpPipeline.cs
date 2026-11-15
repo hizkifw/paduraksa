@@ -6,7 +6,7 @@ namespace Paduraksa.Admin.Mcp;
 /// <summary>
 /// The admin app's own request pipeline, captured as it is built, so that a request a script makes goes through exactly what an HTTP request to the
 /// API goes through (the setup gate, routing, body limit, CSRF check, the endpoint's permission filter, validation and problem details) with no
-/// loopback socket and no second copy of any of it (docs/design/admin-surfaces.md "MCP in code mode (M10)").
+/// loopback socket and no second copy of any of it (docs/design/admin-surfaces.md "MCP in code mode").
 /// </summary>
 internal sealed class McpPipeline
 {
