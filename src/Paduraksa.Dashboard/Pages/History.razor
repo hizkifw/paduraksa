@@ -145,7 +145,10 @@ else
                             <MudSelectItem T="ConfigRevisionId?" Value="other.Revision.Id">#@other.Revision.Seq @(other.Revision.Message ?? RevisionText.Summary(other.Changes))</MudSelectItem>
                         }
                     </MudSelect>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">@_diffCaption</MudText>
+                    @if (_diffCaption is not null)
+                    {
+                        <MudText Typo="Typo.caption" Class="pdk-muted">@_diffCaption</MudText>
+                    }
                 </div>
 
                 @if (_diffLoading)
@@ -336,7 +339,7 @@ else
                 ? parentDetail.Document
                 : ConfigService.InitialDocument;
             _groups = ChangeView.Build(before, _selected.Document, _selected.Changes, Fmt);
-            _diffCaption = _selected.Revision.ParentId is null ? "What #1 set up, from the empty config." : $"What #{_selected.Revision.Seq} changed.";
+            _diffCaption = null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

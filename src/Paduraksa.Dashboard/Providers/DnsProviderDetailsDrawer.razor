@@ -61,8 +61,8 @@
                         <dd>@ProviderDisplay.KindLabel(_provider.Kind)</dd>
                         <dt>API host</dt>
                         <dd class="pdk-mono">@DnsProviderService.ApiHostOf(_provider.Kind)</dd>
-                        <dt>Token</dt>
-                        <dd>Stored in the vault, usable only against that host. Updated @Fmt.DateTime(_provider.UpdatedAt)</dd>
+                        <dt>Token updated</dt>
+                        <dd>@Fmt.DateTime(_provider.UpdatedAt)</dd>
                         <dt>Added</dt>
                         <dd>@Fmt.DateTime(_provider.CreatedAt)</dd>
                     </dl>
