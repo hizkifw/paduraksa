@@ -1,6 +1,10 @@
 # Troubleshooting
 
-Start with `docker compose exec paduraksa paduraksa doctor`, which checks the data directory, the master key, the databases, the ports, HTTP/3 and the clock and says what to do about each ([the CLI](../automation/cli.md#doctor)). Then the logs: `docker logs paduraksa`, then **Logs** and **Live tail** in the dashboard, then the **Simulator**, which says why a request was routed, redirected or refused. The messages below are the ones Paduraksa prints.
+1. Run `docker compose exec paduraksa paduraksa doctor`. It checks the data directory, the master key, the databases, the ports, HTTP/3 and the clock, and says what to do about each ([the CLI](../automation/cli.md#doctor)).
+2. Read the logs: `docker logs paduraksa`, then **Logs** and **Live tail** in the dashboard.
+3. Ask the **Simulator** why a request was routed, redirected or refused.
+
+The messages below are the ones Paduraksa prints.
 
 ## It will not start
 
@@ -14,7 +18,7 @@ The key you gave is not the one that created `vault.db`. Nothing can open a vaul
 A setting is out of range or malformed. Each line names the setting and the allowed range. See [Server settings](settings.md).
 
 **`Paduraksa failed to start: ...`, exit code 2.**
-Set `PADURAKSA_DEBUG=1` to print the stack trace. A port already in use, an unwritable data directory, a second server on the same data directory (the lock is `run/server.lock`) and a wrong master key all end here.
+Set `PADURAKSA_DEBUG=1` to print the stack trace. A port already in use, an unwritable data directory, a second server on the same data directory and a wrong master key all end here.
 
 **The container is `unhealthy`.**
 The check is `paduraksa doctor --liveness`. If you set `Paduraksa__Listen__AdminAllowedSources`, add `127.0.0.1/32`: loopback is not implied. See [Health endpoints](health.md).
@@ -34,7 +38,7 @@ The compose file publishes it on loopback only. Use an SSH tunnel, or see [Expos
 On the host: `paduraksa admin reset-password <user>` (reads the password from standard input or a prompt, ends the user's sessions and clears a lockout) or `paduraksa admin disable-2fa <user>`. See [The command line](../automation/cli.md).
 
 **Sign-in answers 429, or the account is locked.**
-Five wrong passwords in a row lock the account for 15 minutes. Sign-in is also throttled to 20 attempts a minute per client address. Wait, or reset the password from the host.
+Five wrong passwords in a row lock the account for 15 minutes. Sign-in is also limited to 20 attempts a minute per client address. Wait, or reset the password from the host.
 
 ## A site does not work
 

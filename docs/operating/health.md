@@ -8,18 +8,20 @@ The admin port serves two unauthenticated endpoints for external monitors (Uptim
 | `GET /readyz` | The listeners are bound, a snapshot is live, the vault is unlocked and the process is not draining. The body is `ready` |
 
 - `/readyz` answers `200` with the body `degraded` when the last-known-good config is live because the config database is unavailable. It is still ready, and worth an alert.
-- While the process shuts down, `/readyz` answers `503` first, then the public listeners drain, then the admin stops. Give it `stop_grace_period: 35s`: the drain takes up to 30 seconds.
+- While the process shuts down, `/readyz` answers `503` first, then the public listeners drain, then the admin stops. The drain takes up to 30 seconds, so give the container `stop_grace_period: 35s`.
 - Readiness means "serving traffic", not "the config database is reachable".
 
 ```sh
+# Check readiness from another machine, trusting the local CA root
 curl --cacert root.pem https://paduraksa.lan:9443/readyz
 ```
 
 ## The container's own check
 
-The image has a `HEALTHCHECK` that runs `paduraksa doctor --liveness`. It asks the admin `/healthz` over loopback with a 3-second budget, every 30 seconds, and exits 0 or 1. Check it with:
+The image has a `HEALTHCHECK` that runs `paduraksa doctor --liveness`. Every 30 seconds it asks the admin `/healthz` over loopback, and gives up after 3 seconds.
 
 ```sh
+# Read the container's health status
 docker inspect --format '{{.State.Health.Status}}' paduraksa
 ```
 

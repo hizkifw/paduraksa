@@ -4,14 +4,11 @@ Paduraksa's process settings come from `appsettings.json` and environment variab
 
 These are settings for the **process** (ports, files, limits, retention). Everything about hosts, routes, certificates and policies is config you change in the dashboard or API: see the [user guide](../guide/getting-started.md).
 
-- Invalid settings stop the start with `Invalid configuration:` and one line per problem on standard error, and exit code 3. Any other failure to start is `Paduraksa failed to start: ...` with exit code 2. `PADURAKSA_DEBUG=1` adds the stack trace.
+- Invalid settings stop the start. Standard error shows `Invalid configuration:` and one line per problem, and the exit code is 3. Any other failure to start prints `Paduraksa failed to start: ...` with exit code 2. `PADURAKSA_DEBUG=1` adds the stack trace.
 - A relative `Paduraksa__DataDirectory` resolves against the application's directory (`/data` in the image). A leading `~` is refused.
 - Durations are `[d.]hh:mm:ss`, for example `00:00:15` or `30.00:00:00`.
-- Settings are read once at start. Change them and restart, except the ones that are also [server settings](../guide/server-settings.md): those are managed in the dashboard and mostly apply live. A value set here wins over the dashboard's.
-- **Server settings.** Retention, the admin sign-in policy, the notification timing, the access log's query strings, the Cloudflare range
-  refresh, the DNS-01 check and wait, MCP and the public connection limits can also be set in the dashboard (Settings, Server), mostly live.
-  A value set here, in `appsettings.json` or the environment, wins and shows read-only there. The list, with which apply live, is in the
-  [user guide](../guide/server-settings.md).
+- Settings are read once at start, so change them and restart.
+- The exception is the **[server settings](../guide/server-settings.md)**: retention, the admin sign-in policy, notification timing, the access log's query strings, the Cloudflare range refresh, the DNS-01 check and wait, MCP and the public connection limits. You can also set them in the dashboard (Settings, Server), and most apply live. A value set here wins and shows read-only there.
 
 ## List settings
 
@@ -32,8 +29,7 @@ Paduraksa__Acme__DnsPropagation__Resolvers=1.1.1.1,9.9.9.9:53
 Paduraksa__AccessLog__SensitiveQueryKeys=token,api_key,pin
 ```
 
-Values are trimmed and empty entries dropped; if both forms are set the scalar wins and a startup warning says the
-indexed entries were ignored.
+Values are trimmed and empty entries dropped. If both forms are set, the comma-separated one wins, and a startup warning says the indexed entries were ignored.
 
 ## Environment variables
 
@@ -64,41 +60,34 @@ indexed entries were ignored.
 
 ## Connection and timeout limits
 
-`Paduraksa__Limits__*` are public listeners only: the admin listener keeps Kestrel's own. All but `Http2MaxStreamsPerConnection` are also [server settings](../guide/server-settings.md); set here, they win over the dashboard's. Times are `hh:mm:ss`; a bad value stops the start with the reason.
+`Paduraksa__Limits__*` apply to the public listeners only. The admin listener keeps the server's own defaults. All but `Http2MaxStreamsPerConnection` are also [server settings](../guide/server-settings.md), and set here they win over the dashboard's. Times are `hh:mm:ss`. A bad value stops the start with the reason.
 
+| Setting | Default | What |
+|---|---|---|
+| `Paduraksa__Limits__RequestHeadersTimeout` | `00:00:15` | From the first byte of a request to the end of its headers. A slower client gets 408 and is closed. It is per listener, because the host isn't known until the headers are read |
+| `Paduraksa__Limits__KeepAliveTimeout` | `00:02:00` | How long an idle HTTP/1.1 or HTTP/2 connection waits for its next request |
+| `Paduraksa__Limits__TlsHandshakeTimeout` | `00:00:10` | The TLS handshake over TCP |
+| `Paduraksa__Limits__MinRequestBodyRate` | `120` | The slowest a request body may arrive, in bytes per second, once the grace is over. `0` turns it off |
+| `Paduraksa__Limits__MinRequestBodyGrace` | `00:00:10` | Must be longer than one second |
+| `Paduraksa__Limits__MinResponseRate` | `240` | The slowest a client may take a response. `0` turns it off |
+| `Paduraksa__Limits__MinResponseGrace` | `00:00:10` | Must be longer than one second |
+| `Paduraksa__Limits__MaxConnections` | `10000` | Open connections on the public listeners together. At the cap, new connections wait. `0` is unlimited |
+| `Paduraksa__Limits__MaxUpgradedConnections` | `2000` | The WebSocket share of that. At the cap, a new upgrade is refused. `0` is unlimited |
+| `Paduraksa__Limits__Http2MaxStreamsPerConnection` | `100` | Concurrent requests on one HTTP/2 connection. HTTP/3 keeps its fixed 100 |
 
-| Setting | Default | Kestrel's own | What |
-|---|---|---|---|
-| `Paduraksa__Limits__RequestHeadersTimeout` | `00:00:15` | 30 s | From the first byte of a request to the end of its headers. A client that is slower gets 408 and is closed (a slowloris). It is per listener: the host isn't known until the headers are read, so there is no per-host timeout. |
-| `Paduraksa__Limits__KeepAliveTimeout` | `00:02:00` | 130 s | How long an idle HTTP/1.1 or HTTP/2 connection waits for its next request. |
-| `Paduraksa__Limits__TlsHandshakeTimeout` | `00:00:10` | 10 s | The TLS handshake over TCP. |
-| `Paduraksa__Limits__MinRequestBodyRate` | `120` | 240 B/s | The slowest a request body may arrive, in bytes per second, once the grace is over. `0` turns it off. |
-| `Paduraksa__Limits__MinRequestBodyGrace` | `00:00:10` | 5 s | Must be longer than one second. |
-| `Paduraksa__Limits__MinResponseRate` | `240` | 240 B/s | The slowest a client may take a response. `0` turns it off. |
-| `Paduraksa__Limits__MinResponseGrace` | `00:00:10` | 5 s | Must be longer than one second. |
-| `Paduraksa__Limits__MaxConnections` | `10000` | none | Open connections on the public listeners together; at it Kestrel stops accepting. `0` is unlimited. |
-| `Paduraksa__Limits__MaxUpgradedConnections` | `2000` | none | The WebSocket share of that; at it a new upgrade is refused. `0` is unlimited. |
-| `Paduraksa__Limits__Http2MaxStreamsPerConnection` | `100` | 100 | Concurrent requests on one HTTP/2 connection. |
+The rates are forgiving, so a phone on a poor link still works. They do not cut a WebSocket or an event stream that sits idle between messages.
 
-The rates are more forgiving than Kestrel's because the slow client worth keeping is a phone on a poor link. They do not cut a
-WebSocket or an event stream that sits idle between messages: Kestrel stops enforcing the request rate on an upgraded connection
-and times a response only while a write waits for the client. HTTP/3 has no stream setting (Kestrel's stable API has none): a QUIC
-connection keeps the transport's default of 100 concurrent requests. Raise `MaxConnections` if you serve many long-lived
-connections (a large number of WebSocket clients), and keep it below the process's open-file limit.
+Raise `MaxConnections` if you serve many long-lived connections, such as a large number of WebSocket clients. Keep it below the process's open-file limit.
 
 ```sh
-Paduraksa__Limits__RequestHeadersTimeout=00:00:10
-Paduraksa__Limits__MaxConnections=20000
-```
-
-```sh
+# Environment variables: a shorter header timeout, and room for more connections
 Paduraksa__Limits__RequestHeadersTimeout=00:00:10
 Paduraksa__Limits__MaxConnections=20000
 ```
 
 ## Admin sign-in and sessions: `Paduraksa__Admin__*`
 
-The lockout, the session timings, the password length, the authenticator name and the sign-in rate limit are also [server settings](../guide/server-settings.md): Settings, Server, Sign-in changes them live, and a value set here wins and locks the dashboard's field.
+The lockout, the session timings, the password length, the authenticator name and the sign-in rate limit are also [server settings](../guide/server-settings.md). Settings, Server, Sign-in changes them live. A value set here wins and locks the dashboard's field.
 
 | Setting | Default | What |
 |---|---|---|
@@ -118,17 +107,15 @@ The lockout, the session timings, the password length, the authenticator name an
 | `MaxRequestBodyBytes` | `65536` | The largest JSON body the admin API accepts (1 KiB to 16 MiB). Certificate uploads and config imports raise their own limits |
 | `SessionRecheckInterval` | `00:00:30` | How often an open dashboard page re-checks its session |
 
-An account that fails sign-in `MaxFailedAttempts` times in a row is locked for `LockoutDuration`, and every refusal reads as the same "invalid credentials". The lockout ends sessions only where the attacker already holds the password.
+An account that fails sign-in `MaxFailedAttempts` times in a row is locked for `LockoutDuration`. Every refusal reads as the same "invalid credentials".
 
 ## ACME and DNS-01
 
-The DNS-01 check's switch and the fixed wait are also [server settings](../guide/server-settings.md) (Settings, Server, Integrations, ACME); a value set here wins.
-
-Settings of `Paduraksa__Acme__*` and `Paduraksa__Certificates__*`.
+These are the settings of `Paduraksa__Acme__*` and `Paduraksa__Certificates__*`. The DNS-01 check's switch and the fixed wait are also [server settings](../guide/server-settings.md) (Settings, Server, Integrations, ACME). A value set here wins.
 
 | Setting | Default | What |
 |---|---|---|
-| `Acme__Enabled` | `true` | Run the renewal scheduler. Off pauses everything ACME does on its own; you can still request and renew by hand |
+| `Acme__Enabled` | `true` | Run the renewal scheduler. Off pauses everything ACME does on its own. You can still request and renew by hand |
 | `Acme__SchedulerStartDelay` | `00:00:15` | How long after start the scheduler's first look waits (0 to 1 hour) |
 | `Acme__SchedulerPollInterval` | `00:01:00` | How often it looks for work (1 second to 1 day) |
 | `Acme__DnsPropagationDelay` | `00:00:30` | The fixed wait after publishing DNS-01 records when the propagation check cannot run (0 to 1 hour) |
@@ -167,7 +154,7 @@ See [Behind Cloudflare](../guide/cloudflare.md).
 These are documented with what they configure, on [Logs, metrics and notifications](../guide/observability.md):
 
 - `Paduraksa__Logs__*`: the log directory, level, rotation and retention.
-- `Paduraksa__AccessLog__*`: the ring, the live tail size, the query string and the redacted keys.
+- `Paduraksa__AccessLog__*`: the write queue, the live tail size, the query string and the redacted keys.
 - `Paduraksa__Metrics__*`: how long one-minute rollups are kept.
 - `Paduraksa__Analytics__*`: how long analytics are kept.
 - `Paduraksa__Notifications__*`: the dashboard address for links, and delivery timing.
@@ -178,4 +165,7 @@ These are documented with what they configure, on [Logs, metrics and notificatio
 
 ## Development switches
 
-`Paduraksa__Development__PlaceholderCertificate` and `Paduraksa__Development__AcmeInsecureHttp` exist for tests and development. Leave them off. The first makes a release build serve an in-memory self-signed certificate for names that have none, and the process warns at startup when it is on. The second allows `http://` ACME URLs for loopback hosts only.
+`Paduraksa__Development__PlaceholderCertificate` and `Paduraksa__Development__AcmeInsecureHttp` exist for tests and development. Leave them off.
+
+- The first serves a self-signed certificate for names that have none, and the process warns at startup when it is on.
+- The second allows `http://` ACME URLs for loopback hosts only.
