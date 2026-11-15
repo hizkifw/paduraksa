@@ -55,6 +55,13 @@ public static class ProviderDisplay
         return $"{who} - {CaName(account.DirectoryUrl)}";
     }
 
+    /// <summary>What an account is called in a list: its label, else its first contact, else "Account".</summary>
+    public static string AccountTitle(AcmeAccountSummary account)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        return account.Label is { Length: > 0 } label ? label : account.Contacts.Count > 0 ? Contact(account.Contacts[0]) : "Account";
+    }
+
     /// <summary>A contact without its <c>mailto:</c>.</summary>
     public static string Contact(string contact) =>
         contact.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? contact[7..] : contact;

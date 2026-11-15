@@ -1,0 +1,198 @@
+@* An ACME account in a drawer: what it is, the certificates ordered with it (each a link), and Deactivate. Its address
+   (/certificates/acme/acct_...) opens it from anywhere; it follows changes to the accounts and the certificates. *@
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Contracts.Certificates
+@inject IDashboardProviders Providers
+@inject DashboardCaller Caller
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+@inject DisplayFormat Fmt
+@inject ILogger<AcmeAccountDetailsDrawer> Logger
+
+<DrawerShell Title="@(_account is { } account ? ProviderDisplay.AccountTitle(account) : _missing ? "Account not found" : "ACME account")"
+             Subtitle="@(_account is { } sub ? ProviderDisplay.CaName(sub.DirectoryUrl) : null)"
+             Icon="@Icons.Material.Outlined.Badge" IconTone="@(_account?.Status == AcmeAccountStatus.Active ? Tone.Primary : Tone.Default)" Name="acme-account-details">
+    <ChildContent>
+        @if (_missing)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such account" Description="It may have been deleted, or the link is wrong." />
+        }
+        else if (_failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true">
+                The account couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        else if (_account is null)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="240px" />
+        }
+        else
+        {
+            var active = _account.Status == AcmeAccountStatus.Active;
+            <div class="pdk-detail">
+                <div class="pdk-detail-chips">
+                    <span class="pdk-pill pdk-tone-@(active ? "success" : "default")" data-field="status">@(active ? "Active" : "Deactivated")</span>
+                    @if (ProviderDisplay.IsStaging(_account.DirectoryUrl))
+                    {
+                        <span class="pdk-pill pdk-tone-warning">Staging</span>
+                    }
+                    @if (_account.EabKid is not null)
+                    {
+                        <span class="pdk-pill pdk-tone-info" title="Bound with an EAB key ID; the key itself stays in the vault">EAB</span>
+                    }
+                </div>
+
+                <section class="pdk-detail-section">
+                    <MudText Typo="Typo.overline" Class="pdk-muted">Certificates</MudText>
+                    @if (!_mayReadCertificates)
+                    {
+                        <MudText Typo="Typo.body2" Class="pdk-muted">Your role can't read the certificates.</MudText>
+                    }
+                    else
+                    {
+                        <CertificateLinks Certificates="_certificates" Now="_now" Empty="No certificate is ordered with this account." />
+                    }
+                </section>
+
+                <section class="pdk-detail-section">
+                    <MudText Typo="Typo.overline" Class="pdk-muted">Details</MudText>
+                    <dl class="pdk-facts">
+                        <dt>CA</dt>
+                        <dd>@ProviderDisplay.CaName(_account.DirectoryUrl)</dd>
+                        <dt>Directory</dt>
+                        <dd><CopyableCode Value="@_account.DirectoryUrl" Block="true" CopyAction="copy-directory" /></dd>
+                        <dt>Contacts</dt>
+                        <dd>@(_account.Contacts.Count == 0 ? "None" : string.Join(", ", _account.Contacts.Select(ProviderDisplay.Contact)))</dd>
+                        <dt>Key</dt>
+                        <dd>@_account.KeyAlgorithm, kept in the vault</dd>
+                        @if (_account.EabKid is { } kid)
+                        {
+                            <dt>EAB key ID</dt>
+                            <dd class="pdk-mono pdk-wrap">@kid</dd>
+                        }
+                        @if (_account.AccountUrl is { Length: > 0 } url)
+                        {
+                            <dt>Account URL</dt>
+                            <dd><CopyableCode Value="@url" Block="true" CopyAction="copy-account-url" /></dd>
+                        }
+                        <dt>Added</dt>
+                        <dd>@Fmt.DateTime(_account.CreatedAt)</dd>
+                    </dl>
+                </section>
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        @if (_mayWrite && _account is { Status: AcmeAccountStatus.Active })
+        {
+            <DrawerActions ShowDelete="true" DeleteLabel="Deactivate" OnDelete="DeactivateAsync" />
+        }
+    </Footer>
+</DrawerShell>
+
+@code {
+    private AcmeAccountSummary? _account;
+    private IReadOnlyList<CertificateSummary> _certificates = [];
+    private bool _mayWrite;
+    private bool _mayReadCertificates;
+    private bool _missing;
+    private bool _failed;
+    private DateTimeOffset _now;
+    private IDisposable? _live;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    [Parameter, EditorRequired]
+    public AcmeAccountId Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _now = Time.GetUtcNow();
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ProvidersWrite);
+        _mayReadCertificates = user.Has(Permission.CertificatesRead);
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive && _live is null)
+        {
+            _live = Providers.Watch(InvokeAsync, RefreshAsync);
+        }
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        try
+        {
+            _now = Time.GetUtcNow();
+            _account = await Providers.GetAccountAsync(Id);
+            _missing = _account is null;
+            _certificates = _account is not null && _mayReadCertificates
+                ? [.. (await Providers.CertificatesOfAccountAsync(Id)).OrderByDescending(c => c.CreatedAt)]
+                : [];
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't load an ACME account.");
+            _failed = true;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task DeactivateAsync()
+    {
+        if (_account is not { } account)
+        {
+            return;
+        }
+
+        var confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            "Deactivate this account?",
+            $"The account at {ProviderDisplay.CaName(account.DirectoryUrl)} is deactivated for good (the CA can't undo it) and its key is deleted from the vault.",
+            "Deactivate",
+            detail: "Certificates ordered with it must be moved to another account first.");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        AcmeAccountResult? result = null;
+        if (!await Logger.TryAsync(Snackbar, "Couldn't deactivate the account.", async () => result = await Providers.DeactivateAccountAsync(account.Id))
+            || result is null)
+        {
+            return;
+        }
+
+        if (result.Status == IssuanceChangeStatus.Committed)
+        {
+            Snackbar.Add("The account is deactivated.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result.Status, result.Errors, result.Message, "ACME accounts")), Severity.Error);
+        }
+
+        await LoadAsync();
+    }
+}

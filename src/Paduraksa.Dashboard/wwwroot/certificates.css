@@ -500,6 +500,41 @@
     color: var(--mud-palette-primary);
 }
 
+.pdk-rename {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.pdk-rename .mud-input-control {
+    flex: 1 1 auto;
+}
+
+.pdk-rename .mud-button-root {
+    flex: none;
+    height: 40px;
+}
+
+.pdk-cert-links {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-cert-links li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.pdk-cert-links .pdk-row-link {
+    min-width: 0;
+    flex: 1 1 12rem;
+}
+
 .pdk-chain {
     margin: 0;
     padding-left: 18px;
@@ -544,48 +579,7 @@
 
 /* ---------- ACME accounts and DNS providers ---------- */
 
-.pdk-provider-list {
-    display: grid;
-    gap: 12px;
-}
-
-.pdk-provider.mud-paper {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 14px;
-    padding: 16px 18px;
-}
-
-.pdk-provider-main {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-}
-
-.pdk-provider-title {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-}
-
-.pdk-provider-sub {
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.8125rem;
-    overflow-wrap: anywhere;
-}
-
-.pdk-provider-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-}
-
 .pdk-test-result {
-    grid-column: 1 / -1;
     display: flex;
     align-items: flex-start;
     gap: 10px;
@@ -614,17 +608,6 @@
 
 .pdk-secret-note .mud-icon-root {
     color: var(--mud-palette-primary);
-}
-
-@media (max-width: 600px) {
-    .pdk-provider.mud-paper {
-        grid-template-columns: auto 1fr;
-    }
-
-    .pdk-provider-actions {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
-    }
 }
 
 /* ---------- The QR code ---------- */

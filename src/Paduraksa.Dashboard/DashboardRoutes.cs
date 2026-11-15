@@ -110,6 +110,12 @@ public static class DashboardRoutes
 
     public static string Certificate(CertificateId id) => $"{Certificates}/{id}";
 
+    /// <summary>A DNS provider: <c>/certificates/dns/dnsp_...</c>, the providers with its drawer open. The page parses the segment back into a <see cref="DnsProviderId"/>.</summary>
+    public static string DnsProvider(DnsProviderId id) => $"{DnsProviders}/{id}";
+
+    /// <summary>An ACME account: <c>/certificates/acme/acct_...</c>, the accounts with its drawer open. The page parses the segment back into an <see cref="AcmeAccountId"/>.</summary>
+    public static string AcmeAccount(AcmeAccountId id) => $"{AcmeAccounts}/{id}";
+
     public static string Revision(ConfigRevisionId id) => $"{History}?revision={id}";
 
     public static string SimulateRevision(ConfigRevisionId id) => $"{Simulator}?revision={id}";

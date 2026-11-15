@@ -1,0 +1,37 @@
+@* The certificates an ACME account or a DNS provider is used by, each a link to that certificate's drawer, with its status and what is left of it
+   as the certificates list shows them. *@
+@if (Certificates.Count == 0)
+{
+    <MudText Typo="Typo.body2" Class="pdk-muted">@Empty</MudText>
+}
+else
+{
+    <ul class="pdk-cert-links">
+        @foreach (var certificate in Certificates)
+        {
+            <li data-certificate="@certificate.Id" @key="certificate.Id">
+                <span class="pdk-list-icon pdk-tone-@CertificateDisplay.StatusTone(certificate.Status, certificate.NotBefore, certificate.NotAfter, Now)">
+                    <MudIcon Icon="@CertificateDisplay.Icon(CertificateDisplay.OriginOf(certificate.Source))" Size="Size.Small" />
+                </span>
+                <a class="pdk-row-link" href="@DashboardRoutes.Certificate(certificate.Id)">@CertificateDisplay.DisplayName(certificate)</a>
+                <span class="pdk-pill pdk-tone-@CertificateDisplay.StatusTone(certificate.Status, certificate.NotBefore, certificate.NotAfter, Now)">@CertificateDisplay.StatusLabel(certificate.Status, certificate.NotBefore, certificate.NotAfter, Now)</span>
+                @if (certificate.Status != CertificateStatus.Pending)
+                {
+                    <ExpiryCountdown NotAfter="certificate.NotAfter" Now="Now" />
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CertificateSummary> Certificates { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+
+    /// <summary>What to say when there are none.</summary>
+    [Parameter]
+    public string Empty { get; set; } = "No certificate uses it right now.";
+}

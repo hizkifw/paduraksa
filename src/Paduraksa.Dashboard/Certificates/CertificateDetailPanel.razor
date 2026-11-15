@@ -86,7 +86,17 @@
         <MudText Typo="Typo.overline" Class="pdk-muted">Details</MudText>
         <dl class="pdk-facts">
             <dt>Issuer</dt>
-            <dd>@CertificateDisplay.CommonName(S.Issuer)@(CertificateDisplay.Organization(S.Issuer) is { } org ? $" ({org})" : null)</dd>
+            <dd>
+                @if (Row.Origin == CertificateOrigin.LocalCa)
+                {
+                    <a class="pdk-row-link" href="@DashboardRoutes.LocalCa" data-link="local-ca">@CertificateDisplay.CommonName(S.Issuer)</a>
+                }
+                else
+                {
+                    @CertificateDisplay.CommonName(S.Issuer)
+                }
+                @(CertificateDisplay.Organization(S.Issuer) is { } org ? $" ({org})" : null)
+            </dd>
             <dt>Subject</dt>
             <dd class="pdk-mono">@(string.IsNullOrEmpty(S.Subject) ? "-" : S.Subject)</dd>
             <dt>Key</dt>
@@ -125,7 +135,16 @@
             {
                 <dl class="pdk-facts">
                     <dt>Account</dt>
-                    <dd>@(_accountName ?? "-")</dd>
+                    <dd>
+                        @if (_accountName is not null)
+                        {
+                            <a class="pdk-row-link" href="@DashboardRoutes.AcmeAccount(order.AccountId)" data-link="acme-account">@_accountName</a>
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </dd>
                     <dt>Challenge</dt>
                     <dd>@(order.ChallengeType == AcmeChallengeType.Dns01 ? "DNS-01" : "HTTP-01")</dd>
                     <dt>Order</dt>
