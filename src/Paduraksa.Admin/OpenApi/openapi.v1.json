@@ -3068,7 +3068,7 @@
           "Backup"
         ],
         "summary": "Download a full backup",
-        "description": "Streams one archive (application/octet-stream, .pdkbak) holding the config database, the vault database and the last-known-good config, all encrypted under the passphrase in the body (at least 12 characters) with AES-256-GCM and an Argon2id key. The vault's keys in it are wrapped under a key made for this archive, so it restores on another machine with that machine's own master key, and it is useless without the passphrase, which nothing can recover. The server keeps running and the databases are read consistently. Making one takes about a second of CPU and 64 MiB; one at a time (a second request while one runs gets 409). The passphrase goes in the JSON body over the admin's HTTPS, never in a URL.\n\nRequires the `backup:create` permission.",
+        "description": "Streams one archive (application/octet-stream, .pdkbak) holding the config database, the vault database and the last-known-good config, all encrypted under the passphrase in the body (at least 12 characters) with AES-256-GCM and an Argon2id key. The archive wraps the vault's keys under a key made for it, so it restores on another machine under that machine's own master key. It is useless without the passphrase, which nothing can recover. The server keeps running and the databases are read consistently. Making one takes about a second of CPU and 64 MiB, and only one runs at a time (a second request while one runs gets 409). The passphrase is sent in the JSON body over the admin's HTTPS, never in a URL.\n\nRequires the `backup:create` permission.",
         "operationId": "CreateBackup",
         "requestBody": {
           "content": {
@@ -9862,7 +9862,7 @@
           "Certificates"
         ],
         "summary": "List certificates",
-        "description": "Public data only. The filters are all optional and all must match.\n\nRequires the `certificates:read` permission.",
+        "description": "Public data only. Every filter is optional, and a certificate must match all that are set.\n\nRequires the `certificates:read` permission.",
         "operationId": "ListCertificates",
         "parameters": [
           {
@@ -9986,7 +9986,7 @@
           "Certificates"
         ],
         "summary": "Upload a certificate with its key (PEM or PFX)",
-        "description": "multipart/form-data. Parts, in this order: 'password' (optional), 'label' (optional), then 'file': the PEM (PKCS#8 key) or PFX, at most 1 MiB. The file is streamed into the vault; the key is never returned.\n\nRequires the `certificates:write` permission.",
+        "description": "multipart/form-data with parts in this order: 'password' (optional), 'label' (optional), then 'file', a PEM (PKCS#8 key) or PFX of at most 1 MiB. The file is streamed into the vault, and the key is never returned.\n\nRequires the `certificates:write` permission.",
         "operationId": "UploadCertificate",
         "requestBody": {
           "content": {
@@ -10306,7 +10306,7 @@
           "Certificates"
         ],
         "summary": "Delete a certificate and its key",
-        "description": "Refused (422) while a host still binds it specifically. 204 when it is gone; 200 with the result when there are warnings to report (a vault key that could not be removed).\n\nRequires the `certificates:write` permission.",
+        "description": "Refused (422) while a host still binds it specifically. Returns 204 when it is gone, and 200 with the result if there are warnings to report (a vault key that couldn't be removed).\n\nRequires the `certificates:write` permission.",
         "operationId": "DeleteCertificate",
         "parameters": [
           {
@@ -10654,7 +10654,7 @@
           "Certificates"
         ],
         "summary": "Replace the local CA root",
-        "description": "Makes a new root (limited to the private-use domains, the private ranges and the names in the body) and destroys the old root's key in the same step. Devices must trust the new root before what it signs works for them; what the old root signed keeps working, and the old root stays downloadable, until it is retired (DELETE its certificate once nothing it signed is left). The admin listener's certificate is issued again at once. The body is optional.\n\nRequires the `certificates:write` permission.",
+        "description": "Makes a new root (limited to the private-use domains, the private ranges and the names in the body) and destroys the old root's key in the same step. Devices must trust the new root before certificates it signs work for them. Certificates the old root signed keep working, and the old root stays downloadable, until it is retired (DELETE its certificate once nothing it signed is left). The admin listener's certificate is issued again at once. The body is optional.\n\nRequires the `certificates:write` permission.",
         "operationId": "RotateLocalCa",
         "requestBody": {
           "content": {
@@ -10752,7 +10752,7 @@
           "Certificates"
         ],
         "summary": "Re-issue what a retiring local CA root signed",
-        "description": "Issues every certificate a root replaced by a rotation signed again, from the current root, under the same IDs. Certificates whose names the new root does not permit are left alone and listed in failures.\n\nRequires the `certificates:write` permission.",
+        "description": "Issues again, from the current root and under the same IDs, every certificate signed by a root that a rotation replaced. Certificates with names the new root doesn't permit are left alone and listed in failures.\n\nRequires the `certificates:write` permission.",
         "operationId": "ReissueLocalCaCertificates",
         "responses": {
           "200": {
@@ -11031,7 +11031,7 @@
           "Certificates"
         ],
         "summary": "Request a certificate from an ACME CA",
-        "description": "Runs the first issuance to the end and answers when it is issued or has failed (502, and the scheduler retries; the problem's instance is the certificate). The issuance is not tied to the request: a client that gives up does not cancel it, and GET /certificates/{id}/order shows its progress. A DNS-01 order waits for propagation and can outlast a typical client timeout, so give the request minutes, or poll the order instead.\n\nRequires the `certificates:write` permission.",
+        "description": "Runs the first issuance to the end and answers once the certificate is issued or the attempt has failed (502, and the scheduler retries; the problem's instance is the certificate). The issuance isn't tied to the request: a client that gives up doesn't cancel it, and GET /certificates/{id}/order shows its progress. A DNS-01 order waits for propagation and can outlast a typical client timeout, so allow the request minutes, or poll the order instead.\n\nRequires the `certificates:write` permission.",
         "operationId": "RequestAcmeCertificate",
         "requestBody": {
           "content": {
@@ -11149,7 +11149,7 @@
           "Certificates"
         ],
         "summary": "Renew an ACME certificate now",
-        "description": "Like the request: runs to the end whether or not the client waits, and answers synchronously when it finishes; GET /certificates/{id}/order shows progress.\n\nRequires the `certificates:write` permission.",
+        "description": "Like the request, it runs to the end whether or not the client waits, and answers synchronously when it finishes. GET /certificates/{id}/order shows progress.\n\nRequires the `certificates:write` permission.",
         "operationId": "RenewCertificateNow",
         "parameters": [
           {
@@ -11433,7 +11433,7 @@
           "ACME accounts"
         ],
         "summary": "Register an ACME account",
-        "description": "The vault creates the account key. termsOfServiceAgreed records that the operator accepted the CA's terms; most CAs refuse an account without it. For CAs with external account binding give eabKid and eabHmacKey (base64url, as the CA shows it): the key goes into the vault and is never returned.\n\nRequires the `providers:write` permission.",
+        "description": "The vault creates the account key. termsOfServiceAgreed records that the operator accepted the CA's terms; most CAs refuse an account without it. For CAs with external account binding, send eabKid and eabHmacKey (base64url, as the CA shows it). The key goes into the vault and is never returned.\n\nRequires the `providers:write` permission.",
         "operationId": "CreateAcmeAccount",
         "requestBody": {
           "content": {
@@ -11622,7 +11622,7 @@
           "ACME accounts"
         ],
         "summary": "Deactivate an ACME account",
-        "description": "Final (RFC 8555): deactivates the account at the CA and deletes its key. Refused (422) while certificates are ordered with it.\n\nRequires the `providers:write` permission.",
+        "description": "Final (RFC 8555). Deactivates the account at the CA and deletes its key. Refused (422) while certificates are ordered with it.\n\nRequires the `providers:write` permission.",
         "operationId": "DeactivateAcmeAccount",
         "parameters": [
           {
@@ -11806,7 +11806,7 @@
           "DNS providers"
         ],
         "summary": "Add a DNS provider",
-        "description": "The credential goes into the vault, usable only against the provider's own API host, and is never returned.\n\nRequires the `providers:write` permission.",
+        "description": "The vault stores the credential and never returns it. It can be used only against the provider's own API host.\n\nRequires the `providers:write` permission.",
         "operationId": "CreateDnsProvider",
         "requestBody": {
           "content": {
@@ -12315,7 +12315,7 @@
           "DNS providers"
         ],
         "summary": "Test a DNS provider's credentials",
-        "description": "Asks the provider to check the credential with a read-only call. A bad credential is valid=false, not an error. The test is audited (acme.dns_provider.test) with its verdict only.\n\nRequires the `providers:write` permission.",
+        "description": "Asks the provider to check the credential with a read-only call. A bad credential returns valid=false, not an error. The test is audited (acme.dns_provider.test) with its verdict only.\n\nRequires the `providers:write` permission.",
         "operationId": "TestDnsProviderCredentials",
         "parameters": [
           {
@@ -14530,7 +14530,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as PEM",
-        "description": "Anonymous. The public root certificate only, so the owner can trust it once and the admin UI is then trusted by their browsers.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate. Once the owner trusts it, their browsers trust the admin UI.\n\nAnonymous: it needs no credentials.",
         "operationId": "GetCaRootPem",
         "responses": {
           "200": {
@@ -14571,7 +14571,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as PEM",
-        "description": "Anonymous. The public root certificate only, so the owner can trust it once and the admin UI is then trusted by their browsers.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate. Once the owner trusts it, their browsers trust the admin UI.\n\nAnonymous: it needs no credentials.",
         "operationId": "GetCaRootPem",
         "responses": {
           "200": {
@@ -14607,7 +14607,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as DER",
-        "description": "Anonymous. application/x-x509-ca-cert, the type Android and iOS offer to install. The public root certificate only.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate, as application/x-x509-ca-cert, the type Android and iOS offer to install.\n\nAnonymous: it needs no credentials.",
         "operationId": "GetCaRootCrt",
         "responses": {
           "200": {
@@ -14649,7 +14649,7 @@
           "CA"
         ],
         "summary": "Download the local CA root as DER",
-        "description": "Anonymous. application/x-x509-ca-cert, the type Android and iOS offer to install. The public root certificate only.\n\nAnonymous: it needs no credentials.",
+        "description": "Anonymous. Returns only the public root certificate, as application/x-x509-ca-cert, the type Android and iOS offer to install.\n\nAnonymous: it needs no credentials.",
         "operationId": "GetCaRootCrt",
         "responses": {
           "200": {
@@ -18783,7 +18783,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Registers an ACME account over the API. The external-account-binding key goes in here and is stored in the vault: it is never returned."
+        "description": "Registers an ACME account over the API. The external-account-binding key is sent here, stored in the vault and never returned."
       },
       "CreateDnsProviderBody": {
         "required": [
@@ -18807,7 +18807,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Adds a DNS provider over the API. The credential goes in here and is stored in the vault: it is never returned."
+        "description": "Adds a DNS provider over the API. The credential is sent here, stored in the vault and never returned."
       },
       "CreateUserRequest": {
         "required": [
@@ -20445,7 +20445,7 @@
             "items": {
               "$ref": "#/components/schemas/ConfigError"
             },
-            "description": "The ones that were not, with why (a name the new root's constraints don't permit, for one)."
+            "description": "The ones that failed, with the reason (for example, a name the new root's constraints don't permit)."
           }
         },
         "additionalProperties": false,
@@ -20489,7 +20489,7 @@
             "items": {
               "type": "string"
             },
-            "description": "DNS domains to limit the root to: a name equal to one or under it. A device that trusts the root then accepts nothing for any\n            other name. With no domains and no addresses the root is unlimited, which is the default."
+            "description": "DNS domains to limit the root to: a name equal to one of them or under it. A device that trusts the root then accepts it for no\n            other name. With no domains and no addresses the root is unlimited, which is the default."
           },
           "permittedAddresses": {
             "type": [
@@ -20550,7 +20550,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Replaces the local CA root with a new one. Devices must trust the new root before what it signs works for them; what the old root signed\nkeeps working (and the old root stays downloadable) until it is retired."
+        "description": "Replaces the local CA root with a new one. Devices must trust the new root before certificates it signs work for them. Certificates the old root signed\nkeep working, and the old root stays downloadable, until it is retired."
       },
       "LocalCaStatus": {
         "type": "object",
@@ -23179,7 +23179,7 @@
               "integer",
               "string"
             ],
-            "description": "How many certificates it signed that are still in use; the root can be retired when this is 0.",
+            "description": "How many certificates it signed are still in use. The root can be retired when this is 0.",
             "format": "int32"
           }
         },

@@ -27,7 +27,7 @@ public sealed record SelfSignedCertificateRequest(
 /// <param name="KeySpec">The kind of key the vault generates for the root.</param>
 /// <param name="Validity">How long the root is valid from now; null for the default (ten years).</param>
 /// <param name="Label">A display name.</param>
-/// <param name="PermittedDomains">DNS domains to limit the root to: a name equal to one or under it. A device that trusts the root then accepts nothing for any
+/// <param name="PermittedDomains">DNS domains to limit the root to: a name equal to one of them or under it. A device that trusts the root then accepts it for no
 /// other name. With no domains and no addresses the root is unlimited, which is the default.</param>
 /// <param name="PermittedAddresses">IP addresses or CIDR networks to limit the root to.</param>
 public sealed record LocalCaRequest(
@@ -38,8 +38,8 @@ public sealed record LocalCaRequest(
     IReadOnlyList<string>? PermittedAddresses = null);
 
 /// <summary>
-/// Replaces the local CA root with a new one. Devices must trust the new root before what it signs works for them; what the old root signed
-/// keeps working (and the old root stays downloadable) until it is retired.
+/// Replaces the local CA root with a new one. Devices must trust the new root before certificates it signs work for them. Certificates the old root signed
+/// keep working, and the old root stays downloadable, until it is retired.
 /// </summary>
 /// <param name="KeySpec">The kind of key the vault generates for the new root.</param>
 /// <param name="Validity">How long the new root is valid from now; null for the default (ten years).</param>
@@ -75,12 +75,12 @@ public sealed record LocalCaStatus(
 
 /// <summary>A root a rotation replaced.</summary>
 /// <param name="Root">The old root's certificate (still downloadable).</param>
-/// <param name="Leaves">How many certificates it signed that are still in use; the root can be retired when this is 0.</param>
+/// <param name="Leaves">How many certificates it signed are still in use. The root can be retired when this is 0.</param>
 public sealed record RetiringLocalCaRoot(CertificateSummary Root, int Leaves);
 
 /// <summary>What re-issuing the certificates a retiring root signed did.</summary>
 /// <param name="Reissued">How many were issued again from the current root.</param>
-/// <param name="Failures">The ones that were not, with why (a name the new root's constraints don't permit, for one).</param>
+/// <param name="Failures">The ones that failed, with the reason (for example, a name the new root's constraints don't permit).</param>
 public sealed record LocalCaReissueResult(int Reissued, IReadOnlyList<ConfigError> Failures);
 
 /// <summary>A new leaf certificate signed by the local CA.</summary>
@@ -135,7 +135,7 @@ public enum CertificateOperationStatus
     /// <summary>Done: the vault holds the key and chain (or no longer holds them, for a delete) and the inventory says so.</summary>
     Completed,
 
-    /// <summary>Nothing changed because it is so already (the local CA exists).</summary>
+    /// <summary>Nothing changed because the local CA already exists.</summary>
     Unchanged,
 
     /// <summary>The certificate doesn't exist.</summary>
@@ -155,10 +155,10 @@ public enum CertificateOperationStatus
 /// <summary>The outcome of a certificate operation.</summary>
 /// <param name="Status">How it ended.</param>
 /// <param name="Certificate">The certificate after the operation; null for a delete, or when it didn't complete.</param>
-/// <param name="Errors">Why it was refused. For a certificate still bound by a host, the paths of those hosts.</param>
+/// <param name="Errors">Why it was refused. For a certificate a host still binds, the paths of those hosts.</param>
 /// <param name="Publish">How publishing the recompiled config went, when the operation affected serving.</param>
-/// <param name="Warnings">Things that went wrong after the operation was already in effect and that an operator should know:
-/// the vault key of a deleted certificate that could not be removed, for example.</param>
+/// <param name="Warnings">Problems after the operation took effect that an operator should know about,
+/// such as the vault key of a deleted certificate that couldn't be removed.</param>
 public sealed record CertificateOperationResult(
     CertificateOperationStatus Status,
     CertificateSummary? Certificate = null,

@@ -3,7 +3,7 @@ using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Contracts.Issuance;
 
-/// <summary>Registers an ACME account over the API. The external-account-binding key goes in here and is stored in the vault: it is never returned.</summary>
+/// <summary>Registers an ACME account over the API. The external-account-binding key is sent here, stored in the vault and never returned.</summary>
 /// <param name="DirectoryUrl">The CA's directory URL (https).</param>
 /// <param name="TermsOfServiceAgreed">The operator agreed to the CA's terms; most CAs refuse an account without it.</param>
 /// <param name="Contacts">Contact URIs, e.g. <c>mailto:admin@example.com</c>; may be empty.</param>
@@ -23,7 +23,7 @@ public sealed record CreateAcmeAccountBody(
     public override string ToString() => $"{nameof(CreateAcmeAccountBody)} {{ DirectoryUrl = {DirectoryUrl}, EabKid = {EabKid}, EabHmacKey = *** }}";
 }
 
-/// <summary>Adds a DNS provider over the API. The credential goes in here and is stored in the vault: it is never returned.</summary>
+/// <summary>Adds a DNS provider over the API. The credential is sent here, stored in the vault and never returned.</summary>
 /// <param name="Kind">Which service.</param>
 /// <param name="Label">A display name (required).</param>
 /// <param name="Credential">The provider's API token.</param>

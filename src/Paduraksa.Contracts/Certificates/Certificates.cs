@@ -89,7 +89,7 @@ public sealed record CertificateSummary(
 /// <param name="PublicChainPem">The leaf and its intermediates as PEM. Public.</param>
 public sealed record CertificateDetail(CertificateSummary Summary, IReadOnlyList<string> ChainIssuers, string PublicChainPem);
 
-/// <summary>Filters for listing certificates; every filter that is set must match.</summary>
+/// <summary>Filters for listing certificates; a certificate must match every filter that is set.</summary>
 /// <param name="Source">Only this source.</param>
 /// <param name="Status">Only this stored state.</param>
 /// <param name="CoversName">Only certificates covering this host name: it as an exact name, or a wildcard of its parent.</param>
@@ -99,18 +99,18 @@ public sealed record CertificateQuery(CertificateSource? Source = null, Certific
 [JsonConverter(typeof(ConfigEnumConverter<CertificateChangeStatus>))]
 public enum CertificateChangeStatus
 {
-    /// <summary>The change is recorded (and audited). When it affects serving, the new inventory was compiled into the
+    /// <summary>The change is recorded (and audited). If it affects serving, the new inventory was compiled into the
     /// latest revision and published: <see cref="CertificateChangeResult.Publish"/> says how that went.</summary>
     Committed,
 
-    /// <summary>The certificate is recorded exactly so already; nothing changed.</summary>
+    /// <summary>The certificate is already recorded exactly this way; nothing changed.</summary>
     Unchanged,
 
     /// <summary>The certificate doesn't exist.</summary>
     NotFound,
 
     /// <summary>The change is refused (<see cref="CertificateChangeResult.Errors"/>); nothing was changed. Deleting a
-    /// certificate a Specific binding uses is refused this way, with the paths of the hosts that use it.</summary>
+    /// certificate that a Specific binding uses is refused this way, with the paths of the hosts that use it.</summary>
     Invalid,
 
     /// <summary>The config store is unavailable (a degraded start); nothing was read or changed.</summary>

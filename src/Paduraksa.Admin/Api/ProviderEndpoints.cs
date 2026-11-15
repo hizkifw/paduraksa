@@ -31,11 +31,11 @@ internal static class ProviderEndpoints
         accounts.MapGet("/{id:AcmeAccountId}", GetAccountAsync).WithName("GetAcmeAccount").WithSummary("Get an ACME account")
             .Produces<AcmeAccountSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         accounts.MapPost("/", CreateAccountAsync).WithName("CreateAcmeAccount").WithSummary("Register an ACME account")
-            .WithDescription("The vault creates the account key. termsOfServiceAgreed records that the operator accepted the CA's terms; most CAs refuse an account without it. For CAs with external account binding give eabKid and eabHmacKey (base64url, as the CA shows it): the key goes into the vault and is never returned.")
+            .WithDescription("The vault creates the account key. termsOfServiceAgreed records that the operator accepted the CA's terms; most CAs refuse an account without it. For CAs with external account binding, send eabKid and eabHmacKey (base64url, as the CA shows it). The key goes into the vault and is never returned.")
             .Accepts<CreateAcmeAccountBody>("application/json").Produces<AcmeAccountSummary>(201).ProducesApiProblems(400, 415, 422, 502)
             .RequirePermission(Permission.ProvidersWrite);
         accounts.MapDelete("/{id:AcmeAccountId}", DeactivateAccountAsync).WithName("DeactivateAcmeAccount").WithSummary("Deactivate an ACME account")
-            .WithDescription("Final (RFC 8555): deactivates the account at the CA and deletes its key. Refused (422) while certificates are ordered with it.")
+            .WithDescription("Final (RFC 8555). Deactivates the account at the CA and deletes its key. Refused (422) while certificates are ordered with it.")
             .Produces(204).ProducesApiProblems(404, 422, 502).RequirePermission(Permission.ProvidersWrite);
 
         var providers = api.MapGroup("/dns-providers").WithTags("DNS providers");
@@ -44,7 +44,7 @@ internal static class ProviderEndpoints
         providers.MapGet("/{id:DnsProviderId}", GetProviderAsync).WithName("GetDnsProvider").WithSummary("Get a DNS provider")
             .Produces<DnsProviderSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         providers.MapPost("/", CreateProviderAsync).WithName("CreateDnsProvider").WithSummary("Add a DNS provider")
-            .WithDescription("The credential goes into the vault, usable only against the provider's own API host, and is never returned.")
+            .WithDescription("The vault stores the credential and never returns it. It can be used only against the provider's own API host.")
             .Accepts<CreateDnsProviderBody>("application/json").Produces<DnsProviderSummary>(201).ProducesApiProblems(400, 415, 422)
             .RequirePermission(Permission.ProvidersWrite);
         providers.MapPatch("/{id:DnsProviderId}", RenameProviderAsync).WithName("RenameDnsProvider").WithSummary("Rename a DNS provider")
@@ -59,7 +59,7 @@ internal static class ProviderEndpoints
             .WithDescription("Refused (422) while certificates are ordered through it.")
             .Produces(204).ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
         providers.MapPost("/{id:DnsProviderId}/test", TestProviderAsync).WithName("TestDnsProviderCredentials").WithSummary("Test a DNS provider's credentials")
-            .WithDescription("Asks the provider to check the credential with a read-only call. A bad credential is valid=false, not an error. The test is audited (acme.dns_provider.test) with its verdict only.")
+            .WithDescription("Asks the provider to check the credential with a read-only call. A bad credential returns valid=false, not an error. The test is audited (acme.dns_provider.test) with its verdict only.")
             .Produces<DnsProviderTestOutcome>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersWrite);
     }
 

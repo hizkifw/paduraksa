@@ -20,8 +20,8 @@ internal static class BackupEndpoints
     {
         api.MapPost("/backup", CreateAsync).WithTags("Backup").WithName("CreateBackup").WithSummary("Download a full backup")
             .WithDescription("Streams one archive (application/octet-stream, .pdkbak) holding the config database, the vault database and the last-known-good config, all encrypted under the passphrase in the body (at least 12 characters) with AES-256-GCM and an Argon2id key. "
-                + "The vault's keys in it are wrapped under a key made for this archive, so it restores on another machine with that machine's own master key, and it is useless without the passphrase, which nothing can recover. "
-                + "The server keeps running and the databases are read consistently. Making one takes about a second of CPU and 64 MiB; one at a time (a second request while one runs gets 409). The passphrase goes in the JSON body over the admin's HTTPS, never in a URL.")
+                + "The archive wraps the vault's keys under a key made for it, so it restores on another machine under that machine's own master key. It is useless without the passphrase, which nothing can recover. "
+                + "The server keeps running and the databases are read consistently. Making one takes about a second of CPU and 64 MiB, and only one runs at a time (a second request while one runs gets 409). The passphrase is sent in the JSON body over the admin's HTTPS, never in a URL.")
             .Accepts<Paduraksa.Contracts.Backup.BackupRequest>("application/json")
             .Produces(StatusCodes.Status200OK, contentType: "application/octet-stream").ProducesApiProblems(400, 409, 415, 422, 500)
             .RequirePermission(Permission.BackupCreate);

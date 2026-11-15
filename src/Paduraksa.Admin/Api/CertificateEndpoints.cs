@@ -36,14 +36,14 @@ internal static class CertificateEndpoints
     {
         var certificates = api.MapGroup("/certificates").WithTags("Certificates");
         certificates.MapGet("/", ListAsync).WithName("ListCertificates").WithSummary("List certificates")
-            .WithDescription("Public data only. The filters are all optional and all must match.")
+            .WithDescription("Public data only. Every filter is optional, and a certificate must match all that are set.")
             .WithQuery(Source, Status, Name)
             .WithPage().Produces<Page<CertificateSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
         certificates.MapGet("/{id:CertificateId}", GetAsync).WithName("GetCertificate").WithSummary("Get a certificate with its public chain")
             .Produces<CertificateDetail>().ProducesApiProblems(404).RequirePermission(Permission.CertificatesRead);
 
         certificates.MapPost("/", UploadAsync).WithName("UploadCertificate").WithSummary("Upload a certificate with its key (PEM or PFX)")
-            .WithDescription("multipart/form-data. Parts, in this order: 'password' (optional), 'label' (optional), then 'file': the PEM (PKCS#8 key) or PFX, at most 1 MiB. The file is streamed into the vault; the key is never returned.")
+            .WithDescription("multipart/form-data with parts in this order: 'password' (optional), 'label' (optional), then 'file', a PEM (PKCS#8 key) or PFX of at most 1 MiB. The file is streamed into the vault, and the key is never returned.")
             .Accepts<UploadForm>("multipart/form-data").Produces<CertificateOperationResult>(201).ProducesApiProblems(400, 413, 415, 422)
             .WithAdminBodyLimit(ApiEndpointConventions.UploadBodyLimit).AcceptsAdminContentTypes("multipart/form-data")
             .RequirePermission(Permission.CertificatesWrite);
@@ -63,11 +63,11 @@ internal static class CertificateEndpoints
         certificates.MapGet("/local-ca", LocalCaStatusAsync).WithName("GetLocalCa").WithSummary("The local CA: its root, what it is limited to, and the roots a rotation left")
             .Produces<LocalCaStatus>().RequirePermission(Permission.CertificatesRead);
         certificates.MapPost("/local-ca/rotate", RotateLocalCaAsync).WithName("RotateLocalCa").WithSummary("Replace the local CA root")
-            .WithDescription("Makes a new root (limited to the private-use domains, the private ranges and the names in the body) and destroys the old root's key in the same step. Devices must trust the new root before what it signs works for them; what the old root signed keeps working, and the old root stays downloadable, until it is retired (DELETE its certificate once nothing it signed is left). The admin listener's certificate is issued again at once. The body is optional.")
+            .WithDescription("Makes a new root (limited to the private-use domains, the private ranges and the names in the body) and destroys the old root's key in the same step. Devices must trust the new root before certificates it signs work for them. Certificates the old root signed keep working, and the old root stays downloadable, until it is retired (DELETE its certificate once nothing it signed is left). The admin listener's certificate is issued again at once. The body is optional.")
             .Accepts<LocalCaRotateRequest>("application/json").Produces<CertificateOperationResult>().ProducesApiProblems(400, 415, 422)
             .RequirePermission(Permission.CertificatesWrite);
         certificates.MapPost("/local-ca/reissue", ReissueLocalCaLeavesAsync).WithName("ReissueLocalCaCertificates").WithSummary("Re-issue what a retiring local CA root signed")
-            .WithDescription("Issues every certificate a root replaced by a rotation signed again, from the current root, under the same IDs. Certificates whose names the new root does not permit are left alone and listed in failures.")
+            .WithDescription("Issues again, from the current root and under the same IDs, every certificate signed by a root that a rotation replaced. Certificates with names the new root doesn't permit are left alone and listed in failures.")
             .Produces<LocalCaReissueResult>().RequirePermission(Permission.CertificatesWrite);
         certificates.MapPost("/local-ca/leaf", LocalCaLeafAsync).WithName("IssueLocalCaCertificate").WithSummary("Issue a certificate from the local CA")
             .Accepts<LocalCaLeafRequest>("application/json").Produces<CertificateOperationResult>(201).ProducesApiProblems(400, 415, 422)
@@ -77,15 +77,15 @@ internal static class CertificateEndpoints
             .Accepts<ReissueRequest>("application/json").Produces<CertificateOperationResult>().ProducesApiProblems(400, 404, 415, 422)
             .RequirePermission(Permission.CertificatesWrite);
         certificates.MapDelete("/{id:CertificateId}", DeleteAsync).WithName("DeleteCertificate").WithSummary("Delete a certificate and its key")
-            .WithDescription("Refused (422) while a host still binds it specifically. 204 when it is gone; 200 with the result when there are warnings to report (a vault key that could not be removed).")
+            .WithDescription("Refused (422) while a host still binds it specifically. Returns 204 when it is gone, and 200 with the result if there are warnings to report (a vault key that couldn't be removed).")
             .Produces(204).Produces<CertificateOperationResult>().ProducesApiProblems(404, 422).RequirePermission(Permission.CertificatesWrite);
 
         certificates.MapPost("/acme", RequestAcmeAsync).WithName("RequestAcmeCertificate").WithSummary("Request a certificate from an ACME CA")
-            .WithDescription("Runs the first issuance to the end and answers when it is issued or has failed (502, and the scheduler retries; the problem's instance is the certificate). The issuance is not tied to the request: a client that gives up does not cancel it, and GET /certificates/{id}/order shows its progress. A DNS-01 order waits for propagation and can outlast a typical client timeout, so give the request minutes, or poll the order instead.")
+            .WithDescription("Runs the first issuance to the end and answers once the certificate is issued or the attempt has failed (502, and the scheduler retries; the problem's instance is the certificate). The issuance isn't tied to the request: a client that gives up doesn't cancel it, and GET /certificates/{id}/order shows its progress. A DNS-01 order waits for propagation and can outlast a typical client timeout, so allow the request minutes, or poll the order instead.")
             .Accepts<CertificateIssueRequest>("application/json").Produces<IssuanceResult>(201).ProducesApiProblems(400, 409, 415, 422, 502)
             .RequirePermission(Permission.CertificatesWrite);
         certificates.MapPost("/{id:CertificateId}/renew", RenewAsync).WithName("RenewCertificateNow").WithSummary("Renew an ACME certificate now")
-            .WithDescription("Like the request: runs to the end whether or not the client waits, and answers synchronously when it finishes; GET /certificates/{id}/order shows progress.")
+            .WithDescription("Like the request, it runs to the end whether or not the client waits, and answers synchronously when it finishes. GET /certificates/{id}/order shows progress.")
             .Produces<IssuanceResult>().ProducesApiProblems(404, 409, 422, 502).RequirePermission(Permission.CertificatesWrite);
         certificates.MapGet("/{id:CertificateId}/order", GetOrderAsync).WithName("GetCertificateOrder").WithSummary("The ACME order and renewal state of a certificate")
             .Produces<AcmeOrderSummary>().ProducesApiProblems(404).RequirePermission(Permission.CertificatesRead);

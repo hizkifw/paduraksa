@@ -40,11 +40,11 @@ internal static class CaEndpoint
         ArgumentNullException.ThrowIfNull(api);
         var ca = api.MapGroup(Prefix).WithTags("CA");
         ca.MapMethods("/root.pem", GetAndHead, GetRootPem).WithName("GetCaRootPem").WithSummary("Download the local CA root as PEM")
-            .WithDescription("Anonymous. The public root certificate only, so the owner can trust it once and the admin UI is then trusted by their browsers.")
+            .WithDescription("Anonymous. Returns only the public root certificate. Once the owner trusts it, their browsers trust the admin UI.")
             .Produces(StatusCodes.Status200OK, contentType: PemContentType).ProducesApiProblems(404)
             .AllowAnonymousAdmin();
         ca.MapMethods("/root.crt", GetAndHead, GetRootCrt).WithName("GetCaRootCrt").WithSummary("Download the local CA root as DER")
-            .WithDescription("Anonymous. application/x-x509-ca-cert, the type Android and iOS offer to install. The public root certificate only.")
+            .WithDescription("Anonymous. Returns only the public root certificate, as application/x-x509-ca-cert, the type Android and iOS offer to install.")
             .Produces(StatusCodes.Status200OK, contentType: DerContentType).ProducesApiProblems(404)
             .AllowAnonymousAdmin();
         ca.MapMethods(string.Empty, GetAndHead, GetRoot).WithName("GetCaRoot").WithSummary("Describe the local CA root")

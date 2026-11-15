@@ -5,8 +5,8 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Issuance;
 
 /// <summary>
-/// Where a running ACME issuance stands, finer than the stored order status: the steps a person watching the dashboard sees
-/// go by. In order; a run that resumes an order may start past the first steps, and a run whose authorizations are already valid skips
+/// Where a running ACME issuance stands, in finer steps than the stored order status: the steps a person watching the dashboard sees.
+/// The stages come in order. A run that resumes an order may start past the first steps, and a run whose authorizations are already valid skips
 /// from <see cref="OrderCreated"/> to <see cref="Validated"/>.
 /// </summary>
 [JsonConverter(typeof(ConfigEnumConverter<AcmeProgressStage>))]
@@ -47,7 +47,7 @@ public enum AcmeProgressStage
 /// One step of a running issuance, as <c>AcmeIssuanceService</c> reports it to the caller that started it and keeps it for anyone who
 /// asks while the run lasts. Public facts only: names, counts and the CA's sanitised message, never a token, key authorization or key.
 /// </summary>
-/// <param name="CertificateId">The certificate being issued or renewed (known from the first report on, so a caller that requested a new
+/// <param name="CertificateId">The certificate being issued or renewed (known from the first report, so a caller that requested a new
 /// certificate learns its ID before the run ends).</param>
 /// <param name="Stage">The step just reached.</param>
 /// <param name="ChallengeType">How the names are proven.</param>
