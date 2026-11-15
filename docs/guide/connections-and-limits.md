@@ -51,7 +51,7 @@ Before TLS, the public listeners (80/tcp, 443/tcp and 443/udp) refuse two kinds 
 ### Open connections per address
 
 - The built-in value is **256**, `0` turns it off, and the maximum is 100 000.
-- Paduraksa closes an over-cap address's next connection at once, before TLS. An IPv6 /64 counts as one address.
+- If an address is over the cap, Paduraksa closes its next connection at once, before TLS. An IPv6 /64 counts as one address.
 - **Trusted proxies are never counted**, because every visitor behind one shares its address. They are Cloudflare's edge ranges in Cloudflare proxy mode, the `cloudflared` address in tunnel mode, and the proxies you list in Behind a proxy mode.
 - If a proxy sits in front and is not listed as trusted, all its visitors look like one address and share the cap. Add it to the trusted proxies.
 - The cap does not stop a flood from very many addresses. Only the global `MaxConnections` limits that. Behind Cloudflare, use origin lockdown.
