@@ -1,11 +1,27 @@
 # Threat model: the full analysis (v0.1)
 
-This is the full analysis behind the short [Threat model](../threat-model.md) page, which says what Paduraksa defends against and what to do about it. The numbering continues from that page: its sections 1, 5 and 6 (deployment, non-goals, operational guidance) are there, and this page holds sections 2 to 4 and 7 to 9. It has two readers:
+For contributors and security reviewers: what is claimed, where it is enforced and what is not covered.
+
+This is the full analysis behind the short [Threat model](../threat-model.md) page, which says what Paduraksa defends against and what to do about it. The numbering continues from that page: its sections 1, 5 and 6 (deployment, non-goals, operational guidance) are there, and this page holds sections 2 to 4 and 7 to 9.
+
+## In short
+
+- Assets: every key and credential sits in `vault.db`, sealed under one master key. The config database holds no secrets, and backups are sealed by one passphrase (section 2).
+- Seven trust boundaries (B1 to B7): the public listener, the gate and YARP, the admin app, the vault inside the process, the MCP child, outbound calls and the CLI with the data directory (section 3).
+- The vault is a code-structure and review boundary, not a process boundary. A memory-safety bug anywhere in the process can read keys in memory.
+- Operator and Admin are fully trusted with respect to the node's network position. `config:write` is a network pivot.
+- The MCP sandbox assumes the script engine can be escaped, and limits what an escape reaches: no secrets, files, sockets or route back to the parent.
+- Attackers considered: an anonymous client, a low-privilege admin, a stolen API token, a hostile upstream or auth provider, a prompt-injected MCP script, someone with `/data` or a backup, someone with a shell as the container user, and the supply chain (section 4).
+- A process-level attacker (code execution as uid 10001) and volumetric DDoS are non-goals.
+- Open gaps at the v0.1 review: G6, G10, G11 and G12 (section 8). A fixed gap is deleted from the list.
+- Update this page in the same pull request as any change listed in section 9.
+
+It has two readers:
 
 - a contributor who wants to know which rules not to break;
 - a security reviewer who wants to know what is claimed, where it is enforced and what is not covered.
 
-It describes the code **as built** (PLAN v0.29, M0-M10 done, plus traffic analytics). Where the code and PLAN disagree, or a mitigation is missing, [Gaps found](#8-gaps-found) says so. File paths are relative to the repository root. "PLAN" means [PLAN.md](../PLAN.md) and the pages under this folder.
+It describes the code **as built** at the v0.1 candidate. Where the code and [the plan](../PLAN.md) disagree, or a mitigation is missing, [Gaps found](#8-gaps-found) says so. File paths are relative to the repository root. "PLAN" means [PLAN.md](../PLAN.md) and the pages under this folder.
 
 **Evidence levels.** A claim marked *(code)* was checked against the source. A claim marked *(PLAN)* rests on PLAN's "As built" text and the named tests, which were read but not re-run. "Pinned by" names the test that is meant to hold the claim.
 
@@ -23,7 +39,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
 | **Notification secrets** (webhook URLs, tokens, SMTP password, signing keys) | `vault.db` | Spoof or read alerts; webhook URLs are bearer secrets | C |
 | **TOTP secrets** | `vault.db`; recovery codes as SHA-256 in `paduraksa.db` | Second factor for admin sign-in | C and I |
 | **Access-list password credentials** | `vault.db` (PBKDF2 verifiers, [vault-and-certificates.md, The public surface](vault-and-certificates.md#the-public-surface) "password credentials") | Basic-auth users of proxied hosts | C |
-| **Data Protection key ring** | `vault.db` ([vault-and-certificates.md, The public surface](vault-and-certificates.md#the-public-surface), M5) | Dashboard antiforgery and circuit state; forging them | C and I |
+| **Data Protection key ring** | `vault.db` ([vault-and-certificates.md, The public surface](vault-and-certificates.md#the-public-surface)) | Dashboard antiforgery and circuit state; forging them | C and I |
 | **PoW HMAC key** | `vault.db`, reserved ID `ProofOfWorkKey.Id` | Forging proof-of-work cookies, bypassing the challenge | C and I |
 | **The master key (KEK)** | env, file or `data/master.key` | Opens everything above | C and I |
 | **Config and its history** | `paduraksa.db` revisions, `last-good.json` | Controls what the proxy does; the history reveals topology (hosts, upstream addresses, access-list usernames). Holds **no secrets** by design (config export carries none, [vault-and-certificates.md, At-rest encryption](vault-and-certificates.md#at-rest-encryption)) | I mainly, C moderately |
@@ -479,8 +495,8 @@ an environment variable. The audit log records CLI actions (not the identity of 
 | Fuzz targets (`fuzz/Paduraksa.Fuzz.Targets`) | `proxy-protocol`, `pow-cookie`, `pow-form`, `basic-auth`, `client-address`, `forward-auth-answer`, `error-page`, `upstream-error-replacement`, `access-log-tail`, `yaml-import`, `mcp-sandbox`; every committed corpus and regression input is replayed on each commit by `tests/Paduraksa.Tests.Fuzz`; `scripts/fuzz.sh` and `.github/workflows/fuzz.yml` run them ([testing.md, Security](testing.md#security)). Property tests use CsCheck. |
 
 Not fuzzed ([testing.md, Security](testing.md#security) "Left out"): the dashboard's parsing, the live tail's SSE framing, the notification senders' payloads, the ACME
-response parser, multipart upload parsing (listed in [testing.md, Security](testing.md#security) "Security" as a target). The release checklist run
-(`scripts/fuzz.sh --time 3600 --merge`) is an M11 item that this document does not claim was done.
+response parser, multipart upload parsing (listed in [testing.md, Security](testing.md#security) "Security" as a target). The release-length run
+(`scripts/fuzz.sh --time 3600 --merge`) was done on the existing targets before v0.1: two hours each, about 1.6 billion inputs, no crash.
 
 ---
 
@@ -495,7 +511,7 @@ The gaps fixed before it (G1 to G5, G7 to G9, G13 and G14) are no longer listed,
 | G6 | **Low** | **The audit chain is tamper-evident only against partial edits.** The hash is an unkeyed SHA-256 chain in the same database; anyone who can write `paduraksa.db` can rewrite the whole chain and the verifier will pass. There is no external anchor. | `src/Paduraksa.Application/Audit/AuditChain.cs`; `AuditQueryService.VerifyAsync` returns the head hash | Document honestly (done here); suggest an HMAC with a vault MAC key and/or sending the head hash periodically to a notification channel, or an export the operator stores off-box. |
 | G10 | **Low** | **A new host is unprotected until the operator opts in.** [dashboard.md, First-run setup](dashboard.md#first-run-setup) planned a security preset (Off / Balanced / Strict) in the wizard; the wizard and the presets were not built. Built-in defaults (`HostSettingsLayers.cs`): force-HTTPS off, HSTS off, PoW off, no rate-limit policy, access list or rule set until one is named, TLS 1.2 minimum, 100 MiB body limit. | [dashboard.md, First-run setup](dashboard.md#first-run-setup) "Owner decision: no wizard"; `src/Paduraksa.Application/Compilation/HostSettingsLayers.cs:28-60` | A "Balanced" preset in the global defaults (sane rate limit, the built-in rule-set presets, request limits) and a checklist item. At least say so in [Access control and WAF](../guide/security.md). |
 | G11 | **Low** | **The local CA root is unlimited by default.** A leaked vault means a CA that devices which trusted the root accept for any name, for ten years. A root can be rotated (the old key is destroyed in the same step) and a new root can be limited to chosen domains and networks, which a client then enforces; the owner chose unlimited as the default so a first-run root never refuses a name the operator uses. | [vault-and-certificates.md, Local CA name constraints and root rotation](vault-and-certificates.md#local-ca-name-constraints-and-root-rotation) "As built: local CA name constraints and root rotation" | Closed in part: the controls exist and are opt-in. Re-evaluate the default if the trust-the-root card is seen to be installed on devices outside the operator's control. |
-| G12 | **Low** (open, left to M11) | **Fuzz and property coverage gaps already admitted in [testing.md, Security](testing.md#security) remain**: the rate-limit table and the PoW page have no property test; the ACME response parser, multipart parsing and the dashboard have no fuzz target; the release-length fuzz run (M11) is not yet recorded. | [testing.md, Security](testing.md#security) "Gaps", "Left out" | Add the targets, run `scripts/fuzz.sh --time 3600 --merge` for the release, record the sessions in [testing.md, Security](testing.md#security). |
+| G12 | **Low** (open) | **Fuzz and property coverage gaps already admitted in [testing.md, Security](testing.md#security) remain**: the rate-limit table and the PoW page have no property test, and the ACME response parser, multipart parsing and the dashboard have no fuzz target. The release-length run on the existing sixteen targets is done (two hours each, no crash). | [testing.md, Gaps](testing.md#gaps) and [Fuzzing](testing.md#fuzzing) "Left out" | Add the targets. |
 
 Things that were checked and **agree** with PLAN (spot checks, *code*): the key-material ban list and its wiring; session and
 API-token secrets stored only as SHA-256; the cookie attributes; the role permission table and token narrowing; the MCP child's
@@ -524,4 +540,4 @@ Update this document when any of the following changes, in the same pull request
 - **A fixed gap**: delete it from section 8 in the same pull request. What was done lives in git history and `CHANGELOG.md`.
 - Before every **release** (v0.x tag): re-read section 8 and the "agree" list, re-run the fuzz harnesses per [testing.md, Security](testing.md#security), and confirm the evidence levels still hold. At least once per quarter otherwise.
 
-**Last release review: 2026-11-15, before v0.1.** The fixed gaps were pruned from section 8 then. G12 stays open for the release-length fuzz run.
+**Last release review: 2026-11-15, before v0.1.** The fixed gaps were pruned from section 8 then. G12 stays open for the missing targets.
