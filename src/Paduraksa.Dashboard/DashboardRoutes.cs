@@ -59,6 +59,17 @@ public static class DashboardRoutes
 
     public const string Account = "/account";
 
+    public const string About = "/about";
+
+    /// <summary>The last segment of <see cref="AboutLicenses"/>.</summary>
+    public const string LicensesSegment = "licenses";
+
+    /// <summary>The About page with the open-source licenses drawer open.</summary>
+    public const string AboutLicenses = About + "/" + LicensesSegment;
+
+    /// <summary>The admin app's API reference page (not a dashboard page): linked from About. The admin app owns the path; a test holds the two equal.</summary>
+    public const string ApiReference = "/api/docs";
+
     /// <summary>The last segment of a list's address that opens its drawer for a new object (<c>/hosts/new</c>).</summary>
     public const string NewSegment = "new";
 

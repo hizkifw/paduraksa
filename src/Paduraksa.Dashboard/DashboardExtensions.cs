@@ -51,6 +51,11 @@ public static class DashboardExtensions
         services.AddCascadingAuthenticationState();
 
         services.TryAddSingleton(TimeProvider.System);
+        // The host registers the build it is (the server assembly carries the build date); a host that doesn't gets what this assembly says.
+        services.TryAddSingleton(static _ => Paduraksa.Core.Hosting.BuildInfo.Read(typeof(DashboardExtensions).Assembly));
+        services.TryAddSingleton(static _ => AboutArea.ServerFacts.Capture());
+        services.TryAddSingleton(static _ => AboutArea.ThirdPartyNotices.Embedded);
+        services.TryAddSingleton(static _ => AboutArea.ProductLicense.Embedded);
         services.AddSingleton(options ?? new DashboardOptions());
         services.TryAddScoped<IDashboardSessions, DashboardSessions>();
         services.AddScoped<DashboardAuthenticationStateProvider>();

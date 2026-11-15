@@ -1,0 +1,84 @@
+@inject ThirdPartyNotices Notices
+@inject ProductLicense License
+@* Every license Paduraksa ships under: its own first (the Apache-2.0 text and the NOTICE), then each third-party component alphabetically,
+   which is how a person looks one up by name; the texts are shared, so a closed row draws none of its own. *@
+<DrawerShell Title="Open-source licenses" Icon="@Icons.Material.Outlined.Gavel" Name="licenses">
+    <ChildContent>
+        <FormSection Title="Paduraksa" Name="product">
+            <Disclosure Label="License text" data-disclosure="license">
+                <pre class="pdk-license-text" tabindex="0" data-text="license">@License.LicenseText</pre>
+            </Disclosure>
+            <Disclosure Label="Notice" data-disclosure="notice">
+                <pre class="pdk-license-text" tabindex="0" data-text="notice">@License.NoticeText</pre>
+            </Disclosure>
+        </FormSection>
+
+        <FormSection Title="Third-party software" Name="third-party">
+            <ListToolbar Search="@_search" SearchChanged="Search" Placeholder="Search components" Total="Notices.Components.Count" Shown="Shown.Count" One="component" Many="components" />
+            @if (Shown.Count == 0)
+            {
+                <span class="pdk-muted" data-empty="search">Nothing matches.</span>
+            }
+            else
+            {
+                <ul class="pdk-oss-list">
+                    @foreach (var component in Shown)
+                    {
+                        var licensed = Notices.Licenses[component.License];
+                        <li class="pdk-oss-item" data-component="@component.Name" @key="component.Name">
+                            <div class="pdk-oss-head">
+                                <span class="pdk-oss-name">@component.Name</span>
+                                @if (component.Version is { } version)
+                                {
+                                    <span class="pdk-muted pdk-mono">@version</span>
+                                }
+                                <span class="pdk-badge pdk-tone-default" title="@licensed.Name">@component.License</span>
+                            </div>
+                            <div class="pdk-muted pdk-oss-line">@component.Copyright</div>
+                            <div class="pdk-oss-links">
+                                @if (component.Url is { } url)
+                                {
+                                    <a class="pdk-ref-link" href="@url" target="_blank" rel="noopener noreferrer" data-link="project">@Host(url)</a>
+                                }
+                                @if (component.NoticesUrl is { } notices)
+                                {
+                                    <a class="pdk-ref-link" href="@notices" target="_blank" rel="noopener noreferrer" data-link="notices">Its third-party notices</a>
+                                }
+                            </div>
+                            <Disclosure Label="License text" data-disclosure="component">
+                                <pre class="pdk-license-text" tabindex="0">@licensed.Text</pre>
+                            </Disclosure>
+                        </li>
+                    }
+                </ul>
+            }
+        </FormSection>
+    </ChildContent>
+</DrawerShell>
+
+@code {
+    private string? _search;
+
+    private IReadOnlyList<NoticeComponent> Shown =>
+        string.IsNullOrWhiteSpace(_search)
+            ? Notices.Components
+            : [.. Notices.Components.Where(component =>
+                component.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+                || component.License.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+                || component.Copyright.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))];
+
+    private void Search(string? text) => _search = text;
+
+    /// <summary>A project's address as the link text: without its scheme, query and fragment, with a port when it has one, so the text and the href agree. An address that is not one is shown as it is.</summary>
+    private static string Host(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return url;
+        }
+
+        var address = uri.GetLeftPart(UriPartial.Path);
+        var scheme = uri.Scheme + "://";
+        return (address.StartsWith(scheme, StringComparison.Ordinal) ? address[scheme.Length..] : address).TrimEnd('/');
+    }
+}

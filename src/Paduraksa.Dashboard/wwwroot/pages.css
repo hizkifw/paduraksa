@@ -18,7 +18,8 @@
     min-height: 40px;
 }
 
-.pdk-page-header h1:focus {
+/* The About card's title is a page title too: navigation focuses it, and it takes no ring, like every page's. */
+.pdk-page-header h1:focus, .pdk-about-id h1:focus {
     outline: none;
 }
 
@@ -449,4 +450,174 @@ a.pdk-chip-link:hover .pdk-chip, a.pdk-chip-link:focus-visible .pdk-chip {
 /* A checklist dismissed before its dismissal became a cookie: hidden until the next load, when the server leaves it out (paduraksa.js). */
 [data-checklist-dismissed] .pdk-checklist {
     display: none;
+}
+
+/* About: an identity card (the mark, the name, the version, the build), the facts below it, a row of links and the license line with the button that opens the licenses drawer. */
+.pdk-about {
+    display: grid;
+    gap: 16px;
+    max-width: 640px;
+}
+
+.pdk-about-identity {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.pdk-about-logo {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 88px;
+    height: 88px;
+    border-radius: var(--pdk-radius-lg);
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
+    color: var(--mud-palette-primary);
+}
+
+.pdk-about-id {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-about-id h1 {
+    line-height: 1.1;
+}
+
+.pdk-about-version {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.pdk-about-build {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 12px;
+    margin-top: 2px;
+    font-size: 0.875rem;
+}
+
+.pdk-about-copy.mud-icon-button {
+    margin: -4px 0 -4px -8px;
+}
+
+/* Spacing alone sets the facts apart from the identity row. (Two classes: certificates.css resets .pdk-facts' margin and loads later.) */
+.pdk-about .pdk-about-facts {
+    margin-top: 28px;
+}
+
+.pdk-about-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pdk-about-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    color: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.pdk-about-link:hover {
+    border-color: var(--mud-palette-primary);
+    color: var(--mud-palette-primary);
+}
+
+.pdk-about-license.mud-paper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    font-size: 0.875rem;
+}
+
+.pdk-oss-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-oss-item {
+    display: grid;
+    gap: 3px;
+    padding: 12px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-oss-item:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.pdk-oss-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+}
+
+.pdk-oss-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.pdk-oss-line {
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-oss-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    font-size: 0.8125rem;
+}
+
+.pdk-oss-links:empty {
+    display: none;
+}
+
+.pdk-disclosure-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin: 0 0 0 -4px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: var(--pdk-radius);
+    background: none;
+    color: var(--mud-palette-text-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.pdk-disclosure-toggle:hover {
+    color: var(--mud-palette-text-primary);
+}
+
+.pdk-license-text {
+    max-height: 22rem;
+    margin: 6px 0 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    background: var(--mud-palette-background-gray);
+    font-family: var(--pdk-mono);
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }

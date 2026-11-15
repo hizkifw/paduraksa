@@ -17,6 +17,12 @@
     border-bottom: 1px solid var(--mud-palette-lines-default);
 }
 
+/* In a drawer the toolbar is part of the section: flush with its rows, no card padding or rule. */
+.pdk-drawer .pdk-toolbar {
+    padding: 0;
+    border-bottom: 0;
+}
+
 .pdk-search {
     flex: 0 1 400px;
     margin: 0 !important;

@@ -133,6 +133,7 @@ internal static partial class AdminApp
             () => ServerSettingCatalog.McpIdleTimeout.Resolve(settings.Current)));
         builder.Services.AddPaduraksaAdminApi(new AdminMcpOptions(Paduraksa.Mcp.SandboxChildCommand.ForThisServer(), context.Options.Mcp.IdleTimeout));
         builder.Services.AddPaduraksaAdminWeb(DashboardWeb);
+        builder.Services.AddSingleton(Paduraksa.Core.Hosting.BuildInfo.Read(typeof(AdminApp).Assembly));
         builder.Services.AddPaduraksaDashboard(new DashboardOptions
         {
             MinPasswordLength = context.Options.Admin.MinPasswordLength,

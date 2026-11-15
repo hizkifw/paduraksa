@@ -142,6 +142,9 @@ public sealed class DisplayFormat
     /// <summary>A date: "12 Nov 2026".</summary>
     public string Date(DateTimeOffset at) => Local(at).ToString("d MMM yyyy", Culture);
 
+    /// <summary>A calendar day recorded without a time (a local build's date), as <see cref="Date"/> but never moved into the person's zone, which would show the day before for a zone behind UTC.</summary>
+    public string UtcDay(DateTimeOffset at) => at.UtcDateTime.ToString("d MMM yyyy", Culture);
+
     /// <summary>A date and the time of day with its zone: "12 Nov 2026, 21:03 UTC+7".</summary>
     public string DateTime(DateTimeOffset at) => $"{Local(at).ToString(Clockwise("d MMM yyyy, HH:mm"), Culture)} {ZoneLabel(at)}";
 

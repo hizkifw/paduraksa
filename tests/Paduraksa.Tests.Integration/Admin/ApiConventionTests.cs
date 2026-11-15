@@ -540,6 +540,9 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     }
 
     [Fact]
+    public void TheDashboardLinksToTheSamePathTheReferenceUiIsServedAt() => Assert.Equal(Paduraksa.Admin.OpenApi.AdminOpenApi.DocsPath, Paduraksa.Dashboard.DashboardRoutes.ApiReference);
+
+    [Fact]
     public async Task TheReferenceUiIsAnonymousServesItsScriptLocallyAndNeedsNothingFromOutside()
     {
         var api = shared.Api;

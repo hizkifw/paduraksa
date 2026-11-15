@@ -11,6 +11,12 @@
     <PackageReference Include="MudBlazor" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The About page's license texts: the repository's own files, so there is no copy to keep in step. The notices are generated: scripts/generate-third-party-notices.py. -->
+    <EmbeddedResource Include="../../LICENSE" LogicalName="Paduraksa.Dashboard.About.LICENSE" />
+    <EmbeddedResource Include="../../NOTICE" LogicalName="Paduraksa.Dashboard.About.NOTICE" />
+    <EmbeddedResource Include="../../THIRD-PARTY-NOTICES.json" LogicalName="Paduraksa.Dashboard.About.THIRD-PARTY-NOTICES.json" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
   </ItemGroup>
 </Project>

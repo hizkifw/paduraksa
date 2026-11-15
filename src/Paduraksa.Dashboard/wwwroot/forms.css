@@ -114,6 +114,12 @@
     border-top: 0;
 }
 
+/* A drawer whose body is its sections (no form around them) starts without the rule that divides one section from the one above. */
+.pdk-drawer-body > .pdk-section:first-child {
+    padding-top: 2px;
+    border-top: 0;
+}
+
 .pdk-section-head {
     display: flex;
     flex-wrap: wrap;

@@ -1,0 +1,105 @@
+@attribute [Route(DashboardRoutes.About)]
+@attribute [Route(DashboardRoutes.About + "/{Key}")]
+@implements IDisposable
+@using Paduraksa.Core.Hosting
+@using Paduraksa.Dashboard.AboutArea
+@inject BuildInfo Build
+@inject ServerFacts Server
+@inject ThirdPartyNotices Notices
+@inject ProductLicense License
+@inject TimeProvider Time
+@inject DisplayFormat Fmt
+@inject DashboardBrowser Browser
+@inject DrawerStack Drawers
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>About Paduraksa · Paduraksa</PageTitle>
+
+<div class="pdk-about">
+    <MudPaper Class="pdk-card pdk-about-card" Elevation="0" Outlined="true" data-card="identity">
+        <div class="pdk-about-identity">
+            <span class="pdk-about-logo"><BrandMark Size="64" /></span>
+            <div class="pdk-about-id">
+                <MudText Typo="Typo.h4" HtmlTag="h1" tabindex="-1">Paduraksa</MudText>
+                <span class="pdk-about-version pdk-mono" data-fact="version">@Build.Version</span>
+                <div class="pdk-about-build">
+                    @if (Build.Commit is { } sha)
+                    {
+                        <a class="pdk-ref-link pdk-mono" href="@AboutLinks.Commit(sha)" target="_blank" rel="noopener noreferrer" data-link="commit">@AboutLinks.ShortSha(sha)</a>
+                        <MudIconButton Icon="@(_copied ? Icons.Material.Rounded.Check : Icons.Material.Outlined.ContentCopy)" Size="Size.Small" Class="pdk-about-copy"
+                                       aria-label="@(_copied ? "Copied" : "Copy the full commit ID")" title="@(_copied ? "Copied" : "Copy the full commit ID")"
+                                       OnClick="() => CopyAsync(sha)" data-action="copy-commit" />
+                    }
+                    else
+                    {
+                        <span class="pdk-muted" data-fact="commit">Built without a commit ID</span>
+                    }
+                    @if (Build.BuiltAt is { } builtAt)
+                    {
+                        <span class="pdk-muted" data-fact="built">@(Build.BuiltAtHasTime ? Fmt.DateTime(builtAt) : Fmt.UtcDay(builtAt))</span>
+                    }
+                </div>
+            </div>
+        </div>
+        <dl class="pdk-facts pdk-about-facts" data-facts="runtime">
+            <dt>API</dt>
+            <dd class="pdk-mono" data-fact="api">v1</dd>
+            <dt>Runtime</dt>
+            <dd data-fact="dotnet">@Server.Runtime</dd>
+            <dt>System</dt>
+            <dd data-fact="system">@Server.OperatingSystem (@Server.Architecture)</dd>
+            <dt>Uptime</dt>
+            <dd data-fact="uptime" title="Started @Fmt.Exact(Server.StartedAt)">@ServerFacts.Uptime(Time.GetUtcNow() - Server.StartedAt)</dd>
+        </dl>
+    </MudPaper>
+
+    <nav class="pdk-about-links" aria-label="Links" data-section="links">
+        <a class="pdk-about-link" href="@AboutLinks.Documentation" target="_blank" rel="noopener noreferrer" data-link="docs"><MudIcon Icon="@Icons.Material.Outlined.MenuBook" Size="Size.Small" />Documentation</a>
+        <a class="pdk-about-link" href="@AboutLinks.Repository" target="_blank" rel="noopener noreferrer" data-link="source"><MudIcon Icon="@Icons.Material.Outlined.Code" Size="Size.Small" />Source</a>
+        <a class="pdk-about-link" href="@AboutLinks.Changelog(Build.Commit)" target="_blank" rel="noopener noreferrer" data-link="changelog"><MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Small" />Changelog</a>
+        <a class="pdk-about-link" href="@DashboardRoutes.ApiReference" target="_blank" rel="noopener noreferrer" data-link="api"><MudIcon Icon="@Icons.Material.Outlined.Api" Size="Size.Small" />API reference</a>
+    </nav>
+
+    <MudPaper Class="pdk-card pdk-about-license" Elevation="0" Outlined="true" data-card="license">
+        <span data-fact="license">@ProductLicense.SpdxId · © @License.Holder</span>
+        <MudButton Href="@DashboardRoutes.AboutLicenses" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Gavel" data-action="licenses">Open-source licenses (@Notices.Components.Count)</MudButton>
+    </MudPaper>
+</div>
+
+@code {
+    private RoutedDrawer? _drawer;
+    private bool _copied;
+
+    /// <summary>The address's last segment: <c>licenses</c> opens the licenses drawer; null for the page alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // The drawer is the circuit's: a prerender shows the page and the circuit then opens what the address names.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _drawer ??= new RoutedDrawer(Navigation, DashboardRoutes.About);
+        _drawer.Show(Key, OpenDrawer);
+    }
+
+    public void Dispose() => _drawer?.Dispose();
+
+    private DrawerLevel OpenDrawer(string key) =>
+        key == DashboardRoutes.LicensesSegment
+            ? Drawers.Push<LicensesDrawer>(width: DrawerWidth.Medium)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Not found", "There is nothing at this address", "Back to About"), DrawerWidth.Narrow);
+
+    private async Task CopyAsync(string text)
+    {
+        _copied = await Browser.CopyAsync(text);
+        if (!_copied)
+        {
+            Snackbar.Add("The browser didn't allow copying. Select the text and copy it yourself.", Severity.Warning);
+        }
+    }
+}

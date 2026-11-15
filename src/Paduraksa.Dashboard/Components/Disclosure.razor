@@ -1,0 +1,26 @@
+@* A button that opens a block under it, drawn only while it is open: the About page has dozens of license texts, and a closed one costs no markup. *@
+<div class="pdk-disclosure" data-open="@(_open ? "true" : "false")" @attributes="AdditionalAttributes">
+    <button type="button" class="pdk-disclosure-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="Toggle">
+        <MudIcon Icon="@(_open ? Icons.Material.Rounded.ExpandLess : Icons.Material.Rounded.ExpandMore)" Size="Size.Small" />
+        <span>@Label</span>
+    </button>
+    @if (_open)
+    {
+        <div class="pdk-disclosure-body">@ChildContent</div>
+    }
+</div>
+
+@code {
+    private bool _open;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private void Toggle() => _open = !_open;
+}
