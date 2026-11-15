@@ -14,7 +14,7 @@ For contributors: what Paduraksa is, how it is built, the rules the code follows
 
 - Paduraksa is one .NET 10 process: a public app (the proxy, on Kestrel and YARP) and an admin app (dashboard, REST API, MCP, metrics), sharing one set of singletons. State is SQLite plus an encrypted vault, in one data directory.
 - The hot path never touches the database, takes no locks and allocates 0 B in our own code per request. Config changes are compiled into an immutable snapshot and swapped atomically.
-- Every change goes through one command pipeline (authorize, mutate, validate, compile, commit, publish), whichever surface it came from. Rollback is a new revision.
+- Every change goes through one command pipeline (authorize, mutate, validate, compile, commit, publish). Rollback is a new revision.
 - Dashboard, REST API, MCP and CLI are thin skins over one Application layer, so they cannot drift apart.
 - Two compile-time facts carry the design: the Proxy project cannot reach the database, and Admin and Dashboard cannot see entities. Private keys exist only inside `Paduraksa.Vault`.
 - The WAF is deliberately simple: named policy objects (access lists, rule sets, rate limits, auth providers), evaluated in a fixed order.
@@ -22,7 +22,7 @@ For contributors: what Paduraksa is, how it is built, the rules the code follows
 
 ## How to read this
 
-Read this page top to bottom in about twenty minutes. Each section ends with a link to the page that holds the as-built detail: [the contributor pages](design/index.md) list them all.
+Read this page top to bottom in about twenty minutes. Each section starts with a link to the page that holds the as-built detail: [the contributor pages](design/index.md) list them all.
 
 Other documents: [the user guide](guide/getting-started.md) and [operating it](operating/docker.md) (running it), [development.md](development.md) (working on it), [threat-model.md](threat-model.md) (what it defends against; the full analysis is [design/threat-model.md](design/threat-model.md)), and [../CHANGELOG.md](../CHANGELOG.md) (what changed, newest first).
 
@@ -171,7 +171,7 @@ Detail: [design/config.md](design/config.md); the identity tables are in [design
 
 - **Two database files, kept apart.** `paduraksa.db` holds config revisions, users, audit and metric rollups. `vault.db` holds encrypted key material and secrets, owned only by the vault. A config export or a config-database leak never carries keys.
 - **The config is one document.** Revisions store it as canonical JSON (Brotli-compressed, with its SHA-256). Hosts, routes, upstreams, profiles, access lists, rule sets and the rest are objects inside it. Certificates, ACME accounts, DNS providers and notification channels are separate operational tables, because they hold state outside the document.
-- **Settings layer.** Every host setting is nullable: null means inherit. The layers are built-in defaults, global defaults, profile, host, then a route's own subset. One merge (`HostSettingsLayers`) serves the compiler, the validator and the dashboard, so a form can never promise a value the proxy would not apply.
+- **Settings layer.** Every host setting is nullable: null means inherit. The layers are built-in defaults, global defaults, profile, host, then a route's own subset. One merge (`HostSettingsLayers`) serves the compiler, the validator and the dashboard, so a form never promises a value the proxy would not apply.
 - **Host kinds:** Proxy, Redirect, Respond and Admin. Serving files from disk (Static) is cut from v1.
 
 ---
@@ -180,7 +180,7 @@ Detail: [design/config.md](design/config.md); the identity tables are in [design
 
 Detail: [design/config.md](design/config.md).
 
-A change flows through one command pipeline, whatever surface it came from:
+A change flows through one command pipeline, from any surface:
 
 1. authorize;
 2. apply the mutation to the current document;
@@ -257,9 +257,9 @@ Detail: [design/vault-and-certificates.md](design/vault-and-certificates.md).
 
 - **Own ACME client** (RFC 8555), because the account key must stay in the vault. HTTP-01 is answered by the gate. DNS-01 has Cloudflare and deSEC providers, a propagation check that asks the authoritative name servers directly, and automatic `_acme-challenge` CNAME delegation.
 - **Renewal** uses the ARI window if the CA offers one, otherwise renews at a third of the lifetime remaining, with jitter and backoff.
-- **The inventory.** The compiler picks, per name, the most specific valid certificate (exact beats wildcard). A missing or unusable certificate is a warning and a degraded name, never a failed start. A certificate change republishes without creating a revision.
+- **The inventory.** The compiler picks, per name, the most specific valid certificate (exact beats wildcard). If a certificate is missing or unusable, the name is degraded and gets a warning; the start never fails. A certificate change republishes without creating a revision.
 - **Local CA.** An internal root issues leaves for LAN hosts and the admin port. It is unlimited unless the operator chooses names, and it can be rotated. Nothing renews the root yet.
-- **Expiry monitoring** covers every certificate, whatever its source.
+- **Expiry monitoring** covers every certificate.
 
 ---
 
@@ -267,9 +267,9 @@ Detail: [design/vault-and-certificates.md](design/vault-and-certificates.md).
 
 Detail: [design/identity.md](design/identity.md).
 
-- **Admin auth.** Local users with password and TOTP. Sessions are opaque cookies (only the hash is stored), API tokens are `pdk_...` bearer tokens. A token's permissions are the intersection with its owner's current ones. Roles are permission sets: Owner, Admin, Operator, Viewer, Auditor. Operator is effectively a trusted role.
+- **Admin auth.** Local users with password and TOTP. Sessions are opaque cookies (only the hash is stored), API tokens are `pdk_...` bearer tokens. A token has only the permissions it was granted that its owner still has. Roles are permission sets: Owner, Admin, Operator, Viewer, Auditor. Operator is effectively a trusted role.
 - **One permission check** (`IPermissionEvaluator`) serves every surface. There is no allow-everything default.
-- **Lockout and rate limits** are race-proof and bounded in memory. A lockout at the password stage ends nothing, so someone who knows a username cannot sign the owner out.
+- **Lockout and rate limits** are race-proof and bounded in memory. A lockout at the password stage ends no session, so someone who knows a username cannot sign the owner out.
 - **Proxied-host auth:** access lists with basic auth, forward-auth (authentik, Authelia, oauth2-proxy). Native OIDC is later.
 - **Not built:** passkeys and OIDC for the admin.
 
@@ -293,7 +293,7 @@ All four (dashboard, REST, MCP, CLI) call the same Application services with the
 
 Detail: [design/dashboard.md](design/dashboard.md).
 
-Blazor Server with MudBlazor, on the admin port only. Every change goes through a review drawer (diff, warnings, Apply, Undo). Editing happens in stacking drawers. A **draft** collects edits across pages and applies them as one revision, with a review token so that what was confirmed is exactly what is applied, or nothing.
+Blazor Server with MudBlazor, on the admin port only. Every change goes through a review drawer (diff, warnings, Apply, Undo). Editing happens in stacking drawers. A **draft** collects edits across pages and applies them as one revision, with a review token, so it applies exactly what was confirmed or nothing.
 
 - Sessions are re-checked in the background, so a revoked session ends the open page.
 - No secret stays in component state longer than the step that shows it.
@@ -346,7 +346,7 @@ Detail: [design/milestones.md](design/milestones.md).
 - **Response caching** per host and route: RFC 9111 semantics, memory with an optional disk tier, cache keys and bypass rules, stale-while-revalidate, purge from the dashboard and API, and hit and miss figures in the metrics.
 - **Browser fingerprinting for the proof-of-work gate:** TLS, HTTP/2 and in-page fingerprints with behaviour scoring, so a crawler fleet running one setup through residential proxies gets harder challenges, a reload check or a block.
 - **Blocklists and bans:**
-  - **Probe bans:** a ban action for probe paths (`.env`, `.git`, `wp-admin` and the like). A probe counts only when the upstream's answer shows it was one, such as a 404, not a 200 from a real WordPress. Bans keep an address out for a while, escalate for repeat offenders, cover an IPv6 /64, survive a restart, never touch an exempt access list, and show in the dashboard with unban.
+  - **Probe bans:** a ban action for probe paths (`.env`, `.git`, `wp-admin` and the like). A probe counts only if the upstream's answer shows it was one (a 404, not a 200 from a real WordPress). Bans keep an address out for a while, escalate for repeat offenders, cover an IPv6 /64, survive a restart, never touch an exempt access list, and show in the dashboard with unban.
   - **IP feeds:** Tor exits, Spamhaus DROP, FireHOL level1 and cloud ranges. They are fetched like the Cloudflare edge ranges, only when turned on and never bundled, and an access list (or a rule's match) points at a feed. The matcher (a radix trie, sorted ranges, a Bloom pre-check) is chosen by benchmark.
   - **ASN rules** come with the local geo database, for datacenter and VPN ranges.
   - **The AI crawler list** is generated from ai.robots.txt at build time, through a CI pull request.
