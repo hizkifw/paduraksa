@@ -1,6 +1,6 @@
 # Backups and restore
 
-Back up the **data directory and the master key separately**. A copy of `vault.db` without the key is useless, and a copy of the key without the volume opens nothing. Together they are every credential the proxy holds.
+Back up the **data directory and the master key separately**. A copy of `vault.db` without the key is useless, and a copy of the key without the volume opens nothing. Together they hold every credential the proxy has.
 
 Do not copy the files of a running server: SQLite keeps part of the database in `-wal` files. Use `paduraksa backup`, below.
 
@@ -10,7 +10,7 @@ Do not copy the files of a running server: SQLite keeps part of the database in 
 - the vault (certificate keys, ACME and DNS secrets, TOTP secrets);
 - the last-known-good config.
 
-The log files are not in it. It is encrypted under a passphrase you choose, and **nothing can recover a lost passphrase**. It is made while the server runs, and it restores on **any** machine with that machine's own master key. The old machine's key is not in the file and is not needed.
+The log files are not in it. It is encrypted under a passphrase you choose, and **nothing can recover a lost passphrase**. You can make it while the server runs, and it restores on **any** machine with that machine's own master key. The old machine's key is not in the file and is not needed.
 
 Make one:
 
@@ -19,7 +19,7 @@ Make one:
 docker exec -it paduraksa paduraksa backup --out /data/backups/paduraksa-$(date +%F).pdkbak
 ```
 
-- The passphrase needs at least 12 characters. A few unrelated words are better.
+- The passphrase needs at least 12 characters, and a few unrelated words work better.
 - It is never an argument. For a script, give it as a file (`--passphrase-file /run/secrets/backup_passphrase`, or `-` for standard input) or as `PADURAKSA_BACKUP_PASSPHRASE` (`docker exec -e PADURAKSA_BACKUP_PASSPHRASE=... paduraksa ...`).
 - The command never overwrites a file.
 
@@ -41,14 +41,14 @@ shred -u auth.hdr body.json
 
 A routine that works for a homelab:
 
-1. **Run it on a schedule.** A nightly cron job or systemd timer on the machine will do. Name each file with the date.
-2. **Copy the files off the machine.** `/data/backups` is on the same disk as the data it protects. Use `docker cp`, `rsync` or your backup tool. The files are encrypted, so where they go is not a secret.
+1. **Run it on a schedule.** A nightly cron job or systemd timer on the machine works. Name each file with the date.
+2. **Copy the files off the machine.** `/data/backups` is on the same disk as the data it protects. Use `docker cp`, `rsync` or your backup tool. The files are encrypted, so their destination need not be secret.
 3. **Keep the passphrase off this machine**, in a password manager for example.
-4. **Prune** old files by date, and **try a restore** on a spare machine once, so the first time is not the day you need it.
+4. **Prune** old files by date, and **try a restore** on a spare machine once, so that the first restore is not on the day you need it.
 
 ## Restore
 
-Stop the service first. A restore replaces the databases, and `paduraksa restore` refuses while a server runs on the directory.
+Stop the service first. A restore replaces the databases, and `paduraksa restore` refuses to run while a server uses the directory.
 
 ```sh
 # Stop the server
@@ -61,17 +61,17 @@ docker compose run --rm paduraksa restore /data/backups/paduraksa-2026-11-12.pdk
 docker compose up -d
 ```
 
-On a new machine, set up the compose file first and do not start it. Then run the same `restore`. Give the passphrase as `-e PADURAKSA_BACKUP_PASSPHRASE=...` or a mounted file, or let it prompt.
+On a new machine, set up the compose file first and do not start it. Then run the same `restore`, giving the passphrase as `-e PADURAKSA_BACKUP_PASSPHRASE=...` or a mounted file, or letting it prompt.
 
 The restore:
 
-- checks the whole file before it touches anything: the passphrase, the contents, and that the backup is not from a newer Paduraksa than this one (upgrade first if it is);
-- moves the databases it replaces to `/data/pre-restore-<time>/`. Delete them once you have checked the result;
+- checks the whole file before it changes anything: the passphrase, the contents, and that the backup is not from a newer Paduraksa than this one (if it is, upgrade first);
+- moves the databases it replaces to `/data/pre-restore-<time>/`, which you can delete once you have checked the result;
 - re-wraps the vault under **this machine's** master key;
-- generates `/data/master.key` if the machine has no key at all, as a first start does. A copy apart from the data is the only other copy;
-- puts everything back and says so, if it fails after it began.
+- generates `/data/master.key` if the machine has no key at all, as a first start does, so a copy kept apart from the data is the only other copy;
+- if it fails after it began, puts everything back and says so.
 
-Then sign in as you did before. The users, their sessions and API tokens are the backup's.
+Then sign in as before. The users, their sessions and API tokens come from the backup.
 
 ### If the process dies in the middle of a restore
 
@@ -81,7 +81,7 @@ After a crash:
 
 - `pre-restore-<time>/` holds your previous files.
 - `/data` holds none, some or all of the restored ones.
-- `/data/run/restore-<random>/` holds the unpacked copy. Delete it: it is not encrypted.
+- `/data/run/restore-<random>/` holds the unpacked copy, which is not encrypted. Delete it.
 - `master.key` is never moved.
 
 With the service stopped, either:
@@ -89,4 +89,4 @@ With the service stopped, either:
 - **finish it:** run the same `restore` again. It moves whatever is in `/data` aside into a new `pre-restore-<time>/` and installs the restored files. Your original files stay in the first `pre-restore-<time>/`; or
 - **go back:** delete `paduraksa.db`, `vault.db`, their `-wal` and `-shm` files and `last-good.json` from `/data`. Move every file in the older `pre-restore-<time>/` back into `/data` under its own name, then start the service.
 
-If `/data` holds a `paduraksa.db` that is not the one you expect, check `pre-restore-<time>/` first. Nothing a restore moves is ever deleted.
+If `/data` holds a `paduraksa.db` that is not the one you expect, check `pre-restore-<time>/` first. A restore never deletes what it moves.

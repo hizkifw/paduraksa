@@ -1,6 +1,6 @@
 # Upgrading
 
-Before you upgrade, make a [backup](backups.md) and read the [changelog](../changelog.md). A backup restores onto the same or a newer Paduraksa: restoring one made by a newer version is refused, so upgrade first.
+Before you upgrade, make a [backup](backups.md) and read the [changelog](../changelog.md). A backup restores onto the same or a newer Paduraksa. Restoring a backup made by a newer version is refused, so upgrade first.
 
 With the published image (the default compose file):
 
@@ -19,17 +19,17 @@ cd deploy
 docker compose up -d --build
 ```
 
-After the upgrade, run `paduraksa doctor`. It reports a downgraded database, a master key that no longer opens the vault, a port something else took, and a running server that is still the old version:
+After the upgrade, run `paduraksa doctor`. It reports a downgraded database, a master key that no longer opens the vault, a port that something else took, and a running server that is still the old version:
 
 ```sh
 # Check the machine
 docker compose exec paduraksa paduraksa doctor
 ```
 
-If you can, run it before the upgrade too. A `[info]` line about pending migrations is then the upgrade's own, and anything else was already wrong. See [the CLI](../automation/cli.md#doctor).
+If you can, run it before the upgrade too. A `[info]` line about pending migrations then belongs to the upgrade, and anything else was already wrong. See [the CLI](../automation/cli.md#doctor).
 
-To see what is running, open **About Paduraksa** in the user menu (top right): it shows the version, commit and build date. Scripts can read the same from `GET /api/v1/version`.
+**About Paduraksa** in the user menu (top right) shows the running version, commit and build date. Scripts can read the same from `GET /api/v1/version`.
 
 Migrations run at startup, before the listeners bind. Stop with `docker compose down`, not `kill`, so open connections get their 30-second drain.
 
-The compose example sets a stable `hostname`. Without one, a recreated container gets a new name, and the admin certificate is re-issued with a new serial. That is harmless, and `Paduraksa__Admin__CertificateNames` gives you a stable name instead.
+The compose example sets a stable `hostname`. Without one, a recreated container gets a new name, and the admin certificate is re-issued with a new serial. That is harmless, and `Paduraksa__Admin__CertificateNames` provides a stable name instead.

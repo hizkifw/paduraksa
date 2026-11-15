@@ -1,6 +1,6 @@
 # Running with Docker
 
-[Getting started](../guide/getting-started.md) takes you through the first start. This page is the reference for the compose deployment.
+[Getting started](../guide/getting-started.md) covers the first start. This page is the reference for the compose deployment.
 
 Requirements: Docker 20.10 or later with Compose v2.
 
@@ -12,7 +12,7 @@ Requirements: Docker 20.10 or later with Compose v2.
 
 [`deploy/compose.yaml`](https://github.com/hizkifw/paduraksa/blob/main/deploy/compose.yaml) runs `ghcr.io/hizkifw/paduraksa:main`, which CI publishes from every commit on `main` that passes, for amd64 and arm64. Once there is a release, a tag such as `:0.1` will name it.
 
-`master.key` is the vault's master key. It is mounted as a Docker secret, so it is not in the data volume. Compose refuses to start without the file.
+`master.key` is the vault's master key. It is mounted as a Docker secret, so it is not in the data volume, and Compose refuses to start without the file.
 
 **To build the image yourself**, either:
 
@@ -29,14 +29,14 @@ sudo install -d -o 10001 -g 10001 -m 0750 ./data
 # - ./data:/data
 ```
 
-**Hardening.** The compose file runs the container with a read-only root filesystem (and a tmpfs `/tmp`), `no-new-privileges`, and `cap_drop: [ALL]` with `cap_add: [NET_BIND_SERVICE]` added back. Keep that one capability if you change it, or the container fails to start. In Kubernetes "restricted", add `securityContext.capabilities.add: ["NET_BIND_SERVICE"]`, or set the pod sysctl `net.ipv4.ip_unprivileged_port_start=0`.
+**Hardening.** The compose file runs the container with a read-only root filesystem (and a tmpfs `/tmp`), `no-new-privileges`, and `cap_drop: [ALL]` with `cap_add: [NET_BIND_SERVICE]` added back. Keep that capability if you change the file, or the container fails to start. In Kubernetes "restricted", add `securityContext.capabilities.add: ["NET_BIND_SERVICE"]`, or set the pod sysctl `net.ipv4.ip_unprivileged_port_start=0`.
 
-**Ports.** Do not remap the container's ports. `Alt-Svc` and the HTTP to HTTPS redirect advertise 443, because that is the port clients use. Behind a port translation, set `Paduraksa__Listen__PublicHttpsPort` to the outside port. Map 443/**udp** too: without it browsers fall back to HTTP/2 over 443/tcp (see [HTTP/3](../guide/tls.md#http3)).
+**Ports.** Do not remap the container's ports: `Alt-Svc` and the HTTP to HTTPS redirect advertise 443, the port clients use. Behind a port translation, set `Paduraksa__Listen__PublicHttpsPort` to the outside port. Map 443/**udp** too: without it, browsers fall back to HTTP/2 over 443/tcp (see [HTTP/3](../guide/tls.md#http3)).
 
 **Other compose settings:**
 
 - a stable `hostname`, so the admin certificate's machine name does not change when the container is recreated;
-- `stop_grace_period: 35s`, which leaves time for the 30-second drain of open connections;
+- `stop_grace_period: 35s`, which allows the 30-second drain of open connections;
 - a `json-file` log driver that keeps 5 files of 10 MB, so the setup-token banner stays readable in `docker logs`.
 
 ## Where things live
@@ -58,4 +58,4 @@ Back up the data directory and the master key separately: see [Backups and resto
 
 ## Settings
 
-Settings are environment variables in the compose file (`Paduraksa__Listen__PublicHttpsPort=...`). Every one of them, and how a list is written, is in [Server settings](settings.md).
+Settings are environment variables in the compose file (`Paduraksa__Listen__PublicHttpsPort=...`). [Server settings](settings.md) lists every one and shows how to write a list.

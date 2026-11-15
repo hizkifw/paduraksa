@@ -1,6 +1,6 @@
 # Bare metal (systemd)
 
-Use this when you do not want Docker. The service is the same binary, run by systemd with a master key in a credential file.
+Use this instead of Docker. The service is the same binary, run by systemd with a master key in a credential file.
 
 1. Publish a self-contained build, so the machine needs no .NET runtime:
 
@@ -9,7 +9,7 @@ Use this when you do not want Docker. The service is the same binary, run by sys
    dotnet publish src/Paduraksa.Server/Paduraksa.Server.csproj -c Release -r linux-x64 --self-contained true -o /opt/paduraksa
    ```
 
-   **Install libmsquic** from Microsoft's Ubuntu 24.04 feed, or HTTP/3 is silently off. The startup log then says `HTTP/3 is off: libmsquic isn't available...`.
+   **Install libmsquic** from Microsoft's Ubuntu 24.04 feed. Without it HTTP/3 is off, and the startup log says `HTTP/3 is off: libmsquic isn't available...`.
 
    ```sh
    # Add Microsoft's signing key and package feed
@@ -46,7 +46,7 @@ Use this when you do not want Docker. The service is the same binary, run by sys
    sudo journalctl -u paduraksa -f
    ```
 
-   The unit runs the app as `paduraksa` with only `CAP_NET_BIND_SERVICE`, for ports 80 and 443. The master key reaches it through systemd's `LoadCredential`, so only the service can read it and it is never in the data directory. A failed start (exit 2) or an invalid configuration (exit 3) does not restart in a loop.
+   The unit runs the app as `paduraksa` with only `CAP_NET_BIND_SERVICE`, for ports 80 and 443. The master key reaches it through systemd's `LoadCredential`, so only the service can read it, and it is never in the data directory. The unit does not restart in a loop after a failed start (exit 2) or an invalid configuration (exit 3).
 
 4. Finish setup as in [Getting started](../guide/getting-started.md):
     - read the setup token from the journal;

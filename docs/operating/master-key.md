@@ -1,22 +1,22 @@
 # The master key
 
-The master key opens `vault.db`, which holds every certificate key, DNS and notification secret, and TOTP seed. It is one line of text: 32 random bytes in base64.
+The master key opens `vault.db`, which holds every certificate key, DNS and notification secret, and TOTP seed. The key is one line of text: 32 random bytes in base64.
 
-**Losing it loses the vault.** A [backup](backups.md) does not contain the key and does not need it to restore, so a copy outside the data volume is the only other copy.
+**Losing it loses the vault.** A [backup](backups.md) neither contains the key nor needs it to restore, so a copy outside the data volume is the only other copy.
 
 Paduraksa reads the key from, in this order:
 
-1. **`PADURAKSA_MASTER_KEY_FILE`**, the path of a file. The shipped `deploy/compose.yaml` sets it to a Docker secret, and the systemd unit to a `LoadCredential` file. A copy of the data directory is then not a copy of your keys. Use this for anything beyond a first try.
-2. `PADURAKSA_MASTER_KEY`, the key itself in the environment. `docker inspect` shows it, so prefer a file.
-3. `/data/master.key`, generated on the first start when neither is set. It sits beside `vault.db`, so **a copy of `/data` is a copy of every secret**. The dashboard warns about it on the Overview until you move the key.
+1. **`PADURAKSA_MASTER_KEY_FILE`**, the path of a file. The shipped `deploy/compose.yaml` sets it to a Docker secret, and the systemd unit to a `LoadCredential` file. A copy of the data directory then does not include your keys. Use this for anything beyond a first try.
+2. `PADURAKSA_MASTER_KEY`, the key itself in the environment. `docker inspect` shows it, so a file is better.
+3. `/data/master.key`, generated on the first start when neither is set. It sits beside `vault.db`, so **a copy of `/data` is a copy of every secret**. The Overview warns about this until you move the key.
 
-The container runs as uid 10001, so a key file must belong to that uid (`chown 10001:10001`, `chmod 400`). A root-only `0600` file makes the container restart in a loop, and the startup error says which uid has to read it.
+The container runs as uid 10001, so a key file must belong to that uid (`chown 10001:10001`, `chmod 400`). A root-only `0600` file makes the container restart in a loop, and the startup error names the uid that must read it.
 
 Admin sessions do **not** depend on the master key.
 
 ### Moving the key out of the data directory
 
-Do this on an install that generated its own key, which is what the Overview's warning is about. The key stays the same, so nothing is re-encrypted.
+Do this on an install that generated its own key, which is what the Overview's warning is about. The key does not change, so nothing is re-encrypted.
 
 ```sh
 # Stop the server
@@ -33,13 +33,13 @@ docker compose run --rm --no-deps --entrypoint rm paduraksa /data/master.key
 docker compose up -d
 ```
 
-The warning is gone after the restart. Back `master.key` up apart from the volume.
+The warning disappears after the restart. Back `master.key` up apart from the volume.
 
-If the data directory, or a backup of it, was copied while the key was in it, that copy opens everything. Follow the move with `paduraksa vault rotate-kek` ([Changing the master key](#changing-the-master-key)).
+If the data directory, or a backup of it, was copied while the key was in it, that copy opens everything. After the move, run `paduraksa vault rotate-kek` ([Changing the master key](#changing-the-master-key)).
 
 ## Changing the master key
 
-`paduraksa vault rotate-kek` re-encrypts every secret in the vault under a new key. **Stop the service first, and restart it afterwards.** A running process keeps the old key and cannot read what another process has re-encrypted.
+`paduraksa vault rotate-kek` re-encrypts every secret in the vault under a new key. **Stop the service first, and restart it afterwards.** A running process keeps the old key and cannot read what another process re-encrypted.
 
 - With the generated `/data/master.key`, the command stores the new key itself and keeps `master.key.old`.
 - With `PADURAKSA_MASTER_KEY_FILE`, it reads the new key from a file you keep.
@@ -57,4 +57,4 @@ docker compose run --rm -v "$PWD:/keys:ro" paduraksa vault rotate-kek --new-key-
 docker compose up -d
 ```
 
-The order matters for surviving a crash: store the new key first, then rotate, then retire the old key. [At-rest encryption](../design/vault-and-certificates.md#at-rest-encryption) explains why.
+The order lets the rotation survive a crash: store the new key first, then rotate, then retire the old key. [At-rest encryption](../design/vault-and-certificates.md#at-rest-encryption) explains why.
