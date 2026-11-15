@@ -30,7 +30,7 @@
     /// <summary>The codes as a text file: a heading, then one code per line.</summary>
     internal static string FileText(IReadOnlyList<string> codes, string? username) =>
         $"Paduraksa recovery codes{(username is null ? string.Empty : $" for {username}")}\n"
-        + "Each code signs you in once instead of your authenticator app. Keep them away from that device.\n\n"
+        + "Each code signs you in once instead of your authenticator app.\n\n"
         + string.Join('\n', codes) + "\n";
 
     private async Task CopyAsync()
@@ -38,7 +38,7 @@
         _copied = await Browser.CopyAsync(string.Join('\n', Codes));
         if (!_copied)
         {
-            Snackbar.Add("The browser didn't allow copying. Download the codes or write them down.", Severity.Warning);
+            Snackbar.Add("The browser didn't allow copying.", Severity.Warning);
         }
     }
 
@@ -46,7 +46,7 @@
     {
         if (!await Browser.DownloadTextAsync("paduraksa-recovery-codes.txt", FileText(Codes, Username)))
         {
-            Snackbar.Add("The download didn't start. Copy the codes or write them down.", Severity.Warning);
+            Snackbar.Add("The download didn't start.", Severity.Warning);
         }
     }
 }

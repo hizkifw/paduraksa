@@ -71,7 +71,7 @@
         _copied = await Browser.CopyAsync(Value);
         if (!_copied)
         {
-            Snackbar.Add("The browser didn't allow copying. Select the text and copy it yourself.", Severity.Warning);
+            Snackbar.Add("The browser didn't allow copying.", Severity.Warning);
         }
     }
 }

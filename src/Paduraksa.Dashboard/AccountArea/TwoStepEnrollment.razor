@@ -43,8 +43,8 @@
     case Phase.Codes:
         <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">Two-step sign-in is on.</MudAlert>
         <MudText Typo="Typo.body2">
-            Keep these recovery codes somewhere safe, away from this device. Each signs you in once if you lose the authenticator.
-            <strong>They are shown only now.</strong>
+            Each recovery code signs you in once if you lose the authenticator.
+            <strong>These codes won't be shown again.</strong>
         </MudText>
         <RecoveryCodesView Codes="_codes" Username="@_username" />
         <MudCheckBox T="bool" @bind-Value="_saved" Color="Color.Primary" Class="pdk-totp-saved">I have saved the recovery codes</MudCheckBox>

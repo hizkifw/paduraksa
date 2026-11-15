@@ -18,7 +18,7 @@ public static class SignInMessages
         ["auth.busy"] = "The server is busy checking other sign-ins. Try again in a moment.",
         ["csrf.refused"] = "The form expired. Please try again.",
         ["setup.complete"] = "Setup is already complete. Sign in with the Owner account.",
-        ["setup.invalidToken"] = "The setup token is wrong. Copy it again from the server log, or run paduraksa setup-token.",
+        ["setup.invalidToken"] = "The setup token is wrong. It is in the server log, and paduraksa setup-token prints it.",
         ["identity.refused"] = "That username or password can't be used. Check the hints below the fields.",
         ["setup.passwordMismatch"] = "The two passwords don't match.",
     };

@@ -126,7 +126,7 @@ public sealed class SettingsPagesTests
         await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
         Assert.Single(dialogs.FindAll("[data-secret=token]"));
         Assert.Contains(FakeDashboardIdentity.TokenSecret, dialogs.Find("[data-secret=token]").TextContent, StringComparison.Ordinal);
-        Assert.Contains("you won't see it again", dialogs.Find("[data-notice=once]").TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("won't be shown again", dialogs.Find("[data-notice=once]").TextContent, StringComparison.OrdinalIgnoreCase);
         var request = Assert.Single(identity.Issued);
         Assert.Equal("backup script", request.Name);
         Assert.All(request.Scopes, scope => Assert.True(Paduraksa.Dashboard.Identity.IdentityText.IsRead(scope)));
@@ -136,7 +136,7 @@ public sealed class SettingsPagesTests
         var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
         var here = navigation.Uri;
         await dialogs.InvokeAsync(() => navigation.NavigateTo(Paduraksa.Dashboard.DashboardRoutes.Hosts));
-        Assert.Contains("You haven't copied the token yet", dialogs.Find("[data-drawer=discard]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("The token won't be shown again", dialogs.Find("[data-drawer=discard]").TextContent, StringComparison.Ordinal);
         Assert.Equal(here, navigation.Uri);
         await dialogs.Find("[data-drawer=keep]").ClickAsync(new());
         Assert.Single(dialogs.FindAll("[data-secret=token]"));

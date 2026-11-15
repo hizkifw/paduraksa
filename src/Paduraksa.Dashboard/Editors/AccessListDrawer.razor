@@ -310,7 +310,7 @@
     private string? PasswordError(int index) => E($"/basicAuth/users/{index}/password");
 
     private static string? PasswordHelp(AccessListUserEntry user) =>
-        user.Revealed && !string.IsNullOrEmpty(user.Password) ? "Copy it now: once the list is saved it can't be shown again."
+        user.Revealed && !string.IsNullOrEmpty(user.Password) ? "This password won't be shown again once the list is saved."
         : user.LacksPassword && string.IsNullOrEmpty(user.Password) ? "No password is set, so this user can't sign in."
         : null;
 

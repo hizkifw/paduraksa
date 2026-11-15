@@ -48,14 +48,14 @@
             <MudText Typo="Typo.body2" Class="pdk-muted" data-field="mcp-note">
                 @if (Token is null)
                 {
-                    <text>Give it a token that can only read: with one it can look at everything its scopes allow and change nothing. A change it does make is a dry run first, then a second request that confirms it, and shows as MCP in
+                    <text>A token that can only read lets it look at everything its scopes allow and change nothing. A change it does make is a dry run first, then a second request that confirms it, and shows as MCP in
                     <MudLink Href="@DashboardRoutes.History">History</MudLink> and <MudLink Href="@DashboardRoutes.Audit">Audit</MudLink>.</text>
                 }
                 else if (ReadOnlyToken)
                 {
                     <text>This token only reads. A change needs a write scope too, and a second request with <code>confirm: true</code>.</text>
                 }
-                The admin certificate is signed by Paduraksa's own CA: trust its <MudLink Href="@DashboardRoutes.LocalCa">root</MudLink> where the client runs (Node clients read <code>NODE_EXTRA_CA_CERTS</code>).
+                The admin certificate is signed by Paduraksa's own CA, so the client must trust its <MudLink Href="@DashboardRoutes.LocalCa">root</MudLink> (Node clients read <code>NODE_EXTRA_CA_CERTS</code>).
             </MudText>
         </div>
     </details>

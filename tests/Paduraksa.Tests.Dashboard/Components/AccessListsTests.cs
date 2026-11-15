@@ -162,12 +162,12 @@ public sealed class AccessListsTests
         var generated = box.GetAttribute("value");
         Assert.Equal(20, generated!.Length);
         Assert.Matches("^[A-Za-z0-9]+$", generated);
-        Assert.Contains("Copy it now", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("won't be shown again", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
 
         // Typing over it is an ordinary edit again: masked.
         await TypeAsync(drawers, "[data-drawer=access-list] input[data-field=password-0]", "mine");
         Assert.Equal("password", drawers.Find("[data-drawer=access-list] input[data-field=password-0]").GetAttribute("type"));
-        Assert.DoesNotContain("Copy it now", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("won't be shown again", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]

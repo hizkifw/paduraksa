@@ -35,7 +35,7 @@
                 else if (_verification is { Intact: true } intact)
                 {
                     <MudIcon Icon="@Icons.Material.Outlined.Link" Size="Size.Small" Class="pdk-chain-ok" />
-                    <span title="@(intact.HeadHash is { } hash ? $"Latest hash {hash}. Keep a copy elsewhere: it shows if the newest events are ever removed." : null)">
+                    <span title="@(intact.HeadHash is { } hash ? $"Latest hash {hash}. A copy kept elsewhere shows if the newest events are removed." : null)">
                         Chain intact: @Fmt.Count(intact.VerifiedEvents) @(intact.VerifiedEvents == 1 ? "event verifies" : "events verify")@(_verifiedAt is { } at ? $", checked {Fmt.Ago(at, Time.GetUtcNow())}" : null)
                     </span>
                 }

@@ -125,7 +125,7 @@
                 {
                     if (await Browser.DownloadAsync(download.FileName, "application/octet-stream", download.Content))
                     {
-                        Snackbar.Add($"Backup downloaded ({Fmt.FileSize(download.Length)}). Keep it, and the passphrase, apart from this machine.", Severity.Success);
+                        Snackbar.Add($"Backup downloaded ({Fmt.FileSize(download.Length)}). It is useless without the passphrase.", Severity.Success);
                     }
                 }
             }

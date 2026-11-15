@@ -18,7 +18,7 @@
         case TwoFactorStep.Regenerate when _codes is not null:
             <div class="pdk-form-stack">
                 <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">New recovery codes made; the old ones no longer work.</MudAlert>
-                <MudText Typo="Typo.body2"><strong>They are shown only now.</strong> Keep them somewhere safe, away from your authenticator.</MudText>
+                <MudText Typo="Typo.body2"><strong>These codes won't be shown again.</strong></MudText>
                 <RecoveryCodesView Codes="_codes" Username="@Username" />
                 <div class="pdk-form-actions">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CodesSaved" data-action="codes-saved">Done</MudButton>
@@ -117,7 +117,7 @@
                     {
                         // They can't be shown again: only "Done" closes the drawer now. Leaving the page asks first.
                         Level.Busy = true;
-                        Level.LeaveWarning = "You haven't saved the new recovery codes yet. They can't be shown again, and the old ones no longer work.";
+                        Level.LeaveWarning = "The new recovery codes won't be shown again, and the old ones no longer work.";
                     }
                 }
                 else

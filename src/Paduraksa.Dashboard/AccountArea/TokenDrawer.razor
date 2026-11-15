@@ -23,7 +23,7 @@
         {
             <div class="pdk-once" role="alert" data-notice="once">
                 <MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" />
-                <span><strong>Copy it now: you won't see it again.</strong> Paduraksa keeps only a hash of it. If it gets lost, revoke it and create another.</span>
+                <span><strong>This token won't be shown again.</strong> Paduraksa keeps only a hash of it.</span>
             </div>
             <SecretValue Value="@issued.Token" Label="@issued.Summary.Name" Name="token" />
             <MudText Typo="Typo.body2" Class="pdk-muted">
@@ -172,7 +172,7 @@
                 {
                     // Only "Done" closes it now: the secret can't be shown again. Leaving the page asks first.
                     Level.Busy = true;
-                    Level.LeaveWarning = "You haven't copied the token yet. It can't be shown again: leaving means revoking it and creating another.";
+                    Level.LeaveWarning = "The token won't be shown again. Leaving means revoking it and creating another.";
                 }
 
                 return;
