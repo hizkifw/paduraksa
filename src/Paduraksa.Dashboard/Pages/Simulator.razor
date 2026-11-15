@@ -134,7 +134,7 @@ else
             else if (_result is not null)
             {
                 <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-                    <SimulationView Result="_result" UpstreamName="@UpstreamName" />
+                    <SimulationView Result="_result" UpstreamName="@UpstreamName" LinkObjects="@(_result.Source.Kind == SimulationTargetKind.Live)" />
                 </MudPaper>
             }
             else

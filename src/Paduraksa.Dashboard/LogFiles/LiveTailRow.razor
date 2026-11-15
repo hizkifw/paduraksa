@@ -12,7 +12,16 @@
         <a class="pdk-row-link pdk-mono pdk-tail-path" href="#" @onclick:preventDefault="true" @onclick:stopPropagation="true"
            @onclick="() => OnOpen.InvokeAsync(Entry)" title="@LiveTailText.Target(Entry)">@LiveTailText.Target(Entry)</a>
     </div>
-    <div role="cell" class="pdk-dt-cell pdk-tail-host" data-label="Host" title="@Entry.Host">@(Entry.Host ?? "-")</div>
+    <div role="cell" class="pdk-dt-cell pdk-tail-host" data-label="Host" title="@Entry.Host">
+        @if (HostHref is not null)
+        {
+            <a class="pdk-row-link" href="@HostHref" @onclick:stopPropagation="true" data-link="host">@Entry.MatchedHost</a>
+        }
+        else
+        {
+            @(Entry.Host ?? "-")
+        }
+    </div>
     <div role="cell" class="pdk-dt-cell pdk-mono pdk-tail-client" data-label="Client" title="@Entry.ClientAddress">@(Entry.ClientAddress ?? "-")</div>
     <div role="cell" class="pdk-dt-cell pdk-mono" data-label="Time taken">@Fmt.Duration(Entry.TotalMs)</div>
     <div role="cell" class="pdk-dt-cell pdk-mono pdk-tail-upstream" data-label="Upstream" title="@Entry.Upstream">@LiveTailText.UpstreamText(Entry.Upstream)</div>
@@ -27,6 +36,10 @@
 
     [Parameter]
     public EventCallback<LogTailEntry> OnOpen { get; set; }
+
+    /// <summary>The configured host that answered (its drawer); null when none did, or the viewer can't read the config.</summary>
+    [Parameter]
+    public string? HostHref { get; set; }
 
     protected override bool ShouldRender() => !_rendered;
 

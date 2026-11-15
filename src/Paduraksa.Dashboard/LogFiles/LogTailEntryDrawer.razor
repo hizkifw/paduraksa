@@ -10,7 +10,14 @@
                             Text="@(Entry.Status is null ? "No answer" : LiveTailText.StatusText(Entry.Status))" Name="status" />
                 @if (Entry.MatchedHost is { } host)
                 {
-                    <StatusChip Tone="Tone.Default" Text="@host" Name="host" />
+                    @if (HostHref is not null)
+                    {
+                        <a class="pdk-row-link pdk-chip-link" href="@HostHref" data-link="host"><StatusChip Tone="Tone.Default" Text="@host" Name="host" /></a>
+                    }
+                    else
+                    {
+                        <StatusChip Tone="Tone.Default" Text="@host" Name="host" />
+                    }
                 }
                 else
                 {
@@ -114,6 +121,10 @@
         _ => null,
     };
 
-    public static IReadOnlyDictionary<string, object?> For(LogTailEntry entry, bool canSimulate) =>
-        new Dictionary<string, object?> { [nameof(Entry)] = entry, [nameof(CanSimulate)] = canSimulate };
+    public static IReadOnlyDictionary<string, object?> For(LogTailEntry entry, bool canSimulate, string? hostHref = null) =>
+        new Dictionary<string, object?> { [nameof(Entry)] = entry, [nameof(CanSimulate)] = canSimulate, [nameof(HostHref)] = hostHref };
+
+    /// <summary>The configured host that answered (its drawer); null when none did, or the viewer can't read the config.</summary>
+    [Parameter]
+    public string? HostHref { get; set; }
 }

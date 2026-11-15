@@ -122,7 +122,7 @@ else
                 </div>
                 @foreach (var entry in _rows)
                 {
-                    <LiveTailRow @key="entry.Sequence" Entry="entry" OnOpen="OpenAsync" />
+                    <LiveTailRow @key="entry.Sequence" Entry="entry" OnOpen="OpenAsync" HostHref="@HostHref(entry)" />
                 }
             </div>
         }
@@ -147,6 +147,7 @@ else
     private DotNetObjectReference<LiveTail>? _self;
     private bool _mayRead;
     private bool _mayConfig;
+    private Dictionary<string, string> _hostLinks = new(StringComparer.OrdinalIgnoreCase);
     private bool _denied;
     private bool _started;
     private bool _busy;
@@ -252,7 +253,10 @@ else
     {
         try
         {
-            _hostNames = [.. (await Config.GetCurrentAsync()).Document.Hosts.Where(host => host.Names.Count > 0).Select(host => host.Names[0]).Order(StringComparer.OrdinalIgnoreCase)];
+            var hosts = (await Config.GetCurrentAsync()).Document.Hosts;
+            _hostNames = [.. hosts.Where(host => host.Names.Count > 0).Select(host => host.Names[0]).Order(StringComparer.OrdinalIgnoreCase)];
+            _hostLinks = hosts.SelectMany(host => host.Names.Select(name => (Name: name, Link: DashboardRoutes.Host(host.Id))))
+                .GroupBy(pair => pair.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Link, StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
         {
@@ -446,7 +450,11 @@ else
     });
 
     private void OpenAsync(LogTailEntry entry) =>
-        Drawers.Push<LogTailEntryDrawer>(LogTailEntryDrawer.For(entry, _maySimulate), DrawerWidth.Wide);
+        Drawers.Push<LogTailEntryDrawer>(LogTailEntryDrawer.For(entry, _maySimulate, HostHref(entry)), DrawerWidth.Wide);
+
+    /// <summary>The drawer of the configured host that answered the request, by the name it matched; null for none, or when the config wasn't read.</summary>
+    private string? HostHref(LogTailEntry entry) =>
+        entry.MatchedHost is { } name && _hostLinks.TryGetValue(name, out var link) ? link : null;
 
     private static string HostLabel(string? value) => value ?? "Any host";
 

@@ -44,7 +44,17 @@ else
     @if (Result.Upstream is { } upstream)
     {
         <div class="pdk-sim-upstream">
-            <MudText Typo="Typo.subtitle2" HtmlTag="h3">Destinations of @(UpstreamName ?? upstream.Id.ToString())</MudText>
+            <MudText Typo="Typo.subtitle2" HtmlTag="h3">
+                Destinations of
+                @if (LinkObjects)
+                {
+                    <a class="pdk-row-link" href="@DashboardRoutes.Upstream(upstream.Id)" data-link="upstream">@(UpstreamName ?? upstream.Id.ToString())</a>
+                }
+                else
+                {
+                    @(UpstreamName ?? upstream.Id.ToString())
+                }
+            </MudText>
             <ul class="pdk-list">
                 @foreach (var destination in upstream.Destinations)
                 {
@@ -81,6 +91,10 @@ else
                 <div class="pdk-trace-body">
                     <div class="pdk-trace-head">
                         <span class="pdk-trace-title">@SimulationForm.StepTitle(step)</span>
+                        @if (LinkObjects && step is { Kind: SimulationStepKind.HostMatch, Host: { } host })
+                        {
+                            <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host)" data-link="host">Open host</a>
+                        }
                         <span class="pdk-badge pdk-tone-@stepTone.Css()">@word</span>
                     </div>
                     <div class="pdk-trace-summary">@ReviewNotices.Sentence(step.Summary)</div>
@@ -106,6 +120,13 @@ else
     /// <summary>The forwarding upstream's name, when the page knows it.</summary>
     [Parameter]
     public string? UpstreamName { get; set; }
+
+    /// <summary>
+    /// Links the upstream and the matched host to their drawers. Only for a result against the live config, whose objects are all there: a revision's or
+    /// a change's may not be, and a review's would leave the change.
+    /// </summary>
+    [Parameter]
+    public bool LinkObjects { get; set; }
 
     /// <summary>Leaves out the facts and the body (inside the review drawer).</summary>
     [Parameter]
