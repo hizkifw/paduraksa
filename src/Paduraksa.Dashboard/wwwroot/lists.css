@@ -1001,3 +1001,61 @@
         grid-column: 1;
     }
 }
+
+/* ---------- Card lists (the notification channels) ---------- */
+
+.pdk-provider-list {
+    display: grid;
+    gap: 12px;
+}
+
+.pdk-provider.mud-paper {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+}
+
+.pdk-provider-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-provider-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.pdk-provider-sub {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-provider-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+/* A test's result runs under the whole card. */
+.pdk-provider .pdk-test-result {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 600px) {
+    .pdk-provider.mud-paper {
+        grid-template-columns: auto 1fr;
+    }
+
+    .pdk-provider-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
+}

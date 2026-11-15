@@ -5,6 +5,7 @@
 @inject CertificateService Certificates
 @inject AcmeIssuanceService Issuance
 @inject AcmeAccountService AcmeAccounts
+@inject DnsProviderService DnsProviders
 @inject TimeProvider Time
 @inject DisplayFormat Fmt
 
@@ -147,6 +148,11 @@
                     </dd>
                     <dt>Challenge</dt>
                     <dd>@(order.ChallengeType == AcmeChallengeType.Dns01 ? "DNS-01" : "HTTP-01")</dd>
+                    @if (order.DnsProviderId is { } dnsProvider && _dnsName is not null)
+                    {
+                        <dt>DNS provider</dt>
+                        <dd><a class="pdk-row-link" href="@DashboardRoutes.DnsProvider(dnsProvider)" data-link="dns-provider">@_dnsName</a></dd>
+                    }
                     <dt>Order</dt>
                     <dd><span class="pdk-pill pdk-tone-@OrderTone(order.Status)">@OrderLabel(order.Status)</span></dd>
                     @if (order.NextRenewalAt is { } renewAt)
@@ -217,6 +223,7 @@
     private AcmeOrderProgress? _progress;
     private readonly List<AcmeOrderProgress> _watched = [];
     private string? _accountName;
+    private string? _dnsName;
     private Timer? _poll;
     private CertificateId? _loaded;
     private volatile bool _disposed;
@@ -258,6 +265,7 @@
         _order = Row.Order;
         _detail = Row.IsBuiltIn ? null : await Certificates.GetAsync(Row.Id);
         _accountName = Row.Order is { } order && await AcmeAccounts.GetAsync(order.AccountId) is { } account ? ProviderDisplay.AccountName(account) : null;
+        _dnsName = Row.Order?.DnsProviderId is { } dns && await DnsProviders.GetAsync(dns) is { } provider ? provider.Label : null;
         Watch();
         _poll ??= new Timer(_ => _ = PollAsync(), null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
     }

@@ -1,0 +1,309 @@
+@* A DNS provider in a drawer: its name (renamed here), what it is, the certificates ordered through it (each a link), and Test, Replace token and
+   Delete. Its address (/certificates/dns/dnsp_...) opens it from anywhere; it follows changes to the providers and the certificates. *@
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Issuance
+@using Paduraksa.Contracts.Certificates
+@inject IDashboardProviders Providers
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+@inject DisplayFormat Fmt
+@inject ILogger<DnsProviderDetailsDrawer> Logger
+
+<DrawerShell Title="@(_provider?.Label ?? (_missing ? "Provider not found" : "DNS provider"))"
+             Icon="@(_provider is { } p ? ProviderDisplay.KindIcon(p.Kind) : Icons.Material.Outlined.Dns)" Name="dns-provider-details">
+    <ChildContent>
+        @if (_missing)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such provider" Description="It may have been deleted, or the link is wrong." />
+        }
+        else if (_failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true">
+                The provider couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        else if (_provider is null)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="240px" />
+        }
+        else
+        {
+            <div class="pdk-detail">
+                @if (_mayWrite)
+                {
+                    <form class="pdk-detail-section pdk-rename" @onsubmit="RenameAsync" @onsubmit:preventDefault="true" novalidate>
+                        <MudTextField T="string" Value="_label" ValueChanged="LabelChanged" Immediate="true" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      MaxLength="DnsProviderService.MaxLabelLength" Error="_labelError is not null" ErrorText="@_labelError" Disabled="_renaming" data-field="label" />
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                   Disabled="@(_renaming || !LabelChangedFromStored)" data-action="rename">Rename</MudButton>
+                    </form>
+                }
+
+                <section class="pdk-detail-section">
+                    <MudText Typo="Typo.overline" Class="pdk-muted">Certificates</MudText>
+                    @if (!_mayReadCertificates)
+                    {
+                        <MudText Typo="Typo.body2" Class="pdk-muted">Your role can't read the certificates.</MudText>
+                    }
+                    else
+                    {
+                        <CertificateLinks Certificates="_certificates" Now="_now" Empty="No certificate is ordered through this provider." />
+                    }
+                </section>
+
+                <section class="pdk-detail-section">
+                    <MudText Typo="Typo.overline" Class="pdk-muted">Details</MudText>
+                    <dl class="pdk-facts">
+                        <dt>Type</dt>
+                        <dd>@ProviderDisplay.KindLabel(_provider.Kind)</dd>
+                        <dt>API host</dt>
+                        <dd class="pdk-mono">@DnsProviderService.ApiHostOf(_provider.Kind)</dd>
+                        <dt>Token</dt>
+                        <dd>Stored in the vault, usable only against that host. Updated @Fmt.DateTime(_provider.UpdatedAt)</dd>
+                        <dt>Added</dt>
+                        <dd>@Fmt.DateTime(_provider.CreatedAt)</dd>
+                    </dl>
+                </section>
+
+                @if (_testing || _result is not null)
+                {
+                    <section class="pdk-detail-section" data-field="test">
+                        <DnsTestResultView Testing="_testing" Result="_result" At="_resultAt" ProviderName="@ProviderDisplay.KindLabel(_provider.Kind)" />
+                    </section>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        @if (_mayWrite && _provider is { } provider)
+        {
+            <DrawerActions ShowDelete="true" OnDelete="DeleteAsync" PrimaryLabel="Test credentials" StartIcon="@Icons.Material.Outlined.NetworkCheck" OnPrimary="TestAsync"
+                           PrimaryDisabled="_testing" PrimaryAction="test">
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Outlined.Key" OnClick="RotateAsync" data-action="rotate">Replace token</MudButton>
+            </DrawerActions>
+        }
+    </Footer>
+</DrawerShell>
+
+@code {
+    private DnsProviderSummary? _provider;
+    private IReadOnlyList<CertificateSummary> _certificates = [];
+    private string _label = string.Empty;
+    private string? _labelError;
+    private bool _renaming;
+    private bool _mayWrite;
+    private bool _mayReadCertificates;
+    private bool _missing;
+    private bool _failed;
+    private bool _testing;
+    private DnsProviderTestResult? _result;
+    private DateTimeOffset? _resultAt;
+    private DateTimeOffset _now;
+    private IDisposable? _live;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    [Parameter, EditorRequired]
+    public DnsProviderId Id { get; set; }
+
+    /// <summary>Tests the token as the drawer opens: a provider just added is checked at once.</summary>
+    [Parameter]
+    public bool TestOnOpen { get; set; }
+
+    private bool LabelChangedFromStored => _provider is not null && _label.Trim() != _provider.Label;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _now = Time.GetUtcNow();
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ProvidersWrite);
+        _mayReadCertificates = user.Has(Permission.CertificatesRead);
+        await LoadAsync();
+        if (TestOnOpen && _mayWrite && _provider is not null)
+        {
+            await TestAsync();
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive && _live is null)
+        {
+            _live = Providers.Watch(InvokeAsync, RefreshAsync);
+        }
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        try
+        {
+            _now = Time.GetUtcNow();
+            var wasEditing = LabelChangedFromStored;
+            _provider = await Providers.GetDnsProviderAsync(Id);
+            _missing = _provider is null;
+            if (_provider is not null && !wasEditing)
+            {
+                _label = _provider.Label;
+            }
+
+            _certificates = _provider is not null && _mayReadCertificates
+                ? [.. (await Providers.CertificatesOfDnsProviderAsync(Id)).OrderByDescending(c => c.CreatedAt)]
+                : [];
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't load a DNS provider.");
+            _failed = true;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private void LabelChanged(string? value)
+    {
+        _label = value ?? string.Empty;
+        _labelError = null;
+        if (Level is not null)
+        {
+            Level.IsDirty = LabelChangedFromStored;
+        }
+    }
+
+    private async Task RenameAsync()
+    {
+        if (_provider is not { } provider || !LabelChangedFromStored)
+        {
+            return;
+        }
+
+        _renaming = true;
+        try
+        {
+            DnsProviderResult? result = null;
+            if (!await Logger.TryAsync(Snackbar, $"Couldn't rename {provider.Label}.", async () => result = await Providers.RenameDnsProviderAsync(provider.Id, _label.Trim()))
+                || result is null)
+            {
+                return;
+            }
+
+            if (result.Status == IssuanceChangeStatus.Committed)
+            {
+                _provider = result.Provider ?? provider;
+                _label = _provider.Label;
+                if (Level is not null)
+                {
+                    Level.IsDirty = false;
+                }
+
+                Snackbar.Add($"Renamed to {_provider.Label}.", Severity.Success);
+            }
+            else if (result.Errors.Count > 0 && result.Status == IssuanceChangeStatus.Invalid)
+            {
+                _labelError = result.Errors[0].Message;
+            }
+            else
+            {
+                Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result.Status, result.Errors, null, "DNS providers")), Severity.Error);
+            }
+        }
+        finally
+        {
+            _renaming = false;
+        }
+    }
+
+    private async Task TestAsync()
+    {
+        if (_provider is not { } provider)
+        {
+            return;
+        }
+
+        _testing = true;
+        _result = null;
+        StateHasChanged();
+        try
+        {
+            await Logger.TryAsync(Snackbar, $"The test of {provider.Label} couldn't run.", async () =>
+            {
+                if (await Providers.TestDnsProviderAsync(provider.Id) is { } result)
+                {
+                    _result = result;
+                    _resultAt = Time.GetUtcNow();
+                }
+            });
+        }
+        finally
+        {
+            _testing = false;
+        }
+    }
+
+    private async Task RotateAsync()
+    {
+        if (_provider is not { } provider)
+        {
+            return;
+        }
+
+        var replaced = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(provider), DrawerWidth.Narrow);
+        await LoadAsync();
+        if (!replaced.Canceled)
+        {
+            await TestAsync();
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_provider is not { } provider)
+        {
+            return;
+        }
+
+        var confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            $"Delete {provider.Label}?",
+            "The provider and its token are removed from the vault. Certificates that renew through it must be moved first.",
+            "Delete");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        DnsProviderResult? result = null;
+        if (!await Logger.TryAsync(Snackbar, $"Couldn't delete {provider.Label}.", async () => result = await Providers.DeleteDnsProviderAsync(provider.Id))
+            || result is null)
+        {
+            return;
+        }
+
+        if (result.Status == IssuanceChangeStatus.Committed)
+        {
+            Snackbar.Add($"{provider.Label} was deleted.", Severity.Success);
+            Level?.Close();
+        }
+        else
+        {
+            Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result.Status, result.Errors, null, "DNS providers")), Severity.Error);
+        }
+    }
+}

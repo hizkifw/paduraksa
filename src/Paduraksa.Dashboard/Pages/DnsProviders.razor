@@ -1,23 +1,20 @@
 @attribute [Authorize]
 @attribute [Route(DashboardRoutes.DnsProviders)]
+@attribute [Route(DashboardRoutes.DnsProviders + "/{Key}")]
 @implements IDisposable
 @using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Commands
 @using Paduraksa.Application.Issuance
 @using Paduraksa.Contracts.Issuance
-@using Paduraksa.Dashboard.Certificates
 @using Paduraksa.Dashboard.Providers
-@inject DnsProviderService Providers
-@inject AcmeIssuanceService Issuance
-@inject ProviderActions Actions
-@inject ConfigService Config
+@inject IDashboardProviders Providers
 @inject DashboardCaller Caller
-@inject IDialogService Dialogs
 @inject DrawerStack Drawers
-@inject ISnackbar Snackbar
-@inject TimeProvider Time
+@inject NavigationManager Navigation
 @inject ILogger<DnsProviders> Logger
 @inject DisplayFormat Fmt
+@* The DNS providers, as the certificates are listed. /certificates/dns/dnsp_... is this list with that provider's drawer open. A provider has
+   no states to filter by, and what it last answered to a test isn't kept, so the table has neither. *@
 
 <PageTitle>DNS providers · Paduraksa</PageTitle>
 
@@ -25,88 +22,96 @@
     <Actions>
         @if (_mayWrite)
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-dns">Add provider</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="Add" Class="pdk-add-dns"
+                       data-action="add-provider">Add provider</MudButton>
         }
     </Actions>
 </PageHeader>
 
 @if (_failed)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">The DNS providers couldn't be read. The details are in the server log.</MudAlert>
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
+        The DNS providers couldn't be read. The details are in the server log.
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+    </MudAlert>
 }
 
-@if (_providers is null)
-{
-    <div class="pdk-provider-list">
-        @for (var i = 0; i < 2; i++)
+<MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
+    @if (_providers is null)
+    {
+        @for (var i = 0; i < 4; i++)
         {
-            <MudPaper Class="pdk-card pdk-provider" Elevation="0" Outlined="true">
-                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="34px" Height="34px" />
-                <div><MudSkeleton Width="40%" /><MudSkeleton Width="60%" /></div>
-            </MudPaper>
+            <div class="pdk-row-skeleton">
+                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+            </div>
         }
-    </div>
-}
-else if (_providers.Count == 0)
-{
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+    }
+    else if (_providers.Count == 0)
+    {
         <EmptyState Icon="@Icons.Material.Outlined.Dns" Title="No DNS providers yet"
                     Description="HTTP-01 needs none. Add Cloudflare or deSEC to get wildcard certificates, or certificates for hostnames the CA can't reach.">
             <Action>
                 @if (_mayWrite)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-dns">Add provider</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="Add" Class="pdk-add-dns" data-action="add-provider">Add provider</MudButton>
                 }
             </Action>
         </EmptyState>
-    </MudPaper>
-}
-else
-{
-    <div class="pdk-provider-list">
-        @foreach (var provider in _providers)
-        {
-            <MudPaper Class="pdk-card pdk-provider pdk-dns-row" Elevation="0" Outlined="true" data-provider="@provider.Id">
-                <span class="pdk-stat-icon pdk-tone-primary"><MudIcon Icon="@ProviderDisplay.KindIcon(provider.Kind)" Size="Size.Small" /></span>
-                <div class="pdk-provider-main">
-                    <span class="pdk-provider-title">@provider.Label</span>
-                    <span class="pdk-provider-sub">
-                        @ProviderDisplay.KindLabel(provider.Kind) · @DnsProviderService.ApiHostOf(provider.Kind) · token updated @Fmt.Date(provider.UpdatedAt)
-                        @if (_inUse.GetValueOrDefault(provider.Id) is > 0 and var count)
+    }
+    else
+    {
+        <div class="pdk-dt pdk-dns-table" role="table" aria-label="DNS providers">
+            <div class="pdk-dt-row pdk-dt-head" role="row">
+                <span role="columnheader">Provider</span>
+                <span role="columnheader">Type</span>
+                <span role="columnheader">Token updated</span>
+                <span role="columnheader">Added</span>
+                <span role="columnheader">Certificates</span>
+            </div>
+            @foreach (var provider in _providers)
+            {
+                <div class="pdk-dt-row pdk-dt-link @(_drawer?.Key == provider.Id.ToString() ? "pdk-dt-selected" : null)" role="row" @onclick="() => Open(provider)"
+                     data-provider="@provider.Id" @key="provider.Id">
+                    <div class="pdk-dt-main" role="cell">
+                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@ProviderDisplay.KindIcon(provider.Kind)" Size="Size.Small" /></span>
+                        <span class="pdk-dt-titles">
+                            <a class="pdk-row-link pdk-list-title" href="@DashboardRoutes.DnsProvider(provider.Id)" @onclick:stopPropagation="true">@provider.Label</a>
+                        </span>
+                    </div>
+                    <span role="cell" class="pdk-dt-cell" data-label="Type">@ProviderDisplay.KindLabel(provider.Kind)</span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Token updated">@Fmt.Date(provider.UpdatedAt)</span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Added">@Fmt.Date(provider.CreatedAt)</span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Certificates">
+                        @if (_counts.GetValueOrDefault(provider.Id) is > 0 and var count)
                         {
-                            <span> · @Wording.Plural(count, "certificate", "certificates")</span>
+                            @count
+                        }
+                        else
+                        {
+                            <span class="pdk-muted">None</span>
                         }
                     </span>
                 </div>
-                <div class="pdk-provider-actions">
-                    @if (_mayWrite)
-                    {
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.NetworkCheck"
-                                   OnClick="() => TestAsync(provider)" Disabled="_testing.Contains(provider.Id)" Class="pdk-dns-test">Test</MudButton>
-                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Key" OnClick="() => RotateAsync(provider)"
-                                   Class="pdk-dns-rotate">Replace token</MudButton>
-                        <MudIconButton Icon="@Icons.Material.Outlined.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="() => DeleteAsync(provider)"
-                                       aria-label="@($"Delete {provider.Label}")" Class="pdk-dns-delete" />
-                    }
-                </div>
-                @if (_testing.Contains(provider.Id) || _results.ContainsKey(provider.Id))
-                {
-                    <DnsTestResultView Testing="_testing.Contains(provider.Id)" Result="_results.GetValueOrDefault(provider.Id).Result"
-                                       At="_results.GetValueOrDefault(provider.Id).At" ProviderName="@ProviderDisplay.KindLabel(provider.Kind)" />
-                }
-            </MudPaper>
-        }
-    </div>
-}
+            }
+        </div>
+    }
+</MudPaper>
 
 @code {
     private IReadOnlyList<DnsProviderSummary>? _providers;
-    private Dictionary<DnsProviderId, int> _inUse = [];
-    private readonly HashSet<DnsProviderId> _testing = [];
-    private readonly Dictionary<DnsProviderId, (DnsProviderTestResult? Result, DateTimeOffset? At)> _results = [];
+    private IReadOnlyDictionary<DnsProviderId, int> _counts = new Dictionary<DnsProviderId, int>();
     private bool _mayWrite;
     private bool _failed;
-    private LiveUpdates? _live;
+    private IDisposable? _live;
+    private RoutedDrawer? _drawer;
+    private DnsProviderId? _testOnOpen;
+
+    /// <summary>The address's last segment: a provider's ID; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -127,23 +132,38 @@ else
         await LoadAsync();
     }
 
+    protected override void OnParametersSet()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _drawer ??= new RoutedDrawer(Navigation, DashboardRoutes.DnsProviders);
+        _drawer.Show(Key, OpenDrawer);
+    }
+
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender && RendererInfo.IsInteractive && _live is null)
         {
-            _live = LiveUpdates.Start(Config, InvokeAsync, RefreshAsync, false, "acme.dns_provider.create", "acme.dns_provider.delete", "acme.dns_provider.rotate", "certificate.");
+            _live = Providers.Watch(InvokeAsync, RefreshAsync);
         }
     }
 
-    public void Dispose() => _live?.Dispose();
+    public void Dispose()
+    {
+        _live?.Dispose();
+        _drawer?.Dispose();
+    }
 
     private async Task LoadAsync()
     {
         try
         {
             _failed = false;
-            _providers = [.. (await Providers.ListAsync()).OrderBy(p => p.Label, StringComparer.OrdinalIgnoreCase)];
-            _inUse = (await Issuance.ListOrdersAsync()).Where(o => o.DnsProviderId is not null).GroupBy(o => o.DnsProviderId!.Value).ToDictionary(g => g.Key, g => g.Count());
+            _providers = [.. (await Providers.ListDnsProvidersAsync()).OrderBy(p => p.Label, StringComparer.OrdinalIgnoreCase)];
+            _counts = await Providers.DnsCertificateCountsAsync();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -159,76 +179,36 @@ else
         StateHasChanged();
     }
 
+    /// <summary>The drawer an address names: anything that isn't a provider's ID is not found.</summary>
+    private DrawerLevel OpenDrawer(string key) =>
+        DnsProviderId.TryParse(key, out var id)
+            ? Drawers.Push<DnsProviderDetailsDrawer>(
+                new Dictionary<string, object?> { [nameof(DnsProviderDetailsDrawer.Id)] = id, [nameof(DnsProviderDetailsDrawer.TestOnOpen)] = TakeTestOnOpen(id) }, DrawerWidth.Medium)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Provider not found", "There is no such DNS provider", "Back to the providers"), DrawerWidth.Narrow);
+
+    /// <summary>Whether the provider was just added, and so is tested as its drawer opens (once).</summary>
+    private bool TakeTestOnOpen(DnsProviderId id)
+    {
+        var test = _testOnOpen == id;
+        _testOnOpen = null;
+        return test;
+    }
+
+    private void Open(DnsProviderSummary provider) => Navigation.NavigateTo(DashboardRoutes.DnsProvider(provider.Id));
+
+    /// <summary>Opens the form without holding up the click, so the button's own ripple finishes first.</summary>
+    private void Add() => _ = InvokeAsync(AddAsync);
+
     private async Task AddAsync()
     {
         var result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(null), DrawerWidth.Narrow);
-        await LoadAsync();
+        // The new provider's drawer opens, and tests the token as a new one has always been.
         if (result.As<DnsProviderSummary>() is { } added)
         {
-            await TestAsync(added);
-        }
-    }
-
-    private async Task RotateAsync(DnsProviderSummary provider)
-    {
-        var result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(provider), DrawerWidth.Narrow);
-        _results.Remove(provider.Id);
-        await LoadAsync();
-        if (!result.Canceled)
-        {
-            await TestAsync(provider);
-        }
-    }
-
-    private async Task TestAsync(DnsProviderSummary provider)
-    {
-        _testing.Add(provider.Id);
-        _results.Remove(provider.Id);
-        StateHasChanged();
-        try
-        {
-            await Logger.TryAsync(Snackbar, $"The test of {provider.Label} couldn't run.", async () =>
-            {
-                if (await Actions.TestAsync(provider.Id) is { } result)
-                {
-                    _results[provider.Id] = (result, Time.GetUtcNow());
-                }
-            });
-        }
-        finally
-        {
-            _testing.Remove(provider.Id);
-        }
-    }
-
-    private async Task DeleteAsync(DnsProviderSummary provider)
-    {
-        var confirmed = await ConfirmActionDialog.AskAsync(
-            Dialogs,
-            $"Delete {provider.Label}?",
-            "The provider and its token are removed from the vault. Certificates that renew through it must be moved first.",
-            "Delete");
-        if (!confirmed)
-        {
-            return;
+            _testOnOpen = added.Id;
+            Navigation.NavigateTo(DashboardRoutes.DnsProvider(added.Id));
         }
 
-        DnsProviderResult? result = null;
-        if (!await Logger.TryAsync(Snackbar, $"Couldn't delete {provider.Label}.", async () => result = await Actions.DeleteProviderAsync(provider.Id))
-            || result is null)
-        {
-            return;
-        }
-
-        if (result.Status == IssuanceChangeStatus.Committed)
-        {
-            Snackbar.Add($"{provider.Label} was deleted.", Severity.Success);
-        }
-        else
-        {
-            Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result.Status, result.Errors, null, "DNS providers")), Severity.Error);
-        }
-
-        await LoadAsync();
+        await RefreshAsync();
     }
 }
