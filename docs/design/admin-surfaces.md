@@ -68,7 +68,7 @@ The API was made consistent before v0.1, because after it a change breaks users.
 
 ### The identity endpoints
 
-Code: `Paduraksa.Admin/Identity`. Bodies and responses are the `Paduraksa.Contracts.Identity` DTOs. The `?userId=` filters parse as typed IDs and name nothing when they do not parse.
+Code: `Paduraksa.Admin/Identity`. Bodies and responses are the `Paduraksa.Contracts.Identity` DTOs. The `?userId=` filters parse as typed IDs, and one that does not parse names nothing.
 
 | Endpoint | Notes |
 |---|---|
@@ -83,7 +83,7 @@ Code: `Paduraksa.Admin/Identity`. Bodies and responses are the `Paduraksa.Contra
 | `POST me/totp/disable` | Password in the body (a `DELETE` has no body to rely on), 204. |
 | `POST me/recovery-codes` | |
 | `GET sessions[?userId]`, `DELETE sessions/{id}` | The list is a page; the delete is 204. |
-| `POST sessions/revoke-others` | Needs a session. A token caller is refused by that requirement first with 403 `auth.sessionRequired`. |
+| `POST sessions/revoke-others` | Needs a session. That requirement refuses a token caller first with 403 `auth.sessionRequired`. |
 | `GET tokens[?userId]`, `POST tokens`, `PATCH`/`DELETE tokens/{id}` | `POST` is 201 with the secret once. `PATCH` takes `name`, `scopes` and `disabled`, all optional, and answers 200 with the summary (never a secret): 422 for an empty change or a scope the token's owner lacks, 409 for a revoked token. The summary says `disabled` and `revoked` apart. |
 | `GET`/`POST users`, `GET`/`PATCH`/`DELETE users/{id}` | `POST` is 201 with `Location`, `DELETE` is 204. `PATCH` takes `displayName`, `roles` and `disabled`, applied by one `UserService.UpdateAsync` call in one transaction, the last-Owner guard included: all of it applies or none. |
 
@@ -223,7 +223,7 @@ The security-headers middleware (auth) adds its headers when the response starts
 **Caller.** A handler that needs the caller takes `AdminCaller` as a parameter.
 - It binds from the request feature the authentication middleware set, never from a body or the query, so it is absent from the OpenAPI document.
 - Binding runs before endpoint filters, so an anonymous request is bound to a stand-in that the `RequireAuthenticated` or `RequirePermission` filter answers with the same 401.
-- A handler that takes the parameter without one of those filters is a wiring bug and throws.
+- If a handler takes the parameter without one of those filters, that is a wiring bug and it throws.
 
 **Body limits.** The auth pipeline's 64 KiB for JSON. `WithAdminBodyLimit` raises it for certificate uploads (1 MiB plus framing) and simulate (1 MiB). Uploads declare `AcceptsAdminContentTypes("multipart/form-data")` so a cookie-authenticated upload passes CSRF. The CSRF check covers every unsafe method on a cookie-authenticated request whatever its body (tested for the multipart upload and the bodyless renew).
 
@@ -294,14 +294,14 @@ The descriptions are built from the limits in force, so the text cannot say one 
 
 **The server instructions** (`ToolDescriptions.ServerInstructions`, sent once at `initialize`) give the model a dense map of what Paduraksa is and which areas the API covers, and name what is not reachable from MCP.
 - **Changes go to a draft by default.** Unless the user asked for a change to be applied directly, the model opens or reuses the user's draft and adds entries to it, then tells the user, who reviews and applies it in the dashboard. It does not apply or discard the draft unless asked. `execute`'s description repeats the rule in one line. The token acts as its owner and the draft is that owner's, so it shows in their draft bar: a model's change gets the same review as a person's.
-- **Then it proves the change.** After the review the model simulates its draft with `{kind: "draft", draft: id}`: one or more requests the change should affect and, where it matters, one it must not break. A simulation that shows something other than what was asked sends it back to fix the draft. It then tells the user what it drafted and what it checked, one line per simulated outcome.
+- **Then it proves the change.** After the review the model simulates its draft with `{kind: "draft", draft: id}`: one or more requests the change should affect and, where it matters, one it must not break. If a simulation shows something other than what was asked, the model goes back and fixes the draft. It then tells the user what it drafted and what it checked, one line per simulated outcome.
 - **Applying directly** (the user asked for it): it simulates first, with `draftCommand` or the draft, then applies.
 - **Why:** an agent that says "done" proves nothing, and a two-step read (`GET /drafts/{id}/config`, then `draftDocument`) was clumsy and could test a stale copy. The draft target reads the draft when it runs.
 - `McpEndpointTests` checks that every `/api/v1` path the instructions name exists in the API description.
 
 **`search`.** The one global is `spec`, the OpenAPI document with every `$ref` resolved. The model finds endpoints with code, so the document never enters its context.
 - The parent sends the raw document (about 600 KB) to each child once, when the child starts. `SpecGraph` builds it as script values in each run's own engine, sharing each referenced schema instead of copying it. Resolved to text, the document is 12 MB. As a graph of shared nodes it is about 7 000 objects and costs 10 to 40 ms a call.
-- A schema that refers back to one being expanded is cut where it repeats (`{ "x-recursive-ref": "Name" }`), so the graph is a finite tree. `components.schemas` stays, so a schema can be looked up by name.
+- If a schema refers back to one being expanded, it is cut where it repeats (`{ "x-recursive-ref": "Name" }`), so the graph is a finite tree. `components.schemas` stays, so a schema can be looked up by name.
 - Edits a script makes to `spec` die with the call.
 
 **`execute`.** The one global is `paduraksa.request({ method, path, query?, body?, confirm?, ifMatch? })`, a promise of `{ status, body, etag? }`.
@@ -553,7 +553,7 @@ The proof is that a misbehaving script costs only its child.
 - `GET /healthz`: process alive, snapshot loaded.
 - `GET /readyz`: listeners bound, a snapshot live, not draining, and the vault unlocked.
 
-Both are on the admin port, plus the loopback plain-HTTP fallback listener when enabled. They are unauthenticated, with no details beyond status.
+Both are unauthenticated status endpoints on the admin port, plus the loopback plain-HTTP fallback listener when enabled.
 
 Readiness means "serving traffic", not "the config database is reachable". A degraded start serves the last-known-good config and is still ready, so `/readyz` answers 200 with the body `degraded` instead of `ready` (see [config.md](config.md)).
 
@@ -588,13 +588,13 @@ Code: `Paduraksa.Server/Cli/Doctor/` (the checks, the seams, the runner) and `Do
 - **Who holds a port.** A held port is "the running Paduraksa" when the admin `/healthz` answers `ok` or `unavailable` on this installation's loopback candidates (`DoctorCommands.HealthUris`, the same as `--liveness`), else "another process". Only the admin has a `/healthz`, so a held public port is attributed through it: if a Paduraksa answers on the admin port, a held 80 or 443 on this host is taken to be its own. A port below 1024 that this user may not bind says nothing about being free (EACCES comes before EADDRINUSE), so it is a warning, or info when a Paduraksa is running.
 - **The key beside the vault** says what the dashboard's attention item says: both read `MasterKeyAdvice` (Core).
 - **The options check** loads the options the way `serve` does (`PaduraksaHost.LoadOptions`, the same validator). An invalid configuration is a failed `options` check and exit 1, not 3, so the rest of the report still prints, and the checks that need options are skipped with an info line. Settings that the configuration sets (`ServerSettingEnvironment`) are listed as locked, and a differing value stored in the dashboard is a warning.
-- **The clock** compares the system clock, taken at the midpoint of the request, with the `Date` header of `https://www.cloudflare.com/cdn-cgi/trace`: over 30 s (a TOTP window) is a warning, over 5 minutes (ACME, certificate validity) a failure. No network, or no `Date`, is info. It runs only with `--check-clock`: the owner wants no outward request a person didn't ask for, so a plain `doctor` reports the clock as not checked. Cloudflare because the server already talks to it for its edge ranges, and nothing is sent but a GET.
+- **The clock** compares the system clock, taken at the midpoint of the request, with the `Date` header of `https://www.cloudflare.com/cdn-cgi/trace`: over 30 s (a TOTP window) is a warning, over 5 minutes (ACME, certificate validity) a failure. If there is no network, or no `Date`, the result is info. It runs only with `--check-clock`: the owner wants no outward request a person didn't ask for, so a plain `doctor` reports the clock as not checked. Cloudflare because the server already talks to it for its edge ranges, and nothing is sent but a GET.
 - **The running server's version** is read from `/api/v1/version`, which needs a token (`--token-file`, or `PADURAKSA_TOKEN`), and only over loopback, since the certificate check is skipped there. Without a token the line says the version was not compared. An unauthenticated version on `/healthz` was rejected: it would tell any scanner of the admin port which build runs.
 - **Output** is ASCII, like every line the CLI prints: `[ ok ]`, `[info]`, `[warn]`, `[FAIL]`. `--json` is `{ version, passed, summary, checks[] }` (`DoctorJsonContext`, source-generated), with lowercase statuses.
 
 #### The CLI reads the sign-in policy as the server does
 
-`admin reset-password` (and `backup`, which builds the identity services) read the identity options from `CliSettings.ApplyStoredAsync`: the environment's value, else the one the latest config revision stores (`StoredServerSettings`, read-only), else the default, through the same `ServerSettingsState` and `ServerSettingsBindings.ResolveIdentity` the server uses. It runs after the database is migrated, so an upgraded schema is read. A database that stores nothing or can't be read leaves the environment and the defaults, as the server does.
+`admin reset-password` (and `backup`, which builds the identity services) read the identity options from `CliSettings.ApplyStoredAsync`: the environment's value, else the one the latest config revision stores (`StoredServerSettings`, read-only), else the default, through the same `ServerSettingsState` and `ServerSettingsBindings.ResolveIdentity` the server uses. It runs after the database is migrated, so an upgraded schema is read. If the database stores nothing or can't be read, the environment and the defaults apply, as on the server.
 
 ### `config export` and `config import`
 
@@ -607,15 +607,15 @@ Code: `Paduraksa.Server/Cli/ConfigCommands.cs`.
 
 **The CLI is a client of the running instance's admin API, never of the database.**
 - "One writer, one process" (see [config.md](config.md)) means the CLI cannot write config.
-- A client keeps everything an import does (validation, the lock-out guard, the audit event with the token as the actor, the one revision) the pipeline's, with no second implementation.
+- Because the CLI is a client, everything an import does (validation, the lock-out guard, the audit event with the token as the actor, the one revision) stays the pipeline's, with no second implementation.
 - There is **no offline export from the data directory.** An instance that cannot start has `last-good.json` and its backups for its document, and a second reader of a database a server owns would need its own rules for a half-written WAL.
 
 **Authentication and address.**
 - The token comes from `--token-file` (first line) or `PADURAKSA_TOKEN`, never from an argument. It needs `config:read` to export and `config:write` to import.
 - The address is `--url`, else `PADURAKSA_URL`, else this installation's own admin listener: the candidates `doctor --liveness` probes (the loopback plain-HTTP fallback when it is on, else HTTPS to the admin port).
 - A loopback HTTPS address is not certificate-validated, because the admin certificate is the instance's own CA's, which a short-lived process does not load. It is the same call `doctor --liveness` makes, and the request follows no redirect and uses no proxy. Any other address must present a certificate the system trusts.
-- A token is never sent over plain `http://` to an address that is not loopback unless `--allow-insecure-http` says so (the CLI refuses).
-- A token file that group or others can read is warned about, as `backup --passphrase-file` does.
+- The CLI refuses to send a token over plain `http://` to an address that is not loopback unless `--allow-insecure-http` is given.
+- The CLI warns about a token file that group or others can read, as `backup --passphrase-file` does.
 
 **Output.** A dry run prints the changes (`+`, `-`, `~` and the path) and warnings. A refusal prints each error with its YAML path and line and exits 1. Exit 0 is success and "nothing to change". `ConfigCommandsTests` run against a real test host.
 
@@ -652,7 +652,7 @@ Code: `Paduraksa.Application/Yaml`, the API in `Paduraksa.Admin/Api/ConfigTransf
 1. `version` is not a key. The pipeline assigns versions on every change.
 2. A reference to another object is its **name**, under the key without `Id`: `profile: media`, `upstream: jellyfin`, `rateLimit: {policy: strict}`, `accessList: {accessList: office}`, `ruleSet: {ruleSet: Block AI crawlers}`, `maintenance: {bypassAccessList: office}`.
    - It is looked up ignoring case among the YAML's objects and, when merging, the stored ones that are left alone. The built-in rule-set presets can be named too.
-   - A name two objects share is `yaml.reference.ambiguous`, not a guess.
+   - If two objects share a name, the import reports `yaml.reference.ambiguous` instead of guessing.
    - An ID is accepted in its place, taken as it is even when no object has it: a valid document can name an object that is gone in a layer nothing uses, so its export has to read back, and the validator refuses one that matters.
 3. `id` is optional everywhere (hosts, routes, destinations and every named object).
 
@@ -670,7 +670,7 @@ Other rules:
 **Merge and replace** (`ConfigImportMerge`).
 - **Replace** is the document the YAML describes. A list it leaves out is empty, and `settings` it leaves out are the defaults, so what it does not name is deleted.
 - **Merge** is the stored config with each of the YAML's objects replacing the stored object with its ID **as written**. It is not field by field: a key left out is gone from that object, which is the only meaning of "update" that can also unset something. The new ones are added after. Nothing is deleted, and `settings` are replaced only if the YAML has them.
-- Both are one `ReplaceConfigCommand` built on the revision the import read. The caller's `If-Match` can name another, and then conflicts when it is stale.
+- Both are one `ReplaceConfigCommand` built on the revision the import read. The caller's `If-Match` can name another revision, and conflicts when it is stale.
 - Validation, compilation, the lock-out guard, the diff, the audit event (`config.replace`, channel of the caller, the note "YAML import (merge)" unless given) and the single revision are the pipeline's.
 - A dry run returns the changes and warnings and commits nothing.
 
@@ -691,7 +691,7 @@ Other rules:
 **Credentials.**
 - A user's `credentialId` in an import must be one the vault holds a password under (`IPasswordCredentials.Open(id).IsSet`), or one the live config already names (the vault lost it, which the pipeline reports as a warning; an export of such a config must stay importable).
 - Otherwise it is `yaml.credential.unknown` at the key, and a **dry run reports it as an error too**, with the diff, so a dry run says what applying would do.
-- A user written without a `credentialId` keeps the credential the stored list has for that name (`AccessListPasswords`). A user nobody has a password for fails the validator as it always did.
+- A user written without a `credentialId` keeps the credential the stored list has for that name (`AccessListPasswords`). A user that has no password anywhere fails the validator as it always did.
 - The check runs only for a caller who may write config, so it cannot be used to find out which credential IDs exist.
 
 **Errors point into the YAML.** The pipeline's validation errors index the document it was sent, and the compiler's backstop its canonical form. Both are mapped back to the entry that wrote the object and to the key that wrote the field (`/hosts/0/profileId` is `/hosts/0/profile`), with the line. In a merge, an error in a stored object the YAML left alone is a related error, still pointing into the document.
