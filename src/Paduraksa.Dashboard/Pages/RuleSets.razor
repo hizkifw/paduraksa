@@ -253,7 +253,7 @@ else
         await Drawers.ReviewAsync(new ReviewRequest($"Delete rule set {set.Name}", new DeleteRuleSetCommand(set.Id, set.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the rule set {set.Name}",
+            SuccessMessage = $"rule set {set.Name} deleted",
         });
     }
 }

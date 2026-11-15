@@ -246,7 +246,7 @@
 
         await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New rate limit {policy.Name}" : $"Edit rate limit {policy.Name}", new UpsertRateLimitPolicyCommand(policy))
         {
-            SuccessMessage = Model.IsNew ? $"Created the rate limit {policy.Name}" : $"Saved the rate limit {policy.Name}",
+            SuccessMessage = $"rate limit {policy.Name} {(Model.IsNew ? "added" : "changed")}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         });
     }
@@ -269,7 +269,7 @@
         await RunReviewAsync(new ReviewRequest($"Delete rate limit {StoredName}", new DeleteRateLimitPolicyCommand(Model.Id, Model.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the rate limit {StoredName}",
+            SuccessMessage = $"rate limit {StoredName} deleted",
         });
     }
 }

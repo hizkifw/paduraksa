@@ -364,6 +364,7 @@ public sealed class DraftTests
         Assert.Equal((draftId, token), (config.DraftApplies[0].Draft, config.DraftApplies[0].Token));
         Assert.Empty(config.Executed);
         await bar.WaitForStateAsync(() => bar.FindAll("[data-draft-bar]").Count == 0);
+        Assert.StartsWith("Applied: 1 change. Live as #", Assert.Single(context.Services.GetRequiredService<ISnackbar>().ShownSnackbars).Message?.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

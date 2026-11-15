@@ -458,7 +458,7 @@
         switch (result.Status)
         {
             case ConfigCommandStatus.Committed:
-                Undo.Offer(result.Revision!, "Draft applied", pending: result.Publish?.Status == PublishOutcomeStatus.Pending);
+                Undo.Offer(result.Revision!, _entries.Count == 1 ? "1 change" : $"{_entries.Count} changes", pending: result.Publish?.Status == PublishOutcomeStatus.Pending);
                 Level?.Close(new ReviewOutcome(result, false));
                 break;
             case ConfigCommandStatus.PublishFailed:

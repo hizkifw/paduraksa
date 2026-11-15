@@ -22,7 +22,7 @@ public sealed record ReviewRequest(string Title, ConfigCommand Command)
     public bool Destructive { get; init; }
 
     /// <summary>The toast's text after Apply ("Created app.example.com").</summary>
-    public string SuccessMessage { get; init; } = "Change applied";
+    public string SuccessMessage { get; init; } = "change";
 
     /// <summary>A host name the change is about, to pre-fill the simulator.</summary>
     public string? SampleHost { get; init; }

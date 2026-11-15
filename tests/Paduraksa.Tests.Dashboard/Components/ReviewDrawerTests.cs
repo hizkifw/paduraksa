@@ -2,6 +2,8 @@ using Bunit;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using MudBlazor;
+
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -64,6 +66,7 @@ public sealed class ReviewDrawerTests
         Assert.False(committed.DryRun);
         Assert.Equal(2, committed.Host.Version);
         Assert.Equal(ConfigCommandStatus.Committed, applied?.Status);
+        Assert.StartsWith("Applied: host app.example.com changed. Live as #", Assert.Single(context.Services.GetRequiredService<ISnackbar>().ShownSnackbars).Message?.ToString(), StringComparison.Ordinal);
         Assert.Empty(drawer.FindAll(".pdk-sheet"));
         Assert.Null(context.Services.GetRequiredService<ReviewedDraft>().Command);
     }
@@ -214,6 +217,7 @@ public sealed class ReviewDrawerTests
         context.Render<ReviewDrawer>(parameters => parameters
             .Add(d => d.Open, true)
             .Add(d => d.Title, "Edit app.example.com")
+            .Add(d => d.SuccessMessage, "host app.example.com changed")
             .Add(d => d.Command, command)
             .Add(d => d.OnApplied, onApplied ?? (_ => { }))
             .Add(d => d.OnInvalid, onInvalid ?? (_ => { }))

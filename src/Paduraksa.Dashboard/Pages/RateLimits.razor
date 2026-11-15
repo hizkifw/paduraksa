@@ -224,7 +224,7 @@ else
         await Drawers.ReviewAsync(new ReviewRequest($"Delete rate limit {policy.Name}", new DeleteRateLimitPolicyCommand(policy.Id, policy.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the rate limit {policy.Name}",
+            SuccessMessage = $"rate limit {policy.Name} deleted",
         });
     }
 }

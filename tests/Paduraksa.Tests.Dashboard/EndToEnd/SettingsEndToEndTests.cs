@@ -133,7 +133,7 @@ public sealed class SettingsEndToEndTests
         await page.SetViewportSizeAsync(1366, 900);
         await apply.ClickAsync();
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
-        await Expect(page.Locator(".mud-snackbar", new() { HasText = "Saved the global defaults" })).ToBeVisibleAsync();
+        await Expect(page.Locator(".mud-snackbar", new() { HasText = "Applied: global defaults changed" })).ToBeVisibleAsync();
 
         // The audit page shows all of it, and the chain verifies.
         await OpenFromNavigationAsync(page, "Audit");

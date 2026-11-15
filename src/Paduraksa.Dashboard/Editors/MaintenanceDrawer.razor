@@ -111,7 +111,7 @@
             var name = ChangeView.HostTitle(_host);
             var outcome = await Drawers.ReviewAsync(new ReviewRequest($"Put {name} in maintenance", new UpsertHostCommand(_host with { Settings = _settings }))
             {
-                SuccessMessage = $"{name} is in maintenance",
+                SuccessMessage = $"host {name} in maintenance",
                 SampleHost = _host.Names.FirstOrDefault(n => !n.StartsWith('*')),
                 OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, errors => _errors = InlineValidation.Relative(errors, string.Empty)),
             });

@@ -11,7 +11,7 @@ using Paduraksa.Dashboard.Components;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// The toast after a change is applied: what was saved, as which revision, with <b>Undo</b>. Undo rolls the config back to the
+/// The toast after a change is applied: what was applied, as which revision, with <b>Undo</b>. Undo rolls the config back to the
 /// revision before it through the rollback command (a new revision; history is never rewritten), based on the revision it undoes, so it
 /// is refused when someone changed the config in between, and asks first while a draft is open. One per circuit, so the toast's button outlives the page that applied.
 /// </summary>
@@ -23,13 +23,13 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
     /// <summary>How long the toast with Undo stays up.</summary>
     public const int UndoVisibleMilliseconds = 12_000;
 
-    /// <summary>Shows that <paramref name="what"/> went live as <paramref name="committed"/>, with Undo.</summary>
+    /// <summary>Shows "Applied: <paramref name="what"/>" and the revision it went live as, with Undo. <paramref name="what"/> says what changed, without the verb ("host app.example.com added", "3 changes").</summary>
     public void Offer(RevisionRef committed, string what, bool pending = false)
     {
         ArgumentNullException.ThrowIfNull(committed);
         var message = pending
-            ? $"{what}. Saved as {committed}; it goes live in a moment."
-            : $"{what}. Live as {committed}.";
+            ? $"Applied: {what}. Saved as {committed}; it goes live in a moment."
+            : $"Applied: {what}. Live as {committed}.";
         if (_offered is { } previous)
         {
             snackbar.Remove(previous);

@@ -651,7 +651,7 @@
 
         var final = request with
         {
-            SuccessMessage = Model.IsNew ? $"Created {name}" : $"Saved {name}",
+            SuccessMessage = $"host {name} {(Model.IsNew ? "added" : "changed")}",
             SampleHost = SampleHost,
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         };
@@ -669,7 +669,7 @@
         await RunReviewAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(Model.Id, Model.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted {name}",
+            SuccessMessage = $"host {name} deleted",
         });
     }
 

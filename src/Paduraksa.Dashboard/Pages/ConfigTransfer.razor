@@ -110,7 +110,7 @@ else
     </div>
 
     <ReviewDrawer @bind-Open="_reviewing" Title="@($"Import YAML ({ModeWord})")" Command="_command" AfterDocument="_command?.Document" ApplyLabel="Import" Destructive="_mode == ConfigImportMode.Replace"
-                  SuccessMessage="Imported the YAML" OnApplied="OnAppliedAsync" OnReload="OnReloadAsync" />
+                  SuccessMessage="YAML imported" OnApplied="OnAppliedAsync" OnReload="OnReloadAsync" />
 }
 
 @code {

@@ -398,7 +398,7 @@
 
         await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New rule set {set.Name}" : $"Edit rule set {set.Name}", new UpsertRuleSetCommand(set))
         {
-            SuccessMessage = Model.IsNew ? $"Created the rule set {set.Name}" : $"Saved the rule set {set.Name}",
+            SuccessMessage = $"rule set {set.Name} {(Model.IsNew ? "added" : "changed")}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         });
     }
@@ -421,7 +421,7 @@
         await RunReviewAsync(new ReviewRequest($"Delete rule set {StoredName}", new DeleteRuleSetCommand(Model.Id, Model.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the rule set {StoredName}",
+            SuccessMessage = $"rule set {StoredName} deleted",
         });
     }
 }

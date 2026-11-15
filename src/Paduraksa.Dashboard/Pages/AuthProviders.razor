@@ -206,7 +206,7 @@ else
         await Drawers.ReviewAsync(new ReviewRequest($"Delete auth provider {set.Name}", new DeleteAuthProviderCommand(set.Id, set.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the auth provider {set.Name}",
+            SuccessMessage = $"auth provider {set.Name} deleted",
         });
     }
 }

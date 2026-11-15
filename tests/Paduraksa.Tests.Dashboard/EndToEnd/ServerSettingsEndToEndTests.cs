@@ -52,7 +52,7 @@ public sealed class ServerSettingsEndToEndTests
         await Expect(page.Locator(".pdk-sheet")).ToContainTextAsync("can't be recovered");
         await apply.ClickAsync();
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
-        await Expect(page.Locator(".mud-snackbar", new() { HasText = "Saved the server settings" })).ToBeVisibleAsync();
+        await Expect(page.Locator(".mud-snackbar", new() { HasText = "Applied: server settings changed" })).ToBeVisibleAsync();
 
         Assert.Equal(TimeSpan.FromDays(7), ServerSettingCatalog.MetricsRetention.Resolve(host.Host.Shared.ServerSettings.Current));
         Assert.Equal(ServerSettingSource.Config, host.Host.Shared.ServerSettings.SourceOf(ServerSettingCatalog.MetricsRetention));

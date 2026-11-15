@@ -238,7 +238,7 @@ else
         await Drawers.ReviewAsync(new ReviewRequest($"Delete profile {profile.Name}", new DeleteProfileCommand(profile.Id, profile.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the profile {profile.Name}",
+            SuccessMessage = $"profile {profile.Name} deleted",
         });
     }
 }

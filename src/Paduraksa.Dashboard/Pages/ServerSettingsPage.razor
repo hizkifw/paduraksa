@@ -96,7 +96,7 @@ else
         }
     </form>
 
-    <ReviewDrawer @bind-Open="_reviewing" Title="Server settings" Command="_command" SuccessMessage="Saved the server settings"
+    <ReviewDrawer @bind-Open="_reviewing" Title="Server settings" Command="_command" SuccessMessage="server settings changed"
                   OnApplied="ReloadOnAppliedAsync" OnDrafted="ReloadOnDraftedAsync" OnInvalid="OnInvalid" OnReload="ReloadAsync" />
 }
 

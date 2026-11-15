@@ -575,7 +575,7 @@
 
         await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New upstream {upstream.Name}" : $"Edit {upstream.Name}", new UpsertUpstreamCommand(upstream))
         {
-            SuccessMessage = Model.IsNew ? $"Created {upstream.Name}" : $"Saved {upstream.Name}",
+            SuccessMessage = $"upstream {upstream.Name} {(Model.IsNew ? "added" : "changed")}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         });
     }
@@ -598,7 +598,7 @@
         await RunReviewAsync(new ReviewRequest($"Delete {StoredName}", new DeleteUpstreamCommand(Model.Id, Model.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted {StoredName}",
+            SuccessMessage = $"upstream {StoredName} deleted",
         });
     }
 }

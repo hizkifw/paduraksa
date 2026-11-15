@@ -306,7 +306,7 @@
 
         await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New auth provider {provider.Name}" : $"Edit auth provider {provider.Name}", new UpsertAuthProviderCommand(provider))
         {
-            SuccessMessage = Model.IsNew ? $"Created the auth provider {provider.Name}" : $"Saved the auth provider {provider.Name}",
+            SuccessMessage = $"auth provider {provider.Name} {(Model.IsNew ? "added" : "changed")}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         });
     }
@@ -329,7 +329,7 @@
         await RunReviewAsync(new ReviewRequest($"Delete auth provider {StoredName}", new DeleteAuthProviderCommand(Model.Id, Model.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the auth provider {StoredName}",
+            SuccessMessage = $"auth provider {StoredName} deleted",
         });
     }
 }

@@ -362,7 +362,7 @@
 
         await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New access list {list.Name}" : $"Edit access list {list.Name}", new UpsertAccessListCommand(list))
         {
-            SuccessMessage = Model.IsNew ? $"Created the access list {list.Name}" : $"Saved the access list {list.Name}",
+            SuccessMessage = $"access list {list.Name} {(Model.IsNew ? "added" : "changed")}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         });
     }
@@ -385,7 +385,7 @@
         await RunReviewAsync(new ReviewRequest($"Delete access list {StoredName}", new DeleteAccessListCommand(Model.Id, Model.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the access list {StoredName}",
+            SuccessMessage = $"access list {StoredName} deleted",
         });
     }
 }

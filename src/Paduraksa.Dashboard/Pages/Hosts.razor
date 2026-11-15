@@ -329,7 +329,7 @@ else
         var on = !host.Enabled;
         await Drawers.ReviewAsync(new ReviewRequest($"{(on ? "Switch on" : "Switch off")} {name}", new UpsertHostCommand(host with { Enabled = on }))
         {
-            SuccessMessage = $"{(on ? "Switched on" : "Switched off")} {name}",
+            SuccessMessage = $"host {name} switched {(on ? "on" : "off")}",
             SampleHost = host.Names.FirstOrDefault(n => !n.StartsWith('*')),
         });
 
@@ -359,7 +359,7 @@ else
         var changed = host with { Settings = HostSettingsEdit.WithMaintenance(host.Settings, maintenance => maintenance with { Enabled = false }) };
         await Drawers.ReviewAsync(new ReviewRequest($"End maintenance of {name}", new UpsertHostCommand(changed))
         {
-            SuccessMessage = $"{name} is out of maintenance",
+            SuccessMessage = $"host {name} out of maintenance",
             SampleHost = host.Names.FirstOrDefault(n => !n.StartsWith('*')),
         });
     }

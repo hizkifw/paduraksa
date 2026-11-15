@@ -239,7 +239,7 @@
 
         await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New profile {profile.Name}" : $"Edit profile {profile.Name}", new UpsertProfileCommand(profile))
         {
-            SuccessMessage = Model.IsNew ? $"Created the profile {profile.Name}" : $"Saved the profile {profile.Name}",
+            SuccessMessage = $"profile {profile.Name} {(Model.IsNew ? "added" : "changed")}",
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
         });
     }
@@ -261,7 +261,7 @@
         await RunReviewAsync(new ReviewRequest($"Delete profile {StoredName}", new DeleteProfileCommand(Model.Id, Model.Version))
         {
             Destructive = true,
-            SuccessMessage = $"Deleted the profile {StoredName}",
+            SuccessMessage = $"profile {StoredName} deleted",
         });
     }
 }
