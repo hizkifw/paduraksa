@@ -96,7 +96,7 @@ Two database files, deliberately separate:
 ### The config document is the only copy
 
 - The config entities below are the content of the config document (see [The config document and the compiler](#the-config-document-and-the-compiler)). They have no tables of their own: the migration `DropConfigProjection` removed tables that were written on every commit and read by nothing.
-- The one rule those tables enforced, a unique host name among enabled hosts (any case), is the validator's now (`host.name.duplicate`).
+- The validator now enforces the one rule those tables enforced: a unique host name among enabled hosts, in any case (`host.name.duplicate`).
 - Certificates, ACME accounts and orders, DNS providers, notification channels and the identity entities are tables, because they hold state outside the document.
 
 ### Config entities
@@ -125,7 +125,7 @@ Two database files, deliberately separate:
 **Notification channels** are an operational table like `DnsProvider`.
 - Columns: label, kind (ntfy, Gotify, Discord, webhook, email), enabled, subscribed events, the kind's non-secret settings, vault `SecretId`s for its secret and a webhook's signing key, and delivery state (last sent, last error).
 - Deliveries live in the outbox (`NotificationEvents`, `NotificationDeliveries`; see "Durable delivery and history" in [hot-path.md](hot-path.md)).
-- Events: upstream down and up (also per destination), expiry warning for every certificate regardless of source (default 30/14/7/1 days, the local CA root included), ACME failure and recovery, sign-in lockout and new address.
+- Events: upstream down and up (also per destination), expiry warning for every certificate (default 30/14/7/1 days, the local CA root included), ACME failure and recovery, sign-in lockout and new address.
 
 **Host kinds:**
 - **Proxy** (YARP).
@@ -237,8 +237,8 @@ For the settings UI step in detail:
   - a profile may leave `includeSubDomains` to the hosts that use it;
   - a layer no host uses is never refused;
   - the error is reported at the host, naming the layer its `preload` came from, because the host sends the header.
-- Off, the preload pair is inert.
-- A request for a name no host serves never carries HSTS, whatever the global defaults say. The proxy does not pin a name it does not serve.
+- With HSTS off, the preload pair is inert.
+- If a request is for a name no host serves, the response never carries HSTS, whatever the global defaults say. The proxy does not pin a name it does not serve.
 
 ### `Server` header rules
 
@@ -307,7 +307,7 @@ Everything else walks the catalogue:
 
 - **Anchors.** Each setting's row has the id `ServerSettingDefinition.Anchor` (the key in kebab-case), so `/settings/server#mcp-enabled` scrolls to it, focuses it and highlights it (see "Linking to a field" in [dashboard.md](dashboard.md)). A locked setting keeps its anchor: the link lands on the note that names the variable.
 - **Hints link, they don't name the variable.** A dashboard hint for a catalogue setting links with `SettingsRoutes.SettingLink`. The API tokens page's "MCP is off" says to turn on *Serve /mcp* in the server settings.
-  - Someone without `server:write` is told that an Owner or Admin can, and still gets the link, since the page shows the value read-only.
+  - If someone lacks `server:write`, the hint says an Owner or Admin can change it, and still links, since the page shows the value read-only.
   - When the environment keeps it off, the hint says so, names the variable and links to the row.
 - **Kept as they are:** the server's own error and warning texts name settings outside the catalogue (`Paduraksa:Listen:AdminAllowedSources` in the forwarded-headers refusal, `Paduraksa:Listen:AdminInternal` in the compiler's warning). The OpenAPI description of the notification history names `Paduraksa:Notifications:HistoryRetention`, left alone to keep the API's description stable.
 
@@ -356,7 +356,7 @@ Application command handler
 - **Diff.** A structural diff over the canonical document (stable ordering by typed ID), rendered as an object-level change list plus a YAML side-by-side view.
 - **YARP validation.** YARP's own `IConfigValidator` runs in step 4, so an invalid YARP config fails before commit. YARP otherwise swallows invalid configs: it logs and keeps the old one.
 - **Startup recompiles the latest revision.** The latest committed revision is the source of truth, and the process compiles it on every start.
-  - A crash between commit and publish therefore costs only that the change goes live at the next start.
+  - If the process crashes between commit and publish, the change goes live at the next start.
   - A failed publish after a commit is reported to the command, logged as an error and audited, with no retry. The commit stands and the previous snapshot stays live. The next commit's publish or the next start makes the change live, since every snapshot is the whole config.
 - **Last-known-good.** After each successful publish the compiled snapshot's source document is also written to `data/last-good.json`, a fallback for an unreadable database. See [Startup, last-known-good and degraded starts](#startup-last-known-good-and-degraded-starts).
 
