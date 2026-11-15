@@ -113,7 +113,11 @@ nav:
   - Reference:
       - Threat model: threat-model.md
       - Changelog: changelog.md
-  - Design:
+  # Contributor documentation: how it is built, for people changing it (docs/design/index.md). "Contributors" says who the pages are for;
+  # "Internals" would leave out the development guide and the testing and deployment pages.
+  - Contributors:
+      - About these pages: design/index.md
+      - Working on the code: development.md
       - Overview: PLAN.md
       - Threat model (full analysis): design/threat-model.md
       - Process and hosting: design/hosting.md
@@ -129,8 +133,7 @@ nav:
       - Deployment: design/deployment.md
       - Testing: design/testing.md
       - Risks, spikes and milestones: design/milestones.md
-      - "Spike S1: HTTP/3 and SNI": spikes/S1-http3-sni.md
-      - "Spike S2: YARP reload": spikes/S2-yarp-reload.md
-      - "Spike S3: zero-allocation gate": spikes/S3-zero-alloc-gate.md
-  - Developing:
-      - Working on the code: development.md
+      - Spikes:
+          - "S1: HTTP/3 and SNI": spikes/S1-http3-sni.md
+          - "S2: YARP reload": spikes/S2-yarp-reload.md
+          - "S3: zero-allocation gate": spikes/S3-zero-alloc-gate.md

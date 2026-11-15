@@ -1,10 +1,11 @@
 """MkDocs hooks for the documentation site (mkdocs.yml, `hooks:`).
 
-Three jobs, so that the files stay where the repository (and GitHub's own rendering of it) wants them:
+Four jobs, so that the files stay where the repository (and GitHub's own rendering of it) wants them:
 
 1. Links that leave docs/ (to source files, deploy/, bench/) become links to the repository on GitHub, instead of warnings.
 2. CHANGELOG.md, which lives at the repository root, becomes the page `changelog.md`.
-3. The API reference: the shipped OpenAPI document and a pinned Scalar bundle are written beside the site, so the reference
+3. The contributor pages (docs/design/, docs/spikes/, PLAN.md, development.md) get a note under their title that they are not the guide.
+4. The API reference: the shipped OpenAPI document and a pinned Scalar bundle are written beside the site, so the reference
    renders with no request to anything but the site itself.
 """
 
@@ -124,11 +125,41 @@ def on_files(files, config):
     return files
 
 
+# One mechanism for the whole section, so that no page carries a copy of the note and a new page gets it by living in the right place.
+# design/index.md is the section's own landing page and says it in full.
+CONTRIBUTOR_PREFIXES = ("design/", "spikes/")
+CONTRIBUTOR_PAGES = {"PLAN.md", "development.md"}
+CONTRIBUTOR_LANDING = "design/index.md"
+GUIDE_PAGE = "guide/getting-started.md"
+FIRST_HEADING = re.compile(r"^# .*$", re.MULTILINE)
+
+
+def _contributor_note(directory: str) -> str:
+    guide = posixpath.relpath(GUIDE_PAGE, directory or ".")
+    return (
+        '!!! info "Contributor documentation"\n'
+        f"    How Paduraksa is built, for people changing it. To use Paduraksa, see the [user guide]({guide}).\n"
+    )
+
+
+def _is_contributor_page(src_uri: str) -> bool:
+    if src_uri == CONTRIBUTOR_LANDING:
+        return False
+    return src_uri in CONTRIBUTOR_PAGES or src_uri.startswith(CONTRIBUTOR_PREFIXES)
+
+
 def on_page_markdown(markdown, page, config, files):
     if page.file.src_uri == "changelog.md":
         return markdown
     directory = posixpath.dirname(page.file.src_uri)
-    return _rewrite(markdown, posixpath.normpath(posixpath.join("docs", directory)), directory)
+    markdown = _rewrite(markdown, posixpath.normpath(posixpath.join("docs", directory)), directory)
+    if not _is_contributor_page(page.file.src_uri):
+        return markdown
+    note = _contributor_note(directory)
+    heading = FIRST_HEADING.search(markdown)
+    if heading is None:
+        return note + "\n" + markdown
+    return markdown[: heading.end()] + "\n\n" + note + markdown[heading.end() :]
 
 
 def _scalar_bundle() -> Path:
