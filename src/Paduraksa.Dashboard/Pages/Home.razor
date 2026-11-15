@@ -44,7 +44,6 @@
         <div class="pdk-card-head">
             <div>
                 <MudText Typo="Typo.h6" HtmlTag="h2">@(count == 1 ? "One thing needs you" : $"{count} things need you")</MudText>
-                <MudText Typo="Typo.caption" Class="pdk-muted">Most serious first.</MudText>
             </div>
         </div>
         <ul class="pdk-attention-list">
@@ -84,7 +83,7 @@
     @if (_mayReadConfig)
     {
         <StatCard Label="Hosts" Icon="@Icons.Material.Outlined.Language" Loading="Snapshot is null" Href="@DashboardRoutes.Hosts" LinkText="Hosts"
-                  Detail="@(Snapshot is { Hosts: > 0 } ? $"{Snapshot.Online} online · {Snapshot.Off} off" : "None yet")">
+                  Detail="@(Snapshot is { Hosts: > 0 } ? $"{Snapshot.Online} online · {Snapshot.Off} off" : null)">
             <Value>@(Snapshot?.Hosts ?? 0)</Value>
         </StatCard>
         <StatCard Label="Upstreams" Icon="@Icons.Material.Outlined.Hub" Loading="Snapshot is null" Href="@DashboardRoutes.Upstreams" LinkText="Upstreams"
@@ -106,7 +105,7 @@
     {
         <StatCard Label="Live revision" Icon="@Icons.Material.Outlined.History" Loading="Snapshot is null" Href="@DashboardRoutes.History" LinkText="History"
                   Tone="@(Status.IsDegraded ? Color.Warning : Color.Primary)"
-                  Detail="@(Status.IsDegraded ? "On the last-known-good config" : Snapshot?.Revision is null ? "No change has been made yet" : null)">
+                  Detail="@(Status.IsDegraded ? "On the last-known-good config" : null)">
             <Value>@(Snapshot?.Revision is { } revision ? $"#{revision.ToString(CultureInfo.InvariantCulture)}" : "None yet")</Value>
         </StatCard>
     }
@@ -170,7 +169,7 @@
             }
             else if (Snapshot.Recent.Count == 0)
             {
-                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.History" Title="No changes yet" Description="Every change you apply can be undone." />
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.History" Title="No changes yet" />
             }
             else
             {
