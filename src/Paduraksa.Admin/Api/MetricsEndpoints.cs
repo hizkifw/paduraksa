@@ -20,7 +20,7 @@ internal static class MetricsEndpoints
     /// <summary>The scrape's path in the API; <c>/metrics</c> is answered by rewriting to it (see <see cref="ApiPipelineMiddleware"/>).</summary>
     public const string ScrapePath = "/api/v1/metrics";
 
-    private static readonly QueryParameter Range = QueryParameter.Choice("range", "How far back to look: hour is from memory and the last hour of rollups, the rest from the one-minute rollups.", ["hour", "day", "week", "month"], "hour");
+    private static readonly QueryParameter Range = QueryParameter.Choice("range", "How far back to look. hour comes from memory and the last hour of rollups; the others come from the one-minute rollups.", ["hour", "day", "week", "month"], "hour");
 
     public static void Map(RouteGroupBuilder api)
     {

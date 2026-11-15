@@ -27,7 +27,7 @@ internal static class SecurityEndpoints
             .RequirePermission(Permission.ConfigRead);
     }
 
-    private static readonly QueryParameter Range = QueryParameter.Choice("range", "How far back to count: hour is from memory and the last hour of rollups, the rest from the one-minute rollups.", ["hour", "day", "week", "month"], "hour");
+    private static readonly QueryParameter Range = QueryParameter.Choice("range", "How far back to count. hour comes from memory and the last hour of rollups; the others come from the one-minute rollups.", ["hour", "day", "week", "month"], "hour");
 
     private static async Task<IResult> Overview(HttpContext http, SecurityOverviewService service)
     {

@@ -24,10 +24,10 @@ internal static class UserEndpoints
 
         // A user may read themselves without users:read; the service decides, so only a caller is required here.
         users.MapGet("{id:UserId}", GetAsync).RequireAuthenticated().WithName("GetUser").WithSummary("Get a user")
-            .WithDescription("A user may read themselves; reading another needs users:read.")
+            .WithDescription("A user can read themselves; reading another user requires users:read.")
             .Produces<UserSummary>().ProducesApiProblems(403, 404);
         users.MapPatch("{id:UserId}", UpdateAsync).RequirePermission(Permission.UsersWrite).WithName("UpdateUser").WithSummary("Change a user")
-            .WithDescription("A partial update: the display name, roles and disabled flag that are given. Users carry no version, so there is no If-Match: the last write wins.")
+            .WithDescription("A partial update of the display name, roles and disabled flag that are given. Users carry no version, so there is no If-Match and the last write wins.")
             .Accepts<UpdateUserRequest>("application/json").Produces<UserSummary>().ProducesApiProblems(400, 403, 404, 409, 415, 422);
         users.MapDelete("{id:UserId}", DeleteAsync).RequirePermission(Permission.UsersWrite).WithName("DeleteUser").WithSummary("Delete a user")
             .Produces(StatusCodes.Status204NoContent).ProducesApiProblems(403, 404, 409);

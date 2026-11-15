@@ -16,30 +16,30 @@ namespace Paduraksa.Admin.Identity;
 /// <summary>The caller's own account: password, second factor, sessions and API tokens. Every one needs a caller; the services decide what that caller may do.</summary>
 internal static class AccountEndpoints
 {
-    private static readonly QueryParameter OwnerFilter = QueryParameter.Id<UserId>("userId", "List this user's instead of the caller's (the service checks the caller may); 404 when it names no user.");
+    private static readonly QueryParameter OwnerFilter = QueryParameter.Id<UserId>("userId", "List this user's instead of the caller's (the service checks the caller may); 404 if it names no user.");
 
     public static void Map(IEndpointRouteBuilder api)
     {
         var me = api.MapGroup("me").RequireAuthenticated();
         me.MapPost("password", ChangePasswordAsync).WithName("ChangePassword").WithSummary("Change your password")
-            .WithDescription("Needs the current password (a wrong one is 422 and counts toward the lockout) and ends every other session of the caller.")
+            .WithDescription("Requires the current password (a wrong one returns 422 and counts toward the lockout). Ends every other session of the caller.")
             .Accepts<ChangePasswordRequest>("application/json").Produces(StatusCodes.Status204NoContent).ProducesApiProblems(400, 403, 404, 415, 422, 503);
         me.MapPost("totp/enrollment", BeginTotpAsync).WithName("BeginTotpEnrollment").WithSummary("Start enrolling an authenticator")
-            .WithDescription("Needs the password. The provisioning URI carries the secret and is shown once; the enrolment is not active until it is confirmed.")
+            .WithDescription("Requires the password. The provisioning URI carries the secret and is shown once. The enrolment isn't active until it is confirmed.")
             .Accepts<PasswordConfirmation>("application/json").Produces<TotpEnrollmentStarted>().ProducesApiProblems(400, 403, 404, 409, 415, 422, 503);
         me.MapPost("totp/enrollment/confirm", ConfirmTotpAsync).WithName("ConfirmTotpEnrollment").WithSummary("Confirm the authenticator with a code")
             .WithDescription("Activates the second factor and returns the recovery codes, shown once.")
             .Accepts<TotpConfirmation>("application/json").Produces<RecoveryCodes>().ProducesApiProblems(400, 403, 404, 409, 415, 422);
         me.MapPost("totp/disable", DisableTotpAsync).WithName("DisableTotp").WithSummary("Turn the second factor off")
-            .WithDescription("Needs the password, so it is a POST with a body (a DELETE has no body to rely on).")
+            .WithDescription("Requires the password, so it is a POST with a body (a DELETE can't rely on a body).")
             .Accepts<PasswordConfirmation>("application/json").Produces(StatusCodes.Status204NoContent).ProducesApiProblems(400, 403, 404, 409, 415, 422, 503);
         me.MapPost("recovery-codes", RegenerateRecoveryCodesAsync).WithName("RegenerateRecoveryCodes").WithSummary("Make new recovery codes")
-            .WithDescription("Needs the password. The old codes stop working; the new ones are shown once.")
+            .WithDescription("Requires the password. The old codes stop working, and the new ones are shown once.")
             .Accepts<PasswordConfirmation>("application/json").Produces<RecoveryCodes>().ProducesApiProblems(400, 403, 404, 409, 415, 422, 503);
 
         var sessions = api.MapGroup("sessions").RequireAuthenticated().RequireSessionCaller();
         sessions.MapGet(string.Empty, ListSessionsAsync).WithName("ListSessions").WithSummary("List sessions")
-            .WithDescription("A signed-in session is required: a token caller gets 403 auth.sessionRequired.")
+            .WithDescription("Requires a signed-in session; a token caller gets 403 auth.sessionRequired.")
             .WithQuery(OwnerFilter).WithPage().Produces<Page<SessionSummary>>().ProducesApiProblems(400, 403, 404);
         sessions.MapPost("revoke-others", RevokeOtherSessionsAsync).WithName("RevokeOtherSessions").WithSummary("End every other session of the caller")
             .Produces(StatusCodes.Status204NoContent).ProducesApiProblems(403, 404);
@@ -48,13 +48,13 @@ internal static class AccountEndpoints
 
         var tokens = api.MapGroup("tokens").RequireAuthenticated().RequireSessionCaller();
         tokens.MapGet(string.Empty, ListTokensAsync).WithName("ListTokens").WithSummary("List API tokens")
-            .WithDescription("A signed-in session is required: a token caller gets 403 auth.sessionRequired.")
+            .WithDescription("Requires a signed-in session; a token caller gets 403 auth.sessionRequired.")
             .WithQuery(OwnerFilter).WithPage().Produces<Page<ApiTokenSummary>>().ProducesApiProblems(400, 403, 404);
         tokens.MapPost(string.Empty, IssueTokenAsync).WithName("IssueToken").WithSummary("Issue an API token")
-            .WithDescription("The token's secret is in the answer and nowhere else, ever again.")
+            .WithDescription("The secret appears in this answer only and is never shown again.")
             .Accepts<IssueApiTokenRequest>("application/json").Produces<IssuedApiToken>(StatusCodes.Status201Created).ProducesApiProblems(400, 403, 404, 415, 422);
         tokens.MapPatch("{id:ApiTokenId}", UpdateTokenAsync).WithName("UpdateToken").WithSummary("Change an API token")
-            .WithDescription("Renames it, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token is 409.")
+            .WithDescription("Renames the token, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token returns 409.")
             .Accepts<UpdateApiTokenRequest>("application/json").Produces<ApiTokenSummary>().ProducesApiProblems(400, 403, 404, 409, 415, 422);
         tokens.MapDelete("{id:ApiTokenId}", RevokeTokenAsync).WithName("RevokeToken").WithSummary("Revoke an API token")
             .Produces(StatusCodes.Status204NoContent).ProducesApiProblems(403, 404);

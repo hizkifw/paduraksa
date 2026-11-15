@@ -21,7 +21,7 @@ internal static class AnalyticsEndpoints
     public const string UnmatchedHost = "unmatched";
 
     private static readonly QueryParameter Range = QueryParameter.Choice("range", "How far back to look.", ["hour", "day", "week", "month"], "hour");
-    private static readonly QueryParameter Host = QueryParameter.Text("host", $"Only this host: its ID (host_..., which may have been deleted since), or '{UnmatchedHost}' for the requests no host owns. Every host when absent.");
+    private static readonly QueryParameter Host = QueryParameter.Text("host", $"Only this host: its ID (host_..., which may have been deleted since), or '{UnmatchedHost}' for the requests no host owns. All hosts if absent.");
 
     public static void Map(RouteGroupBuilder api)
     {

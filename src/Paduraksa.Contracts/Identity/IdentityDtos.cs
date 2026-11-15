@@ -13,8 +13,8 @@ namespace Paduraksa.Contracts.Identity;
 /// <param name="DisplayName">The name shown in the UI.</param>
 /// <param name="Roles">The roles the user holds, in a fixed order.</param>
 /// <param name="TwoFactorEnabled">An authenticator is enrolled, so signing in needs a code.</param>
-/// <param name="Disabled">The user cannot sign in, and their tokens and sessions are dead.</param>
-/// <param name="Locked">Sign-in is refused for now after too many failures.</param>
+/// <param name="Disabled">The user can't sign in, and their tokens and sessions no longer work.</param>
+/// <param name="Locked">Sign-in is refused for a while after too many failures.</param>
 /// <param name="CreatedAt">When the user was created.</param>
 /// <param name="UpdatedAt">When the user was last changed.</param>
 public sealed record UserSummary(
@@ -31,7 +31,7 @@ public sealed record UserSummary(
 /// <summary>Creates a user.</summary>
 /// <param name="Username">3 to 64 characters: letters, digits and <c>. _ - @ +</c>. Unique without regard to case.</param>
 /// <param name="DisplayName">Shown in the UI; the username when null or empty.</param>
-/// <param name="Password">The initial password (minimum length applies, no other rule).</param>
+/// <param name="Password">The initial password. Only the minimum length applies.</param>
 /// <param name="Roles">At least one.</param>
 public sealed record CreateUserRequest(string Username, string? DisplayName, string Password, IReadOnlyList<Role> Roles)
 {
@@ -74,7 +74,7 @@ public sealed record SecondFactorRequest(string? Code = null, string? RecoveryCo
 /// <param name="UserAgent">The browser that created it.</param>
 /// <param name="CreatedAt">When it began.</param>
 /// <param name="LastSeenAt">When it was last used (to within the touch interval).</param>
-/// <param name="ExpiresAt">Its absolute end; it ends earlier if idle too long.</param>
+/// <param name="ExpiresAt">Its absolute end. It ends earlier if the session is idle too long.</param>
 /// <param name="SecondFactorCompleted">False for a session still waiting for the second factor.</param>
 /// <param name="Current">The session that asked for the list.</param>
 public sealed record SessionSummary(
@@ -95,8 +95,8 @@ public sealed record SessionSummary(
 /// <param name="ExpiresAt">When it stops working, or null for never.</param>
 /// <param name="CreatedAt">When it was issued.</param>
 /// <param name="LastUsedAt">When it was last used (to within the touch interval), or null.</param>
-/// <param name="Revoked">It was revoked: final.</param>
-/// <param name="Disabled">It was switched off and can be switched on again; until then it is refused like a revoked one.</param>
+/// <param name="Revoked">Revoked, which is final.</param>
+/// <param name="Disabled">Switched off. It can be switched on again, and until then it is refused like a revoked token.</param>
 public sealed record ApiTokenSummary(
     ApiTokenId Id,
     UserId UserId,
@@ -146,10 +146,10 @@ public sealed record RecoveryCodes(IReadOnlyList<string> Codes)
 /// <param name="Complete">An Owner exists.</param>
 public sealed record SetupStatus(bool Complete);
 
-/// <summary>A session that was just started, by signing in or by setup. Its cookie travels in <c>Set-Cookie</c> only, never in a body.</summary>
+/// <summary>A session that was just started, by signing in or by setup. Its cookie travels only in <c>Set-Cookie</c>, never in a body.</summary>
 /// <param name="SessionId">The session (a handle, not the cookie).</param>
-/// <param name="SecondFactorRequired">The password was right but a second factor is owed: only <c>auth/second-factor</c> accepts this session until it is given.</param>
-/// <param name="ExpiresAt">When the session ends (when the partial session ends, if a second factor is owed).</param>
+/// <param name="SecondFactorRequired">The password was right but the user still owes a second factor: until it is given, only <c>auth/second-factor</c> accepts this session.</param>
+/// <param name="ExpiresAt">When the session ends, or the partial session if a second factor is owed.</param>
 public sealed record SessionStarted(SessionId SessionId, bool SecondFactorRequired, DateTimeOffset ExpiresAt);
 
 /// <summary>Creates the first Owner.</summary>
@@ -164,7 +164,7 @@ public sealed record SetupRequest(string SetupToken, string Username, string Pas
 
 /// <summary>The result of first-run setup: the new Owner, signed in.</summary>
 /// <param name="Owner">The new Owner.</param>
-/// <param name="Session">The session the response sets a cookie for; null only if signing the new Owner in failed, in which case they sign in as usual.</param>
+/// <param name="Session">The session the response sets a cookie for; Null only if signing the new Owner in failed; the Owner then signs in as usual.</param>
 public sealed record SetupCompleted(UserSummary Owner, SessionStarted? Session);
 
 /// <summary>Proves the person at the keyboard knows their password, for a sensitive change to their own sign-in.</summary>
@@ -198,7 +198,7 @@ public sealed record CurrentCaller(
 [JsonConverter(typeof(ConfigEnumConverter<AuthKind>))]
 public enum AuthKind
 {
-    /// <summary>Neither: a caller a surface assembled without one of the two credentials.</summary>
+    /// <summary>Neither: a caller a surface assembled without either credential.</summary>
     Unspecified = 0,
 
     /// <summary>The session cookie.</summary>

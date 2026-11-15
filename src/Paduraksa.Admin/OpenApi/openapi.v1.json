@@ -49,7 +49,7 @@
           "Identity"
         ],
         "summary": "Complete first-run setup",
-        "description": "Creates the Owner with the setup token the server prints and signs them in (the answer's session). Works once: 409 setup.complete after that.\n\nAnonymous: it needs no credentials.",
+        "description": "Creates the Owner with the setup token the server prints, and signs them in (the answer's session). Works once; later calls return 409 setup.complete.\n\nAnonymous: it needs no credentials.",
         "operationId": "CompleteSetup",
         "requestBody": {
           "content": {
@@ -162,7 +162,7 @@
           "Identity"
         ],
         "summary": "Sign in with a username and password",
-        "description": "Sets the session cookie. A user with a second factor gets a session that is not yet complete (secondFactorRequired): finish it with auth/second-factor. A refusal is always the same generic 401.\n\nAnonymous: it needs no credentials.",
+        "description": "Sets the session cookie. A user with a second factor gets an incomplete session (secondFactorRequired) that auth/second-factor completes. A refusal is always the same generic 401.\n\nAnonymous: it needs no credentials.",
         "operationId": "Login",
         "requestBody": {
           "content": {
@@ -348,7 +348,7 @@
           "Identity"
         ],
         "summary": "Sign out",
-        "description": "Ends the session of the cookie and clears it; 204 whether or not there was one.\n\nAnonymous: it needs no credentials.",
+        "description": "Ends the cookie's session and clears the cookie. Returns 204 whether or not there was a session.\n\nAnonymous: it needs no credentials.",
         "operationId": "Logout",
         "responses": {
           "204": {
@@ -421,7 +421,7 @@
           "Identity"
         ],
         "summary": "Change your password",
-        "description": "Needs the current password (a wrong one is 422 and counts toward the lockout) and ends every other session of the caller.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the current password (a wrong one returns 422 and counts toward the lockout). Ends every other session of the caller.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "ChangePassword",
         "requestBody": {
           "content": {
@@ -531,7 +531,7 @@
           "Identity"
         ],
         "summary": "Start enrolling an authenticator",
-        "description": "Needs the password. The provisioning URI carries the secret and is shown once; the enrolment is not active until it is confirmed.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the password. The provisioning URI carries the secret and is shown once. The enrolment isn't active until it is confirmed.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "BeginTotpEnrollment",
         "requestBody": {
           "content": {
@@ -775,7 +775,7 @@
           "Identity"
         ],
         "summary": "Turn the second factor off",
-        "description": "Needs the password, so it is a POST with a body (a DELETE has no body to rely on).\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the password, so it is a POST with a body (a DELETE can't rely on a body).\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "DisableTotp",
         "requestBody": {
           "content": {
@@ -895,7 +895,7 @@
           "Identity"
         ],
         "summary": "Make new recovery codes",
-        "description": "Needs the password. The old codes stop working; the new ones are shown once.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires the password. The old codes stop working, and the new ones are shown once.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "RegenerateRecoveryCodes",
         "requestBody": {
           "content": {
@@ -1022,13 +1022,13 @@
           "Identity"
         ],
         "summary": "List sessions",
-        "description": "A signed-in session is required: a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in session; a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "ListSessions",
         "parameters": [
           {
             "name": "userId",
             "in": "query",
-            "description": "List this user's instead of the caller's (the service checks the caller may); 404 when it names no user.",
+            "description": "List this user's instead of the caller's (the service checks the caller may); 404 if it names no user.",
             "schema": {
               "examples": [
                 "usr_0A1b2C3d4E5f6G7h8I9j0K"
@@ -1269,13 +1269,13 @@
           "Identity"
         ],
         "summary": "List API tokens",
-        "description": "A signed-in session is required: a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Requires a signed-in session; a token caller gets 403 auth.sessionRequired.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "ListTokens",
         "parameters": [
           {
             "name": "userId",
             "in": "query",
-            "description": "List this user's instead of the caller's (the service checks the caller may); 404 when it names no user.",
+            "description": "List this user's instead of the caller's (the service checks the caller may); 404 if it names no user.",
             "schema": {
               "examples": [
                 "usr_0A1b2C3d4E5f6G7h8I9j0K"
@@ -1379,7 +1379,7 @@
           "Identity"
         ],
         "summary": "Issue an API token",
-        "description": "The token's secret is in the answer and nowhere else, ever again.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "The secret appears in this answer only and is never shown again.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "IssueToken",
         "requestBody": {
           "content": {
@@ -1486,7 +1486,7 @@
           "Identity"
         ],
         "summary": "Change an API token",
-        "description": "Renames it, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token is 409.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "Renames the token, replaces its scopes (each must be a permission its owner holds now) and/or disables or re-enables it. The secret is never shown or changed. A revoked token returns 409.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "UpdateToken",
         "parameters": [
           {
@@ -1887,7 +1887,7 @@
           "Identity"
         ],
         "summary": "Get a user",
-        "description": "A user may read themselves; reading another needs users:read.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
+        "description": "A user can read themselves; reading another user requires users:read.\n\nRequires a signed-in caller; what the caller may do is checked by the operation itself.",
         "operationId": "GetUser",
         "parameters": [
           {
@@ -1967,7 +1967,7 @@
           "Identity"
         ],
         "summary": "Change a user",
-        "description": "A partial update: the display name, roles and disabled flag that are given. Users carry no version, so there is no If-Match: the last write wins.\n\nRequires the `users:write` permission.",
+        "description": "A partial update of the display name, roles and disabled flag that are given. Users carry no version, so there is no If-Match and the last write wins.\n\nRequires the `users:write` permission.",
         "operationId": "UpdateUser",
         "parameters": [
           {
@@ -12999,7 +12999,7 @@
           {
             "name": "from",
             "in": "query",
-            "description": "Only events at or after this time (inclusive), ISO 8601 with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).",
+            "description": "Only events at or after this time, ISO 8601 with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -13008,7 +13008,7 @@
           {
             "name": "to",
             "in": "query",
-            "description": "Only events before this time (exclusive), ISO 8601 with a zone.",
+            "description": "Only events before this time, ISO 8601 with a zone.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -13431,13 +13431,13 @@
           "Audit"
         ],
         "summary": "Query the audit log",
-        "description": "Newest first. The filters are all optional and all must match.\n\nRequires the `audit:read` permission.",
+        "description": "Newest first. Every filter is optional, and an event must match all that are set.\n\nRequires the `audit:read` permission.",
         "operationId": "QueryAudit",
         "parameters": [
           {
             "name": "from",
             "in": "query",
-            "description": "Only events at or after this time (inclusive), ISO 8601 with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).",
+            "description": "Only events at or after this time, ISO 8601 with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -13446,7 +13446,7 @@
           {
             "name": "to",
             "in": "query",
-            "description": "Only events before this time (exclusive), ISO 8601 with a zone.",
+            "description": "Only events before this time, ISO 8601 with a zone.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -13581,7 +13581,7 @@
           "Audit"
         ],
         "summary": "Check the audit log's hash chain",
-        "description": "Walks the whole chain and reports the first event that doesn't verify. headHash, kept elsewhere, detects the removal of the newest events.\n\nRequires the `audit:read` permission.",
+        "description": "Walks the whole chain and reports the first event that doesn't verify. A copy of headHash kept elsewhere detects the removal of the newest events.\n\nRequires the `audit:read` permission.",
         "operationId": "VerifyAudit",
         "responses": {
           "200": {
@@ -14215,7 +14215,7 @@
           {
             "name": "range",
             "in": "query",
-            "description": "How far back to count: hour is from memory and the last hour of rollups, the rest from the one-minute rollups.",
+            "description": "How far back to count. hour comes from memory and the last hour of rollups; the others come from the one-minute rollups.",
             "schema": {
               "enum": [
                 "hour",
@@ -14358,7 +14358,7 @@
           {
             "name": "range",
             "in": "query",
-            "description": "How far back to look: hour is from memory and the last hour of rollups, the rest from the one-minute rollups.",
+            "description": "How far back to look. hour comes from memory and the last hour of rollups; the others come from the one-minute rollups.",
             "schema": {
               "enum": [
                 "hour",
@@ -14458,7 +14458,7 @@
           {
             "name": "host",
             "in": "query",
-            "description": "Only this host: its ID (host_..., which may have been deleted since), or 'unmatched' for the requests no host owns. Every host when absent.",
+            "description": "Only this host: its ID (host_..., which may have been deleted since), or 'unmatched' for the requests no host owns. All hosts if absent.",
             "schema": {
               "type": "string"
             }
@@ -16189,11 +16189,11 @@
           },
           "revoked": {
             "type": "boolean",
-            "description": "It was revoked: final."
+            "description": "Revoked, which is final."
           },
           "disabled": {
             "type": "boolean",
-            "description": "It was switched off and can be switched on again; until then it is refused like a revoked one."
+            "description": "Switched off. It can be switched on again, and until then it is refused like a revoked token."
           }
         },
         "additionalProperties": false,
@@ -16297,7 +16297,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "An audit event, as the log reads back. The hashes of the chain are left to AuditVerification."
+        "description": "An audit event, as the log reads back. It doesn't carry the chain's hashes; see AuditVerification."
       },
       "AuditOutcome": {
         "enum": [
@@ -16346,7 +16346,7 @@
               "null",
               "string"
             ],
-            "description": "Its hash, lowercase hex: keep a copy elsewhere to detect the removal of the newest events."
+            "description": "Its hash in lowercase hex. A copy kept elsewhere detects the removal of the newest events."
           },
           "break": {
             "oneOf": [
@@ -16354,7 +16354,7 @@
                 "type": "null"
               },
               {
-                "description": "The first break, when there is one.",
+                "description": "The first break, if there is one.",
                 "$ref": "#/components/schemas/AuditBreak"
               }
             ]
@@ -18831,7 +18831,7 @@
           },
           "password": {
             "type": "string",
-            "description": "The initial password (minimum length applies, no other rule)."
+            "description": "The initial password. Only the minimum length applies."
           },
           "roles": {
             "type": "array",
@@ -24511,16 +24511,16 @@
           },
           "secondFactorRequired": {
             "type": "boolean",
-            "description": "The password was right but a second factor is owed: only `auth/second-factor` accepts this session until it is given."
+            "description": "The password was right but the user still owes a second factor: until it is given, only `auth/second-factor` accepts this session."
           },
           "expiresAt": {
             "type": "string",
-            "description": "When the session ends (when the partial session ends, if a second factor is owed).",
+            "description": "When the session ends, or the partial session if a second factor is owed.",
             "format": "date-time"
           }
         },
         "additionalProperties": false,
-        "description": "A session that was just started, by signing in or by setup. Its cookie travels in `Set-Cookie` only, never in a body."
+        "description": "A session that was just started, by signing in or by setup. Its cookie travels only in `Set-Cookie`, never in a body."
       },
       "SessionSummary": {
         "required": [
@@ -24565,7 +24565,7 @@
           },
           "expiresAt": {
             "type": "string",
-            "description": "Its absolute end; it ends earlier if idle too long.",
+            "description": "Its absolute end. It ends earlier if the session is idle too long.",
             "format": "date-time"
           },
           "secondFactorCompleted": {
@@ -24597,7 +24597,7 @@
                 "type": "null"
               },
               {
-                "description": "The session the response sets a cookie for; null only if signing the new Owner in failed, in which case they sign in as usual.",
+                "description": "The session the response sets a cookie for; Null only if signing the new Owner in failed; the Owner then signs in as usual.",
                 "$ref": "#/components/schemas/SessionStarted"
               }
             ]
@@ -26075,11 +26075,11 @@
           },
           "disabled": {
             "type": "boolean",
-            "description": "The user cannot sign in, and their tokens and sessions are dead."
+            "description": "The user can't sign in, and their tokens and sessions no longer work."
           },
           "locked": {
             "type": "boolean",
-            "description": "Sign-in is refused for now after too many failures."
+            "description": "Sign-in is refused for a while after too many failures."
           },
           "createdAt": {
             "type": "string",

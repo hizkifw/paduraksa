@@ -5,7 +5,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Audit;
 
-/// <summary>An audit event, as the log reads back. The hashes of the chain are left to <see cref="AuditVerification"/>.</summary>
+/// <summary>An audit event, as the log reads back. It doesn't carry the chain's hashes; see <see cref="AuditVerification"/>.</summary>
 /// <param name="Id">The event.</param>
 /// <param name="Timestamp">When it was appended (UTC).</param>
 /// <param name="Actor">Who acted.</param>
@@ -28,7 +28,7 @@ public sealed record AuditEventSummary(
     JsonElement? Details = null,
     ConfigRevisionId? RevisionId = null);
 
-/// <summary>Filters of an audit query; every filter that is set must match.</summary>
+/// <summary>Filters of an audit query; an event must match every filter that is set.</summary>
 /// <param name="From">Events at or after this time.</param>
 /// <param name="To">Events before this time.</param>
 /// <param name="Actor">One actor: <c>system</c>, <c>cli</c>, a user ID or an API token ID.</param>
@@ -58,6 +58,6 @@ public sealed record AuditBreak(AuditEventId EventId, string Problem, string Des
 /// <param name="Intact">Every event verified.</param>
 /// <param name="VerifiedEvents">How many events verified, from the first up to the break.</param>
 /// <param name="Head">The last verified event.</param>
-/// <param name="HeadHash">Its hash, lowercase hex: keep a copy elsewhere to detect the removal of the newest events.</param>
-/// <param name="Break">The first break, when there is one.</param>
+/// <param name="HeadHash">Its hash in lowercase hex. A copy kept elsewhere detects the removal of the newest events.</param>
+/// <param name="Break">The first break, if there is one.</param>
 public sealed record AuditVerification(bool Intact, long VerifiedEvents, AuditEventId? Head = null, string? HeadHash = null, AuditBreak? Break = null);

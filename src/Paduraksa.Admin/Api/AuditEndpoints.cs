@@ -18,8 +18,8 @@ internal static class AuditEndpoints
 {
     private const int MaxFilterLength = 128;
 
-    internal static readonly QueryParameter From = QueryParameter.Time("from", "Only events at or after this time (inclusive), ISO 8601 with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
-    internal static readonly QueryParameter To = QueryParameter.Time("to", "Only events before this time (exclusive), ISO 8601 with a zone.");
+    internal static readonly QueryParameter From = QueryParameter.Time("from", "Only events at or after this time, ISO 8601 with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
+    internal static readonly QueryParameter To = QueryParameter.Time("to", "Only events before this time, ISO 8601 with a zone.");
 
     private static readonly QueryParameter Actor = QueryParameter.Text("actor", "Only events by this actor: 'system', 'cli', a user ID or an API token ID.", MaxFilterLength);
     private static readonly QueryParameter Action = QueryParameter.Text("action", "Only this action (config.host.update), or every action under a prefix with one trailing '*' (config.*).", MaxFilterLength);
@@ -30,10 +30,10 @@ internal static class AuditEndpoints
     {
         var audit = api.MapGroup("/audit").WithTags("Audit");
         audit.MapGet("/", QueryAsync).WithName("QueryAudit").WithSummary("Query the audit log")
-            .WithDescription("Newest first. The filters are all optional and all must match.")
+            .WithDescription("Newest first. Every filter is optional, and an event must match all that are set.")
             .WithQuery(From, To, Actor, Action, Target, Outcome).WithPage().Produces<Page<AuditEventSummary>>().ProducesApiProblems(400).RequirePermission(Permission.AuditRead);
         audit.MapGet("/verify", VerifyAsync).WithName("VerifyAudit").WithSummary("Check the audit log's hash chain")
-            .WithDescription("Walks the whole chain and reports the first event that doesn't verify. headHash, kept elsewhere, detects the removal of the newest events.")
+            .WithDescription("Walks the whole chain and reports the first event that doesn't verify. A copy of headHash kept elsewhere detects the removal of the newest events.")
             .Produces<AuditVerification>().RequirePermission(Permission.AuditRead);
     }
 
