@@ -18,27 +18,40 @@ The `paduraksa` binary is the server and its command line. In the container it i
 
 `paduraksa mcp-sandbox` is the process the [MCP](mcp.md) server starts for an assistant's code. Do not run it yourself.
 
-Exit codes: `0` success, `1` a failure, `2` the server could not start, `3` invalid settings. Every command that reads the settings exits 3 when they are invalid (`doctor` is the exception: it reports them as a failed check and exits 1, so the rest of its report still prints, and `doctor --liveness` exits only 0 or 1 because Docker reads it). A mistake in the command line (an unknown command, a missing option) exits 1 with a usage message. `paduraksa <command> --help` describes every option.
+Exit codes:
+
+- `0`: success.
+- `1`: a failure, or a mistake in the command line (an unknown command, a missing option), with a usage message.
+- `2`: the server could not start.
+- `3`: invalid settings. `doctor` is the exception: it reports them as a failed check and exits 1, so the rest of its report still prints.
+
+`paduraksa <command> --help` describes every option.
 
 ## Recovery commands
 
 These work on the data directory, so they need the same environment as the server (`Paduraksa__DataDirectory`, `PADURAKSA_MASTER_KEY_FILE`). In the container that is already true.
 
 ```sh
+# Print the setup token again
 docker compose exec paduraksa paduraksa setup-token
+
+# Set a new password for a user, and end their sessions
 docker compose exec paduraksa paduraksa admin reset-password alice
+
+# Turn a user's second factor off
 docker compose exec paduraksa paduraksa admin disable-2fa alice
 ```
 
 `reset-password` reads the new password from standard input or a no-echo prompt, never from an argument. Both commands are audited with the actor `cli`.
 
-The commands that need the sign-in policy (`reset-password` checks the new password against the shortest length) use the server's own precedence: a value the environment sets explicitly, else the one the dashboard stored in Settings, else the default. A minimum raised in the dashboard binds `reset-password` too. The CLI reads the stored value from the config database without writing to it.
+`reset-password` checks the new password against the shortest length the server uses. That is the environment's value if set, else the one stored in Settings, else the default.
 
 ## Doctor
 
 `paduraksa doctor` is a read-only check of the host, safe to run while the server runs. Run it after an upgrade, after changing a port or the master key, and before asking for help:
 
 ```sh
+# Check the host
 docker compose exec paduraksa paduraksa doctor
 ```
 
@@ -79,40 +92,22 @@ The checks, with their `id` in the report:
 | `server`, `server-version` | A server answering on the admin loopback, and its version against this binary's | It reports itself unavailable, or runs another version (restart it after an upgrade) | |
 
 Notes:
-- A migration the database lacks is `[info]`, not a warning: the next start applies it. It is only a failure the other way round.
-- The clock check is the one outward request (to Cloudflare's trace endpoint, a few bytes), so it runs only with `--check-clock`. Without the network it is skipped, never failed.
-- The server's version needs a token because `/api/v1/version` needs one. Without it the line says so.
-- Doctor opens both databases read-only (with no WAL file beside a stopped server, as an immutable file, so it leaves no file behind) and tests a port by binding it and letting go. It writes nothing, creates nothing and never generates a key.
 
-## Backup and restore
+- A migration the database lacks is `[info]`, not a warning: the next start applies it. It is a failure only the other way round.
+- The clock check is the one outward request, to Cloudflare, so it runs only with `--check-clock`. Without the network it is skipped, never failed.
+- The server's version needs a token, because `/api/v1/version` does. Without one the line says so.
+- Doctor writes nothing, creates nothing and never generates a key.
 
-```sh
-docker exec -it paduraksa paduraksa backup --out /data/backups/paduraksa-$(date +%F).pdkbak
-docker compose stop
-docker compose run --rm paduraksa restore /data/backups/paduraksa-2026-11-12.pdkbak
-```
+## Backup, restore and master key rotation
 
-The passphrase comes from `--passphrase-file` (a file, or `-` for standard input), else `PADURAKSA_BACKUP_PASSPHRASE`, else a prompt. It is never an argument. A backup never overwrites a file. See [Backups and restore](../operating/backups.md).
+These are the commands. The steps, and what to do when one goes wrong, are in [Backups and restore](../operating/backups.md) and [Changing the master key](../operating/master-key.md#changing-the-master-key).
 
-## Rotate the master key
-
-```sh
-docker compose down
-docker compose run --rm -v "$PWD:/keys:ro" paduraksa vault rotate-kek --new-key-file /keys/new-master.key
-```
-
-The key comes from a file (or `-` for standard input), never from an argument. See [The master key](../operating/master-key.md#changing-the-master-key).
+- A backup passphrase comes from `--passphrase-file` (a file, or `-` for standard input), else `PADURAKSA_BACKUP_PASSPHRASE`, else a prompt. It is never an argument.
+- The new master key for `vault rotate-kek` comes from `--new-key-file` (a file, or `-` for standard input), never from an argument.
 
 ## Config export and import
 
-`config export` and `config import` are clients of the running instance's admin API, like any script. They never touch the database. Give them an API token with `config:read` to export and `config:write` to import.
-
-```sh
-export PADURAKSA_TOKEN=pdk_...                       # or --token-file /path/to/token
-paduraksa config export > paduraksa.yaml             # --revision rev_... for a past one, --output FILE
-paduraksa config import --dry-run paduraksa.yaml     # what would change
-paduraksa config import --mode replace paduraksa.yaml --message "from git"
-```
+`config export` and `config import` are clients of the running instance's admin API. They never touch the database. Give them an API token with `config:read` to export and `config:write` to import. The steps are in [Export and import](../operating/export-import.md#the-cli); these are the options.
 
 Options of `config import`:
 
@@ -126,8 +121,8 @@ Options of `config import`:
 
 `config export` also takes `--revision <rev_...>` and `--output`, `-o <file>`. Both take `--token-file`, and `--allow-insecure-http`.
 
-- The token comes from `--token-file` (its first line) or `PADURAKSA_TOKEN`, never from the command line. Keep the file private (`chmod 600`): the CLI warns when others can read it.
-- The address is `--url` (an absolute `http://` or `https://` address), else `PADURAKSA_URL`, else this installation's own admin listener on loopback. A loopback address is not certificate-checked, because the admin certificate is signed by the instance's own CA. Any other address must present a certificate your system trusts. The CLI refuses to send the token over plain `http://` to a non-loopback address unless you pass `--allow-insecure-http`.
-- A dry run prints the changes (`+`, `-`, `~` and the path) and the warnings. A refusal prints each error with its YAML path and line and exits 1. Exit 0 is success, including "nothing to change". Invalid local settings (when no `--url` names the server) exit 3, as in the other commands.
-
-More on the format and its rules: [Export and import](../operating/export-import.md).
+- The token comes from `--token-file` (its first line) or `PADURAKSA_TOKEN`, never from the command line.
+- The address is `--url`, else `PADURAKSA_URL`, else this installation's own admin listener on loopback. Certificate and `http://` rules are in [Export and import](../operating/export-import.md#the-cli).
+- A dry run prints the changes (`+`, `-`, `~` and the path) and the warnings.
+- A refusal prints each error with its YAML path and line, and exits 1.
+- Exit 0 is success, including "nothing to change".

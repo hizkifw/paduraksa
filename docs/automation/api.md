@@ -15,7 +15,7 @@ A script authenticates with an **API token**: `Authorization: Bearer pdk_...`. C
 - A token has a name, an optional expiry and **scopes**: permission names such as `config:read`. The drawer offers *Read-only*, *All you can* and *None* as starting points.
 - A token never exceeds its owner. Its effective permissions are the intersection of its scopes and the owner's **current** permissions, checked on every use. Demote the owner and the token shrinks with them.
 - The secret is shown once. Paduraksa stores only a hash. A revoked or expired token stops working at once.
-- **A read-only token is not literally state-free.** Every authenticated request records when the token was last used (at most once a minute), as a session records when it was last seen, so the token list can show it. It changes nothing else, and no read writes the config, the audit log or the vault.
+- A token records when it was last used, so the token list can show it. Nothing else changes on a read.
 - **A token cannot manage tokens or sessions.** Every `tokens` and `sessions` endpoint answers a token with `403`, so a leaked token cannot mint a longer life for itself.
 - A token's `pdk_` prefix and checksum let secret scanners find a leaked one.
 
@@ -34,16 +34,25 @@ A script authenticates with an **API token**: `Authorization: Bearer pdk_...`. C
 | `metrics:read` | Counters, analytics and the Prometheus endpoint. Every role holds it |
 | `backup:create` | A full backup. The Owner only |
 
-Roles are sets of these. Owner holds everything. Admin holds config, certificates, providers, audit, simulate and the user list. Operator holds config, certificates, provider reads and simulate. Viewer reads and simulates. Auditor reads and holds audit. Only Owner holds `users:write`, `vault:manage`, `tokens:all`, `sessions:all` and `backup:create`.
+Roles are sets of these scopes:
 
-A browser session (the dashboard's cookie) also works, but then every unsafe request must say where it comes from: send `Origin`. A token needs none of that.
+- **Owner** holds everything. Only the Owner holds `users:write`, `vault:manage`, `tokens:all`, `sessions:all` and `backup:create`.
+- **Admin** holds config, certificates, providers, audit, simulate and the user list.
+- **Operator** holds config, certificates, provider reads and simulate.
+- **Viewer** reads and simulates.
+- **Auditor** reads and holds audit.
+
+A browser session (the dashboard's cookie) also works. Every unsafe request must then send an `Origin` header. A token needs none.
 
 ## Trust the admin certificate
 
 The admin port's certificate is signed by Paduraksa's local CA. Give `curl` the root:
 
 ```sh
-curl -k -o root.pem https://paduraksa.lan:9443/api/v1/ca/root.pem     # once, then check its fingerprint
+# Fetch the root once. -k skips verification, so check the fingerprint (below) first
+curl -k -o root.pem https://paduraksa.lan:9443/api/v1/ca/root.pem
+
+# Call the API, trusting that root
 curl --cacert root.pem -H "Authorization: Bearer $TOKEN" https://paduraksa.lan:9443/api/v1/hosts
 ```
 
@@ -58,7 +67,7 @@ Check the fingerprint against `GET /api/v1/ca` or the Local CA page before you t
 
 ### IDs are yours to choose
 
-A create needs an `id`: a typed string, the prefix and an underscore, then 22 base-62 characters (`^host_[0-9A-Za-z]{22}$`). Use a time-ordered one, such as a UUIDv7 written in base 62 (the digits `0-9A-Za-z`, in that order). This script makes one:
+A create needs an `id`: the type's prefix, an underscore, then 22 base-62 characters (`^host_[0-9A-Za-z]{22}$`). Use a time-ordered one, such as a UUIDv7 written in base 62 (the digits `0-9A-Za-z`, in that order). This script makes one:
 
 ```python
 import os, sys, time
@@ -87,6 +96,7 @@ Every collection answers `{ "items": [...], "nextCursor": "..." }` and takes `li
 - The exceptions are the log files (a directory listing), the recent access log (a bounded snapshot with `limit` up to 1000 and no cursor) and the upstreams' live health.
 
 ```sh
+# The first 50 hosts
 curl --cacert root.pem -H "Authorization: Bearer $TOKEN" "https://paduraksa.lan:9443/api/v1/hosts?limit=50"
 ```
 
@@ -94,7 +104,10 @@ curl --cacert root.pem -H "Authorization: Bearer $TOKEN" "https://paduraksa.lan:
 
 Config objects (hosts, routes, upstreams, profiles, rate limits, access lists, rule sets, sign-in providers, the settings) carry a `version`.
 
-- A `GET` answers with `ETag: "<version>"`. A change or delete of that object sends it back in `If-Match`, as one quoted tag. Without it the answer is `428`. A stale tag is `412`, and the problem's `conflict` says what is current. A malformed tag, a list or `*` is `400`. A create needs none.
+- A `GET` answers with `ETag: "<version>"`. A change or delete sends it back in `If-Match`, as one quoted tag. A create needs none.
+    - Without it, the answer is `428`.
+    - A stale tag is `412`, and the problem's `conflict` says what is current.
+    - A malformed tag, a list or `*` is `400`.
 - A route belongs to its host: changing or deleting a route takes the host's version in `If-Match`.
 - `POST /revisions/{id}/rollback` and `POST /config/import` take the latest revision's ID the same way.
 - `?dryRun=true` runs the whole command and returns the plan (`status: "dryRun"`, the warnings and the changes) without committing.
@@ -108,28 +121,37 @@ A change answers with its result: `status` (`committed` or `dryRun`), the `revis
 ### Example: a service behind a host
 
 ```sh
+# The API address, the auth header, and a new ID for each object
 A=https://paduraksa.lan:9443/api/v1
 H="Authorization: Bearer $TOKEN"
 UPS=$(python3 new-id.py ups); DST=$(python3 new-id.py dst); HOST=$(python3 new-id.py host); RTE=$(python3 new-id.py rte)
 
+# Create the upstream
 curl --cacert root.pem -H "$H" -H 'Content-Type: application/json' -X POST "$A/upstreams" -d "{
   \"id\": \"$UPS\", \"name\": \"jellyfin\",
   \"destinations\": [{ \"id\": \"$DST\", \"address\": \"http://jellyfin:8096\" }]
 }"
 
+# The host, with one route sending / to that upstream
 BODY="{
   \"id\": \"$HOST\", \"names\": [\"jellyfin.example.com\"],
   \"routes\": [{ \"id\": \"$RTE\", \"upstreamId\": \"$UPS\", \"match\": \"prefix\", \"path\": \"/\" }]
 }"
-curl --cacert root.pem -H "$H" -H 'Content-Type: application/json' -X POST "$A/hosts?dryRun=true" -d "$BODY"             # the plan
-curl --cacert root.pem -H "$H" -H 'Content-Type: application/json' -X POST "$A/hosts?message=add+jellyfin" -d "$BODY"    # for real
+
+# See the plan without committing
+curl --cacert root.pem -H "$H" -H 'Content-Type: application/json' -X POST "$A/hosts?dryRun=true" -d "$BODY"
+
+# Commit it, with a note for History
+curl --cacert root.pem -H "$H" -H 'Content-Type: application/json' -X POST "$A/hosts?message=add+jellyfin" -d "$BODY"
 ```
 
 To change it later, read it, send it back with the version:
 
 ```sh
-curl --cacert root.pem -D - -H "$H" "$A/hosts/$HOST" -o host.json          # ETag: "2"
-# edit host.json ...
+# Read it. The response carries ETag: "2"
+curl --cacert root.pem -D - -H "$H" "$A/hosts/$HOST" -o host.json
+
+# Edit host.json, then send it back with that version
 curl --cacert root.pem -H "$H" -H 'If-Match: "2"' -H 'Content-Type: application/json' -X PUT "$A/hosts/$HOST" -d @host.json
 ```
 
@@ -143,6 +165,6 @@ JSON bodies are limited to 64 KiB by default (`Paduraksa__Admin__MaxRequestBodyB
 
 ## Streams and files
 
-- `GET /api/v1/logs/tail` streams requests as they end as Server-Sent Events: `curl -N -H "$H" "$A/logs/tail?statusClass=5xx&backlog=50"`.
+- `GET /api/v1/logs/tail` streams requests as they end as Server-Sent Events. For example, `curl -N -H "$H" "$A/logs/tail?statusClass=5xx&backlog=50"` follows server errors.
 - `GET /api/v1/logs/{name}` downloads a log file, and `POST /api/v1/backup` makes a [backup](../operating/backups.md).
 - `GET /metrics` (the same as `/api/v1/metrics`) is the Prometheus text format: see [Metrics](../guide/observability.md#metrics).
