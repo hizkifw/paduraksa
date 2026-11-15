@@ -1,10 +1,23 @@
 # Deployment
 
-Paduraksa ships as one container image (or a self-contained binary with a systemd unit) and keeps all state in one volume. This page covers the image and compose file, bare metal, SQLite and runtime tuning, backups, and the planned fleet mode (a control plane and data planes, after v0.1).
+For contributors: how Paduraksa is packaged and published, and the design of fleet mode.
 
-Contents:
+## In short
+
+- One container image (multi-arch, Ubuntu Noble, pinned libmsquic, non-root) or a self-contained binary with a systemd unit. All state is in one volume, `/data`.
+- Ports are mapped 1:1 (80, 443 tcp and udp, 9443), so `Alt-Svc` and redirects never see a translated port.
+- Compose publishes the admin on loopback by default (threat model G4), because Docker's published ports sit ahead of the host firewall.
+- Runtime: Server GC with DATAS, tiered PGO, ReadyToRun. The SQLite floor is 3.35.
+- The Docker `HEALTHCHECK` runs `paduraksa doctor --liveness`, because the image ships no curl.
+- The docs site is MkDocs Material over `docs/`, built `--strict` on every push, and published to GitHub Pages only by a manual run.
+- Fleet mode (control plane and data planes) is a design for after v0.1. Single-node stays the default and gets none of its machinery.
+- Code: `Dockerfile`, `deploy/compose.yaml`, `deploy/paduraksa.service`, `ContainerSmokeTests`, `.github/workflows/docs.yml`.
+
+## Contents
+
 - [Overview](#overview)
-- [The container and the install path (M5)](#the-container-and-the-install-path-m5)
+- [The container and the install path](#the-container-and-the-install-path)
+- [The documentation site](#the-documentation-site)
 - [Fleet mode](#fleet-mode-control-plane-and-data-plane-after-v01)
 
 ## Overview
@@ -20,17 +33,16 @@ Contents:
 - **Bare metal:** a self-contained single-file publish plus a systemd unit (`AmbientCapabilities=CAP_NET_BIND_SERVICE`, `LoadCredential=master.key`).
 - **SQLite:** `Microsoft.Data.Sqlite` ships its own bundled SQLite (SQLitePCLRaw `e_sqlite3`), so the host's SQLite version does not matter. The required floor is **3.35** (`RETURNING`, used by EF Core 10; WAL long predates it). `doctor` prints the runtime version.
 - **Runtime tuning:** Server GC with DATAS (adapts heap to load, good for small homelab boxes), `TieredPGO`, ReadyToRun.
-- **Backups:** `paduraksa backup` takes an online SQLite backup of both databases plus KEK handling instructions. Built in M10: one passphrase-encrypted archive of both databases and the last-known-good file, made online, that restores on a fresh machine under its own master key (see [vault-and-certificates.md](vault-and-certificates.md)). The `docker exec` and `docker compose run` forms and the homelab routine are in [Backups and restore](../operating/backups.md). The volume also holds `/data/run/server.lock`, the claim of the one running server.
+- **Backups:** `paduraksa backup` makes one passphrase-encrypted archive of both databases and the last-known-good file, online, that restores on a fresh machine under its own master key ([vault-and-certificates.md](vault-and-certificates.md)). The routine is in [Backups and restore](../operating/backups.md). The volume also holds `/data/run/server.lock`, the claim of the one running server.
 
-## The container and the install path (M5)
+## The container and the install path
 
 The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker build .` is the whole recipe.
 
 ### Build
 
-- `dotnet/sdk:10.0-noble` publishes the server **framework-dependent but RID-specific** (`-r linux-$TARGETARCH`, `--self-contained false`, `PublishReadyToRun=true`, apphost kept) into `/app`.
-  - The app is one web-server binary with no native dependencies of its own. A self-contained publish would only duplicate the roughly 80 MB runtime the runtime image already carries at the exact patch level.
-  - ReadyToRun crossgens the app's own assemblies (not the framework's). `--build-arg PADURAKSA_READYTORUN=false` turns it off.
+- `dotnet/sdk:10.0-noble` publishes the server **framework-dependent but RID-specific** (`-r linux-$TARGETARCH`, `--self-contained false`, `PublishReadyToRun=true`, apphost kept) into `/app`. A self-contained publish would only duplicate the roughly 80 MB runtime the runtime image already carries at the exact patch level.
+- ReadyToRun compiles the app's own assemblies, not the framework's. `--build-arg PADURAKSA_READYTORUN=false` turns it off.
 - `TARGETARCH` (amd64 or arm64) is mapped to the .NET RID explicitly, so a cross build fails loudly instead of producing the wrong architecture.
 - Restore runs as its own step with a BuildKit cache mount, before `publish --no-restore`.
 
@@ -46,17 +58,15 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
 
 ### Environment
 
-- `Paduraksa__DataDirectory=/data`.
-- `ASPNETCORE_HTTP_PORTS` and `ASPNETCORE_URLS` blanked.
-- `PATH` including `/app`, so `docker compose exec paduraksa paduraksa setup-token` works.
-- Server GC with DATAS (`DOTNET_gcServer=1`, `DOTNET_GCDynamicAdaptationMode=1`), `DOTNET_TieredPGO=1`, diagnostics off.
-- `EXPOSE 80/tcp 443/tcp 443/udp 9443/tcp`, `STOPSIGNAL SIGTERM`.
+The `Dockerfile` sets the rest (`EXPOSE`, `STOPSIGNAL SIGTERM`, the GC and PGO variables, diagnostics off). The parts that matter to a change:
+- `Paduraksa__DataDirectory=/data`, with `ASPNETCORE_HTTP_PORTS` and `ASPNETCORE_URLS` blanked so only the configured listeners bind.
+- `PATH` includes `/app`, so `docker compose exec paduraksa paduraksa setup-token` works.
 - `HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD paduraksa doctor --liveness`.
 
 ### Compose and systemd
 
 **`deploy/compose.yaml`:**
-- It builds the local image from the checkout by default (`image: paduraksa:local`; M11's published image replaces the `build:` block).
+- It builds the local image from the checkout by default (`image: paduraksa:local`; the published image replaces the `build:` block).
 - It maps the public ports 1:1 (including `443:443/udp`).
 - It publishes the admin as `127.0.0.1:9443:9443` (threat model G4). Docker's published ports sit ahead of the host firewall, so a bare mapping would offer the sign-in to every network. The LAN-address form is in a comment, and [Exposing the admin port](../operating/admin-access.md) explains the choices.
 - It uses one named volume for `/data`, sets a stable `hostname`, `init: true`, `stop_grace_period: 35s` and `restart: unless-stopped`, and rotates its json-file log.
@@ -74,28 +84,17 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
 
 `ConfigurationListOptions` normalises every `IList<string>` option (`AdminAllowedSources`, both PROXY protocol `TrustedSources`, `Admin:CertificateNames`, ACME `DnsPropagation:Resolvers`) from either indexed keys or one comma-separated scalar. Values are trimmed and empty entries dropped. A scalar beside indexed keys wins deterministically, with a startup warning that the indexed entries were ignored.
 
-### Docs
-
-`README.md` has the short install section. The site's [Getting started](../guide/getting-started.md) and [Operating it](../operating/docker.md) pages have the details:
-- compose up, reading or reprinting the setup token;
-- the master key as a Docker secret with the uid-10001 chown;
-- trusting the local CA root from `root.pem` (PEM for `update-ca-certificates`; DER `root.crt` for Android and iOS);
-- both list forms, opening `https://<host>:9443/`;
-- the 1:1 ports, HTTP/3 and `443/udp`;
-- bind-mount ownership and capabilities;
-- where data lives and how to back it up;
-- upgrade (`git pull && docker compose up -d --build`) and `vault rotate-kek` (stop, rotate, restart);
-- the health endpoints;
-- the bare-metal path including libmsquic.
+The install steps for users are not repeated here. `README.md` has the short version, and the site's [Getting started](../guide/getting-started.md) and [Operating it](../operating/docker.md) pages have the rest.
 
 ### The documentation site
 
-Built on `docs-site`. The site is MkDocs with the Material theme over `docs/` (`mkdocs.yml` at the root, pins in `docs/requirements.txt`).
+The site is MkDocs with the Material theme over `docs/` (`mkdocs.yml` at the root, pins in `docs/requirements.txt`).
 
-- **Pages.** The user guide (`docs/guide/`), operating it (`docs/operating/`) and automation (`docs/automation/`) are written for someone running Paduraksa. The threat model, the changelog, the design docs and `development.md` are the same files the repository has, shown as reference.
+- **Pages.** The user guide (`docs/guide/`), operating it (`docs/operating/`) and automation (`docs/automation/`) are written for someone running Paduraksa. The threat model and the changelog are the same files the repository has, shown as reference. The design docs and `development.md` are the **Contributors** section: its landing page is `docs/design/index.md`.
 - **One home per fact.** The old `docs/install.md` was split into those pages and then deleted. The Overview's "How to move it" link and a test pin `operating/master-key/#moving-the-key-out-of-the-data-directory`, so that page keeps the heading.
 - **Written against the code.** Each page's defaults, bounds, paths and commands were read from the code, and the CLI and API examples were run against a real instance. Where the code and the older text disagreed, the code won.
 - **Hooks (`scripts/docs/hooks.py`).**
+  - Every contributor page (`docs/design/`, `docs/spikes/`, `PLAN.md`, `development.md`) gets a note under its title that says it is not the guide. It is added at build time, so no page carries a copy of it.
   - A link that leaves `docs/` (a source file, `deploy/`, `bench/`) becomes a link to the repository on GitHub, so the Markdown stays valid on GitHub and on the site.
   - `CHANGELOG.md` is added as the page `changelog.md`.
   - The API reference is written after the build: the shipped `openapi.v1.json`, byte for byte, and a pinned `@scalar/api-reference` bundle (version and integrity hash in the hook, downloaded once into `~/.cache/paduraksa-docs`). The page loads nothing from outside the site, with Scalar's fonts, telemetry, agent and MCP features off, as on the server's own `/api/docs`.
@@ -198,9 +197,9 @@ A commit no longer means "every node, now". It sets a **target revision per node
 
 ### Statistics: push the cheap things, pull the heavy ones
 
-- **Push.** Each node sends aggregated **deltas** every 10 s on its sync stream: counters and histogram buckets from the fixed-size M9 metric slots, keyed by host, route and upstream ID, plus its upstream-health view.
+- **Push.** Each node sends aggregated **deltas** every 10 s on its sync stream: counters and histogram buckets from the fixed-size metric slots, keyed by host, route and upstream ID, plus its upstream-health view.
   - The payload is small, works through NAT, and gives the rollout gates their data even when nobody has the dashboard open.
-  - The control plane merges the deltas into the M9 rollups and exposes fleet-level `/metrics`.
+  - The control plane merges the deltas into the rollups and exposes fleet-level `/metrics`.
 - **Backpressure.** While the control plane is unreachable, a node keeps a bounded ring of deltas (for example 15 min). After that it drops the oldest deltas and counts the drops, so a reconnect backfills recent history and the hot path never blocks on statistics.
 - **Pull on demand,** over the same stream, for things too heavy or too rare to push: live access-log tail from selected nodes (opened when a dashboard view asks), per-node destination health detail, connection and TLS debug, and a node's current snapshot summary.
 - **Prometheus-native too.** Each data node keeps its own `/metrics` on an internal port, so a cluster that already scrapes pods can ignore the fleet aggregate.
@@ -234,11 +233,11 @@ A commit no longer means "every node, now". It sets a **target revision per node
 
 ### Seams worth keeping in the single-node code
 
-These are cheap now and expensive later. Fold them into the milestones that touch the code anyway.
+These are cheap now and expensive later. Fold them into whichever change touches the code anyway.
 
 1. **Config source.** The public side gets its snapshots through a config-source abstraction (today the in-process `ConfigService` publish), so a remote bundle source can replace it.
 2. **Leader lease.** The ACME scheduler and any other singleton job run through `ILeaderLease`.
 3. **Challenge publishing** goes through `IAcmeChallengeStore` publish and withdraw (already a seam) and can grow acks.
 4. **Int64Ordered node ID.** The layout reserves bits for a node ID before any data exists, because changing it later is a data migration.
-5. **Statistics.** M9 metric slots are designed as mergeable deltas (counters and fixed histogram buckets, no per-node-only aggregates).
+5. **Statistics.** Metric slots are designed as mergeable deltas (counters and fixed histogram buckets, no per-node-only aggregates).
 6. **Database portability.** SQLite-specific behaviour (`BEGIN IMMEDIATE` serialization, `NOCASE`, rowid keys) stays inside Storage and Data behind intent-named helpers, so the control plane could run on Postgres.
