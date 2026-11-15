@@ -11980,6 +11980,127 @@
         ],
         "x-required-permission": "providers:read"
       },
+      "patch": {
+        "tags": [
+          "DNS providers"
+        ],
+        "summary": "Rename a DNS provider",
+        "description": "Changes the label only. The provider keeps its ID and its credential. Audited as acme.dns_provider.rename.\n\nRequires the `providers:write` permission.",
+        "operationId": "RenameDnsProvider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "examples": [
+                "dnsp_0A1b2C3d4E5f6G7h8I9j0K"
+              ],
+              "pattern": "^dnsp_[0-9A-Za-z]{22}$",
+              "type": "string",
+              "description": "A configured DNS provider for DNS-01 challenges. Its credentials are a SecretId."
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameDnsProviderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DnsProviderSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no such object.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not in a type this operation takes.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request is well-formed but can't be applied; errors lists why, with a pointer into the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `providers:write` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error; the trace ID in the problem finds it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "providers:write"
+      },
       "delete": {
         "tags": [
           "DNS providers"
@@ -22938,6 +23059,20 @@
         },
         "additionalProperties": false,
         "description": "Re-issues a self-signed or local-CA certificate under the same CertificateId and a new key: its names\nstay, and Specific bindings survive."
+      },
+      "RenameDnsProviderBody": {
+        "required": [
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "The new display name (required; the same rules as when the provider was added)."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Renames a DNS provider."
       },
       "RequestIdPropagation": {
         "enum": [

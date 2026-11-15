@@ -57,6 +57,7 @@ public static class AuditText
         ["acme.dns_provider.create"] = "Added a DNS provider",
         ["acme.dns_provider.delete"] = "Deleted a DNS provider",
         ["acme.dns_provider.rotate"] = "Replaced a DNS provider's credential",
+        ["acme.dns_provider.rename"] = "Renamed a DNS provider",
         ["acme.dns_provider.test"] = "Tested a DNS provider",
         ["acme.order.request"] = "Requested a certificate",
         ["acme.order.renew"] = "Renewed a certificate",

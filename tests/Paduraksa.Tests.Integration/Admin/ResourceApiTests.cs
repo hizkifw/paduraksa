@@ -271,11 +271,24 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
         Assert.Equal(provider.Id, System.Text.Json.JsonSerializer.Deserialize(bodies[^1], AdminJsonContext.Default.DnsProviderSummary)!.Id);
 
+        using var renamed = await api.SendAsync(HttpMethod.Patch, $"/api/v1/dns-providers/{provider.Id}", content: Json("""{"label":"  cf (home)  "}"""));
+        bodies.Add(await renamed.Content.ReadAsStringAsync(Ct));
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+        var renamedSummary = System.Text.Json.JsonSerializer.Deserialize(bodies[^1], AdminJsonContext.Default.DnsProviderSummary)!;
+        Assert.Equal((provider.Id, "cf (home)"), (renamedSummary.Id, renamedSummary.Label));
+        using var emptyName = await api.SendAsync(HttpMethod.Patch, $"/api/v1/dns-providers/{provider.Id}", content: Json("""{"label":" "}"""));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, emptyName.StatusCode);
+        using var missingName = await api.SendAsync(HttpMethod.Patch, $"/api/v1/dns-providers/{DnsProviderId.New()}", content: Json("""{"label":"x"}"""));
+        Assert.Equal(HttpStatusCode.NotFound, missingName.StatusCode);
+        using var viewerRename = await api.SendAsync(HttpMethod.Patch, $"/api/v1/dns-providers/{provider.Id}", "viewer", content: Json("""{"label":"x"}"""));
+        Assert.Equal(HttpStatusCode.Forbidden, viewerRename.StatusCode);
+
         using var audit = await api.GetAsync("/api/v1/audit?action=acme.*");
         var auditBody = await audit.Content.ReadAsStringAsync(Ct);
         bodies.Add(auditBody);
         Assert.Contains("acme.dns_provider.create", auditBody, StringComparison.Ordinal);
         Assert.Contains("acme.dns_provider.rotate", auditBody, StringComparison.Ordinal);
+        Assert.Contains("acme.dns_provider.rename", auditBody, StringComparison.Ordinal);
         using var openApi = await api.GetAsync("/api/v1/openapi.json", null);
         bodies.Add(await openApi.Content.ReadAsStringAsync(Ct));
         foreach (var body in bodies)

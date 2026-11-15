@@ -89,14 +89,16 @@ public sealed class IssuancePermissionTests
         var provider = await providers.CreateAsync(new CreateDnsProviderRequest(DnsProviderKind.DeSec, "deSEC", secret), Stranger, Ct);
         var deleted = await providers.DeleteAsync(DnsProviderId.New(), Stranger, Ct);
         var deactivated = await accounts.DeactivateAsync(AcmeAccountId.New(), Stranger, Ct);
+        var renamed = await providers.RenameAsync(DnsProviderId.New(), "renamed", Stranger, Ct);
 
         Assert.Equal(IssuanceChangeStatus.Denied, account.Status);
         Assert.Equal(IssuanceChangeStatus.Denied, provider.Status);
         Assert.Equal(IssuanceChangeStatus.Denied, deleted.Status);
         Assert.Equal(IssuanceChangeStatus.Denied, deactivated.Status);
+        Assert.Equal(IssuanceChangeStatus.Denied, renamed.Status);
         Assert.Equal(keys, h.Signer.Created.Count); // no account key was made
         Assert.Empty(await providers.ListAsync(Ct));
-        Assert.Equal(4, (await h.Config.AuditAsync()).Count(e => e.Outcome == AuditOutcome.Denied));
+        Assert.Equal(5, (await h.Config.AuditAsync()).Count(e => e.Outcome == AuditOutcome.Denied));
     }
 
     [Fact]

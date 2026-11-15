@@ -311,6 +311,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("GET /api/v1/dns-providers", Permission.ProvidersRead),
             ("GET /api/v1/dns-providers/{id:DnsProviderId}", Permission.ProvidersRead),
             ("POST /api/v1/dns-providers", Permission.ProvidersWrite),
+            ("PATCH /api/v1/dns-providers/{id:DnsProviderId}", Permission.ProvidersWrite),
             ("POST /api/v1/dns-providers/{id:DnsProviderId}/credential", Permission.ProvidersWrite),
             ("DELETE /api/v1/dns-providers/{id:DnsProviderId}", Permission.ProvidersWrite),
             ("POST /api/v1/dns-providers/{id:DnsProviderId}/test", Permission.ProvidersWrite),

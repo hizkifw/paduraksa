@@ -68,9 +68,7 @@ public sealed partial class DnsProviderService
 
         var label = (request.Label ?? string.Empty).Trim();
         var problem = !Enum.IsDefined(request.Kind) ? new ConfigError("/kind", IssuanceErrorCodes.KindUndefined, $"unknown DNS provider kind {request.Kind}")
-            : label.Length == 0 ? new ConfigError("/label", IssuanceErrorCodes.LabelRequired, "a DNS provider needs a label")
-            : label.Length > MaxLabelLength ? new ConfigError("/label", IssuanceErrorCodes.TextTooLong, $"the label is limited to {MaxLabelLength} characters")
-            : null;
+            : LabelProblem(label);
         if (problem is null)
         {
             var secret = await _secrets.DescribeAsync(request.CredentialSecretId, cancellationToken).ConfigureAwait(false);
@@ -115,6 +113,66 @@ public sealed partial class DnsProviderService
 
         return result;
     }
+
+    /// <summary>
+    /// Renames a provider (its label; the same rules as when it was added). Audited as <c>acme.dns_provider.rename</c> with the old and the new
+    /// label. <c>UpdatedAt</c> stays: it says when the credential last changed, which is what the dashboard shows it as.
+    /// </summary>
+    public async Task<DnsProviderResult> RenameAsync(DnsProviderId id, string label, CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ProvidersWrite, "acme.dns_provider.rename", id.ToString(), cancellationToken).ConfigureAwait(false))
+        {
+            return new DnsProviderResult(IssuanceChangeStatus.Denied);
+        }
+
+        var trimmed = (label ?? string.Empty).Trim();
+        if (LabelProblem(trimmed) is { } problem)
+        {
+            return new DnsProviderResult(IssuanceChangeStatus.Invalid, Errors: [problem]);
+        }
+
+        var result = await _config.ApplyOperationalChangeAsync(
+            async context =>
+            {
+                var row = await context.DnsProviders.FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false);
+                if (row is null)
+                {
+                    return (new DnsProviderResult(IssuanceChangeStatus.NotFound), null);
+                }
+
+                if (row.Label == trimmed)
+                {
+                    return (new DnsProviderResult(IssuanceChangeStatus.Committed, IssuanceMapping.ToSummary(row)), null);
+                }
+
+                var previous = row.Label;
+                row.Label = trimmed;
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                var audit = IssuanceMapping.Entry(origin, "acme.dns_provider.rename", id, AuditOutcome.Success) with
+                {
+                    Details = AuditDetails.Json(w =>
+                    {
+                        w.WriteString("from", previous);
+                        w.WriteString("to", trimmed);
+                    }),
+                };
+                return (new DnsProviderResult(IssuanceChangeStatus.Committed, IssuanceMapping.ToSummary(row)), audit);
+            },
+            reason => Unavailable(reason),
+            cancellationToken).ConfigureAwait(false);
+        if (result.Status == IssuanceChangeStatus.Committed)
+        {
+            LogRenamed(id);
+        }
+
+        return result;
+    }
+
+    private static ConfigError? LabelProblem(string label) =>
+        label.Length == 0 ? new ConfigError("/label", IssuanceErrorCodes.LabelRequired, "a DNS provider needs a label")
+        : label.Length > MaxLabelLength ? new ConfigError("/label", IssuanceErrorCodes.TextTooLong, $"the label is limited to {MaxLabelLength} characters")
+        : null;
 
     /// <summary>Deletes a provider's row, unless a certificate is still ordered through it. The vault secret is the caller's to delete afterwards.</summary>
     public async Task<DnsProviderResult> DeleteAsync(DnsProviderId id, CommandOrigin origin, CancellationToken cancellationToken = default)
@@ -237,4 +295,7 @@ public sealed partial class DnsProviderService
 
     [LoggerMessage(Level = LogLevel.Information, Message = "DNS provider {Provider} deleted.")]
     private partial void LogDeleted(DnsProviderId provider);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "DNS provider {Provider} renamed.")]
+    private partial void LogRenamed(DnsProviderId provider);
 }

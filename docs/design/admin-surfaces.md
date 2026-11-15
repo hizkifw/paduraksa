@@ -236,6 +236,7 @@ The security-headers middleware (auth) adds its headers when the response starts
 **Secrets.**
 - Uploads are streamed from the multipart request into `ICertificateImport`: parts `password`, `label`, then `file`. A duplicate `password` or `label` is a 400, nothing after the file is read, and the password lives in a cleared `char[]`.
 - DNS credentials and EAB keys are stored by the services (`DnsProviderService.CreateWithCredentialAsync`, `RotateCredentialAsync`, behind `POST /dns-providers/{id}/credential`, `DeleteWithCredentialAsync`, and `AcmeAccountService.CreateWithEabAsync`). They authorize and validate before they store anything, and delete the secret again when the provider or account is not created. No response type can carry a secret.
+- Renaming a DNS provider (`DnsProviderService.RenameAsync`, behind `PATCH /dns-providers/{id}` with `{ label }`: the field is the one the provider is created with) needs `providers:write`, applies the same label rules as adding one and is audited as `acme.dns_provider.rename` with the old and the new label. It leaves `UpdatedAt` alone, since the dashboard shows that as when the token last changed. A provider is a store record, not part of the config revision, so a rename takes no review drawer.
 - "Test credentials" (`DnsProviderService.TestAsync(id, origin)`) needs `providers:write` and is audited (`acme.dns_provider.test`, verdict only).
 - `RevisionQueryService` and `AuditQueryService` (Application) are the public, DTO-only readers over the internal revision store and audit chain.
 

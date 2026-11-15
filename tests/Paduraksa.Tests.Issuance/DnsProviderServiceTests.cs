@@ -57,6 +57,58 @@ public sealed class DnsProviderServiceTests
     }
 
     [Fact]
+    public async Task ARenamedProviderKeepsItsIdCredentialAndTokenDateAndIsAuditedWithBothNames()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var provider = await h.CreateDnsProviderAsync();
+        h.Time.Now += TimeSpan.FromDays(3);
+
+        var result = await h.DnsProviders.RenameAsync(provider.Id, "  Cloudflare (home)  ", Admin, Ct);
+
+        Assert.Equal(IssuanceChangeStatus.Committed, result.Status);
+        Assert.Equal("Cloudflare (home)", result.Provider!.Label);
+        Assert.Equal(provider with { Label = "Cloudflare (home)" }, await h.DnsProviders.GetAsync(provider.Id, Ct));
+        Assert.Equal(await h.CredentialOfAsync(provider.Id), await h.CredentialOfAsync(result.Provider.Id));
+        var audit = Assert.Single(await h.AuditAsync("acme.dns_provider.rename"));
+        Assert.Equal((AuditOutcome.Success, provider.Id.ToString()), (audit.Outcome, audit.Target));
+        Assert.Contains("\"from\":\"Cloudflare\"", audit.Details, StringComparison.Ordinal);
+        Assert.Contains("\"to\":\"Cloudflare (home)\"", audit.Details, StringComparison.Ordinal);
+        await h.Config.AssertChainIntactAsync();
+    }
+
+    [Fact]
+    public async Task RenamingToTheSameNameChangesAndAuditsNothing()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var provider = await h.CreateDnsProviderAsync();
+
+        var result = await h.DnsProviders.RenameAsync(provider.Id, provider.Label, Admin, Ct);
+
+        Assert.Equal(IssuanceChangeStatus.Committed, result.Status);
+        Assert.Empty(await h.AuditAsync("acme.dns_provider.rename"));
+    }
+
+    [Fact]
+    public async Task ARenameThatCannotWorkIsRefusedWithTheRulesOfAddingOne()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var provider = await h.CreateDnsProviderAsync();
+
+        (string Label, string Code)[] cases = [("  ", IssuanceErrorCodes.LabelRequired), (new string('x', 257), IssuanceErrorCodes.TextTooLong)];
+        foreach (var (label, code) in cases)
+        {
+            var result = await h.DnsProviders.RenameAsync(provider.Id, label, Admin, Ct);
+
+            Assert.Equal(IssuanceChangeStatus.Invalid, result.Status);
+            Assert.Equal(("/label", code), (Assert.Single(result.Errors).Path, Assert.Single(result.Errors).Code));
+        }
+
+        Assert.Equal(IssuanceChangeStatus.NotFound, (await h.DnsProviders.RenameAsync(DnsProviderId.New(), "x", Admin, Ct)).Status);
+        Assert.Equal(provider.Label, (await h.DnsProviders.GetAsync(provider.Id, Ct))!.Label);
+        Assert.Empty(await h.AuditAsync("acme.dns_provider.rename"));
+    }
+
+    [Fact]
     public async Task TestCredentialsReportsTheProvidersVerdictWithoutThrowing()
     {
         await using var h = await IssuanceHarness.CreateAsync();

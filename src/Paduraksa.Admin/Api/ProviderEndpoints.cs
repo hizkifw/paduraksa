@@ -47,6 +47,10 @@ internal static class ProviderEndpoints
             .WithDescription("The credential goes into the vault, usable only against the provider's own API host, and is never returned.")
             .Accepts<CreateDnsProviderBody>("application/json").Produces<DnsProviderSummary>(201).ProducesApiProblems(400, 415, 422)
             .RequirePermission(Permission.ProvidersWrite);
+        providers.MapPatch("/{id:DnsProviderId}", RenameProviderAsync).WithName("RenameDnsProvider").WithSummary("Rename a DNS provider")
+            .WithDescription("Changes the label only. The provider keeps its ID and its credential. Audited as acme.dns_provider.rename.")
+            .Accepts<RenameDnsProviderBody>("application/json").Produces<DnsProviderSummary>().ProducesApiProblems(400, 404, 415, 422)
+            .RequirePermission(Permission.ProvidersWrite);
         providers.MapPost("/{id:DnsProviderId}/credential", RotateProviderAsync).WithName("RotateDnsProviderCredential").WithSummary("Replace a DNS provider's credential")
             .WithDescription("The provider keeps its ID, so everything that uses it keeps working. The credential is never returned.")
             .Accepts<RotateDnsCredentialBody>("application/json").Produces<DnsProviderSummary>().ProducesApiProblems(400, 404, 415, 422)
@@ -157,6 +161,14 @@ internal static class ProviderEndpoints
         {
             CryptographicOperations.ZeroMemory(credential);
         }
+    }
+
+    private static async Task<IResult> RenameProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
+    {
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.RenameDnsProviderBody).ConfigureAwait(false);
+        return !body.Ok
+            ? body.Problem!
+            : ProviderAnswer(await providers.RenameAsync(id, body.Value!.Label, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
     }
 
     private static async Task<IResult> RotateProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)

@@ -143,6 +143,7 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(Page<DnsProviderSummary>))]
 [JsonSerializable(typeof(CreateDnsProviderBody))]
 [JsonSerializable(typeof(RotateDnsCredentialBody))]
+[JsonSerializable(typeof(RenameDnsProviderBody))]
 [JsonSerializable(typeof(DnsProviderTestOutcome))]
 [JsonSerializable(typeof(NotificationChannelBody))]
 [JsonSerializable(typeof(NotificationChannelSummary))]

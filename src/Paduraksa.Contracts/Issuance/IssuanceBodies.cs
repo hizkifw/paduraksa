@@ -32,6 +32,10 @@ public sealed record CreateDnsProviderBody(DnsProviderKind Kind, string Label, s
     public override string ToString() => $"{nameof(CreateDnsProviderBody)} {{ Kind = {Kind}, Label = {Label}, Credential = *** }}";
 }
 
+/// <summary>Renames a DNS provider.</summary>
+/// <param name="Label">The new display name (required; the same rules as when the provider was added).</param>
+public sealed record RenameDnsProviderBody(string Label);
+
 /// <summary>Replaces a DNS provider's credential, keeping the provider (and everything that uses it).</summary>
 /// <param name="Credential">The new API token.</param>
 public sealed record RotateDnsCredentialBody(string Credential)
