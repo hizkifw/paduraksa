@@ -1,0 +1,19 @@
+@* One place a certificate is used, as a link chip to what uses it: the host's drawer, or the global defaults for the default certificate.
+   A use without a host to go to (a host the config no longer has) stays plain. *@
+@if (Use.Kind == CertificateUseKind.Default)
+{
+    <a class="pdk-tag pdk-tag-link" href="@SettingsRoutes.Defaults" data-use="default">default</a>
+}
+else if (Use.HostId is { } host)
+{
+    <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host)" data-use="@host">@Use.HostName</a>
+}
+else
+{
+    <span class="pdk-tag">@Use.HostName</span>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public CertificateUse Use { get; set; } = default!;
+}

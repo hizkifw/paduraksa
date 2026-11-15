@@ -116,7 +116,7 @@
                         }
                     </span>
                     <span role="cell" class="pdk-dt-cell pdk-cert-issuer" data-label="Issuer">@(s.Status == CertificateStatus.Pending ? "-" : CertificateDisplay.CommonName(s.Issuer))</span>
-                    <span role="cell" class="pdk-dt-cell" data-label="Used by">
+                    <span role="cell" class="pdk-dt-cell" data-label="Used by" @onclick:stopPropagation="true">
                         @if (!_view.UsageKnown)
                         {
                             <span class="pdk-muted">-</span>
@@ -130,7 +130,7 @@
                             <span class="pdk-use-chips">
                                 @foreach (var use in row.Uses.Take(2))
                                 {
-                                    <span class="pdk-name-chip">@(use.Kind == CertificateUseKind.Default ? "default" : use.HostName)</span>
+                                    <CertificateUseLink Use="use" />
                                 }
                                 @if (row.Uses.Count > 2)
                                 {

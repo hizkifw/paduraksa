@@ -74,7 +74,7 @@
                 {
                     <li>
                         <MudIcon Icon="@(use.Kind == CertificateUseKind.Default ? Icons.Material.Outlined.Star : Icons.Material.Outlined.Language)" Size="Size.Small" />
-                        <span>@(use.Kind == CertificateUseKind.Default ? "The default certificate" : use.HostName)</span>
+                        <CertificateUseLink Use="use" />
                         <span class="pdk-muted">@UseLabel(use)</span>
                     </li>
                 }
