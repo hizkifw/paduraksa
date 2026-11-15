@@ -1,0 +1,56 @@
+{
+  "_comment": "Components the publish output or the container image carries that no package metadata describes, and corrections for packages whose metadata lacks a field. generate-third-party-notices.py merges this into THIRD-PARTY-NOTICES.json.",
+  "packageOverrides": {
+    "SQLitePCLRaw.bundle_e_sqlite3": {
+      "url": "https://github.com/ericsink/SQLitePCL.raw"
+    },
+    "SQLitePCLRaw.core": {
+      "url": "https://github.com/ericsink/SQLitePCL.raw"
+    },
+    "SQLitePCLRaw.lib.e_sqlite3": {
+      "url": "https://github.com/ericsink/SQLitePCL.raw"
+    },
+    "SQLitePCLRaw.provider.e_sqlite3": {
+      "url": "https://github.com/ericsink/SQLitePCL.raw"
+    }
+  },
+  "components": [
+    {
+      "name": ".NET runtime and ASP.NET Core",
+      "version": "10.0",
+      "license": "MIT",
+      "copyright": "Copyright (c) .NET Foundation and Contributors",
+      "url": "https://github.com/dotnet/runtime",
+      "noticesUrl": "https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT",
+      "kind": "runtime"
+    },
+    {
+      "name": "SQLite",
+      "version": "@sqlite-version",
+      "license": "blessing",
+      "copyright": "The author disclaims copyright to this source code (public domain)",
+      "url": "https://sqlite.org/",
+      "kind": "bundled"
+    },
+    {
+      "name": "Material Design icons",
+      "version": null,
+      "license": "Apache-2.0",
+      "copyright": "Copyright Google LLC",
+      "url": "https://github.com/google/material-design-icons",
+      "kind": "bundled"
+    },
+    {
+      "name": "libmsquic",
+      "version": "@libmsquic-version",
+      "license": "MIT",
+      "copyright": "Copyright (c) Microsoft Corporation.",
+      "url": "https://github.com/microsoft/msquic",
+      "kind": "image"
+    }
+  ],
+  "knownStaticAssetSources": {
+    "Paduraksa.Dashboard": "this project",
+    "MudBlazor": "MudBlazor (a package listed above): its script and stylesheet; it serves no fonts"
+  }
+}
