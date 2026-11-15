@@ -48,7 +48,7 @@
             <MudText Typo="Typo.body2" Class="pdk-muted" data-field="mcp-note">
                 @if (Token is null)
                 {
-                    <text>A token that can only read lets it look at everything its scopes allow and change nothing. A change it does make is a dry run first, then a second request that confirms it, and shows as MCP in
+                    <text>A read-only token lets an assistant look at everything its scopes allow and change nothing. With a write scope, each change is a dry run first, then a second request that confirms it, and shows as MCP in
                     <MudLink Href="@DashboardRoutes.History">History</MudLink> and <MudLink Href="@DashboardRoutes.Audit">Audit</MudLink>.</text>
                 }
                 else if (ReadOnlyToken)

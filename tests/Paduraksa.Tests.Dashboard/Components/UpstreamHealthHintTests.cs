@@ -24,7 +24,7 @@ public sealed class UpstreamHealthHintTests
         context.Render<Upstreams>(parameters => parameters.Add(p => p.Key, Nas.Id.ToString()));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-field=active-health]").Count == 1);
 
-        Assert.Contains("only noticed when a request", drawers.Find("[data-hint=active-health]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("noticed only when a request", drawers.Find("[data-hint=active-health]").TextContent, StringComparison.Ordinal);
         Assert.Contains("stays in rotation", drawers.Find("[data-hint=passive-health]").TextContent, StringComparison.Ordinal);
 
         await drawers.Find("[data-field=active-health]").ChangeAsync(new() { Value = true });

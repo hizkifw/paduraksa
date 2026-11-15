@@ -79,7 +79,7 @@
                 </FormSection>
 
                 <FormSection Title="Rules" Name="rules"
-                             Description="Tried in order: the first rule a request matches decides, so put an exception before the rule it excepts. A request no rule matches goes on. Every condition a rule states has to match.">
+                             Description="Rules are tried in order and the first match decides, so put an exception before the rule it excepts. If no rule matches a request, it goes on. A rule matches only when every condition it states matches.">
                     @if (E("/rules") is { } tooMany)
                     {
                         <MudText Typo="Typo.caption" Color="Color.Error" data-error="rules">@tooMany</MudText>
@@ -327,7 +327,7 @@
 
     private static string? PatternHelp(RulePathKind kind) => kind switch
     {
-        RulePathKind.Prefix => "The path and what lies below it: /admin takes /admin and /admin/users, not /administrator.",
+        RulePathKind.Prefix => "The path and everything below it: /admin matches /admin and /admin/users, not /administrator.",
         RulePathKind.Glob => "* is any run inside a segment, ** across segments, /**/ none or more segments.",
         RulePathKind.Regex => "Matched anywhere in the path, ignoring case, without backtracking.",
         _ => "Written decoded; case is ignored.",

@@ -44,7 +44,7 @@ public sealed class SettingsPagesTests
         Assert.DoesNotContain("pdk_", page.Find("[data-section=mcp]").TextContent, StringComparison.Ordinal);
 
         var note = page.Find("[data-field=mcp-note]");
-        Assert.Contains("can only read", note.TextContent, StringComparison.Ordinal);
+        Assert.Contains("read-only token", note.TextContent, StringComparison.Ordinal);
         Assert.Contains("everything its scopes allow", note.TextContent, StringComparison.Ordinal);
         Assert.Contains(note.QuerySelectorAll("a").Select(a => a.GetAttribute("href")), href => href == DashboardRoutes.LocalCa);
     }

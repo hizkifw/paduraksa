@@ -267,7 +267,7 @@
         </RefPicker>
     </FormSection>
 
-    <FormSection Title="Settings" Description="The profile first: every setting under it inherits from the profile, then the global defaults, unless the host sets its own." Name="settings">
+    <FormSection Title="Settings" Description="Each setting uses the host's own value if it has one, otherwise the profile's, then the global default." Name="settings">
         <HostSettingsFields Settings="Model.Settings" SettingsChanged="@(settings => Model.Settings = settings)" Inherited="Inherited" InheritWord="Inherit" PathPrefix="/settings" Errors="Errors"
                             ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)" ProxyMode="ProxyMode"
                             ForceHttpsDisabled="@(Model.CertificateMode == CertificateBindingMode.None)" OnChanged="TouchAsync"

@@ -162,7 +162,7 @@ public static class HostOverview
                 var bound = certificates.FirstOrDefault(c => c.Id == host.Certificate.CertificateId);
                 if (bound is null)
                 {
-                    return new CertificateState("Missing", Tone.Error, "The certificate this host is bound to isn't in the inventory; the default one is served.");
+                    return new CertificateState("Missing", Tone.Error, "The host's certificate isn't in the inventory, so the default one is served.");
                 }
 
                 return Judge(bound, now, $"Bound to {CertificateTitle(bound)}.") with { CertificateId = bound.Id };

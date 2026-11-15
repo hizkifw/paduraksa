@@ -129,7 +129,7 @@ else
     private static readonly IReadOnlyList<ChoiceOption<ConfigImportMode>> Modes =
     [
         new(ConfigImportMode.Merge, "Merge", "Adds what the file names and updates what it matches by id or name; deletes nothing."),
-        new(ConfigImportMode.Replace, "Replace", "The config becomes the file; whatever it leaves out is deleted."),
+        new(ConfigImportMode.Replace, "Replace", "The config becomes the file. Anything it leaves out is deleted."),
     ];
 
     private ConfigImportMode _mode = ConfigImportMode.Merge;

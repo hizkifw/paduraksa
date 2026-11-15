@@ -147,7 +147,7 @@
                                        Label="Active health checks (probe each destination on a schedule)" Disabled="!MayWrite" data-field="active-health" />
                             @if (!Model.ActiveHealth)
                             {
-                                <MudText Typo="Typo.caption" Class="pdk-muted" data-hint="active-health">Off: a destination that is down is only noticed when a request to it fails.</MudText>
+                                <MudText Typo="Typo.caption" Class="pdk-muted" data-hint="active-health">Off: a down destination is noticed only when a request to it fails.</MudText>
                             }
                             @if (Model.ActiveHealth)
                             {
@@ -167,7 +167,7 @@
                                        Label="Passive health checks (take a destination out after failed requests)" Disabled="!MayWrite" data-field="passive-health" />
                             @if (!Model.PassiveHealth)
                             {
-                                <MudText Typo="Typo.caption" Class="pdk-muted" data-hint="passive-health">Off: a destination that fails requests stays in rotation, and every request sent to it fails.</MudText>
+                                <MudText Typo="Typo.caption" Class="pdk-muted" data-hint="passive-health">Off: a failing destination stays in rotation, and every request sent to it fails.</MudText>
                             }
                             @if (Model.PassiveHealth)
                             {
@@ -235,7 +235,7 @@
                                             @if (_fetchedWithoutNames)
                                             {
                                                 <MudText Typo="Typo.caption" Class="pdk-muted" data-section="tls-fetch-unnamed">
-                                                    No host uses this upstream yet, so only the address's own name was asked for. A host's name may get another certificate: fetch again once one uses it.
+                                                    No host uses this upstream yet, so the certificate was requested for the address's name only. A host's name may get another certificate, so fetch again once a host uses it.
                                                 </MudText>
                                             }
                                         </div>

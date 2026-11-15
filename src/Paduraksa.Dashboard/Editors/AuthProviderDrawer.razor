@@ -99,7 +99,7 @@
                 </FormSection>
 
                 <FormSection Title="Answers" Name="answers"
-                             Description="A 2xx lets the request through. A 401, 403 or redirect goes to the client as the provider sent it. Anything else, an unreachable endpoint or a timeout refuses the request.">
+                             Description="A 2xx lets the request through. A 401, 403 or redirect goes to the client as the provider sent it. Any other answer, an unreachable endpoint or a timeout refuses the request.">
                     <div class="pdk-field-grid">
                         <MudNumericField HideSpinButtons="true" T="int?" Value="Model.TimeoutSeconds" ValueChanged="@(value => Set(() => Model.TimeoutSeconds = value, "/forwardAuth/timeoutSeconds"))"
                                          Label="Wait for an answer (s)" Min="1" Max="ForwardAuthLimits.MaxTimeoutSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
