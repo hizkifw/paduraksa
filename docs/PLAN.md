@@ -8,27 +8,21 @@ Status: **v0.31**: M0-M11 done (the NPM importer stays a nice-to-have): the v0.1
 
 ---
 
+For contributors: what Paduraksa is, how it is built, the rules the code follows and where the project stands.
+
+## In short
+
+- Paduraksa is one .NET 10 process: a public app (the proxy, on Kestrel and YARP) and an admin app (dashboard, REST API, MCP, metrics), sharing one set of singletons. State is SQLite plus an encrypted vault, in one data directory.
+- The hot path never touches the database, takes no locks and allocates 0 B in our own code per request. Config changes are compiled into an immutable snapshot and swapped atomically.
+- Every change goes through one command pipeline (authorize, mutate, validate, compile, commit, publish), whichever surface it came from. Rollback is a new revision.
+- Dashboard, REST API, MCP and CLI are thin skins over one Application layer, so they cannot drift apart.
+- Two compile-time facts carry the design: the Proxy project cannot reach the database, and Admin and Dashboard cannot see entities. Private keys exist only inside `Paduraksa.Vault`.
+- The WAF is deliberately simple: named policy objects (access lists, rule sets, rate limits, auth providers), evaluated in a fixed order.
+- Single node and single process for v0.1. Fleet mode, caching, fingerprinting and blocklists are designed for after it.
+
 ## How to read this
 
-This page is the overview: what Paduraksa is, how it is built, how a request flows through it, the rules the code follows, and where the project stands. Read it top to bottom in about twenty minutes.
-
-The detail lives in `docs/design/`, one page per area. Each section below ends with a link to its page. Every design page opens with a short summary and a contents list.
-
-| Page | Covers |
-|---|---|
-| [hosting.md](design/hosting.md) | Process and hosts, listeners, ports, the admin certificate, admin through the proxy |
-| [config.md](design/config.md) | Typed IDs, data model, settings layers, the config lifecycle and the snapshot |
-| [hot-path.md](design/hot-path.md) | The request budget, the pipeline, response headers, connection limits, HTTP/3, the simulator |
-| [waf.md](design/waf.md) | Rate limits, access lists, rule sets, forward-auth, proof of work, error pages, request limits |
-| [observability.md](design/observability.md) | Logs, metrics, live tail, analytics, health and notifications |
-| [cloudflare.md](design/cloudflare.md) | Client IP behind Cloudflare, origin lockdown, Authenticated Origin Pulls |
-| [vault-and-certificates.md](design/vault-and-certificates.md) | The vault, backup, the certificate inventory, local CA, ACME, DNS-01 |
-| [identity.md](design/identity.md) | Users, sessions, roles, the admin pipeline |
-| [admin-surfaces.md](design/admin-surfaces.md) | REST API, MCP, CLI, YAML, declarative mode |
-| [dashboard.md](design/dashboard.md) | The Blazor dashboard, drafts, conventions, first-run setup |
-| [testing.md](design/testing.md) | Test levels, property tests, fuzzing |
-| [deployment.md](design/deployment.md) | Container, compose, bare metal, fleet mode |
-| [milestones.md](design/milestones.md) | Spikes and the scope and outcome of each milestone |
+Read this page top to bottom in about twenty minutes. Each section ends with a link to the page that holds the as-built detail: [the contributor pages](design/index.md) list them all.
 
 Other documents: [the user guide](guide/getting-started.md) and [operating it](operating/docker.md) (running it), [development.md](development.md) (working on it), [threat-model.md](threat-model.md) (what it defends against; the full analysis is [design/threat-model.md](design/threat-model.md)), and [../CHANGELOG.md](../CHANGELOG.md) (what changed, newest first).
 
