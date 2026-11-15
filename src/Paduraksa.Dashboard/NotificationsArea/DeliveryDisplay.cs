@@ -20,7 +20,7 @@ public static class DeliveryDisplay
         new(NotificationDeliveryState.Failed, "Failed", Tone: "error"),
         new(NotificationDeliveryState.Pending, "Retrying", Tooltip: "Waiting to be sent or between retries", Tone: "info"),
         new(NotificationDeliveryState.Expired, "Expired", Tooltip: "Not sent: the event was too old when Paduraksa started", Tone: "warning"),
-        new(NotificationDeliveryState.Dropped, "Dropped", Tooltip: "Not sent: the channel was deleted or paused"),
+        new(NotificationDeliveryState.Dropped, "Dropped", Tooltip: "Not sent: the channel was deleted or disabled"),
     ];
 
     /// <summary>The channel's name, or what is known of a deleted one.</summary>

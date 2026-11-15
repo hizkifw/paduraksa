@@ -355,7 +355,7 @@ public sealed class NotificationWorkerTests : OutboxTestBase
 
         var dropped = Assert.Single(await Deliveries());
         Assert.Equal(NotificationDeliveryState.Dropped, dropped.State);
-        Assert.Equal("The channel is paused.", dropped.LastError);
+        Assert.Equal("The channel is disabled.", dropped.LastError);
         Assert.Empty(Sender.Sent);
         Assert.Equal(1, dispatcher.Stats.Ended(NotificationChannelKind.Webhook, NotificationDeliveryState.Dropped));
         Assert.Equal(0, dispatcher.Stats.Pending);

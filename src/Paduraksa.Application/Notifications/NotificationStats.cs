@@ -72,7 +72,7 @@ public static class NotificationMetrics
                 NotificationDeliveryState.Sent => "Notification deliveries the service accepted, by kind of channel.",
                 NotificationDeliveryState.Failed => "Notification deliveries given up on after their retries (or refused for good), by kind of channel.",
                 NotificationDeliveryState.Expired => "Notification deliveries not sent because their event was too old when the process started, by kind of channel.",
-                _ => "Notification deliveries not sent because their channel was deleted or paused, by kind of channel.",
+                _ => "Notification deliveries not sent because their channel was deleted or disabled, by kind of channel.",
             };
             foreach (var kind in NotificationStats.ChannelKinds)
             {

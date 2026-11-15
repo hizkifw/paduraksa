@@ -293,7 +293,7 @@ public sealed class NotificationServiceTests
         _ = await service.UpdateAsync(channel.Id, Discord(secret: null) with { Enabled = false, Label = "renamed" }, Admin, Ct);
 
         var dropped = await DeliveryOf(h, pending);
-        Assert.Equal((NotificationDeliveryState.Dropped, "The channel is paused."), (dropped.State, dropped.LastError));
+        Assert.Equal((NotificationDeliveryState.Dropped, "The channel is disabled."), (dropped.State, dropped.LastError));
         Assert.Equal(1, stats.Ended(NotificationChannelKind.Discord, NotificationDeliveryState.Dropped));
     }
 

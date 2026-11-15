@@ -51,7 +51,7 @@ public sealed record NotificationChannelBody(
 /// <param name="Id">The channel.</param>
 /// <param name="Kind">Which service.</param>
 /// <param name="Label">The display name.</param>
-/// <param name="Enabled">False when the channel is paused.</param>
+/// <param name="Enabled">False when the channel is disabled.</param>
 /// <param name="Events">What the channel is sent.</param>
 /// <param name="ServerUrl">ntfy and Gotify: the server's base URL.</param>
 /// <param name="Topic">ntfy: the topic.</param>
@@ -95,7 +95,7 @@ public sealed record NotificationChannelSummary(
 /// <summary>How a channel's deliveries are going: what waits now, and the outcomes of the last seven days (by when their event happened).</summary>
 /// <param name="Queued">Deliveries waiting to be sent or retried.</param>
 /// <param name="Sent">Deliveries the service accepted.</param>
-/// <param name="Failed">Deliveries given up on, or not sent because their event was too old when the process started. The success rate is <c>sent / (sent + failed)</c>; dropped ones (the channel was deleted or paused) are in neither.</param>
+/// <param name="Failed">Deliveries given up on, or not sent because their event was too old when the process started. The success rate is <c>sent / (sent + failed)</c>; dropped ones (the channel was deleted or disabled) are in neither.</param>
 public sealed record NotificationChannelFigures(int Queued, int Sent, int Failed);
 
 /// <summary>The outcome of a channel change.</summary>
@@ -196,7 +196,7 @@ public sealed record UpstreamHealthView(UpstreamId Id, UpstreamHealthState State
 /// <summary>One event's delivery to one channel, as the history shows it.</summary>
 /// <param name="Id">The delivery.</param>
 /// <param name="ChannelId">The channel it went (or goes) to.</param>
-/// <param name="State">Pending (waiting, or between retries), sent, failed (given up), expired (the event was too old when the process started) or dropped (the channel was deleted or paused).</param>
+/// <param name="State">Pending (waiting, or between retries), sent, failed (given up), expired (the event was too old when the process started) or dropped (the channel was deleted or disabled).</param>
 /// <param name="Attempts">How many times a send was tried.</param>
 /// <param name="ChannelLabel">The channel's display name; absent when the channel has been deleted (the history stays).</param>
 /// <param name="ChannelKind">The channel's service; absent when it has been deleted.</param>

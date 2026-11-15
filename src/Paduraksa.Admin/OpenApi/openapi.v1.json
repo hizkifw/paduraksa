@@ -13101,7 +13101,7 @@
           "Notifications"
         ],
         "summary": "Send a failed or expired delivery again",
-        "description": "Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not paused (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.\n\nRequires the `providers:write` permission.",
+        "description": "Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not disabled (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.\n\nRequires the `providers:write` permission.",
         "operationId": "RetryNotificationDelivery",
         "parameters": [
           {
@@ -13194,7 +13194,7 @@
           "Notifications"
         ],
         "summary": "Send every failed or expired delivery of an event again",
-        "description": "As the delivery's retry, for every failed or expired delivery of the event whose channel exists and is not paused. 422 when there is none. Audited (notification.event.retry) with how many.\n\nRequires the `providers:write` permission.",
+        "description": "As the delivery's retry, for every failed or expired delivery of the event whose channel exists and is not disabled. 422 when there is none. Audited (notification.event.retry) with how many.\n\nRequires the `providers:write` permission.",
         "operationId": "RetryNotificationEvent",
         "parameters": [
           {
@@ -21395,7 +21395,7 @@
               "integer",
               "string"
             ],
-            "description": "Deliveries given up on, or not sent because their event was too old when the process started. The success rate is `sent / (sent + failed)`; dropped ones (the channel was deleted or paused) are in neither.",
+            "description": "Deliveries given up on, or not sent because their event was too old when the process started. The success rate is `sent / (sent + failed)`; dropped ones (the channel was deleted or disabled) are in neither.",
             "format": "int32"
           }
         },
@@ -21450,7 +21450,7 @@
           },
           "enabled": {
             "type": "boolean",
-            "description": "False when the channel is paused."
+            "description": "False when the channel is disabled."
           },
           "events": {
             "type": "array",
@@ -21613,7 +21613,7 @@
             "$ref": "#/components/schemas/NotificationChannelId"
           },
           "state": {
-            "description": "Pending (waiting, or between retries), sent, failed (given up), expired (the event was too old when the process started) or dropped (the channel was deleted or paused).",
+            "description": "Pending (waiting, or between retries), sent, failed (given up), expired (the event was too old when the process started) or dropped (the channel was deleted or disabled).",
             "$ref": "#/components/schemas/NotificationDeliveryState"
           },
           "attempts": {

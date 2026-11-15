@@ -85,7 +85,7 @@ else
                     <span class="pdk-provider-sub pdk-channel-state" data-section="state">
                         @if (!channel.Enabled)
                         {
-                            <StatusChip Text="Paused" Name="paused" />
+                            <StatusChip Text="Disabled" Name="paused" />
                         }
                         @if (channel.LastError is { Length: > 0 } error)
                         {

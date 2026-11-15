@@ -51,10 +51,10 @@ internal static class NotificationEndpoints
             .WithQuery(Channel, Kind, Outcome, AuditEndpoints.From, AuditEndpoints.To)
             .WithPage().Produces<Page<NotificationHistoryEvent>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         notifications.MapPost("/deliveries/{id:NotificationDeliveryId}/retry", RetryDeliveryAsync).WithName("RetryNotificationDelivery").WithSummary("Send a failed or expired delivery again")
-            .WithDescription("Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not paused (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.")
+            .WithDescription("Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not disabled (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.")
             .Produces<NotificationRetryOutcome>().ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
         notifications.MapPost("/events/{id:NotificationEventId}/retry", RetryEventAsync).WithName("RetryNotificationEvent").WithSummary("Send every failed or expired delivery of an event again")
-            .WithDescription("As the delivery's retry, for every failed or expired delivery of the event whose channel exists and is not paused. 422 when there is none. Audited (notification.event.retry) with how many.")
+            .WithDescription("As the delivery's retry, for every failed or expired delivery of the event whose channel exists and is not disabled. 422 when there is none. Audited (notification.event.retry) with how many.")
             .Produces<NotificationRetryOutcome>().ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
 
         var upstreams = api.MapGroup("/upstreams").WithTags("Upstreams");

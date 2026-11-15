@@ -183,10 +183,10 @@ public sealed class NotificationHistoryTests
             Assert.Equal([notification.Id], fake.RetriedEvents);
 
             await page.WaitForStateAsync(() => page.FindAll("[data-action=retry]").Count == 1);
-            fake.Refusal = new NotificationRetryResult(IssuanceChangeStatus.Invalid, 0, [new ConfigError("/channel", NotificationErrorCodes.ChannelGone, "the channel was deleted or is paused; resume or add it again first")]);
+            fake.Refusal = new NotificationRetryResult(IssuanceChangeStatus.Invalid, 0, [new ConfigError("/channel", NotificationErrorCodes.ChannelGone, "the channel was deleted or is disabled; enable or add it again first")]);
             await page.Find("[data-action=retry]").ClickAsync(new());
 
-            await snackbars.WaitForStateAsync(() => snackbars.Markup.Contains("The channel was deleted or is paused", StringComparison.Ordinal));
+            await snackbars.WaitForStateAsync(() => snackbars.Markup.Contains("The channel was deleted or is disabled", StringComparison.Ordinal));
             Assert.Single(page.FindAll("[data-chip=delivery-failed]"));
         }
     }

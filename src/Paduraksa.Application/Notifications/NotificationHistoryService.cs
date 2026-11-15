@@ -228,7 +228,7 @@ public sealed class NotificationHistoryService
 
         if (retried == 0)
         {
-            return (0, Refused(NotificationErrorCodes.ChannelGone, "/channel", "the channel was deleted or is paused; resume or add it again first"));
+            return (0, Refused(NotificationErrorCodes.ChannelGone, "/channel", "the channel was deleted or is disabled; enable or add it again first"));
         }
 
         try

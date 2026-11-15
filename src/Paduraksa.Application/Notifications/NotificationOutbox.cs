@@ -35,7 +35,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
 
     public const string ChannelDeleted = "The channel was deleted.";
 
-    public const string ChannelPaused = "The channel is paused.";
+    public const string ChannelPaused = "The channel is disabled.";
 
     public const string TooOld = "Not sent: it was older than the maximum delivery age.";
 
