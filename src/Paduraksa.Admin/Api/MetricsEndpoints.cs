@@ -29,14 +29,14 @@ internal static class MetricsEndpoints
         metrics.MapGet("/", Scrape)
             .WithName("ScrapeMetrics").WithSummary("Scrape the metrics (Prometheus text format)")
             .WithDescription("Request counters and latency histograms by host, route, upstream and destination, and the gate's process totals, in the Prometheus text exposition format 0.0.4. "
-                + "Also served at /metrics. Counters only grow, and a host keeps its series across config changes: its labels are its name and its typed ID.")
+                + "Also served at /metrics. Counters only grow, and a host keeps its series across config changes. Its labels are its name and its typed ID.")
             .Produces(StatusCodes.Status200OK, contentType: MetricsService.PrometheusContentType).ProducesApiProblems(401, 403)
             .RequirePermission(Permission.MetricsRead);
 
         metrics.MapGet("/overview", Overview)
             .WithName("GetMetricsOverview").WithSummary("Read the metrics overview")
             .WithDescription("What the dashboard's overview draws: the pace over the last half minute, a chart, the busiest hosts and the upstreams' errors over the range. "
-                + "The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server was not running, a gap, and not a zero.")
+                + "The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server wasn't running: a gap, not a zero.")
             .WithQuery(Range).Produces<MetricsOverview>().ProducesApiProblems(400)
             .RequirePermission(Permission.MetricsRead);
     }

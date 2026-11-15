@@ -21,8 +21,8 @@ internal static class SecurityEndpoints
         security.MapGet("/overview", Overview)
             .WithName("GetSecurityOverview").WithSummary("Read the security overview")
             .WithDescription("The gate's counters over the range (proof of work, rate limits, access lists, the connection stage, sign-in), what it refused by reason and over time, "
-                + "and each enabled host's protections as the live config compiled them, with what it refused over the range. The counters are kept in the metrics' rollups, so a restart doesn't reset them; "
-                + "from is the first moment of the range the server observed. A step of the series with coveredSeconds 0 is a time the server was not running, not a step with no refusals.")
+                + "and each enabled host's protections as the live config compiled them, with what it refused over the range. The counters are kept in the metrics' rollups, so a restart doesn't reset them. "
+                + "from is the first moment of the range the server observed. A step of the series with coveredSeconds 0 is a time the server wasn't running, not a step with no refusals.")
             .WithQuery(Range).Produces<SecurityOverview>().ProducesApiProblems(400, 500)
             .RequirePermission(Permission.ConfigRead);
     }

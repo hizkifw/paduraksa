@@ -12486,7 +12486,7 @@
           "Notifications"
         ],
         "summary": "Add a notification channel",
-        "description": "Kinds: ntfy, gotify, discord, webhook, email. The secret (a webhook URL, a token or an SMTP password) goes into the vault and is never returned. events lists what the channel is sent: upstream.down, upstream.up, destination.down, destination.up, certificate.expiring, acme.renewal_failed, acme.renewal_recovered, signin.lockout, signin.new_address.\n\nRequires the `providers:write` permission.",
+        "description": "Kinds: ntfy, gotify, discord, webhook, email. The vault stores the secret (a webhook URL, a token or an SMTP password), and the API never returns it. events lists what the channel is sent: upstream.down, upstream.up, destination.down, destination.up, certificate.expiring, acme.renewal_failed, acme.renewal_recovered, signin.lockout, signin.new_address.\n\nRequires the `providers:write` permission.",
         "operationId": "CreateNotificationChannel",
         "requestBody": {
           "content": {
@@ -12665,7 +12665,7 @@
           "Notifications"
         ],
         "summary": "Replace a notification channel's settings",
-        "description": "The kind is fixed. A secret left out keeps the stored one; an empty one removes an optional secret (an ntfy token, an SMTP password without a login, a webhook's signing key).\n\nRequires the `providers:write` permission.",
+        "description": "The kind is fixed. A secret left out keeps the stored one, and an empty one removes an optional secret (an ntfy token, an SMTP password without a login, a webhook's signing key).\n\nRequires the `providers:write` permission.",
         "operationId": "ReplaceNotificationChannel",
         "parameters": [
           {
@@ -12862,7 +12862,7 @@
           "Notifications"
         ],
         "summary": "Send a test message through a channel",
-        "description": "Sends one message now, without retries. A message that could not be delivered is delivered=false with the reason, not an error. The test is audited (notification.channel.test) with its verdict only.\n\nRequires the `providers:write` permission.",
+        "description": "Sends one message now, without retries. A message that couldn't be delivered returns delivered=false with the reason, not an error. The test is audited (notification.channel.test) with its verdict only.\n\nRequires the `providers:write` permission.",
         "operationId": "TestNotificationChannel",
         "parameters": [
           {
@@ -12945,7 +12945,7 @@
           "Notifications"
         ],
         "summary": "Query the notification history",
-        "description": "Every event that was published, newest first, each with what happened on every channel it was addressed to (state, attempts, the next try of a pending one, the last error, when it was sent). An event no channel subscribes to is listed with no deliveries. The filters are all optional and all must match; from (inclusive) and to (exclusive) are the times of publication. History is kept for Paduraksa:Notifications:HistoryRetention.\n\nRequires the `providers:read` permission.",
+        "description": "Every event that was published, newest first, each with what happened on every channel it was addressed to (state, attempts, the next try of a pending one, the last error, when it was sent). An event no channel subscribes to is listed with no deliveries. Every filter is optional, and an event must match all that are set; from (inclusive) and to (exclusive) are the times of publication. History is kept for Paduraksa:Notifications:HistoryRetention.\n\nRequires the `providers:read` permission.",
         "operationId": "QueryNotificationHistory",
         "parameters": [
           {
@@ -13101,7 +13101,7 @@
           "Notifications"
         ],
         "summary": "Send a failed or expired delivery again",
-        "description": "Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not disabled (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.\n\nRequires the `providers:write` permission.",
+        "description": "Puts the delivery back to pending, due now, with a fresh retry schedule, and the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and isn't disabled (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message may get it again with the same event ID.\n\nRequires the `providers:write` permission.",
         "operationId": "RetryNotificationDelivery",
         "parameters": [
           {
@@ -13194,7 +13194,7 @@
           "Notifications"
         ],
         "summary": "Send every failed or expired delivery of an event again",
-        "description": "As the delivery's retry, for every failed or expired delivery of the event whose channel exists and is not disabled. 422 when there is none. Audited (notification.event.retry) with how many.\n\nRequires the `providers:write` permission.",
+        "description": "As the delivery's retry, for every failed or expired delivery of the event whose channel exists and isn't disabled. Returns 422 if there is none. Audited (notification.event.retry) with how many.\n\nRequires the `providers:write` permission.",
         "operationId": "RetryNotificationEvent",
         "parameters": [
           {
@@ -13287,7 +13287,7 @@
           "Upstreams"
         ],
         "summary": "Read every upstream's live health",
-        "description": "As the running proxy sees it: each destination's verdict and why, the whole upstream's state (unchecked when it has no health check, unknown, healthy, degraded, down) and its latest change since the process started. Read once a second by a watcher, so it is at most a few seconds old.\n\nRequires the `config:read` permission.",
+        "description": "As the running proxy sees it: each destination's verdict and why, the whole upstream's state (unchecked when it has no health check, unknown, healthy, degraded, down) and its latest change since the process started. A watcher reads it once a second, so it is at most a few seconds old.\n\nRequires the `config:read` permission.",
         "operationId": "ListUpstreamHealth",
         "responses": {
           "200": {
@@ -13700,7 +13700,7 @@
           "Logs"
         ],
         "summary": "Stream the access log live",
-        "description": "Server-Sent Events (text/event-stream) of the requests as they end, newest last: each default event is one JSON entry (id: its sequence number), the entries as access.log would show them (same caps, control characters escaped, sensitive query parameters redacted); a host with its access log off never appears. The filters pick which entries are sent; backlog first sends the newest matching entries that the process still holds. A reader that falls behind loses its oldest entries and is told with an event: skipped whose data is {\"count\":N}. A comment line (: heartbeat) every 15 seconds keeps the stream open. The stream ends when the client disconnects. Each stream holds a buffer of 2048 entries and the process serves 32 at once; the 33rd is refused with 503.\n\nRequires the `logs:read` permission.",
+        "description": "Server-Sent Events (text/event-stream) of the requests as they end, newest last: each default event is one JSON entry (id: its sequence number), the entries as access.log would show them (same caps, control characters escaped, sensitive query parameters redacted); a host with its access log off never appears. The filters pick which entries are sent, and backlog first sends the newest matching entries that the process still holds. A reader that falls behind loses its oldest entries and gets an event: skipped whose data is {\"count\":N}. A comment line (: heartbeat) every 15 seconds keeps the stream open. The stream ends when the client disconnects. Each stream holds a buffer of 2048 entries and the process serves 32 at once; the 33rd is refused with 503.\n\nRequires the `logs:read` permission.",
         "operationId": "StreamAccessLog",
         "parameters": [
           {
@@ -13862,7 +13862,7 @@
           "Logs"
         ],
         "summary": "Read the newest access-log entries",
-        "description": "The newest requests the process still holds in memory (what the live tail replays as its backlog), oldest first, as one JSON array: the same entries and filters as the live tail, without a stream. A bounded snapshot, so it takes a limit of its own and no cursor. A restart empties it; the log files are the record.\n\nRequires the `logs:read` permission.",
+        "description": "The newest requests the process still holds in memory (what the live tail replays as its backlog), oldest first, as one JSON array: the same entries and filters as the live tail, without a stream. A bounded snapshot, so it takes a limit of its own and no cursor. A restart empties it, and the log files are the record.\n\nRequires the `logs:read` permission.",
         "operationId": "ListRecentAccessLog",
         "parameters": [
           {
@@ -14017,7 +14017,7 @@
           "Logs"
         ],
         "summary": "Read the last lines of a log file",
-        "description": "At most 1000 lines (200 by default) out of the last 1 MiB of a plain file, or of the first 8 Mi characters a compressed one is decompressed from, each line cut at 4096 characters, oldest first. A live file and a .gz are both readable.\n\nRequires the `logs:read` permission.",
+        "description": "At most 1000 lines (200 by default), oldest first, each cut at 4096 characters. They come from the last 1 MiB of a plain file, or from the first 8 Mi characters of a compressed one after decompression. A live file and a .gz are both readable.\n\nRequires the `logs:read` permission.",
         "operationId": "TailLogFile",
         "parameters": [
           {
@@ -14125,7 +14125,7 @@
           "Logs"
         ],
         "summary": "Download a log file",
-        "description": "The file itself, as an attachment (text/plain, or application/gzip for a compressed one), streamed. The access log holds client IPs: treat it accordingly.\n\nRequires the `logs:read` permission.",
+        "description": "The file itself, as an attachment (text/plain, or application/gzip for a compressed one), streamed. The access log holds client IPs.\n\nRequires the `logs:read` permission.",
         "operationId": "DownloadLogFile",
         "parameters": [
           {
@@ -14209,7 +14209,7 @@
           "Security"
         ],
         "summary": "Read the security overview",
-        "description": "The gate's counters over the range (proof of work, rate limits, access lists, the connection stage, sign-in), what it refused by reason and over time, and each enabled host's protections as the live config compiled them, with what it refused over the range. The counters are kept in the metrics' rollups, so a restart doesn't reset them; from is the first moment of the range the server observed. A step of the series with coveredSeconds 0 is a time the server was not running, not a step with no refusals.\n\nRequires the `config:read` permission.",
+        "description": "The gate's counters over the range (proof of work, rate limits, access lists, the connection stage, sign-in), what it refused by reason and over time, and each enabled host's protections as the live config compiled them, with what it refused over the range. The counters are kept in the metrics' rollups, so a restart doesn't reset them. from is the first moment of the range the server observed. A step of the series with coveredSeconds 0 is a time the server wasn't running, not a step with no refusals.\n\nRequires the `config:read` permission.",
         "operationId": "GetSecurityOverview",
         "parameters": [
           {
@@ -14294,7 +14294,7 @@
           "Metrics"
         ],
         "summary": "Scrape the metrics (Prometheus text format)",
-        "description": "Request counters and latency histograms by host, route, upstream and destination, and the gate's process totals, in the Prometheus text exposition format 0.0.4. Also served at /metrics. Counters only grow, and a host keeps its series across config changes: its labels are its name and its typed ID.\n\nRequires the `metrics:read` permission.",
+        "description": "Request counters and latency histograms by host, route, upstream and destination, and the gate's process totals, in the Prometheus text exposition format 0.0.4. Also served at /metrics. Counters only grow, and a host keeps its series across config changes. Its labels are its name and its typed ID.\n\nRequires the `metrics:read` permission.",
         "operationId": "ScrapeMetrics",
         "responses": {
           "200": {
@@ -14352,7 +14352,7 @@
           "Metrics"
         ],
         "summary": "Read the metrics overview",
-        "description": "What the dashboard's overview draws: the pace over the last half minute, a chart, the busiest hosts and the upstreams' errors over the range. The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server was not running, a gap, and not a zero.\n\nRequires the `metrics:read` permission.",
+        "description": "What the dashboard's overview draws: the pace over the last half minute, a chart, the busiest hosts and the upstreams' errors over the range. The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server wasn't running: a gap, not a zero.\n\nRequires the `metrics:read` permission.",
         "operationId": "GetMetricsOverview",
         "parameters": [
           {
@@ -14437,7 +14437,7 @@
           "Analytics"
         ],
         "summary": "Read the traffic analytics",
-        "description": "Visitors and content, and clients and bots, over a range, for every host or for one. Unique visitors, the top paths, referers and user agents, the slowest paths and the largest responses are approximate (sketches with a stated bound: each row carries its own error); the counts, the status classes and the distributions of agents are exact up to their table sizes. Computed from the access-log drain, so a host with its access log off is absent. The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server was not running, a gap, and not a zero.\n\nRequires the `metrics:read` permission.",
+        "description": "Visitors, content, clients and bots over a range, for every host or for one. Unique visitors, the top paths, referers and user agents, the slowest paths and the largest responses are approximate (sketches with a stated bound: each row carries its own error); the counts, the status classes and the distributions of agents are exact up to their table sizes. Computed from the access-log drain, so a host with its access log off doesn't appear. The chart has every step from the first the server observed to the last. A step with coveredSeconds 0 is a time the server wasn't running: a gap, not a zero.\n\nRequires the `metrics:read` permission.",
         "operationId": "GetAnalytics",
         "parameters": [
           {
@@ -15571,7 +15571,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A label and how many times it was seen, for a table or a distribution. Error is how far Count may be\nabove the truth when the table comes from a sketch (top paths, referers, user agents, largest responses): the true count is at least\n`Count - Error` and at most `Count`. It is 0 for a count that is exact."
+        "description": "A label and how many times it was seen, for a table or a distribution. Error is how far Count may exceed\nthe true count when the table comes from a sketch (top paths, referers, user agents, largest responses): the true count is at least\n`Count - Error` and at most `Count`. It is 0 for an exact count."
       },
       "AnalyticsOverview": {
         "required": [
@@ -15654,7 +15654,7 @@
             "items": {
               "$ref": "#/components/schemas/AnalyticsCount"
             },
-            "description": "Requests by HTTP version: `HTTP/1.0`, `HTTP/1.1`, `HTTP/2`, `HTTP/3`, `other`. Exact. (The TLS version is not available to the analytics without work on the request path.)"
+            "description": "Requests by HTTP version: `HTTP/1.0`, `HTTP/1.1`, `HTTP/2`, `HTTP/3`, `other`. Exact. (The analytics can't see the TLS version without work on the request path.)"
           },
           "topPaths": {
             "type": "array",
@@ -15758,7 +15758,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (docs/design/observability.md \"Traffic analytics\"). Computed from the\naccess-log drain, so a host with its access log off is absent. Visitors, the top tables and the per-path figures are approximate by design;\neach table row carries its own bound."
+        "description": "The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (docs/design/observability.md \"Traffic analytics\"). Computed from the\naccess-log drain, so a host with its access log off doesn't appear. Visitors, the top tables and the per-path figures are approximate by design;\neach table row carries its own bound."
       },
       "AnalyticsPath": {
         "required": [
@@ -15907,7 +15907,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One step of the charts: what happened over the WidthSeconds from Start. A step whose\nCoveredSeconds is 0 has no data: Paduraksa was not running (every figure is 0), a gap and not a quiet step. A step that was\ncovered and saw no requests has requests 0."
+        "description": "One step of the charts: what happened over the WidthSeconds from Start. A step whose\nCoveredSeconds is 0 has no data: Paduraksa was not running (every figure is 0): a gap, not a quiet step. A step that was\ncovered and saw no requests has requests 0."
       },
       "AnalyticsTotals": {
         "required": [
@@ -15928,7 +15928,7 @@
               "integer",
               "string"
             ],
-            "description": "Requests answered, the connections the gate dropped included.",
+            "description": "Requests answered, including connections the gate dropped.",
             "format": "int64"
           },
           "bytesOut": {
@@ -15955,7 +15955,7 @@
               "integer",
               "string"
             ],
-            "description": "Estimated unique visitors over the whole range, the union of the steps' and not their sum (about 1.6 % standard error). A visitor active across a restart counts once on each side of it.",
+            "description": "Estimated unique visitors over the whole range, the union of the steps' visitors, not their sum (about 1.6 % standard error). A visitor active across a restart counts once on each side of it.",
             "format": "int64"
           },
           "serverErrors": {
@@ -18982,7 +18982,7 @@
           },
           "flapping": {
             "type": "boolean",
-            "description": "It changed too often and its changes are not reported until it settles.",
+            "description": "It changed state too often; its changes aren't reported until it settles.",
             "default": false
           }
         },
@@ -20644,7 +20644,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One file in the logs directory: its name, which log it belongs to, its size, and when it was last written.\nServed by the API's log list and shown by the dashboard's log page."
+        "description": "One file in the logs directory, with its name, the log it belongs to, its size and when it was last written.\nThe API's log list serves it and the dashboard's log page shows it."
       },
       "LogFileTail": {
         "required": [
@@ -20673,7 +20673,7 @@
           },
           "truncated": {
             "type": "boolean",
-            "description": "True when the file (or the part that was read) held more than Lines carries."
+            "description": "True if the file (or the part that was read) held more lines than Lines carries."
           },
           "fileSize": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -20702,7 +20702,7 @@
               "integer",
               "string"
             ],
-            "description": "Position in the stream since the process started. A jump between two is what the reader skipped.",
+            "description": "Position in the stream since the process started. A jump between two consecutive values shows what the reader skipped.",
             "format": "int64"
           },
           "time": {
@@ -20856,7 +20856,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One request in the live access-log tail, as `access.log` would show it: the same caps, the same escaping of control\ncharacters (`\\xNN`) and the same redaction of sensitive query parameters. A request of a host whose access log is off is\nnever here."
+        "description": "One request in the live access-log tail, as `access.log` would show it, with the same caps, the same escaping of control\ncharacters (`\\xNN`) and the same redaction of sensitive query parameters. A request of a host whose access log is off\nnever appears."
       },
       "LogTailTiming": {
         "type": "object",
@@ -20883,7 +20883,7 @@
           },
           "tlsReused": {
             "type": "boolean",
-            "description": "A later request on a TLS connection: its handshake was paid by the first.",
+            "description": "A later request on a TLS connection; the first request paid for the handshake.",
             "default": false
           },
           "requestBodyMs": {
@@ -20978,7 +20978,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One request's time by stage, in milliseconds, laid out as Chrome DevTools' Timing tab: each stage has a length and a start, in\nmilliseconds from the request's start (the gate always starts at 0). A stage that didn't happen, or wasn't measured, is absent. The\nstages overlap (the body is forwarded as it arrives; a streamed answer is sent while the upstream still writes it), so they don't\nadd up to the total, and the time between them is time no stage accounts for."
+        "description": "One request's time by stage, in milliseconds, laid out like Chrome DevTools' Timing tab: each stage has a length and a start, in\nmilliseconds from the request's start (the gate always starts at 0). A stage that didn't happen, or wasn't measured, is absent. The\nstages overlap (the body is forwarded as it arrives; a streamed answer is sent while the upstream still writes it), so they don't\nadd up to the total, and the gaps between them are time no stage accounts for."
       },
       "LoginRequest": {
         "required": [
@@ -21062,7 +21062,7 @@
               "number",
               "string"
             ],
-            "description": "Requests answered a second, the connections the gate dropped included.",
+            "description": "Requests answered per second, including connections the gate dropped.",
             "format": "double"
           },
           "errorRate": {
@@ -21080,7 +21080,7 @@
               "number",
               "string"
             ],
-            "description": "Requests the gate refused by a policy or a limit, a second.",
+            "description": "Requests per second the gate refused by a policy or a limit.",
             "format": "double"
           },
           "bytesPerSecond": {
@@ -21089,7 +21089,7 @@
               "number",
               "string"
             ],
-            "description": "Response body bytes written to clients a second.",
+            "description": "Response body bytes written to clients per second.",
             "format": "double"
           },
           "bytesInPerSecond": {
@@ -21098,7 +21098,7 @@
               "number",
               "string"
             ],
-            "description": "Request body bytes read from clients a second.",
+            "description": "Request body bytes read from clients per second.",
             "format": "double"
           },
           "total": {
@@ -21106,7 +21106,7 @@
             "$ref": "#/components/schemas/LatencyFigures"
           },
           "upstream": {
-            "description": "Time spent forwarding and waiting for the upstream; the difference to Total is the proxy's own.",
+            "description": "Time spent forwarding and waiting for the upstream; the difference from Total is the proxy's own time.",
             "$ref": "#/components/schemas/LatencyFigures"
           }
         },
@@ -21148,7 +21148,7 @@
             "items": {
               "$ref": "#/components/schemas/MetricsSeriesPoint"
             },
-            "description": "The chart, oldest first, from the first step the server observed to the last: every step in between is there, and one the server\nwas not running for has int MetricsSeriesPoint.CoveredSeconds 0 (no data), so downtime is a gap and not a line through it."
+            "description": "The chart, oldest first, from the first step the server observed to the last. Every step in between is present, and a step the server\nwasn't running for has int MetricsSeriesPoint.CoveredSeconds 0 (no data), so downtime shows as a gap, not a line through it."
           },
           "hosts": {
             "type": "array",
@@ -21166,7 +21166,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The overview page's data: the pace now, a chart over the range, the busiest hosts and the upstreams' errors. Read from the\nsampler's memory (and the last hour of rollups it started from) for the hour and from the persisted one-minute rollups for longer."
+        "description": "The overview page's data: the pace now, a chart over the range, the busiest hosts and the upstreams' errors. For the hour it reads the\nsampler's memory (and the last hour of rollups it started from); for longer ranges it reads the persisted one-minute rollups."
       },
       "MetricsRange": {
         "enum": [
@@ -21202,7 +21202,7 @@
               "number",
               "string"
             ],
-            "description": "Requests answered a second over the seconds that were observed, not the step's whole width.",
+            "description": "Requests answered per second over the observed seconds, not the step's whole width.",
             "format": "double"
           },
           "errorsPerSecond": {
@@ -21211,7 +21211,7 @@
               "number",
               "string"
             ],
-            "description": "5xx answers a second, over the observed seconds.",
+            "description": "5xx answers per second, over the observed seconds.",
             "format": "double"
           },
           "refusedPerSecond": {
@@ -21220,7 +21220,7 @@
               "number",
               "string"
             ],
-            "description": "Requests the gate refused by a policy or a limit, a second over the observed seconds.",
+            "description": "Requests per second the gate refused by a policy or a limit, over the observed seconds.",
             "format": "double"
           },
           "total": {
@@ -21361,7 +21361,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A notification channel, to add or to replace. Which fields apply depends on NotificationChannelKind NotificationChannelBody.Kind: ntfy needs `ServerUrl` and\n`Topic`; Gotify `ServerUrl`; Discord and webhook only their secret (the URL); email `SmtpHost`, `SmtpPort`,\n`SmtpSecurity`, `MailFrom` and `MailTo` (and `SmtpUsername` with a password as the secret). The secrets go into the vault and are never returned."
+        "description": "A notification channel, to add or to replace. Which fields apply depends on NotificationChannelKind NotificationChannelBody.Kind: ntfy needs `ServerUrl` and\n`Topic`; Gotify `ServerUrl`; Discord and webhook only their secret (the URL); email `SmtpHost`, `SmtpPort`,\n`SmtpSecurity`, `MailFrom` and `MailTo` (and `SmtpUsername` with a password as the secret). The vault stores the secrets, and the API never returns them."
       },
       "NotificationChannelFigures": {
         "required": [
@@ -22939,7 +22939,7 @@
               "integer",
               "string"
             ],
-            "description": "Refusals stored before the reasons were kept: counted, but of an unknown reason.",
+            "description": "Refusals stored before reasons were kept: counted, with no known reason.",
             "format": "int64"
           },
           "noRoute": {
@@ -23934,7 +23934,7 @@
             "items": {
               "$ref": "#/components/schemas/RefusalStep"
             },
-            "description": "The refusals by reason over time, one step per Step (the hour mixes minutes from before a restart with ten-second steps): every step from the first the server observed to the last, a step with `coveredSeconds` 0 being a time it was not running."
+            "description": "The refusals by reason over time, one step per Step (the hour mixes minutes from before a restart with ten-second steps). Every step from the first the server observed to the last is present, and a step with `coveredSeconds` 0 is a time the server wasn't running."
           },
           "step": {
             "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",

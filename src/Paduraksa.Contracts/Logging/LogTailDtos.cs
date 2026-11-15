@@ -3,11 +3,11 @@ using System.Globalization;
 namespace Paduraksa.Contracts.Logging;
 
 /// <summary>
-/// One request in the live access-log tail, as <c>access.log</c> would show it: the same caps, the same escaping of control
-/// characters (<c>\xNN</c>) and the same redaction of sensitive query parameters. A request of a host whose access log is off is
-/// never here.
+/// One request in the live access-log tail, as <c>access.log</c> would show it, with the same caps, the same escaping of control
+/// characters (<c>\xNN</c>) and the same redaction of sensitive query parameters. A request of a host whose access log is off
+/// never appears.
 /// </summary>
-/// <param name="Sequence">Position in the stream since the process started. A jump between two is what the reader skipped.</param>
+/// <param name="Sequence">Position in the stream since the process started. A jump between two consecutive values shows what the reader skipped.</param>
 /// <param name="Time">When the request ended, UTC.</param>
 /// <param name="ClientAddress">The resolved client address (behind a trusted proxy, the one its header carried).</param>
 /// <param name="Host">The <c>Host</c> as received, port included.</param>
@@ -50,14 +50,14 @@ public sealed record LogTailEntry(
     LogTailTiming? Timing = null);
 
 /// <summary>
-/// One request's time by stage, in milliseconds, laid out as Chrome DevTools' Timing tab: each stage has a length and a start, in
+/// One request's time by stage, in milliseconds, laid out like Chrome DevTools' Timing tab: each stage has a length and a start, in
 /// milliseconds from the request's start (the gate always starts at 0). A stage that didn't happen, or wasn't measured, is absent. The
 /// stages overlap (the body is forwarded as it arrives; a streamed answer is sent while the upstream still writes it), so they don't
-/// add up to the total, and the time between them is time no stage accounts for.
+/// add up to the total, and the gaps between them are time no stage accounts for.
 /// </summary>
 /// <param name="ConnectionRequest">The request's index on its connection, from 1.</param>
 /// <param name="TlsHandshakeMs">The connection's TLS handshake, on its first request only.</param>
-/// <param name="TlsReused">A later request on a TLS connection: its handshake was paid by the first.</param>
+/// <param name="TlsReused">A later request on a TLS connection; the first request paid for the handshake.</param>
 /// <param name="RequestBodyMs">From the first to the last request body byte read; 0 when there was no body.</param>
 /// <param name="GateMs">The top of the pipeline to the gate's hand-off (to the forward, or to its own answer): the WAF, rate limits, access lists, auth and rules.</param>
 /// <param name="UpstreamConnectMs">The upstream connect (DNS, TCP and TLS); 0 on a pooled connection.</param>
@@ -84,7 +84,7 @@ public sealed record LogTailTiming(
     double? ResponseSendStartMs = null);
 
 /// <summary>
-/// Which requests a live tail wants; every part that is set must match. Nothing set is everything.
+/// Which requests a live tail wants; a request must match every part that is set. With nothing set, every request matches.
 /// </summary>
 /// <param name="Host">A name of a configured host (any of its names, ignoring case).</param>
 /// <param name="UnmatchedHost">Only requests no configured host owned (not with <paramref name="Host"/>).</param>
@@ -130,9 +130,9 @@ public sealed record LogTailFilter(
     }
 
     /// <summary>
-    /// Reads a status field: a status (<c>404</c>) or a class (<c>5xx</c>, or just <c>5</c>); the one grammar the API's
-    /// <c>status</c> and <c>statusClass</c> parameters and the dashboard's field share. Empty is no filter and succeeds with
-    /// both outputs absent; anything else that is no status or class fails.
+    /// Reads a status field: a status (<c>404</c>) or a class (<c>5xx</c>, or just <c>5</c>). The API's
+    /// <c>status</c> and <c>statusClass</c> parameters and the dashboard's field share this grammar. Empty means no filter and succeeds with
+    /// both outputs absent; anything else that isn't a status or class fails.
     /// </summary>
     public static bool TryParseStatus(string? text, out int? statusClass, out int? status)
     {

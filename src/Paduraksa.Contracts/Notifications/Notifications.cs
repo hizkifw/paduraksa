@@ -10,7 +10,7 @@ namespace Paduraksa.Contracts.Notifications;
 /// <summary>
 /// A notification channel, to add or to replace. Which fields apply depends on <see cref="Kind"/>: ntfy needs <c>ServerUrl</c> and
 /// <c>Topic</c>; Gotify <c>ServerUrl</c>; Discord and webhook only their secret (the URL); email <c>SmtpHost</c>, <c>SmtpPort</c>,
-/// <c>SmtpSecurity</c>, <c>MailFrom</c> and <c>MailTo</c> (and <c>SmtpUsername</c> with a password as the secret). The secrets go into the vault and are never returned.
+/// <c>SmtpSecurity</c>, <c>MailFrom</c> and <c>MailTo</c> (and <c>SmtpUsername</c> with a password as the secret). The vault stores the secrets, and the API never returns them.
 /// </summary>
 /// <param name="Kind">Which service. Fixed once the channel exists.</param>
 /// <param name="Label">A display name (required).</param>
@@ -177,7 +177,7 @@ public enum DestinationHealthState
 /// <param name="State">YARP's combined verdict, after the flap guard.</param>
 /// <param name="Reason">Why it is unhealthy ("active probe: HTTP 503", "passive check: too many failed requests"); the last probe's result when healthy.</param>
 /// <param name="Since">When it last changed state, if it has since the process started.</param>
-/// <param name="Flapping">It changed too often and its changes are not reported until it settles.</param>
+/// <param name="Flapping">It changed state too often; its changes aren't reported until it settles.</param>
 public sealed record DestinationHealthView(DestinationId Id, string Address, DestinationHealthState State, string? Reason = null, DateTimeOffset? Since = null, bool Flapping = false);
 
 /// <summary>The most recent state change of an upstream or one of its destinations.</summary>
@@ -237,7 +237,7 @@ public sealed record NotificationHistoryEvent(
     string? Subject = null,
     string? LinkPath = null);
 
-/// <summary>What the history is filtered by; every part is optional and all must match.</summary>
+/// <summary>What the history is filtered by; every part is optional, and an event must match all that are set.</summary>
 /// <param name="Channel">Only events with a delivery to this channel.</param>
 /// <param name="Kind">Only events of this kind.</param>
 /// <param name="Outcome">Only events with a delivery in this state (with <paramref name="Channel"/>, to that channel).</param>

@@ -29,9 +29,9 @@ internal static class AnalyticsEndpoints
 
         analytics.MapGet("/", Overview)
             .WithName("GetAnalytics").WithSummary("Read the traffic analytics")
-            .WithDescription("Visitors and content, and clients and bots, over a range, for every host or for one. "
+            .WithDescription("Visitors, content, clients and bots over a range, for every host or for one. "
                 + "Unique visitors, the top paths, referers and user agents, the slowest paths and the largest responses are approximate (sketches with a stated bound: each row carries its own error); the counts, the status classes and the distributions of agents are exact up to their table sizes. "
-                + "Computed from the access-log drain, so a host with its access log off is absent. The chart has every step from the first the server observed to the last; a step with coveredSeconds 0 is a time the server was not running, a gap, and not a zero.")
+                + "Computed from the access-log drain, so a host with its access log off doesn't appear. The chart has every step from the first the server observed to the last. A step with coveredSeconds 0 is a time the server wasn't running: a gap, not a zero.")
             .WithQuery(Range, Host).Produces<AnalyticsOverview>().ProducesApiProblems(400)
             .RequirePermission(Permission.MetricsRead);
     }

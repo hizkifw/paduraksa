@@ -1,8 +1,8 @@
 namespace Paduraksa.Contracts.Logging;
 
 /// <summary>
-/// One file in the logs directory: its name, which log it belongs to, its size, and when it was last written.
-/// Served by the API's log list and shown by the dashboard's log page.
+/// One file in the logs directory, with its name, the log it belongs to, its size and when it was last written.
+/// The API's log list serves it and the dashboard's log page shows it.
 /// </summary>
 /// <param name="Name">The file's name inside the logs directory, e.g. <c>error.log</c> or <c>access-20261109T120000Z.log.gz</c>.</param>
 /// <param name="Log">The log it belongs to: <c>access</c> or <c>error</c>.</param>
@@ -18,6 +18,6 @@ public sealed record LogFileSummary(string Name, string Log, long Size, DateTime
 /// <param name="Name">The file these lines come from.</param>
 /// <param name="Log">The log it belongs to: <c>access</c> or <c>error</c>.</param>
 /// <param name="Lines">The lines, oldest first, each at most 4096 characters.</param>
-/// <param name="Truncated">True when the file (or the part that was read) held more than <paramref name="Lines"/> carries.</param>
+/// <param name="Truncated">True if the file (or the part that was read) held more lines than <paramref name="Lines"/> carries.</param>
 /// <param name="FileSize">The file's size in bytes.</param>
 public sealed record LogFileTail(string Name, string Log, IReadOnlyList<string> Lines, bool Truncated, long FileSize);

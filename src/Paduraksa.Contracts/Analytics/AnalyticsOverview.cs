@@ -4,9 +4,9 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Analytics;
 
 /// <summary>
-/// A label and how many times it was seen, for a table or a distribution. <paramref name="Error"/> is how far <paramref name="Count"/> may be
-/// above the truth when the table comes from a sketch (top paths, referers, user agents, largest responses): the true count is at least
-/// <c>Count - Error</c> and at most <c>Count</c>. It is 0 for a count that is exact.
+/// A label and how many times it was seen, for a table or a distribution. <paramref name="Error"/> is how far <paramref name="Count"/> may exceed
+/// the true count when the table comes from a sketch (top paths, referers, user agents, largest responses): the true count is at least
+/// <c>Count - Error</c> and at most <c>Count</c>. It is 0 for an exact count.
 /// </summary>
 /// <param name="Label">What was counted: a path, a referer's scheme and host (or <c>direct</c>, <c>(same site)</c>), a user agent, a browser, a status code.</param>
 /// <param name="Count">How many requests (or, for the largest responses, how many bytes).</param>
@@ -30,7 +30,7 @@ public sealed record AnalyticsBot(string Kind, string Name, long Count);
 
 /// <summary>
 /// One step of the charts: what happened over the <paramref name="WidthSeconds"/> from <paramref name="Start"/>. A step whose
-/// <paramref name="CoveredSeconds"/> is 0 has no data: Paduraksa was not running (every figure is 0), a gap and not a quiet step. A step that was
+/// <paramref name="CoveredSeconds"/> is 0 has no data: Paduraksa was not running (every figure is 0): a gap, not a quiet step. A step that was
 /// covered and saw no requests has requests 0.
 /// </summary>
 /// <param name="Start">The step's first second.</param>
@@ -44,11 +44,11 @@ public sealed record AnalyticsBot(string Kind, string Name, long Count);
 public sealed record AnalyticsStep(DateTimeOffset Start, int WidthSeconds, int CoveredSeconds, long Requests, long BytesOut, long BytesIn, long Visitors, long ServerErrors);
 
 /// <summary>The headline figures of the range.</summary>
-/// <param name="Requests">Requests answered, the connections the gate dropped included.</param>
+/// <param name="Requests">Requests answered, including connections the gate dropped.</param>
 /// <param name="BytesOut">Response body bytes written to clients, as they went out (an upstream's compression counts compressed). Stretches stored
 /// before bodies were counted hold the declared <c>Content-Length</c>s instead.</param>
 /// <param name="BytesIn">Request body bytes read from clients; none for stretches stored before they were counted.</param>
-/// <param name="Visitors">Estimated unique visitors over the whole range, the union of the steps' and not their sum (about 1.6 % standard error). A visitor active across a restart counts once on each side of it.</param>
+/// <param name="Visitors">Estimated unique visitors over the whole range, the union of the steps' visitors, not their sum (about 1.6 % standard error). A visitor active across a restart counts once on each side of it.</param>
 /// <param name="ServerErrors">Requests answered with a 5xx.</param>
 /// <param name="ErrorRate"><paramref name="ServerErrors"/> over <paramref name="Requests"/>, 0 to 1.</param>
 /// <param name="BotRequests">Requests whose user agent is an automated client.</param>
@@ -57,7 +57,7 @@ public sealed record AnalyticsTotals(long Requests, long BytesOut, long BytesIn,
 
 /// <summary>
 /// The traffic analytics of a range, for all hosts or one: visitors and content, and clients and bots (docs/design/observability.md "Traffic analytics"). Computed from the
-/// access-log drain, so a host with its access log off is absent. Visitors, the top tables and the per-path figures are approximate by design;
+/// access-log drain, so a host with its access log off doesn't appear. Visitors, the top tables and the per-path figures are approximate by design;
 /// each table row carries its own bound.
 /// </summary>
 /// <param name="At">When it was read.</param>
@@ -68,7 +68,7 @@ public sealed record AnalyticsTotals(long Requests, long BytesOut, long BytesIn,
 /// <param name="StatusClasses">Requests by status class: <c>none</c> (no response), <c>1xx</c> to <c>5xx</c>. Exact.</param>
 /// <param name="Statuses">The most common exact status codes. Exact up to 64 distinct codes a bucket.</param>
 /// <param name="Methods">Requests by method. Exact up to 16 distinct methods a bucket.</param>
-/// <param name="Protocols">Requests by HTTP version: <c>HTTP/1.0</c>, <c>HTTP/1.1</c>, <c>HTTP/2</c>, <c>HTTP/3</c>, <c>other</c>. Exact. (The TLS version is not available to the analytics without work on the request path.)</param>
+/// <param name="Protocols">Requests by HTTP version: <c>HTTP/1.0</c>, <c>HTTP/1.1</c>, <c>HTTP/2</c>, <c>HTTP/3</c>, <c>other</c>. Exact. (The analytics can't see the TLS version without work on the request path.)</param>
 /// <param name="TopPaths">The most requested paths.</param>
 /// <param name="TopReferers">Where requests came from: <c>direct</c>, <c>(same site)</c> and referers reduced to scheme and host.</param>
 /// <param name="TopUserAgents">The most common raw user agents.</param>

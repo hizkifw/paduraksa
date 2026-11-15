@@ -61,8 +61,8 @@ internal static class LogEndpoints
             .WithName("StreamAccessLog").WithSummary("Stream the access log live")
             .WithDescription("Server-Sent Events (text/event-stream) of the requests as they end, newest last: each default event is one JSON entry (id: its sequence number), the entries as access.log would show them "
                 + "(same caps, control characters escaped, sensitive query parameters redacted); a host with its access log off never appears. "
-                + "The filters pick which entries are sent; backlog first sends the newest matching entries that the process still holds. "
-                + "A reader that falls behind loses its oldest entries and is told with an event: skipped whose data is {\"count\":N}. A comment line (: heartbeat) every 15 seconds keeps the stream open. "
+                + "The filters pick which entries are sent, and backlog first sends the newest matching entries that the process still holds. "
+                + "A reader that falls behind loses its oldest entries and gets an event: skipped whose data is {\"count\":N}. A comment line (: heartbeat) every 15 seconds keeps the stream open. "
                 + "The stream ends when the client disconnects. Each stream holds a buffer of 2048 entries and the process serves 32 at once; the 33rd is refused with 503.")
             .WithQuery(EntryFilters).WithQuery(Backlog)
             .Produces(StatusCodes.Status200OK, contentType: "text/event-stream").ProducesApiProblems(400, 503)
@@ -71,14 +71,14 @@ internal static class LogEndpoints
         logs.MapGet("/recent", Recent)
             .WithName("ListRecentAccessLog").WithSummary("Read the newest access-log entries")
             .WithDescription("The newest requests the process still holds in memory (what the live tail replays as its backlog), oldest first, as one JSON array: the same entries and filters as the live tail, without a stream. "
-                + "A bounded snapshot, so it takes a limit of its own and no cursor. A restart empties it; the log files are the record.")
+                + "A bounded snapshot, so it takes a limit of its own and no cursor. A restart empties it, and the log files are the record.")
             .WithQuery(EntryFilters).WithQuery(RecentLimit)
             .Produces<IReadOnlyList<LogTailEntry>>().ProducesApiProblems(400)
             .RequirePermission(Permission.LogsRead);
 
         logs.MapGet("/{name}/tail", Tail)
             .WithName("TailLogFile").WithSummary("Read the last lines of a log file")
-            .WithDescription("At most 1000 lines (200 by default) out of the last 1 MiB of a plain file, or of the first 8 Mi characters a compressed one is decompressed from, each line cut at 4096 characters, oldest first. "
+            .WithDescription("At most 1000 lines (200 by default), oldest first, each cut at 4096 characters. They come from the last 1 MiB of a plain file, or from the first 8 Mi characters of a compressed one after decompression. "
                 + "A live file and a .gz are both readable.")
             .WithQuery(Lines, Filter)
             .Produces<LogFileTail>().ProducesApiProblems(400, 404)
@@ -86,7 +86,7 @@ internal static class LogEndpoints
 
         logs.MapGet("/{name}", Download)
             .WithName("DownloadLogFile").WithSummary("Download a log file")
-            .WithDescription("The file itself, as an attachment (text/plain, or application/gzip for a compressed one), streamed. The access log holds client IPs: treat it accordingly.")
+            .WithDescription("The file itself, as an attachment (text/plain, or application/gzip for a compressed one), streamed. The access log holds client IPs.")
             .Produces(StatusCodes.Status200OK, contentType: "text/plain")
             .Produces(StatusCodes.Status200OK, contentType: "application/gzip")
             .ProducesApiProblems(404)

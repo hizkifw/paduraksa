@@ -16,7 +16,7 @@ namespace Paduraksa.Contracts.Security;
 /// <param name="ForwardAuth">Every auth provider's counters over the range, summed, a deleted provider's included.</param>
 /// <param name="Connections">The connection stage: its limit and deny list as configured now, what it refused over the range, and what it counts now.</param>
 /// <param name="Refusals">What the gate refused over the range, by reason.</param>
-/// <param name="Series">The refusals by reason over time, one step per <paramref name="Step"/> (the hour mixes minutes from before a restart with ten-second steps): every step from the first the server observed to the last, a step with <c>coveredSeconds</c> 0 being a time it was not running.</param>
+/// <param name="Series">The refusals by reason over time, one step per <paramref name="Step"/> (the hour mixes minutes from before a restart with ten-second steps). Every step from the first the server observed to the last is present, and a step with <c>coveredSeconds</c> 0 is a time the server wasn't running.</param>
 /// <param name="Step">The width of a step of <paramref name="Series"/>.</param>
 /// <param name="From">The first moment inside the range the server observed: the counters cover from here to <paramref name="SampledAt"/>, less any time it was down. Absent when it observed none of the range.</param>
 public sealed record SecurityOverview(
@@ -42,7 +42,7 @@ public sealed record SecurityOverview(
 /// <param name="RequestLimits">Over a request target, header or body limit (413, 414, 431).</param>
 /// <param name="Connection">The connection could not serve the host: a 421, the origin lockdown or a missing client certificate.</param>
 /// <param name="Other">A policy with no kind of its own.</param>
-/// <param name="Unknown">Refusals stored before the reasons were kept: counted, but of an unknown reason.</param>
+/// <param name="Unknown">Refusals stored before reasons were kept: counted, with no known reason.</param>
 /// <param name="NoRoute">The host has no route for the path.</param>
 /// <param name="Unavailable">The 503 of no live config or no endpoint.</param>
 /// <param name="Dropped">The connection was dropped without an answer.</param>

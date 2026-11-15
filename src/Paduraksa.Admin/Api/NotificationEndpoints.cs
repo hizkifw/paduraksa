@@ -32,34 +32,34 @@ internal static class NotificationEndpoints
         channels.MapGet("/{id:NotificationChannelId}", GetAsync).WithName("GetNotificationChannel").WithSummary("Get a notification channel")
             .Produces<NotificationChannelSummary>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersRead);
         channels.MapPost("/", CreateAsync).WithName("CreateNotificationChannel").WithSummary("Add a notification channel")
-            .WithDescription("Kinds: ntfy, gotify, discord, webhook, email. The secret (a webhook URL, a token or an SMTP password) goes into the vault and is never returned. events lists what the channel is sent: upstream.down, upstream.up, destination.down, destination.up, certificate.expiring, acme.renewal_failed, acme.renewal_recovered, signin.lockout, signin.new_address.")
+            .WithDescription("Kinds: ntfy, gotify, discord, webhook, email. The vault stores the secret (a webhook URL, a token or an SMTP password), and the API never returns it. events lists what the channel is sent: upstream.down, upstream.up, destination.down, destination.up, certificate.expiring, acme.renewal_failed, acme.renewal_recovered, signin.lockout, signin.new_address.")
             .Accepts<NotificationChannelBody>("application/json").Produces<NotificationChannelSummary>(201).ProducesApiProblems(400, 415, 422)
             .RequirePermission(Permission.ProvidersWrite);
         channels.MapPut("/{id:NotificationChannelId}", UpdateAsync).WithName("ReplaceNotificationChannel").WithSummary("Replace a notification channel's settings")
-            .WithDescription("The kind is fixed. A secret left out keeps the stored one; an empty one removes an optional secret (an ntfy token, an SMTP password without a login, a webhook's signing key).")
+            .WithDescription("The kind is fixed. A secret left out keeps the stored one, and an empty one removes an optional secret (an ntfy token, an SMTP password without a login, a webhook's signing key).")
             .Accepts<NotificationChannelBody>("application/json").Produces<NotificationChannelSummary>().ProducesApiProblems(400, 404, 415, 422)
             .RequirePermission(Permission.ProvidersWrite);
         channels.MapDelete("/{id:NotificationChannelId}", DeleteAsync).WithName("DeleteNotificationChannel").WithSummary("Delete a notification channel and its secrets")
             .Produces(204).ProducesApiProblems(404).RequirePermission(Permission.ProvidersWrite);
         channels.MapPost("/{id:NotificationChannelId}/test", TestAsync).WithName("TestNotificationChannel").WithSummary("Send a test message through a channel")
-            .WithDescription("Sends one message now, without retries. A message that could not be delivered is delivered=false with the reason, not an error. The test is audited (notification.channel.test) with its verdict only.")
+            .WithDescription("Sends one message now, without retries. A message that couldn't be delivered returns delivered=false with the reason, not an error. The test is audited (notification.channel.test) with its verdict only.")
             .Produces<NotificationTestOutcome>().ProducesApiProblems(404).RequirePermission(Permission.ProvidersWrite);
 
         var notifications = api.MapGroup("/notifications").WithTags("Notifications");
         notifications.MapGet("/history", HistoryAsync).WithName("QueryNotificationHistory").WithSummary("Query the notification history")
-            .WithDescription("Every event that was published, newest first, each with what happened on every channel it was addressed to (state, attempts, the next try of a pending one, the last error, when it was sent). An event no channel subscribes to is listed with no deliveries. The filters are all optional and all must match; from (inclusive) and to (exclusive) are the times of publication. History is kept for Paduraksa:Notifications:HistoryRetention.")
+            .WithDescription("Every event that was published, newest first, each with what happened on every channel it was addressed to (state, attempts, the next try of a pending one, the last error, when it was sent). An event no channel subscribes to is listed with no deliveries. Every filter is optional, and an event must match all that are set; from (inclusive) and to (exclusive) are the times of publication. History is kept for Paduraksa:Notifications:HistoryRetention.")
             .WithQuery(Channel, Kind, Outcome, AuditEndpoints.From, AuditEndpoints.To)
             .WithPage().Produces<Page<NotificationHistoryEvent>>().ProducesApiProblems(400).RequirePermission(Permission.ProvidersRead);
         notifications.MapPost("/deliveries/{id:NotificationDeliveryId}/retry", RetryDeliveryAsync).WithName("RetryNotificationDelivery").WithSummary("Send a failed or expired delivery again")
-            .WithDescription("Puts the delivery back to pending, due now, with a fresh retry schedule; the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and is not disabled (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message once may get it again with the same event ID.")
+            .WithDescription("Puts the delivery back to pending, due now, with a fresh retry schedule, and the channel sends it within seconds. Only a failed or expired delivery can be sent again, and only while its channel exists and isn't disabled (422 otherwise). Audited (notification.delivery.retry) with the delivery, its event and its channel. Delivery is at-least-once, so a receiver that already got the message may get it again with the same event ID.")
             .Produces<NotificationRetryOutcome>().ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
         notifications.MapPost("/events/{id:NotificationEventId}/retry", RetryEventAsync).WithName("RetryNotificationEvent").WithSummary("Send every failed or expired delivery of an event again")
-            .WithDescription("As the delivery's retry, for every failed or expired delivery of the event whose channel exists and is not disabled. 422 when there is none. Audited (notification.event.retry) with how many.")
+            .WithDescription("As the delivery's retry, for every failed or expired delivery of the event whose channel exists and isn't disabled. Returns 422 if there is none. Audited (notification.event.retry) with how many.")
             .Produces<NotificationRetryOutcome>().ProducesApiProblems(404, 422).RequirePermission(Permission.ProvidersWrite);
 
         var upstreams = api.MapGroup("/upstreams").WithTags("Upstreams");
         upstreams.MapGet("/health", ListHealth).WithName("ListUpstreamHealth").WithSummary("Read every upstream's live health")
-            .WithDescription("As the running proxy sees it: each destination's verdict and why, the whole upstream's state (unchecked when it has no health check, unknown, healthy, degraded, down) and its latest change since the process started. Read once a second by a watcher, so it is at most a few seconds old.")
+            .WithDescription("As the running proxy sees it: each destination's verdict and why, the whole upstream's state (unchecked when it has no health check, unknown, healthy, degraded, down) and its latest change since the process started. A watcher reads it once a second, so it is at most a few seconds old.")
             .Produces<IReadOnlyList<UpstreamHealthView>>().RequirePermission(Permission.ConfigRead);
         upstreams.MapGet("/{id:UpstreamId}/health", GetHealth).WithName("GetUpstreamHealth").WithSummary("Read one upstream's live health")
             .Produces<UpstreamHealthView>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);

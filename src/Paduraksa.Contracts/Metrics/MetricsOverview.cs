@@ -19,13 +19,13 @@ public enum MetricsRange
 public sealed record LatencyFigures(double P50Ms, double P95Ms, double P99Ms);
 
 /// <summary>The proxy's pace over the last half minute.</summary>
-/// <param name="RequestsPerSecond">Requests answered a second, the connections the gate dropped included.</param>
+/// <param name="RequestsPerSecond">Requests answered per second, including connections the gate dropped.</param>
 /// <param name="ErrorRate">The share of requests answered with a 5xx, 0 to 1.</param>
-/// <param name="RefusedPerSecond">Requests the gate refused by a policy or a limit, a second.</param>
-/// <param name="BytesPerSecond">Response body bytes written to clients a second.</param>
-/// <param name="BytesInPerSecond">Request body bytes read from clients a second.</param>
+/// <param name="RefusedPerSecond">Requests per second the gate refused by a policy or a limit.</param>
+/// <param name="BytesPerSecond">Response body bytes written to clients per second.</param>
+/// <param name="BytesInPerSecond">Request body bytes read from clients per second.</param>
 /// <param name="Total">Time from the request's first byte to the end of the response.</param>
-/// <param name="Upstream">Time spent forwarding and waiting for the upstream; the difference to <paramref name="Total"/> is the proxy's own.</param>
+/// <param name="Upstream">Time spent forwarding and waiting for the upstream; the difference from <paramref name="Total"/> is the proxy's own time.</param>
 public sealed record MetricsFigures(double RequestsPerSecond, double ErrorRate, double RefusedPerSecond, double BytesPerSecond, double BytesInPerSecond, LatencyFigures Total, LatencyFigures Upstream);
 
 /// <summary>
@@ -34,9 +34,9 @@ public sealed record MetricsFigures(double RequestsPerSecond, double ErrorRate, 
 /// line there rather than draw a zero). A step that was covered and saw no requests has a rate of 0 and no latency (0).
 /// </summary>
 /// <param name="Start">The step's first second.</param>
-/// <param name="RequestsPerSecond">Requests answered a second over the seconds that were observed, not the step's whole width.</param>
-/// <param name="ErrorsPerSecond">5xx answers a second, over the observed seconds.</param>
-/// <param name="RefusedPerSecond">Requests the gate refused by a policy or a limit, a second over the observed seconds.</param>
+/// <param name="RequestsPerSecond">Requests answered per second over the observed seconds, not the step's whole width.</param>
+/// <param name="ErrorsPerSecond">5xx answers per second, over the observed seconds.</param>
+/// <param name="RefusedPerSecond">Requests per second the gate refused by a policy or a limit, over the observed seconds.</param>
 /// <param name="Total">Latency percentiles of the requests answered in the step.</param>
 /// <param name="Upstream">Upstream time percentiles of the requests forwarded in the step.</param>
 /// <param name="WidthSeconds">How long the step is. Usually <see cref="MetricsOverview.BucketWidth"/>; the hour's steps from before the server started are a minute wide (the one it started in is cut short where the ten-second steps begin).</param>
@@ -69,16 +69,16 @@ public sealed record HostTraffic(HostId Id, string Name, long Requests, double E
 public sealed record UpstreamTraffic(UpstreamId Id, long Requests, long Errors, double ErrorRate, double P95Ms);
 
 /// <summary>
-/// The overview page's data: the pace now, a chart over the range, the busiest hosts and the upstreams' errors. Read from the
-/// sampler's memory (and the last hour of rollups it started from) for the hour and from the persisted one-minute rollups for longer.
+/// The overview page's data: the pace now, a chart over the range, the busiest hosts and the upstreams' errors. For the hour it reads the
+/// sampler's memory (and the last hour of rollups it started from); for longer ranges it reads the persisted one-minute rollups.
 /// </summary>
 /// <param name="At">When it was read.</param>
 /// <param name="Range">How far back <paramref name="Series"/> and the tables reach.</param>
 /// <param name="BucketWidth">The usual width of one <paramref name="Series"/> step; see <see cref="MetricsSeriesPoint.WidthSeconds"/> for each step's own.</param>
 /// <param name="Now">The last half minute.</param>
 /// <param name="Series">
-/// The chart, oldest first, from the first step the server observed to the last: every step in between is there, and one the server
-/// was not running for has <see cref="MetricsSeriesPoint.CoveredSeconds"/> 0 (no data), so downtime is a gap and not a line through it.
+/// The chart, oldest first, from the first step the server observed to the last. Every step in between is present, and a step the server
+/// wasn't running for has <see cref="MetricsSeriesPoint.CoveredSeconds"/> 0 (no data), so downtime shows as a gap, not a line through it.
 /// </param>
 /// <param name="Hosts">The busiest hosts over the range, most requests first.</param>
 /// <param name="Upstreams">The upstreams that were forwarded to over the range, most errors first.</param>
