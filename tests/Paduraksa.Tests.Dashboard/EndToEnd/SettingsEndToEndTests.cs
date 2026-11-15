@@ -69,7 +69,7 @@ public sealed class SettingsEndToEndTests
             await ExpectHeadingAsync(viewer, "Hosts");
             await Expect(viewer.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
             await Expect(viewer.GetByText("No hosts yet")).ToBeVisibleAsync(new() { Timeout = 15_000 });
-            await Expect(viewer.GetByRole(AriaRole.Link, new() { Name = "Add a host" })).ToHaveCountAsync(0);
+            await Expect(viewer.GetByRole(AriaRole.Link, new() { Name = "Add host" })).ToHaveCountAsync(0);
             await viewer.GotoAsync("/settings/defaults");
             await Expect(viewer.Locator("[data-banner=read-only]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
             await Expect(viewer.Locator("[data-action=review]")).ToHaveCountAsync(0);

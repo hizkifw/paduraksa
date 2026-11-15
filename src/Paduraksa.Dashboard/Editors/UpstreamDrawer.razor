@@ -29,7 +29,7 @@
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
                 The upstream couldn't be read. The details are in the server log.
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
             </MudAlert>
         }
         @if (Denied)
@@ -62,7 +62,7 @@
                 @if (Attempted && FieldErrors.Count > 0)
                 {
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
-                        <strong>@(FieldErrors.Count == 1 ? "One thing to fix" : $"{FieldErrors.Count} things to fix"):</strong>
+                        <strong>@Wording.Plural(FieldErrors.Count, "error", "errors") to fix:</strong>
                         <ul class="pdk-error-list">
                             @foreach (var (path, message) in FieldErrors)
                             {
@@ -124,7 +124,7 @@
                         }
                         @if (MayWrite)
                         {
-                            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="@(() => Set(Model.AddDestination, "/destinations"))" Class="pdk-add">Add a destination</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="@(() => Set(Model.AddDestination, "/destinations"))" Class="pdk-add">Add destination</MudButton>
                         }
                     </div>
                 </FormSection>

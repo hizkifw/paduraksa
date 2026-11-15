@@ -286,7 +286,7 @@ public sealed class LogFilesPageTests
         await drawer.Find("button[data-action=follow]").ClickAsync(new());
         store.Files[0] = file with { LastModified = DateTimeOffset.UtcNow };
 
-        await drawer.WaitForStateAsync(() => drawer.Find(".pdk-drawer-subtitle").TextContent.Contains("just now", StringComparison.Ordinal));
+        await drawer.WaitForStateAsync(() => drawer.Find(".pdk-drawer-subtitle").TextContent.Contains("now", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -330,7 +330,7 @@ public sealed class LogFilesPageTests
 
         store.Failing = false;
         store.Files.Add(new LogFileSummary("error.log", "error", 12, DateTimeOffset.UtcNow, false));
-        await page.FindAll("button").First(button => button.TextContent.Contains("Try again", StringComparison.Ordinal)).ClickAsync(new());
+        await page.FindAll("button").First(button => button.TextContent.Contains("Retry", StringComparison.Ordinal)).ClickAsync(new());
 
         Assert.Contains("error.log", page.Markup, StringComparison.Ordinal);
     }

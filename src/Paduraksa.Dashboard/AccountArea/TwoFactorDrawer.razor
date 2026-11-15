@@ -5,7 +5,7 @@
 @inject ISnackbar Snackbar
 @inject Microsoft.Extensions.Logging.ILogger<TwoFactorDrawer> Logger
 @* My account's two-step verification, in a drawer: set up an authenticator, new recovery codes, or turn it off, each
-   behind the current password. The password and the codes live only here; once new codes show, only "I have saved them"
+   behind the current password. The password and the codes live only here; once new codes show, only "Done"
    closes it. *@
 
 <DrawerShell Title="@Title" Icon="@Icons.Material.Outlined.PhonelinkLock"
@@ -21,7 +21,7 @@
                 <MudText Typo="Typo.body2"><strong>They are shown only now.</strong> Keep them somewhere safe, away from your authenticator.</MudText>
                 <RecoveryCodesView Codes="_codes" Username="@Username" />
                 <div class="pdk-form-actions">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CodesSaved" data-action="codes-saved">I have saved them</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CodesSaved" data-action="codes-saved">Done</MudButton>
                 </div>
             </div>
             break;
@@ -38,7 +38,7 @@
                     <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()" Disabled="_busy">Cancel</MudButton>
                     <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="@(Step == TwoFactorStep.Disable ? Color.Error : Color.Primary)" Disabled="_busy"
                                data-action="confirm-password">
-                        @(Step == TwoFactorStep.Disable ? "Turn off" : "Make new codes")
+                        @(Step == TwoFactorStep.Disable ? "Turn off" : "Create new codes")
                     </MudButton>
                 </div>
             </form>
@@ -115,7 +115,7 @@
                     _codes = codes.Codes;
                     if (Level is not null)
                     {
-                        // They can't be shown again: only "I have saved them" closes the drawer now. Leaving the page asks first.
+                        // They can't be shown again: only "Done" closes the drawer now. Leaving the page asks first.
                         Level.Busy = true;
                         Level.LeaveWarning = "You haven't saved the new recovery codes yet. They can't be shown again, and the old ones no longer work.";
                     }

@@ -55,12 +55,12 @@
             foreach (var notice in await Config.TakeDraftNoticesAsync())
             {
                 var changes = notice.Entries == 1 ? "1 change" : $"{notice.Entries} changes";
-                Snackbar.Add($"Your draft with {changes} was dropped after {(int)DraftService.Lifetime.TotalDays} days untouched.", Severity.Info, options => options.RequireInteraction = true);
+                Snackbar.Add($"Your draft with {changes} expired after {(int)DraftService.Lifetime.TotalDays} days untouched.", Severity.Info, options => options.RequireInteraction = true);
             }
         }
         catch (Exception ex) when (StoreFailures.Survivable(ex))
         {
-            Logger.LogStoreFailure(ex, "Couldn't read the notices of dropped drafts.");
+            Logger.LogStoreFailure(ex, "Couldn't read the notices of expired drafts.");
         }
     }
 
@@ -80,8 +80,8 @@
         var what = count switch
         {
             0 => "The draft holds no changes.",
-            1 => "The 1 change in it is dropped.",
-            _ => $"The {count} changes in it are dropped.",
+            1 => "The 1 change in it is discarded.",
+            _ => $"The {count} changes in it are discarded.",
         };
         if (!await ConfirmActionDialog.AskAsync(Dialogs, "Discard the draft?", what, "Discard", "Nothing in a draft is live, so nothing is undone."))
         {

@@ -154,7 +154,7 @@ public sealed class ConfigPagesEndToEndTests
         await page.GetByRole(AriaRole.Link, new() { Name = HostName }).ClickAsync();
         await ExpectDrawerTitleAsync(page, HostName);
         await Expect(page).ToHaveURLAsync(new Regex("/hosts/host_"));
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add a hostname" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Add hostname" }).ClickAsync();
         await FillAsync(page, "name-1", ExtraName);
         await page.Locator(".pdk-sheet [data-action=review]").ClickAsync();
         await Expect(page.Locator(".pdk-sheet[data-top] [data-review=apply]")).ToBeEnabledAsync(new() { Timeout = 15_000 });

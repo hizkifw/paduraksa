@@ -1,9 +1,9 @@
-@* Add an ACME account, in a drawer (from the ACME accounts page, or stacked on the certificate request when there is
+@* Add ACME account, in a drawer (from the ACME accounts page, or stacked on the certificate request when there is
    none yet). The CA registers it at once, being a vault object and not config. *@
 @inject ProviderActions Actions
 @inject ISnackbar Snackbar
 
-<DrawerShell Title="Add an ACME account" Subtitle="The CA registers it now."
+<DrawerShell Title="Add ACME account" Subtitle="The CA registers it now."
              Icon="@Icons.Material.Outlined.Badge" Name="acme-account">
     <AcmeAccountForm Submit="SubmitAsync" Created="Created" OnCancel="() => Level?.RequestClose()" />
 </DrawerShell>

@@ -105,7 +105,7 @@ public sealed class DraftTests
         var bar = context.Render<DraftBar>();
         await bar.WaitForStateAsync(() => snackbar.ShownSnackbars.Any());
 
-        Assert.Equal("Your draft with 3 changes was dropped after 30 days untouched.", Assert.Single(snackbar.ShownSnackbars).Message?.ToString());
+        Assert.Equal("Your draft with 3 changes expired after 30 days untouched.", Assert.Single(snackbar.ShownSnackbars).Message?.ToString());
         Assert.Empty(config.Notices);
     }
 

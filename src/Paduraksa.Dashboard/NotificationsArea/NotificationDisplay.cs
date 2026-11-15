@@ -77,7 +77,7 @@ public static class NotificationDisplay
     /// <summary>What the secret is for, when that helps (a URL that embeds a token; the one thing that needs an https URL).</summary>
     public static string? SecretHint(NotificationChannelKind kind) => kind switch
     {
-        NotificationChannelKind.Ntfy => "Only for a topic that needs a login. Sent as a bearer token.",
+        NotificationChannelKind.Ntfy => "Only for a topic that requires sign-in. Sent as a bearer token.",
         NotificationChannelKind.Gotify => "From Apps in Gotify. Sent in the X-Gotify-Key header.",
         NotificationChannelKind.Discord => "Channel settings, Integrations, Webhooks. The URL embeds its token.",
         NotificationChannelKind.Webhook => "Receives a JSON POST. The URL may embed a secret.",

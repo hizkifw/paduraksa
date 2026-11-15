@@ -33,7 +33,7 @@ public sealed class OverviewAndNavigationTests
         await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 2);
         // The broken one first: the upstream with nothing switched on, then the host the live config warns about.
         Assert.Equal(["error", "warning"], page.FindAll(".pdk-attention-item").Select(i => i.GetAttribute("data-tone")));
-        Assert.Contains("media has no destination switched on", page.Find("[data-section=attention]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("media has no destination enabled", page.Find("[data-section=attention]").TextContent, StringComparison.Ordinal);
         Assert.Equal(DashboardRoutes.Upstream(off.Id), page.FindAll(".pdk-attention-item a")[0].GetAttribute("href"));
         Assert.Equal(DashboardRoutes.Host(host.Id), page.FindAll(".pdk-attention-item a")[1].GetAttribute("href"));
         Assert.Contains("No valid certificate covers media.home.test", page.Find("[data-section=attention]").TextContent, StringComparison.Ordinal);

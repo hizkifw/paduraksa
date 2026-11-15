@@ -50,7 +50,7 @@
 
                 case Phase.Failed:
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="failed">
-                        Something went wrong while talking to the config store. The details are in the server log.
+                        The config store returned an error. The details are in the server log.
                     </MudAlert>
                     break;
 
@@ -385,7 +385,7 @@
     private async Task DiscardAsync()
     {
         var count = Drafts.Count;
-        var what = count == 1 ? "The 1 change in it is dropped." : $"The {count} changes in it are dropped.";
+        var what = count == 1 ? "The 1 change in it is discarded." : $"The {count} changes in it are discarded.";
         if (_busy || !await ConfirmActionDialog.AskAsync(Dialogs, "Discard the draft?", what, "Discard", "Nothing in a draft is live, so nothing is undone."))
         {
             return;

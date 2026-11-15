@@ -87,7 +87,7 @@ else
     {
         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" data-section="chain" data-chain="unknown">
             The hash chain couldn't be checked. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small" OnClick="VerifyAsync" Disabled="_verifying" Class="ml-2" data-action="verify">Try again</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small" OnClick="VerifyAsync" Disabled="_verifying" Class="ml-2" data-action="verify">Retry</MudButton>
         </MudAlert>
     }
 
@@ -151,7 +151,7 @@ else
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-3" data-alert="load-failed">
                 The events couldn't be read. The details are in the server log.
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
             </MudAlert>
         }
         @if (_newEvents && _after is not null)

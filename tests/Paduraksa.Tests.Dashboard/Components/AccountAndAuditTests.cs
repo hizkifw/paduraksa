@@ -81,7 +81,7 @@ public sealed class AccountAndAuditTests
         await dialogs.WaitForStateAsync(() => dialogs.FindAll(".pdk-recovery-codes li").Count == 10);
         Assert.Contains(identity.RecoveryCodes[0], dialogs.Markup, StringComparison.Ordinal);
 
-        // Only "I have saved them" closes the drawer now.
+        // Only "Done" closes the drawer now.
         await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
         Assert.Equal(10, dialogs.FindAll(".pdk-recovery-codes li").Count);
         await dialogs.Find("[data-action=codes-saved]").ClickAsync(new());

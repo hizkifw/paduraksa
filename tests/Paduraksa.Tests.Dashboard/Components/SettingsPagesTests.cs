@@ -121,7 +121,7 @@ public sealed class SettingsPagesTests
         await dialogs.Find("form[data-drawer=token]").SubmitAsync();
 
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-secret=token]").Count == 1);
-        // Only "I've copied it" closes it now: no close button, and Escape does nothing.
+        // Only "Done" closes it now: no close button, and Escape does nothing.
         Assert.Empty(dialogs.FindAll("[data-drawer-action=close]"));
         await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
         Assert.Single(dialogs.FindAll("[data-secret=token]"));

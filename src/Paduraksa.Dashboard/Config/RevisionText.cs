@@ -52,7 +52,7 @@ public static class RevisionText
         _ => "System",
     };
 
-    /// <summary>"just now", "5 min ago", "3 h ago", "yesterday", else the date (<see cref="DisplayFormat.Ago"/>), in UTC.</summary>
+    /// <summary>"now", "5 min ago", "3 h ago", "yesterday", else the date (<see cref="DisplayFormat.Ago"/>), in UTC.</summary>
     public static string Ago(DateTimeOffset at, DateTimeOffset now) => DisplayFormat.Invariant.Ago(at, now);
 
     /// <summary>A timestamp in full (<see cref="DisplayFormat.Exact"/>), in UTC.</summary>

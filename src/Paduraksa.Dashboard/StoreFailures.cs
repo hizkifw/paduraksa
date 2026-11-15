@@ -10,7 +10,7 @@ namespace Paduraksa.Dashboard;
 /// says so on the page, and the person tries again. Cancellation passes through: the circuit is going away.
 /// </summary>
 /// <remarks>
-/// A page that already shows its own failure (an alert with <b>Try again</b> beside what failed to load) catches with
+/// A page that already shows its own failure (an alert with <b>Retry</b> beside what failed to load) catches with
 /// <see cref="Survivable"/> and logs with <see cref="LogStoreFailure"/>; a one-off action uses <see cref="TryAsync"/>, which says it in a toast.
 /// </remarks>
 public static partial class StoreFailures

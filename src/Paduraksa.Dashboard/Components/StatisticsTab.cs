@@ -8,7 +8,7 @@ namespace Paduraksa.Dashboard.Components;
 /// What the statistics tabs of the Analytics page share: the host page owns the range and whether the tab is visible, and the tab reads,
 /// polls and draws. A read starts when the tab is first shown to someone allowed to see it, starts over when what is asked for changes, and
 /// repeats while the tab is visible; the hour is read every poll, a longer range every <see cref="LongRangeEvery"/>th (its figures are mostly
-/// stored rows that change once a minute). A failed read stops the polling until "Try again", and a tab shown again reads at once.
+/// stored rows that change once a minute). A failed read stops the polling until "Retry", and a tab shown again reads at once.
 /// </summary>
 /// <typeparam name="TKey">Everything a read depends on besides time (the range, a host): a change of it drops the figures and reads again.</typeparam>
 /// <typeparam name="TOverview">What one read returns.</typeparam>

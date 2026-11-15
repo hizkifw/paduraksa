@@ -37,7 +37,7 @@
                 <MudSelectItem Value="SmtpSecurity.ImplicitTls">TLS from the start (port 465)</MudSelectItem>
                 <MudSelectItem Value="SmtpSecurity.None">None</MudSelectItem>
             </MudSelect>
-            <MudTextField T="string" @bind-Value="_smtpUsername" Label="Login (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" autocomplete="off"
+            <MudTextField T="string" @bind-Value="_smtpUsername" Label="Username (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" autocomplete="off"
                           Error="@Has("/smtpUsername")" ErrorText="@ErrorOf("/smtpUsername")" Disabled="_busy" data-field="smtp-username" spellcheck="false" />
             <MudTextField T="string" @bind-Value="_mailFrom" Label="From" Placeholder="paduraksa@example.com" Variant="Variant.Outlined" Margin="Margin.Dense"
                           Error="@Has("/mailFrom")" ErrorText="@ErrorOf("/mailFrom")" Disabled="_busy" data-field="mail-from" spellcheck="false" />
@@ -184,7 +184,7 @@
 
     private string SecretLabel => Channel is { HasSecret: true } ? NotificationDisplay.SecretLabel(_kind) + " - leave empty to keep" : NotificationDisplay.SecretLabel(_kind);
 
-    private string? SecretHelp => _kind == NotificationChannelKind.Email ? "Needed when the server asks for a login." : NotificationDisplay.SecretHint(_kind);
+    private string? SecretHelp => _kind == NotificationChannelKind.Email ? "Needed when the server requires sign-in." : NotificationDisplay.SecretHint(_kind);
 
     private string? SecurityHint => _smtpSecurity == SmtpSecurity.None ? "The password and the message cross the network unencrypted." : null;
 

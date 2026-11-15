@@ -228,10 +228,10 @@ public sealed class DrawerStackTests
         {
             stack.Push<NotFoundDrawer>(NotFoundDrawer.For("app.home.test", "a"), DrawerWidth.Wide);
             stack.Push<NotFoundDrawer>(NotFoundDrawer.For("New certificate", "b"));
-            stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Add an ACME account", "c"), DrawerWidth.Narrow);
+            stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Add ACME account", "c"), DrawerWidth.Narrow);
         });
 
-        Assert.Equal(["app.home.test", "New certificate", "Add an ACME account"], host.FindAll(".pdk-sheet[data-top] [data-drawer=trail] li").Select(li => li.TextContent));
+        Assert.Equal(["app.home.test", "New certificate", "Add ACME account"], host.FindAll(".pdk-sheet[data-top] [data-drawer=trail] li").Select(li => li.TextContent));
         Assert.Equal("Back to New certificate", host.Find(".pdk-sheet[data-top] [data-drawer-action=back]").GetAttribute("aria-label"));
         Assert.Empty(host.FindAll(".pdk-sheet[data-level='0'] [data-drawer=trail]"));
     }

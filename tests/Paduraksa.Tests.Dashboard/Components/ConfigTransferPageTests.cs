@@ -106,7 +106,7 @@ public sealed class ConfigTransferPageTests
         await page.Find("[data-action=review-import]").ClickAsync(new());
 
         var errors = page.Find("[data-form=errors]");
-        Assert.Contains("2 things to fix", errors.TextContent, StringComparison.Ordinal);
+        Assert.Contains("2 errors to fix", errors.TextContent, StringComparison.Ordinal);
         Assert.Contains("/hosts/0/profile", errors.TextContent, StringComparison.Ordinal);
         Assert.Contains("line 5, column 14", errors.TextContent, StringComparison.Ordinal);
         Assert.Empty(drawers.FindAll("[data-review]"));

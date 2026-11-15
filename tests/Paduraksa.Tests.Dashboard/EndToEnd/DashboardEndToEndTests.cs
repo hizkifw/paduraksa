@@ -48,7 +48,7 @@ public sealed partial class DashboardEndToEndTests
         // First run: any page leads to the setup page, which creates the Owner and signs them in.
         await page.GotoAsync("/");
         await Expect(page).ToHaveURLAsync(EndsWith("/setup"));
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Welcome to Paduraksa" })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Set up Paduraksa" })).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "setup");
         await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
         await page.FillAsync("input[name=username]", DashboardHost.OwnerName);

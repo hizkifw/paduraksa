@@ -1,4 +1,4 @@
-@* "Finish setting up" on the overview: the tasks that aren't done yet, each linking to the page that does it, until they
+@* "Setup" on the overview: the tasks that aren't done yet, each linking to the page that does it, until they
    are done or the person dismisses the list. It is read while the page is prerendered (what is open comes from the data, and the
    dismissal from a cookie) and carried into the circuit, so it is on the page, or not, from the first paint. *@
 @using Microsoft.Extensions.Logging
@@ -15,13 +15,13 @@
 @if (!Preference.IsDismissed && State is { Open.Count: > 0 } state)
 {
     var open = state.Open;
-    <MudPaper Class="pdk-card pdk-checklist" Elevation="0" Outlined="true" role="region" aria-label="Finish setting up">
+    <MudPaper Class="pdk-card pdk-checklist" Elevation="0" Outlined="true" role="region" aria-label="Setup">
         <div class="pdk-card-head">
             <div class="pdk-card-head-main">
                 <span class="pdk-stat-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Checklist" Size="Size.Small" /></span>
                 <div>
-                    <MudText Typo="Typo.h6" HtmlTag="h2">Finish setting up</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">@Wording.Plural(open.Count, "thing is", "things are") left to set up.</MudText>
+                    <MudText Typo="Typo.h6" HtmlTag="h2">Setup</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">@Wording.Plural(open.Count, "task", "tasks") left.</MudText>
                 </div>
             </div>
             @* Nothing is listening before the circuit is live: a click on it then would be lost. *@

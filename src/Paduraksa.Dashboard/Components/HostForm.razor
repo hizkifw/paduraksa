@@ -9,7 +9,7 @@
     @if (ShowAll && Errors.Count > 0)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
-            <strong>@(Errors.Count == 1 ? "One thing to fix" : $"{Errors.Count} things to fix"):</strong>
+            <strong>@Wording.Plural(Errors.Count, "error", "errors") to fix:</strong>
             <ul class="pdk-error-list">
                 @foreach (var (path, message) in Errors)
                 {
@@ -50,7 +50,7 @@
                 }
                 @if (!ReadOnly)
                 {
-                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddNameAsync" Class="pdk-add">Add a hostname</MudButton>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddNameAsync" Class="pdk-add">Add hostname</MudButton>
                 }
             </div>
         </ChildContent>
@@ -198,7 +198,7 @@
                     }
                     @if (!ReadOnly)
                     {
-                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddRouteAsync" Class="pdk-add">Add a route</MudButton>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddRouteAsync" Class="pdk-add">Add route</MudButton>
                     }
                     <MudText Typo="Typo.caption" Class="pdk-muted pdk-form-note">The most specific path wins.</MudText>
                 </div>

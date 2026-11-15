@@ -8,7 +8,7 @@
 @* A user in a drawer: add one, or change a name, roles and whether they may sign in, as one update of only what changed.
    The service decides, the last-Owner guard included; the initial password lives only here. *@
 
-<DrawerShell Title="@(IsNew ? "Add a user" : User!.DisplayName)"
+<DrawerShell Title="@(IsNew ? "Add user" : User!.DisplayName)"
              Icon="@Icons.Material.Outlined.Group" Name="user" OnSubmit="SaveAsync">
     <Banner>
         @if (_error is { } error)

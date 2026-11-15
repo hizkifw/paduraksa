@@ -2,7 +2,7 @@
 @if (Errors.Count > 0)
 {
     <MudAlert Severity="@(Soft ? Severity.Warning : Severity.Error)" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="invalid">
-        <strong>@(Errors.Count == 1 ? "One thing to fix" : $"{Errors.Count} things to fix") @Consequence.</strong>
+        <strong>@Wording.Plural(Errors.Count, "error", "errors") to fix @Consequence.</strong>
         <ul class="pdk-error-list">
             @foreach (var (where, message) in Errors)
             {

@@ -37,7 +37,7 @@ else
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
             The upstreams couldn't be read. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
         </MudAlert>
     }
 
@@ -91,7 +91,7 @@ else
                     var live = _health.GetValueOrDefault(upstream.Id);
                     var checkedLive = live is { State: not UpstreamHealthState.Unchecked };
                     var dotTone = checkedLive ? HealthDisplay.ToneOf(live!.State).Css() : serving ? "default" : "warning";
-                    var dotText = checkedLive ? HealthDisplay.Word(live!.State) : serving ? HealthDisplay.Word(UpstreamHealthState.Unchecked) : "No destination is switched on";
+                    var dotText = checkedLive ? HealthDisplay.Word(live!.State) : serving ? HealthDisplay.Word(UpstreamHealthState.Unchecked) : "No destination is enabled";
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(upstream)" data-upstream="@upstream.Name" @key="upstream.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-status-dot pdk-tone-@dotTone" title="@dotText" role="img" aria-label="@dotText" data-health="@(checkedLive ? live!.State.ToString().ToLowerInvariant() : null)"></span>

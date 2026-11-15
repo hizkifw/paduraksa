@@ -45,7 +45,7 @@
 
                 case Phase.NotFound:
                     <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="not-found">
-                        <strong>It's gone.</strong> Someone deleted it since you opened it, so there is nothing to change. Reload to see what is there now.
+                        <strong>Deleted.</strong> Someone deleted it since you opened it, so there is nothing to change. Reload to see what is there now.
                     </MudAlert>
                     break;
 
@@ -69,7 +69,7 @@
 
                 case Phase.Failed:
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="failed">
-                        Something went wrong while talking to the config store. The details are in the server log.
+                        The config store returned an error. The details are in the server log.
                     </MudAlert>
                     break;
 

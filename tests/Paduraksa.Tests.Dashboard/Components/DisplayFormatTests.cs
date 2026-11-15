@@ -64,7 +64,7 @@ public sealed class DisplayFormatTests
     }
 
     [Theory]
-    [InlineData(20, "just now")]
+    [InlineData(20, "now")]
     [InlineData(300, "5 min ago")]
     [InlineData(3 * 3600, "3 h ago")]
     [InlineData(30 * 3600, "yesterday")]

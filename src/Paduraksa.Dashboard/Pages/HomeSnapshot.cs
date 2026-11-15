@@ -126,7 +126,7 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
             {
                 if (!upstream.Destinations.Any(d => d.Enabled) && HostOverview.UsesOf(document, upstream.Id).Any(u => u.Host.Enabled))
                 {
-                    items.Add(new AttentionItem(Tone.Error, $"{upstream.Name} has no destination switched on",
+                    items.Add(new AttentionItem(Tone.Error, $"{upstream.Name} has no destination enabled",
                         "The hosts that use it answer 502 until one is.", DashboardRoutes.Upstream(upstream.Id), "Open upstream"));
                 }
             }

@@ -113,7 +113,7 @@ public sealed class AuthProvidersEndToEndTests
         await FillAsync(page, "destination-0", upstream.Address);
         await page.Locator(".pdk-sheet[data-top] [data-action=stage]").ClickAsync();
         await ExpectDrawerTitleAsync(page, "New host");
-        await page.Locator(".pdk-sheet[data-top]").GetByRole(AriaRole.Button, new() { Name = "Add a route" }).ClickAsync();
+        await page.Locator(".pdk-sheet[data-top]").GetByRole(AriaRole.Button, new() { Name = "Add route" }).ClickAsync();
         await FillAsync(page, "route-path-1", "/oauth2");
         await page.Locator(".pdk-sheet[data-top] [data-action='route-menu-1']").ClickAsync();
         await page.Locator(".mud-popover-open [data-action=route-settings]").ClickAsync();

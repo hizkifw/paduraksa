@@ -91,7 +91,7 @@ public static class IdentityText
     public static string Refusal(IdentityStatus status, string? problem = null) => status switch
     {
         IdentityStatus.Denied => "Your role can't do that.",
-        IdentityStatus.NotFound => "It's gone: someone deleted it or it was never there.",
+        IdentityStatus.NotFound => "Not found: it was deleted, or it never existed.",
         IdentityStatus.Invalid => problem ?? "That isn't valid.",
         IdentityStatus.Conflict => problem ?? "That clashes with something that exists.",
         IdentityStatus.LastOwner => LastOwner,

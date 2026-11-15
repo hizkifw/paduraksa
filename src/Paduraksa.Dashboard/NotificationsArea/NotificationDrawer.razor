@@ -1,9 +1,9 @@
-@* Add a notification channel, or change one's settings, in a drawer. It is stored at once (a vault secret and an operational row, not config)
+@* Add channel, or change one's settings, in a drawer. It is stored at once (a vault secret and an operational row, not config)
    and hands back the channel. *@
 @inject NotificationActions Actions
 @inject ISnackbar Snackbar
 
-<DrawerShell Title="@(Channel is null ? "Add a notification channel" : $"Edit {Channel.Label}")" Icon="@Icons.Material.Outlined.NotificationsActive" Name="notification-channel">
+<DrawerShell Title="@(Channel is null ? "Add channel" : $"Edit {Channel.Label}")" Icon="@Icons.Material.Outlined.NotificationsActive" Name="notification-channel">
     <NotificationForm Submit="SubmitAsync" Channel="Channel" Saved="Saved" OnCancel="() => Level?.RequestClose()">
         <Below>
             @if (Channel is { } existing)

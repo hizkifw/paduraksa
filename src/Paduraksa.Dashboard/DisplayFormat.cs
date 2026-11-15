@@ -151,13 +151,13 @@ public sealed class DisplayFormat
     /// <summary>The instant in a .NET format of the caller's (a chart's axis label), on the person's clock.</summary>
     public string Axis(DateTimeOffset at, string format) => Local(at).ToString(Clockwise(format), Culture);
 
-    /// <summary>"just now", "5 min ago", "3 h ago", "yesterday", else the date.</summary>
+    /// <summary>"now", "5 min ago", "3 h ago", "yesterday", else the date.</summary>
     public string Ago(DateTimeOffset at, DateTimeOffset now)
     {
         var age = now - at;
         if (age < TimeSpan.FromMinutes(1))
         {
-            return "just now";
+            return "now";
         }
 
         if (age < TimeSpan.FromHours(1))

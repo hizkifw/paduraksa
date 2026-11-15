@@ -86,7 +86,7 @@ else
             @if (_errors.Count > 0)
             {
                 <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
-                    <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix"):</strong>
+                    <strong>@Wording.Plural(_errors.Count, "error", "errors") to fix:</strong>
                     <ul class="pdk-error-list">
                         @foreach (var error in _errors)
                         {
