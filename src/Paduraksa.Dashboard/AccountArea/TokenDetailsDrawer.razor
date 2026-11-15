@@ -38,7 +38,16 @@
             <FormSection Title="Details" Name="details">
                 <dl class="pdk-facts" data-facts="token">
                     <dt>Owner</dt>
-                    <dd data-fact="owner">@Owner</dd>
+                    <dd data-fact="owner">
+                        @if (OwnerHref is not null)
+                        {
+                            <a class="pdk-ref-link" href="@OwnerHref" data-link="owner">@Owner</a>
+                        }
+                        else
+                        {
+                            @Owner
+                        }
+                    </dd>
                     <dt>Created</dt>
                     <dd data-fact="created">@Fmt.Exact(_token.CreatedAt)</dd>
                     <dt>Last used</dt>
@@ -150,6 +159,10 @@
     /// <summary>Whose it is, in words ("You", or the user's name).</summary>
     [Parameter, EditorRequired]
     public string Owner { get; set; } = string.Empty;
+
+    /// <summary>Where the owner goes (My account, or their drawer on the users page); null when there is nowhere to send the viewer.</summary>
+    [Parameter]
+    public string? OwnerHref { get; set; }
 
     /// <summary>What the token's owner holds now: the scopes offered. A token can't be given more than that, whoever edits it.</summary>
     [Parameter, EditorRequired]
@@ -328,6 +341,6 @@
     }
 
     /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
-    public static IReadOnlyDictionary<string, object?> For(ApiTokenSummary token, string owner, IReadOnlySet<Permission> ownerHolds, bool canEdit) =>
-        new Dictionary<string, object?> { [nameof(Token)] = token, [nameof(Owner)] = owner, [nameof(OwnerHolds)] = ownerHolds, [nameof(CanEdit)] = canEdit };
+    public static IReadOnlyDictionary<string, object?> For(ApiTokenSummary token, string owner, IReadOnlySet<Permission> ownerHolds, bool canEdit, string? ownerHref = null) =>
+        new Dictionary<string, object?> { [nameof(Token)] = token, [nameof(Owner)] = owner, [nameof(OwnerHolds)] = ownerHolds, [nameof(CanEdit)] = canEdit, [nameof(OwnerHref)] = ownerHref };
 }

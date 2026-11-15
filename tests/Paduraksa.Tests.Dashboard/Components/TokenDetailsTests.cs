@@ -129,6 +129,16 @@ public sealed class TokenDetailsTests
     }
 
     [Fact]
+    public async Task TheOwnerOfATokenIsALinkToTheirDrawerOnTheUsersPage()
+    {
+        var (context, identity, drawers) = await OpenOthersAsync();
+        await using var scope = context;
+        var grace = identity.Users.Single(u => u.Username == "grace");
+
+        Assert.Equal(Paduraksa.Dashboard.SettingsRoutes.User(grace.Id), drawers.Find("[data-fact=owner] a[data-link=owner]").GetAttribute("href"));
+    }
+
+    [Fact]
     public async Task TheScopesOfferedAreWhatTheTokensOwnerHoldsNotWhatTheEditorHolds()
     {
         var (context, identity, drawers) = await OpenOthersAsync();

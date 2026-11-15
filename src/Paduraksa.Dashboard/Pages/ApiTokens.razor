@@ -106,7 +106,16 @@
                     </div>
                     @if (_everyone)
                     {
-                        <span role="cell" class="pdk-dt-cell" data-label="Owner">@row.Owner</span>
+                        <span role="cell" class="pdk-dt-cell" data-label="Owner" @onclick:stopPropagation="true">
+                            @if (row.OwnerHref is not null)
+                            {
+                                <a class="pdk-ref-link" href="@row.OwnerHref" data-link="owner">@row.Owner</a>
+                            }
+                            else
+                            {
+                                @row.Owner
+                            }
+                        </span>
                     }
                     <span role="cell" class="pdk-dt-cell" data-label="Scopes">
                         <span class="pdk-dt-chips">
@@ -162,7 +171,8 @@
     /// <param name="Owner">Whose it is, in words.</param>
     /// <param name="Mine">It is the caller's.</param>
     /// <param name="OwnerHolds">What the owner holds now, which bounds the scopes the token may be given.</param>
-    internal sealed record TokenRow(ApiTokenSummary Token, string Owner, bool Mine, IReadOnlySet<Permission> OwnerHolds);
+    /// <param name="OwnerHref">Where the owner goes: My account for the caller, the user's drawer when the caller could read the users (the name is shown); none otherwise.</param>
+    internal sealed record TokenRow(ApiTokenSummary Token, string Owner, bool Mine, IReadOnlySet<Permission> OwnerHolds, string? OwnerHref = null);
 
     private IReadOnlyList<TokenRow> Shown =>
         _rows is null ? [] : [.. _rows.Where(r => _showRevoked || IdentityText.IsLive(r.Token, _now))];
@@ -232,18 +242,19 @@
                 var owners = (await Identity.ListUsersAsync(origin)).Users.ToDictionary(u => u.Id);
                 var tokens = await Identity.ListAllTokensAsync(origin);
                 rows.AddRange(tokens.Tokens.Select(t => t.UserId == me
-                    ? new TokenRow(t, "You", true, _held)
+                    ? new TokenRow(t, "You", true, _held, DashboardRoutes.Account)
                     : new TokenRow(
                         t,
                         owners.TryGetValue(t.UserId, out var owner) ? owner.DisplayName : t.UserId.ToString(),
                         false,
                         // An owner nobody can read the roles of is offered only what the token has already.
-                        owner is null ? new HashSet<Permission>(t.Scopes) : RolePermissions.Of(owner.Roles))));
+                        owner is null ? new HashSet<Permission>(t.Scopes) : RolePermissions.Of(owner.Roles),
+                        owner is null ? null : SettingsRoutes.User(owner.Id))));
             }
             else
             {
                 var tokens = await Identity.ListTokensAsync(origin);
-                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, "You", true, _held)));
+                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, "You", true, _held, DashboardRoutes.Account)));
             }
 
             _rows = rows;
@@ -277,7 +288,7 @@
         if (ApiTokenId.TryParse(key, out var id) && _rows?.FirstOrDefault(r => r.Token.Id == id) is { } row)
         {
             return Drawers.Push<TokenDetailsDrawer>(
-                TokenDetailsDrawer.For(row.Token, row.Owner, row.OwnerHolds, (row.Mine && _mayIssue) || _mayAll),
+                TokenDetailsDrawer.For(row.Token, row.Owner, row.OwnerHolds, (row.Mine && _mayIssue) || _mayAll, row.OwnerHref),
                 DrawerWidth.Medium);
         }
 
