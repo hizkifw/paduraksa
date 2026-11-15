@@ -227,7 +227,7 @@ public sealed class AnalyticsPageTests
         await page.WaitForStateAsync(() => page.FindAll("[data-section=empty]").Count == 1);
 
         Assert.Contains("No requests in this range", page.Markup, StringComparison.Ordinal);
-        Assert.Contains("A host with its access log off is never counted here.", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Hosts with the access log off are never counted here.", page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-tile]"));
         Assert.Empty(page.FindAll("table"));
     }

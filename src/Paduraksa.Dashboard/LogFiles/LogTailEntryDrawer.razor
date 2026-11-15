@@ -116,7 +116,7 @@
 
     private string? ConnectionNote() => Entry.Timing switch
     {
-        { TlsHandshakeMs: not null } => "The TLS handshake runs once, when a connection opens, before its first request, so it is not on the waterfall.",
+        { TlsHandshakeMs: not null } => "The TLS handshake runs once, when a connection opens and before its first request, so the waterfall doesn't show it.",
         { TlsReused: true } => "This connection's handshake ran for its first request and is not repeated.",
         _ => null,
     };

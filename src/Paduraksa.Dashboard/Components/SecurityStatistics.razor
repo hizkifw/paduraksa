@@ -75,9 +75,9 @@
                 <dl class="pdk-sec-reasons">
                     <div title="Refused for their address: a 403, or dropped"><dt>Address refused</dt><dd data-reason="address-refused">@Fmt.Count(current!.AccessLists.AddressRefused)</dd></div>
                     <div title="Answered 401: no credentials, or a wrong password"><dt>Wrong or missing password</dt><dd data-reason="unauthorized">@Fmt.Count(current!.AccessLists.Unauthorized)</dd></div>
-                    <div title="Checks run in full, right or wrong; a password accepted from the five-minute memory is not one"><dt>Passwords checked</dt><dd data-reason="checked">@Fmt.Count(current!.AccessLists.Verifications)</dd></div>
+                    <div title="Checks run in full, whether the password was right or wrong. A password accepted from the five-minute memory doesn't count"><dt>Passwords checked</dt><dd data-reason="checked">@Fmt.Count(current!.AccessLists.Verifications)</dd></div>
                     <div title="Waited for a password check to come free"><dt>Queued</dt><dd data-reason="queued">@Fmt.Count(current!.AccessLists.Queued)</dd></div>
-                    <div title="Answered 429: the line for a check was full or this client already had its share of it, or the wait ran out"><dt>Refused, busy</dt><dd data-reason="busy">@Fmt.Count(current!.AccessLists.QueueFull + current!.AccessLists.QueueTimeouts)</dd></div>
+                    <div title="Answered 429 because the queue for a check was full, this client already had its share of it, or the wait ran out"><dt>Refused, busy</dt><dd data-reason="busy">@Fmt.Count(current!.AccessLists.QueueFull + current!.AccessLists.QueueTimeouts)</dd></div>
                 </dl>
                 </ChildContent>
             </StatsCard>
@@ -102,7 +102,7 @@
                     <div title="Open connections the limit counts now"><dt>Counted now</dt><dd data-reason="connection-counted">@Fmt.Count(current!.Connections.Counted)</dd></div>
                     @if (current!.Connections.Uncounted > 0)
                     {
-                        <div title="Let through without being counted because the table had no room: a flood from very many addresses filled it"><dt>Not counted, table full</dt><dd data-reason="connection-uncounted">@Fmt.Count(current!.Connections.Uncounted)</dd></div>
+                        <div title="Let through uncounted because the table was full, as in a flood from very many addresses"><dt>Not counted, table full</dt><dd data-reason="connection-uncounted">@Fmt.Count(current!.Connections.Uncounted)</dd></div>
                     }
                 </dl>
                 </ChildContent>
@@ -112,11 +112,11 @@
                 <Placeholder>@ReasonRows(5)</Placeholder>
                 <ChildContent>
                 <dl class="pdk-sec-reasons">
-                    <div title="Let through by an auth provider: from its answer, or from the allow it gave a moment ago"><dt>Allowed</dt><dd data-reason="sign-in-allowed">@Fmt.Count(current!.ForwardAuth.Allowed)</dd></div>
+                    <div title="Let through by an auth provider, from its answer or from an allow it gave a moment ago"><dt>Allowed</dt><dd data-reason="sign-in-allowed">@Fmt.Count(current!.ForwardAuth.Allowed)</dd></div>
                     <div title="Refused with the provider's 401 or 403, or sent to a sign-in page"><dt>Refused or sent to sign in</dt><dd data-reason="sign-in-refused">@Fmt.Count(current!.ForwardAuth.Denied + current!.ForwardAuth.Redirected)</dd></div>
                     <div title="Allows answered from the decision cache, with no call to the provider"><dt>Answered from memory</dt><dd data-reason="sign-in-cache-hits">@Fmt.Count(current!.ForwardAuth.CacheHits)</dd></div>
                     <div title="Calls made to the providers' endpoints"><dt>Calls made</dt><dd data-reason="sign-in-calls">@Fmt.Count(current!.ForwardAuth.Calls)</dd></div>
-                    <div title="A call that failed or answered something the proxy won't act on (502), ran out of time (504), or found too many already running (503): the request was refused"><dt>Errors and timeouts</dt><dd data-reason="sign-in-errors">@Fmt.Count(current!.ForwardAuth.Errors + current!.ForwardAuth.Timeouts + current!.ForwardAuth.Busy)</dd></div>
+                    <div title="A call that failed or got an answer the proxy won't act on (502), timed out (504), or found too many calls already running (503). The request was refused"><dt>Errors and timeouts</dt><dd data-reason="sign-in-errors">@Fmt.Count(current!.ForwardAuth.Errors + current!.ForwardAuth.Timeouts + current!.ForwardAuth.Busy)</dd></div>
                 </dl>
                 </ChildContent>
             </StatsCard>
