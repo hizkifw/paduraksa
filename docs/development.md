@@ -243,7 +243,7 @@ The vault database (`VaultDbContext` in `src/Paduraksa.Vault`, `data/vault.db`) 
 `src/Paduraksa.Vault/Migrations`, applied at startup by `IVaultLifecycle.InitializeAsync`. Add one the same way:
 `dotnet ef migrations add <Name> --project src/Paduraksa.Vault --output-dir Migrations`.
 
-A new vault table that holds a sealed value must also be added to `KekRotation.RewrapAllAsync`: a KEK rotation, a backup and a restore
+If a new vault table holds a sealed value, add it to `KekRotation.RewrapAllAsync` as well: a KEK rotation, a backup and a restore
 all re-wrap through it (`RewrapCoverageTests` fails until it is). A backup restores an older schema by migrating it, so a migration needs
 no backup-specific step.
 

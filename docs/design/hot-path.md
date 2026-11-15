@@ -118,7 +118,7 @@ The gate is first in the pipeline. It runs these steps in order:
    - From a trusted generic proxy: `X-Forwarded-Proto`, only with `TrustForwardedProto` (default off).
    - Otherwise the connection's scheme.
    - The HTTPS redirect and the upstream `X-Forwarded-Proto` both use it, so a TLS-terminating proxy (cloudflared to :80, Flexible SSL) cannot loop the redirect. Cloudflare over plain HTTP for a plain-HTTP visitor (Flexible) is counted and logged once.
-4. **ACME challenge.** On plain HTTP, `GET`/`HEAD /.well-known/acme-challenge/{token}` is answered from `AcmeChallengeStore` (a `ConcurrentDictionary` read through a span lookup, 0 B) with 200 `text/plain`, before everything below. A token that is not published falls through (see [vault-and-certificates.md](vault-and-certificates.md)).
+4. **ACME challenge.** On plain HTTP, `GET`/`HEAD /.well-known/acme-challenge/{token}` is answered from `AcmeChallengeStore` (a `ConcurrentDictionary` read through a span lookup, 0 B) with 200 `text/plain`, before everything below. If a token isn't published, the request falls through (see [vault-and-certificates.md](vault-and-certificates.md)).
 5. **Host lookup** (span-based, no string allocation). An unknown host gets the Default behaviour.
 6. **Response headers, stage 1.** The host's `Server` operation, 0 B, before the TLS check, so a 421 carries it too. The unknown-host answer and an ACME challenge follow the global defaults' list.
 7. **TLS policy check** (HTTPS). The host's `TlsPolicy` against the request's connection: HTTP/3 (QUIC, TLS 1.3) against `Http3Enabled`, HTTP/2 against an HTTP/1.1-only ALPN, `ITlsHandshakeFeature.Protocol` against the minimum version.
@@ -194,7 +194,7 @@ Each operation carries:
 - when: after host lookup, after the TLS check, or with the answer;
 - what has to hold: the connection is TLS, the trusted scheme is HTTPS, the name is no IP literal or loopback, not over HTTP/3.
 
-A host that does not send a header still has its entry, so the trace can say why. The list is capped at 16 operations (`ResponseHeaders.MaxResponseHeaderOperations`, a compile error beyond), because the gate's per-request outcomes live in a stack buffer of exactly that size.
+If a host doesn't send a header, it still has the entry, so the trace can say why. The list is capped at 16 operations (`ResponseHeaders.MaxResponseHeaderOperations`, a compile error beyond), because the gate's per-request outcomes live in a stack buffer of exactly that size.
 
 **What the gate applies.** A stage of that list and nothing else:
 - `Server` right after host lookup, so gate answers (403, the HTTPS redirect, Redirect/Respond, 404, 421) and forwards all carry it at 0 B.
@@ -207,7 +207,7 @@ A host that does not send a header still has its entry, so the trace can say why
 - the response `X-Request-Id` is ours or gone, as the host's propagation mode says;
 - it also runs when the forward fails (the 502/504 path has no proxy response) and before a WebSocket upgrade is accepted.
 
-**The one YARP path that clears the response.** An upstream that sends headers and then fails before the first body byte gets `context.Response.Clear()` and a bare 502, without re-running the transforms.
+**The one YARP path that clears the response.** If an upstream sends headers and then fails before the first body byte, YARP calls `context.Response.Clear()` and sends a bare 502, without re-running the transforms.
 - The proxy registers a static `Response.OnStarting` hook. It checks YARP's `IForwarderErrorFeature` and, only then, calls `GateResponseHeaders.Reapply`, which walks the whole list again, 0 B.
 - YARP sets that feature before the response starts on every answer that clears or bypasses the transforms: no healthy destination (503), a failed request or timeout (502/504), malformed response headers (502) and a response-body error (502).
 - On a successful forward the transforms already applied the headers, so the hook does nothing.
@@ -226,14 +226,14 @@ The response `X-Request-Id` is the one header the decision leaves to the answer,
   - response: `Strict-Transport-Security`, `Alt-Svc` and `X-Request-Id`, which have settings of their own with rules a static header would skip (no HSTS for an IP literal, no `Alt-Svc` over HTTP/3);
   - response `Location`, refused outright rather than kept off the gate's redirects: a static `Location` makes every answer of the host a redirect target (the HTTPS redirect, Redirect hosts, the proof-of-work return) and would override a route's `Location` mapping.
 - **`Set-Cookie` takes only `add`** (`headers.operation.invalid` otherwise): a `set` or `remove` would take off every cookie the upstream sets and the host's sign-in session cookie, which the proxy writes on the same response.
-- A request rule that sets a header an auth provider of the host vouches for (its identity headers, prefixes included) is a compile error: the strip runs before the rule, so the rule would forge the identity.
+- If a request rule sets a header an auth provider of the host vouches for (its identity headers, prefixes included), compiling fails: the strip runs before the rule, so the rule would forge the identity.
 - Other codes: `headers.name.invalid`, `headers.name.duplicate`, `headers.operation.invalid`, `headers.value.invalid`, `headers.value.unexpected`. The compiler checks names and values again.
 
 **Where they apply.**
 - **Request:** `CustomHeadersTransform`, after the forwarding, identity and session-cookie transforms, so a rule has the last word on the names it may touch. A header `HttpClient` keeps on the content (`Content-Type`, `Content-Language`, ...) goes on the request's content. A body-less request has none, and the rule does nothing there.
 - **Forwarded response:** `ResponseHeadersTransform`, after the built-in list. A rule for `Server` wins over the `Server` setting, and a `remove` of `Server` takes the built-in one off too (pinned in `ResponseHeaderMatrixTests`). An `add` joins the upstream's value.
 - **The proxy's own answers** for a known host (error pages, redirects, maintenance, robots.txt, the proof-of-work page, a 421): the gate applies the response rules when it writes the answer, after the built-in headers. They apply because the rules people set (CSP, CORS, `X-Frame-Options`, cache headers) are about the site, and an error page is part of it. Before a route is known the host's rules apply, after it the route's.
-  - A name no host serves gets none (as it gets no HSTS), and an admin host has no custom rules: the admin app's headers are its own.
+  - If no host serves a name, it gets none (as it gets no HSTS), and an admin host has no custom rules: the admin app's headers are its own.
   - The 502 that YARP answers after clearing a response gets them back with the built-in ones (`GateResponseHeaders.Reapply`).
 - **Simulator:** the upstream step lists each route rule as a fact under the header's own name (`request: set to ...`, `response: removed`), and a gate answer's rules extend the response-headers step. A value that looks like a credential (`Authorization`, `Proxy-Authorization`, `Cookie`, a name ending in `-Key`, `-Token` or `-Secret`) is shown as `(redacted)`, so it stays out of a trace an MCP script reads. Rule values are config, not vault secrets: the document stores them and the YAML export carries them.
 
@@ -364,7 +364,7 @@ If a deployment puts another proxy in front without listing it as trusted, every
 
 Allocations:
 - **0 B** for every decision and table operation, and for a connection that is not counted (the stage off, and every trusted-proxy connection, which covers all of Cloudflare's).
-- **One release continuation of 177 B** (measured, Release build) for a counted connection, against Kestrel's own thousands of bytes per connection. A pipeline that has already ended is released without it.
+- **One release continuation of 177 B** (measured, Release build) for a counted connection, against Kestrel's own thousands of bytes per connection. If the pipeline has already ended, the connection is released without it.
 
 ### QUIC
 

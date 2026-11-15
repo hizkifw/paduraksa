@@ -54,7 +54,7 @@ The `Dockerfile` is at the repository root, with `.dockerignore`, so `docker bui
   - curl and gnupg are purged in the same layer that installed them.
 - The server logs **`HTTP/3 is on: QUIC on UDP 443 ...`** when libmsquic loaded (and the existing line when it did not), which is what the smoke test asserts.
 - Userspace is uid and gid **10001**, with `/data` owned by it.
-- The apphost gets `cap_net_bind_service` via `setcap` before `libcap2-bin` is purged in that same layer, for runtimes without Docker's `ip_unprivileged_port_start=0`. A runtime that drops capabilities (`cap_drop: [ALL]`, Kubernetes "restricted") must add `NET_BIND_SERVICE` back, or exec fails with EPERM.
+- The apphost gets `cap_net_bind_service` via `setcap` before `libcap2-bin` is purged in that same layer, for runtimes without Docker's `ip_unprivileged_port_start=0`. If a runtime drops capabilities (`cap_drop: [ALL]`, Kubernetes "restricted"), it must add `NET_BIND_SERVICE` back, or exec fails with EPERM.
 
 ### Environment
 
@@ -164,7 +164,7 @@ Data nodes **connect out** to the control plane over one long-lived mTLS HTTP/2 
 **Applying.** A node verifies hashes, compiles, publishes through its own `SnapshotStore`, then **acks** with the revision it is serving, or with the compile errors it hit. The control plane always knows which revision each node serves.
 
 **Static stability.**
-- A node that loses the control plane keeps serving its last applied bundle, which survives a restart through the bundle cache (the same idea as the last-known-good file).
+- If a node loses the control plane, it keeps serving its last applied bundle, which survives a restart through the bundle cache (the same idea as the last-known-good file).
 - It reports staleness (`paduraksa_fleet_bundle_age_seconds`), and `/readyz` stays ready.
 - Only certificate expiry limits how long a fleet can run headless, and the control plane alerts long before that.
 
@@ -213,7 +213,7 @@ A commit no longer means "every node, now". It sets a **target revision per node
 ### Upgrades and version skew
 
 - **Upgrade order:** the control plane is upgraded first and serves data nodes of the same and the previous minor version.
-- **Protocol and bundle versions:** the protocol is versioned, and bundles carry the document's `apiVersion` and a minimum compiler version. A node that cannot compile a revision acks the error and keeps serving the old one, which also stops any rollout.
+- **Protocol and bundle versions:** the protocol is versioned, and bundles carry the document's `apiVersion` and a minimum compiler version. If a node cannot compile a revision, it acks the error and keeps serving the old one, which also stops any rollout.
 - **Migrations:** with an HA control plane they become expand/contract and run once, from the leader or a Job.
 
 ### Kubernetes shape

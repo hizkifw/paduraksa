@@ -12,7 +12,7 @@ For contributors: who may use the admin surfaces, who may reach a proxied host, 
 - Sessions are opaque cookies (only the SHA-256 is stored), with absolute and idle expiry.
 - Lockout counts an attempt before evaluating it, in one `BEGIN IMMEDIATE` transaction, so parallel guesses cannot outrun it. A lockout at the password stage ends no session, so a known username cannot be used to sign the owner out.
 - Login, second factor and setup are rate limited, and password derivation runs in a bounded number of slots.
-- A credential that is presented and wrong is a 401, never an anonymous request.
+- If a credential is presented and wrong, the answer is a 401, never an anonymous request.
 - Code: `Paduraksa.Admin` (`AddPaduraksaAdminAuth`, `UsePaduraksaAdminAuth`, `MapPaduraksaIdentityApi`), `IPermissionEvaluator`, `SessionService`, `ApiTokenService`.
 
 ## Contents
@@ -161,7 +161,7 @@ Any endpoint can opt in to the mechanisms with public metadata:
 - `.RequireAuthenticated()`.
 - `.RequirePermission(...)`.
 
-Authentication covers `/api/` and only ever *sets* the `AdminCaller`. A request that already has one is left alone.
+Authentication covers `/api/` and only ever *sets* the `AdminCaller`. If a request already has one, it is left alone.
 
 ### Credentials
 
@@ -169,7 +169,7 @@ Two kinds are accepted:
 - The session cookie `__Host-paduraksa-session` (`Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/`, no `Domain`). The value is the session secret, checked by `SessionService` on every request.
 - `Authorization: Bearer pdk_...` (`ApiTokenService`, also checked every request, so a revoked token or session dies at once).
 
-**A credential that is presented and wrong is a 401, never an anonymous request.** That covers:
+**If a credential is presented and wrong, the answer is a 401, never an anonymous request.** That covers:
 - a bad token;
 - an unknown or expired cookie (which is also cleared);
 - a non-Bearer `Authorization`;
@@ -211,7 +211,7 @@ While `SetupService.IsCompleteAsync` is false, only these are served: `/healthz`
 - A refusal is 429 with `Retry-After` (the time left in the window) and `code: auth.rateLimited`.
 - Defaults are 20 per client and 10 failures per user per minute, set with `Paduraksa:Admin:RateLimit:{PermitsPerIp (1-10000), PermitsPerUser (1-1000), Window (1 s-10 min)}`.
 - **Memory is bounded:** at most 10 000 tracked clients and as many usernames. Past that, new keys share one overflow bucket. Expired windows are swept (at most once a second).
-- **Password derivation is bounded too.** Login, setup, the second factor and every re-authentication (password change, TOTP enrolment and removal, recovery codes) run in one of `Environment.ProcessorCount` slots. An attempt that gets none within 2 s is a 503 (`code: auth.busy`, `Retry-After: 1`) and derives nothing.
+- **Password derivation is bounded too.** Login, setup, the second factor and every re-authentication (password change, TOTP enrolment and removal, recovery codes) run in one of `Environment.ProcessorCount` slots. If an attempt gets no slot within 2 s, the answer is a 503 (`code: auth.busy`, `Retry-After: 1`) and nothing is derived.
 - Windows and slots are in memory.
 - Per-client limits key on the request's remote address. On the internal admin listener they key on the forwarded client address (see the warning in [hosting.md](hosting.md) about proxying to the admin port).
 
@@ -252,7 +252,7 @@ A connection stage before TLS (`AdminPlainHttpRedirect`) peeks at the first byte
 - Anything else gets exactly one plaintext answer and a close.
   - A `GET` or `HEAD` with an origin-form target and a valid `Host` is a `308` to the same URL over `https`. `Location` is built from that `Host` verbatim, and the value is restricted to a DNS name or a well-formed IPv6 literal in brackets, each with an optional numeric port. A crafted header can therefore neither inject a header nor turn the authority into a path or another site. It carries `Cache-Control: no-store` (a `308` is otherwise cached for good) and an empty body.
   - Everything else is a plain `400`: no `Host`, a duplicate or unusable one, an absolute-form target, another method, an h2c preface.
-  - A client that sends neither a ClientHello nor a complete head in ten seconds is dropped.
+  - If a client sends neither a ClientHello nor a complete head in ten seconds, it is dropped.
 - The search for the empty line that ends a head is incremental. Only the bytes that arrived since the last read are scanned, with a three-byte overlap for a terminator split across reads. A client that drips its head a byte at a time therefore costs linear work rather than a re-decode per byte. One that connects and leaves without a byte is closed silently instead of answered.
 - No endpoint, cookie or certificate is ever served over plain HTTP. The allowlist still refuses an untrusted source before a byte is read, and TLS on that port is untouched.
 - Tests redirect over plaintext and then complete an ordinary HTTPS request on the same listener, and run the stage over a pipe pair to check that the TLS middleware's first read returns the ClientHello without waiting for more.

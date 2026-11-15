@@ -51,7 +51,7 @@ A test keeps a host of its own when it:
 - restarts, fails or stops the host;
 - counts something global.
 
-A test that only needs an account of its own (a wrong password that counts toward a lockout, a session it ends, a second factor it enrols) creates a user instead. IDs, names and paths are per test, so a shared host leaves no order dependence.
+If a test only needs an account of its own (a wrong password that counts toward a lockout, a session it ends, a second factor it enrols), it creates a user instead. IDs, names and paths are per test, so a shared host leaves no order dependence.
 
 **Two test-only seams** keep start and stop cheap without weakening a claim. Production never sets either.
 - A test host hashes passwords at the validator's floor (100 000 iterations).
@@ -130,7 +130,7 @@ Threat model doc, dependency scanning, CodeQL, fuzzing of the ACME, JSON, YAML a
 - `Directory.Build.props` sets `NuGetAudit` on with `NuGetAuditMode=all` (transitive packages too) and `NuGetAuditLevel=moderate`.
 - **Decision.** The repository builds with warnings as errors, which would make every advisory fail restore, so the choice is explicit:
   - high and critical (NU1903, NU1904) are errors;
-  - a **moderate** one (NU1902) stays a warning in the restore log. A moderate advisory that has no fixed release yet would otherwise stop every build, the Dependabot pull request that updates the package included;
+  - a **moderate** one (NU1902) stays a warning in the restore log. If a moderate advisory has no fixed release yet, it would otherwise stop every build, the Dependabot pull request that updates the package included;
   - a low one (NU1901) is not reported.
 
 ## Property tests

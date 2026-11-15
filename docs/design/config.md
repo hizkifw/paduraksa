@@ -146,7 +146,7 @@ Two database files, deliberately separate:
 - **Connection and DNS refresh.**
   - `PooledConnectionLifetime` defaults to 60 s, so a restarted container with a new IP is picked up quickly.
   - The connect timeout (10 s) and idle timeout (1 hour, "never" allowed) are per upstream; see "Upstream timeouts" in [hot-path.md](hot-path.md). `PooledConnectionIdleTimeout` is not built.
-  - A destination that fails to connect is passively marked unhealthy, which forces new connections (and a fresh DNS lookup) on retry.
+  - If a destination fails to connect, it is passively marked unhealthy, which forces new connections (and a fresh DNS lookup) on retry.
 
 ## Upstream Host header modes
 
@@ -197,7 +197,7 @@ One merge owns the layers for every consumer: `HostSettingsLayers` in `Paduraksa
 
 **Nested records** merge field by field: `Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`, `RuleSet`, `Headers` and `Compression`. `Headers` merges rule by rule, keyed on the header name (see "Custom headers" in [hot-path.md](hot-path.md)).
 - A layer lifts an inherited rate limit, access list or rule set with `enabled: false`. Everything else is a plain override.
-- A nested record that sets none of its fields is no record at all. Canonical JSON writes no key for it, so a stored revision keeps its bytes and hash. `ISettingsLayer.SetsNothing`, stated by each record, is the one rule.
+- If a nested record sets none of its fields, it is no record at all. Canonical JSON writes no key for it, so a stored revision keeps its bytes and hash. `ISettingsLayer.SetsNothing`, stated by each record, is the one rule.
 
 **The fields:** force HTTPS, TLS (minimum version, TCP protocols, HTTP/3), HSTS, access log, request ID propagation, the `Server` header, proof of work, rate limit, `robots.txt`, Cloudflare (origin lockdown, Authenticated Origin Pulls), access list, request limits, rule set, auth provider, error pages, maintenance mode, custom request and response headers, and compression.
 
@@ -315,7 +315,7 @@ Everything else walks the catalogue:
 
 1. The property at the end of `ServerSettings`.
 2. Its declaration in `ServerSettingCatalog` (key, configuration key, group and heading, live or restart, words, default, bounds, notes), and its place in `All`. `ServerSettingCatalogTests` fails for a property without one.
-3. Where its consumer takes it: a line in `ServerSettingsBindings.Apply` (or the admin or public app's follower) onto the consumer's `LiveOptions<T>`. A consumer that reads it once is declared `Restart`.
+3. Where its consumer takes it: a line in `ServerSettingsBindings.Apply` (or the admin or public app's follower) onto the consumer's `LiveOptions<T>`. If a consumer reads it once, the setting is declared `Restart`.
 4. The options validator's bound for the environment's value, from the declaration (`Bound(ServerSettingCatalog.X, ...)`). The option's default must be the declaration's: `ServerSettingOptionsTests` walks the configuration keys.
 5. Regenerate `openapi.v1.json` and the guide's table (`PADURAKSA_UPDATE_DOCS=1` on `ServerSettingsGuideTests`).
 
@@ -513,7 +513,7 @@ Long-lived state sits in process-lifetime singletons (`RuntimeState`). Snapshots
   - `ConfigCompiler` maps that to a pointer into the document *as given* (`/hosts/{i}`, `/hosts/{i}/routes/{j}`, `/upstreams/{k}/destinations/{m}`, `/settings`, `/settings/trustedProxies`) with code `compile.failed`, each (path, message) once.
   - An inherited value is reported where it is used (each host or route whose chain carries it). A duplicated ID points at its last occurrence.
   - The mapping reports the few invalid values the model cannot carry: an undefined certificate binding mode or load-balancing policy, or a respond host without a content type.
-  - A test runs sample, edge and generated documents through the validator and the compiler. Whatever validates must compile, certificate references aside, which only the compiler can resolve against the inventory.
+  - A test runs sample, edge and generated documents through the validator and the compiler. Anything that validates must compile, except certificate references, which only the compiler can resolve against the inventory.
 
 ### Policy chains: where access lists, rule sets and auth providers go
 
@@ -596,7 +596,7 @@ The outcome is logged when it arrives. A superseded startup publish (a commit's 
 - The file's document is committed as revision #1 through the normal replace path (actor System, message "Restored from last-known-good #N (rev_...)", audited), logged at Critical, and startup goes on normally.
 - If that commit is rejected or fails, the start is degraded on the last-known-good config (on the empty config if that does not compile either), accepting commands.
 - To start over with an empty config, delete both files.
-- A file newer than a database that has revisions (a restored backup) is only a warning: the database wins.
+- If the file is newer than a database that has revisions (a restored backup), it only warns: the database wins.
 
 **Degraded starts.** The last-known-good document is compiled and published instead, logged at Critical, and `ConfigService.Status` says so (`Source = LastKnownGood`, the problem, the revision served). This happens when:
 - the database cannot be opened or migrated;

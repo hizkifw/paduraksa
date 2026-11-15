@@ -130,7 +130,7 @@ Contents: [2 Assets](#2-assets) | [3 Boundaries and flows](#3-trust-boundaries-a
 
 - **Credentials.** Session cookie `__Host-paduraksa-session` (`Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/`, no `Domain`;
   *code*: `AdminSessionCookie.cs`) or `Authorization: Bearer pdk_...`. Both are looked up by SHA-256 on **every** request, so
-  revocation is immediate. A credential that is presented and wrong is a 401, never anonymous; a cookie **and** a token
+  revocation is immediate. If a credential is presented and wrong, the answer is a 401, never anonymous. A cookie **and** a token
   together is a 401 ([identity.md, Admin auth](identity.md#admin-auth)).
 - **CSRF** for unsafe methods on cookie requests: `Sec-Fetch-Site`, `Origin` against the request's own origin, JSON content
   type ([identity.md, Admin auth](identity.md#admin-auth)). Bearer requests are exempt. Pinned by `tests/Paduraksa.Tests.Integration/Admin/CsrfTests.cs` and

@@ -139,7 +139,7 @@ If a request is for a host with lockdown on and its peer is not a trusted peer o
 
 **The admin host.** A locked-down admin host is a host like any other: only reachable through Cloudflare. The dashboard row says it covers the admin host but not the admin port (9443), which is a different listener.
 
-The lock-out guard (see [hosting.md](hosting.md)) models a caller of a locked-down admin host as arriving through Cloudflare. Otherwise its probe would never have been forwarded and the guard would let a deletion through. A change that adds lockdown to the admin host is refused for a caller who may have come directly.
+The lock-out guard (see [hosting.md](hosting.md)) models a caller of a locked-down admin host as arriving through Cloudflare. Otherwise its probe would never have been forwarded and the guard would let a deletion through. If a change adds lockdown to the admin host, it is refused for a caller who may have come directly.
 
 ## Authenticated Origin Pulls
 

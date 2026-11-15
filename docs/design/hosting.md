@@ -249,7 +249,7 @@ Some people want `proxy.example.com` to be the admin UI, with the wildcard certi
 `Paduraksa:Listen:AdminInternal` (default on, not reloadable) gives the admin app one extra internal listener. It is always present, so an admin host can be added without a restart.
 
 The Unix socket at `<data dir>/run/admin.sock`:
-- `run` is created 0700 (and set again if it exists). A `run` that is a symlink, or not owned by the process uid where Linux exposes the owner, is refused.
+- `run` is created 0700 (and set again if it exists). If `run` is a symlink, or not owned by the process uid where Linux exposes the owner, it is refused.
 - Connecting to the real socket path tells a live second instance (startup fails, Critical) from a stale file (deleted). Unix-socket support is probed on a temporary sibling name only.
 - The socket is `chmod`ed to 0600 from `ApplicationStarted`, and its identity is recorded then. `Dispose` removes it only while it is still this process's. On Linux the inode is held open, so a reused inode number cannot make a successor's file look like ours.
 
@@ -307,7 +307,7 @@ An enabled admin host compiles to one implicit prefix route (`/`, whose `Compile
 
 ### The lock-out guard
 
-A command whose `CommandOrigin.AdminRequest` is set (authenticated on the internal listener) carries the caller's public host, scheme and resolved client address into Application. The command pipeline compiles the candidate and runs the caller's own request through the real `GateSimulator`. The change is refused with 422 `host.admin.lockout` unless the outcome is a forward to the admin route.
+If a command has `CommandOrigin.AdminRequest` set (authenticated on the internal listener), it carries the caller's public host, scheme and resolved client address into Application. The command pipeline compiles the candidate and runs the caller's own request through the real `GateSimulator`. The change is refused with 422 `host.admin.lockout` unless the outcome is a forward to the admin route.
 
 What it catches:
 - deletion, disabling, a kind change and a rename;

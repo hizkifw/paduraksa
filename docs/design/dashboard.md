@@ -117,7 +117,7 @@ An open editor says when its object changed elsewhere (with Reload); the Apply w
 
 Apply runs the same command with the version the form opened with.
 - A stale version or a deleted object is a conflict with Reload.
-- A commit that could not go live stays on screen as "saved as #N, but it isn't live" with the publisher's errors.
+- If a commit could not go live, the sheet stays on screen as "saved as #N, but it isn't live" with the publisher's errors.
 - A commit leaves a toast with **Undo** (`ConfigUndo`), "Applied: host app.example.com added. Live as #4." (the review request's `SuccessMessage` is the part after "Applied: ", without a verb of its own; a draft says "Applied: 3 changes"). Undo is a rollback to the parent revision (a replace with the empty config for #1), based on the revision it undoes. It is refused when someone changed the config in between. A newer toast replaces the last, since only the latest change can be undone.
 - The drawer sits above the toasts, closes with Escape and focuses its heading.
 - "Simulate this change" runs a request against the change in place, and the change stays offered to the simulator page (`ReviewedDraft`) until it is applied. In the draft drawer, "Simulate the draft" targets the stored draft (`{kind: draft}`), and the simulator page offers the draft as "My draft".
@@ -209,7 +209,7 @@ The level's component gets the `DrawerLevel` as a cascading value:
 
 `RoutedDrawer` ties a list page's route key to its root drawer. These addresses are the list with that drawer open: `/hosts/{host_...}`, `/hosts/new`, `/upstreams/{ups_...}`, `/upstreams/new`, `/settings/profiles/{prof_...}`, `/settings/profiles/new`, `/certificates/{crt_...}`, `/certificates/acme/{acct_...}`, `/certificates/dns/{dnsp_...}`, `/settings/tokens/{tok_...}`, `/settings/notifications/{chan_...}` and `/settings/users/{user_...}` (the list alone, with no drawer and no link, for someone who may only read).
 - A row opens its address. Closing the drawer goes back to the list's address. The browser's back closes it. Leaving the page closes it with every level stacked on it.
-- **From one drawer to another.** A link in a drawer is an ordinary link to the target's address. The dirty guard asks first. On another page the new page opens its drawer and the old page's levels close; Back returns to the first address, whose drawer opens again. The new page pushes its level before the old page is disposed, so closing a page's drawer takes only its own levels (`DrawerStack.RemoveOwned`, stopping at the next level that has an address). A drawer with no address (the audit event's, a log entry's) is closed by `DrawerHost` when the person leaves its page.
+- **From one drawer to another.** A link in a drawer is an ordinary link to the target's address. The dirty guard asks first. On another page the new page opens its drawer and the old page's levels close; Back returns to the first address, whose drawer opens again. The new page pushes its level before the old page is disposed, so closing a page's drawer takes only its own levels (`DrawerStack.RemoveOwned`, stopping at the next level that has an address). `DrawerHost` closes a drawer with no address (the audit event's, a log entry's) when the person leaves its page.
 - The key is parsed at the edge. One that is not an ID of the right type opens a "not found" drawer (`NotFoundDrawer`), and an object deleted under an open drawer says so in it.
 
 ### Lists and the design language
@@ -341,7 +341,7 @@ Inline validation is the real validator with the settings put in (`InlineValidat
 - Create: name, expiry (7, 30, 90 days, a year, never, or a date), and scopes by area with read-only and "all you can" presets. Only what the user holds is offered ("a token never exceeds its owner"), and never `tokens:*` or `sessions:all`.
 - The secret shows once in the same drawer, with Copy and a "This token won't be shown again" notice, and is dropped from the page's state when closed.
 - **A row opens the token's drawer** (`TokenDetailsDrawer`, `/settings/tokens/{tok_...}`; someone else's token opens from the list of everyone's with `tokens:all`, anything else is the "not found" drawer). It shows the status, owner (a link: My account for one's own, the user's drawer when the caller may read users, else text), created, last used, expires and the token ID in a copy box; never the secret.
-- Whoever may revoke it can change it (`tokens:own` or `tokens:all`): the name, and the scopes with the issuing picker (`ScopePicker`), which offers what the token's *owner* holds, not the editor. Save goes straight to the service: a token is not a config revision, so there is no review sheet or draft. Only what changed is sent.
+- Anyone who may revoke a token can change it (`tokens:own` or `tokens:all`): the name, and the scopes with the issuing picker (`ScopePicker`), which offers what the token's *owner* holds, not the editor. Save goes straight to the service: a token is not a config revision, so there is no review sheet or draft. Only what changed is sent.
 - **Disable and Enable** act at once and keep the drawer open. **Revoke** keeps its confirmation. A disabled token gets an amber "Disabled" pill and a dimmed row and is listed by default (it can come back); revoked and expired ones need "Show revoked and expired".
 - If a token is revoked or the caller may not change it, the drawer shows the name as a `ReadOnlyField` (it stands where an input would be), the scopes as chips and no actions. The details rows stay in the `pdk-facts` grid, the drawer pattern for facts.
 - Scopes the token has but can't use (its owner lost them) are shown as struck-through chips with one line saying that saving changed scopes removes them. A rename alone never sends scopes.
@@ -417,7 +417,7 @@ A **Simulate this request** button (for a role that may simulate) links to `/sim
 **The stream** (`GET /api/v1/logs/tail`, `logs:read`): `text/event-stream`, `Cache-Control: no-store`, `X-Accel-Buffering: no`.
 - The first line is the comment `: open`, so a client knows the stream is live before the first request ends.
 - Each entry is a default (`message`) event: `id:` its sequence and `data:` one `LogTailEntry` JSON on one line. The fields are `sequence`, `time`, `clientAddress`, `host`, `matchedHost`, `method`, `path`, `query`, `protocol`, `status`, `responseBytes`, `requestBytes`, `totalMs`, `upstreamMs`, `upstream`, `requestIdentifier`, `cloudflareRay`, `referer`, `userAgent`, and `timing` (`connectionRequest`, `tlsHandshakeMs`, `tlsReused`, `requestBodyMs`, `gateMs`, `upstreamConnectMs`, `upstreamWaitMs`, `responseSendMs`, and where the stages start: `requestBodyStartMs`, `upstreamConnectStartMs`, `upstreamWaitStartMs`, `responseSendStartMs`). Nulls are omitted. The request ID is `requestIdentifier` because the architecture rule keeps any `*Id` property of a contract a typed ID.
-- A reader that falls behind gets `event: skipped` with `{"count":N}`. A comment `: heartbeat` goes out every 15 seconds of silence (`LogTailService.Heartbeat`), so an idle proxy or client does not time the stream out and a vanished client fails the write.
+- If a reader falls behind, it gets `event: skipped` with `{"count":N}`. A comment `: heartbeat` goes out every 15 seconds of silence (`LogTailService.Heartbeat`), so an idle proxy or client does not time the stream out and a vanished client fails the write.
 - Query parameters: `host` (a configured host's name), `unmatched=true`, `statusClass` (`5` or `5xx`), `status`, `ip` (prefix), `method`, `path`, and `backlog` (0 to 1000, default 0, the newest matching entries first).
 - Every bad parameter, an over-long text and `host` with `unmatched` are 400 problems. The 33rd stream is a 503 with `Retry-After: 5`. There is no maximum duration: the stream ends when the client disconnects (`RequestAborted`), which disposes the subscription.
 
@@ -453,7 +453,7 @@ The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOvervie
 A component (`Components/SecurityStatistics.razor`) with no page of its own: it takes `Range` and `Visible` and reads, polls and draws by itself. It is the Security tab of Analytics.
 - **Refused per second**, stacked by reason: a `TimeSeriesChart` with `Stacked` (each line a filled band on the lines before it; the tooltip gives each reason's own rate). Only the reasons that refused something in the range are drawn. Unknown reason is a neutral grey; the reasons have `pdk-chart-r1` to `r9`. Gaps are shaded, and the total refused is beside the title.
 - Cards: proof of work (served, solved with its share, bad solution, not a browser, the four cookie reasons), rate limits (checked, limited with its share), access lists, connections (the live limit and deny list, what was refused, counted now, and table full once it happened), sign-in, and "Not served" (unknown host, no route, unavailable, dropped) once there are some. Short cards align to the top rather than stretching.
-- Numbers and times go through `DisplayFormat`. Polling as the overview's: the hour every 2 s, the longer ranges a tenth as often, paused while hidden and read at once when shown. A range that can't be read is an alert with "Retry" (`data-part=security-failed`). A role without `config:read` sees a lock.
+- Numbers and times go through `DisplayFormat`. Polling as the overview's: the hour every 2 s, the longer ranges a tenth as often, paused while hidden and read at once when shown. If a range can't be read, the tab shows an alert with "Retry" (`data-part=security-failed`). A role without `config:read` sees a lock.
 - It has no section heading (the tab is the heading) and no host scope.
 
 ### The Analytics page
@@ -476,7 +476,7 @@ What a person asks ("how is it doing now", "how did it do over a week") has one 
 - **The tabs are held from the prerender:** `Analytics` renders the tab row and the open tab's frame at once, with `Hold` set until the circuit has checked who is asking, so nothing is read for a person who may not see it.
 - **Is 1 h live on Visitors?** Yes, to within a few seconds, so there is no caveat line (`AnalyticsService` merges the stored buckets, the closed buckets waiting to be written and the open bucket). What is not in it is a host with its access log off.
 
-**Traffic tab** (`Components/TrafficStatistics.razor`): two charts (requests with a 5xx line; latency p50, p95, p99 and upstream p95) and two tables (busiest hosts, linked, the requests no host owns unlinked; upstream errors, named from the config). No live tiles: a figure for the last 30 s under a range picker would contradict the range. A longer range's tables splice the last hour from memory. A range that can't be read is an alert with "Try again".
+**Traffic tab** (`Components/TrafficStatistics.razor`): two charts (requests with a 5xx line; latency p50, p95, p99 and upstream p95) and two tables (busiest hosts, linked, the requests no host owns unlinked; upstream errors, named from the config). No live tiles: a figure for the last 30 s under a range picker would contradict the range. A longer range's tables splice the last hour from memory. If a range can't be read, the tab shows an alert with "Try again".
 
 **Visitors tab** (`Components/VisitorsStatistics.razor`) takes `Range`, `Host`, `Unmatched`, `HostName` and `Visible`. There is no page-wide accuracy note. The visitors tile carries its error as its subtitle ("+/-1.6%", the sketch's standard error), and a table count a sketch may have overcounted is marked with the approximation sign and a tooltip "Between X and Y".
 - **Top.** Four tiles: requests (with the share from bots), bandwidth (what was sent and, when anything was uploaded, how much was received), unique visitors, and the error rate (5xx). A range with no requests draws one empty state saying that a host with its access log off is never counted.
@@ -518,7 +518,7 @@ A per-user list of **entries**, in the order they were added. Each holds an obje
 
 **One entry per object.**
 - A later edit of the same object replaces the earlier one and keeps its place and number (numbers are never reused).
-- An edit that leaves the object as the head has it takes the entry out. Deleting an object the draft itself creates removes its entry. An entry can be removed on its own.
+- If an edit leaves the object as the head has it, the entry is taken out. Deleting an object the draft itself creates removes its entry. An entry can be removed on its own.
 - A whole-document command (replace, rollback) is not an entry.
 - A host form's staged objects (an upstream made for it) go in as entries of their own, ahead of the host.
 
@@ -560,7 +560,7 @@ A password typed into a drafted access list never reaches the row.
 - Otherwise nothing is committed, and the **fresh review** (the plan as it is now, with its token) comes back: `DraftStatus.ChangedSinceReview`, the API's 412 `draft.changedSinceReview` with the fresh review as the problem's `review`. The person confirms again on purpose.
 - The commit is **one revision**. The note defaults to "Draft (3 changes): add upstream app, change host x, ..." (editable, 1000 characters at most). The audit event is one `config.draft.apply` with every entry listed in its details. **Undo on that revision undoes the whole draft.**
 - The draft's row leaves in the commit's own transaction, so a crash cannot leave an applied draft to be applied again.
-- A set that does not validate as a whole is refused as any command is (422, errors by place), with no token to confirm, and the draft stays as it was.
+- If a set does not validate as a whole, it is refused as any command is (422, errors by place), with no token to confirm, and the draft stays as it was.
 
 ### The review token (`DraftReviewToken`)
 
@@ -575,7 +575,7 @@ A password typed into a drafted access list never reaches the row.
 ### Someone changed the config meanwhile: blocked entries
 
 **A draft applies whole or not at all.** Replaying on the new head is the merge, with no three-way merge.
-- An entry whose object changed since the entry was added (the version check an object command makes), or went away, is **Changed elsewhere**.
+- If an entry's object changed since the entry was added (the version check an object command makes), or went away, the entry is **Changed elsewhere**.
 - So is every entry that **refers to what a blocked entry would have written**, transitively and whatever the order. Example: the draft creates upstream U under an ID it chose and host H using U. Someone else creates an object with that ID. Both are blocked, H's reason names "add upstream U", and H is not applied on top of their upstream.
 - A blocked *delete* blocks nothing that refers to it. What still points at an object that stays is the validator's to refuse (a review of the rest is a 422).
 - **If any entry is blocked, apply refuses the whole draft** (`DraftStatus.Blocked`, 409 `draft.blocked` with one error per blocked entry) and commits nothing. A review still shows the rest, without a token.
@@ -670,7 +670,7 @@ Shared pieces first. If a page needs its own look for one of these, the shared p
 
 **Headings.**
 - A card's title is h6 (`Typo.h6`). A card under a section heading, on a page that has several (Analytics), is `subtitle1`. The section heading itself is h6 with `.pdk-section-heading`. A small label inside a form is `subtitle2`.
-- A page whose content is one section has no section heading: the title is the heading, and the controls that sat beside it go in a row at the top of the content (the security overview's hosts card, the Security tab of Analytics).
+- If a page's content is one section, it has no section heading: the title is the heading, and the controls that sat beside it go in a row at the top of the content (the security overview's hosts card, the Security tab of Analytics).
 
 **Filter cards** (Audit, Live tail) are `.pdk-filters`: an optional bar (a segmented control, "Clear filters" at the end), then the fields in one wrapping grid. Every field is dense outlined and floats its label (give it a placeholder).
 
