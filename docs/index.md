@@ -69,9 +69,6 @@ docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"
 
 `master.key` is the only key to the vault, and a backup does not contain it. Open `https://localhost:9443/` on the server and create the Owner with the setup token. [Getting started](guide/getting-started.md) goes on from there to a service behind HTTPS.
 
-!!! warning "Pre-alpha"
-    Until v0.1, the first release, expect breaking changes, and do not put Paduraksa in front of anything that matters.
-
 <footer class="pdk-landing-footer" markdown>
 [Apache-2.0](https://github.com/hizkifw/paduraksa/blob/main/LICENSE) [GitHub](https://github.com/hizkifw/paduraksa) [Documentation](introduction.md)
 </footer>

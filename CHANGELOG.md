@@ -22,6 +22,20 @@ Section numbers written as `(§7.4)` in the entries below refer to the numbering
 | 16 | `docs/design/deployment.md` |
 | 17 | `docs/PLAN.md` (open questions) |
 
+## v0.1.0 (2026-11-15)
+
+The first release: a single-node reverse proxy for homelabs with a web dashboard, a REST API, MCP and a CLI. The image is `ghcr.io/hizkifw/paduraksa:0.1.0` (also `0.1`), for amd64 and arm64. What it contains is the design as of Plan r31 below, plus these changes made after it:
+
+- **Dashboard:**
+  - the Security overview has live tiles that open Analytics on the right tab;
+  - ACME accounts and DNS providers are tables with drawers, and a DNS provider can be renamed;
+  - every reference to another object is a link;
+  - API tokens can be renamed, rescoped, disabled and enabled;
+  - an About page shows the build and the open-source licenses (`THIRD-PARTY-NOTICES.md`).
+- **Names:** Auth providers (`/auth-providers`), Rule sets (`/rule-sets`), the Hosts list's Target column, and "Applied:" toasts for config changes.
+- **Text:** the dashboard, the API reference, the CLI and the docs were rewritten in a plainer voice with one fixed vocabulary (`docs/design/dashboard.md`, "Voice and vocabulary"). The API reference renders the doc comments' references as field names.
+- **Docs:** the design pages are a Contributors section, and the threat model has an operator page and a full analysis.
+
 ## Plan r31
 The v0.1 candidate. M11 is done: request timing, server settings in the dashboard, security history, the Analytics tabs, `paduraksa doctor` and the docs site on www.paduraksa.org, then a final pass of bench, fuzz, soak and review.
 

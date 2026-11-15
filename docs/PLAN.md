@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **Plan r31**: M0-M11 done (the NPM importer stays a nice-to-have): the v0.1 candidate, with the fuzz run, bench, 2-hour soak and final review done; the v0.1 tag left (see CHANGELOG.md) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.1.0 released** (2026-11-15; Plan r31): M0-M11 done (the NPM importer stays a nice-to-have); see CHANGELOG.md · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -338,7 +338,7 @@ Detail: [design/milestones.md](design/milestones.md).
 | M8 Custom error pages | Custom pages, maintenance mode, upstream error replacement | Done |
 | M9 Observability | Metrics, live tail, analytics, health, notifications | Done |
 | M10 Interop | YAML, MCP, backup and restore, drafts | Done; the NPM importer is not built |
-| M11 Release v0.1 | Image publishing, docs site, threat model, fuzz run, load tests | Done; the tag is left |
+| M11 Release v0.1 | Image publishing, docs site, threat model, fuzz run, load tests | Done; v0.1.0 released 2026-11-15 |
 
 **Open items inside done milestones:** a local country database, bcrypt `htpasswd` import, native OIDC, a forward-auth trace that makes the real call, a warning for a rule no request can reach, per-route error pages, local CA root renewal, the browser H3 upgrade test.
 

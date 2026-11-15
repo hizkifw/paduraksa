@@ -6,7 +6,7 @@ For contributors: what each spike proved, and what each milestone built. The ove
 
 - Seven spikes de-risked the design before the features that needed them. All are done. Two changed the design: S2 (the gate selects the YARP endpoint) and S4 (EF discovery is replaced, JSON stores strings).
 - Two spikes are partial: S1 (a real browser upgrading to H3 is untested) and S6 (the metric-slot test came with M9).
-- Milestones M0 to M11 are done. The NPM importer (M10) is not built, and the v0.1 tag (M11) waits for sign-off.
+- Milestones M0 to M11 are done. The NPM importer (M10) is not built, and v0.1.0 (M11) was released on 2026-11-15.
 - This page is the history. The current state of each area is on its own page, linked from every entry.
 - Items still open inside done milestones are listed at the end of each milestone, and the roadmap is under [Later](#later).
 
@@ -179,7 +179,7 @@ Each milestone ended with a working, testable increment.
 
 ### M11: Release v0.1
 
-Everything below is done. Only the tag waits for sign-off.
+Everything below is done. v0.1.0 was tagged on 2026-11-15.
 
 - **Images and docs:**
   - Multi-arch image publishing.

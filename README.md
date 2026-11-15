@@ -2,9 +2,6 @@
 
 A self-hosted reverse proxy for homelabs, built on .NET with the Kestrel web server and the YARP proxy library. Deploy it once, then manage hosts, certificates and users from a web dashboard or a REST API. Every change is reviewed first, versioned and reversible.
 
-> [!WARNING]
-> Pre-alpha. It works end to end, but expect breaking changes until v0.1. Don't put it in front of anything that matters yet.
-
 *Paduraksa*: the gate into the inner sanctum, flanked by guardian figures meant to keep evil out.
 
 <img width="960" alt="The Paduraksa dashboard: live traffic for the last hour, counts of hosts, upstreams and certificates, the hosts and the recent changes" src="docs/assets/readme-overview.png" />
