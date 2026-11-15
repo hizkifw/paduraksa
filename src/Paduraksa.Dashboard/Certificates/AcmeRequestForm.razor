@@ -15,7 +15,7 @@
     else if (_active.Count == 0)
     {
         <div class="pdk-inline-empty" data-section="no-account">
-            <span>There is no ACME account yet: it is how the CA knows who is asking.</span>
+            <span>There is no ACME account yet, and the CA needs one to know who is asking.</span>
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAccountAsync"
                        Disabled="Busy" Class="pdk-acme-new-account">Add ACME account</MudButton>
         </div>
@@ -45,7 +45,7 @@
         else if (Providers.Count == 0)
         {
             <div class="pdk-inline-empty" data-section="no-provider">
-                <span>DNS-01 needs a DNS provider to write the TXT record through.</span>
+                <span>DNS-01 needs a DNS provider to write the TXT record.</span>
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddProviderAsync"
                            Disabled="Busy" Class="pdk-acme-new-provider">Add DNS provider</MudButton>
             </div>

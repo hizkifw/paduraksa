@@ -15,7 +15,7 @@
         {
             <MudTextField T="string" @bind-Value="_text" Label="Domains and networks, one per line" Lines="6" Sizing="InputSizing.Auto" Variant="Variant.Outlined" Margin="Margin.Dense"
                           Class="pdk-mono-input" data-field="local-ca-names"
-                          HelperText="A device that trusts this root accepts nothing for any other name, and changing the list later means rotating again. The admin certificate's names are always kept." />
+                          HelperText="A device that trusts this root accepts no certificate for other names, and changing the list later means rotating the root again. The admin certificate's names are always kept." />
         }
     </DialogContent>
     <DialogActions>

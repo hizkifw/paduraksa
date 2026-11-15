@@ -147,7 +147,7 @@ else if (!_failed)
     {
         var names = await LocalCaNamesDialog.AskAsync(
             Dialogs, "Create the local CA", "Create", Suggestions(),
-            "By default the root may issue for any name. Limiting it means a device that trusts it accepts nothing outside the list, which also changes only by rotating.");
+            "By default the root may issue for any name. If you limit it, a device that trusts it accepts nothing outside the list, and the list changes only by rotating the root.");
         if (names is null)
         {
             return;
