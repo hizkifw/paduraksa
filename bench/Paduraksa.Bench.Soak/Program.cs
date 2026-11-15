@@ -380,6 +380,7 @@ async Task<int> RunAsync()
                 ["mode"] = browser.Mode,
                 ["checks"] = browser.Checks,
                 ["stale"] = browser.Stale,
+                ["staleInWindow"] = browser.StaleInWindow,
                 ["reloads"] = browser.Reloads,
                 ["problems"] = JsonSerializer.SerializeToNode(browser.Problems),
             },

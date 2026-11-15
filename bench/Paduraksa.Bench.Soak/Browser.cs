@@ -15,6 +15,7 @@ internal sealed class BrowserTabs(SoakOptions options, Recorder recorder, Events
     private IPage? _analytics;
     private long _checks;
     private long _stale;
+    private long _staleInWindow;
     private long _reloads;
 
     public bool Running => _browser is not null;
@@ -25,7 +26,11 @@ internal sealed class BrowserTabs(SoakOptions options, Recorder recorder, Events
 
     public long Checks => Interlocked.Read(ref _checks);
 
+    /// <summary>Checks that found a tab without a live circuit outside the restart and flap windows: a bug.</summary>
     public long Stale => Interlocked.Read(ref _stale);
+
+    /// <summary>The same inside those windows, where a check that lands while the server is down finds the circuit gone, as a person would: for the record.</summary>
+    public long StaleInWindow => Interlocked.Read(ref _staleInWindow);
 
     public long Reloads => Interlocked.Read(ref _reloads);
 
@@ -132,9 +137,13 @@ internal sealed class BrowserTabs(SoakOptions options, Recorder recorder, Events
             var live = await page.QuerySelectorAsync(".pdk-shell[data-circuit=live]");
             if (live is null)
             {
-                Interlocked.Increment(ref _stale);
-                if (!recorder.Tolerance.Applies(events.ElapsedSeconds, "admin"))
+                if (recorder.Tolerance.Applies(events.ElapsedSeconds, "admin"))
                 {
+                    Interlocked.Increment(ref _staleInWindow);
+                }
+                else
+                {
+                    Interlocked.Increment(ref _stale);
                     recorder.Fail("browser-circuit", "admin", name, "browser", "the dashboard tab has no live circuit");
                 }
 

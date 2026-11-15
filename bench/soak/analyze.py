@@ -389,7 +389,16 @@ def check_restart(report, plan, facts):
     pre, post = restart["pre"], restart["post"]
     pre_total = (pre.get("analytics") or {}).get("totals", {}).get("requests")
     post_total = (post.get("analytics") or {}).get("totals", {}).get("requests")
-    if pre_total is not None and post_total is not None:
+    # Per five-minute bucket, not the hour's total: the hour is a sliding range of whole buckets, so a restart whose snapshots straddle a bucket boundary drops
+    # the oldest bucket (a 2-hour run lost 1.2 M requests of "total" that way with every bucket intact). A bucket in both snapshots must not shrink.
+    pre_buckets = {b["start"]: b["requests"] for b in (pre.get("analytics") or {}).get("series", [])}
+    post_buckets = {b["start"]: b["requests"] for b in (post.get("analytics") or {}).get("series", [])}
+    shared = sorted(set(pre_buckets) & set(post_buckets))
+    if shared:
+        shrunk = [s for s in shared if post_buckets[s] < pre_buckets[s]]
+        report.ok("Restart", "analytics continue (no bucket lost requests)", not shrunk, f"{len(shrunk)} of {len(shared)} buckets shrank", "0",
+                  f"the bucket open at the restart {pre_buckets[shared[-1]]:,} -> {post_buckets[shared[-1]]:,}; hour total {pre_total:,} -> {post_total:,}")
+    elif pre_total is not None and post_total is not None:
         report.ok("Restart", "analytics continue (the total carried across)", post_total >= pre_total, f"{pre_total:,} -> {post_total:,} requests (hour)", "no loss")
     else:
         report.skip("Restart", "analytics continue", "no analytics snapshot")
@@ -459,6 +468,8 @@ def check_admin(report, plan, facts):
     browser = facts["browser"]
     if browser["mode"] == "chromium":
         report.ok("Admin, dashboard and MCP", "dashboard tabs (overview, analytics) stayed live", browser["stale"] == 0 and not browser["problems"], f"{browser['checks']} checks, {browser['stale']} stale, {len(browser['problems'])} console problems", "0",
+                  # A check that lands in the restart's window finds the circuit gone and reloads, as a person would; runs before the split counted it as stale.
+                  (f"{browser['staleInWindow']} stale inside the restart window, reloaded; " if browser.get("staleInWindow") else "") +
                   "; ".join(browser["problems"][:2]))
     else:
         report.skip("Admin, dashboard and MCP", "dashboard tabs stayed live", f"no browser: {browser['mode']}")

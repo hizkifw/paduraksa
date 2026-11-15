@@ -1,0 +1,13 @@
+2026-11-14T20:53:13.463Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: http://[::]:18081
+2026-11-14T20:53:13.463Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: https://[::]:18443
+2026-11-14T20:53:13.990Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: https://127.0.0.1:18943
+2026-11-14T20:53:13.990Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: http://unix:/tmp/paduraksa-soak-2730458/run/admin.sock
+2026-11-14T21:33:28.377Z warn: Yarp.ReverseProxy.Health.DestinationHealthUpdater[49] => app=public Active health state of destination `dst_034xdpT1d5tJ76cEbbXVdt` on cluster `ups_034xdpT1KwV0YN65WZTO4L` is set to 'Unhealthy'.
+2026-11-14T21:53:23.716Z info: Paduraksa.Server.Hosting.PaduraksaHost[441110529] => app=core Shutting down (reason: Signal, initiated by: process)
+2026-11-14T21:53:39.815Z info: Paduraksa.Server.Hosting.PaduraksaHost[112729106] => app=core Paduraksa stopped
+2026-11-14T21:53:41.883Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: http://[::]:18081
+2026-11-14T21:53:41.883Z info: Microsoft.Hosting.Lifetime[14] => app=public Now listening on: https://[::]:18443
+2026-11-14T21:53:42.532Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: https://127.0.0.1:18943
+2026-11-14T21:53:42.532Z info: Microsoft.Hosting.Lifetime[14] => app=admin Now listening on: http://unix:/tmp/paduraksa-soak-2730458/run/admin.sock
+2026-11-14T22:53:34.617Z info: Paduraksa.Server.Hosting.PaduraksaHost[441110529] => app=core Shutting down (reason: Signal, initiated by: process)
+2026-11-14T22:53:34.652Z info: Paduraksa.Server.Hosting.PaduraksaHost[112729106] => app=core Paduraksa stopped

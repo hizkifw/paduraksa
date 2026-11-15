@@ -1,0 +1,1048 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  defaults:
+    forceHttps: false
+    accessLog: true
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+  connections:
+    maxConnectionsPerIp: 20000
+    denyList: blocked
+    setsNothing: false
+profiles:
+  - id: prof_034xdpT1d5yf7i5MvqcGAB
+    name: public
+    settings:
+      hsts:
+        enabled: true
+        maxAge: 31536000
+      errorPages:
+        '404':
+          mode: message
+          heading: Nothing here
+          text: 'That page does not exist on this soak host.'
+        '429':
+          mode: message
+          heading: Slow down
+          text: 'Too many requests.'
+        '502':
+          mode: message
+          heading: Upstream is down
+          text: 'The soak upstream did not answer.'
+      headers:
+        response:
+          - name: X-Soak-Profile
+            operation: set
+            value: public
+      compression:
+        enabled: true
+        minimumSize: 1024
+  - id: prof_034xdpT1d5z1s3LYoZo5Xh
+    name: internal
+    settings:
+      rateLimit:
+        enabled: true
+        policy: mid
+      accessList:
+        enabled: true
+        accessList: lan
+      errorPages:
+        '404':
+          mode: message
+          heading: Nothing here
+          text: 'That page does not exist on this soak host.'
+        '429':
+          mode: message
+          heading: Slow down
+          text: 'Too many requests.'
+        '502':
+          mode: message
+          heading: Upstream is down
+          text: 'The soak upstream did not answer.'
+upstreams:
+  - id: ups_034xdpT0wocjV3wTBjTLNf
+    name: web-a
+    loadBalancing: powerOfTwoChoices
+    sessionAffinity: false
+    passiveHealth:
+      reactivationPeriod: '00:00:10'
+    activeHealth:
+      path: /health
+      interval: '00:00:05'
+      timeout: '00:00:02'
+    notes: soak
+    destinations:
+      - id: dst_034xdpT1d5q6yYR9a3nwRu
+        address: http://127.0.0.1:19000
+        enabled: true
+      - id: dst_034xdpT1d5qWu70urFOjRI
+        address: http://127.0.0.1:19001
+        enabled: true
+      - id: dst_034xdpT1d5qpBXjL3zVvNS
+        address: http://127.0.0.1:19002
+        enabled: true
+  - id: ups_034xdpT18tTl9HQpPeXEMz
+    name: web-b
+    loadBalancing: roundRobin
+    sessionAffinity: false
+    passiveHealth:
+      reactivationPeriod: '00:00:10'
+    activeHealth:
+      path: /health
+      interval: '00:00:05'
+      timeout: '00:00:02'
+    notes: soak
+    destinations:
+      - id: dst_034xdpT1d5rDK9IyVHzR6R
+        address: http://127.0.0.1:19003
+        enabled: true
+      - id: dst_034xdpT1d5rZ4jdzDJAEMB
+        address: http://127.0.0.1:19004
+        enabled: true
+  - id: ups_034xdpT1EwnbUlfCzpoJYi
+    name: web-c
+    loadBalancing: powerOfTwoChoices
+    sessionAffinity: false
+    passiveHealth:
+      reactivationPeriod: '00:00:10'
+    activeHealth:
+      path: /health
+      interval: '00:00:05'
+      timeout: '00:00:02'
+    notes: soak
+    destinations:
+      - id: dst_034xdpT1d5rvJoKEwbM7GZ
+        address: http://127.0.0.1:19006
+        enabled: true
+      - id: dst_034xdpT1d5sH2KsfPbjDjM
+        address: http://127.0.0.1:19007
+        enabled: true
+      - id: dst_034xdpT1d5sdlvvMRdBVM9
+        address: http://127.0.0.1:19008
+        enabled: true
+  - id: ups_034xdpT1KwV0YN65WZTO4L
+    name: flappy
+    loadBalancing: powerOfTwoChoices
+    sessionAffinity: false
+    passiveHealth:
+      reactivationPeriod: '00:00:10'
+    activeHealth:
+      path: /health
+      interval: '00:00:03'
+      timeout: '00:00:02'
+    notes: soak
+    destinations:
+      - id: dst_034xdpT1d5t0y3jh4WNhsY
+        address: http://127.0.0.1:19009
+        enabled: true
+      - id: dst_034xdpT1d5tJ76cEbbXVdt
+        address: http://127.0.0.1:19010
+        enabled: true
+      - id: dst_034xdpT1d5tfVSP8opt1Lm
+        address: http://127.0.0.1:19011
+        enabled: true
+  - id: ups_034xdpT1KwVIqmnAVoYvHR
+    name: api
+    loadBalancing: powerOfTwoChoices
+    sessionAffinity: false
+    passiveHealth:
+      reactivationPeriod: '00:00:10'
+    activeHealth:
+      path: /health
+      interval: '00:00:05'
+      timeout: '00:00:02'
+    notes: soak
+    destinations:
+      - id: dst_034xdpT1d5u4rrdpbkRuWF
+        address: http://127.0.0.1:19012
+        enabled: true
+      - id: dst_034xdpT1d5uPEbSIMi2vd0
+        address: http://127.0.0.1:19013
+        enabled: true
+  - id: ups_034xdpT1R5izCSP5Fg2rAK
+    name: upload
+    loadBalancing: powerOfTwoChoices
+    sessionAffinity: false
+    passiveHealth:
+      reactivationPeriod: '00:00:10'
+    activeHealth:
+      path: /health
+      interval: '00:00:05'
+      timeout: '00:00:02'
+    notes: soak
+    destinations:
+      - id: dst_034xdpT1d5ul9sNv8I7W6w
+        address: http://127.0.0.1:19014
+        enabled: true
+      - id: dst_034xdpT1d5v50WpcLbdXDr
+        address: http://127.0.0.1:19015
+        enabled: true
+  - id: ups_034xdpT1X7dGMVVBNbEjZB
+    name: ws
+    loadBalancing: powerOfTwoChoices
+    sessionAffinity: false
+    passiveHealth:
+      reactivationPeriod: '00:00:10'
+    activeHealth:
+      path: /health
+      interval: '00:00:05'
+      timeout: '00:00:02'
+    notes: soak
+    timeouts:
+      idle: '00:02:00'
+    destinations:
+      - id: dst_034xdpT1d5vU6PyesoeEUh
+        address: http://127.0.0.1:19016
+        enabled: true
+      - id: dst_034xdpT1d5vr4fGi113pLw
+        address: http://127.0.0.1:19017
+        enabled: true
+      - id: dst_034xdpT1d5wAeI74TG8a9m
+        address: http://127.0.0.1:19018
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_034xdpT1d5wUC9zKJxJZm2
+    name: mid
+    requests: 600
+    per: second
+    burst: 1200
+    key: clientIp
+  - id: rlp_034xdpT1d5wuA4OLFmKfij
+    name: limited
+    requests: 20
+    per: second
+    burst: 20
+    key: clientIp
+accessLists:
+  - id: acl_034xdpT1d5xFGtPhLlrZsF
+    name: lan
+    ip:
+      dropDenied: false
+      allow: [127.0.0.0/8, '::1/128', 10.0.0.0/8, 192.168.0.0/16]
+    satisfy: all
+    passCredentialsUpstream: false
+  - id: acl_034xdpT1d5xcQ19FOZxmyX
+    name: blocked
+    ip:
+      dropDenied: false
+      deny: [198.51.100.0/24, 203.0.113.0/24]
+    satisfy: all
+    passCredentialsUpstream: false
+ruleSets:
+  - id: rs_034xdpT1d5xyWo2GWMVRKQ
+    name: scanners
+    rules:
+      - action: deny
+        match:
+          path:
+            kind: prefix
+            pattern: /wp-admin
+      - action: deny
+        match:
+          path:
+            kind: exact
+            pattern: /.env
+      - action: deny
+        match:
+          userAgent:
+            empty: false
+            contains: [sqlmap]
+authProviders:
+  - id: authp_034xdpT1d5yFf0WLhj0MZk
+    name: sso
+    forwardAuth:
+      url: http://127.0.0.1:19900/auth
+      preset: custom
+      timeoutSeconds: 3
+      cacheSeconds: 30
+      cacheScope: request
+hosts:
+  - id: host_034xdpT1jCR4til0f48xAl
+    names: [app01.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1jCRSTKbbBXpmrX
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8b3uMx5U3YiJL
+    names: [app02.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8bT6IBQp4uhzC
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8blsBKmuutuXC
+    names: [app03.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8c9BsaZ7m1sYc
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8cUHH8H47tAam
+    names: [app04.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8csLvUSIRONEz
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8dAbfzIhEsQcs
+    names: [app05.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8dYrkswQbiEFJ
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8dv6BquQUcIZB
+    names: [app06.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8eFlo1pP4MgLF
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8eaIJDZthWVZt
+    names: [app07.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8exKJoeQnlAEw
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8fL83sRTrg2Wy
+    names: [app08.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8fgxN4Zk5txaT
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8g4mwIKhre6gq
+    names: [app09.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8gLtMZt8BF26q
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8gkgYIgrYoNxE
+    names: [app10.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8h65bbjf25HhH
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8hRdiiBvnu3aX
+    names: [app11.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8hoLKI67rOvTF
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8i7pyVjf5gicT
+    names: [app12.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8iUa2FK7uo2kU
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8ipyw0RLluCK2
+    names: [app13.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8jBEdMfrFgBx1
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8jaEPJsWjgkUl
+    names: [app14.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8jw448yt1mFWF
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8kIj4tMRQMeYO
+    names: [app15.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8kd5Id9vysnOG
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8kygD8IKK56U0
+    names: [app16.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8lKbHB1cPlJAr
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8lj7NUnKQRBDb
+    names: [app17.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8m44Gt971PFuo
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8mSDMxAcg77e4
+    names: [app18.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8ml19XuHPPhZX
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8nA4dqapFCtAF
+    names: [app19.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8nVhzlOysLyh2
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8nqsI2yvDCS8F
+    names: [app20.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8o9vUzPI1k4eK
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8oX7Ibwxe7Uj0
+    names: [app21.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8osrPyYXluuiF
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8pFcdyzujFS4A
+    names: [app22.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8pYrUF1aOOx3j
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8pvWj0661ML7e
+    names: [app23.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8qL9YNXkplPwQ
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8qeWlCfC3fteM
+    names: [app24.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8r15sCqmTGcDz
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8rO10at90SyCY
+    names: [app25.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8rgzT1dl7Mmjp
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8s4qwnwXi5wB1
+    names: [app26.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8sTcqtVElcC5J
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8sphLYl8u52V8
+    names: [app27.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8tAG93bvopxX3
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8tUgbKzVkRhOh
+    names: [app28.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8tsjx8ZytfFYZ
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8uC3RLGn5eKcR
+    names: [app29.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8uXIPF5XTEc7S
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8uwQD4sslpAmA
+    names: [app30.soak.test]
+    kind: proxy
+    enabled: true
+    profile: internal
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8vH802mZy3azk
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8vfLyulF1jKKe
+    names: [flap01.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8vyXfEAI3F5Dm
+        upstream: flappy
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8wNqRwcOr1IpP
+    names: [flap02.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8wiMOL0fJi1x1
+        upstream: flappy
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8x1SqQePVK5ux
+    names: [flap03.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p8xRGJNZcJBV7D
+        upstream: flappy
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8xkYGQDMLbXBn
+    names: [limit01.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      rateLimit:
+        enabled: true
+        policy: mid
+    routes:
+      - id: rte_034xdpT1p8y9GaGUIlZpwf
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8yR6f4yRxvDJd
+    names: [limit02.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      rateLimit:
+        enabled: true
+        policy: mid
+    routes:
+      - id: rte_034xdpT1p8ynVTayuiloQE
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8zBjPZjDzPwI0
+    names: [limit03.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      rateLimit:
+        enabled: true
+        policy: mid
+    routes:
+      - id: rte_034xdpT1p8zXnOY9CrTyC9
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p8zu0bydfyCn5I
+    names: [limit04.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      rateLimit:
+        enabled: true
+        policy: mid
+    routes:
+      - id: rte_034xdpT1p90EPj4GWLvrxn
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p90ZdgB82zmhSH
+    names: [limit05.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      rateLimit:
+        enabled: true
+        policy: mid
+    routes:
+      - id: rte_034xdpT1p90zWum2IHPOj7
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p91I3DEip92n1Y
+    names: [lan.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      accessList:
+        enabled: true
+        accessList: lan
+    routes:
+      - id: rte_034xdpT1p91hFRO7LZXlOT
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p91ytoezotqFmi
+    names: [rules.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      ruleSet:
+        enabled: true
+        ruleSet: scanners
+    routes:
+      - id: rte_034xdpT1p92L4hQz7a9orP
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p92lRAlsggd6js
+    names: [auth.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      authProvider:
+        enabled: true
+        authProvider: sso
+    routes:
+      - id: rte_034xdpT1p935ksUeDTfztK
+        upstream: api
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p93PYHQCGkGbr2
+    names: [pow.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      proofOfWork:
+        enabled: true
+        difficulty: 8
+        tokenLifetimeHours: 1
+    routes:
+      - id: rte_034xdpT1p93kOdksDHsceR
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p94B1B9G96CjXX
+    names: [headers.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      headers:
+        request:
+          - name: X-Soak-Tenant
+            operation: set
+            value: acme
+          - name: X-Soak-Added
+            operation: add
+            value: one
+          - name: X-Soak-Drop
+            operation: remove
+        response:
+          - name: X-Soak-Policy
+            operation: set
+            value: v1
+          - name: X-Powered-By
+            operation: remove
+      compression:
+        enabled: true
+    routes:
+      - id: rte_034xdpT1p94UGLeJK7V4HT
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p94qfoQp9Pp24V
+    names: [rewrite.soak.test]
+    kind: proxy
+    enabled: true
+    profile: public
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p95DHrfcI85lUl
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /app
+        rewrite:
+          stripPrefix: true
+          addPrefix: /api
+  - id: host_034xdpT1p95WGplndcDkLU
+    names: [https.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      forceHttps: true
+      hsts:
+        enabled: true
+        maxAge: 31536000
+    routes:
+      - id: rte_034xdpT1p95tnucQOuaqTx
+        upstream: web-b
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p96Hv85m2I424N
+    names: [redirect.soak.test]
+    kind: redirect
+    enabled: true
+    redirect:
+      target: https://app01.soak.test
+      statusCode: 301
+      preservePath: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+  - id: host_034xdpT1p96bj7QoenuMCa
+    names: [respond.soak.test]
+    kind: respond
+    enabled: true
+    respond:
+      statusCode: 200
+      body: |
+        ok
+      contentType: 'text/plain; charset=utf-8'
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+  - id: host_034xdpT1p96zasnJZbwQWc
+    names: [ws.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    routes:
+      - id: rte_034xdpT1p97MDevS43lbck
+        upstream: ws
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p97gVcd8mLob5A
+    names: [limited.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      rateLimit:
+        enabled: true
+        policy: limited
+      errorPages:
+        '404':
+          mode: message
+          heading: Nothing here
+          text: 'That page does not exist on this soak host.'
+        '429':
+          mode: message
+          heading: Slow down
+          text: 'Too many requests.'
+        '502':
+          mode: message
+          heading: Upstream is down
+          text: 'The soak upstream did not answer.'
+    routes:
+      - id: rte_034xdpT1p97zqy192KRFxp
+        upstream: web-c
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p98PJD3xZUHBEt
+    names: [canary.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      headers:
+        response:
+          - name: X-Soak-Rev
+            operation: set
+            value: '0'
+    routes:
+      - id: rte_034xdpT1p98k5MqCacXnZx
+        upstream: web-a
+        order: 0
+        match: prefix
+        path: /
+  - id: host_034xdpT1p997tuKmgyb53J
+    names: [upload.soak.test]
+    kind: proxy
+    enabled: true
+    certificate:
+      mode: specific
+      certificateId: crt_02x5L6n2fuxI8jmEuqQF0v
+    settings:
+      requestLimits:
+        maxBodySize: 1048576
+    routes:
+      - id: rte_034xdpT1p99S4zskDSNyIr
+        upstream: upload
+        order: 0
+        match: prefix
+        path: /

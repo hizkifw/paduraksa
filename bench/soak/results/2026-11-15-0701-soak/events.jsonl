@@ -1,0 +1,14 @@
+{"t":4.713,"ms":1794697343138,"kind":"config.imported","detail":{"hosts":51,"ms":548}}
+{"t":12.182,"ms":1794697350607,"kind":"browser.ready","detail":{"tabs":2,"executable":"/usr/bin/chromium"}}
+{"t":0,"ms":1794697350613,"kind":"load.begin","detail":{"DurationSeconds":7200,"Rate":4000}}
+{"t":2400.003,"ms":1794699750616,"kind":"flap.stop","detail":{"node":"flappy-1","port":19010}}
+{"t":2405.004,"ms":1794699755617,"kind":"burst.begin","detail":{"seconds":60}}
+{"t":2460.047,"ms":1794699810660,"kind":"flap.start","detail":{"node":"flappy-1"}}
+{"t":2465.027,"ms":1794699815640,"kind":"burst.end","detail":{"issued":594,"slipped":6,"seconds":60}}
+{"t":2505.047,"ms":1794699855660,"kind":"flap.checked","detail":{"afterRestartRequests":2419}}
+{"t":6400.224,"ms":1794703750837,"kind":"restart.begin","detail":{"pid":2952184}}
+{"t":6416.409,"ms":1794703767022,"kind":"restart.stopped","detail":{"exitCode":0,"seconds":16.18}}
+{"t":6419.554,"ms":1794703770167,"kind":"restart.ready","detail":{"secondsFromSignal":19.55}}
+{"t":6420.063,"ms":1794703770676,"kind":"restart.counters","detail":{"before":26410344,"after":6604}}
+{"t":7200,"ms":1794704550613,"kind":"load.end","detail":null}
+{"t":7211.362,"ms":1794704561975,"kind":"server.stopped","detail":{"exitCode":0,"seconds":0.13}}

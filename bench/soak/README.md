@@ -173,6 +173,33 @@ the canary never went backwards, the counters never regressed in 361 scrapes, th
 The silent WebSocket check was skipped in both runs: `ClientWebSocket` pings every 30 s by default, a ping is traffic, and so the 120-second idle timeout never ran out. The harness now disables the pings for those
 five sockets; 5-minute runs after the change show them cut at exactly 120 s.
 
+## The two-hour runs before v0.1
+
+Two 120-minute runs on 2026-11-15, after the fuzz and the bench, at 4 134 requests a second (29.8 million requests each, none skipped):
+- `results/2026-11-15-0452-soak`: the restart halfway;
+- `results/2026-11-15-0701-soak`: the restart at 107 minutes (`--restart-at 6400`), so one process lived through 101 minutes of quiet samples.
+
+They answer the question the hour-long runs left open, whether the RSS steps level off.
+
+**Memory levels off.** RSS climbs for about 30 minutes, from about 600 MiB to 760, and then stays between 680 and 790 MiB. The GC heap retained stays between 155 and 180 MiB. Over the long process's whole life the fits are:
+
+| Measure | Fit | Limit |
+|---|---|---|
+| RSS | +42 MiB/h | 64 |
+| Anonymous RSS | +39 MiB/h | 64 |
+| GC heap retained | +8.5 MiB/h | 16 |
+| Descriptors | flat | |
+| OS threads | flat | |
+
+The first run failed the same three fits: each of its processes lived an hour, and half of that hour was the climb.
+
+**Every other product check passed in both runs:** no unexpected error, latency, publishes, S6, the flap and the restart.
+
+**Three harness faults showed up, and are fixed:**
+- **Silent WebSockets cut late, at 240 to 840 s instead of 120.** The upstream's ASP.NET WebSocket middleware pings every 2 minutes by default, and a ping is traffic, so it raced the 120-second idle timeout. The upstream now sends none, and the second run's 290 silent sockets were all cut at 120 s.
+- **"Analytics continue" compared the hour's total.** That total is a sliding range of whole five-minute buckets, and the second run's snapshots straddled a bucket boundary, so the oldest bucket (1.2 million requests) dropped out with every bucket intact. The check now compares bucket by bucket. Both runs pass: no bucket shrank, and the bucket open at the restart grew across it.
+- **A dashboard check that landed while the server was down counted as a stale tab.** The tab reloaded, as a person would. Such checks are now counted apart from the real ones (`staleInWindow`). The second run's one stale check was inside the window: no circuit failure was recorded outside it. Its facts predate the split, so its summary still shows it.
+
 ## Known limits of the test
 
 - One client IP: every client is loopback, so per-IP limits (the rate limits, the connection cap) see one client. The deny list and the cap are configured high for that reason.
