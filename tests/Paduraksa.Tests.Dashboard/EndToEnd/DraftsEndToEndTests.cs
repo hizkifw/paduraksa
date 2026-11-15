@@ -12,7 +12,7 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// Drafts end to end in a real browser (docs/design/dashboard.md "Drafts (M10)", "Making a change"): an upstream added to a new draft from the review sheet on one page, a host that uses it
+/// Drafts end to end in a real browser (docs/design/dashboard.md "Drafts", "Making a change"): an upstream added to a new draft from the review sheet on one page, a host that uses it
 /// made on another (the picker offers the upstream marked "Draft"), the bar following the person across pages and a reload, then the draft drawer, which is the review of the whole set,
 /// applied as one revision; and the host list's switch going through the same sheet. Skipped when no
 /// Chromium is installed (see <see cref="PlaywrightBrowser"/>); screenshots are kept when <see cref="PlaywrightBrowser.ScreenshotVariable"/> names a directory.

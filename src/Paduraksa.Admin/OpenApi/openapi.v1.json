@@ -8615,7 +8615,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
             }
           }
         ],
@@ -8706,7 +8706,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
             }
           }
         ],
@@ -8782,7 +8782,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
             }
           }
         ],
@@ -8875,7 +8875,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
             }
           }
         ],
@@ -9028,7 +9028,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
             }
           },
           {
@@ -9124,7 +9124,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
             }
           },
           {
@@ -9266,7 +9266,7 @@
               ],
               "pattern": "^drf_[0-9A-Za-z]{22}$",
               "type": "string",
-              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+              "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
             }
           },
           {
@@ -19166,7 +19166,7 @@
         ],
         "pattern": "^drf_[0-9A-Za-z]{22}$",
         "type": "string",
-        "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts (M10)\")."
+        "description": "A draft: one user's open change set across pages, applied as one revision (docs/design/dashboard.md \"Drafts\")."
       },
       "DraftOutcome": {
         "required": [
