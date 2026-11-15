@@ -1,8 +1,6 @@
 # Installing Paduraksa
 
-The install guide moved into the documentation site's pages, one task each, so that every fact has one home. This page is the map from the old sections to them.
-
-Start with [Getting started](guide/getting-started.md).
+The old install guide's sections now live on separate pages. Start with [Getting started](guide/getting-started.md), or use this table to find a section.
 
 | Section of the old install guide | Now |
 |---|---|
@@ -26,4 +24,4 @@ Start with [Getting started](guide/getting-started.md).
 
 ## The master key
 
-The master key opens the vault, and the dashboard links here from the Overview when the key is stored beside it. The page for it is [The master key](operating/master-key.md): where it is read from, how to move it out of the data directory, and how to change it.
+The dashboard's Overview links here when the key is stored beside the vault. See [The master key](operating/master-key.md) for where it is read from, how to move it out of the data directory, and how to change it.
