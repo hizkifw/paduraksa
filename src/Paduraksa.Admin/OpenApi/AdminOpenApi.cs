@@ -49,6 +49,8 @@ internal static class AdminOpenApi
             options.AddDocumentTransformer(DescribeDocument);
             options.AddSchemaTransformer(DescribeSchema);
             options.AddOperationTransformer(DescribeOperationAsync);
+            // Last, so it sees every description the generator and the transformers above wrote.
+            options.AddDocumentTransformer(TidyDescriptions);
         });
     }
 
@@ -114,6 +116,12 @@ internal static class AdminOpenApi
             Scheme = "bearer",
             Description = "An API token issued to a user. A signed-in session cookie also works.",
         };
+        return Task.CompletedTask;
+    }
+
+    private static Task TidyDescriptions(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
+    {
+        DescriptionWalker.Tidy(document);
         return Task.CompletedTask;
     }
 

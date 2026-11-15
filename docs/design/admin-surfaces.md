@@ -240,6 +240,11 @@ The security-headers middleware (auth) adds its headers when the response starts
 - OpenAPI 3.1 at `/api/v1/openapi.json` is generated at development time into `OpenApi/openapi.v1.json`, embedded, and served from there. ASP.NET's generator rebuilds every operation's schemas and took 3 s warm and 6 to 9 s cold with some 2.7 GB of allocation.
   - `OpenApiSnapshotTests` keeps the copy equal to a fresh generation. The typed-ID examples are constants so the bytes are stable.
   - `OpenApiDocumentCache` generates and caches only when no copy is embedded.
+  - Descriptions come from the XML doc comments and the endpoint calls. A last document transformer (`DescriptionText`, `DescriptionWalker`) turns them into reader text:
+    - A `cref` is written as the member's JSON name in backticks (`` `enabled` ``, an enum value as its wire name). A member the JSON doesn't carry (a constant, a method) is written as `Type.Member`. The crefs stay in the source.
+    - Source line breaks and indentation become single spaces, and a blank line stays one blank line, so Scalar shows paragraphs.
+    - XML entities and inline `<b>`/`<i>` become text and Markdown.
+  - `OpenApiDescriptionTextTests` covers the rewriting and checks that no description in the shipped document carries a symbol prefix, a type path, a member written with its type, source indentation, an entity or markup.
 - Scalar at `/api/docs`: the script is embedded and served locally, with no fonts, telemetry, agent or MCP hook. CSP `default-src 'none'; script-src 'self' 'nonce-...'; style-src 'self' 'unsafe-inline'; ...; connect-src 'self'`. Scalar's bundle contains no `eval` or `new Function` (a test checks), so there is no `'unsafe-eval'`. Both are anonymous (`AllowAnonymousAdmin`).
 - The description names which resources take `If-Match`, the 428, 412 and 400 rules, `config.publishFailed`, the conventions above, and has a `servers` entry (the admin app's own origin).
 - **`OpenApiCompletenessTests`** walks the generated description and the mapped endpoints: declared and listed query parameters are the same set, every success has a schema, the problem lists are complete, and an operation answers a page exactly when it takes `limit` and `cursor`. `ApiQueryTests` covers the guard that throws on an undeclared parameter.
