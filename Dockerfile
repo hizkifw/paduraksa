@@ -135,6 +135,8 @@ STOPSIGNAL SIGTERM
 LABEL org.opencontainers.image.title="Paduraksa" \
       org.opencontainers.image.description="Self-hosted reverse proxy for homelabs, built on Kestrel and YARP" \
       org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.url="https://www.paduraksa.org/" \
+      org.opencontainers.image.documentation="https://www.paduraksa.org/" \
       org.opencontainers.image.source="https://github.com/hizkifw/paduraksa"
 
 USER 10001:10001

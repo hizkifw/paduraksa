@@ -48,7 +48,7 @@ public sealed class HtmlPageTemplate
     internal static readonly string TitleEnd = string.Concat("</title><style>", BrandStyle, "</style></head><body><main>", Logo);
 
     internal const string DocumentEnd =
-        "</main><footer><a href=\"https://github.com/hizkifw/paduraksa\">Protected by Paduraksa</a></footer></body></html>\n";
+        "</main><footer><a href=\"https://www.paduraksa.org/\">Protected by Paduraksa</a></footer></body></html>\n";
 
     private readonly byte[][] _segments;
     private readonly PrecomputedHeader[] _headers;

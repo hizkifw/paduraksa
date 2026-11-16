@@ -231,6 +231,13 @@ jobs:
             type=sha
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+          # The action defaults image.url to the repository; the project's home is the site.
+          labels: |
+            org.opencontainers.image.url=https://www.paduraksa.org/
+            org.opencontainers.image.documentation=https://www.paduraksa.org/
+          annotations: |
+            org.opencontainers.image.url=https://www.paduraksa.org/
+            org.opencontainers.image.documentation=https://www.paduraksa.org/
 
       - name: Build and push (amd64 and arm64)
         uses: docker/build-push-action@v7

@@ -23,7 +23,7 @@ public sealed class HtmlPageTemplateTests
         Assert.Contains("aria-label=\"Paduraksa\"", page, StringComparison.Ordinal);
         Assert.Contains("<main><svg", page, StringComparison.Ordinal);
         Assert.Contains("<h1>Page not found.</h1><code>r-1</code></main>", page, StringComparison.Ordinal);
-        Assert.Contains("Protected by Paduraksa</a></footer></body></html>\n", page, StringComparison.Ordinal);
+        Assert.Contains("<footer><a href=\"https://www.paduraksa.org/\">Protected by Paduraksa</a></footer></body></html>\n", page, StringComparison.Ordinal);
         Assert.Equal(1, template.SlotCount);
     }
 
