@@ -27,12 +27,7 @@ public sealed class UpstreamHostHeaderTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-#pragma warning disable RS0030 // Test-only: an ephemeral key and self-signed cert for a loopback upstream; nothing is exported or persisted.
-        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        CertificateRequest request = new("CN=nas.lan", key, HashAlgorithmName.SHA256);
-        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], critical: false));
-        _certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
-#pragma warning restore RS0030
+_certificate = SelfSigned.Create("CN=nas.lan", serverAuth: true);
         (_plain, _plainAddress) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken);
         (_secure, _secureAddress) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken, _certificate);
     }

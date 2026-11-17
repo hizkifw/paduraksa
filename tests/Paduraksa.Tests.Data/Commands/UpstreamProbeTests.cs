@@ -191,17 +191,7 @@ public sealed class UpstreamProbeTests
         Assert.Equal(1L, await h.Db.ScalarAsync("SELECT count(*) FROM AuditEvents WHERE Action = 'upstream.certificate' AND Outcome = 'denied'"));
     }
 
-    private static X509Certificate2 SelfSigned(string name)
-    {
-#pragma warning disable RS0030 // Test-only: an ephemeral key and self-signed cert for a loopback TLS server; nothing is exported or persisted.
-        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        CertificateRequest request = new($"CN={name}", key, HashAlgorithmName.SHA256);
-        SubjectAlternativeNameBuilder names = new();
-        names.AddDnsName(name);
-        request.CertificateExtensions.Add(names.Build());
-        return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
-#pragma warning restore RS0030
-    }
+    private static X509Certificate2 SelfSigned(string name) => Shared.SelfSigned.Create($"CN={name}", [name]);
 
     private static UpstreamProbe Probe(ConfigServiceHarness h, IPermissionEvaluator? permissions = null) =>
         new(h.Service, permissions ?? TestPermissions.AllowAll, TimeProvider.System, NullLogger<UpstreamProbe>.Instance);

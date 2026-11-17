@@ -23,9 +23,7 @@ internal sealed class AnyCertificate : IDisposable
 
     public AnyCertificate()
     {
-        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        CertificateRequest request = new("CN=paduraksa test", key, HashAlgorithmName.SHA256);
-        _leaf = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        _leaf = SelfSigned.Create("CN=paduraksa test");
         _certificate = ServerCertificate.Create(_leaf, intermediates: null);
     }
 

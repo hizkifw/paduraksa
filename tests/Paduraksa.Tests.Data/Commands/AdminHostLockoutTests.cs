@@ -368,13 +368,7 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
         public AdminCompiler(bool omitCertificate = false)
         {
             _omitCertificate = omitCertificate;
-            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            CertificateRequest request = new("CN=admin", key, HashAlgorithmName.SHA256);
-            SubjectAlternativeNameBuilder san = new();
-            san.AddDnsName(AdminName);
-            request.CertificateExtensions.Add(san.Build());
-            request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], critical: false));
-            var leaf = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+            var leaf = SelfSigned.Create("CN=admin", [AdminName], serverAuth: true);
             _certificate = ServerCertificate.Create(leaf, intermediates: null);
         }
 

@@ -27,17 +27,7 @@ internal sealed class TestCertificates : IDisposable
     /// <summary>A certificate whose subject CN is <paramref name="commonName"/>, valid for <paramref name="dnsNames"/>.</summary>
     public ServerCertificate Create(string commonName, params string[] dnsNames)
     {
-        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        CertificateRequest request = new($"CN={commonName}", key, HashAlgorithmName.SHA256);
-        SubjectAlternativeNameBuilder san = new();
-        foreach (var dns in dnsNames)
-        {
-            san.AddDnsName(dns);
-        }
-
-        request.CertificateExtensions.Add(san.Build());
-        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], critical: false));
-        var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var certificate = SelfSigned.Create($"CN={commonName}", dnsNames, serverAuth: true);
         _owned.Add(certificate);
         return ServerCertificate.Create(certificate, intermediates: null);
     }

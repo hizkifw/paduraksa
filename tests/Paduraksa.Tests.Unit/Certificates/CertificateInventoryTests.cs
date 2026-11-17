@@ -275,16 +275,7 @@ public sealed class CertificateInventoryTests : IDisposable
 
     private SslStreamCertificateContext NewContext(string[] names)
     {
-        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        CertificateRequest request = new("CN=test", key, HashAlgorithmName.SHA256);
-        SubjectAlternativeNameBuilder san = new();
-        foreach (var name in names)
-        {
-            san.AddDnsName(name);
-        }
-
-        request.CertificateExtensions.Add(san.Build());
-        var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var certificate = SelfSigned.Create("CN=test", names);
         _owned.Add(certificate);
         return SslStreamCertificateContext.Create(certificate, null, offline: true);
     }
