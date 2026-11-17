@@ -153,7 +153,7 @@ public sealed partial class ConnectionRuntime
 
     private bool IsDenied(ConnectionPolicy policy, IpKey address, ConnectionTransport transport)
     {
-        if (policy.Deny.IsEmpty || !policy.Deny.Contains(address))
+        if (!policy.Denies(address))
         {
             return false;
         }

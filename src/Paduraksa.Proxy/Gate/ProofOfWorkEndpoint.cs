@@ -279,13 +279,12 @@ internal static class ProofOfWorkEndpoint
             }
             else if (b == '%')
             {
-                if (i + 2 >= encoded.Length || !TryHex(encoded[i + 1], out var high) || !TryHex(encoded[i + 2], out var low))
+                if (i + 2 >= encoded.Length || !TryHexByte((char)encoded[i + 1], (char)encoded[i + 2], out b))
                 {
                     written = 0;
                     return false;
                 }
 
-                b = (byte)((high << 4) | low);
                 i += 2;
             }
 
@@ -301,27 +300,12 @@ internal static class ProofOfWorkEndpoint
         return true;
     }
 
-    private static bool TryHex(byte value, out int digit)
+    /// <summary>The byte of two hex digits. The digits are checked first because number parsing also accepts trailing NULs.</summary>
+    internal static bool TryHexByte(char high, char low, out byte value)
     {
-        if (value is >= (byte)'0' and <= (byte)'9')
-        {
-            digit = value - '0';
-            return true;
-        }
-
-        if (value is >= (byte)'a' and <= (byte)'f')
-        {
-            digit = value - 'a' + 10;
-            return true;
-        }
-
-        if (value is >= (byte)'A' and <= (byte)'F')
-        {
-            digit = value - 'A' + 10;
-            return true;
-        }
-
-        digit = 0;
-        return false;
+        Span<char> pair = [high, low];
+        value = 0;
+        return char.IsAsciiHexDigit(high) && char.IsAsciiHexDigit(low)
+            && byte.TryParse(pair, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out value);
     }
 }

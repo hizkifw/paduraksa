@@ -274,10 +274,10 @@ public static class GateSimulator
             return null;
         }
 
-        var trusted = snapshot.TrustedProxies.IsTrustedPeer(IpKey.FromIPAddress(peer));
+        var refused = OriginLockdown.RefusesBeforeTls(snapshot, IpKey.FromIPAddress(peer));
         facts.Add(new("lockdownAtConnection", "yes"));
-        facts.Add(new("peerTrusted", trusted ? "yes" : "no"));
-        if (trusted)
+        facts.Add(new("peerTrusted", refused ? "no" : "yes"));
+        if (!refused)
         {
             return null;
         }
@@ -296,7 +296,7 @@ public static class GateSimulator
     {
         var policy = snapshot.Connections;
         var address = IpKey.FromIPAddress(peer);
-        if (!policy.Deny.IsEmpty && policy.Deny.Contains(address))
+        if (policy.Denies(address))
         {
             facts.Add(new("connectionDenyList", policy.DenyListName ?? string.Empty));
             return $"{peer} is in the connection deny list '{policy.DenyListName}': the connection is closed before TLS";
@@ -314,7 +314,7 @@ public static class GateSimulator
                 : $"{policy.MaxPerIp} per address (not simulated: it depends on what is open)"));
         }
 
-        if (!policy.Deny.IsEmpty && probe.ClientAddress is { } client && !client.Equals(peer) && policy.Deny.Contains(IpKey.FromIPAddress(client)))
+        if (probe.ClientAddress is { } client && !client.Equals(peer) && policy.Denies(IpKey.FromIPAddress(client)))
         {
             facts.Add(new("clientInConnectionDenyList", $"{client} is on the list, which judges only the connecting address ({peer}): behind a trusted proxy the client is judged at the gate"));
         }
@@ -726,7 +726,7 @@ public static class GateSimulator
         List<byte> pending = [];
         for (var i = 0; i < raw.Length; i++)
         {
-            if (raw[i] == '%' && i + 2 < raw.Length && TryHex(raw[i + 1], raw[i + 2], out var value) && value != 0x2F)
+            if (raw[i] == '%' && i + 2 < raw.Length && ProofOfWorkEndpoint.TryHexByte(raw[i + 1], raw[i + 2], out var value) && value != 0x2F)
             {
                 pending.Add(value);
                 i += 2;
@@ -808,18 +808,6 @@ public static class GateSimulator
         }
 
         return "/" + string.Join('/', output);
-    }
-
-    private static bool TryHex(char high, char low, out byte value)
-    {
-        value = 0;
-        if (!char.IsAsciiHexDigit(high) || !char.IsAsciiHexDigit(low))
-        {
-            return false;
-        }
-
-        value = (byte)((Convert.ToInt32(high.ToString(), 16) << 4) | Convert.ToInt32(low.ToString(), 16));
-        return true;
     }
 
     private sealed class SimulatedTlsConnection(X509Certificate2 clientCertificate) : ITlsConnectionFeature

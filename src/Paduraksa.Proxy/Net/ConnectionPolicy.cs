@@ -1,4 +1,5 @@
 using Paduraksa.Core.Model;
+using Paduraksa.ProxyProtocol;
 
 namespace Paduraksa.Proxy.Net;
 
@@ -30,6 +31,8 @@ public sealed class ConnectionPolicy
     public AccessListId? DenyListId { get; }
 
     public string? DenyListName { get; }
+
+    public bool Denies(IpKey address) => !Deny.IsEmpty && Deny.Contains(address);
 
     /// <summary>The connection stage has nothing to do, so the middleware passes a connection straight on.</summary>
     public bool IsInert => MaxPerIp == 0 && Deny.IsEmpty;
