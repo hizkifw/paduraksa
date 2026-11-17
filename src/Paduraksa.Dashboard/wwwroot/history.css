@@ -208,10 +208,7 @@
 }
 
 @media (max-width: 599px) {
-    .pdk-diff-card-head {
-        flex-wrap: wrap;
-    }
-
+    .pdk-diff-card-head,
     .pdk-diff-card-head > .pdk-page-header-actions {
         flex-wrap: wrap;
     }

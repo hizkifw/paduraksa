@@ -106,10 +106,7 @@
 .components-reconnect-failed .pdk-reconnect-when-failed,
 .components-reconnect-rejected .pdk-reconnect-when-rejected,
 .components-reconnect-paused .pdk-reconnect-when-paused,
-.components-reconnect-resume-failed .pdk-reconnect-when-resume-failed {
-    display: block;
-}
-
+.components-reconnect-resume-failed .pdk-reconnect-when-resume-failed,
 .components-reconnect-show .pdk-reconnect-spinner {
     display: block;
 }

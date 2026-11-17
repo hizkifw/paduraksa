@@ -117,11 +117,7 @@
     background: none;
 }
 
-.pdk-mcp-inline .pdk-mcp-summary {
-    padding-right: 0;
-    padding-left: 0;
-}
-
+.pdk-mcp-inline .pdk-mcp-summary,
 .pdk-mcp-inline .pdk-mcp-body {
     padding-right: 0;
     padding-left: 0;
