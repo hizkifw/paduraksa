@@ -1,39 +1,6 @@
 /*
- * First-run setup and what follows it: the setup page's password strength, two-step enrolment (My account) and the overview's checklist.
+ * First-run setup and what follows it: two-step enrolment (My account) and the overview's checklist.
  */
-
-/* ---------- The setup page's password strength ---------- */
-
-.pdk-strength {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-    margin-top: -4px;
-}
-
-.pdk-strength span {
-    height: 4px;
-    border-radius: 2px;
-    background: var(--pdk-line);
-    transition: background 150ms ease;
-}
-
-.pdk-strength[data-level="0"] span:nth-child(-n+1), .pdk-strength[data-level="1"] span:nth-child(-n+1) {
-    background: var(--pdk-error);
-}
-
-.pdk-strength[data-level="2"] span:nth-child(-n+2) {
-    background: #E8B04B;
-}
-
-.pdk-strength[data-level="3"] span:nth-child(-n+3), .pdk-strength[data-level="4"] span {
-    background: var(--pdk-accent);
-}
-
-.pdk-strength-label {
-    margin-left: 4px;
-    color: var(--pdk-text);
-}
 
 .pdk-totp-scan {
     display: grid;

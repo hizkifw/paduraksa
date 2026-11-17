@@ -714,6 +714,8 @@ Shared pieces first. If a page needs its own look for one of these, the shared p
 
 **Share-bar lists** (`ShareList`: status codes, methods, browsers, bots by kind) are one grid with a subgrid per row. The label, bar, count and percentage columns are as wide as the widest row needs, so every bar starts and ends at the same x. A tiny share is at least 3 px of fill. Counts and percentages are tabular and right-aligned.
 
+**`StrengthMeter`** is the one password strength meter (setup, My account, Backup): four segments with the word beside them, wrapping under the bar when it is long. The caller scores and passes `Level` and `Label`; the component only draws. Each page keeps its own scoring (`setup.js`, `PasswordStrength`, `BackupPassphrase.Rate`), which differ because setup scores in the browser and the others on the circuit. Levels 0 and 1 both fill one red segment, so a short password still shows a bar; -1 is nothing typed. The colours are `--pdk-error`, `--pdk-warning`, `--pdk-info` and `--pdk-success`, because the setup page has no MudBlazor. The styles are in `controls.css`; no other stylesheet may define `.pdk-strength*`. The setup script sets `data-strength` on `[data-strength-meter]`.
+
 **Number fields** hide their spin buttons, so a number beside text fields has the same edges (`DashboardMarkupConventionTests` fails on one that doesn't). They commit when focus leaves them, as text fields do (`NumberFieldCommitTests`, `NumberFieldsEndToEndTests`). A numeric field is never `Immediate`: with a `Min` (a status code from 200) MudBlazor would clamp the first digit typed. Nothing in the dashboard styles itself inline: a size or colour is a class in the stylesheets.
 
 **A switch that is off says what that means.** A health switch's off state has one `pdk-muted` caption under it: what happens to a destination that is down (`UpstreamDrawer`).
@@ -895,7 +897,7 @@ Errors say what failed and what to do, without apologising. The second person is
 
 **The service.** Setup is incomplete while no Owner exists. `SetupService.CompleteSetupAsync(token, username, password, displayName)` compares the token in constant time, then checks that no Owner exists and creates the Owner in one write transaction (two simultaneous attempts make one). It audits it (a wrong token too) and deletes the token. `SetupService.IsCompleteAsync` is what the admin app asks.
 
-**The page** is one static form in two numbered steps (token, then Owner), posting to `/auth/setup`. It calls the same flow as `POST /api/v1/setup` and signs the Owner in. Like the API's setup endpoint it is refused through the proxy (`setup.viaProxy`). It has a password strength hint (`setup.js`, a classic script from this origin; the form works without it). On success it sends the Owner to the overview.
+**The page** is one static form in two numbered steps (token, then Owner), posting to `/auth/setup`. It calls the same flow as `POST /api/v1/setup` and signs the Owner in. Like the API's setup endpoint it is refused through the proxy (`setup.viaProxy`). It has a password strength hint (`StrengthMeter` driven by `setup.js`, a classic script from this origin; the form works without it). On success it sends the Owner to the overview.
 
 **CLI.**
 - `admin reset-password <user>` reads the password from standard input or a no-echo prompt (never argv), ends the user's sessions and clears a lockout.

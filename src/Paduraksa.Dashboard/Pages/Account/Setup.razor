@@ -43,15 +43,15 @@
         <div class="pdk-field-row">
             <label class="pdk-field">
                 <span class="pdk-label">Password</span>
-                <input class="pdk-input" name="@DashboardForm.Password" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required data-strength />
+                <input class="pdk-input" name="@DashboardForm.Password" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required data-strength-field />
             </label>
             <label class="pdk-field">
                 <span class="pdk-label">Confirm password</span>
                 <input class="pdk-input" name="@DashboardForm.ConfirmPassword" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required />
             </label>
         </div>
-        <div class="pdk-strength" data-strength-meter data-level="-1" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-        <span class="pdk-hint">@SignInMessages.PasswordHint(Options.MinPasswordLength) <strong class="pdk-strength-label" data-strength-label aria-live="polite"></strong></span>
+        <span class="pdk-hint">@SignInMessages.PasswordHint(Options.MinPasswordLength)</span>
+        <StrengthMeter Level="-1" />
     </fieldset>
 
     <button type="submit" class="pdk-button pdk-button-primary">Create the Owner and sign in</button>

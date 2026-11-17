@@ -448,43 +448,6 @@
     gap: 6px;
 }
 
-.pdk-strength {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 2px 2px 6px;
-    font-size: 0.75rem;
-    --pdk-strength: var(--mud-palette-error);
-}
-
-.pdk-strength-2 { --pdk-strength: var(--mud-palette-warning); }
-.pdk-strength-3 { --pdk-strength: var(--mud-palette-info); }
-.pdk-strength-4 { --pdk-strength: var(--mud-palette-success); }
-
-.pdk-strength-bar {
-    display: grid;
-    grid-template-columns: repeat(4, 28px);
-    gap: 4px;
-}
-
-.pdk-strength-bar span {
-    height: 4px;
-    border-radius: 2px;
-    background: var(--mud-palette-lines-default);
-}
-
-.pdk-strength-1 .pdk-strength-bar span:nth-child(-n + 1),
-.pdk-strength-2 .pdk-strength-bar span:nth-child(-n + 2),
-.pdk-strength-3 .pdk-strength-bar span:nth-child(-n + 3),
-.pdk-strength-4 .pdk-strength-bar span {
-    background: var(--pdk-strength);
-}
-
-.pdk-strength-label {
-    color: var(--pdk-strength);
-    font-weight: 600;
-}
-
 .pdk-session-row .pdk-list-sub {
     overflow-wrap: anywhere;
 }

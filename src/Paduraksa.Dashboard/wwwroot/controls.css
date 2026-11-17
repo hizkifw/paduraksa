@@ -465,3 +465,46 @@
 .pdk-stats-body-list.pdk-stats-body-pending {
     padding-top: 12px;
 }
+
+/* The password strength meter (StrengthMeter). The setup page has no MudBlazor, so the colours are --pdk tokens. Setup's script sets data-strength and the label's text. */
+.pdk-strength {
+    --pdk-strength-color: var(--pdk-error);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    min-height: 1.125rem;
+    font-size: 0.75rem;
+}
+
+.pdk-strength[data-strength="2"] { --pdk-strength-color: var(--pdk-warning); }
+.pdk-strength[data-strength="3"] { --pdk-strength-color: var(--pdk-info); }
+.pdk-strength[data-strength="4"] { --pdk-strength-color: var(--pdk-success); }
+
+.pdk-strength-bar {
+    display: grid;
+    flex: none;
+    grid-template-columns: repeat(4, 28px);
+    gap: 4px;
+}
+
+.pdk-strength-bar span {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--pdk-line-strong);
+    transition: background 150ms ease;
+}
+
+.pdk-strength[data-strength="0"] .pdk-strength-bar span:nth-child(-n + 1),
+.pdk-strength[data-strength="1"] .pdk-strength-bar span:nth-child(-n + 1),
+.pdk-strength[data-strength="2"] .pdk-strength-bar span:nth-child(-n + 2),
+.pdk-strength[data-strength="3"] .pdk-strength-bar span:nth-child(-n + 3),
+.pdk-strength[data-strength="4"] .pdk-strength-bar span {
+    background: var(--pdk-strength-color);
+}
+
+.pdk-strength-label {
+    min-width: 0;
+    color: var(--pdk-strength-color);
+    font-weight: 600;
+}

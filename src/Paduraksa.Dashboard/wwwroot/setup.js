@@ -3,7 +3,7 @@
 (() => {
     "use strict";
 
-    const field = document.querySelector("input[data-strength]");
+    const field = document.querySelector("input[data-strength-field]");
     const meter = document.querySelector("[data-strength-meter]");
     const label = document.querySelector("[data-strength-label]");
     if (!field || !meter || !label) {
@@ -38,7 +38,7 @@
     const update = () => {
         const value = field.value;
         const level = value.length === 0 ? -1 : score(value);
-        meter.dataset.level = String(level);
+        meter.dataset.strength = String(level);
         label.textContent = level < 0 ? "" : levels[level];
     };
 

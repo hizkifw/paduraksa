@@ -1,0 +1,14 @@
+@* The password strength meter: four segments and a word beside them. The caller scores; this only draws. Level -1 is nothing typed yet. *@
+<div class="pdk-strength" data-strength-meter data-strength="@Level" aria-live="polite">
+    <span class="pdk-strength-bar" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+    <span class="pdk-strength-label" data-strength-label>@(Level < 0 ? null : Label)</span>
+</div>
+
+@code {
+    /// <summary>-1 nothing typed, 0 too short, 1 weak, 2 fair, 3 good, 4 strong. Level 0 and 1 both fill one segment, so a short password still shows a bar.</summary>
+    [Parameter, EditorRequired]
+    public int Level { get; set; }
+
+    [Parameter]
+    public string? Label { get; set; }
+}

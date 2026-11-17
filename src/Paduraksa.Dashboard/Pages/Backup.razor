@@ -40,10 +40,7 @@
                 @if (!string.IsNullOrEmpty(_passphrase))
                 {
                     var (level, label) = Strength();
-                    <div class="pdk-strength pdk-strength-@level" data-strength="@level" aria-live="polite">
-                        <span class="pdk-strength-bar"><span></span><span></span><span></span><span></span></span>
-                        <span class="pdk-strength-label">@label</span>
-                    </div>
+                    <StrengthMeter Level="level" Label="@label" />
                 }
             </div>
             <MudTextField T="string" @bind-Value="_repeat" Label="Passphrase again" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"

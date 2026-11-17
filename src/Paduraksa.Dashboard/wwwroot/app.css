@@ -29,6 +29,8 @@
     --pdk-accent: #E7E5E0;
     --pdk-accent-contrast: #171614;
     --pdk-error: #E5736B;
+    --pdk-warning: #D9A957;
+    --pdk-success: #5DBB8A;
     --pdk-info: #7FA7C9;
     --pdk-shadow: 0 30px 80px -32px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
@@ -46,6 +48,8 @@
         --pdk-accent: #26241F;
         --pdk-accent-contrast: #FFFFFF;
         --pdk-error: #C2413A;
+        --pdk-warning: #A86F12;
+        --pdk-success: #23824F;
         --pdk-info: #2F6E9E;
         --pdk-shadow: 0 30px 80px -40px rgba(28, 27, 24, 0.35);
         color-scheme: light;
@@ -63,6 +67,8 @@
     --pdk-accent: #26241F;
     --pdk-accent-contrast: #FFFFFF;
     --pdk-error: #C2413A;
+    --pdk-warning: #A86F12;
+    --pdk-success: #23824F;
     --pdk-info: #2F6E9E;
     --pdk-shadow: 0 30px 80px -40px rgba(28, 27, 24, 0.35);
     color-scheme: light;
