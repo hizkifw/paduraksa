@@ -18,6 +18,7 @@ For contributors: what each kind of test covers, how the suites are shaped, and 
 - [Test levels](#test-levels)
 - [Settings and response-header tables](#settings-and-response-header-tables)
 - [Integration tests](#integration-tests)
+- [Shared test helpers](#shared-test-helpers)
 - [What CI runs, and sleeping in tests](#what-ci-runs-and-sleeping-in-tests)
 - [Architecture tests](#architecture-tests)
 - [Performance](#performance)
@@ -65,12 +66,23 @@ A host's stop does not wait for the log writer's tick: `RotatingLogFile.Flush` w
 
 **The two 0 B assertions** (`MacKeyTests`, `AllocationTests`) measure after warm-up on a thread of their own and take the smallest of three rounds. A one-off allocation on that thread can't fail them, and a real allocation still does.
 
+## Shared test helpers
+
+The test projects compile the files they need from `tests/Shared` (`<Compile Include Link>`), so each assembly gets its own internal copy and the projects don't reference each other. Look there before writing a helper.
+
+- **Clocks and waits.** `ManualTimeProvider` is a settable clock whose timers fire on `Advance`. A fake stays its own when a test needs the real default timers (the dashboard's polling pages, the Cloudflare refresher) or different timer semantics (`SecurityRig`, the sandbox's `SandboxClock`, `VirtualTimeProvider`, `HeldDebounceTimeProvider`, `ForwardAuthPolicyTests`). `Polling.UntilAsync` takes the bound and the poll step from each caller, behind a one-line wrapper in the test class, so no wait gets shorter than it was.
+- **Upstreams.** `LoopbackUpstream.StartAsync(handler, listen, kestrel, webSockets)` starts a Kestrel upstream on a loopback port and reads its address back. `HeaderEchoUpstreamHost`, `BodyCountingUpstream` and `FakeAuthServer` are built on it. The proxy-protocol and client-info servers (several listeners), the proxy-under-test servers and the `WebApplication`-based fakes keep their own set-up.
+- **Logs, certificates, plans.** `ListLogger`, `ListLogger<T>` and `ListLoggerFactory` keep what was logged. `SelfSigned.Create` makes the plain throwaway certificate; the CA-based `TestPki` files and the Vault CA (pinned to a frozen clock) stay separate. `PlanCapture` and `CapturingFactory` (in `Paduraksa.Tests.Data`, linked into the Issuance tests) record each statement with SQLite's query plan.
+- **The repository.** `Repository.Root` finds the directory with `Paduraksa.slnx`. `TempDirectory`, `TotpOracle`, `QuicSupport` and `AnalyticsTestData` (rollup builders) are shared the same way.
+- **Browser tests.** A browser test starts with `BrowserSession.StartAsync()`, which launches Chromium (or skips), starts a `DashboardHost`, and opens a context and one page that trust the admin's certificate and collect console problems. `DashboardPage` holds first-run setup, the navigation links and the drawer-field helpers. `FirstRunEndToEndTests` keeps its explicit setup steps.
+- **Architecture fixtures.** The `Fake<Layer>` types the sanity tests use are in one file, `Fixtures/Fakes.cs`; `DependencyRuleTests` finds them by the `Paduraksa.<Layer>.ArchFixtures` namespace and the type name.
+
 ## What CI runs, and sleeping in tests
 
 **Skips must not hide a gap.** The Playwright tests skip when no Chromium is found, the QUIC tests when libmsquic is missing, and the Pebble tests when Docker can't pull the image. CI once had neither of the first two, so 19 browser tests and 19 QUIC tests skipped on every run.
 
 - `.github/workflows/ci.yml` installs Playwright's own Chromium for the pinned package version (`playwright.ps1 install --with-deps chromium`, cached by version, because Ubuntu's `chromium` is a snap) and libmsquic at the version the Dockerfile pins. The Test step sets `PADURAKSA_REQUIRE=playwright,quic,pebble`.
-- `tests/Shared/Requirements.cs` reads it. `Requirements.SkipOrFail` is what the three skip sites call (`PlaywrightBrowser.LaunchOrSkipAsync`, the two QUIC `Require` helpers, the Pebble fixtures' `SkipReason`). If a named capability is missing, the test fails with the reason. If it isn't named, the test skips.
+- `tests/Shared/Requirements.cs` reads it. `Requirements.SkipOrFail` is what the three skip sites call (`PlaywrightBrowser.LaunchOrSkipAsync`, `QuicSupport.Require`, the Pebble fixtures' `SkipReason`). If a named capability is missing, the test fails with the reason. If it isn't named, the test skips.
 - `run-quic-tests.sh` stays for machines without libmsquic (it sets `PADURAKSA_REQUIRE=quic`). CI covers the QUIC tests in the normal run.
 - The build-test job's timeout is 30 minutes.
 
