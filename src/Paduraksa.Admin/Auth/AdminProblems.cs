@@ -47,10 +47,6 @@ internal static class AdminProblems
         return ApiProblems.Problem(StatusCodes.Status429TooManyRequests, "Too many attempts. Wait before trying again.", code: ApiCodes.Auth.RateLimited, title: "Too many attempts");
     }
 
-    /// <summary>A malformed or missing body or parameter (the JSON binder's own failures are 400s too).</summary>
-    public static IResult BadRequest(string detail) =>
-        ApiProblems.Problem(StatusCodes.Status400BadRequest, detail);
-
     /// <summary>An ID in the path that is not one of the expected kind: nothing by that name can exist.</summary>
     public static IResult NotFound(string what) =>
         ApiProblems.Problem(StatusCodes.Status404NotFound, $"No such {what}.");

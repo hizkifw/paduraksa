@@ -62,9 +62,6 @@ public sealed class McpSwitch(Func<bool> enabled, Func<TimeSpan> idleTimeout) : 
 
     public void Dispose() => _disposing.Dispose();
 
-    /// <summary>A switch that is always on with the given idle timeout: a composition without server settings.</summary>
-    public static McpSwitch On(TimeSpan idleTimeout) => new(static () => true, () => idleTimeout);
-
     /// <summary>The 404 for <c>/mcp</c> while the switch is off; first in the pipeline, so nothing behind it (authentication, the MCP host) sees the request.</summary>
     internal static void Use(IApplicationBuilder app)
     {
