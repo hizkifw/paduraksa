@@ -1,0 +1,112 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so*o~CCCCCׇӟx~CCCCCׇӟx~C`x, x~,@xoCCC x,`x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [sCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CC x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*!1982o~CCCCC x,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [s*oo~CCCCC x,`x, x~,@xo~CCCCC xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [CCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*!1982o~CCCCC x,`x, x~,@x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CC x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*!1982o~CCCCC x,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [s*oo~CCCCC x,`x, x~,@xo~CCCCC xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*!1982o~CCCCC x,`x, x~,@x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCCCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCC`x, x~,@xoCCC x,`x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*m]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [soxCCCm]
+  - names: [so*!1982o~CCCCC x,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [s*oo~CCCCC x,`x, x~,@xo~CCCCCm]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCC`x, x~,@xoCCC x,`x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [soxCCCm]
+  - names: [so*!1982o~CCCCC x,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [om]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,xx~,@x, xCC, x~, x, xC, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,CCC x,`x, x~,@xo~CCCCCCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so*, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCC`x, x~,@xoCCC x,`x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [soxCCCm]
+  - names: [so*!1982o~CCCCC x,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [s*oo~CCCCC x,`x, x~,@xo~CCCCCm]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCC`x, x~,@xoCCC x,`x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [soxCCCm]
+  - names: [so*!1981o~CCCCC x,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [om]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,xx~,@x, xCC, x~, x, xC, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~rrr~,@x, xtCCCom]
+    kind: respond
+   #   kinLLLoon}

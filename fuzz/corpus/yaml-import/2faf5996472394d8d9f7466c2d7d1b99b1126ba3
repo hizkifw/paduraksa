@@ -1,0 +1,62 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: o&fice
+    ip: {allow: [90.0.0.0/8], countries: {allow: [Nz, ID]}}
+    basicAuth:
+      users:
+      - username: $AAHBIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIII0e672c"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: c"
+    notes: I
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0001IIIIIIIc"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0001IIIIIIIc"
+    notes: IIIIII
+  - name: MIII
+  - name: MI0e672c"
+    notes: I
+  - name: c"
+    notes: I
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0001IIIIIIIc"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0001IIIIIIIc"
+    notes: IIIIII
+  - name: MIII
+  - name: MI0e672c"
+    notes: I
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0001IIIIIIIc"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0e672c"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIII
+  - name: Mttt000IIIIIIIf4A'tIIIIIIIIII0000IIIIIIIIIttttttttttttIIIIIIIIIIIIIIII@IIIIIIII0e672c"
+    notes: IIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIII0e672c"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIII
+  - name: MtttttII0e672c"
+    notes: IIIIII
+  - name: MIII
+  - name: t'IIIIIIIIIIIIIIIIIIIIII@IIIIIIII0e672c"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII0e672c"
+    notes: IIIIII
+  - name: MIII
+  - name: Mttttt'IIIIIIIIIIIIIIIIIttttttttttttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MIII
+  - name: Mtttt
+  - name: l8rNFlB'

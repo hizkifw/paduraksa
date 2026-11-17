@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oxxxxxxxxC.com]
+    profile: media   
+settings:
+  defaults:
+    errorPages:
+      "504": 

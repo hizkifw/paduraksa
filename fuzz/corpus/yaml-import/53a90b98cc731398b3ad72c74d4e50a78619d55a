@@ -1,0 +1,22 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    #edelow: [N ,:OID]}}
+    basicAuth:
+      users:
+        - username: alice
+        - username: alice-
+        # credcrlI
+        - username: alice-
+        # credentie: office
+    # cre   users8
+        - username: alice
+        # ntialIddentie: ofe
+    # credentialI
+        - username: alice-     # credentss    s sss.1:809`6
+hosts:
+  - names: [jellyfin.example.cum]
+    profile: media
+    routes:
+      - upstream: jellyfin

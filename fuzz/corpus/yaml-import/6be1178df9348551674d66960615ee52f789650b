@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1kind: Config
+profiles:
+  - name: zMEDIE
+hosts:
+  - names: [`tiiiiiiCCom]
+
+   #
+    routes:
+      - upstream: jellyfin
+        path: /..
+  #v

@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MGDIA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+   
+    settings:
+      forceHttps: false
+

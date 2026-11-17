@@ -1,0 +1,34 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+  - id: prof_02wndAAHBC90f4Al8rNFlB
+    name: m`edik
+    settings:
+      forceHttps: &alse
+upstreams:
+  - id: ups_02wnAHBAdC95f4Al8rNFlB
+    name: je&llyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst_03wndAAHBC95f4Al8rNFlB
+        address: http://127.0.0.1:8
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_02wnfAIHBC94f4Al8rNFlB
+    name: apIIIIIII MttttIIIIIIIII&III
+  - name: MttttIIII
+  - name: MtttIIIIIIIIIIIIIIII
+  - name: M']:'':'']:'':]]IIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIIIamIIIIIIIIIIIIIIIIII&III
+  - name: Mttttt'IIIII
+  - name: Mttttt'ttIIIIIIIIIIIIIIIIIIIIIII&III
+  - name: MIIIIII*IIIIIIIIIII@IIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIII
+  - name: Mttttt'IIIItIIaIpiVerIsI

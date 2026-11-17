@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+    routes:
+      - upstream: jellyfin        path: /eConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "431": {mode: message}

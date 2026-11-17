@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [sCC x,`m]
+    kind: respond
+  - names: [so *,~ xx, xCCCom]
+  - names: [so*o~CCCCC x,x~ؿxo~CC]
+    kind: respond
+ 
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "431":

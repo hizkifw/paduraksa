@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: ttIIIIII0e6c
+    notes: III

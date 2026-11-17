@@ -1,0 +1,70 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MED
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+       # o{.sroutes:
+      - upstream: jellyfin
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bjectjec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os. upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetoo*siuos:*         <p>no53jec.    routes  routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bjec upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os. upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetoo*siuos:*         <p>no54jec.    routes  routes:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jel<p>no54jec.    route   # os.sys: Co*siu/s:[]e *bjetoo*siuos:*         <p>no54jec.    routes  routes:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jellyfin
+   
+      - upstream: jellyfin
+    # ojec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os. upstream: jellyfin
+    # os.sys: Co*siu/s:[]e *bjetoo*siuos:* "\        <p>no54jec.    routej:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosu>no54  # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jel<p>no54jec.    route   # os.sys: Co*siu/s:[]e *bjetoo*siuos:*         <p>no54jec.    routes  routes:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jellyfin
+    # os>no13kqa.dev/:*         <p>no54jec.  :
+      - upstream: jellyfin
+    # ojec.    routes:
+      - upstream: jellyfin
+    # o{.sys: C: Co*siu/s:[]e *bjetoo*siuos:* "\        <p>no54jec.    routej:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bj.    routes  routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e * <p>no54jec.    routes  routes:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jel<p>no54jec.    route   # os.sys: s:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jellyfin
+    # os>no13kqa.dev/:*         <p>no54jec.  :
+      - upstream: jellyfin
+    # ojec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os. upstream: je    <p>no54jec.    routej:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosu>no54  # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jel<p>no54jec.    route   # os.sys: Co*siu/s:[]e *bjetoo*siuos:*         <p>no54jec.    routes  routes:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jellyfin
+    # os>no13kqa.dev/:*      *bjetoo*siuos:* "\        <p>no54jec.    routej:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosu>no54jec.    routes:
+      - upstream: jellyfin
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bject:os.*bject:os.sys: Co*siu/s:[]e ctjec.    routes:
+      - upstream: j///2//////////////////////////////b

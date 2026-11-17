@@ -1,0 +1,37 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [so*oCCCC CCCom]
+   #CCC x,`x, x~,@x, xCC   kind: respond
+   #  CCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so* x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC CCCom]
+  - names: [so*~ , xx, xCC*o~CCCCC x,`x, x~,@xo~CC]
+    kind: respond
+   #    jCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,`x, Cm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC xCCom]
+    kind: respond
+   #   kinm:om] respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*@o~CCCCC x,`x, x~,@xxo~CCCCC x,`~CCCCC x,`x, x~, x, xCCCom]
+    kind: respond
+   #   kinm:om] respond
+   #, x]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xxo~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CC jCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,`x, x~,~ x~, x, xCCCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so*~ , xx, xCC*o~CCCCCC]
+    kind: respond
+   #   meConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "421": {mode: message}

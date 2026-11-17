@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - id: prof_02wndAAHBC90f4Al8rNFlB
+    name: m`ediIlse
+hosts:
+  - id: host_02wndAAHBC95f4Al8rNFl8
+    names: [jellample.com]
+    

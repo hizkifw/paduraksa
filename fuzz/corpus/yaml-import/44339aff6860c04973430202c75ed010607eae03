@@ -1,0 +1,12 @@
+ak~d: Conf
+hosts:
+  - id: []
+  - id: [om]
+  - id: [bm]
+  - id: [om]
+   
+  - id: []
+  - id: [om]
+  - id: [bm]
+  - id: [om]
+    dd: 

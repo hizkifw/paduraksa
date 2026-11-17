@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offe
+    ip: {allow: [09.0], countries: {allow: [N ,OM ,OD]}}# 9reden

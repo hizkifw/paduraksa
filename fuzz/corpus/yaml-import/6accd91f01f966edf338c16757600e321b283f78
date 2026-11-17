@@ -1,0 +1,46 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so*o~CCCCCׇӟx~CCCCCׇӟx~C`x, x~,@xoCCC x,`x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xC*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x,C x,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [s*oo~CCCCC x,`x, x~,@xo~CCCCC xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, x xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*, x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCCCm]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x, xCC`x, x~,@xoCCC x,`x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [soxCCCm]
+  - names: [so*!1982,`x, x~,@x, x~, x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [s*oo~CCCCC x,`x, x~,@xo~CCCCC xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n, xCCCorrrrrrrrr~CCCCC x,`x, x~,@x, xCxCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*oCCCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, n,s~, x, xC, xCCCom]
+  - names: [so* x~, n, xCCCom]
+  - names: [so*o~]
+    kind: respond
+   #   kinLLLoon}

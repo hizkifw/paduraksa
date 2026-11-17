@@ -1,0 +1,100 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+      
+
+       ::::: b     :::::sts:
+  - names: [a:::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       ::::: body: |
+       ot 
+
+         
+
+       :::::sts:
+  - names: [a:::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       :      :::::sts:
+  - names: [a:::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       ::::: body: |
+       ot 
+
+         
+
+       :::::sts:
+  - names: [a:::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+        
+  - names: [a::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       :::::sts:
+  - names: [a:::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       ::::: body: |
+       ot 
+
+         
+
+       :::::sts:
+  - names: [a:::::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot 
+
+         
+
+       :::::1/ht1 
+
+       :::::1/ht1/html

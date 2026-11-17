@@ -1,0 +1,69 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      
+  - names: [aҙxamplcom]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.lly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>n8 <p>no38888802
+      
+  - names: [aҙxamplcom]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no t  <p>no38ly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[html

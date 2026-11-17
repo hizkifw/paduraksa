@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.vxample.com]
+    kind: respond
+    respond:
+     
+    routes:
+     - upstream: jellyfin
+    #siu:[]a.dev *:[]e ts:
+  
+upstreams:
+  - id: ups_01wndAAHBC95f4Al8rNFlB
+    name: jellyfin
+ 

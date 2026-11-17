@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [s]
+  - names: [soCCom]
+
+  - names: [so*o~CC]
+   #  meConfig
+settings:
+  unknownHost: close
+  defaults:
+    errorPages:
+      "503": {mode: message}

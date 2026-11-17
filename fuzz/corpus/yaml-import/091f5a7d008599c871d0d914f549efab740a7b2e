@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [som]
+    #   kinm [s
+    routes:
+      - upstream: jellyfin
+        path: /wWeConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "502": {mode: message}

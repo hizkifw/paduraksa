@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: s=ct
+    notes: IIII
+  - name: M
+    notes: IIIIIII

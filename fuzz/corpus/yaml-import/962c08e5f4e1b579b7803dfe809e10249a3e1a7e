@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind:
+    routes:
+      - upstream: jellyfin
+    #pa&esp)nd
+    respond:
+      statusCode: 204
+      body: |
+        DdD #espond

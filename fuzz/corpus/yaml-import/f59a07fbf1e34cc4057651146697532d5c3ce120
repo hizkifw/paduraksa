@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offfice
+    ip: {allow: [20.0.0.1,/ ] countries: {allow: [N ,OID]}}# credentie:MEDIA
+hosts:
+  - names: [tv.exam]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        

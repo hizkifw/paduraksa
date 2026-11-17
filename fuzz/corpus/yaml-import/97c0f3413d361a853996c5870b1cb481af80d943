@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # credent
+        # name: alicece
+    # Id:lId:ice
+    ip: {allow: [09.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# cd: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# cre;entie: of #  #ti alidAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# creHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: # FlB

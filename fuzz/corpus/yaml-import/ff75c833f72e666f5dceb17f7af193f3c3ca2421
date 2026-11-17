@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so.o]
+   # LL mediDd%B5dDddDDDdD%Dd%B5dDdDD%Dd%B5dDd%Dd%B5dDd%Dd%BddD%Dd%B5dDddDDD%Dd%B5dDdD%Dd[[[[[[[[[[[[[[[[[[[[[[[[[[[[%BddDdD%Dd%B5dDdDD%Dd%B5dDd%Dd%BddD%Dd%B6dD-BddDdD%Dd%B5dDdB6dD-BdDDdD%Dd%B5dDdDD%Dd%B5dDd%Dd%BddDB5dDd%Dd%BddD%Dd%B6dDddDdD%Dd%B5DDD%Dd%B5dDdD%Dz
+    routes:
+      - upstream: jellyfin
+    #: onfig
+ruleSets:
+  - name: scars
+    rules:
+      - action: deny
+        match: {userAgent: {contains: [sl, ap]}}
+rateLimitPolicies:
+  - name: s}

@@ -1,0 +1,11 @@
+&p
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+
+profiles:
+  - id: prof_01wndAAHBC95f4Al8rNFlB
+    name: media
+    

@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: uonfig
+accessLists:
+ - name: Off
+ 
+hosts:
+  - names: [	excum]
+    profile: media
+    routes:

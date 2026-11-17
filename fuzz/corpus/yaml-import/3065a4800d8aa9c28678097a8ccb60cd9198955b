@@ -1,0 +1,18 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a::::m]
+    kind: respond
+    respond:
+      statusCode: 584
+      body: |
+       ot      
+
+        
+      
+
+       :profile: media
+    routes:
+  # o{.cs.sys routes:
+      - upstream: jellyfin
+    # o{.syehtml

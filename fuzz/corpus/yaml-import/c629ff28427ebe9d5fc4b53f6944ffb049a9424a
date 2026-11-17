@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCCom]
+   #CC   jinLLg
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "429": {mode: message}

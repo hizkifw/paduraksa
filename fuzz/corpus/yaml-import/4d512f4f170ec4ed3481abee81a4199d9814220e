@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [10.5.0/8] }
+hosts:
+  - names: [tv.exam]
+    profile: media
+  

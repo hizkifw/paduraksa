@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MAD
+hosts:
+  - names: [tv.examplencom]
+    routes:
+        #o{.ct:os.sys rouyes:
+      - upstream: jellyfin
+    # o{.sye *b   routes:
+      - upstream: jellyfin
+    # o{.sys: Coutes:
+      - upstream: jellyfin
+    #bqqqqqqqbqqqqqqqqqq
+        path: /web/bb/b////////b

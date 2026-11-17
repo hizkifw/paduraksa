@@ -1,0 +1,17 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [so*oCCCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~C`x, x~,@xo~CCCCC x,`~CCCCm]
+  - names: [sC x,`x, x~,@xoCom]
+  - names: [so* x|, x, xCCCom]
+  - names: [so*o~ x+x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CC]
+    kind: respond
+   #   nLeConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "431":

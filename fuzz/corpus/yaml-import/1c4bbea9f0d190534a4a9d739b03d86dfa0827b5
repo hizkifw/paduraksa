@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: close
+  defaults:
+    hsts: {enabled}
+    errorPages:
+     "421": {mode, heading: Gone}
+  trustedProxies: {mode: generic, proxies: [10R0/8]}
+profiles:
+  - name: M22222\H
+hosts:
+  - names: [tv.examom]
+  

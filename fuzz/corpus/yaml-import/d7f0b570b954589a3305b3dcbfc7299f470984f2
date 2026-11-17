@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [:::::::::::m]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+         g
+accessLists:
+  - name: o]}}
+    basicAuth:
+      users:
+        - username: alice
+  

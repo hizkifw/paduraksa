@@ -1,0 +1,30 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tvale.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /w0e.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <p>not hrry</p>
+      contentType: te00000000000000000000 000000000000000000100413020438821601280000xt50000000000000000
+  - names: [a.ex$ample.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <p>not& hrry</p>
+      contentType: te5746678970000000000000000
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 808
+      body: |
+        <p>not hrry</p>
+      contentType: \\\\\\\\\\222229

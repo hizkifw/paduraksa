@@ -1,0 +1,114 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb\22222=2222Appppppppppppppppppppppppppppppppppppptppppppppppppppppp2222222222222222222000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb230583939551"""&"""""""""""""""""""""222222222222222222222222222222255182222222222222200000000000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb0000014pppppppppp222222222222222222200000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbbpppppppppppppppppppppp222222222222222222200000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbb222222222222222222200000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb""222222222222222222222222222222255182222222200000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb2\22222\\\\\\\\\\\\\\\22222000000014pppppppppp222222222222222222206103865271181\000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbb856906103865271181\000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbb00000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbb000000000116461625000000000000001181\000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbb00000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbb00000000011646162500000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbb222222222222222000000)00000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: je000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbb222222222222222000000)00000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbb856906103865271181\000000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbb00000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbb000000000116461625\0000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbb""""""""""""222222222222222222222\22222=2222Apppppppp00000000000000
+  - names: [tv.example.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbbbbbbbb#bbbbbbbbbbbbbbbb

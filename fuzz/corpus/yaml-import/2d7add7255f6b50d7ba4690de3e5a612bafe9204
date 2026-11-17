@@ -1,0 +1,16 @@
+apiVersion: paduraksa.dev/v1kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [`tvamp,------------,--~, x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x, x~,@xox, ~CCCCC x,`|, x~, ., xCCCx,`x, x~x,`xCCC x,om]
+  - names: [so*o~C x,`xx~,@xx~,@xox, ~CCCCC x,`x, x~, ., xCCCoom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, xx,`x, x~,inLL!%Dd%B4%Dd%Bx x,om]
+  - names: [so*o~C x,`x, x~,@xo~Bx, x~,@xCCx `C ,x,x~,@xox, xxCCCom]
+    kind: respond
+   #; `,`x, , x~, ., xCCCoom]
+  - names: [so* x~,5 x, xCCCom]
+  - names: [so*o~CCCC xC,`x, x~,@xo~CCCCC x----,----,----co]
+   # wweRRRRRR

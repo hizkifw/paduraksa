@@ -1,0 +1,6 @@
+upstreams:
+  - d:
+    tid:
+    destinations:
+     - id: dst_~Aat
+     - id: dst_t

@@ -1,0 +1,25 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+    trustForwardedProto: false
+profiles:
+ 
+accessLists:
+  - id: acl_02wndAAHBC95f4Al8rNFl8
+    name: staff
+    ip:
+   
+      allow: [10.0.0.0/8]
+    satisfy: all
+    passCredentialsUpstream: false
+hosts:
+  - id: host_02wndHBCAA95f4Al8rNFlB
+    names: [jm]
+    kind: proxy
+    enabled: true
+    profile: media

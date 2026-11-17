@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*om]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /g
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "503": {mode: message}

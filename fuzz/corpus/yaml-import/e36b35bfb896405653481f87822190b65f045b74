@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [.example.com]  
+accessLists:
+  - name: office
+    ip: {allow: [2WWWW], countries: }

@@ -1,0 +1,54 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    # credent
+        # name: alice
+        #essLists:
+  - name: office
+    # credenalId:lId:cesameAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie:ccessLists:
+  - name: office
+    # credes:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: off cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: office
+    # cre2wnd office
+    #tialId:lId:cesame: alidAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: :
+  - name: office
+    ip: {allow: [10./ ], countries: {allow: [N ,OM ,OID]}}# cred off cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: office
+    # cre2wnd office
+    #tialId:lId:cesame: alidAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: off crpwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}#: alice
+        # name: alice
+        # cre  # credentialId: pwc_03wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie:ccessLd: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# untries: {allow: [N re  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: office
+    # credAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: off cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10./ ], countries: {allow: [N ,OM ,OID]}}# cred off cre  # credentialId: pwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: office
+    # cre2wnd office
+    #tialId:lId:cesame: alidAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: off crpwc_02wndAAHBs:
+  - name: office
+    ip: {allow: [10.0.0.1/ ], countries: {allow: [N ,OM ,OID]}}# credentie: office
+    # cre2wnd office
+    # creden5f4Al8r5f4Al8rl5f4Al8rNFlB

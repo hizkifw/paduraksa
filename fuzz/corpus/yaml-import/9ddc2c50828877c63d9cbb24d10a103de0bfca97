@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [s,on, xCom]
+  - names: [s *x ~,on, xm]
+
+    

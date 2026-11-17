@@ -1,0 +1,7 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: 
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFlB
+    name: yam

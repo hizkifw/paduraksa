@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: sccannerrs
+    rules:
+      - action: deny
+ #mairules:
+      - action: deny
+#o

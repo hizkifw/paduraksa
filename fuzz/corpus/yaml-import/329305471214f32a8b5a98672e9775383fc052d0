@@ -1,0 +1,26 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+   #CCC x,`x, x~,@x,m]
+  - names: [sDo*o~CCCx~,@xoCC x,`x, x~, x, xCm]
+  - names: [oCom]
+  - names: [so* x|, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CC x,`x, m]
+  - names: [so*o~CCCCC xxCCCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x~, xCCCom]
+  - names: [sC x,`x, x~,@xoCom]
+  - names: [so* x|, xo~CCCCso* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x< x~kinm:*,~ xx, xCCCCCom]
+  - names: [sC x,`x, x~,@xoCom]
+  - names: [so* x|, xo~CCCCso* x~, x, xCCCom]
+  - names: [so*om:*,~ xx, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CC]
+    kind: respond
+   #     LmLijnLeConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "431":

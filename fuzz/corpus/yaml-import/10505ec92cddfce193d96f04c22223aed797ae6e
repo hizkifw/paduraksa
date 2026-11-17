@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [so*o*x,`x, x~,@x, xCCCom] # media
+    routes:
+      - upstream: jellyfin
+        path: /wex*o~CCCCC x,`x, xC x,`~CCCCC~CCCCC nfig
+settings:
+  defaults:
+     errorPages:
+      "429": {mode: message}

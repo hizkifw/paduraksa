@@ -1,0 +1,86 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDI"2222222222IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtIIIIIIIIIIIIIIIIIIIIIIIIttttt000000III
+  - name: MttttIig
+ruleSets:
+  - name: scIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000*t'ttt2tttt0000III
+  - name: MttttII.IIIIII
+  - name: MttIIIIIIII?ttttt'ttttttttttttttttte
+upstreams:
+  - id: ups_01wndAAHBC95f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst_02wndAAHBC95f4Al8rNFlB
+        address: http://127.0.0.1:8
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_03nABdCwHA94f4Al8rNFlB
+    name: apIIIIIIIIIIIIIII
+  - name: Mtttttt@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@tEIIIIIIIIIII0IIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	tttttttTt0000000IIIIIIIIIIIIII MttttIIIIIIIII&III
+  - name: Mttttt'@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttttt@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@IIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII|	IIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttttt@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@IIIIIII
+  - name: MtttIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'ttIIIIIIIIII0000IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttttt@@@@@@@@IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIIIIIIIIIIIIII|	IIIIIIIIIIIII
+  - name: Mttttt't	ttttttttt9551615IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mtttttt8@@@@@@@@@@@@@@@@@@@@@@@@@@@@@tEIIIIIIIIIII0IIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	tttttttTt0000000IIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt000000IIIIIII
+  - name: Mt0IIIIIIIIIIIIIIIIttttttttDI00000022222222222222wnIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	tttttttTt0000000IIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttIIIIIIIIIIII
+  - name: Mttttt't	tttttTttt0000000IIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	tttttttTt0000001IIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIttttttttDI00000022222wnIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt'	ttttttttTt0000000IIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0ttt2ttttttttttttttttttttIIIIIIIIIIIIIIIIIIIII0IIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttdtt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	tttttttIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttt0IIIIIIIIIIIIIIIIttttttttDI00000022222222222222wnIIIII
+  - name: Mttttt'tttttttttt0000000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttttt't	tttttttTt0000000IIIIIIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttIIIIIIIHIIII
+  - name: Mttttt't	ttttttttt0000000IIIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIII
+  - name: MtttIIIIIIIIIIIIIIIII
+  - name: Mttttt'tttttttttt0100000IIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+  - name: Mttt444444A
+hosts:
+  - names: [tv.example.com]
+    profile: 

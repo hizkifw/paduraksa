@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1kind: Config
+profiles:
+  - name: :󗐌_XX
+  - name: :IA󗐌XX
+  - name: :XXeb :󗐌XX
+  - name: :IA󗐌%XX
+  - name: :aXX
+  - name: :IA󗐌%XX
+  - name: :XXebAA:IA󗐌XX
+  - name: :XXebAA󗐌NXXXebA󗐌IA󗐌XX
+  - name: :XXebAA󗐌NXXebA󗐌NX󗐌NXXebA󗐌N

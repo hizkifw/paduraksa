@@ -1,0 +1,47 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.le.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxamplem]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no7: |
+        |
+        <p>no3888888888888888888kqa.lly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        []e ts:
+  - names: [aҙxemple.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]

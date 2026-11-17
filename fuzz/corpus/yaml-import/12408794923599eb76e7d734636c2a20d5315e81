@@ -1,0 +1,156 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      
+  - names: [aҙxamplcom]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.lly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <77777]ext/[~~[]s:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.lly~      statue: 202
+      
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no38888802
+      
+  - names: [aҙxamplcom]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.lly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no777       |
+        <p>no3888888888888888888kqa.lly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[~~[]s:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.lly~      statusCode: 202
+      
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no38888802
+      
+  - names: [aҙxamplcom]
+    kind: reSpond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no3888888888888888888kqa.lly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respn77[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        |
+        <p>no38ly~~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      s;tatusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[~~[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <p>no77777[]e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 204
+      body: |
+        <77777]ext/[html

@@ -1,0 +1,21 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: true
+rateLimitPolicies:
+  - id: rlp_02gnfAAHBC94f4Al8rNFlB
+    name: apII
+  - name: Mttttt't[tttttIHIlse
+hosts:
+  - id: host_02wndAAHBC95f4Al8rNFlB
+    names: [jellyfinn.exampl]
+
+    routes:
+      - id: rte_04wndAAHBC95f4Al8rNFlB
+        upstream: jellyfin
+        order: 0
+        match: prefix
+        path: /

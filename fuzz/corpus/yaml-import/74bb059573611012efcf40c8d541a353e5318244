@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+- names: [sCC o~CCCCC x,CC]
+    #     LuConfig
+settings:
+ #e
+  defaults:
+     errorPages:
+      "431":

@@ -1,0 +1,5 @@
+apiVersion: paduraksa.dev/v1
+kind: Config  
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFlB
+    name: :%

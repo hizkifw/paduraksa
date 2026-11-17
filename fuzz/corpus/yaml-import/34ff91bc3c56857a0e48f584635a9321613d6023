@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [o*oCCCC CCCom]
+    #
+    routes:
+      - upstream: jellyfin
+        path: /wWeConfig
+settings:
+  unknownHost: 

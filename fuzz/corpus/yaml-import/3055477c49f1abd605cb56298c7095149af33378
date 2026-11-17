@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+#false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: ssSsss
+
+
+
+
+
+
+
+     +

@@ -1,0 +1,18 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+    forwardedForFallback: false
+profiles:
+  - id: prof_02wndAAHBC95f4Ah8rNFlB
+    name: mclientIp
+accessLists:
+- #d: acllB
+    name: staff
+    ip:
+      dropDenied: false
+      allow: [05.0.0!,/8]
+    satisfy: all

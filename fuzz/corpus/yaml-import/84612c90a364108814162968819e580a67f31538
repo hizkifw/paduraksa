@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [so*~,CCCom]
+  - names: [so*~CC]
+
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "421": {mode: message}

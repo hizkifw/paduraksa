@@ -1,0 +1,6 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [sn*oCCCx,Nx,x, xCCCom]  #    x,
+  - names: [so*o~CCx,Nx,C]
+    kind:  

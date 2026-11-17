@@ -1,0 +1,48 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MED
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+       # o{.sys: Cjec
+      - upstream: jellyfin
+    # o{uos:*bject:os. upstream: jellyfin
+    # os.sysj:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s:[]eupstream: jellyfin
+    # os.sys: Co*si:*         <p>no54jec.    routes  routes:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jellyfin
+    # os>no13kqa.dev/:*         <p>no54jec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*Usiu/s:[]e *bjetosuos:*b+ect:os.a&e *bject:os.sybject:os.sysz Co*siu
+      - upstream: jellyfin
+    # os>no  <p>no54jec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*Usiu/s:[]e *bj.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*Usiu/s:[]t:os.sysz Co*siu
+      - upstream: jellyfin
+    # os>no  <p>no54jec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*Usiu/s:[]e *bjetosuos:*bject:os.jec.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*Usiu/s:[]` *bjetosuos:*bject:os. upstream: jellyfites:
+      - upstream: jellyfin
+    #  - u<p>no26jec.    routes  routes:
+      - upstream: jellyfin
+    # o{.sys: Co*siu/s*bject:os. upstream: jellyfin
+    # os.sys: Co*si:*         <p>no54jec.    routes  routes:
+      - upstream: jellyfin
+    # :[]e *bv10apa&e *bject:os.sysz Co*siu
+      - upstream: jellyfin
+    # os>no13kqa.dev/:*         <p>no54je8.    routes:
+      - upstream: jellyfin
+    # o{.sys: Co*Usiu/s:[]e *bjetosuos:*b+ecyfin
+    # o{.sys: Co*Usiu/s:[]` *bjetosuos:*bject:os. upstream: jellyfites:
+      - upstream: jellyfin
+    #  - upstream: jellyfin
+        path: /web/bb/b//////////////////////////////////b

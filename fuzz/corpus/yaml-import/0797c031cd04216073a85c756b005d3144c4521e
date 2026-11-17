@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: media
+upstreams:
+  - name: jn
+    destinations:
+      - address: htt~
+      - address: h~
+      - address: h
+      - address: h~
+      - address: httpllyfin

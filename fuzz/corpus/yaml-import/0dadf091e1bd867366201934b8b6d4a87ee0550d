@@ -1,0 +1,23 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [som]
+  - names: [so*oCCCC CCCom]
+   #CCC xm]
+  - names: [so*o~C* x~,  xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xoCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,xCCC x,`x, x~,@x, xCCCm]
+  - names: [so*xCCCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`Com]
+  - names: [ x,`x, x~,@xg~CC]
+    kind: respond
+   #    jinLLL meConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "404": {mode: message}

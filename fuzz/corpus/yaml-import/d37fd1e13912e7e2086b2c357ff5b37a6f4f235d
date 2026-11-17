@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [so*oC]
+   #CCC x,`x,x~
+  - names: [so*o@xo~CC]
+    kind:    #(   jinLLL meC
+settings:
+ defaults:
+     errorPages:
+      "504": {mode: message}

@@ -1,0 +1,19 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    mode: 'off'
+    useTrueClientIp: false
+profiles:
+  - id: prof_02sndAAHBC95f4Al8rNFnB
+    name: media
+   
+hosts:
+  - id: host_01wndHBCAA95f4Al8rNFlB
+    names: [jel]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+  

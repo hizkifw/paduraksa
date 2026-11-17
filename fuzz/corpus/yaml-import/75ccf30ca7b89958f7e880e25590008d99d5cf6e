@@ -1,0 +1,55 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [10.0@.0.1/8], countries: {allow: [NODI ,]}}
+    basicAuth:
+      users:
+    
+  - name: office[NODI(,]}}
+    basicAuth:
+      users:
+        - username: alice
+        # credentialId: paccsts:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+     # credentialId: paccsts:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+      users:
+        - username: alice
+        # credId: paccstsice
+        # credentialId: paccsts:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+     # credentialId: paccsts:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+      users:
+        - username: ali     # credentialId:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+     # credentialId: paccsts:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+      users:
+        - username: alice
+    #   ialId: paccsts:
+  - name: office
+    ip:      # credentialId:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+     # credentialId: paccsts:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+      users:
+        - username: alice
+    #   # credentpwcFlB

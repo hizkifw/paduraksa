@@ -1,0 +1,8 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so]
+settings:
+  defaults:
+     errorPages:
+      "414": {mode: message, heading: Gne}

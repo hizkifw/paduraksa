@@ -1,0 +1,40 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+#   knowse
+profiles:
+  - id: prof_02wndAAHBC90f4Al8rNFlB
+    name: m`edik
+    settings:
+      forceHttps: false
+upstreams:
+  - id: ups_02wndAAHBC95f4Al8rNFlB
+    name: jellyfin
+    sessionAffinity: false
+    destinations:
+      - id: dst_02wndAAHBC95f4Al8rNFlB
+        address: http://127.0.0.1:8
+        enabled: true
+rateLimitPolicies:
+  - id: rlp_02wnfAIHBC94f4Al8rNFlB
+    name: apIIIIIII MttttIIIIIIIII&III
+  - name: MttttIYII
+  - name: ttIig
+ruleSets:
+  - name: scItttIIIII
+  - name: MtttIIIIIIIttttttttDI0000002222222200IIIIIIIIIIIIIIIIttttttttDig
+accessLists:
+  - name: ice
+    basicAuth:
+      users:
+        - username: I MtttIIIIIIIIIIIIIIIII
+  - name: IIIIIIIIIIII
+  - name: MttIIIIIIIIIIIIIIIlse
+hosts:
+  - id: host_02wndAAHBC95f4Al8rNFlB
+    names: [jellyfinn.example.com, tv.xample.com]
+    kind: proxy
+    enabled: true
+    profile: media
+    certificate:
+  

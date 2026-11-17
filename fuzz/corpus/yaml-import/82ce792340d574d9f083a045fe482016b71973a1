@@ -1,0 +1,15 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [so*o]
+   # LL mediz
+    routes:
+      - upstream: jellyfin
+    #: onfig
+ruleSets:
+  - name: scars
+    rules:
+      - action: deny
+        match: {userAgent: {contains: [sql,m,ap]}}
+rateLimitPolicies:
+  - name: s}

@@ -1,0 +1,17 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: 
+profiles:
+  - id: prof_02wndAAHBC95f4Al8rNFnB
+    name: media
+    settings:
+      forceHttps:
+ruleSets:
+  - name: sca6666666zzzzue
+hosts:
+  - id: host_01ACdwLnBA95f4Al8rNFlB
+    names: [jel.exam]
+    enabled: true
+    profile: media
+    

@@ -1,0 +1,82 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [so*oCCCC CCCom]
+   #CCC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,`x, x~, x, xCCCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, x, xCCom]
+  - names: [so~,@x, xCCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,`xx, xCCCom]
+    kind: respond
+   #   kinm: , x, xCCCom]
+  - names: [so* x~, x, xCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x CCC x,`x, x(~,@xo~CCCCC x,`~Cm]
+  - names: [so*o~CCCCC x,`x, x~,@xoCC x,`x, x~, CCC x,`x, x(~,@xo~CCCCC x,`~Cm]
+  - names: [so *,~ xx, xCCCom]
+  - names: [so*o~CCCCC x,`x jinLLL,`x, x~, CCC x,`x, x(~,@xo~CCCCC x,`~Cm]
+  - names: [so*o~CCCCC x,`x, x~,@xoCC x,`x, x~, CCC x,`x, x(~,@xo~CCCCC x,`~Cm]
+  - names: [so *,~ xx, xCCCom]
+  - names: [`x, x~,@xox, ~CCCCC x,`x, x~, ., xCCCoom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC   x, xCCCom]
+  - names: [sq* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~CCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x* x~, x, xm]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~CCom]
+  - names: [so* x~, x, xCCCoCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x, x~,@xox, ~CCCCC x,`x, x~, ., xCCCoCCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [sC x,`x, x~,@xo~CCC x,`x, x~,@xox, ~CCCCC x,`x, x~, ., xCCCoom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x, x~,@xox, xxCCCom]
+    kind: respond
+   #   kinLLx x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x, x~,@xCCC x, x~,@xox, xxCCCom]
+    kind: respond
+   #  `~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x,o~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x, x~,@xox, ~CCCCC x,`x, x~, ., xCCCoom]
+  - names: [so*  x,`x, x~,  x, xC,`x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x,o~CCCCC x,`~CCCCCR x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x, x~,@xox, ~CCCCC x,`x, x~, ., x]
+  - names: [so*  x,`x, x~,  x, xCCCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~CCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`x, x~,@xox, ~CCCCC x,`x, x~, ., xCCCoCCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~,@xo~CCC x,`xCCC ~CCCCC x,om]
+  - names: [so*  x,`x, x~,  x, xCCCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x* x~, xCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o~C x,`x, x~CCom]
+  - names: [so* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@x* x~, x, xCCCom]
+  - names: [so*o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC x,om]
+  - names: [so*o,`x, x~,@xo~CCC x,bx, x,`x, x~, ., xCCCoom]
+  - names: [so* ~x ,x, xCCCom]
+  - names: [so*o~CCCCC x,om]
+  - names: [so*o~C x,`x,o~CCCCC x,`x, x~,@xo~CCCCC x,`~CCCCC so*o~CCCCC x,`x, x~,@xo~CC]
+    kind: respond
+   #    jinLLL meConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "504": {mode: message}

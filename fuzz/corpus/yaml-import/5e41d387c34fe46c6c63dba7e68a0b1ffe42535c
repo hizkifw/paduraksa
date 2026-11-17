@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offic2e
+    ip: {allow: [10.0.], countries: {allow: [y,N ID]}}
+    basicAuth:
+      users:
+
+hosts:
+  - names: [tv.om]
+    profile: media
+
+      # credenti

@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDIA
+hosts:
+  - names: [tv.le.com]
+    routes:
+      - upstream: jellyfin
+        path: /webbbbbbb]
+    kind: respond
+    respond:
+      statusCode: 808
+      contentType: t1bbbbbbbbbbbbbb

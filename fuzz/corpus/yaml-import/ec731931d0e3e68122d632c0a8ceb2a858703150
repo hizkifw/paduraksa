@@ -1,0 +1,21 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: office
+    ip: {allow: [/8], countries: {allow: [NODI ,]}}
+    basicAuth:
+      users:
+ #redentia: paccessLists:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+     # creti:
+  - name: office
+    ip: {allow: [10.00.1/8], countries: {allow: [NODI ,]}}
+    basicAuth:
+      users:
+# credentia: pLists:
+  - name: office
+    ip: {allow: [1/8], countries: {allow: [NUDI ,]}}
+    basicAuth:
+     #B

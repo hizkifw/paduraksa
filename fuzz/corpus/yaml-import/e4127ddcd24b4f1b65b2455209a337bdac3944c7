@@ -1,0 +1,19 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [m]
+  - names: [ x, xCCCom]
+    kind: respond
+   # inm: , x, xCCCom]
+  - names: [sC x,`x, x~,@xoCom]
+  - names: [so* x|, x, xCCCom]
+  - names: [so*CCCC x,`x, x~,@xo~CC x,`x, x~,@x, xCCCm]
+  - names: [so*o~CCCCC x,`x, >>>>>>,@xo~CC]
+    kind: respond
+   #    jinLLLig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "429": {mode: message}

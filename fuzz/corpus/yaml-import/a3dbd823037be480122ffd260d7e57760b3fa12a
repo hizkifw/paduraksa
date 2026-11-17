@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: MEDI2222222g
+accessLists:
+  - name: office
+    ip: {allow: [10.80.0.5/], countries: {allow: [NO, =D]}}
+    basicAuth:
+hosts:
+  - names: [tv.example.com]
+    profile: media
+    routes:
+     

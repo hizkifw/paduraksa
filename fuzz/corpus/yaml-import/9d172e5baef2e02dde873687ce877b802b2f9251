@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+settings:
+  unknownHost: notFound
+  trustedProxies:
+    forwardedForFallback: true
+rateLimitPolicies:
+ 
+
+hosts:
+    

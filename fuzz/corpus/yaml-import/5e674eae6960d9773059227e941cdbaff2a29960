@@ -1,0 +1,12 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: nnerrs
+    rules:
+      - action: deny
+ #m:
+  - name: sts
+    rules:
+      - action: deny
+ #micies:
+  - name: s

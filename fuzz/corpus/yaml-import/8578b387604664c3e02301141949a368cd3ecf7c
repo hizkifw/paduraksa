@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [om]
+   #  
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "413": {mode: message, heading: }

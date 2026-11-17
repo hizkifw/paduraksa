@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: nfig
+accessLists:
+  - name: ofe
+    ip: {allow: [2.0.001/<8], }
+   
+hosts:
+  - names: [j			cum]
+    profile: media

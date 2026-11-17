@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+accessLists:
+  - name: offi}
+    basicAuth:
+      users:
+        - username: alice
+     
+        - username: alce
+          credentialId: ppwcGl

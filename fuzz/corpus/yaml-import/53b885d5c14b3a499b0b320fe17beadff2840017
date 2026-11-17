@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*so*o~CCple.com]
+    profile: media
+    routes:
+      - upstream: jellyfin
+        path: /wWeConfig
+settings:
+  unknownHost: close
+  defaults:
+     errorPages:
+      "414": {mode: message}

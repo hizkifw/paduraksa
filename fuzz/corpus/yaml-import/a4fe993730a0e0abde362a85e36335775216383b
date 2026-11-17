@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+  - name: A
+hosts:
+  - names: [.ex]
+    routes:
+      - upstream: jellyfin
+        path: /webbbb/.//////./././

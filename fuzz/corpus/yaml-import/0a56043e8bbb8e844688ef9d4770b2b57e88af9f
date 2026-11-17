@@ -1,0 +1,27 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+ruleSets:
+  - name: sccaerr
+    rules:
+      - action: deny
+ #m
+      - action:  deny
+ #ie  rules::
+  - name: sccaerr
+    rules:
+      - action: deny
+ #m
+      - action:  deny
+ #ie  rules:
+      - action: deny
+ #m
+      - action: deny
+ #mairules:
+      - action: deny
+ #iesles:
+      - action: deny
+ #msles:
+      - action: deny
+ #m
+      - action: d
+      - action: denyd

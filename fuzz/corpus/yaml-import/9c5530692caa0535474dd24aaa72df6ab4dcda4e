@@ -1,0 +1,9 @@
+9: 
+  - &base {n: a}
+  - <: *base
+  -  {n: a}
+  - <<: *base
+  - - <: *base
+  - &base- <<: *base
+: *base
+<<<: *base

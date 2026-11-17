@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+# jonfig
+settings:
+ #e
+  defaults:
+     errorPages:
+      "431":

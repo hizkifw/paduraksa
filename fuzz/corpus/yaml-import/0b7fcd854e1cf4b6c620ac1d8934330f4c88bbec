@@ -1,0 +1,113 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - names: [a.example.com]
+    kind: respond
+    respond:
+      statusCode: 202
+      body: |
+        <p>no3888888j Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jmllyfin
+    # os.siu/s:[]e *bjetojetos.sys: Co*siuos:*         <p>no7777777777777777777k.s:
+      - upstream: jellyf4in
+    # os.sct:os.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no777oos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfil
+    # os.sys: Co*siu/s:[]s.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellifin
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bjec.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jmllyfin
+    # os.sys: Co*siu/s:[]e ys: Co*siuos:*         <p>no7777777777777777777k.sys: Co*siu/sroutes:
+      - upstream: jellyf4in
+    # os.sct:os.sys:etosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no777oos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfil
+    # os.sys: Co*siu/s:[]s.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellifin
+    # o{.sys: Co*siu/s:[888888888888kqa7777kqa.dev/v1Apa&e *bj Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jmllyfin
+    # os.sys: Co*siu/s:[]e *bjetojetos.sys: Co*siuos:* s:
+      - upstream: jellyf4in
+    # os.sct:os.s Co*siu/bjetosuos:* []e ts:
+  - names: [aҙxample.com]
+    kind: respond
+    respond:
+      statusCode: 203
+      body: |
+        <p>no777oos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jellyfil
+    # os.sys: Co*siu/s:[]s.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: je
+    # o{.sys: Co*siu/s:[]e *bjetosuos:*bjec.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jmllyfin
+    # os.sys: Co*siu/s:[]e ys: Co*siuos:*         <p>no7777777777777777777k.sys: Co*siu/sroutes:
+      - upstream: jellyf4in
+    # os.sct:os.sys::
+      - upstream: jellyfil
+    # os.sys: Co*siu/s:[]s.sys: Co*siu/s:[]e *bjetosuos:* []e ts:
+  - names: [aՙxample.com]
+    kind: respond
+    respond:
+      statusCode: 202
+    routes:
+      - upstream: jell Co*siu/s:[]e 

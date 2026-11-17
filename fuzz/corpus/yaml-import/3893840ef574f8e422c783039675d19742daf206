@@ -1,0 +1,13 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*]
+  - names: [so CCCom]
+   
+  - names: [s]
+  #    jifig
+settings:
+  unknownHost: close
+  defaults:
+   errorPages:
+      "429": {mode: message}

@@ -1,0 +1,14 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [so*oCom]
+  - names: [so*om]
+   #CCC x,`x, x~,@x, m]
+  - names: [so~,@xo~CC]
+    kind: respond
+   #    jinLLLonfig
+settings:
+  unknownHost: close
+  defaults:
+    errorPages:
+      "502": {mode: message}

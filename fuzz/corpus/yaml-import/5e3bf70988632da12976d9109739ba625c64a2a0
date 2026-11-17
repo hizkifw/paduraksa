@@ -1,0 +1,10 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+hosts:
+  - id: host_02wndAAHBC95f4Al8rNFlB
+    names: [ample.:om]
+    respond: {statusCode: 915}
+  - id: host_02wndAAHBC95lrAF8Nf4lB
+    names: [b./:om]
+ 
+    respond: {statusCode: 205}

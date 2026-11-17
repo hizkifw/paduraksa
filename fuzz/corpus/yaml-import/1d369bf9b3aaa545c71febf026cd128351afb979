@@ -1,0 +1,9 @@
+apiVersion: paduraksa.dev/v1
+kind: Config
+profiles:
+ - name: :IA󗐌IIII.180:93
+hosts:
+  - names: [mple.com]
+  
+    routes:
+      - upstream: jellyfin

@@ -1,0 +1,11 @@
+apiVersion: paduraksa.dev/v1
+kind:  Config
+hosts:
+  - names: [ xx, CC]
+    kind: respond
+   #Config
+settings:
+  unknownHost: close
+  defaults:
+    errorPages:
+      "503": {mode: message}
