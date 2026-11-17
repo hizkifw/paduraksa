@@ -49,7 +49,7 @@ public sealed class ConfigCompilerTests : IDisposable
     public void AStaleEdgeRangeListWarnsOnlyWhereTheEdgeRangesAreTrusted()
     {
         var late = EdgeRangeList.BuiltIn.FetchedAt.AddDays(45);
-        CloudflareEdgeRangeSource source = new(new Clock(late));
+        CloudflareEdgeRangeSource source = new(new ManualTimeProvider(late));
         ConfigCompiler compiler = new(new SnapshotCompilerOptions { CloudflareRanges = source }, new TestPasswords());
         static ConfigDocument Mode(TrustedProxyMode mode) => new(
             Settings: new GlobalSettings(TrustedProxies: new TrustedProxySettings(mode, mode == TrustedProxyMode.CloudflareTunnel ? ["127.0.0.1"] : [])),
@@ -76,11 +76,6 @@ public sealed class ConfigCompilerTests : IDisposable
         Assert.DoesNotContain(
             compiler.Compile(proxy, Revision, _certificates.InventoryFor(proxy)).Warnings,
             w => w.Code == ConfigWarningCodes.CloudflareRangesStale);
-    }
-
-    private sealed class Clock(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 
     [Fact]

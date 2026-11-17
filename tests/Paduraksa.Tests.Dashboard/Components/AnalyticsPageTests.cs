@@ -105,7 +105,7 @@ public sealed class AnalyticsPageTests
         /// <summary>The page's security section reads this; its database stays down unless a test opens it.</summary>
         public SecurityRig Security { get; }
 
-        public ManualClock Time { get; } = new(Noon);
+        public ManualTimeProvider Time { get; } = new(Noon);
 
         public AnalyticsBacklog Backlog { get; } = new();
 
@@ -160,25 +160,6 @@ public sealed class AnalyticsPageTests
                 // A temp directory a still-open SQLite file keeps; the OS cleans it.
             }
         }
-    }
-
-    private sealed class ManualClock(DateTimeOffset start) : TimeProvider
-    {
-        private long _timestamp = start.UtcTicks;
-
-        public DateTimeOffset Now { get; private set; } = start;
-
-        public void Advance(TimeSpan by)
-        {
-            Now += by;
-            _timestamp += by.Ticks;
-        }
-
-        public override DateTimeOffset GetUtcNow() => Now;
-
-        public override long GetTimestamp() => _timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
     }
 
     /// <summary>The page opened at an address (the visitors tab, unless a test says otherwise); only the tab being tested polls.</summary>

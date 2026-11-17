@@ -435,7 +435,7 @@ public sealed class ProofOfWorkTests
 
     private static ProofOfWorkRuntime Runtime()
     {
-        var runtime = new ProofOfWorkRuntime(new FixedTime(Now));
+        var runtime = new ProofOfWorkRuntime(new ManualTimeProvider(Now));
         runtime.UseKey(new TestMacKey());
         return runtime;
     }
@@ -551,10 +551,5 @@ public sealed class ProofOfWorkTests
             ClientIp = new ClientIpResolution(V4, ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted),
         };
         return new RequestView(context, state);
-    }
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }

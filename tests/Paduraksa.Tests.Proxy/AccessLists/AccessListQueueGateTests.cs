@@ -324,7 +324,7 @@ public sealed class AccessListQueueGateTests
     [Fact]
     public async Task AProofOfWorkGateAfterTheListStillChallengesARequestThatWaited()
     {
-        var pow = new ProofOfWorkRuntime(new FixedTime(Now));
+        var pow = new ProofOfWorkRuntime(new ManualTimeProvider(Now));
         pow.UseKey(new TestMacKey());
         var runtime = Runtime(slots: 1);
         var list = List("office");
@@ -410,11 +410,6 @@ public sealed class AccessListQueueGateTests
         // The host's fixed answer is what the host chain resumes into; the wrong password never reaches it.
         Assert.Equal("401", await wrong);
         Assert.Equal("200", await right);
-    }
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private static readonly DateTimeOffset Now = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);

@@ -40,7 +40,7 @@ public sealed class ReferenceLinksTests
     public async Task TheHostsList_LinksTheUpstreamAHostForwardsToAndTheCertificateServingIt()
     {
         await using DashboardTestContext context = new();
-        var config = ConfigPages.SignIn(context, Role.Operator, new FixedTime(Now));
+        var config = ConfigPages.SignIn(context, Role.Operator, new ManualTimeProvider(Now));
         var certificate = Certificate();
         HostConfig bound = new(HostId.New(), ["app.example.com"], Version: 2, Routes: [new RouteConfig(RouteId.New(), App.Id)],
             Certificate: new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = certificate.Id });
@@ -280,10 +280,5 @@ public sealed class ReferenceLinksTests
         Assert.True((await stackedOnIt.Result).Canceled);
         hosts.Dispose();
         Assert.Empty(stack.Levels);
-    }
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }

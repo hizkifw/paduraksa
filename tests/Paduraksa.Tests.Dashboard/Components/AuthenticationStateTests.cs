@@ -148,7 +148,7 @@ public sealed class AuthenticationStateTests
     {
         FakeSessions sessions = new();
         var session = sessions.Add(Role.Owner);
-        ManualTime time = new();
+        ManualTimeProvider time = new(new DateTimeOffset(2026, 11, 8, 12, 0, 0, TimeSpan.Zero));
         DashboardOptions options = new() { ActivityRecheckInterval = TimeSpan.FromSeconds(10), EndedCircuitGrace = TimeSpan.FromSeconds(10) };
         using var auth = Provider(sessions, time: time, options: options);
         auth.SetAuthenticationState(StateOf(session));
@@ -183,7 +183,7 @@ public sealed class AuthenticationStateTests
     {
         FakeSessions sessions = new();
         var session = sessions.Add(Role.Operator);
-        ManualTime time = new();
+        ManualTimeProvider time = new(new DateTimeOffset(2026, 11, 8, 12, 0, 0, TimeSpan.Zero));
         DashboardOptions options = new() { ActivityRecheckInterval = TimeSpan.FromSeconds(10), EndedCircuitGrace = TimeSpan.FromSeconds(10) };
         using var auth = Provider(sessions, time: time, options: options);
         auth.SetAuthenticationState(StateOf(session));
@@ -276,15 +276,5 @@ public sealed class AuthenticationStateTests
             var principal = _sessions.Values.FirstOrDefault(s => s?.UserId == user);
             return ValueTask.FromResult(principal is null ? RolePermissions.Of([]) : RolePermissions.Of(principal.Roles));
         }
-    }
-
-    /// <summary>A clock the test moves by hand.</summary>
-    private sealed class ManualTime : TimeProvider
-    {
-        private DateTimeOffset _now = new(2026, 11, 8, 12, 0, 0, TimeSpan.Zero);
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan by) => _now += by;
     }
 }

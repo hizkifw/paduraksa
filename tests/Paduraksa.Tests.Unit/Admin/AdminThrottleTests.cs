@@ -8,17 +8,9 @@ public sealed class AdminThrottleTests
 {
     private static readonly IPAddress ClientA = IPAddress.Parse("192.0.2.1");
     private static readonly IPAddress ClientB = IPAddress.Parse("192.0.2.2");
+    private static readonly DateTimeOffset Epoch = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
-    private sealed class ManualTime : TimeProvider
-    {
-        private DateTimeOffset _now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan by) => _now += by;
-    }
-
-    private static AdminThrottle Create(ManualTime time, int perIp = 100, int perUser = 100, int maxTracked = 10_000, int concurrent = 4) => new(
+    private static AdminThrottle Create(ManualTimeProvider time, int perIp = 100, int perUser = 100, int maxTracked = 10_000, int concurrent = 4) => new(
         new AdminSecurityOptions
         {
             RateLimitPermitsPerIp = perIp,
@@ -33,7 +25,7 @@ public sealed class AdminThrottleTests
     [Fact]
     public void AClientGetsItsPermitsThenTheTimeLeftInTheWindow()
     {
-        ManualTime time = new();
+        ManualTimeProvider time = new(Epoch);
         using var throttle = Create(time, perIp: 2);
 
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, ClientA, "a"));
@@ -51,7 +43,7 @@ public sealed class AdminThrottleTests
     [Fact]
     public void OnlyFailuresCountAgainstASubject_AndTheNameIsNormalised()
     {
-        ManualTime time = new();
+        ManualTimeProvider time = new(Epoch);
         using var throttle = Create(time, perUser: 2);
 
         for (var i = 0; i < 10; i++)
@@ -71,7 +63,7 @@ public sealed class AdminThrottleTests
     [Fact]
     public void ScopesHaveBudgetsOfTheirOwn()
     {
-        ManualTime time = new();
+        ManualTimeProvider time = new(Epoch);
         using var throttle = Create(time, perIp: 1, perUser: 1);
 
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, ClientA, "alice"));
@@ -88,7 +80,7 @@ public sealed class AdminThrottleTests
         Assert.Equal("192.0.2.1", AdminThrottle.ClientKey(IPAddress.Parse("::ffff:192.0.2.1")));
         Assert.Equal("unknown", AdminThrottle.ClientKey(null));
 
-        ManualTime time = new();
+        ManualTimeProvider time = new(Epoch);
         using var throttle = Create(time, perIp: 1);
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, IPAddress.Parse("2001:db8:1:2::1"), null));
         Assert.NotNull(throttle.TryEnter(AdminThrottleScope.Login, IPAddress.Parse("2001:db8:1:2::2"), null));
@@ -97,7 +89,7 @@ public sealed class AdminThrottleTests
     [Fact]
     public void TrackedKeysAreBounded_PastTheCapNewKeysShareOneBucket_UntilWindowsExpire()
     {
-        ManualTime time = new();
+        ManualTimeProvider time = new(Epoch);
         using var throttle = Create(time, perIp: 1, maxTracked: 3);
 
         for (var i = 1; i <= 3; i++)
@@ -118,7 +110,7 @@ public sealed class AdminThrottleTests
     public async Task PasswordChecksAreLimitedInNumber_ExcessWaitsThenIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var throttle = Create(new ManualTime(), concurrent: 2);
+        using var throttle = Create(new(Epoch), concurrent: 2);
 
         var first = await throttle.EnterPasswordCheckAsync(ct);
         var second = await throttle.EnterPasswordCheckAsync(ct);

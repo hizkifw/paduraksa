@@ -24,7 +24,7 @@ public sealed class HttpSenderTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _server = await FakeEndpoint.StartAsync();
-        _senders = new NotificationSenders(_secrets, _macKeys, new FixedTime(At));
+        _senders = new NotificationSenders(_secrets, _macKeys, new ManualTimeProvider(At));
     }
 
     public async ValueTask DisposeAsync()
@@ -198,10 +198,5 @@ public sealed class HttpSenderTests : IAsyncLifetime
         using System.Net.Sockets.TcpListener listener = new(System.Net.IPAddress.Loopback, 0);
         listener.Start();
         return listener.LocalEndpoint;
-    }
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }

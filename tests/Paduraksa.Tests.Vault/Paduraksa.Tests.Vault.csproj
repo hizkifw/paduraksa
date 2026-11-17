@@ -13,6 +13,8 @@
   <ItemGroup>
     <!-- The in-memory Cloudflare of the DNS provider tests, behind the vault's real authenticating handler. -->
     <Compile Include="../Paduraksa.Tests.Acme/Dns/FakeDnsApis.cs" LinkBase="Shared/AcmeFakes" />
+    <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
   <ItemGroup>
     <!-- The allocation check of the gate's tests: the cache probe must stay 0 B. -->

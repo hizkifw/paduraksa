@@ -245,7 +245,7 @@ public sealed class SandboxBoundaryTests
     [Fact]
     public async Task IdleChildrenAreDespawnedAndTheNextCallStartsOneLazily()
     {
-        ManualTimeProvider time = new();
+        SandboxClock time = new();
         List<string> log = [];
         await using var tools = SandboxFixture.Create(idle: TimeSpan.FromMinutes(1), time: time, log: log.Add);
         Assert.Equal(0, tools.Pool.ChildCount);
@@ -266,7 +266,7 @@ public sealed class SandboxBoundaryTests
     [Fact]
     public async Task AChildThatIsUsedStaysWarm()
     {
-        ManualTimeProvider time = new();
+        SandboxClock time = new();
         await using var tools = SandboxFixture.Create(idle: TimeSpan.FromMinutes(1), time: time);
         await tools.SearchAsync("async () => 1", Ct);
         var pid = Assert.Single(tools.Pool.ChildProcessIds);
@@ -530,7 +530,7 @@ public sealed class SandboxBoundaryTests
 }
 
 /// <summary>A clock a test moves by hand; its timers fire when it is advanced past them.</summary>
-internal sealed class ManualTimeProvider : TimeProvider
+internal sealed class SandboxClock : TimeProvider
 {
     private readonly Lock _gate = new();
     private readonly List<ManualTimer> _timers = [];

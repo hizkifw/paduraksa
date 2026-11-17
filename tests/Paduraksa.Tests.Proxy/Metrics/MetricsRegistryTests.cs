@@ -171,21 +171,10 @@ public sealed class MetricsRegistryTests
         AllocAssert.Zero((registry, request), static state => state.registry.RecordRequest(in state.request), "RecordRequest");
     }
 
-    private sealed class ManualClock(DateTimeOffset start) : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = start;
-
-        public override DateTimeOffset GetUtcNow() => Now;
-
-        public override long GetTimestamp() => Now.UtcTicks;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-    }
-
     [Fact]
     public void ARequestThatOutlivesItsSlotsGracePeriodIsNotCountedIntoTheNextOwner()
     {
-        ManualClock clock = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
+        ManualTimeProvider clock = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
         MetricsRegistry registry = new(processors: 2, gracePeriod: TimeSpan.FromSeconds(60), timeProvider: clock);
         var oldHost = registry.SlotFor(MetricSubject.Host, HostA);
         var oldRoute = registry.SlotFor(MetricSubject.Route, RouteA);
@@ -229,7 +218,7 @@ public sealed class MetricsRegistryTests
     [Fact]
     public void ASlotThatWasNeverRentedKeepsItsVersionAcrossRetireAndReclaim()
     {
-        ManualClock clock = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
+        ManualTimeProvider clock = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
         MetricsRegistry registry = new(processors: 1, gracePeriod: TimeSpan.FromSeconds(60), timeProvider: clock);
         var slot = registry.SlotFor(MetricSubject.Host, HostA);
         MetricRegistrations keep = new();

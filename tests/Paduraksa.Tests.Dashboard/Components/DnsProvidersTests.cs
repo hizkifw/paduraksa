@@ -35,7 +35,7 @@ public sealed class DnsProvidersTests
         // Registered before the sign-in, which ends by building the services.
         FakeProviders providers = new();
         context.Services.AddSingleton<IDashboardProviders>(providers);
-        ConfigPages.SignIn(context, role, new FixedTime(Now));
+        ConfigPages.SignIn(context, role, new ManualTimeProvider(Now));
         var dialogs = context.Render<MudDialogProvider>();
         context.Render<MudPopoverProvider>();
         var drawers = context.Render<DrawerHost>();
@@ -230,10 +230,5 @@ public sealed class DnsProvidersTests
         Assert.Empty(drawers.FindAll("input[data-field=label]"));
         Assert.Contains("Cloudflare home", drawers.Find("[data-drawer=dns-provider-details]").TextContent, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-action=add-provider]"));
-    }
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }

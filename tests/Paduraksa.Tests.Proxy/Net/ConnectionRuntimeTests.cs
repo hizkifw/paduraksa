@@ -188,7 +188,7 @@ public sealed class ConnectionRuntimeTests
     public void RefusalsAreLoggedOncePerIntervalWithTheirCount()
     {
         List<string> lines = [];
-        FakeTime time = new();
+        ManualTimeProvider time = new(DateTimeOffset.UnixEpoch);
         ConnectionRuntime runtime = new(new ConnectionTable(64), new ListLogger(lines), time);
         var snapshot = Snapshot(new ConnectionsSpec { MaxPerIp = 1, DenyList = Scanners.Id });
         Assert.Equal(ConnectionDecision.Counted, runtime.Admit(snapshot, Ip("198.51.100.7"), ConnectionTransport.Tcp, out _));
@@ -249,17 +249,6 @@ public sealed class ConnectionRuntimeTests
             _ = s.runtime.Admit(s.inert, s.held, ConnectionTransport.Tcp, out _); // off
             _ = s.runtime.Check(s.snapshot, s.held, ConnectionTransport.Quic);
         }, "the refused, exempt and off paths");
-    }
-
-    private sealed class FakeTime : TimeProvider
-    {
-        private long _ticks = 1_000;
-
-        public override long TimestampFrequency => 1_000;
-
-        public override long GetTimestamp() => Volatile.Read(ref _ticks);
-
-        public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, (long)by.TotalMilliseconds);
     }
 
     private sealed class ListLogger(List<string> lines) : ILogger

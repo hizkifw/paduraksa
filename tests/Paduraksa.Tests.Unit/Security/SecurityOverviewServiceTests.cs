@@ -66,7 +66,7 @@ public sealed class SecurityOverviewServiceTests
     {
         var connections = new ConnectionRuntime(new ConnectionTable(64));
         var store = new SnapshotStore();
-        Reader service = new(store, new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), NewRuntime(), connections, new FakeTime(DateTimeOffset.UnixEpoch), Runtimes);
+        Reader service = new(store, new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), NewRuntime(), connections, new ManualTimeProvider(DateTimeOffset.UnixEpoch), Runtimes);
 
         // Before anything is published: the bootstrap snapshot has no stage, and the card says so.
         Assert.Equal(new ConnectionCounters(0, 0, 0, 0, 0), service.Read().Connections);
@@ -99,7 +99,7 @@ public sealed class SecurityOverviewServiceTests
     public void TheAccessListCountersAreReadAsTheyStand()
     {
         var accessLists = NewRuntime();
-        Reader service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), accessLists, new ConnectionRuntime(), new FakeTime(DateTimeOffset.UnixEpoch), Runtimes);
+        Reader service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), accessLists, new ConnectionRuntime(), new ManualTimeProvider(DateTimeOffset.UnixEpoch), Runtimes);
         var stats = accessLists.Stats;
         stats.CountAddressRefused();
         stats.CountUnauthorized();
@@ -119,7 +119,7 @@ public sealed class SecurityOverviewServiceTests
     [Fact]
     public void TheReadSaysItsRangeAndWhenItWasTakenAndARangeNobodyObservedHasNoStart()
     {
-        FakeTime time = new(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero));
+        ManualTimeProvider time = new(new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero));
         var (service, _, _, _) = Start(time);
 
         time.Advance(TimeSpan.FromSeconds(90));
@@ -456,12 +456,12 @@ public sealed class SecurityOverviewServiceTests
 
     private (RuleSetRuntime? RuleSets, ForwardAuthRuntime? ForwardAuth) Runtimes() => (_ruleSets, _forwardAuth);
 
-    private (Reader Service, ProofOfWorkRuntime ProofOfWork, RateLimitRuntime RateLimits, SnapshotStore Store) Start(FakeTime? time = null)
+    private (Reader Service, ProofOfWorkRuntime ProofOfWork, RateLimitRuntime RateLimits, SnapshotStore Store) Start(ManualTimeProvider? time = null)
     {
         ProofOfWorkRuntime proofOfWork = new();
         RateLimitRuntime rateLimits = new(new RateLimitTable(64));
         SnapshotStore store = new();
-        return (new Reader(store, proofOfWork, rateLimits, NewRuntime(), new ConnectionRuntime(), time ?? new FakeTime(DateTimeOffset.UnixEpoch), Runtimes), proofOfWork, rateLimits, store);
+        return (new Reader(store, proofOfWork, rateLimits, NewRuntime(), new ConnectionRuntime(), time ?? new ManualTimeProvider(DateTimeOffset.UnixEpoch), Runtimes), proofOfWork, rateLimits, store);
     }
 
     /// <summary>
@@ -600,14 +600,5 @@ public sealed class SecurityOverviewServiceTests
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
         var snapshot = result.Snapshot!;
         store.Publish(snapshot.Bind(1, [.. snapshot.RouteIdBySlot.Select(_ => new Endpoint(null, null, "route"))]));
-    }
-
-    private sealed class FakeTime(DateTimeOffset now) : TimeProvider
-    {
-        private DateTimeOffset _now = now;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan by) => _now += by;
     }
 }

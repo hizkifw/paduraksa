@@ -21,7 +21,7 @@ public sealed class CertificateInventoryTests : IDisposable
     private readonly List<X509Certificate2> _owned = [];
     private readonly Source _source = new();
     private readonly BuiltIns _builtIns = new();
-    private readonly Clock _clock = new(Now);
+    private readonly ManualTimeProvider _clock = new(Now);
 
     public void Dispose()
     {
@@ -323,13 +323,6 @@ public sealed class CertificateInventoryTests : IDisposable
     }
 
     private static ConfigDocument Document(params HostConfig[] hosts) => new(Hosts: hosts);
-
-    private sealed class Clock(DateTimeOffset now) : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = now;
-
-        public override DateTimeOffset GetUtcNow() => Now;
-    }
 
     private sealed class BuiltIns : IBuiltInCertificates
     {

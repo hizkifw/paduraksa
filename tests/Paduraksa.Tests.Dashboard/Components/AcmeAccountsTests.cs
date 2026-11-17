@@ -37,7 +37,7 @@ public sealed class AcmeAccountsTests
         // Registered before the sign-in, which ends by building the services.
         FakeProviders providers = new();
         context.Services.AddSingleton<IDashboardProviders>(providers);
-        ConfigPages.SignIn(context, role, new FixedTime(Now));
+        ConfigPages.SignIn(context, role, new ManualTimeProvider(Now));
         var dialogs = context.Render<MudDialogProvider>();
         context.Render<MudPopoverProvider>();
         var drawers = context.Render<DrawerHost>();
@@ -233,10 +233,5 @@ public sealed class AcmeAccountsTests
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=acme-account-details] .pdk-detail").Count == 1);
         Assert.Empty(drawers.FindAll("[data-action=delete]"));
         Assert.Empty(page.FindAll("[data-action=add-account]"));
-    }
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }

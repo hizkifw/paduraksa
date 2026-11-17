@@ -34,7 +34,7 @@ public sealed class ErrorLogTests : IDisposable
     [Fact]
     public void AnEntryHasTheConsoleShapeWithTheAppScopeAndTheExceptionBelowIt()
     {
-        FixedClock clock = new(new DateTimeOffset(2026, 11, 9, 12, 0, 0, 500, TimeSpan.Zero));
+        ManualTimeProvider clock = new(new DateTimeOffset(2026, 11, 9, 12, 0, 0, 500, TimeSpan.Zero));
         ScopeProvider scopes = new();
         using (scopes.Push(new List<KeyValuePair<string, object?>> { new("App", "public") }))
         {
@@ -58,7 +58,7 @@ public sealed class ErrorLogTests : IDisposable
     public void AnEntryWithoutAScopeOrAnExceptionIsOneLine()
     {
         var entry = ErrorLogProvider.FormatEntry(
-            new FixedClock(DateTimeOffset.UnixEpoch), null, LogLevel.Warning, default, "Category", "one line", null);
+            new ManualTimeProvider(DateTimeOffset.UnixEpoch), null, LogLevel.Warning, default, "Category", "one line", null);
 
         Assert.Equal("1970-01-01T00:00:00.000Z warn: Category[0]: one line", entry);
     }
@@ -138,7 +138,7 @@ public sealed class ErrorLogTests : IDisposable
         using ManualResetEventSlim taken = new(false);
         RotatingLogFile writer = new(
             new LogFileWriterSettings(LogFileKind.Error, LogsDirectory, 1024 * 1024, 10, TimeSpan.FromDays(1), 1024 * 1024),
-            new FixedClock(DateTimeOffset.UnixEpoch),
+            new ManualTimeProvider(DateTimeOffset.UnixEpoch),
             Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
             new RotatingLogFileTestSeams { Pause = pause, Taken = taken });
         using (writer)
@@ -193,11 +193,6 @@ public sealed class ErrorLogTests : IDisposable
         logger.Log(level, default, message, exception, static (state, _) => state);
 
     private List<string> Read() => System.IO.File.Exists(ErrorLog) ? [.. System.IO.File.ReadAllLines(ErrorLog)] : [];
-
-    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
-    }
 
     /// <summary>What a logger factory gives its providers: the scopes open on the current flow.</summary>
     private sealed class ScopeProvider : IExternalScopeProvider

@@ -18,39 +18,19 @@ public sealed class TrafficAnalyticsTests
 
     private static readonly byte[] Salt = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
-    internal sealed class ManualClock(DateTimeOffset start) : TimeProvider
-    {
-        private long _timestamp = start.UtcTicks;
-
-        public DateTimeOffset Now { get; private set; } = start;
-
-        public void Advance(TimeSpan by)
-        {
-            Now += by;
-            _timestamp += by.Ticks;
-        }
-
-        /// <summary>Time passes without anyone looking: the wall clock moves, nothing ticks in between.</summary>
-        public override DateTimeOffset GetUtcNow() => Now;
-
-        public override long GetTimestamp() => _timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-    }
-
     private sealed class Rig
     {
         public Rig(ProxyConfigModel? model = null, byte[]? salt = null)
         {
             Store = new SnapshotStore();
             Store.Publish(Bound(model ?? Hosts("app", "other")));
-            Clock = new ManualClock(Start);
+            Clock = new ManualTimeProvider(Start);
             Analytics = new TrafficAnalytics(Store, Clock, Backlog, salt ?? Salt);
         }
 
         public SnapshotStore Store { get; }
 
-        public ManualClock Clock { get; }
+        public ManualTimeProvider Clock { get; }
 
         public AnalyticsBacklog Backlog { get; } = new();
 

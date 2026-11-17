@@ -6,7 +6,6 @@ using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
-using Paduraksa.Tests.Data;
 using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Metrics;

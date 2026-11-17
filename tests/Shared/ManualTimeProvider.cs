@@ -1,4 +1,6 @@
-namespace Paduraksa.Tests.Data;
+// Linked into the test projects that need a settable clock (<Compile Include Link>), so it compiles into each assembly as an
+// internal type of its own.
+namespace Paduraksa.Tests.Shared;
 
 /// <summary>
 /// Settable clock for generators and stores. Timers it creates fire when <see cref="Advance"/> moves the clock past them

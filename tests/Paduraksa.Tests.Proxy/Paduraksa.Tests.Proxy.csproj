@@ -16,7 +16,8 @@
     <Compile Include="../Shared/TestIds.cs" Link="Shared/TestIds.cs" />
     <Compile Include="../Shared/TestAccessLists.cs" Link="Shared/TestAccessLists.cs" />
     <Compile Include="../Shared/Property.cs" Link="Shared/Property.cs" />
-    <Compile Include="../Paduraksa.Tests.Data/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
   <Import Project="../Shared/TestPasswords.props" />
 </Project>

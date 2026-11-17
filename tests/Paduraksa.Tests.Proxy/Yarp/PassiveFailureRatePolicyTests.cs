@@ -20,7 +20,7 @@ public sealed class PassiveFailureRatePolicyTests
 {
     private const int Threshold = 10;
 
-    private readonly ManualClock _clock = new();
+    private readonly ManualTimeProvider _clock = new(DateTimeOffset.UnixEpoch);
     private readonly RecordingUpdater _updater = new();
     private readonly DestinationState _destination = new("d");
 
@@ -200,17 +200,6 @@ public sealed class PassiveFailureRatePolicyTests
         inner.Next = DestinationHealth.Healthy;
         recorder.ProbingCompleted(cluster, [new DestinationProbingResult(_destination, null, new HttpRequestException("refused"))]);
         Assert.Equal(DestinationHealth.Unknown, _destination.Health.Passive);
-    }
-
-    private sealed class ManualClock : TimeProvider
-    {
-        private long _ticks = TimeSpan.TicksPerDay;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-
-        public override long GetTimestamp() => _ticks;
-
-        public void Advance(TimeSpan by) => _ticks += by.Ticks;
     }
 
     private sealed class RecordingUpdater : IDestinationHealthUpdater

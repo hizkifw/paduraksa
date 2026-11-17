@@ -15,18 +15,6 @@ using Paduraksa.Vault.Passwords;
 
 namespace Paduraksa.Tests.Proxy.AccessLists;
 
-/// <summary>A clock the test moves: one tick is a millisecond.</summary>
-internal sealed class StepClock : TimeProvider
-{
-    private long _ms;
-
-    public override long TimestampFrequency => 1000;
-
-    public override long GetTimestamp() => Interlocked.Read(ref _ms);
-
-    public void Advance(TimeSpan by) => Interlocked.Add(ref _ms, (long)by.TotalMilliseconds);
-}
-
 /// <summary>Access lists through the real gate: the hashes are made once (PBKDF2 is slow on purpose), and a request is a context with a
 /// peer address and an optional Basic credential.</summary>
 internal static class AccessListFixtures

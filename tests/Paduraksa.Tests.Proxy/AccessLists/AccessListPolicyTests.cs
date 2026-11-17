@@ -200,7 +200,7 @@ public sealed class AccessListPolicyTests
     [Fact]
     public async Task ARememberedPasswordExpiresFiveMinutesAfterItsLastUse()
     {
-        StepClock clock = new();
+        ManualTimeProvider clock = new(DateTimeOffset.UnixEpoch);
         var runtime = AccessListFixtures.NewRuntime(clock);
         var gate = GateFor(runtime, Model(List("office")), out _);
         var credentials = Basic("alice", Password);

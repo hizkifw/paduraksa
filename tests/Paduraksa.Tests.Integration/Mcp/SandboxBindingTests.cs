@@ -76,7 +76,7 @@ public sealed class SandboxBindingTests
     [Fact]
     public async Task AChildStartedAfterTheIdleOneWasDespawnedHasTheClient()
     {
-        ManualTimeProvider time = new();
+        SandboxClock time = new();
         await using var tools = SandboxFixture.Create(idle: TimeSpan.FromMinutes(1), time: time);
         ScriptedDispatcher dispatcher = new();
         Assert.Equal(Present, (await tools.ExecuteAsync(Probe, dispatcher, Ct)).Text);

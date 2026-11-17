@@ -15,17 +15,6 @@ namespace Paduraksa.Tests.Proxy.Metrics;
 /// </summary>
 public sealed class MetricSlotConflictTests
 {
-    private sealed class ManualClock(DateTimeOffset start) : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = start;
-
-        public override DateTimeOffset GetUtcNow() => Now;
-
-        public override long GetTimestamp() => Now.UtcTicks;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-    }
-
     private sealed class ListLogger : ILoggerFactory, ILogger
     {
         public List<(LogLevel Level, string Message)> Entries { get; } = [];
@@ -58,7 +47,7 @@ public sealed class MetricSlotConflictTests
     public async Task AConflictIsLoggedAndTheStaleHostRecordsNothingIntoTheSlotsNewOwner()
     {
         var ct = TestContext.Current.CancellationToken;
-        ManualClock clock = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
+        ManualTimeProvider clock = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
         MetricsRegistry registry = new(processors: 2, gracePeriod: TimeSpan.FromSeconds(60), timeProvider: clock);
         ListLogger logs = new();
         SnapshotCompilerOptions options = new() { Metrics = registry };

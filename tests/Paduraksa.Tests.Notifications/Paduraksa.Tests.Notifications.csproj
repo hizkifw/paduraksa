@@ -9,4 +9,8 @@
     <ProjectReference Include="../../src/Paduraksa.Notifications/Paduraksa.Notifications.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
+  </ItemGroup>
 </Project>

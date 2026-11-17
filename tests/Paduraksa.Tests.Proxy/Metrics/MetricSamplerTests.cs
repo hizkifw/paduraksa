@@ -10,40 +10,6 @@ public sealed class MetricSamplerTests
     private static readonly Guid HostC = new("00000000-0000-7000-8000-00000000000c");
     private static readonly Guid UpstreamA = new("00000000-0000-7000-8000-0000000000b1");
 
-    /// <summary>
-    /// A clock the test moves: the sampler reads the date for labels and the monotonic timestamp for how long it observed. The two move
-    /// together unless a test steps the wall clock alone.
-    /// </summary>
-    private sealed class ManualClock(DateTimeOffset start) : TimeProvider
-    {
-        private long _timestamp = start.UtcTicks;
-
-        public DateTimeOffset Now { get; private set; } = start;
-
-        /// <summary>Both clocks move forward by <paramref name="by"/>.</summary>
-        public void Advance(TimeSpan by)
-        {
-            Now += by;
-            _timestamp += by.Ticks;
-        }
-
-        /// <summary>Moves the wall clock to <paramref name="to"/>; the monotonic clock moves forward by the difference if there is one, and stays put when the wall clock goes back.</summary>
-        public void MoveTo(DateTimeOffset to)
-        {
-            _timestamp += Math.Max(0, (to - Now).Ticks);
-            Now = to;
-        }
-
-        /// <summary>Steps only the wall clock, as an NTP correction does.</summary>
-        public void StepWall(DateTimeOffset to) => Now = to;
-
-        public override DateTimeOffset GetUtcNow() => Now;
-
-        public override long GetTimestamp() => _timestamp;
-
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-    }
-
     // Minute and ten-second boundaries line up at this instant, so a test knows which bucket each second lands in.
     private static readonly DateTimeOffset Start = new(2026, 11, 12, 12, 0, 0, TimeSpan.Zero);
 
@@ -53,13 +19,13 @@ public sealed class MetricSamplerTests
         /// <param name="bootSeconds">How long after <see cref="Start"/> the process starts, so a test can begin inside a minute.</param>
         public Rig(TimeSpan? grace = null, double bootSeconds = 0)
         {
-            Clock = new ManualClock(Start.AddSeconds(bootSeconds));
+            Clock = new ManualTimeProvider(Start.AddSeconds(bootSeconds));
             Registry = new MetricsRegistry(processors: 2, gracePeriod: grace, timeProvider: Clock);
             Queue = new MetricRollupBacklog();
             Sampler = new MetricSampler(Registry, Clock, Queue);
         }
 
-        public ManualClock Clock { get; }
+        public ManualTimeProvider Clock { get; }
 
         public MetricsRegistry Registry { get; }
 
@@ -86,7 +52,7 @@ public sealed class MetricSamplerTests
         /// <summary>Moves the clock to <paramref name="seconds"/> after the start and samples.</summary>
         public void TickAt(double seconds)
         {
-            Clock.MoveTo(Start.AddSeconds(seconds));
+            Clock.Now = Start.AddSeconds(seconds);
             Sampler.Tick();
             _last = (int)Math.Floor(seconds);
         }
@@ -411,7 +377,7 @@ public sealed class MetricSamplerTests
         }
 
         // NTP puts the wall clock back 100 s; real time goes on at a second a tick. The labels run on from where they were.
-        rig.Clock.StepWall(Start.AddSeconds(-45));
+        rig.Clock.Now = Start.AddSeconds(-45);
         for (var second = 56; second <= 70; second++)
         {
             rig.Request(host);
@@ -700,7 +666,7 @@ public sealed class MetricSamplerTests
         rig.TickEverySecondTo(44);
         rig.Request(host);
         rig.Request(host);
-        rig.Clock.MoveTo(Start.AddSeconds(45.4));
+        rig.Clock.Now = Start.AddSeconds(45.4);
 
         rig.Sampler.Flush();
 

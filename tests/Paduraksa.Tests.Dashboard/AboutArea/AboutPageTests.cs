@@ -48,7 +48,7 @@ public sealed class AboutPageTests
         context.Services.AddSingleton(new ServerFacts(".NET 10.0.7", "Linux 6.8.0 Ubuntu", "x64", Started));
         context.Services.AddSingleton(embedded ? ThirdPartyNotices.Embedded : ThirdPartyNotices.Parse(System.Text.Json.JsonDocument.Parse(notices).RootElement));
         context.Services.AddSingleton(new ProductLicense("APACHE LICENSE TEXT\n", "Paduraksa\nCopyright 2026 Hizkia Felix\n"));
-        FixedTime time = new(Started + TimeSpan.FromMinutes(135));
+        ManualTimeProvider time = new(Started + TimeSpan.FromMinutes(135));
         context.Services.AddSingleton<TimeProvider>(time);
         if (live)
         {
@@ -330,10 +330,5 @@ public sealed class AboutPageTests
         var item = popovers.FindAll("a.mud-menu-item").Single(a => a.TextContent.Contains("About Paduraksa", StringComparison.Ordinal));
         Assert.Equal(DashboardRoutes.About, item.GetAttribute("href"));
         Assert.Contains("0.1.0", context.Render<About>().Find("[data-fact=version]").TextContent, StringComparison.Ordinal);
-    }
-
-    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
     }
 }

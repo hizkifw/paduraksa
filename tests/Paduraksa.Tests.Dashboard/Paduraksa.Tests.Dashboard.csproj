@@ -7,6 +7,8 @@
   <ItemGroup>
     <Compile Include="../Shared/FakeAuthServer.cs" Link="Shared/FakeAuthServer.cs" />
     <Compile Include="../Shared/Requirements.cs" Link="Shared/Requirements.cs" />
+    <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="bunit" />

@@ -140,7 +140,7 @@ public sealed class SandboxHostileChildTests
     public async Task AWarmChildThatSpinsWhileItIsIdleIsKilledByTheSweep()
     {
         Assert.SkipUnless(OperatingSystem.IsLinux(), "a shell stands in for the child");
-        ManualTimeProvider time = new();
+        SandboxClock time = new();
         List<string> log = [];
         await using var tools = FakeChild.Tools($"sleep 0.3; {FakeChild.Result(FakeChild.FixedRunId)}; while :; do :; done", idle: TimeSpan.FromMinutes(10), time: time, log: log.Add);
         Assert.Equal("1", (await tools.SearchAsync("async () => 1", Ct)).Text);

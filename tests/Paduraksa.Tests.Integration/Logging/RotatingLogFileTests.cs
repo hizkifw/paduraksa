@@ -385,10 +385,10 @@ public sealed class RotatingLogFileTests : IDisposable
         Assert.False(System.IO.File.Exists(LivePath()));
     }
 
-    private static TestClock Clock() => new(new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero));
+    private static ManualTimeProvider Clock() => new(new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero));
 
     private RotatingLogFile Start(
-        TestClock clock,
+        ManualTimeProvider clock,
         long maxFileSize = 1024 * 1024,
         int retainedFiles = 100,
         TimeSpan? maxAge = null,
@@ -464,13 +464,5 @@ public sealed class RotatingLogFileTests : IDisposable
         }
 
         Assert.Fail($"Timed out waiting for {what}.");
-    }
-
-    /// <summary>A clock the test moves by hand; a rotation's name and the daily check read it.</summary>
-    internal sealed class TestClock(DateTimeOffset now) : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = now;
-
-        public override DateTimeOffset GetUtcNow() => Now;
     }
 }

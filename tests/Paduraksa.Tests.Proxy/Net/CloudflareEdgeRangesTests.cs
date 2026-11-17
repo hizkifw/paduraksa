@@ -45,7 +45,7 @@ public sealed class CloudflareEdgeRangesTests
         Assert.True(EdgeRangeList.TryCreate([.. CloudflareIpRanges.IPv4, .. CloudflareIpRanges.IPv6], Now, out var fetched, out _));
         Assert.True(builtIn.SameBlocksAs(fetched));
 
-        var source = new CloudflareEdgeRangeSource(new Clock(Now));
+        var source = new CloudflareEdgeRangeSource(new ManualTimeProvider(Now));
         Assert.False(source.Replace(fetched), "the same ranges are no change");
         Assert.Equal(EdgeRangeOrigin.Fetched, source.Current.Origin);
         Assert.Equal(Now, source.Current.FetchedAt);
@@ -126,7 +126,7 @@ public sealed class CloudflareEdgeRangesTests
     [Fact]
     public void ReplacingWithTheSameBlocksOnlyMovesTheAge()
     {
-        var source = new CloudflareEdgeRangeSource(new Clock(Now));
+        var source = new CloudflareEdgeRangeSource(new ManualTimeProvider(Now));
         Assert.Same(EdgeRangeList.BuiltIn, source.Current);
 
         var first = Valid();
@@ -144,7 +144,7 @@ public sealed class CloudflareEdgeRangesTests
     [Fact]
     public void AListIsStaleAfterThirtyDaysAndSeveralFailuresInARowWarn()
     {
-        var clock = new Clock(Now);
+        var clock = new ManualTimeProvider(Now);
         var source = new CloudflareEdgeRangeSource(clock);
         source.Replace(Valid());
 
@@ -177,7 +177,7 @@ public sealed class CloudflareEdgeRangesTests
     [Fact]
     public void TheBuiltInListGrowsStaleToo()
     {
-        var source = new CloudflareEdgeRangeSource(new Clock(EdgeRangeList.BuiltIn.FetchedAt.AddDays(45)));
+        var source = new CloudflareEdgeRangeSource(new ManualTimeProvider(EdgeRangeList.BuiltIn.FetchedAt.AddDays(45)));
 
         Assert.Contains("built-in list, 45 days old", source.Status().Warning, StringComparison.Ordinal);
     }
@@ -186,7 +186,7 @@ public sealed class CloudflareEdgeRangesTests
     public void TheCompilerReadsTheLiveListAtEveryCompileAndTheSnapshotSaysWhichOne()
     {
         TrustedProxySpec spec = new() { Mode = TrustedProxyMode.CloudflareProxy };
-        var source = new CloudflareEdgeRangeSource(new Clock(Now));
+        var source = new CloudflareEdgeRangeSource(new ManualTimeProvider(Now));
         var options = new SnapshotCompilerOptions { CloudflareRanges = source };
         ProxyConfigModel model = new() { Defaults = new DefaultsSpec { TrustedProxies = spec } };
 
@@ -223,7 +223,7 @@ public sealed class CloudflareEdgeRangesTests
     [Fact]
     public void TheSimulatorSaysWhichListIsInUseAndHowOldItIsOnlyWhereTheEdgeIsTrusted()
     {
-        var source = new CloudflareEdgeRangeSource(new Clock(Now));
+        var source = new CloudflareEdgeRangeSource(new ManualTimeProvider(Now));
         var options = new SnapshotCompilerOptions { CloudflareRanges = source };
         var model = new ProxyConfigModel { Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } } };
         var probe = new GateProbe { Host = "any.test", ClientAddress = IPAddress.Parse("198.51.100.7") };
@@ -244,12 +244,5 @@ public sealed class CloudflareEdgeRangesTests
         Assert.Equal("fetched list, 8 ranges, fetched 2026-11-11", Fact(GateSimulator.Run(Bound(model, options: options), probe)));
         var off = GateSimulator.Run(Bound(new ProxyConfigModel(), options: options), probe, now: Now);
         Assert.DoesNotContain(Assert.Single(off.Steps, s => s.Kind == GateStepKind.ClientAddress).Facts, f => f.Name == "edgeRanges");
-    }
-
-    private sealed class Clock(DateTimeOffset now) : TimeProvider
-    {
-        public DateTimeOffset Now { get; set; } = now;
-
-        public override DateTimeOffset GetUtcNow() => Now;
     }
 }

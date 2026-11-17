@@ -13,11 +13,3 @@ public readonly partial record struct AuditEventId;
 
 [TypedId("int", IdKind.UuidV7)]
 internal readonly partial record struct InternalId;
-
-/// <summary>Settable clock for generator tests.</summary>
-internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
-{
-    public DateTimeOffset Now { get; set; } = now;
-
-    public override DateTimeOffset GetUtcNow() => Now;
-}

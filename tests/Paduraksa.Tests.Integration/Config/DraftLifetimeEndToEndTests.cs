@@ -80,7 +80,7 @@ public sealed class DraftLifetimeEndToEndTests
 
         await using var second = TestHost.Create(dataDirectory: data);
         await second.StartAsync(Ct);
-        StepClock clock = new(second.Shared.TimeProvider.GetUtcNow());
+        ManualTimeProvider clock = new(second.Shared.TimeProvider.GetUtcNow());
         var factory = new ServiceCollection().AddPaduraksaDbContextFactory<ConfigDbContext>(Path.Combine(data, ConfigDatabase.FileName)).BuildServiceProvider()
             .GetRequiredService<IDbContextFactory<ConfigDbContext>>();
         DraftService drafts = new(factory, second.Shared.Config, second.Shared.PasswordCredentials, second.Shared.Permissions, clock, NullLoggerFactory.Instance);
@@ -94,14 +94,5 @@ public sealed class DraftLifetimeEndToEndTests
         var notice = Assert.Single(await drafts.TakeNoticesAsync(owner, Ct));
         Assert.Equal(1, notice.Entries);
         Assert.Empty(await drafts.TakeNoticesAsync(owner, Ct));
-    }
-
-    private sealed class StepClock(DateTimeOffset start) : TimeProvider
-    {
-        private DateTimeOffset _now = start;
-
-        public void Advance(TimeSpan by) => _now += by;
-
-        public override DateTimeOffset GetUtcNow() => _now;
     }
 }
