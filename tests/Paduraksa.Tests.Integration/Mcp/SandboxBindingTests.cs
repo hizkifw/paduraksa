@@ -1,5 +1,4 @@
 using Paduraksa.Mcp;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Mcp;
 

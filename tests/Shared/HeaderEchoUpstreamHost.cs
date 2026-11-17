@@ -1,9 +1,7 @@
 // Linked into Paduraksa.Tests.Proxy and Paduraksa.Tests.Integration (<Compile Include Link>), so it compiles into each
 // test assembly as an internal type of its own.
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Https;

@@ -2,12 +2,10 @@ using System.IO.Compression;
 using System.Net;
 using System.Text;
 
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;

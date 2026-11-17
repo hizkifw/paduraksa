@@ -1,13 +1,11 @@
 // Linked into Paduraksa.Tests.Proxy, Paduraksa.Tests.Integration and Paduraksa.Tests.Dashboard (<Compile Include Link>), so it
 // compiles into each test assembly as an internal type of its own.
 using System.Collections.Concurrent;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Paduraksa.Tests.Shared;

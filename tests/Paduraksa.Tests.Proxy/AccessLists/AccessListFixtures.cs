@@ -7,10 +7,8 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
-using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 using Paduraksa.Vault.Passwords;
 
 namespace Paduraksa.Tests.Proxy.AccessLists;

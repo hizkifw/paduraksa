@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;

@@ -1,5 +1,4 @@
 using Paduraksa.Proxy.AccessLists;
-using Paduraksa.Proxy.Net;
 using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.Testing;
 

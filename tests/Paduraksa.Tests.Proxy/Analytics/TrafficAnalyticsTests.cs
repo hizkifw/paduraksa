@@ -5,7 +5,6 @@ using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Snapshot;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Analytics;

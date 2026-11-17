@@ -1,11 +1,9 @@
 using System.Net;
 using System.Text;
 
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;

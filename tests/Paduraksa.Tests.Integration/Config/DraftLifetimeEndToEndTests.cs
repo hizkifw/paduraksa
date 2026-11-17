@@ -8,7 +8,6 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Commands;
-using Paduraksa.Contracts.Drafts;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
 using Paduraksa.Server.Hosting;

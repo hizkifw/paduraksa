@@ -6,7 +6,6 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 using Paduraksa.Mcp;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Mcp;
 
