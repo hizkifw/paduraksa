@@ -18,10 +18,6 @@ namespace Paduraksa.Application.Issuance;
 internal static partial class SecretCleanup
 {
     /// <summary>Deletes <paramref name="secret"/>, logging (not throwing) a failure.</summary>
-    /// <param name="secrets">The vault.</param>
-    /// <param name="secret">The secret nothing will name.</param>
-    /// <param name="logger">Where a failure is logged.</param>
-    /// <param name="cancellationToken">The caller's token: an <see cref="OperationCanceledException"/> it caused is not swallowed.</param>
     public static async Task TryDeleteAsync(ISecretStore secrets, SecretId secret, ILogger logger, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(secrets);
