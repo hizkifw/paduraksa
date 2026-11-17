@@ -12,138 +12,63 @@ namespace Paduraksa.Dashboard.SettingsArea;
 /// </summary>
 public static class HostSettingsEdit
 {
-    /// <summary><paramref name="settings"/> with its TLS record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithTls(HostSettings settings, Func<TlsSettings, TlsSettings> change)
+    /// <summary>
+    /// The <c>With*</c> methods: <paramref name="settings"/> with one nested record changed, and no record at all when nothing is left
+    /// set (a record that sets nothing is no layer, so it must not stay in the document).
+    /// </summary>
+    private static HostSettings Edit<T>(HostSettings settings, Func<HostSettings, T?> get, Func<T, T> change, Func<HostSettings, T?, HostSettings> set)
+        where T : class, ISettingsLayer, new()
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.Tls ?? new TlsSettings());
-        return settings with { Tls = changed.SetsNothing ? null : changed };
+        var changed = change(get(settings) ?? new T());
+        return set(settings, changed.SetsNothing ? null : changed);
     }
 
-    /// <summary><paramref name="settings"/> with its HSTS record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithHsts(HostSettings settings, Func<HstsSettings, HstsSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.Hsts ?? new HstsSettings());
-        return settings with { Hsts = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithTls(HostSettings settings, Func<TlsSettings, TlsSettings> change) =>
+        Edit(settings, s => s.Tls, change, (s, record) => s with { Tls = record });
 
-    /// <summary><paramref name="settings"/> with its <c>Server</c> header record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithServerHeader(HostSettings settings, Func<ServerHeaderSettings, ServerHeaderSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.ServerHeader ?? new ServerHeaderSettings());
-        return settings with { ServerHeader = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithHsts(HostSettings settings, Func<HstsSettings, HstsSettings> change) =>
+        Edit(settings, s => s.Hsts, change, (s, record) => s with { Hsts = record });
 
-    /// <summary><paramref name="settings"/> with its proof-of-work record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithProofOfWork(HostSettings settings, Func<ProofOfWorkSettings, ProofOfWorkSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.ProofOfWork ?? new ProofOfWorkSettings());
-        return settings with { ProofOfWork = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithServerHeader(HostSettings settings, Func<ServerHeaderSettings, ServerHeaderSettings> change) =>
+        Edit(settings, s => s.ServerHeader, change, (s, record) => s with { ServerHeader = record });
 
-    /// <summary><paramref name="settings"/> with its rate-limit record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithRateLimit(HostSettings settings, Func<RateLimitSettings, RateLimitSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.RateLimit ?? new RateLimitSettings());
-        return settings with { RateLimit = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithProofOfWork(HostSettings settings, Func<ProofOfWorkSettings, ProofOfWorkSettings> change) =>
+        Edit(settings, s => s.ProofOfWork, change, (s, record) => s with { ProofOfWork = record });
 
-    /// <summary><paramref name="settings"/> with its access-list record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithAccessList(HostSettings settings, Func<AccessListSettings, AccessListSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.AccessList ?? new AccessListSettings());
-        return settings with { AccessList = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithRateLimit(HostSettings settings, Func<RateLimitSettings, RateLimitSettings> change) =>
+        Edit(settings, s => s.RateLimit, change, (s, record) => s with { RateLimit = record });
 
-    /// <summary><paramref name="settings"/> with its rule-set record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithRuleSet(HostSettings settings, Func<RuleSetSettings, RuleSetSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.RuleSet ?? new RuleSetSettings());
-        return settings with { RuleSet = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithAccessList(HostSettings settings, Func<AccessListSettings, AccessListSettings> change) =>
+        Edit(settings, s => s.AccessList, change, (s, record) => s with { AccessList = record });
 
-    /// <summary><paramref name="settings"/> with its auth-provider record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithAuthProvider(HostSettings settings, Func<AuthProviderSettings, AuthProviderSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.AuthProvider ?? new AuthProviderSettings());
-        return settings with { AuthProvider = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithRuleSet(HostSettings settings, Func<RuleSetSettings, RuleSetSettings> change) =>
+        Edit(settings, s => s.RuleSet, change, (s, record) => s with { RuleSet = record });
 
-    /// <summary><paramref name="settings"/> with its robots.txt record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithRobots(HostSettings settings, Func<RobotsSettings, RobotsSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.Robots ?? new RobotsSettings());
-        return settings with { Robots = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithAuthProvider(HostSettings settings, Func<AuthProviderSettings, AuthProviderSettings> change) =>
+        Edit(settings, s => s.AuthProvider, change, (s, record) => s with { AuthProvider = record });
 
-    /// <summary><paramref name="settings"/> with its request-limits record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithRequestLimits(HostSettings settings, Func<RequestLimitsSettings, RequestLimitsSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.RequestLimits ?? new RequestLimitsSettings());
-        return settings with { RequestLimits = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithRobots(HostSettings settings, Func<RobotsSettings, RobotsSettings> change) =>
+        Edit(settings, s => s.Robots, change, (s, record) => s with { Robots = record });
 
-    /// <summary><paramref name="settings"/> with its Cloudflare record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithCloudflare(HostSettings settings, Func<CloudflareSettings, CloudflareSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.Cloudflare ?? new CloudflareSettings());
-        return settings with { Cloudflare = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithRequestLimits(HostSettings settings, Func<RequestLimitsSettings, RequestLimitsSettings> change) =>
+        Edit(settings, s => s.RequestLimits, change, (s, record) => s with { RequestLimits = record });
 
-    /// <summary><paramref name="settings"/> with its error pages changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithErrorPages(HostSettings settings, Func<ErrorPagesSettings, ErrorPagesSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.ErrorPages ?? new ErrorPagesSettings());
-        return settings with { ErrorPages = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithCloudflare(HostSettings settings, Func<CloudflareSettings, CloudflareSettings> change) =>
+        Edit(settings, s => s.Cloudflare, change, (s, record) => s with { Cloudflare = record });
 
-    /// <summary><paramref name="settings"/> with its maintenance record changed, and no record at all when nothing is left set.</summary>
-    public static HostSettings WithMaintenance(HostSettings settings, Func<MaintenanceSettings, MaintenanceSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.Maintenance ?? new MaintenanceSettings());
-        return settings with { Maintenance = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithErrorPages(HostSettings settings, Func<ErrorPagesSettings, ErrorPagesSettings> change) =>
+        Edit(settings, s => s.ErrorPages, change, (s, record) => s with { ErrorPages = record });
 
-    public static HostSettings WithCompression(HostSettings settings, Func<CompressionSettings, CompressionSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.Compression ?? new CompressionSettings());
-        return settings with { Compression = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithMaintenance(HostSettings settings, Func<MaintenanceSettings, MaintenanceSettings> change) =>
+        Edit(settings, s => s.Maintenance, change, (s, record) => s with { Maintenance = record });
 
-    public static HostSettings WithHeaders(HostSettings settings, Func<HeadersSettings, HeadersSettings> change)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(change);
-        var changed = change(settings.Headers ?? new HeadersSettings());
-        return settings with { Headers = changed.SetsNothing ? null : changed };
-    }
+    public static HostSettings WithCompression(HostSettings settings, Func<CompressionSettings, CompressionSettings> change) =>
+        Edit(settings, s => s.Compression, change, (s, record) => s with { Compression = record });
+
+    public static HostSettings WithHeaders(HostSettings settings, Func<HeadersSettings, HeadersSettings> change) =>
+        Edit(settings, s => s.Headers, change, (s, record) => s with { Headers = record });
 
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
