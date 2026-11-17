@@ -154,7 +154,7 @@ internal sealed partial class ConfigRecovery
         ReportCertificateWarnings(compilation.Warnings);
         await DeleteOrphansAsync(database, cancellationToken).ConfigureAwait(false);
 
-        var revision = database.Latest is null ? null : ConfigHead.Ref(database.Latest.Info);
+        var revision = ConfigHead.Ref(database.Latest);
         if (lastGood is not null && revision is not null && lastGood.Revision.Seq > revision.Seq)
         {
             LogLastKnownGoodAhead(lastGood.Revision.Seq, lastGood.Revision.Id, revision.Seq);

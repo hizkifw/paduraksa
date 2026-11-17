@@ -175,7 +175,7 @@ public sealed class ConfigService : IDisposable
         return await _contexts.UseAsync(async context =>
         {
             var (latest, document) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
-            return new CurrentConfig(document, latest is null ? null : ConfigHead.Ref(latest.Info));
+            return new CurrentConfig(document, ConfigHead.Ref(latest));
         }, cancellationToken).ConfigureAwait(false);
     }
 

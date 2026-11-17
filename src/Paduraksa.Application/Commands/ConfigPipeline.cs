@@ -107,7 +107,7 @@ internal sealed partial class ConfigPipeline
         return await _contexts.UseAsync(async context =>
         {
             var (latest, current, headLegacy) = await ConfigHead.LoadForCommandAsync(context, cancellationToken).ConfigureAwait(false);
-            var head = latest is null ? null : ConfigHead.Ref(latest.Info);
+            var head = ConfigHead.Ref(latest);
             current = draft?.Base ?? current;
 
             // Before anything validates, stores or audits: a plain password leaves the command (the vault gets it once the command

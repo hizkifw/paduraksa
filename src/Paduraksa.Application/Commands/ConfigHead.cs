@@ -42,4 +42,6 @@ internal static class ConfigHead
     }
 
     public static RevisionRef Ref(RevisionInfo info) => new(info.Id, info.Seq);
+
+    public static RevisionRef? Ref(StoredRevision? latest) => latest is null ? null : Ref(latest.Info);
 }

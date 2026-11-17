@@ -176,40 +176,36 @@ public sealed partial class DraftService
             return refusal;
         }
 
-        return await _config.UnderWriterAsync(async _ =>
+        return await _config.UnderWriterAsync(_ => _contexts.UseAsync(async context =>
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            if (await OwnerAsync(context, origin, cancellationToken).ConfigureAwait(false) is not { } owner)
             {
-                if (await OwnerAsync(context, origin, cancellationToken).ConfigureAwait(false) is not { } owner)
-                {
-                    return new DraftResult(DraftStatus.Denied);
-                }
-
-                var existing = await DropIfExpiredAsync(context, await FindAsync(context, owner, null, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
-                var (latest, document) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
-                if (existing is not null)
-                {
-                    return new DraftResult(DraftStatus.AlreadyOpen, ToDraft(existing, document, latest is null ? null : ConfigHead.Ref(latest.Info)).Draft);
-                }
-
-                var now = _time.GetUtcNow();
-                DraftRow row = new()
-                {
-                    Id = DraftId.New(),
-                    OwnerUserId = owner,
-                    Version = 1,
-                    StartedSeq = latest?.Info.Seq ?? 0,
-                    StartedRevisionId = latest?.Info.Id,
-                    CreatedAt = now,
-                    UpdatedAt = now,
-                };
-                context.ConfigDrafts.Add(row);
-                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                Announce(owner);
-                return new DraftResult(DraftStatus.Succeeded, ToDraft(row, document, latest is null ? null : ConfigHead.Ref(latest.Info)).Draft);
+                return new DraftResult(DraftStatus.Denied);
             }
-        }, cancellationToken).ConfigureAwait(false);
+
+            var existing = await DropIfExpiredAsync(context, await FindAsync(context, owner, null, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            var (latest, document) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
+            if (existing is not null)
+            {
+                return new DraftResult(DraftStatus.AlreadyOpen, ToDraft(existing, document, ConfigHead.Ref(latest)).Draft);
+            }
+
+            var now = _time.GetUtcNow();
+            DraftRow row = new()
+            {
+                Id = DraftId.New(),
+                OwnerUserId = owner,
+                Version = 1,
+                StartedSeq = latest?.Info.Seq ?? 0,
+                StartedRevisionId = latest?.Info.Id,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            context.ConfigDrafts.Add(row);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            Announce(owner);
+            return new DraftResult(DraftStatus.Succeeded, ToDraft(row, document, ConfigHead.Ref(latest)).Draft);
+        }, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -227,99 +223,87 @@ public sealed partial class DraftService
             return refusal;
         }
 
-        return await _config.UnderWriterAsync(async pipeline =>
+        return await OnOwnDraftAsync(origin, id, async (pipeline, context, row, head, headRef) =>
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            var entries = Read(row);
+            var pending = ReadCredentials(row);
+            List<(PasswordCredentialId Id, string Password)> toSet = [];
+            var now = _time.GetUtcNow();
+            var next = row.NextNumber;
+
+            for (var i = 0; i < commands.Count; i++)
             {
-                var (row, missing) = await LoadOwnAsync(context, origin, id, cancellationToken).ConfigureAwait(false);
-                if (row is null)
+                if (commands[i] is null || DraftEntries.Of(DraftEntries.Normalize(commands[i])) is not var (target, action))
                 {
-                    return missing!;
+                    return Refuse(i, DraftErrorCodes.EntryCommand, "A draft takes a change to one object (a host, upstream, profile, rate limit, access list, rule set or sign-in provider) or to the global settings, not a whole-config command.");
                 }
 
-                var (latest, head) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
-                var headRef = latest is null ? null : ConfigHead.Ref(latest.Info);
-                var entries = Read(row);
-                var pending = ReadCredentials(row);
-                List<(PasswordCredentialId Id, string Password)> toSet = [];
-                var now = _time.GetUtcNow();
-                var next = row.NextNumber;
-
-                for (var i = 0; i < commands.Count; i++)
+                var command = DraftEntries.Normalize(commands[i]);
+                if (ConfigDrafts.Preflight(command) is { } malformed)
                 {
-                    if (commands[i] is null || DraftEntries.Of(DraftEntries.Normalize(commands[i])) is not var (target, action))
-                    {
-                        return Refuse(i, DraftErrorCodes.EntryCommand, "A draft takes a change to one object (a host, upstream, profile, rate limit, access list, rule set or sign-in provider) or to the global settings, not a whole-config command.");
-                    }
+                    return new DraftResult(DraftStatus.Refused, Command: new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [malformed]), FailedCommand: i);
+                }
 
-                    var command = DraftEntries.Normalize(commands[i]);
-                    if (ConfigDrafts.Preflight(command) is { } malformed)
-                    {
-                        return new DraftResult(DraftStatus.Refused, Command: new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [malformed]), FailedCommand: i);
-                    }
+                var at = entries.FindIndex(e => e.Target == target);
+                var existing = at >= 0 ? entries[at] : null;
+                if (action == DraftEntryAction.Delete && existing is { Action: DraftEntryAction.Create })
+                {
+                    entries.RemoveAt(at);
+                    continue;
+                }
 
-                    var at = entries.FindIndex(e => e.Target == target);
-                    var existing = at >= 0 ? entries[at] : null;
-                    if (action == DraftEntryAction.Delete && existing is { Action: DraftEntryAction.Create })
+                var working = DraftReplay.Replay(head, headRef, entries.Where((_, j) => j != at)).Document;
+                var attempt = await pipeline.AttemptAsync(command with { DryRun = true }, origin, ConfigCommandPlanner.Describe(command), null,
+                    cancellationToken, simulation: true, new ConfigPipeline.DraftAttempt(Base: working)).ConfigureAwait(false);
+                if (attempt.Result.Status == ConfigCommandStatus.Unchanged)
+                {
+                    if (at >= 0)
                     {
                         entries.RemoveAt(at);
-                        continue;
                     }
 
-                    var working = DraftReplay.Replay(head, headRef, entries.Where((_, j) => j != at)).Document;
-                    var attempt = await pipeline.AttemptAsync(command with { DryRun = true }, origin, ConfigCommandPlanner.Describe(command), null,
-                        cancellationToken, simulation: true, new ConfigPipeline.DraftAttempt(Base: working)).ConfigureAwait(false);
-                    if (attempt.Result.Status == ConfigCommandStatus.Unchanged)
-                    {
-                        if (at >= 0)
-                        {
-                            entries.RemoveAt(at);
-                        }
-
-                        continue;
-                    }
-
-                    if (attempt.Result.Status != ConfigCommandStatus.DryRun)
-                    {
-                        return new DraftResult(DraftStatus.Refused, Command: attempt.Result, FailedCommand: i);
-                    }
-
-                    var stored = Secrets(command, working, toSet);
-                    if (existing is null)
-                    {
-                        entries.Add(new DraftEntry(next++, action, target, stored, now));
-                    }
-                    else
-                    {
-                        entries[at] = existing with { Action = action, Command = stored, AddedAt = now, State = DraftEntryState.Ready };
-                    }
+                    continue;
                 }
 
-                var referenced = Referenced(entries);
-                var keep = pending.Concat(toSet.Select(static p => p.Id)).Where(referenced.Contains).Distinct().ToList();
-                var drop = pending.Where(p => !keep.Contains(p)).ToList();
-                // A password whose entry was replaced by a later command of this same call is nobody's: only the ones an entry still names are set.
-                var changes = await SetAsync([.. toSet.Where(p => keep.Contains(p.Id))], cancellationToken).ConfigureAwait(false);
-                try
+                if (attempt.Result.Status != ConfigCommandStatus.DryRun)
                 {
-                    Write(row, entries, keep);
-                    row.NextNumber = next;
-                    row.Version++;
-                    row.UpdatedAt = now;
-                    await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch
-                {
-                    await _passwords.RevertAsync(changes, CancellationToken.None).ConfigureAwait(false);
-                    throw;
+                    return new DraftResult(DraftStatus.Refused, Command: attempt.Result, FailedCommand: i);
                 }
 
-                _passwords.Keep(changes);
-                await DeleteCredentialsAsync(drop, head).ConfigureAwait(false);
-                Announce(row.OwnerUserId);
-                return new DraftResult(DraftStatus.Succeeded, ToDraft(row, head, headRef).Draft);
+                var stored = Secrets(command, working, toSet);
+                if (existing is null)
+                {
+                    entries.Add(new DraftEntry(next++, action, target, stored, now));
+                }
+                else
+                {
+                    entries[at] = existing with { Action = action, Command = stored, AddedAt = now, State = DraftEntryState.Ready };
+                }
             }
+
+            var referenced = Referenced(entries);
+            var keep = pending.Concat(toSet.Select(static p => p.Id)).Where(referenced.Contains).Distinct().ToList();
+            var drop = pending.Where(p => !keep.Contains(p)).ToList();
+            // A password whose entry was replaced by a later command of this same call is nobody's: only the ones an entry still names are set.
+            var changes = await SetAsync([.. toSet.Where(p => keep.Contains(p.Id))], cancellationToken).ConfigureAwait(false);
+            try
+            {
+                Write(row, entries, keep);
+                row.NextNumber = next;
+                row.Version++;
+                row.UpdatedAt = now;
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                await _passwords.RevertAsync(changes, CancellationToken.None).ConfigureAwait(false);
+                throw;
+            }
+
+            _passwords.Keep(changes);
+            await DeleteCredentialsAsync(drop, head).ConfigureAwait(false);
+            Announce(row.OwnerUserId);
+            return new DraftResult(DraftStatus.Succeeded, ToDraft(row, head, headRef).Draft);
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -332,35 +316,23 @@ public sealed partial class DraftService
             return refusal;
         }
 
-        return await _config.UnderWriterAsync(async _ =>
+        return await OnOwnDraftAsync(origin, id, async (_, context, row, head, headRef) =>
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            var entries = Read(row);
+            if (entries.RemoveAll(e => e.Number == number) == 0)
             {
-                var (row, missing) = await LoadOwnAsync(context, origin, id, cancellationToken).ConfigureAwait(false);
-                if (row is null)
-                {
-                    return missing!;
-                }
-
-                var (latest, head) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
-                var headRef = latest is null ? null : ConfigHead.Ref(latest.Info);
-                var entries = Read(row);
-                if (entries.RemoveAll(e => e.Number == number) == 0)
-                {
-                    return new DraftResult(DraftStatus.NoDraft, ToDraft(row, head, headRef).Draft, FailedCommand: null);
-                }
-
-                var keep = ReadCredentials(row).Where(Referenced(entries).Contains).ToList();
-                var drop = ReadCredentials(row).Where(p => !keep.Contains(p)).ToList();
-                Write(row, entries, keep);
-                row.Version++;
-                row.UpdatedAt = _time.GetUtcNow();
-                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                await DeleteCredentialsAsync(drop, head).ConfigureAwait(false);
-                Announce(row.OwnerUserId);
-                return new DraftResult(DraftStatus.Succeeded, ToDraft(row, head, headRef).Draft);
+                return new DraftResult(DraftStatus.NoDraft, ToDraft(row, head, headRef).Draft, FailedCommand: null);
             }
+
+            var keep = ReadCredentials(row).Where(Referenced(entries).Contains).ToList();
+            var drop = ReadCredentials(row).Where(p => !keep.Contains(p)).ToList();
+            Write(row, entries, keep);
+            row.Version++;
+            row.UpdatedAt = _time.GetUtcNow();
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await DeleteCredentialsAsync(drop, head).ConfigureAwait(false);
+            Announce(row.OwnerUserId);
+            return new DraftResult(DraftStatus.Succeeded, ToDraft(row, head, headRef).Draft);
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -390,27 +362,16 @@ public sealed partial class DraftService
             return refusal;
         }
 
-        return await _config.UnderWriterAsync(async _ =>
+        return await OnOwnDraftAsync(origin, id, async (_, context, row, head, _) =>
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
-            {
-                var (row, missing) = await LoadOwnAsync(context, origin, id, cancellationToken, discarding: true).ConfigureAwait(false);
-                if (row is null)
-                {
-                    return missing!;
-                }
-
-                var pending = ReadCredentials(row);
-                context.ConfigDrafts.Remove(row);
-                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                var (_, head) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
-                await DeleteCredentialsAsync(pending, head).ConfigureAwait(false);
-                _views.TryRemove(row.OwnerUserId, out var gone);
-                Announce(row.OwnerUserId);
-                return new DraftResult(DraftStatus.Succeeded);
-            }
-        }, cancellationToken).ConfigureAwait(false);
+            var pending = ReadCredentials(row);
+            context.ConfigDrafts.Remove(row);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await DeleteCredentialsAsync(pending, head).ConfigureAwait(false);
+            _views.TryRemove(row.OwnerUserId, out var gone);
+            Announce(row.OwnerUserId);
+            return new DraftResult(DraftStatus.Succeeded);
+        }, cancellationToken, discarding: true).ConfigureAwait(false);
     }
 
     /// <summary>Drops every draft untouched for <see cref="Lifetime"/>, with its vault values, and leaves its owner a notice. Returns how many.</summary>
@@ -419,29 +380,25 @@ public sealed partial class DraftService
 
     // Under the writer's lock, which is also where "untouched" is judged: a draft its owner refreshed since a reader saw it expire is not dropped.
     private Task<HashSet<DraftId>> DropExpiredIdsAsync(CancellationToken cancellationToken) =>
-        _config.UnderWriterAsync(async _ =>
+        _config.UnderWriterAsync(_ => _contexts.UseAsync<HashSet<DraftId>>(async context =>
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            // The stamps first: an hourly pass over many drafts should not read every entry list to find the few that are past it.
+            var cutoff = _time.GetUtcNow() - Lifetime;
+            var stamps = await context.ConfigDrafts.AsNoTracking().Select(static d => new { d.Id, d.UpdatedAt }).ToListAsync(cancellationToken).ConfigureAwait(false);
+            var ids = stamps.Where(d => d.UpdatedAt <= cutoff).Select(static d => d.Id).ToList();
+            if (ids.Count == 0)
             {
-                // The stamps first: an hourly pass over many drafts should not read every entry list to find the few that are past it.
-                var cutoff = _time.GetUtcNow() - Lifetime;
-                var stamps = await context.ConfigDrafts.AsNoTracking().Select(static d => new { d.Id, d.UpdatedAt }).ToListAsync(cancellationToken).ConfigureAwait(false);
-                var ids = stamps.Where(d => d.UpdatedAt <= cutoff).Select(static d => d.Id).ToList();
-                if (ids.Count == 0)
-                {
-                    return [];
-                }
-
-                var expired = await context.ConfigDrafts.Where(d => ids.Contains(d.Id)).ToListAsync(cancellationToken).ConfigureAwait(false);
-                foreach (var row in expired)
-                {
-                    await DropAsync(context, row, cancellationToken).ConfigureAwait(false);
-                }
-
-                return expired.Select(static d => d.Id).ToHashSet();
+                return [];
             }
-        }, cancellationToken);
+
+            var expired = await context.ConfigDrafts.Where(d => ids.Contains(d.Id)).ToListAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var row in expired)
+            {
+                await DropAsync(context, row, cancellationToken).ConfigureAwait(false);
+            }
+
+            return expired.Select(static d => d.Id).ToHashSet();
+        }, cancellationToken), cancellationToken);
 
     /// <summary>The caller's notices of drafts that were dropped, once: they are gone after this call.</summary>
     public async Task<IReadOnlyList<DraftNotice>> TakeNoticesAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
@@ -489,80 +446,70 @@ public sealed partial class DraftService
         }
 
         UserId? owner = null;
-        var (result, execution) = await _config.UnderWriterAsync(async pipeline =>
+        Execution? execution = null;
+        var result = await OnOwnDraftAsync(origin, id, async (pipeline, context, row, head, headRef) =>
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            owner = row.OwnerUserId;
+            var replayed = DraftReplay.Replay(head, headRef, Read(row));
+            var (view, _) = ToDraft(row, head, headRef);
+            var ready = replayed.Ready.ToList();
+            if (replayed.Entries.Count == 0)
             {
-                var (row, missing) = await LoadOwnAsync(context, origin, id, cancellationToken).ConfigureAwait(false);
-                if (row is null)
-                {
-                    return (missing!, (Execution?)null);
-                }
-
-                owner = row.OwnerUserId;
-                var (latest, head) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
-                var headRef = latest is null ? null : ConfigHead.Ref(latest.Info);
-                var replayed = DraftReplay.Replay(head, headRef, Read(row));
-                var (view, _) = ToDraft(row, head, headRef);
-                var ready = replayed.Ready.ToList();
-                if (replayed.Entries.Count == 0)
-                {
-                    return (new DraftResult(DraftStatus.NothingToApply, view), null);
-                }
-
-                var blocked = replayed.Blocked.Any();
-                if (ready.Count == 0 || (blocked && !dryRun))
-                {
-                    return (new DraftResult(DraftStatus.Blocked, view), null);
-                }
-
-                var summary = Summary(ready.Select(e => DraftText.Title(e, head)).ToList());
-                var command = new ReplaceConfigCommand(replayed.Document, headRef?.Id) { DryRun = dryRun, Force = force };
-                string? fresh = null;
-                ConfigPipeline.DraftAttempt attempt = new(
-                    AuditDetails: w =>
-                    {
-                        w.WriteString("draft", row.Id.ToString());
-                        w.WriteStartArray("entries");
-                        foreach (var entry in ready)
-                        {
-                            var audited = ConfigCommandPlanner.Describe(entry.Command);
-                            w.WriteStartObject();
-                            w.WriteNumber("number", entry.Number);
-                            w.WriteString("action", audited.Action);
-                            w.WriteString("target", audited.Target);
-                            w.WriteString("title", DraftText.Title(entry, head));
-                            w.WriteEndObject();
-                        }
-
-                        w.WriteEndArray();
-                    },
-                    InCommit: dryRun ? null : (inCommit, _) => DeleteAppliedAsync(inCommit, row.Id, cancellationToken),
-                    Gate: dryRun ? null : planned =>
-                    {
-                        fresh = DraftReviewToken.Compute(row.Id, row.Version, replayed, planned.Warnings, _config.Warnings);
-                        return string.Equals(fresh, reviewToken, StringComparison.Ordinal);
-                    });
-                var run = await pipeline.AttemptAsync(command, origin, new ConfigCommandPlanner.Audited("config.draft.apply", row.Id.ToString(), force),
-                    note ?? summary, cancellationToken, simulation: false, attempt).ConfigureAwait(false);
-                if (!dryRun && run.Result.Status == ConfigCommandStatus.DryRun)
-                {
-                    // Everything passed, but it is not what was confirmed: the review as it is now goes back, and nothing was committed.
-                    return (new DraftResult(DraftStatus.ChangedSinceReview, view, run.Result, ReviewToken: fresh), null);
-                }
-
-                if (run.Result.Status == ConfigCommandStatus.Unchanged && !dryRun)
-                {
-                    // What the entries ask for is already the head's: they are done, and nothing is committed.
-                    await DeleteAppliedAsync(context, row.Id, cancellationToken).ConfigureAwait(false);
-                }
-
-                var token = dryRun && !blocked && run.Result.Status == ConfigCommandStatus.DryRun
-                    ? DraftReviewToken.Compute(row.Id, row.Version, replayed, run.Result.Warnings, _config.Warnings)
-                    : null;
-                return (new DraftResult(DraftStatus.Succeeded, Command: run.Result, ReviewToken: token), (Execution?)run);
+                return new DraftResult(DraftStatus.NothingToApply, view);
             }
+
+            var blocked = replayed.Blocked.Any();
+            if (ready.Count == 0 || (blocked && !dryRun))
+            {
+                return new DraftResult(DraftStatus.Blocked, view);
+            }
+
+            var summary = Summary(ready.Select(e => DraftText.Title(e, head)).ToList());
+            var command = new ReplaceConfigCommand(replayed.Document, headRef?.Id) { DryRun = dryRun, Force = force };
+            string? fresh = null;
+            ConfigPipeline.DraftAttempt attempt = new(
+                AuditDetails: w =>
+                {
+                    w.WriteString("draft", row.Id.ToString());
+                    w.WriteStartArray("entries");
+                    foreach (var entry in ready)
+                    {
+                        var audited = ConfigCommandPlanner.Describe(entry.Command);
+                        w.WriteStartObject();
+                        w.WriteNumber("number", entry.Number);
+                        w.WriteString("action", audited.Action);
+                        w.WriteString("target", audited.Target);
+                        w.WriteString("title", DraftText.Title(entry, head));
+                        w.WriteEndObject();
+                    }
+
+                    w.WriteEndArray();
+                },
+                InCommit: dryRun ? null : (inCommit, _) => DeleteAppliedAsync(inCommit, row.Id, cancellationToken),
+                Gate: dryRun ? null : planned =>
+                {
+                    fresh = DraftReviewToken.Compute(row.Id, row.Version, replayed, planned.Warnings, _config.Warnings);
+                    return string.Equals(fresh, reviewToken, StringComparison.Ordinal);
+                });
+            var run = await pipeline.AttemptAsync(command, origin, new ConfigCommandPlanner.Audited("config.draft.apply", row.Id.ToString(), force),
+                note ?? summary, cancellationToken, simulation: false, attempt).ConfigureAwait(false);
+            if (!dryRun && run.Result.Status == ConfigCommandStatus.DryRun)
+            {
+                // Everything passed, but it is not what was confirmed: the review as it is now goes back, and nothing was committed.
+                return new DraftResult(DraftStatus.ChangedSinceReview, view, run.Result, ReviewToken: fresh);
+            }
+
+            if (run.Result.Status == ConfigCommandStatus.Unchanged && !dryRun)
+            {
+                // What the entries ask for is already the head's: they are done, and nothing is committed.
+                await DeleteAppliedAsync(context, row.Id, cancellationToken).ConfigureAwait(false);
+            }
+
+            var token = dryRun && !blocked && run.Result.Status == ConfigCommandStatus.DryRun
+                ? DraftReviewToken.Compute(row.Id, row.Version, replayed, run.Result.Warnings, _config.Warnings)
+                : null;
+            execution = run;
+            return new DraftResult(DraftStatus.Succeeded, Command: run.Result, ReviewToken: token);
         }, cancellationToken).ConfigureAwait(false);
 
         if (execution is { Publish: not null } committed)
@@ -628,7 +575,7 @@ public sealed partial class DraftService
             }
 
             var (latest, head) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
-            var (draft, document) = ToDraft(row, head, latest is null ? null : ConfigHead.Ref(latest.Info));
+            var (draft, document) = ToDraft(row, head, ConfigHead.Ref(latest));
             return (null, draft, document);
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -685,6 +632,27 @@ public sealed partial class DraftService
             : IsExpired(row) && !discarding ? (null, Expired(row))
             : (row, null);
     }
+
+    /// <summary>
+    /// Runs <paramref name="body"/> under the writer's lock on the caller's own draft <paramref name="id"/> (or answers why there isn't one), with the head and its reference loaded.
+    /// </summary>
+    private Task<DraftResult> OnOwnDraftAsync(
+        CommandOrigin origin,
+        DraftId id,
+        Func<ConfigPipeline, ConfigDbContext, DraftRow, ConfigDocument, RevisionRef?, Task<DraftResult>> body,
+        CancellationToken cancellationToken,
+        bool discarding = false) =>
+        _config.UnderWriterAsync(pipeline => _contexts.UseAsync(async context =>
+        {
+            var (row, missing) = await LoadOwnAsync(context, origin, id, cancellationToken, discarding).ConfigureAwait(false);
+            if (row is null)
+            {
+                return missing!;
+            }
+
+            var (latest, head) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
+            return await body(pipeline, context, row, head, ConfigHead.Ref(latest)).ConfigureAwait(false);
+        }, cancellationToken), cancellationToken);
 
     private bool IsExpired(DraftRow row) => row.UpdatedAt + Lifetime <= _time.GetUtcNow();
 
