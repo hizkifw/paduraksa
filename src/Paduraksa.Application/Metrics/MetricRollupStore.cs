@@ -134,161 +134,75 @@ public sealed class MetricRollupStore
     internal static IQueryable<RollupSums<long>> SeriesQuery(ConfigDbContext context, MetricRollupSubject subject, string subjectKey, long fromMinute, long toMinute, int bucketMinutes) =>
         Aggregate(
             context.MetricRollups.AsNoTracking().Where(row => row.Subject == subject && row.SubjectKey == subjectKey && row.Minute >= fromMinute && row.Minute <= toMinute),
-            row => row.Minute / bucketMinutes)
-        .OrderBy(sums => sums.Key);
+            row => row.Minute / bucketMinutes,
+            ordered: true);
 
-    private static IQueryable<RollupSums<TKey>> Aggregate<TKey>(IQueryable<MetricRollupRow> rows, Expression<Func<MetricRollupRow, TKey>> key) =>
-        rows.GroupBy(key).Select(group => new RollupSums<TKey>
+    // Ordered before the projection: EF can't order by a key of a projection that builds a row.
+    private static IQueryable<RollupSums<TKey>> Aggregate<TKey>(IQueryable<MetricRollupRow> rows, Expression<Func<MetricRollupRow, TKey>> key, bool ordered = false) =>
+        (ordered ? rows.GroupBy(key).OrderBy(group => group.Key) : rows.GroupBy(key)).Select(group => new RollupSums<TKey>(
+            group.Key,
+            group.Sum(row => (long)row.CoveredSeconds),
+            new MetricRollupRow
+            {
+                Requests = group.Sum(row => row.Requests),
+                Status1xx = group.Sum(row => row.Status1xx),
+                Status2xx = group.Sum(row => row.Status2xx),
+                Status3xx = group.Sum(row => row.Status3xx),
+                Status4xx = group.Sum(row => row.Status4xx),
+                Status5xx = group.Sum(row => row.Status5xx),
+                NoResponse = group.Sum(row => row.NoResponse),
+                Refused = group.Sum(row => row.Refused),
+                RefusedAccessList = group.Sum(row => row.RefusedAccessList),
+                RefusedRuleSet = group.Sum(row => row.RefusedRuleSet),
+                RefusedRateLimit = group.Sum(row => row.RefusedRateLimit),
+                RefusedProofOfWork = group.Sum(row => row.RefusedProofOfWork),
+                RefusedForwardAuth = group.Sum(row => row.RefusedForwardAuth),
+                RefusedRequestLimits = group.Sum(row => row.RefusedRequestLimits),
+                RefusedConnection = group.Sum(row => row.RefusedConnection),
+                RefusedOther = group.Sum(row => row.RefusedOther),
+                NoRoute = group.Sum(row => row.NoRoute),
+                Unavailable = group.Sum(row => row.Unavailable),
+                Dropped = group.Sum(row => row.Dropped),
+                UnknownHost = group.Sum(row => row.UnknownHost),
+                Errors = group.Sum(row => row.Errors),
+                BytesOut = group.Sum(row => row.BytesOut),
+                BytesIn = group.Sum(row => row.BytesIn),
+                TotalMicrosSum = group.Sum(row => row.TotalMicrosSum),
+                UpstreamMicrosSum = group.Sum(row => row.UpstreamMicrosSum),
+                UpstreamTimed = group.Sum(row => row.UpstreamTimed),
+            },
+                group.Sum(row => (double)row.TotalP50 * row.Requests),
+                group.Sum(row => (double)row.TotalP95 * row.Requests),
+                group.Sum(row => (double)row.TotalP99 * row.Requests),
+                group.Sum(row => (double)row.UpstreamP50 * row.UpstreamTimed),
+                group.Sum(row => (double)row.UpstreamP95 * row.UpstreamTimed),
+                group.Sum(row => (double)row.UpstreamP99 * row.UpstreamTimed)));
+
+    /// <summary>
+    /// What SQLite sums for one group of minutes: the counters ride on a row that is never tracked or stored, the covered seconds are summed wide so they can be clamped,
+    /// and the percentiles are summed already weighted (by requests, or by the upstream-timed ones), as <see cref="MetricPoints.Combine"/> weighs them.
+    /// </summary>
+    internal sealed record RollupSums<TKey>(
+        TKey Key,
+        long CoveredSeconds,
+        MetricRollupRow Counts,
+        double WeightedTotalP50,
+        double WeightedTotalP95,
+        double WeightedTotalP99,
+        double WeightedUpstreamP50,
+        double WeightedUpstreamP95,
+        double WeightedUpstreamP99);
+
+    private static MetricPoint PointOf<TKey>(RollupSums<TKey> sums, long start, int width) =>
+        PointOf(sums.Counts, start, width, (int)Math.Min(sums.CoveredSeconds, int.MaxValue)) with
         {
-            Key = group.Key,
-            CoveredSeconds = group.Sum(row => (long)row.CoveredSeconds),
-            Requests = group.Sum(row => row.Requests),
-            Status1xx = group.Sum(row => row.Status1xx),
-            Status2xx = group.Sum(row => row.Status2xx),
-            Status3xx = group.Sum(row => row.Status3xx),
-            Status4xx = group.Sum(row => row.Status4xx),
-            Status5xx = group.Sum(row => row.Status5xx),
-            NoResponse = group.Sum(row => row.NoResponse),
-            Refused = group.Sum(row => row.Refused),
-            RefusedAccessList = group.Sum(row => row.RefusedAccessList),
-            RefusedRuleSet = group.Sum(row => row.RefusedRuleSet),
-            RefusedRateLimit = group.Sum(row => row.RefusedRateLimit),
-            RefusedProofOfWork = group.Sum(row => row.RefusedProofOfWork),
-            RefusedForwardAuth = group.Sum(row => row.RefusedForwardAuth),
-            RefusedRequestLimits = group.Sum(row => row.RefusedRequestLimits),
-            RefusedConnection = group.Sum(row => row.RefusedConnection),
-            RefusedOther = group.Sum(row => row.RefusedOther),
-            NoRoute = group.Sum(row => row.NoRoute),
-            Unavailable = group.Sum(row => row.Unavailable),
-            Dropped = group.Sum(row => row.Dropped),
-            UnknownHost = group.Sum(row => row.UnknownHost),
-            Errors = group.Sum(row => row.Errors),
-            BytesOut = group.Sum(row => row.BytesOut),
-            BytesIn = group.Sum(row => row.BytesIn),
-            TotalMicrosSum = group.Sum(row => row.TotalMicrosSum),
-            UpstreamMicrosSum = group.Sum(row => row.UpstreamMicrosSum),
-            UpstreamTimed = group.Sum(row => row.UpstreamTimed),
-            WeightedTotalP50 = group.Sum(row => (double)row.TotalP50 * row.Requests),
-            WeightedTotalP95 = group.Sum(row => (double)row.TotalP95 * row.Requests),
-            WeightedTotalP99 = group.Sum(row => (double)row.TotalP99 * row.Requests),
-            WeightedUpstreamP50 = group.Sum(row => (double)row.UpstreamP50 * row.UpstreamTimed),
-            WeightedUpstreamP95 = group.Sum(row => (double)row.UpstreamP95 * row.UpstreamTimed),
-            WeightedUpstreamP99 = group.Sum(row => (double)row.UpstreamP99 * row.UpstreamTimed),
-        });
-
-    /// <summary>What SQLite sums for one group of minutes; percentiles are summed already weighted (by requests, or by the upstream-timed ones), as <see cref="MetricPoints.Combine"/> weighs them.</summary>
-    internal sealed class RollupSums<TKey>
-    {
-        public TKey Key { get; set; } = default!;
-
-        public long CoveredSeconds { get; set; }
-
-        public long Requests { get; set; }
-
-        public long Status1xx { get; set; }
-
-        public long Status2xx { get; set; }
-
-        public long Status3xx { get; set; }
-
-        public long Status4xx { get; set; }
-
-        public long Status5xx { get; set; }
-
-        public long NoResponse { get; set; }
-
-        public long Refused { get; set; }
-
-        public long RefusedAccessList { get; set; }
-
-        public long RefusedRuleSet { get; set; }
-
-        public long RefusedRateLimit { get; set; }
-
-        public long RefusedProofOfWork { get; set; }
-
-        public long RefusedForwardAuth { get; set; }
-
-        public long RefusedRequestLimits { get; set; }
-
-        public long RefusedConnection { get; set; }
-
-        public long RefusedOther { get; set; }
-
-        public long NoRoute { get; set; }
-
-        public long Unavailable { get; set; }
-
-        public long Dropped { get; set; }
-
-        public long UnknownHost { get; set; }
-
-        public long Errors { get; set; }
-
-        public long BytesOut { get; set; }
-
-        public long BytesIn { get; set; }
-
-        public long TotalMicrosSum { get; set; }
-
-        public long UpstreamMicrosSum { get; set; }
-
-        public long UpstreamTimed { get; set; }
-
-        public double WeightedTotalP50 { get; set; }
-
-        public double WeightedTotalP95 { get; set; }
-
-        public double WeightedTotalP99 { get; set; }
-
-        public double WeightedUpstreamP50 { get; set; }
-
-        public double WeightedUpstreamP95 { get; set; }
-
-        public double WeightedUpstreamP99 { get; set; }
-    }
-
-    private static MetricPoint PointOf<TKey>(RollupSums<TKey> sums, long start, int width) => new()
-    {
-        Start = start,
-        Width = width,
-        CoveredSeconds = (int)Math.Min(sums.CoveredSeconds, int.MaxValue),
-        Requests = sums.Requests,
-        Status1xx = sums.Status1xx,
-        Status2xx = sums.Status2xx,
-        Status3xx = sums.Status3xx,
-        Status4xx = sums.Status4xx,
-        Status5xx = sums.Status5xx,
-        NoResponse = sums.NoResponse,
-        Refused = sums.Refused,
-        Refusals = new RefusalCounts
-        {
-            AccessList = sums.RefusedAccessList,
-            RuleSet = sums.RefusedRuleSet,
-            RateLimit = sums.RefusedRateLimit,
-            ProofOfWork = sums.RefusedProofOfWork,
-            ForwardAuth = sums.RefusedForwardAuth,
-            RequestLimits = sums.RefusedRequestLimits,
-            Connection = sums.RefusedConnection,
-            Other = sums.RefusedOther,
-            NoRoute = sums.NoRoute,
-            Unavailable = sums.Unavailable,
-            Dropped = sums.Dropped,
-            UnknownHost = sums.UnknownHost,
-        },
-        Errors = sums.Errors,
-        BytesOut = sums.BytesOut,
-        BytesIn = sums.BytesIn,
-        TotalMicrosSum = sums.TotalMicrosSum,
-        UpstreamMicrosSum = sums.UpstreamMicrosSum,
-        UpstreamTimed = sums.UpstreamTimed,
-        TotalP50 = MetricPoints.WeightedMean(sums.WeightedTotalP50, sums.Requests),
-        TotalP95 = MetricPoints.WeightedMean(sums.WeightedTotalP95, sums.Requests),
-        TotalP99 = MetricPoints.WeightedMean(sums.WeightedTotalP99, sums.Requests),
-        UpstreamP50 = MetricPoints.WeightedMean(sums.WeightedUpstreamP50, sums.UpstreamTimed),
-        UpstreamP95 = MetricPoints.WeightedMean(sums.WeightedUpstreamP95, sums.UpstreamTimed),
-        UpstreamP99 = MetricPoints.WeightedMean(sums.WeightedUpstreamP99, sums.UpstreamTimed),
-    };
+            TotalP50 = MetricPoints.WeightedMean(sums.WeightedTotalP50, sums.Counts.Requests),
+            TotalP95 = MetricPoints.WeightedMean(sums.WeightedTotalP95, sums.Counts.Requests),
+            TotalP99 = MetricPoints.WeightedMean(sums.WeightedTotalP99, sums.Counts.Requests),
+            UpstreamP50 = MetricPoints.WeightedMean(sums.WeightedUpstreamP50, sums.Counts.UpstreamTimed),
+            UpstreamP95 = MetricPoints.WeightedMean(sums.WeightedUpstreamP95, sums.Counts.UpstreamTimed),
+            UpstreamP99 = MetricPoints.WeightedMean(sums.WeightedUpstreamP99, sums.Counts.UpstreamTimed),
+        };
 
     private static MetricRollupRow RowOf(MetricRollup rollup)
     {
@@ -303,11 +217,13 @@ public sealed class MetricRollupStore
         return row;
     }
 
-    private static MetricPoint PointOf(MetricRollupRow row) => new()
+    private static MetricPoint PointOf(MetricRollupRow row) => PointOf(row, row.Minute * 60, MinuteSeconds, row.CoveredSeconds);
+
+    private static MetricPoint PointOf(MetricRollupRow row, long start, int width, int coveredSeconds) => new()
     {
-        Start = row.Minute * 60,
-        Width = MinuteSeconds,
-        CoveredSeconds = row.CoveredSeconds,
+        Start = start,
+        Width = width,
+        CoveredSeconds = coveredSeconds,
         Requests = row.Requests,
         Status1xx = row.Status1xx,
         Status2xx = row.Status2xx,

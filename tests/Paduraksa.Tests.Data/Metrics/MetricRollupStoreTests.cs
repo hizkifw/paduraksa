@@ -282,8 +282,8 @@ public sealed class MetricRollupStoreTests
             var summary = await MetricRollupStore.SummaryQuery(context, MetricRollupSubject.Host, from, to).ToListAsync(Ct);
             var series = await MetricRollupStore.SeriesQuery(context, MetricRollupSubject.Host, App.ToString(), from, to, 6).ToListAsync(Ct);
 
-            Assert.Equal(400, Assert.Single(summary).Requests);
-            Assert.Equal(400, Assert.Single(series).Requests);
+            Assert.Equal(400, Assert.Single(summary).Counts.Requests);
+            Assert.Equal(400, Assert.Single(series).Counts.Requests);
             Assert.Equal(2_500.0, Assert.Single(summary).WeightedTotalP95 / 400, 3);
         }
 
