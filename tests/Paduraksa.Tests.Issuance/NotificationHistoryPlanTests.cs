@@ -1,11 +1,10 @@
-using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
-using Paduraksa.Data;
 using Paduraksa.Data.Notifications;
+using Paduraksa.Tests.Data.Config;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Issuance;
@@ -66,7 +65,7 @@ public sealed class NotificationHistoryPlanTests
     }
 
     private static NotificationHistoryService Service(IssuanceHarness h, PlanCapture capture) =>
-        new(new CapturingFactory(h, capture), h.Config.Service, h.Permissions, new NotificationStats(), new NoWake(), h.Time);
+        new(new CapturingFactory(h.Config.Db, capture), h.Config.Service, h.Permissions, new NotificationStats(), new NoWake(), h.Time);
 
     [Fact]
     public async Task EveryFilterIsAnswerableFromTheIndexesAndTheRowsAreWhatTheFilterSays()
@@ -152,7 +151,7 @@ public sealed class NotificationHistoryPlanTests
         await using (h)
         {
             PlanCapture capture = new();
-            await using var context = new CapturingFactory(h, capture).CreateDbContext();
+            await using var context = new CapturingFactory(h.Config.Db, capture).CreateDbContext();
 
             var figures = await NotificationFigures.ReadAsync(context, h.Time.GetUtcNow() - NotificationHistoryService.FigureWindow, Ct);
 
@@ -162,59 +161,6 @@ public sealed class NotificationHistoryPlanTests
             // Both are covering scans of the claim index (channel, state, time): no row of the table is read, and the events are not joined.
             Assert.All(capture.Statements, s => Assert.Contains("USING COVERING INDEX IX_NotificationDeliveries_ChannelId_State_NextAttemptAt", s.Plan, StringComparison.Ordinal));
             Assert.All(capture.Statements, s => Assert.DoesNotContain("NotificationEvents", s.Sql, StringComparison.Ordinal));
-        }
-    }
-
-    private sealed class CapturingFactory(IssuanceHarness harness, PlanCapture capture) : IDbContextFactory<ConfigDbContext>
-    {
-        public ConfigDbContext CreateDbContext() => harness.Config.Db.NewContext(capture);
-    }
-
-    /// <summary>Records each statement EF runs and the plan SQLite makes for it, asked on the same connection with the same parameters.</summary>
-    private sealed class PlanCapture : DbCommandInterceptor
-    {
-        private readonly Lock _lock = new();
-        private readonly List<(string Sql, string Plan)> _statements = [];
-
-        public List<(string Sql, string Plan)> Statements
-        {
-            get
-            {
-                lock (_lock)
-                {
-                    return [.. _statements];
-                }
-            }
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
-        {
-            using var explain = command.Connection!.CreateCommand();
-            explain.CommandText = "EXPLAIN QUERY PLAN " + command.CommandText;
-            foreach (DbParameter parameter in command.Parameters)
-            {
-                var copy = explain.CreateParameter();
-                copy.ParameterName = parameter.ParameterName;
-                copy.Value = parameter.Value;
-                explain.Parameters.Add(copy);
-            }
-
-            List<string> lines = [];
-            using (var reader = explain.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    lines.Add(reader.GetString(reader.FieldCount - 1));
-                }
-            }
-
-            lock (_lock)
-            {
-                _statements.Add((command.CommandText, string.Join("\n", lines)));
-            }
-
-            return ValueTask.FromResult(result);
         }
     }
 }

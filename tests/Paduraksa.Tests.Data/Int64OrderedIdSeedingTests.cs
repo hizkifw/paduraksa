@@ -78,7 +78,7 @@ public sealed class Int64OrderedIdSeedingTests
 
         var sql = Assert.Single(capture.Commands);
         Assert.Contains("MAX(\"Id\")", sql, StringComparison.Ordinal);
-        var plan = string.Join("\n", (await db.QueryAsync("EXPLAIN QUERY PLAN " + sql)).Select(row => (string)row[3]!));
+        var plan = await db.PlanAsync(sql);
         // SQLite answers MAX over an INTEGER PRIMARY KEY with one B-tree probe; a scan would read the whole table.
         Assert.DoesNotContain("SCAN AuditEvents", plan, StringComparison.Ordinal);
         Assert.Contains("SEARCH AuditEvents", plan, StringComparison.Ordinal);

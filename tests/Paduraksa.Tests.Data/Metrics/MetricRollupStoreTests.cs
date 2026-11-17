@@ -1,7 +1,5 @@
-using System.Data.Common;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Metrics;
@@ -430,40 +428,5 @@ public sealed class MetricRollupStoreTests
 
         var statement = Assert.Single(capture.Statements);
         Assert.Contains("USING INDEX IX_MetricRollups_Minute", statement.Plan, StringComparison.Ordinal);
-    }
-
-    /// <summary>Records each statement EF runs and the plan SQLite makes for it, asked on the same connection with the same parameters.</summary>
-    internal sealed class PlanCapture : DbCommandInterceptor
-    {
-        public List<(string Sql, string Plan)> Statements { get; } = [];
-
-        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
-        {
-            using var explain = command.Connection!.CreateCommand();
-            explain.CommandText = "EXPLAIN QUERY PLAN " + command.CommandText;
-            foreach (DbParameter parameter in command.Parameters)
-            {
-                var copy = explain.CreateParameter();
-                copy.ParameterName = parameter.ParameterName;
-                copy.Value = parameter.Value;
-                explain.Parameters.Add(copy);
-            }
-
-            List<string> lines = [];
-            using (var reader = explain.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    lines.Add(reader.GetString(reader.FieldCount - 1));
-                }
-            }
-
-            Statements.Add((command.CommandText, string.Join("\n", lines)));
-            return result;
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(ReaderExecuting(command, eventData, result));
     }
 }

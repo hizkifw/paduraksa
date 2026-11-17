@@ -28,6 +28,7 @@
     <Compile Include="../Paduraksa.Tests.Acme/Dns/FakeDnsServer.cs" LinkBase="Shared/AcmeFakes" />
     <!-- The config database and writer harness of Tests.Data (a real SQLite file, the real ConfigService). -->
     <Compile Include="../Paduraksa.Tests.Data/Config/TestConfigDatabase.cs" LinkBase="Shared/Data" />
+    <Compile Include="../Paduraksa.Tests.Data/Config/PlanCapture.cs" LinkBase="Shared/Data" />
     <Compile Include="../Paduraksa.Tests.Data/Commands/ConfigServiceHarness.cs" LinkBase="Shared/Data" />
     <Compile Include="../Paduraksa.Tests.Data/Commands/TestConfigServices.cs" LinkBase="Shared/Data" />
     <Compile Include="../Paduraksa.Tests.Data/Commands/CapturingLoggerFactory.cs" LinkBase="Shared/Data" />

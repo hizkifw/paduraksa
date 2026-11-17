@@ -62,7 +62,7 @@ public sealed class SecurityRollupStoreTests
             Minute(SecurityRollupSubject.Total, string.Empty, Noon.AddDays(-2), 60, (SecurityCounter.ChallengesServed, 1_000)),
             Minute(SecurityRollupSubject.AuthProvider, Provider.ToString(), Noon.AddMinutes(1), 60, (SecurityCounter.SignInDenied, 1)),
         ], Ct);
-        MetricRollupStoreTests.PlanCapture capture = new();
+        PlanCapture capture = new();
 
         var summary = await store.SummariseAsync(SecurityRollupSubject.Total, Noon.AddHours(-1), Noon.AddHours(1), Ct);
         await using (var context = database.NewContext(capture))

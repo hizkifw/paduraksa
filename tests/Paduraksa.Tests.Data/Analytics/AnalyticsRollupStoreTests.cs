@@ -1,12 +1,9 @@
-using System.Data.Common;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Analytics;
 using Paduraksa.Core.Model;
-using Paduraksa.Data;
 using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Tests.Data.Config;
@@ -470,40 +467,5 @@ public sealed class AnalyticsRollupStoreTests
 
             Assert.Contains("IX_AnalyticsRollups_Tier_Subject_HostKey_Start (Tier=? AND Subject=? AND HostKey=? AND Start>? AND Start<?)", Assert.Single(capture.Statements).Plan, StringComparison.Ordinal);
         }
-    }
-
-    /// <summary>Records each statement EF runs and the plan SQLite makes for it, asked on the same connection with the same parameters.</summary>
-    private sealed class PlanCapture : DbCommandInterceptor
-    {
-        public List<(string Sql, string Plan)> Statements { get; } = [];
-
-        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
-        {
-            using var explain = command.Connection!.CreateCommand();
-            explain.CommandText = "EXPLAIN QUERY PLAN " + command.CommandText;
-            foreach (DbParameter parameter in command.Parameters)
-            {
-                var copy = explain.CreateParameter();
-                copy.ParameterName = parameter.ParameterName;
-                copy.Value = parameter.Value;
-                explain.Parameters.Add(copy);
-            }
-
-            List<string> lines = [];
-            using (var reader = explain.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    lines.Add(reader.GetString(reader.FieldCount - 1));
-                }
-            }
-
-            Statements.Add((command.CommandText, string.Join("\n", lines)));
-            return result;
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(ReaderExecuting(command, eventData, result));
     }
 }

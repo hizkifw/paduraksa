@@ -123,8 +123,7 @@ public sealed class TypedIdStorageTests
         // A rowid-alias key has no separate unique index; a BLOB key does.
         Assert.Equal(0L, await db.ScalarAsync("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = 'AuditEvents' AND name LIKE 'sqlite_autoindex%'"));
         Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = 'Hosts' AND name LIKE 'sqlite_autoindex%'"));
-        var plan = await db.QueryAsync("EXPLAIN QUERY PLAN SELECT Action FROM AuditEvents WHERE Id = 42");
-        Assert.Contains(plan, row => ((string)row[3]!).Contains("USING INTEGER PRIMARY KEY (rowid=?)", StringComparison.Ordinal));
+        Assert.Contains("USING INTEGER PRIMARY KEY (rowid=?)", await db.PlanAsync("SELECT Action FROM AuditEvents WHERE Id = 42"), StringComparison.Ordinal);
     }
 
     [Fact]

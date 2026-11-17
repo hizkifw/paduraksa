@@ -62,6 +62,9 @@ internal sealed class SampleDatabase : IAsyncDisposable
         return rows;
     }
 
+    /// <summary>The query plan SQLite makes for <paramref name="sql"/>, one line per plan row.</summary>
+    public async Task<string> PlanAsync(string sql) => string.Join("\n", (await QueryAsync("EXPLAIN QUERY PLAN " + sql)).Select(row => (string)row[3]!));
+
     public async Task<object?> ScalarAsync(string sql) => (await QueryAsync(sql)).Single()[0];
 
     public async ValueTask DisposeAsync() => await Connection.DisposeAsync();

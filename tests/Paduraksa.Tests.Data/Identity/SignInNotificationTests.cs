@@ -1,9 +1,8 @@
-using System.Data.Common;
 using System.Net;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Core.Model;
+using Paduraksa.Tests.Data.Config;
 using static Paduraksa.Tests.Data.Identity.IdentityHarness;
 
 namespace Paduraksa.Tests.Data.Identity;
@@ -136,47 +135,13 @@ public sealed class SignInNotificationTests
             Assert.True(await watch.IsNewAddressAsync(context, user, Elsewhere.ClientIp, Ct));
         }
 
-        var audit = capture.Plans.Where(plan => plan.Sql.Contains("AuditEvents", StringComparison.Ordinal)).ToList();
+        var audit = capture.Statements.Where(plan => plan.Sql.Contains("AuditEvents", StringComparison.Ordinal)).ToList();
         Assert.NotEmpty(audit);
         Assert.All(audit, plan =>
         {
             Assert.Contains("IX_AuditEvents_ActorUserId_Action_Timestamp", plan.Plan, StringComparison.Ordinal);
             Assert.DoesNotContain("SCAN AuditEvents", plan.Plan, StringComparison.Ordinal);
         });
-    }
-
-    private sealed class PlanCapture : DbCommandInterceptor
-    {
-        public List<(string Sql, string Plan)> Plans { get; } = [];
-
-        public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
-        {
-            using var explain = command.Connection!.CreateCommand();
-            explain.CommandText = "EXPLAIN QUERY PLAN " + command.CommandText;
-            foreach (DbParameter parameter in command.Parameters)
-            {
-                var copy = explain.CreateParameter();
-                copy.ParameterName = parameter.ParameterName;
-                copy.Value = parameter.Value;
-                explain.Parameters.Add(copy);
-            }
-
-            List<string> lines = [];
-            using (var reader = explain.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    lines.Add(reader.GetString(reader.FieldCount - 1));
-                }
-            }
-
-            Plans.Add((command.CommandText, string.Join("\n", lines)));
-            return result;
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(ReaderExecuting(command, eventData, result));
     }
 
     private static async Task EnableSecondFactorAsync(IdentityHarness h, Paduraksa.Contracts.Identity.UserSummary user)
