@@ -40,7 +40,7 @@ public readonly record struct MetricPoint : IRollupPoint
     /// <summary>Requests that got no response at all: a connection the gate dropped on purpose.</summary>
     public long NoResponse { get; init; }
 
-    /// <summary>Requests the gate refused by a policy or a limit (<see cref="MetricNames.IsRefusal"/>).</summary>
+    /// <summary>Requests the gate refused by a policy or a limit (every <c>Refused*</c> <see cref="GateOutcome"/>).</summary>
     public long Refused { get; init; }
 
     /// <summary>

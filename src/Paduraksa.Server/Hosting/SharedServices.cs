@@ -72,7 +72,6 @@ internal sealed class SharedServices : IAsyncDisposable
         AdminCertificate = Get<AdminCertificateService>();
         AdminInternal = Get<AdminInternalListener>();
         ProofOfWork = Get<ProofOfWorkRuntime>();
-        ProofOfWorkKey = Get<ProofOfWorkKeyStartup>();
         RateLimits = Get<RateLimitRuntime>();
         Metrics = Get<MetricsRegistry>();
         EdgeRanges = Get<CloudflareEdgeRangeSource>();
@@ -82,9 +81,7 @@ internal sealed class SharedServices : IAsyncDisposable
         LogFiles = Get<ServerLogFiles>();
         ServerSettings = Get<ServerSettingsState>();
         ServerSettingsBindings = Get<ServerSettingsBindings>();
-        LogStore = Get<ILogFileStore>();
         AccessLogTail = Get<AccessLogTail>();
-        Analytics = Get<TrafficAnalytics>();
         AnalyticsBacklog = Get<AnalyticsBacklog>();
         Catalog = Get<ICertificateCatalog>();
         PasswordCredentials = Get<IPasswordCredentials>();
@@ -94,7 +91,6 @@ internal sealed class SharedServices : IAsyncDisposable
         Drafts = Get<DraftService>();
         CertificateService = Get<CertificateService>();
         CertificateOperations = Get<CertificateOperations>();
-        CertificateRecovery = Get<CertificateRecovery>();
         RecoveryCompletion = Get<CertificateRecoveryCompletion>();
         Challenges = Get<AcmeChallengeStore>();
         AcmeAccounts = Get<AcmeAccountService>();
@@ -183,9 +179,6 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The proof-of-work gate's key, clock and counters; the compiler hands it to every protected route.</summary>
     public ProofOfWorkRuntime ProofOfWork { get; }
 
-    /// <summary>Opens the proof-of-work key at startup, before the public listener binds (see <see cref="ProofOfWorkKeyStartup"/>).</summary>
-    public ProofOfWorkKeyStartup ProofOfWorkKey { get; }
-
     /// <summary>Cloudflare's edge ranges in force: what the compiler reads, the refresh job replaces and the report describes.</summary>
     public CloudflareEdgeRangeSource EdgeRanges { get; }
 
@@ -220,14 +213,8 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The consumers' live options the server settings are handed to.</summary>
     internal ServerSettingsBindings ServerSettingsBindings { get; }
 
-    /// <summary>The read side of the log files: what the dashboard's log page browses and the API's log endpoints serve.</summary>
-    public ILogFileStore LogStore { get; }
-
     /// <summary>The live tail's hub: the access-log drain feeds it, the dashboard's Live tail page and the API's stream read it.</summary>
     public AccessLogTail AccessLogTail { get; }
-
-    /// <summary>The traffic analytics the access-log drain fills (its open buckets); the analytics service reads them.</summary>
-    public TrafficAnalytics Analytics { get; }
 
     /// <summary>The closed analytics buckets waiting to be written to the database, which the analytics service reads too.</summary>
     public AnalyticsBacklog AnalyticsBacklog { get; }
@@ -257,9 +244,6 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The certificate use cases that touch the vault: upload, self-signed, local CA, re-issue, delete.</summary>
     public CertificateOperations CertificateOperations { get; }
-
-    /// <summary>Registers the certificates the vault holds that the inventory lost again; run once at startup by <see cref="CertificateRecoveryStartup"/>.</summary>
-    public CertificateRecovery CertificateRecovery { get; }
 
     /// <summary>Completes when the startup recovery (<see cref="CertificateRecoveryStartup"/>) has finished its run.</summary>
     internal CertificateRecoveryCompletion RecoveryCompletion { get; }

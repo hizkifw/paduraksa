@@ -24,7 +24,4 @@ public static class MetricNames
         GateOutcome.RefusedProofOfWork, GateOutcome.RefusedForwardAuth, GateOutcome.RefusedRequestLimits, GateOutcome.RefusedConnection,
         GateOutcome.NoRoute, GateOutcome.Unavailable, GateOutcome.Dropped, GateOutcome.UnknownHost, GateOutcome.RefusedOther,
     ];
-
-    /// <summary>Whether the outcome is a refusal by a policy or a limit, the figure the overview calls "refused".</summary>
-    public static bool IsRefusal(GateOutcome outcome) => outcome is >= GateOutcome.RefusedAccessList and <= GateOutcome.RefusedConnection or GateOutcome.RefusedOther;
 }
