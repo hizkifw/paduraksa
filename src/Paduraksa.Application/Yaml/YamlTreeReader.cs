@@ -129,36 +129,18 @@ internal static class YamlTreeReader
         {
             node = null;
             height = 1;
-            if (!parser.MoveNext())
+            if (!MoveNext(parser))
             {
-                return Fail(YamlErrorCodes.Syntax, "The YAML ended unexpectedly.", 0, 0);
+                return false;
             }
 
-            var current = parser.Current!;
-            switch (current)
-            {
-                case Scalar scalar:
-                    return ReadScalar(scalar, out node);
-                case SequenceStart sequence:
-                    return ReadSequence(parser, sequence, depth, out node, out height);
-                case MappingStart mapping:
-                    return ReadMapping(parser, mapping, depth, out node, out height);
-                case AnchorAlias alias:
-                    return ExpandAlias(alias, depth, out node, out height);
-                default:
-                    return Fail(YamlErrorCodes.Syntax, "Unexpected content.", current.Start.Line, current.Start.Column);
-            }
+            return ReadItem(parser, depth, out node, out height);
         }
 
         private bool ReadScalar(Scalar scalar, out YamlNode? node)
         {
             node = null;
-            if (!scalar.Tag.IsEmpty)
-            {
-                return Fail(YamlErrorCodes.Tag, "Tags aren't supported; write the value without one.", scalar.Start.Line, scalar.Start.Column);
-            }
-
-            if (!CountNode(scalar.Start))
+            if (!TagAllowed(scalar) || !CountNode(scalar.Start))
             {
                 return false;
             }
@@ -177,17 +159,7 @@ internal static class YamlTreeReader
         {
             node = null;
             height = 1;
-            if (!start.Tag.IsEmpty)
-            {
-                return Fail(YamlErrorCodes.Tag, "Tags aren't supported; write the value without one.", start.Start.Line, start.Start.Column);
-            }
-
-            if (depth > limits.MaxDepth)
-            {
-                return Fail(YamlErrorCodes.Depth, $"The YAML nests deeper than {limits.MaxDepth} levels.", start.Start.Line, start.Start.Column);
-            }
-
-            if (!CountNode(start.Start))
+            if (!EnterCollection(start, depth))
             {
                 return false;
             }
@@ -196,9 +168,9 @@ internal static class YamlTreeReader
             var below = 0;
             while (true)
             {
-                if (!parser.MoveNext())
+                if (!MoveNext(parser))
                 {
-                    return Fail(YamlErrorCodes.Syntax, "The YAML ended unexpectedly.", 0, 0);
+                    return false;
                 }
 
                 if (parser.Current is SequenceEnd)
@@ -224,17 +196,7 @@ internal static class YamlTreeReader
         {
             node = null;
             height = 1;
-            if (!start.Tag.IsEmpty)
-            {
-                return Fail(YamlErrorCodes.Tag, "Tags aren't supported; write the value without one.", start.Start.Line, start.Start.Column);
-            }
-
-            if (depth > limits.MaxDepth)
-            {
-                return Fail(YamlErrorCodes.Depth, $"The YAML nests deeper than {limits.MaxDepth} levels.", start.Start.Line, start.Start.Column);
-            }
-
-            if (!CountNode(start.Start))
+            if (!EnterCollection(start, depth))
             {
                 return false;
             }
@@ -244,9 +206,9 @@ internal static class YamlTreeReader
             var below = 0;
             while (true)
             {
-                if (!parser.MoveNext())
+                if (!MoveNext(parser))
                 {
-                    return Fail(YamlErrorCodes.Syntax, "The YAML ended unexpectedly.", 0, 0);
+                    return false;
                 }
 
                 if (parser.Current is MappingEnd)
@@ -271,9 +233,9 @@ internal static class YamlTreeReader
                     return Fail(YamlErrorCodes.KeyDuplicate, $"The key '{keyScalar.Text}' is written twice in one mapping.", keyScalar.Line, keyScalar.Column);
                 }
 
-                if (!parser.MoveNext())
+                if (!MoveNext(parser))
                 {
-                    return Fail(YamlErrorCodes.Syntax, "The YAML ended unexpectedly.", 0, 0);
+                    return false;
                 }
 
                 if (!ReadItem(parser, depth + 1, out var value, out var valueHeight, current: parser.Current))
@@ -395,6 +357,17 @@ internal static class YamlTreeReader
                     return Fail(YamlErrorCodes.Syntax, "Unexpected content.", at.Line, at.Column);
             }
         }
+
+        private bool MoveNext(Parser parser) => parser.MoveNext() || Fail(YamlErrorCodes.Syntax, "The YAML ended unexpectedly.", 0, 0);
+
+        private bool TagAllowed(NodeEvent node) =>
+            node.Tag.IsEmpty || Fail(YamlErrorCodes.Tag, "Tags aren't supported; write the value without one.", node.Start.Line, node.Start.Column);
+
+        // What a sequence and a mapping check before reading their items.
+        private bool EnterCollection(NodeEvent start, int depth) =>
+            TagAllowed(start)
+            && (depth <= limits.MaxDepth || Fail(YamlErrorCodes.Depth, $"The YAML nests deeper than {limits.MaxDepth} levels.", start.Start.Line, start.Start.Column))
+            && CountNode(start.Start);
 
         private bool CountNode(Mark at) =>
             ++_nodes <= limits.MaxNodes || Fail(YamlErrorCodes.Nodes, $"The YAML expands to more than {limits.MaxNodes} values (aliases count each time they are used).", at.Line, at.Column);
