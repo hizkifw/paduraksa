@@ -51,7 +51,7 @@ public static class FrameCodec
     public static byte[]? Read(Stream stream, int max)
     {
         Span<byte> prefix = stackalloc byte[4];
-        var got = ReadFully(stream, prefix);
+        var got = stream.ReadAtLeast(prefix, prefix.Length, throwOnEndOfStream: false);
         if (got == 0)
         {
             return null;
@@ -59,7 +59,7 @@ public static class FrameCodec
 
         var length = Length(prefix, got, max);
         var body = new byte[length];
-        if (ReadFully(stream, body) != length)
+        if (stream.ReadAtLeast(body, body.Length, throwOnEndOfStream: false) != length)
         {
             throw new SandboxProtocolException("The stream ended inside a frame.");
         }
@@ -70,7 +70,7 @@ public static class FrameCodec
     public static async ValueTask<byte[]?> ReadAsync(Stream stream, int max, CancellationToken cancellationToken)
     {
         var prefix = new byte[4];
-        var got = await ReadFullyAsync(stream, prefix, cancellationToken).ConfigureAwait(false);
+        var got = await stream.ReadAtLeastAsync(prefix, prefix.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
         if (got == 0)
         {
             return null;
@@ -78,7 +78,7 @@ public static class FrameCodec
 
         var length = Length(prefix, got, max);
         var body = new byte[length];
-        if (await ReadFullyAsync(stream, body, cancellationToken).ConfigureAwait(false) != length)
+        if (await stream.ReadAtLeastAsync(body, body.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false) != length)
         {
             throw new SandboxProtocolException("The stream ended inside a frame.");
         }
@@ -100,40 +100,6 @@ public static class FrameCodec
         }
 
         return length;
-    }
-
-    private static int ReadFully(Stream stream, Span<byte> buffer)
-    {
-        var total = 0;
-        while (total < buffer.Length)
-        {
-            var read = stream.Read(buffer[total..]);
-            if (read == 0)
-            {
-                break;
-            }
-
-            total += read;
-        }
-
-        return total;
-    }
-
-    private static async ValueTask<int> ReadFullyAsync(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)
-    {
-        var total = 0;
-        while (total < buffer.Length)
-        {
-            var read = await stream.ReadAsync(buffer[total..], cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-            {
-                break;
-            }
-
-            total += read;
-        }
-
-        return total;
     }
 }
 

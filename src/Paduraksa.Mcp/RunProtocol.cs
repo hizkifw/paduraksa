@@ -159,15 +159,7 @@ internal static class RunProtocol
 
         if (answer.Length > FrameCodec.MaxToChild)
         {
-            answer = Messages.Build(w =>
-            {
-                w.WriteString("t", "response");
-                w.WriteNumber("id", id);
-                w.WriteStartObject("error");
-                w.WriteString("type", "RangeError");
-                w.WriteString("message", "The answer is too large for the sandbox; narrow the request.");
-                w.WriteEndObject();
-            });
+            answer = RequestBridge.Failure(id, "RangeError", "The answer is too large for the sandbox; narrow the request.");
         }
 
         await FrameCodec.WriteAsync(toChild, answer, FrameCodec.MaxToChild, cancellationToken).ConfigureAwait(false);

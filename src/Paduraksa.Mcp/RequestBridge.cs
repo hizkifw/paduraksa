@@ -29,7 +29,7 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or ArgumentException)
         {
             // text with an escape that is not a character, or a value the reader cannot give back
-            return Failure(id, "TypeError", "request takes one object: { method, path, query?, body?, confirm?, ifMatch? }.");
+            return Failure(id, "TypeError", Malformed);
         }
 
         var decision = policy.Decide(call.Method, call.Path);
@@ -55,7 +55,7 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
         // Measured before the parse, so a body that is too deep is told so: with the depth left to the parser it failed as "request takes one object".
         if (Depths(optionsJson) is not var (depth, bodyDepth))
         {
-            throw Invalid("request takes one object: { method, path, query?, body?, confirm?, ifMatch? }.");
+            throw Invalid(Malformed);
         }
 
         if (bodyDepth > SandboxLimits.MaxBodyDepth)
@@ -71,7 +71,7 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
         }
         catch (JsonException)
         {
-            throw Invalid("request takes one object: { method, path, query?, body?, confirm?, ifMatch? }.");
+            throw Invalid(Malformed);
         }
 
         using (document)
@@ -79,7 +79,7 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
-                throw Invalid("request takes one object: { method, path, query?, body?, confirm?, ifMatch? }.");
+                throw Invalid(Malformed);
             }
 
             foreach (var property in root.EnumerateObject())
@@ -137,6 +137,8 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
             return (new ApiCall(verb, path.GetString()!, Query(query), bodyJson, ifMatch), confirm);
         }
     }
+
+    private const string Malformed = "request takes one object: { method, path, query?, body?, confirm?, ifMatch? }.";
 
     internal static readonly string BodyTooDeep = $"The request body is nested deeper than {SandboxLimits.MaxBodyDepth} levels.";
 
@@ -248,7 +250,7 @@ internal sealed partial class RequestBridge(RequestPolicy policy, IApiDispatcher
 
     private static RequestException Invalid(string message) => new("TypeError", message);
 
-    private static byte[] Failure(int id, string type, string message) => Messages.Build(w =>
+    internal static byte[] Failure(int id, string type, string message) => Messages.Build(w =>
     {
         w.WriteString("t", "response");
         w.WriteNumber("id", id);
