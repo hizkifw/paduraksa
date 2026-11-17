@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Paduraksa.Tests.Proxy.Testing;

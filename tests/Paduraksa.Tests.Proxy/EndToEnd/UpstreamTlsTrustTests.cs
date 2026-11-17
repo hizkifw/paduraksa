@@ -7,7 +7,6 @@ using Microsoft.Extensions.Hosting;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -24,7 +23,7 @@ public sealed class UpstreamTlsTrustTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-_certificate = SelfSigned.Create("CN=nas.lan", serverAuth: true);
+        _certificate = SelfSigned.Create("CN=nas.lan", serverAuth: true);
         (_upstream, _address) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken, _certificate);
         Assert.StartsWith("https://", _address, StringComparison.Ordinal);
     }

@@ -15,7 +15,6 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Data.Commands;
 using Paduraksa.Tests.Data.Config;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 using SnapshotStore = Paduraksa.Proxy.Snapshot.SnapshotStore;

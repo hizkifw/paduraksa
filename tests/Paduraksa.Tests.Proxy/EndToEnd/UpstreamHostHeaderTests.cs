@@ -1,5 +1,4 @@
 using System.Net;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -7,10 +6,8 @@ using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -27,7 +24,7 @@ public sealed class UpstreamHostHeaderTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-_certificate = SelfSigned.Create("CN=nas.lan", serverAuth: true);
+        _certificate = SelfSigned.Create("CN=nas.lan", serverAuth: true);
         (_plain, _plainAddress) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken);
         (_secure, _secureAddress) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken, _certificate);
     }

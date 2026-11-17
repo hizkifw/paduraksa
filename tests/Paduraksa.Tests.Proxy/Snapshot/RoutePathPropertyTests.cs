@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 
 using CsCheck;
 
-using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Proxy.Config;

@@ -9,7 +9,6 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Application.Probes;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Commands;
