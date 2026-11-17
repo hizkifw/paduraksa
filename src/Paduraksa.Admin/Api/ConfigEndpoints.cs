@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization.Metadata;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -8,6 +10,7 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Admin.Api;
@@ -55,107 +58,56 @@ internal static class ConfigEndpoints
         hosts.MapDelete("/{hostId:HostId}/routes/{routeId:RouteId}", DeleteRouteAsync).WithName("DeleteRoute").WithSummary("Delete a route of a host")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
-        var upstreams = api.MapGroup("/upstreams").WithTags("Upstreams");
-        upstreams.MapGet("/", ListUpstreamsAsync).WithName("ListUpstreams").WithSummary("List upstreams")
-            .WithPage().Produces<Page<UpstreamConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
-        upstreams.MapGet("/{id:UpstreamId}", GetUpstreamAsync).WithName("GetUpstream").WithSummary("Get an upstream")
-            .Produces<UpstreamConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
-        upstreams.MapPost("/", CreateUpstreamAsync).WithName("CreateUpstream").WithSummary("Create an upstream")
-            .Accepts<UpstreamConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        upstreams.MapPut("/{id:UpstreamId}", ReplaceUpstreamAsync).WithName("ReplaceUpstream").WithSummary("Replace an upstream")
-            .Accepts<UpstreamConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        upstreams.MapDelete("/{id:UpstreamId}", DeleteUpstreamAsync).WithName("DeleteUpstream").WithSummary("Delete an upstream")
-            .WithDescription("Refused (422, relatedErrors) while a route still uses it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+        MapResource(api, new Resource<UpstreamConfig, UpstreamId>(
+            "upstreams", "Upstreams", "upstream", "upstreams", d => d.Upstreams, u => u.Id, u => u.Version, (u, version) => u with { Version = version },
+            AdminJsonContext.Default.UpstreamConfig, AdminJsonContext.Default.PageUpstreamConfig,
+            upstream => new UpsertUpstreamCommand(upstream), (id, version) => new DeleteUpstreamCommand(id, version)),
+            deleteDescription: "Refused (422, relatedErrors) while a route still uses it.");
 
-        var rateLimits = api.MapGroup("/rate-limit-policies").WithTags("Rate limits");
-        rateLimits.MapGet("/", ListRateLimitPoliciesAsync).WithName("ListRateLimitPolicies").WithSummary("List rate-limit policies")
-            .WithPage().Produces<Page<RateLimitPolicyConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
-        rateLimits.MapGet("/{id:RateLimitPolicyId}", GetRateLimitPolicyAsync).WithName("GetRateLimitPolicy").WithSummary("Get a rate-limit policy")
-            .Produces<RateLimitPolicyConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
-        rateLimits.MapPost("/", CreateRateLimitPolicyAsync).WithName("CreateRateLimitPolicy").WithSummary("Create a rate-limit policy")
-            .Accepts<RateLimitPolicyConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        rateLimits.MapPut("/{id:RateLimitPolicyId}", ReplaceRateLimitPolicyAsync).WithName("ReplaceRateLimitPolicy").WithSummary("Replace a rate-limit policy")
-            .Accepts<RateLimitPolicyConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        rateLimits.MapDelete("/{id:RateLimitPolicyId}", DeleteRateLimitPolicyAsync).WithName("DeleteRateLimitPolicy").WithSummary("Delete a rate-limit policy")
-            .WithDescription("Refused (422, relatedErrors) while a host or route still names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+        MapResource(api, new Resource<RateLimitPolicyConfig, RateLimitPolicyId>(
+            "rate-limit-policies", "Rate limits", "rate-limit policy", "rate-limit policies", d => d.RateLimitPolicies, p => p.Id, p => p.Version, (p, version) => p with { Version = version },
+            AdminJsonContext.Default.RateLimitPolicyConfig, AdminJsonContext.Default.PageRateLimitPolicyConfig,
+            policy => new UpsertRateLimitPolicyCommand(policy), (id, version) => new DeleteRateLimitPolicyCommand(id, version)),
+            deleteDescription: "Refused (422, relatedErrors) while a host or route still names it.");
 
-        var accessLists = api.MapGroup("/access-lists").WithTags("Access lists");
-        accessLists.MapGet("/", ListAccessListsAsync).WithName("ListAccessLists").WithSummary("List access lists")
-            .WithDescription("Users carry 'credentialId', the vault's handle on their password. No read returns a password or a hash.")
-            .WithPage().Produces<Page<AccessListConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
-        accessLists.MapGet("/{id:AccessListId}", GetAccessListAsync).WithName("GetAccessList").WithSummary("Get an access list")
-            .Produces<AccessListConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
-        accessLists.MapPost("/", CreateAccessListAsync).WithName("CreateAccessList").WithSummary("Create an access list")
-            .WithDescription("The vault receives a user's plain 'password' before the list is validated or stored, and the API never returns it. The list keeps the user's 'credentialId'.")
-            .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        accessLists.MapPut("/{id:AccessListId}", ReplaceAccessListAsync).WithName("ReplaceAccessList").WithSummary("Replace an access list")
-            .WithDescription("A user sent without 'password' or 'credentialId' keeps the password the list has for that username. A password change commits a revision that modifies the list and records no password.")
-            .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        accessLists.MapDelete("/{id:AccessListId}", DeleteAccessListAsync).WithName("DeleteAccessList").WithSummary("Delete an access list")
-            .WithDescription("Refused (422, relatedErrors) while a host, profile, global default or route still names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+        MapResource(api, new Resource<AccessListConfig, AccessListId>(
+            "access-lists", "Access lists", "access list", "access lists", d => d.AccessLists, l => l.Id, l => l.Version, (l, version) => l with { Version = version },
+            AdminJsonContext.Default.AccessListConfig, AdminJsonContext.Default.PageAccessListConfig,
+            list => new UpsertAccessListCommand(list), (id, version) => new DeleteAccessListCommand(id, version)),
+            listDescription: "Users carry 'credentialId', the vault's handle on their password. No read returns a password or a hash.",
+            createDescription: "The vault receives a user's plain 'password' before the list is validated or stored, and the API never returns it. The list keeps the user's 'credentialId'.",
+            replaceDescription: "A user sent without 'password' or 'credentialId' keeps the password the list has for that username. A password change commits a revision that modifies the list and records no password.",
+            deleteDescription: "Refused (422, relatedErrors) while a host, profile, global default or route still names it.");
 
-        var ruleSets = api.MapGroup("/rule-sets").WithTags("Rule sets");
-        ruleSets.MapGet("/", ListRuleSetsAsync).WithName("ListRuleSets").WithSummary("List rule sets")
-            .WithDescription("The document's own sets. The built-in presets are at /rule-sets/presets, and a setting names a preset like any other set.")
-            .WithPage().Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
-        ruleSets.MapGet("/presets", ListRuleSetPresetsAsync).WithName("ListRuleSetPresets").WithSummary("List the built-in rule-set presets")
-            .WithDescription("Read-only; each release refreshes them. To change one, copy it into a set of your own.")
-            .WithPage().Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
-        ruleSets.MapGet("/{id:RuleSetId}", GetRuleSetAsync).WithName("GetRuleSet").WithSummary("Get a rule set")
-            .Produces<RuleSetConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
-        ruleSets.MapPost("/", CreateRuleSetAsync).WithName("CreateRuleSet").WithSummary("Create a rule set")
-            .WithDescription("Rules are tried in order and the first match decides. If a regex can't be built or a rule states no condition, the request is refused (422).")
-            .Accepts<RuleSetConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        ruleSets.MapPut("/{id:RuleSetId}", ReplaceRuleSetAsync).WithName("ReplaceRuleSet").WithSummary("Replace a rule set")
-            .Accepts<RuleSetConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        ruleSets.MapDelete("/{id:RuleSetId}", DeleteRuleSetAsync).WithName("DeleteRuleSet").WithSummary("Delete a rule set")
-            .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+        MapResource(api, new Resource<RuleSetConfig, RuleSetId>(
+            "rule-sets", "Rule sets", "rule set", "rule sets", d => d.RuleSets, r => r.Id, r => r.Version, (r, version) => r with { Version = version },
+            AdminJsonContext.Default.RuleSetConfig, AdminJsonContext.Default.PageRuleSetConfig,
+            set => new UpsertRuleSetCommand(set), (id, version) => new DeleteRuleSetCommand(id, version))
+        {
+            BuiltIn = id => RuleSetPresets.TryGet(id, out var preset) ? preset : null,
+            AfterList = static group => group.MapGet("/presets", ListRuleSetPresetsAsync).WithName("ListRuleSetPresets").WithSummary("List the built-in rule-set presets")
+                .WithDescription("Read-only; each release refreshes them. To change one, copy it into a set of your own.")
+                .WithPage().Produces<Page<RuleSetConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead),
+        },
+            listDescription: "The document's own sets. The built-in presets are at /rule-sets/presets, and a setting names a preset like any other set.",
+            createDescription: "Rules are tried in order and the first match decides. If a regex can't be built or a rule states no condition, the request is refused (422).",
+            deleteDescription: "Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.");
 
-        var authProviders = api.MapGroup("/auth-providers").WithTags("Auth providers");
-        authProviders.MapGet("/", ListAuthProvidersAsync).WithName("ListAuthProviders").WithSummary("List auth providers")
-            .WithPage().Produces<Page<AuthProviderConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
-        authProviders.MapGet("/{id:AuthProviderId}", GetAuthProviderAsync).WithName("GetAuthProvider").WithSummary("Get an auth provider")
-            .Produces<AuthProviderConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
-        authProviders.MapPost("/", CreateAuthProviderAsync).WithName("CreateAuthProvider").WithSummary("Create an auth provider")
-            .WithDescription("A forward-auth endpoint (authentik, Authelia, oauth2-proxy or any other). The proxy checks every request to a host or route that names the provider against it first. "
+        MapResource(api, new Resource<AuthProviderConfig, AuthProviderId>(
+            "auth-providers", "Auth providers", "auth provider", "auth providers", d => d.AuthProviders, p => p.Id, p => p.Version, (p, version) => p with { Version = version },
+            AdminJsonContext.Default.AuthProviderConfig, AdminJsonContext.Default.PageAuthProviderConfig,
+            provider => new UpsertAuthProviderCommand(provider), (id, version) => new DeleteAuthProviderCommand(id, version)),
+            createDescription: "A forward-auth endpoint (authentik, Authelia, oauth2-proxy or any other). The proxy checks every request to a host or route that names the provider against it first. "
                 + "The preset (authentik, authelia, oauth2Proxy) fills in the endpoint's path when the URL is a bare address, the identity headers its answer carries, whether a remembered allow covers one path or the whole host, "
-                + "and oauth2-proxy's sign-in redirect; a field that is set wins. The API refuses (422) a URL with credentials, a header the proxy owns, and a sign-in URL that isn't a path on the host or an absolute http(s) URL.")
-            .Accepts<AuthProviderConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        authProviders.MapPut("/{id:AuthProviderId}", ReplaceAuthProviderAsync).WithName("ReplaceAuthProvider").WithSummary("Replace an auth provider")
-            .WithDescription("If the change affects what the endpoint is asked or how its answer is read, the provider starts with an empty decision cache. A rename or new notes keep the cache.")
-            .Accepts<AuthProviderConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        authProviders.MapDelete("/{id:AuthProviderId}", DeleteAuthProviderAsync).WithName("DeleteAuthProvider").WithSummary("Delete an auth provider")
-            .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+                + "and oauth2-proxy's sign-in redirect; a field that is set wins. The API refuses (422) a URL with credentials, a header the proxy owns, and a sign-in URL that isn't a path on the host or an absolute http(s) URL.",
+            replaceDescription: "If the change affects what the endpoint is asked or how its answer is read, the provider starts with an empty decision cache. A rename or new notes keep the cache.",
+            deleteDescription: "Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.");
 
-        var profiles = api.MapGroup("/profiles").WithTags("Profiles");
-        profiles.MapGet("/", ListProfilesAsync).WithName("ListProfiles").WithSummary("List profiles")
-            .WithPage().Produces<Page<ProfileConfig>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
-        profiles.MapGet("/{id:ProfileId}", GetProfileAsync).WithName("GetProfile").WithSummary("Get a profile")
-            .Produces<ProfileConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
-        profiles.MapPost("/", CreateProfileAsync).WithName("CreateProfile").WithSummary("Create a profile")
-            .Accepts<ProfileConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        profiles.MapPut("/{id:ProfileId}", ReplaceProfileAsync).WithName("ReplaceProfile").WithSummary("Replace a profile")
-            .Accepts<ProfileConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
-            .RequirePermission(Permission.ConfigWrite);
-        profiles.MapDelete("/{id:ProfileId}", DeleteProfileAsync).WithName("DeleteProfile").WithSummary("Delete a profile")
-            .WithDescription("Refused (422, relatedErrors) while a host still uses it.")
-            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+        MapResource(api, new Resource<ProfileConfig, ProfileId>(
+            "profiles", "Profiles", "profile", "profiles", d => d.Profiles, p => p.Id, p => p.Version, (p, version) => p with { Version = version },
+            AdminJsonContext.Default.ProfileConfig, AdminJsonContext.Default.PageProfileConfig,
+            profile => new UpsertProfileCommand(profile), (id, version) => new DeleteProfileCommand(id, version)),
+            deleteDescription: "Refused (422, relatedErrors) while a host still uses it.");
 
         api.MapGet("/settings", GetSettingsAsync).WithName("GetSettings").WithTags("Settings").WithSummary("The global settings")
             .WithDescription("The ETag is the settings' version.")
@@ -194,13 +146,13 @@ internal static class ConfigEndpoints
 
     private static Task<IResult> CreateHostAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.HostConfig,
-            (host, _, _) => (host with { Version = 0 }, null), (host, dry, message) => new UpsertHostCommand(host) { DryRun = dry, Message = message },
+            (host, _) => (host with { Version = 0 }, null), host => new UpsertHostCommand(host),
             host => EndpointSupport.Path("hosts", host.Id), ct);
 
     private static Task<IResult> ReplaceHostAsync(HttpContext http, HostId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.HostConfig,
-            (host, version, _) => host.Id == id ? (host with { Version = version }, null) : (host, IdMismatch()),
-            (host, dry, message) => new UpsertHostCommand(host) { DryRun = dry, Message = message }, null, ct);
+            (host, version) => host.Id == id ? (host with { Version = version }, null) : (host, IdMismatch()),
+            host => new UpsertHostCommand(host), null, ct);
 
     private static Task<IResult> DeleteHostAsync(HttpContext http, HostId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         DeleteAsync(http, caller, config, version => new DeleteHostCommand(id, version), ct);
@@ -302,205 +254,99 @@ internal static class ConfigEndpoints
         return ConfigCommandResponses.ToResult(http, await config.ExecuteAsync(command, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change, noContent: true);
     }
 
-    private static async Task<IResult> ListUpstreamsAsync(HttpContext http, ConfigService config, CancellationToken ct)
-    {
-        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
-        TagWithRevision(http, current);
-        return Pagination.Respond(http, current.Document.Upstreams, u => u.Id, AdminJsonContext.Default.PageUpstreamConfig);
-    }
-
-    private static async Task<IResult> GetUpstreamAsync(HttpContext http, UpstreamId id, ConfigService config, CancellationToken ct)
-    {
-        var upstream = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Upstreams.FirstOrDefault(u => u.Id == id);
-        if (upstream is null)
-        {
-            return NoSuchObject("upstream");
-        }
-
-        http.Response.Headers.ETag = Preconditions.VersionTag(upstream.Version);
-        return EndpointSupport.Json(upstream, AdminJsonContext.Default.UpstreamConfig);
-    }
-
-    private static Task<IResult> CreateUpstreamAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.UpstreamConfig,
-            (upstream, _, _) => (upstream with { Version = 0 }, null), (upstream, dry, message) => new UpsertUpstreamCommand(upstream) { DryRun = dry, Message = message },
-            upstream => EndpointSupport.Path("upstreams", upstream.Id), ct);
-
-    private static Task<IResult> ReplaceUpstreamAsync(HttpContext http, UpstreamId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.UpstreamConfig,
-            (upstream, version, _) => upstream.Id == id ? (upstream with { Version = version }, null) : (upstream, IdMismatch()),
-            (upstream, dry, message) => new UpsertUpstreamCommand(upstream) { DryRun = dry, Message = message }, null, ct);
-
-    private static Task<IResult> DeleteUpstreamAsync(HttpContext http, UpstreamId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, caller, config, version => new DeleteUpstreamCommand(id, version), ct);
-
-    private static async Task<IResult> ListRateLimitPoliciesAsync(HttpContext http, ConfigService config, CancellationToken ct)
-    {
-        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
-        TagWithRevision(http, current);
-        return Pagination.Respond(http, current.Document.RateLimitPolicies, p => p.Id, AdminJsonContext.Default.PageRateLimitPolicyConfig);
-    }
-
-    private static async Task<IResult> GetRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, ConfigService config, CancellationToken ct)
-    {
-        var policy = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.RateLimitPolicies.FirstOrDefault(p => p.Id == id);
-        if (policy is null)
-        {
-            return NoSuchObject("rate-limit policy");
-        }
-
-        http.Response.Headers.ETag = Preconditions.VersionTag(policy.Version);
-        return EndpointSupport.Json(policy, AdminJsonContext.Default.RateLimitPolicyConfig);
-    }
-
-    private static Task<IResult> CreateRateLimitPolicyAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.RateLimitPolicyConfig,
-            (policy, _, _) => (policy with { Version = 0 }, null), (policy, dry, message) => new UpsertRateLimitPolicyCommand(policy) { DryRun = dry, Message = message },
-            policy => EndpointSupport.Path("rate-limit-policies", policy.Id), ct);
-
-    private static Task<IResult> ReplaceRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.RateLimitPolicyConfig,
-            (policy, version, _) => policy.Id == id ? (policy with { Version = version }, null) : (policy, IdMismatch()),
-            (policy, dry, message) => new UpsertRateLimitPolicyCommand(policy) { DryRun = dry, Message = message }, null, ct);
-
-    private static Task<IResult> DeleteRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, caller, config, version => new DeleteRateLimitPolicyCommand(id, version), ct);
-
-    private static async Task<IResult> ListAccessListsAsync(HttpContext http, ConfigService config, CancellationToken ct)
-    {
-        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
-        TagWithRevision(http, current);
-        return Pagination.Respond(http, current.Document.AccessLists, l => l.Id, AdminJsonContext.Default.PageAccessListConfig);
-    }
-
-    private static async Task<IResult> GetAccessListAsync(HttpContext http, AccessListId id, ConfigService config, CancellationToken ct)
-    {
-        var list = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.AccessLists.FirstOrDefault(l => l.Id == id);
-        if (list is null)
-        {
-            return NoSuchObject("access list");
-        }
-
-        http.Response.Headers.ETag = Preconditions.VersionTag(list.Version);
-        return EndpointSupport.Json(list, AdminJsonContext.Default.AccessListConfig);
-    }
-
-    private static Task<IResult> CreateAccessListAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.AccessListConfig,
-            (list, _, _) => (list with { Version = 0 }, null), (list, dry, message) => new UpsertAccessListCommand(list) { DryRun = dry, Message = message },
-            list => EndpointSupport.Path("access-lists", list.Id), ct);
-
-    private static Task<IResult> ReplaceAccessListAsync(HttpContext http, AccessListId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.AccessListConfig,
-            (list, version, _) => list.Id == id ? (list with { Version = version }, null) : (list, IdMismatch()),
-            (list, dry, message) => new UpsertAccessListCommand(list) { DryRun = dry, Message = message }, null, ct);
-
-    private static Task<IResult> DeleteAccessListAsync(HttpContext http, AccessListId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, caller, config, version => new DeleteAccessListCommand(id, version), ct);
-
-    private static async Task<IResult> ListRuleSetsAsync(HttpContext http, ConfigService config, CancellationToken ct)
-    {
-        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
-        TagWithRevision(http, current);
-        return Pagination.Respond(http, current.Document.RuleSets, r => r.Id, AdminJsonContext.Default.PageRuleSetConfig);
-    }
-
     private static IResult ListRuleSetPresetsAsync(HttpContext http) =>
         Pagination.Respond(http, RuleSetPresets.All, r => r.Id, AdminJsonContext.Default.PageRuleSetConfig);
 
-    private static async Task<IResult> GetRuleSetAsync(HttpContext http, RuleSetId id, ConfigService config, CancellationToken ct)
+    /// <summary>What differs between the config collections that share the list, get, create, replace and delete endpoints.</summary>
+    private sealed record Resource<T, TId>(
+        string Path,
+        string Tag,
+        string Singular,
+        string Plural,
+        Func<ConfigDocument, IReadOnlyList<T>> Items,
+        Func<T, TId> IdOf,
+        Func<T, long> VersionOf,
+        Func<T, long, T> WithVersion,
+        JsonTypeInfo<T> Json,
+        JsonTypeInfo<Page<T>> PageJson,
+        Func<T, ConfigCommand> Upsert,
+        Func<TId, long, ConfigCommand> Delete)
+        where T : class
+        where TId : struct, ITypedId<TId>
     {
-        if (RuleSetPresets.TryGet(id, out var preset))
-        {
-            return EndpointSupport.Json(preset, AdminJsonContext.Default.RuleSetConfig);
-        }
+        /// <summary>Objects that aren't in the document but answer a get (the rule-set presets).</summary>
+        public Func<TId, T?>? BuiltIn { get; init; }
 
-        var set = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.RuleSets.FirstOrDefault(r => r.Id == id);
-        if (set is null)
-        {
-            return NoSuchObject("rule set");
-        }
-
-        http.Response.Headers.ETag = Preconditions.VersionTag(set.Version);
-        return EndpointSupport.Json(set, AdminJsonContext.Default.RuleSetConfig);
+        /// <summary>Endpoints that must be described right after the list (the OpenAPI document keeps mapping order).</summary>
+        public Action<RouteGroupBuilder>? AfterList { get; init; }
     }
 
-    private static Task<IResult> CreateRuleSetAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.RuleSetConfig,
-            (set, _, _) => (set with { Version = 0 }, null), (set, dry, message) => new UpsertRuleSetCommand(set) { DryRun = dry, Message = message },
-            set => EndpointSupport.Path("rule-sets", set.Id), ct);
-
-    private static Task<IResult> ReplaceRuleSetAsync(HttpContext http, RuleSetId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.RuleSetConfig,
-            (set, version, _) => set.Id == id ? (set with { Version = version }, null) : (set, IdMismatch()),
-            (set, dry, message) => new UpsertRuleSetCommand(set) { DryRun = dry, Message = message }, null, ct);
-
-    private static Task<IResult> DeleteRuleSetAsync(HttpContext http, RuleSetId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, caller, config, version => new DeleteRuleSetCommand(id, version), ct);
-
-    private static async Task<IResult> ListAuthProvidersAsync(HttpContext http, ConfigService config, CancellationToken ct)
+    private static void MapResource<T, TId>(
+        RouteGroupBuilder api,
+        Resource<T, TId> r,
+        string? listDescription = null,
+        string? createDescription = null,
+        string? replaceDescription = null,
+        string? deleteDescription = null)
+        where T : class
+        where TId : struct, ITypedId<TId>
     {
-        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
-        TagWithRevision(http, current);
-        return Pagination.Respond(http, current.Document.AuthProviders, p => p.Id, AdminJsonContext.Default.PageAuthProviderConfig);
+        var group = api.MapGroup("/" + r.Path).WithTags(r.Tag);
+        var singular = Pascal(r.Singular);
+        var article = "aeiou".Contains(r.Singular[0], StringComparison.Ordinal) ? "an" : "a";
+        var idPath = $"/{{id:{typeof(TId).Name}}}";
+
+        group.MapGet("/", async (HttpContext http, ConfigService config, CancellationToken ct) =>
+            {
+                var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+                TagWithRevision(http, current);
+                return Pagination.Respond(http, r.Items(current.Document), r.IdOf, r.PageJson);
+            })
+            .WithName("List" + Pascal(r.Plural)).WithSummary("List " + r.Plural).Described(listDescription)
+            .WithPage().Produces<Page<T>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
+        r.AfterList?.Invoke(group);
+        group.MapGet(idPath, async (HttpContext http, TId id, ConfigService config, CancellationToken ct) =>
+            {
+                if (r.BuiltIn?.Invoke(id) is { } builtIn)
+                {
+                    return EndpointSupport.Json(builtIn, r.Json);
+                }
+
+                var item = r.Items((await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document).FirstOrDefault(i => r.IdOf(i).Equals(id));
+                if (item is null)
+                {
+                    return NoSuchObject(r.Singular);
+                }
+
+                http.Response.Headers.ETag = Preconditions.VersionTag(r.VersionOf(item));
+                return EndpointSupport.Json(item, r.Json);
+            })
+            .WithName("Get" + singular).WithSummary($"Get {article} {r.Singular}")
+            .Produces<T>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
+        group.MapPost("/", (HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+                MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, r.Json,
+                    (item, _) => (r.WithVersion(item, 0), null), r.Upsert, item => EndpointSupport.Path(r.Path, r.IdOf(item)), ct))
+            .WithName("Create" + singular).WithSummary($"Create {article} {r.Singular}").Described(createDescription)
+            .Accepts<T>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        group.MapPut(idPath, (HttpContext http, TId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+                MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, r.Json,
+                    (item, version) => r.IdOf(item).Equals(id) ? (r.WithVersion(item, version), null) : (item, IdMismatch()), r.Upsert, null, ct))
+            .WithName("Replace" + singular).WithSummary($"Replace {article} {r.Singular}").Described(replaceDescription)
+            .Accepts<T>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        group.MapDelete(idPath, (HttpContext http, TId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+                DeleteAsync(http, caller, config, version => r.Delete(id, version), ct))
+            .WithName("Delete" + singular).WithSummary($"Delete {article} {r.Singular}").Described(deleteDescription)
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
     }
 
-    private static async Task<IResult> GetAuthProviderAsync(HttpContext http, AuthProviderId id, ConfigService config, CancellationToken ct)
-    {
-        var provider = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.AuthProviders.FirstOrDefault(p => p.Id == id);
-        if (provider is null)
-        {
-            return NoSuchObject("auth provider");
-        }
+    private static RouteHandlerBuilder Described(this RouteHandlerBuilder builder, string? description) =>
+        description is null ? builder : builder.WithDescription(description);
 
-        http.Response.Headers.ETag = Preconditions.VersionTag(provider.Version);
-        return EndpointSupport.Json(provider, AdminJsonContext.Default.AuthProviderConfig);
-    }
-
-    private static Task<IResult> CreateAuthProviderAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.AuthProviderConfig,
-            (provider, _, _) => (provider with { Version = 0 }, null), (provider, dry, message) => new UpsertAuthProviderCommand(provider) { DryRun = dry, Message = message },
-            provider => EndpointSupport.Path("auth-providers", provider.Id), ct);
-
-    private static Task<IResult> ReplaceAuthProviderAsync(HttpContext http, AuthProviderId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.AuthProviderConfig,
-            (provider, version, _) => provider.Id == id ? (provider with { Version = version }, null) : (provider, IdMismatch()),
-            (provider, dry, message) => new UpsertAuthProviderCommand(provider) { DryRun = dry, Message = message }, null, ct);
-
-    private static Task<IResult> DeleteAuthProviderAsync(HttpContext http, AuthProviderId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, caller, config, version => new DeleteAuthProviderCommand(id, version), ct);
-
-    private static async Task<IResult> ListProfilesAsync(HttpContext http, ConfigService config, CancellationToken ct)
-    {
-        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
-        TagWithRevision(http, current);
-        return Pagination.Respond(http, current.Document.Profiles, p => p.Id, AdminJsonContext.Default.PageProfileConfig);
-    }
-
-    private static async Task<IResult> GetProfileAsync(HttpContext http, ProfileId id, ConfigService config, CancellationToken ct)
-    {
-        var profile = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Profiles.FirstOrDefault(p => p.Id == id);
-        if (profile is null)
-        {
-            return NoSuchObject("profile");
-        }
-
-        http.Response.Headers.ETag = Preconditions.VersionTag(profile.Version);
-        return EndpointSupport.Json(profile, AdminJsonContext.Default.ProfileConfig);
-    }
-
-    private static Task<IResult> CreateProfileAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.ProfileConfig,
-            (profile, _, _) => (profile with { Version = 0 }, null), (profile, dry, message) => new UpsertProfileCommand(profile) { DryRun = dry, Message = message },
-            profile => EndpointSupport.Path("profiles", profile.Id), ct);
-
-    private static Task<IResult> ReplaceProfileAsync(HttpContext http, ProfileId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.ProfileConfig,
-            (profile, version, _) => profile.Id == id ? (profile with { Version = version }, null) : (profile, IdMismatch()),
-            (profile, dry, message) => new UpsertProfileCommand(profile) { DryRun = dry, Message = message }, null, ct);
-
-    private static Task<IResult> DeleteProfileAsync(HttpContext http, ProfileId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, caller, config, version => new DeleteProfileCommand(id, version), ct);
+    /// <summary>"rate-limit policy" as <c>RateLimitPolicy</c>, for operation IDs.</summary>
+    private static string Pascal(string words) =>
+        string.Concat(words.Split(' ', '-').Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
 
     private static async Task<IResult> GetSettingsAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
@@ -511,8 +357,8 @@ internal static class ConfigEndpoints
 
     private static Task<IResult> PutSettingsAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.GlobalSettings,
-            (settings, version, _) => (settings with { Version = version }, null),
-            (settings, dry, message) => new UpdateSettingsCommand(settings) { DryRun = dry, Message = message }, null, ct);
+            (settings, version) => (settings with { Version = version }, null),
+            settings => new UpdateSettingsCommand(settings), null, ct);
 
     /// <summary>
     /// The shape of every upsert: dry run and <c>If-Match</c> first (cheap, and a missing precondition is the caller's to fix before anything is
@@ -524,9 +370,9 @@ internal static class ConfigEndpoints
         ConfigService config,
         MutationKind kind,
         bool requireVersion,
-        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
-        Func<T, long, string?, (T Value, IResult? Problem)> prepare,
-        Func<T, bool, string?, ConfigCommand> command,
+        JsonTypeInfo<T> typeInfo,
+        Func<T, long, (T Value, IResult? Problem)> prepare,
+        Func<T, ConfigCommand> command,
         Func<T, string>? location,
         CancellationToken ct)
         where T : class
@@ -550,13 +396,13 @@ internal static class ConfigEndpoints
         }
 
         var message = EndpointSupport.MessageOf(http);
-        var (value, rejected) = prepare(body.Value!, version, message);
+        var (value, rejected) = prepare(body.Value!, version);
         if (rejected is not null)
         {
             return rejected;
         }
 
-        var result = await config.ExecuteAsync(command(value, dryRun, message) with { Force = force }, caller.Origin, ct).ConfigureAwait(false);
+        var result = await config.ExecuteAsync(command(value) with { DryRun = dryRun, Message = message, Force = force }, caller.Origin, ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, kind, location?.Invoke(value));
     }
 
