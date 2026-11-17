@@ -46,10 +46,7 @@
             }
             else if (_failed)
             {
-                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" data-alert="load-failed">
-                    The ACME accounts and DNS providers couldn't be read. The details are in the server log.
-                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-                </MudAlert>
+                <LoadFailedAlert What="The ACME accounts and DNS providers" OnRetry="LoadAsync" data-alert="load-failed" />
             }
             else if (_accounts is null)
             {

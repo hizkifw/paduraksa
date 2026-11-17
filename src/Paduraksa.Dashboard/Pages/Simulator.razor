@@ -122,13 +122,7 @@ else
             {
                 <MudPaper Class="pdk-card" Elevation="0" Outlined="true" aria-busy="true">
                     <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
-                    @for (var i = 0; i < 4; i++)
-                    {
-                        <div class="pdk-row-skeleton">
-                            <MudSkeleton SkeletonType="SkeletonType.Circle" Width="24px" Height="24px" />
-                            <MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" />
-                        </div>
-                    }
+                    <RowSkeleton Rows="4" Circle="24px" Widths="60%" />
                 </MudPaper>
             }
             else if (_result is not null)

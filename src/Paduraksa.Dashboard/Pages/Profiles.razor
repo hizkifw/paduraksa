@@ -25,9 +25,7 @@
 
 @if (_denied)
 {
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
-    </MudPaper>
+    <ConfigDenied />
 }
 else
 {
@@ -41,14 +39,7 @@ else
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
         @if (_document is null)
         {
-            @for (var i = 0; i < 2; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="24%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="36%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
-                </div>
-            }
+            <RowSkeleton Rows="2" Widths="24% 36% 20%" />
         }
         else if (_document.Profiles.Count == 0)
         {

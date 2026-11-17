@@ -40,10 +40,7 @@
 
 @if (_failed)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
-        The local CA couldn't be read. The details are in the server log.
-        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-    </MudAlert>
+    <LoadFailedAlert What="The local CA" OnRetry="LoadAsync" Class="mb-6" />
 }
 
 @if (_view is not null)

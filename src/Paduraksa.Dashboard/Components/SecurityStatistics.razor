@@ -14,16 +14,11 @@
 <section class="pdk-security-stats" data-section="security" aria-label="Security">
     @if (Denied)
     {
-        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
-        </MudPaper>
+        <ConfigDenied Compact="true" />
     }
     else if (Failed)
     {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="security-failed">
-            The security figures couldn't be read. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Retry</MudButton>
-        </MudAlert>
+        <LoadFailedAlert What="The security figures" OnRetry="() => LoadAsync()" Class="mb-4" data-part="security-failed" />
     }
     else
     {

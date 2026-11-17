@@ -34,22 +34,12 @@
 }
 else if (_failed)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
-        The logs directory couldn't be read. The details are in the server log.
-        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-    </MudAlert>
+    <LoadFailedAlert What="The logs directory" OnRetry="LoadAsync" Class="mb-6" />
 }
 else if (_files is null)
 {
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
-        @for (var i = 0; i < 3; i++)
-        {
-            <div class="pdk-row-skeleton">
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="22%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="16%" />
-            </div>
-        }
+        <RowSkeleton Rows="3" Widths="30% 22% 16%" />
     </MudPaper>
 }
 else if (_files.Count == 0)

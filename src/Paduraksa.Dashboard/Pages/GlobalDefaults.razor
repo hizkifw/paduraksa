@@ -17,9 +17,7 @@
 
 @if (_denied)
 {
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
-    </MudPaper>
+    <ConfigDenied />
 }
 else if (_model is null || _document is null)
 {

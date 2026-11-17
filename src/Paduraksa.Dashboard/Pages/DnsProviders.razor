@@ -30,24 +30,13 @@
 
 @if (_failed)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
-        The DNS providers couldn't be read. The details are in the server log.
-        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-    </MudAlert>
+    <LoadFailedAlert What="The DNS providers" OnRetry="LoadAsync" Class="mb-6" />
 }
 
 <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
     @if (_providers is null)
     {
-        @for (var i = 0; i < 4; i++)
-        {
-            <div class="pdk-row-skeleton">
-                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-            </div>
-        }
+        <RowSkeleton Rows="4" Circle="32px" Widths="40% 15% 15%" />
     }
     else if (_providers.Count == 0)
     {

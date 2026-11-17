@@ -25,31 +25,19 @@
 
 @if (_denied)
 {
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
-    </MudPaper>
+    <ConfigDenied />
 }
 else
 {
     @if (_failed)
     {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
-            @FailedText The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-        </MudAlert>
+        <LoadFailedAlert What="@($"The {Kind.Plural}")" OnRetry="LoadAsync" Class="mb-4" />
     }
 
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="@Kind.Section">
         @if (_document is null)
         {
-            @for (var i = 0; i < 3; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="24%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="36%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
-                </div>
-            }
+            <RowSkeleton Rows="3" Widths="24% 36% 20%" />
         }
         else if (Kind.Items(_document).Count == 0)
         {

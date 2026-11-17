@@ -93,14 +93,7 @@ else
         }
         else if (!_started)
         {
-            @for (var i = 0; i < 4; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="10%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-                </div>
-            }
+            <RowSkeleton Rows="4" Widths="10% 40% 15%" />
         }
         else if (_rows.Count == 0)
         {

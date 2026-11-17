@@ -12,10 +12,7 @@
 
 @if (Failed)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
-        The analytics couldn't be read. The details are in the server log.
-        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Retry</MudButton>
-    </MudAlert>
+    <LoadFailedAlert What="The analytics" OnRetry="() => LoadAsync()" Class="mb-4" data-part="failed" />
 }
 else if (Overview is { Totals.Requests: 0 })
 {

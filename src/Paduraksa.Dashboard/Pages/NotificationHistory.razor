@@ -57,10 +57,7 @@ else
     <MudPaper Class="pdk-card pdk-table-card mt-4" Elevation="0" Outlined="true" data-section="events">
         @if (_failed)
         {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-3" data-alert="load-failed">
-                The history couldn't be read. The details are in the server log.
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
-            </MudAlert>
+            <LoadFailedAlert What="The history" OnRetry="ReloadAsync" Class="ma-3" data-alert="load-failed" />
         }
         @if (_changed)
         {
@@ -73,14 +70,7 @@ else
         {
             @if (!_failed)
             {
-                @for (var i = 0; i < 5; i++)
-                {
-                    <div class="pdk-row-skeleton">
-                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
-                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
-                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
-                    </div>
-                }
+                <RowSkeleton Rows="5" Widths="12% 40% 20%" />
             }
         }
         else if (_events.Count == 0)

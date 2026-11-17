@@ -18,17 +18,12 @@
 
 @if (_failed)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-alert="load-failed">
-        The history couldn't be read. The details are in the server log.
-        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
-    </MudAlert>
+    <LoadFailedAlert What="The history" OnRetry="ReloadAsync" Class="mb-4" data-alert="load-failed" />
 }
 
 @if (_denied)
 {
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
-    </MudPaper>
+    <ConfigDenied />
 }
 else if (_entries is null)
 {
@@ -36,13 +31,7 @@ else if (_entries is null)
     {
         <div class="pdk-history" aria-busy="true">
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-                @for (var i = 0; i < 5; i++)
-                {
-                    <div class="pdk-row-skeleton">
-                        <MudSkeleton SkeletonType="SkeletonType.Circle" Width="28px" Height="28px" />
-                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" />
-                    </div>
-                }
+                <RowSkeleton Rows="5" Circle="28px" Widths="70%" />
             </MudPaper>
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
                 <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="200px" />

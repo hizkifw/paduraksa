@@ -28,10 +28,7 @@
 
 @if (_failed)
 {
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
-        The status couldn't be read. The details are in the server log.
-        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
-    </MudAlert>
+    <LoadFailedAlert What="The status" OnRetry="ReloadAsync" Class="mb-6" />
 }
 
 @* No card while loading or when all is well: it would only flash or restate what the counts below already say. *@

@@ -46,24 +46,14 @@
 
     @if (_failed)
     {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-3" data-alert="load-failed">
-            The tokens couldn't be read. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="RetryAsync" Class="ml-2">Retry</MudButton>
-        </MudAlert>
+        <LoadFailedAlert What="The tokens" OnRetry="RetryAsync" Class="ma-3" data-alert="load-failed" />
     }
 
     @if (_rows is null)
     {
         @if (!_failed)
         {
-            @for (var i = 0; i < 3; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-                </div>
-            }
+            <RowSkeleton Rows="3" Widths="25% 30% 15%" />
         }
     }
     else if (Shown.Count == 0)

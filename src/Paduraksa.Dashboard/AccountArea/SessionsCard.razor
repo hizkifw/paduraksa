@@ -26,24 +26,14 @@
 
     @if (_failed)
     {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-3" data-alert="load-failed">
-            Your sessions couldn't be read. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-        </MudAlert>
+        <LoadFailedAlert What="Your sessions" OnRetry="LoadAsync" Dense="true" Class="mb-3" data-alert="load-failed" />
     }
 
     @if (_sessions is null)
     {
         @if (!_failed)
         {
-            @for (var i = 0; i < 2; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="30px" Height="30px" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
-                </div>
-            }
+            <RowSkeleton Rows="2" Circle="30px" Widths="40% 20%" />
         }
     }
     else

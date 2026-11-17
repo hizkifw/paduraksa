@@ -1,0 +1,24 @@
+@* A read that failed, with a way to retry it. The details are in the server log, never here. *@
+<MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="Dense" Class="@Class" @attributes="Attributes">
+    @What couldn't be read. The details are in the server log.
+    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="OnRetry" Class="ml-2">Retry</MudButton>
+</MudAlert>
+
+@code {
+    /// <summary>What couldn't be read, as the start of the sentence ("The hosts").</summary>
+    [Parameter, EditorRequired]
+    public string What { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public EventCallback OnRetry { get; set; }
+
+    [Parameter]
+    public bool Dense { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>The test hooks (<c>data-alert</c>, <c>data-part</c>) the alert carries.</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? Attributes { get; set; }
+}

@@ -26,19 +26,14 @@
 
 @if (_denied)
 {
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
-    </MudPaper>
+    <ConfigDenied />
 }
 else
 {
     <UpstreamHealthFeed Updated="OnHealth" />
     @if (_failed)
     {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
-            The upstreams couldn't be read. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-        </MudAlert>
+        <LoadFailedAlert What="The upstreams" OnRetry="LoadAsync" Class="mb-4" />
     }
 
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
@@ -50,15 +45,7 @@ else
 
         @if (_document is null)
         {
-            @for (var i = 0; i < 3; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="10px" Height="10px" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="22%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="24%" />
-                </div>
-            }
+            <RowSkeleton Rows="3" Circle="10px" Widths="22% 30% 24%" />
         }
         else if (_document.Upstreams.Count == 0)
         {

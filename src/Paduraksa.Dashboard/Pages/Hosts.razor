@@ -26,19 +26,14 @@
 
 @if (_denied)
 {
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
-    </MudPaper>
+    <ConfigDenied />
 }
 else
 {
     <UpstreamHealthFeed Updated="OnHealth" />
     @if (_failed)
     {
-        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
-            The hosts couldn't be read. The details are in the server log.
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Retry</MudButton>
-        </MudAlert>
+        <LoadFailedAlert What="The hosts" OnRetry="LoadAsync" Class="mb-4" />
     }
 
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
@@ -50,16 +45,7 @@ else
 
         @if (_rows is null)
         {
-            @for (var i = 0; i < 4; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="10px" Height="10px" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="28%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="14%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="10%" />
-                </div>
-            }
+            <RowSkeleton Rows="4" Circle="10px" Widths="28% 30% 14% 10%" />
         }
         else if (_rows.Count == 0)
         {

@@ -1,0 +1,27 @@
+@* The rows of a list while it loads: an optional circle, then a bar of each width. *@
+@for (var i = 0; i < Rows; i++)
+{
+    <div class="pdk-row-skeleton">
+        @if (Circle is not null)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Circle" Width="@Circle" Height="@Circle" />
+        }
+        @foreach (var width in Widths.Split(' '))
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Text" Width="@width" />
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public int Rows { get; set; }
+
+    /// <summary>The bars' widths, separated by spaces ("40% 15%").</summary>
+    [Parameter, EditorRequired]
+    public string Widths { get; set; } = string.Empty;
+
+    /// <summary>The size of a leading circle ("32px"); none when null.</summary>
+    [Parameter]
+    public string? Circle { get; set; }
+}
