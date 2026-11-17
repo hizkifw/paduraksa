@@ -111,23 +111,63 @@ public static class HostSettingsLayers
         return new HostSettings
         {
             ForceHttps = upper.ForceHttps ?? lower.ForceHttps,
-            Tls = Merge(lower.Tls, upper.Tls),
-            Hsts = Merge(lower.Hsts, upper.Hsts),
+            Tls = Nested(lower.Tls, upper.Tls, static (l, u) => new TlsSettings
+            {
+                MinimumVersion = u.MinimumVersion ?? l?.MinimumVersion,
+                TcpAlpn = u.TcpAlpn ?? l?.TcpAlpn,
+                Http3 = u.Http3 ?? l?.Http3,
+            }),
+            Hsts = Nested(lower.Hsts, upper.Hsts, static (l, u) => new HstsSettings
+            {
+                Enabled = u.Enabled ?? l?.Enabled,
+                MaxAge = u.MaxAge ?? l?.MaxAge,
+                IncludeSubDomains = u.IncludeSubDomains ?? l?.IncludeSubDomains,
+                Preload = u.Preload ?? l?.Preload,
+            }),
             AccessLog = upper.AccessLog ?? lower.AccessLog,
             RequestIdPropagation = upper.RequestIdPropagation ?? lower.RequestIdPropagation,
-            ServerHeader = Merge(lower.ServerHeader, upper.ServerHeader),
-            ProofOfWork = Merge(lower.ProofOfWork, upper.ProofOfWork),
-            RateLimit = Merge(lower.RateLimit, upper.RateLimit),
-            Robots = Merge(lower.Robots, upper.Robots),
-            Cloudflare = Merge(lower.Cloudflare, upper.Cloudflare),
-            AccessList = Merge(lower.AccessList, upper.AccessList),
-            RequestLimits = Merge(lower.RequestLimits, upper.RequestLimits),
-            RuleSet = Merge(lower.RuleSet, upper.RuleSet),
-            AuthProvider = Merge(lower.AuthProvider, upper.AuthProvider),
-            ErrorPages = Merge(lower.ErrorPages, upper.ErrorPages),
-            Maintenance = Merge(lower.Maintenance, upper.Maintenance),
+            ServerHeader = Nested(lower.ServerHeader, upper.ServerHeader, static (l, u) => new ServerHeaderSettings { Mode = u.Mode ?? l?.Mode, Value = u.Value ?? l?.Value }),
+            ProofOfWork = Nested(lower.ProofOfWork, upper.ProofOfWork, static (l, u) => new ProofOfWorkSettings
+            {
+                Enabled = u.Enabled ?? l?.Enabled,
+                Difficulty = u.Difficulty ?? l?.Difficulty,
+                TokenLifetimeHours = u.TokenLifetimeHours ?? l?.TokenLifetimeHours,
+            }),
+            RateLimit = Nested(lower.RateLimit, upper.RateLimit, static (l, u) => new RateLimitSettings { Enabled = u.Enabled ?? l?.Enabled, PolicyId = u.PolicyId ?? l?.PolicyId }),
+            Robots = Nested(lower.Robots, upper.Robots, static (l, u) => new RobotsSettings { Mode = u.Mode ?? l?.Mode, CustomText = u.CustomText ?? l?.CustomText }),
+            Cloudflare = Nested(lower.Cloudflare, upper.Cloudflare, static (l, u) => new CloudflareSettings
+            {
+                OriginLockdown = u.OriginLockdown ?? l?.OriginLockdown,
+                AuthenticatedOriginPulls = u.AuthenticatedOriginPulls ?? l?.AuthenticatedOriginPulls,
+            }),
+            AccessList = Nested(lower.AccessList, upper.AccessList, static (l, u) => new AccessListSettings
+            {
+                Enabled = u.Enabled ?? l?.Enabled,
+                AccessListId = u.AccessListId ?? l?.AccessListId,
+            }),
+            RequestLimits = Nested(lower.RequestLimits, upper.RequestLimits, static (l, u) => new RequestLimitsSettings
+            {
+                MaxBodySize = u.MaxBodySize ?? l?.MaxBodySize,
+                MaxHeaderCount = u.MaxHeaderCount ?? l?.MaxHeaderCount,
+                MaxHeaderBytes = u.MaxHeaderBytes ?? l?.MaxHeaderBytes,
+                MaxUrlLength = u.MaxUrlLength ?? l?.MaxUrlLength,
+            }),
+            RuleSet = Nested(lower.RuleSet, upper.RuleSet, static (l, u) => new RuleSetSettings { Enabled = u.Enabled ?? l?.Enabled, RuleSetId = u.RuleSetId ?? l?.RuleSetId }),
+            AuthProvider = Nested(lower.AuthProvider, upper.AuthProvider, static (l, u) => new AuthProviderSettings
+            {
+                Enabled = u.Enabled ?? l?.Enabled,
+                AuthProviderId = u.AuthProviderId ?? l?.AuthProviderId,
+            }),
+            ErrorPages = Nested(lower.ErrorPages, upper.ErrorPages, MergeErrorPages),
+            Maintenance = Nested(lower.Maintenance, upper.Maintenance, static (l, u) => new MaintenanceSettings
+            {
+                Enabled = u.Enabled ?? l?.Enabled,
+                Status = u.Status ?? l?.Status,
+                RetryAfterSeconds = u.RetryAfterSeconds ?? l?.RetryAfterSeconds,
+                BypassAccessListId = u.BypassAccessListId ?? l?.BypassAccessListId,
+            }),
             Headers = Merge(lower.Headers, upper.Headers),
-            Compression = Merge(lower.Compression, upper.Compression),
+            Compression = Nested(lower.Compression, upper.Compression, static (l, u) => new CompressionSettings { Enabled = u.Enabled ?? l?.Enabled, MinimumSize = u.MinimumSize ?? l?.MinimumSize }),
         };
     }
 
@@ -143,219 +183,25 @@ public static class HostSettingsLayers
         return merged;
     }
 
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets one.</summary>
-    public static TlsSettings? Merge(TlsSettings? lower, TlsSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        TlsSettings merged = new()
-        {
-            MinimumVersion = upper.MinimumVersion ?? lower?.MinimumVersion,
-            TcpAlpn = upper.TcpAlpn ?? lower?.TcpAlpn,
-            Http3 = upper.Http3 ?? lower?.Http3,
-        };
-
-        return merged is { MinimumVersion: null, TcpAlpn: null, Http3: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets one.</summary>
-    public static HstsSettings? Merge(HstsSettings? lower, HstsSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        HstsSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            MaxAge = upper.MaxAge ?? lower?.MaxAge,
-            IncludeSubDomains = upper.IncludeSubDomains ?? lower?.IncludeSubDomains,
-            Preload = upper.Preload ?? lower?.Preload,
-        };
-
-        return merged is { Enabled: null, MaxAge: null, IncludeSubDomains: null, Preload: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static ServerHeaderSettings? Merge(ServerHeaderSettings? lower, ServerHeaderSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        ServerHeaderSettings merged = new()
-        {
-            Mode = upper.Mode ?? lower?.Mode,
-            Value = upper.Value ?? lower?.Value,
-        };
-
-        return merged is { Mode: null, Value: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static ProofOfWorkSettings? Merge(ProofOfWorkSettings? lower, ProofOfWorkSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        ProofOfWorkSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            Difficulty = upper.Difficulty ?? lower?.Difficulty,
-            TokenLifetimeHours = upper.TokenLifetimeHours ?? lower?.TokenLifetimeHours,
-        };
-
-        return merged is { Enabled: null, Difficulty: null, TokenLifetimeHours: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static RateLimitSettings? Merge(RateLimitSettings? lower, RateLimitSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        RateLimitSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            PolicyId = upper.PolicyId ?? lower?.PolicyId,
-        };
-
-        return merged is { Enabled: null, PolicyId: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static RobotsSettings? Merge(RobotsSettings? lower, RobotsSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        RobotsSettings merged = new()
-        {
-            Mode = upper.Mode ?? lower?.Mode,
-            CustomText = upper.CustomText ?? lower?.CustomText,
-        };
-
-        return merged is { Mode: null, CustomText: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static CloudflareSettings? Merge(CloudflareSettings? lower, CloudflareSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        CloudflareSettings merged = new()
-        {
-            OriginLockdown = upper.OriginLockdown ?? lower?.OriginLockdown,
-            AuthenticatedOriginPulls = upper.AuthenticatedOriginPulls ?? lower?.AuthenticatedOriginPulls,
-        };
-
-        return merged is { OriginLockdown: null, AuthenticatedOriginPulls: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static AccessListSettings? Merge(AccessListSettings? lower, AccessListSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        AccessListSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            AccessListId = upper.AccessListId ?? lower?.AccessListId,
-        };
-
-        return merged is { Enabled: null, AccessListId: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static RequestLimitsSettings? Merge(RequestLimitsSettings? lower, RequestLimitsSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        RequestLimitsSettings merged = new()
-        {
-            MaxBodySize = upper.MaxBodySize ?? lower?.MaxBodySize,
-            MaxHeaderCount = upper.MaxHeaderCount ?? lower?.MaxHeaderCount,
-            MaxHeaderBytes = upper.MaxHeaderBytes ?? lower?.MaxHeaderBytes,
-            MaxUrlLength = upper.MaxUrlLength ?? lower?.MaxUrlLength,
-        };
-
-        return merged.SetsNothing ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static RuleSetSettings? Merge(RuleSetSettings? lower, RuleSetSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        RuleSetSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            RuleSetId = upper.RuleSetId ?? lower?.RuleSetId,
-        };
-
-        return merged is { Enabled: null, RuleSetId: null } ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static AuthProviderSettings? Merge(AuthProviderSettings? lower, AuthProviderSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        AuthProviderSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            AuthProviderId = upper.AuthProviderId ?? lower?.AuthProviderId,
-        };
-
-        return merged.SetsNothing ? null : merged;
-    }
-
     /// <summary>
-    /// <paramref name="lower"/> with the entries <paramref name="upper"/> sets, each replacing the lower layer's whole; absent when
-    /// neither sets one.
+    /// <paramref name="lower"/> with what <paramref name="upper"/> sets, as <paramref name="combine"/> merges the two; absent when neither sets a field.
+    /// <see cref="ISettingsLayer.SetsNothing"/> is the one rule for "absent", the same canonical JSON drops an empty record by.
     /// </summary>
-    public static ErrorPagesSettings? Merge(ErrorPagesSettings? lower, ErrorPagesSettings? upper)
+    private static T? Nested<T>(T? lower, T? upper, Func<T?, T, T> combine)
+        where T : class, ISettingsLayer
     {
         if (upper is null)
         {
             return lower;
         }
 
+        var merged = combine(lower, upper);
+        return merged.SetsNothing ? null : merged;
+    }
+
+    /// <summary>Each entry <paramref name="upper"/> sets replaces the lower layer's whole.</summary>
+    private static ErrorPagesSettings MergeErrorPages(ErrorPagesSettings? lower, ErrorPagesSettings upper)
+    {
         var merged = new ErrorPagesSettings { ReplaceUpstream = upper.ReplaceUpstream ?? lower?.ReplaceUpstream };
         foreach (var (key, content) in upper.Entries())
         {
@@ -365,45 +211,7 @@ public static class HostSettingsLayers
             }
         }
 
-        return merged.SetsNothing ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static MaintenanceSettings? Merge(MaintenanceSettings? lower, MaintenanceSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        MaintenanceSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            Status = upper.Status ?? lower?.Status,
-            RetryAfterSeconds = upper.RetryAfterSeconds ?? lower?.RetryAfterSeconds,
-            BypassAccessListId = upper.BypassAccessListId ?? lower?.BypassAccessListId,
-        };
-
-        return merged.SetsNothing ? null : merged;
-    }
-
-    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
-    /// one.</summary>
-    public static CompressionSettings? Merge(CompressionSettings? lower, CompressionSettings? upper)
-    {
-        if (upper is null)
-        {
-            return lower;
-        }
-
-        CompressionSettings merged = new()
-        {
-            Enabled = upper.Enabled ?? lower?.Enabled,
-            MinimumSize = upper.MinimumSize ?? lower?.MinimumSize,
-        };
-
-        return merged.SetsNothing ? null : merged;
+        return merged;
     }
 
     /// <summary>

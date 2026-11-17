@@ -208,7 +208,7 @@ Not layered settings:
 ### Adding a host setting
 
 1. **The property** on `HostSettings` (or on a nested `TlsSettings`, `HstsSettings` or `ServerHeaderSettings`), at the end, so existing documents keep their key order.
-2. **Its merge line** in `HostSettingsLayers.Merge` (or the nested record's own merge), and its value in the `Concrete` mapping, where the resolved contract value becomes the proxy's.
+2. **Its merge line** in `HostSettingsLayers.Merge` (or, on a nested record, in that record's `Nested(...)` combine there, which drops the record when `SetsNothing` says it is empty), and its value in the `Concrete` mapping, where the resolved contract value becomes the proxy's.
 3. **Its built-in default** as a `const` of `HostSettingsLayers`, from which `BuiltIn` is assembled. Nowhere else states one.
 4. **A row in `SettingsInheritanceTests`**, the table that walks the contract: the field accessor, a layer that sets it, what the compiled host then carries, the built-in default and two sample values.
    - The table's completeness test fails until the row exists.
