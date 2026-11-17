@@ -116,25 +116,10 @@ internal static class ProviderEndpoints
         return result.Status == IssuanceChangeStatus.Committed ? Results.NoContent() : AccountAnswer(result, MutationKind.Change);
     }
 
-    private static IResult AccountAnswer(AcmeAccountResult result, MutationKind kind)
-    {
-        var status = ApiStatusMapping.Of(result.Status, kind);
-        if (ApiStatusMapping.IsSuccess(status) && result.Account is null)
-        {
-            return ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The account change reported success without the account.");
-        }
-
-        if (!ApiStatusMapping.IsSuccess(status))
-        {
-            return ApiProblems.Problem(
-                status,
-                result.Status == IssuanceChangeStatus.Failed && result.Message is { Length: > 0 } message ? $"The CA refused or could not be reached: {message}" : ChangeDetail(result.Status, "ACME account"),
-                null,
-                result.Errors);
-        }
-
-        return EndpointSupport.Located(EndpointSupport.Json(result.Account!, AdminJsonContext.Default.AcmeAccountSummary, status), status == StatusCodes.Status201Created ? EndpointSupport.Path("acme-accounts", result.Account!.Id) : null);
-    }
+    private static IResult AccountAnswer(AcmeAccountResult result, MutationKind kind) =>
+        EndpointSupport.Changed(
+            result.Status, result.Account, result.Errors, kind, "account", AdminJsonContext.Default.AcmeAccountSummary, account => EndpointSupport.Path("acme-accounts", account.Id),
+            status => status == IssuanceChangeStatus.Failed && result.Message is { Length: > 0 } message ? $"The CA refused or could not be reached: {message}" : ChangeDetail(status, "ACME account"));
 
     private static async Task<IResult> ListProvidersAsync(HttpContext http, DnsProviderService providers, CancellationToken ct) =>
         Pagination.Respond(http, await providers.ListAsync(ct).ConfigureAwait(false), p => p.Id, AdminJsonContext.Default.PageDnsProviderSummary);
@@ -207,21 +192,10 @@ internal static class ProviderEndpoints
         };
     }
 
-    private static IResult ProviderAnswer(DnsProviderResult result, MutationKind kind)
-    {
-        var status = ApiStatusMapping.Of(result.Status, kind);
-        if (ApiStatusMapping.IsSuccess(status) && result.Provider is null)
-        {
-            return ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The provider change reported success without the provider.");
-        }
-
-        if (!ApiStatusMapping.IsSuccess(status))
-        {
-            return ApiProblems.Problem(status, ChangeDetail(result.Status, "DNS provider"), null, result.Errors);
-        }
-
-        return EndpointSupport.Located(EndpointSupport.Json(result.Provider!, AdminJsonContext.Default.DnsProviderSummary, status), status == StatusCodes.Status201Created ? EndpointSupport.Path("dns-providers", result.Provider!.Id) : null);
-    }
+    private static IResult ProviderAnswer(DnsProviderResult result, MutationKind kind) =>
+        EndpointSupport.Changed(
+            result.Status, result.Provider, result.Errors, kind, "provider", AdminJsonContext.Default.DnsProviderSummary, provider => EndpointSupport.Path("dns-providers", provider.Id),
+            status => ChangeDetail(status, "DNS provider"));
 
     private static string ChangeDetail(IssuanceChangeStatus status, string what) => status switch
     {

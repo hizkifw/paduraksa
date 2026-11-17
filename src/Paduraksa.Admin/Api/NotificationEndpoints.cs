@@ -166,23 +166,9 @@ internal static class NotificationEndpoints
             ? EndpointSupport.Json(view, AdminJsonContext.Default.UpstreamHealthView)
             : ApiProblems.Problem(StatusCodes.Status404NotFound, "The running proxy has no such upstream (it is not in the live config, or no host routes to it).");
 
-    private static IResult Answer(NotificationChannelResult result, MutationKind kind)
-    {
-        var status = ApiStatusMapping.Of(result.Status, kind);
-        if (ApiStatusMapping.IsSuccess(status) && result.Channel is null)
-        {
-            return ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The channel change reported success without the channel.");
-        }
-
-        if (!ApiStatusMapping.IsSuccess(status))
-        {
-            return ApiProblems.Problem(status, ChangeDetail(result.Status), null, result.Errors);
-        }
-
-        return EndpointSupport.Located(
-            EndpointSupport.Json(result.Channel!, AdminJsonContext.Default.NotificationChannelSummary, status),
-            status == StatusCodes.Status201Created ? EndpointSupport.Path("notification-channels", result.Channel!.Id) : null);
-    }
+    private static IResult Answer(NotificationChannelResult result, MutationKind kind) =>
+        EndpointSupport.Changed(
+            result.Status, result.Channel, result.Errors, kind, "channel", AdminJsonContext.Default.NotificationChannelSummary, channel => EndpointSupport.Path("notification-channels", channel.Id), ChangeDetail);
 
     private static string ChangeDetail(IssuanceChangeStatus status) => status switch
     {

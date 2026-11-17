@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Contracts.Issuance;
 
 namespace Paduraksa.Admin.Api;
 
@@ -26,6 +27,25 @@ internal static class EndpointSupport
 
     /// <summary><paramref name="inner"/> with a <c>Location</c> header (when there is one), set as the result executes.</summary>
     public static IResult Located(IResult inner, string? location) => new LocatedResult(inner, location);
+
+    /// <summary>
+    /// The answer to a change of an issuance-side object: the object as JSON (201 with its <c>Location</c> when created), or a problem
+    /// whose detail <paramref name="detail"/> writes. Success without the object is the service's bug and a 500.
+    /// </summary>
+    public static IResult Changed<T>(
+        IssuanceChangeStatus status, T? value, IReadOnlyList<ConfigError> errors, MutationKind kind, string noun, JsonTypeInfo<T> typeInfo, Func<T, string> location, Func<IssuanceChangeStatus, string> detail)
+        where T : class
+    {
+        var code = ApiStatusMapping.Of(status, kind);
+        if (!ApiStatusMapping.IsSuccess(code))
+        {
+            return ApiProblems.Problem(code, detail(status), null, errors);
+        }
+
+        return value is null
+            ? ApiProblems.Problem(StatusCodes.Status500InternalServerError, $"The {noun} change reported success without the {noun}.")
+            : Located(Json(value, typeInfo, code), code == StatusCodes.Status201Created ? location(value) : null);
+    }
 
     /// <summary>The optional <c>?message=</c> note stored with a revision; the command pipeline judges it (at most 1000 characters).</summary>
     public static string? MessageOf(HttpContext http)
@@ -107,13 +127,11 @@ internal static class ConfigCommandResponses
             return EndpointSupport.Json(result, Json.AdminJsonContext.Default.ConfigCommandResult, status);
         }
 
-        return ApiProblems.Problem(status, DetailOf(result.Status), null, result.Errors, result.RelatedErrors, result.Warnings, result.Conflict);
+        return ApiProblems.Problem(status, Detail(result.Status), null, result.Errors, result.RelatedErrors, result.Warnings, result.Conflict);
     }
 
     /// <summary>What a refused command's problem says first.</summary>
-    public static string Detail(ConfigCommandStatus status) => DetailOf(status);
-
-    private static string DetailOf(ConfigCommandStatus status) => status switch
+    public static string Detail(ConfigCommandStatus status) => status switch
     {
         ConfigCommandStatus.Invalid => "The change is well-formed but can't be applied; see errors (and relatedErrors for what it breaks elsewhere).",
         ConfigCommandStatus.Conflict => "The config changed since you read it (or the object already exists). See conflict for what is current.",
