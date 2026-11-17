@@ -42,7 +42,7 @@ public sealed class ProjectReferenceTests
     [Fact]
     public void EveryLayerHasAProject()
     {
-        var projects = Directory.GetDirectories(Path.Combine(RepoRoot, "src"))
+        var projects = Directory.GetDirectories(Path.Combine(Repository.Root, "src"))
             .Select(Path.GetFileName)
             .Order(StringComparer.Ordinal)
             .ToList();
@@ -123,7 +123,7 @@ public sealed class ProjectReferenceTests
     {
         var psi = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
         {
-            WorkingDirectory = RepoRoot,
+            WorkingDirectory = Repository.Root,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             ArgumentList = { "msbuild", csproj, $"-getItem:{item}", "-nologo" },
@@ -144,20 +144,5 @@ public sealed class ProjectReferenceTests
         return await stdout;
     }
 
-    private static string CsprojPath(string project) => Path.Combine(RepoRoot, "src", project, $"{project}.csproj");
-
-    private static string RepoRoot { get; } = FindRepoRoot();
-
-    private static string FindRepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Paduraksa.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"Paduraksa.slnx not found above {AppContext.BaseDirectory}");
-    }
+    private static string CsprojPath(string project) => Path.Combine(Repository.Root, "src", project, $"{project}.csproj");
 }

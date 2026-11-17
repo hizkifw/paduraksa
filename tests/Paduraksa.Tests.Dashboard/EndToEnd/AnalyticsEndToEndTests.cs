@@ -7,6 +7,7 @@ using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Logging;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Shared.AnalyticsTestData;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -36,35 +37,6 @@ public sealed class AnalyticsEndToEndTests
         Referer = referer,
         TotalTicks = ms * TimeSpan.TicksPerMillisecond,
     };
-
-    private static ulong Visitor(int i)
-    {
-        var z = (ulong)i + 0x9E3779B97F4A7C15UL;
-        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
-        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
-        return z ^ (z >> 31);
-    }
-
-    private static AnalyticsRollup HostBucket(HostId host, DateTimeOffset at, params (AccessLogEntry Entry, int Visitor, bool Ignored)[] entries)
-    {
-        TrafficBucket bucket = new();
-        foreach (var (entry, visitor, ignored) in entries)
-        {
-            var copy = entry;
-            bucket.Record(in copy, Visitor(visitor), UserAgentClassifier.Classify(entry.UserAgent), ignored);
-        }
-
-        return new AnalyticsRollup(
-            host.IsEmpty ? AnalyticsSubject.Unmatched : AnalyticsSubject.Host,
-            host.IsEmpty ? string.Empty : host.ToString(),
-            at.ToUnixTimeSeconds(),
-            300,
-            bucket.Requests,
-            bucket.BytesOut,
-            bucket.BytesIn,
-            bucket.ServerErrors,
-            TrafficBucketCodec.Encode(bucket));
-    }
 
     /// <summary>
     /// Closed buckets for the last ten hours of two hosts and the requests no host owns, with a stretch nobody observed in the middle, put where
@@ -100,9 +72,9 @@ public sealed class AnalyticsEndToEndTests
             entries.Add((Entry("/media/video.mp4", bytes: 48_000_000, ms: 600), (bucket * 20) + 3, false));
             entries.Add((Entry("/page", agent: Googlebot), 9_000, false));
             entries.Add((Entry("/private", agent: "GPTBot/1.2"), 9_001, true));
-            rollups.Add(HostBucket(app, at, [.. entries]));
-            rollups.Add(HostBucket(blog, at, (Entry("/post/hello", protocol: "HTTP/1.1", referer: "https://news.example.org/x"), 7_000 + bucket, false)));
-            rollups.Add(HostBucket(default, at, (Entry("/wp-login.php", 404, agent: "python-requests/2.32.3"), 8_000 + bucket, false)));
+            rollups.Add(Rollup(app, at, [.. entries]));
+            rollups.Add(Rollup(blog, at, (Entry("/post/hello", protocol: "HTTP/1.1", referer: "https://news.example.org/x"), 7_000 + bucket, false)));
+            rollups.Add(Rollup(default, at, (Entry("/wp-login.php", 404, agent: "python-requests/2.32.3"), 8_000 + bucket, false)));
         }
 
         host.Host.Shared.AnalyticsBacklog.Add(rollups);

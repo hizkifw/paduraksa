@@ -17,6 +17,9 @@
     <Compile Include="../Shared/TestAccessLists.cs" Link="Shared/TestAccessLists.cs" />
     <Compile Include="../Shared/Property.cs" Link="Shared/Property.cs" />
     <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Compile Include="../Shared/ListLogger.cs" Link="Shared/ListLogger.cs" />
+    <Compile Include="../Shared/Polling.cs" Link="Shared/Polling.cs" />
+    <Compile Include="../Shared/QuicSupport.cs" Link="Shared/QuicSupport.cs" />
     <Compile Include="../Shared/LoopbackUpstream.cs" Link="Shared/LoopbackUpstream.cs" />
     <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>

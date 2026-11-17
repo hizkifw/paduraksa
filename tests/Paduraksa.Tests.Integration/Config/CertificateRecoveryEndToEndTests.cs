@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.Data.Sqlite;
@@ -25,8 +24,6 @@ public sealed class CertificateRecoveryEndToEndTests
     private static readonly Dictionary<string, string?> NoPlaceholder = new() { ["Paduraksa:Development:PlaceholderCertificate"] = "false" };
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    private static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
 
     /// <summary>The recovery's completed one run (an awaited start step): its result, or an exception when it was skipped or failed.</summary>
     private static async Task<CertificateRecoveryResult> RecoveredAsync(PaduraksaHost host) =>

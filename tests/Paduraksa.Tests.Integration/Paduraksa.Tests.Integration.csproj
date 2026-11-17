@@ -15,8 +15,14 @@
     <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
     <Compile Include="../Shared/McpTestSpec.cs" Link="Shared/McpTestSpec.cs" />
     <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Compile Include="../Shared/Polling.cs" Link="Shared/Polling.cs" />
+    <Compile Include="../Shared/TotpOracle.cs" Link="Shared/TotpOracle.cs" />
+    <Compile Include="../Shared/TempDirectory.cs" Link="Shared/TempDirectory.cs" />
+    <Compile Include="../Shared/QuicSupport.cs" Link="Shared/QuicSupport.cs" />
+    <Compile Include="../Shared/Repository.cs" Link="Shared/Repository.cs" />
     <Compile Include="../Shared/LoopbackUpstream.cs" Link="Shared/LoopbackUpstream.cs" />
     <Using Include="Paduraksa.Tests.Shared" />
+    <Using Include="Paduraksa.Tests.Integration.CertificateFingerprints" Static="true" />
   </ItemGroup>
   <Import Project="../Shared/TestPasswords.props" />
 </Project>

@@ -131,27 +131,13 @@ public sealed partial class DashboardMarkupConventionTests
 
     private static IEnumerable<(string Path, string Text)> Markup()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Paduraksa.slnx")))
-        {
-            root = root.Parent;
-        }
-
-        Assert.NotNull(root);
-        return Directory.EnumerateFiles(Path.Combine(root.FullName, "src", "Paduraksa.Dashboard"), "*.razor", SearchOption.AllDirectories)
-            .Select(path => (Path.GetRelativePath(root.FullName, path).Replace('\\', '/'), File.ReadAllText(path)));
+        return Directory.EnumerateFiles(Path.Combine(Repository.Root, "src", "Paduraksa.Dashboard"), "*.razor", SearchOption.AllDirectories)
+            .Select(path => (Path.GetRelativePath(Repository.Root, path).Replace('\\', '/'), File.ReadAllText(path)));
     }
 
     private static IEnumerable<(string Path, string Text)> Sources()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Paduraksa.slnx")))
-        {
-            root = root.Parent;
-        }
-
-        Assert.NotNull(root);
-        var dashboard = Path.Combine(root.FullName, "src", "Paduraksa.Dashboard");
+        var dashboard = Path.Combine(Repository.Root, "src", "Paduraksa.Dashboard");
         return Directory.EnumerateFiles(dashboard, "*.*", SearchOption.AllDirectories)
             .Where(path => (path.EndsWith(".razor", StringComparison.Ordinal) || path.EndsWith(".cs", StringComparison.Ordinal))
                 && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)

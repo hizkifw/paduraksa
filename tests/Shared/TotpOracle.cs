@@ -1,9 +1,11 @@
+// Linked into Paduraksa.Tests.Dashboard and Paduraksa.Tests.Integration (<Compile Include Link>), so it compiles into each assembly as an
+// internal type of its own.
 #pragma warning disable RS0030, CA5350 // The oracle below is the RFC 6238 algorithm, written out to check the vault's TOTP from the outside; it holds only the secret the test was just handed.
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 
-namespace Paduraksa.Tests.Dashboard.EndToEnd;
+namespace Paduraksa.Tests.Shared;
 
 /// <summary>RFC 6238 (SHA-1, 6 digits, 30 s) computed from the <c>otpauth://</c> URI the enrolment returned.</summary>
 internal static class TotpOracle

@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using Paduraksa.Application.Certificates;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -74,8 +73,6 @@ public sealed class VaultCertificatesEndToEndTests
         var failure = await Record.ExceptionAsync(async () => await HandshakeAsync(host, serverName));
         Assert.True(failure is AuthenticationException or IOException, failure?.ToString() ?? "the handshake succeeded");
     }
-
-    internal static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
 
     internal static async Task<(CertificateSummary Root, CertificateSummary Leaf, X509Certificate2 RootCertificate)> IssueLocalAsync(PaduraksaHost host, string name)
     {

@@ -36,16 +36,8 @@ public sealed class AccessListQueueGateTests
         }
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, "the condition never held");
-            // Poll step of a wait bounded to 30 s.
-            await Task.Delay(5, TestContext.Current.CancellationToken);
-        }
-    }
+    private static Task WaitUntilAsync(Func<bool> condition) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(30), TimeSpan.FromMilliseconds(5), "the condition never held", TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task AColdBurstLargerThanTheSlotsIsQueuedNotRefused()

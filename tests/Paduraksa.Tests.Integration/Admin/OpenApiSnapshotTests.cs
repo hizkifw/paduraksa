@@ -72,16 +72,5 @@ public sealed class OpenApiSnapshotTests
         return $"it has {shippedLines.Length} lines and the generated one {generatedLines.Length}";
     }
 
-    private static string ShippedDocumentPath()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Paduraksa.slnx")))
-            {
-                return Path.Combine(directory.FullName, "src", "Paduraksa.Admin", "OpenApi", "openapi.v1.json");
-            }
-        }
-
-        throw new InvalidOperationException("The repository root (Paduraksa.slnx) is not above the test's directory.");
-    }
+    private static string ShippedDocumentPath() => Path.Combine(Repository.Root, "src", "Paduraksa.Admin", "OpenApi", "openapi.v1.json");
 }

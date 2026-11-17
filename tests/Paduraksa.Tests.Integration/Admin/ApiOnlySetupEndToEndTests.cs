@@ -2,18 +2,15 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
-using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Admin.Certificates;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Api;
-using Paduraksa.Contracts.Audit;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -23,7 +20,6 @@ using Paduraksa.Core.Model;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
@@ -253,8 +249,6 @@ public sealed class ApiOnlySetupEndToEndTests
         Assert.Equal(HttpStatusCode.OK, revisions.Status);
         return Read(revisions, AdminJsonContext.Default.PageRevisionSummary).Items.Count;
     }
-
-    private static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
 
     /// <summary>
     /// A TLS handshake with the admin listener for <paramref name="serverName"/>: the certificate it presented, and whether it

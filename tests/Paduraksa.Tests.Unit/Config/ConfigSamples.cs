@@ -1,3 +1,4 @@
+using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
@@ -326,4 +327,14 @@ internal static class ConfigSamples
             })),
         };
     }
+
+    /// <summary>Validates <paramref name="document"/> as written and expects exactly these errors, in order.</summary>
+    public static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected) =>
+        Assert.Equal(expected, ConfigValidator.Validate(document).Select(e => (e.Path, e.Code)));
+
+    public static HostConfig[] MapHost(ConfigDocument document, HostId id, Func<HostConfig, HostConfig> change) =>
+        MapHost(document.Hosts, id, change);
+
+    public static HostConfig[] MapHost(IReadOnlyList<HostConfig> hosts, HostId id, Func<HostConfig, HostConfig> change) =>
+        [.. hosts.Select(h => h.Id == id ? change(h) : h)];
 }

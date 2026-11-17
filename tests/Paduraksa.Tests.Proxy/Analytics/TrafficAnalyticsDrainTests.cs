@@ -1,6 +1,5 @@
 using System.Net;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -9,7 +8,6 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Analytics;
@@ -37,19 +35,6 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
         public void WriteLine(ReadOnlySpan<char> line) => Lines.Add(line.ToString());
 
         public void Flush() => Flushed = true;
-    }
-
-    private sealed class RecordingLogger : ILogger<AccessLogDrainService>
-    {
-        public List<string> Messages { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Messages.Add(formatter(state, exception));
     }
 
     /// <summary>A clock that stops working on demand: what makes the analytics' tick throw.</summary>
@@ -88,7 +73,7 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
     {
         AccessLogRing ring = new(16);
         CapturingSink sink = new();
-        RecordingLogger logger = new();
+        ListLogger<AccessLogDrainService> logger = new();
         FlakyClock clock = new();
         TrafficAnalytics analytics = new(StoreWith("app"), clock, new AnalyticsBacklog());
         AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, logger, analytics: analytics);
@@ -119,7 +104,7 @@ public sealed class TrafficAnalyticsDrainTests(TestUpstream upstream) : IClassFi
         using var subscription = tail.Subscribe(AccessLogTailFilter.All, 0)!;
         FlakyClock clock = new() { Broken = false };
         TrafficAnalytics analytics = new(StoreWith("app"), clock, new AnalyticsBacklog());
-        AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, new RecordingLogger(), tail, analytics);
+        AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, new ListLogger<AccessLogDrainService>(), tail, analytics);
         Assert.True(ring.TryWrite(new() { Method = "GET", Protocol = "HTTP/1.1", Path = "/x", Host = "app.test" }));
         clock.Broken = true;
 

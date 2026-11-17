@@ -12,7 +12,6 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
@@ -112,17 +111,8 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
         }
     }
 
-    private static async Task WaitForAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow + Wait;
-        while (!condition() && DateTime.UtcNow < deadline)
-        {
-            // Poll step of a bounded wait.
-            await Task.Delay(20, TestContext.Current.CancellationToken);
-        }
-
-        Assert.True(condition());
-    }
+    private static Task WaitForAsync(Func<bool> condition) =>
+        Polling.UntilAsync(condition, Wait, TimeSpan.FromMilliseconds(20), "the condition never held", TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task ADeniedAddressIsClosedBeforeTlsOnBothListenersAndServedAgainOnceTheListIsGone()

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
@@ -12,11 +11,9 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Admin.Certificates;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Identity;
-using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Vault;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
@@ -492,8 +489,6 @@ public sealed class AdminCertificateTests
         await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions { TargetHost = serverName }, Ct);
         return (presented!, chains);
     }
-
-    private static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
 
     private static List<string> SubjectAlternativeNames(X509Certificate2 certificate)
     {

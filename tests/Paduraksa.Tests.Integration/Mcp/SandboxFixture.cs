@@ -1,7 +1,6 @@
 using System.Text;
 
 using Paduraksa.Mcp;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Mcp;
 
@@ -19,13 +18,7 @@ public sealed class SandboxFixture : IAsyncLifetime
     private static string ServerAssembly()
     {
         var output = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar));
-        var root = output;
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Paduraksa.slnx")))
-        {
-            root = root.Parent;
-        }
-
-        return Path.Combine(root!.FullName, "src", "Paduraksa.Server", "bin", output.Parent!.Name, output.Name, "paduraksa.dll");
+        return Path.Combine(Repository.Root, "src", "Paduraksa.Server", "bin", output.Parent!.Name, output.Name, "paduraksa.dll");
     }
 
     public static CodeModeTools Create(SandboxLimits? limits = null, TimeSpan? idle = null, TimeProvider? time = null, Action<string>? log = null, SandboxChildCommand? command = null) =>

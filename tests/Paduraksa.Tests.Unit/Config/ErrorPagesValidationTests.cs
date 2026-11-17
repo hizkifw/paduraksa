@@ -177,7 +177,4 @@ public sealed class ErrorPagesValidationTests
 
     private static HostConfig[] Host(ConfigDocument document, HostSettings? settings = null, MaintenanceSettings? maintenance = null) =>
         [.. document.Hosts.Select(h => h.Id == AppHost ? h with { Settings = settings ?? new HostSettings { Maintenance = maintenance } } : h)];
-
-    private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected) =>
-        Assert.Equal(expected, ConfigValidator.Validate(document).Select(e => (e.Path, e.Code)));
 }

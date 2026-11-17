@@ -54,7 +54,7 @@ public sealed class AccessLogDrainServiceTests
     {
         AccessLogRing ring = new(2);
         CapturingSink sink = new();
-        RecordingLogger logger = new();
+        ListLogger<AccessLogDrainService> logger = new();
         AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, logger);
 
         drain.Drain();
@@ -84,7 +84,7 @@ public sealed class AccessLogDrainServiceTests
     {
         AccessLogRing ring = new(16);
         CapturingSink sink = new() { FailFirst = 1 };
-        RecordingLogger logger = new();
+        ListLogger<AccessLogDrainService> logger = new();
         AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, logger);
         ring.TryWrite(new() { Path = "/one" });
         ring.TryWrite(new() { Path = "/two" });
@@ -106,7 +106,7 @@ public sealed class AccessLogDrainServiceTests
         // that conversion fail on every entry with a query. The file's formatter has the working options.
         AccessLogRing ring = new(16);
         CapturingSink sink = new();
-        RecordingLogger logger = new();
+        ListLogger<AccessLogDrainService> logger = new();
         AccessLogTail tail = new(8, new AccessLogFormatOptions { SensitiveQueryKeys = new ThrowingList() });
         using var subscription = tail.Subscribe(AccessLogTailFilter.All, 0)!;
         AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, logger, tail);
@@ -133,7 +133,7 @@ public sealed class AccessLogDrainServiceTests
     [Fact]
     public void AFlushThatFailsAtShutdownIsReportedButNotThrown()
     {
-        RecordingLogger logger = new();
+        ListLogger<AccessLogDrainService> logger = new();
         AccessLogDrainService drain = new(new AccessLogRing(16), new CapturingSink { FailFlush = true }, AccessLogFormatOptions.Default, logger);
 
         drain.Flush();
@@ -148,7 +148,7 @@ public sealed class AccessLogDrainServiceTests
         // sink guard. The drain is a hosted service of the core host, so the pass must be caught, reported and survived.
         AccessLogRing ring = new(16);
         CapturingSink sink = new();
-        RecordingLogger logger = new();
+        ListLogger<AccessLogDrainService> logger = new();
         AccessLogDrainService drain = new(ring, sink, AccessLogFormatOptions.Default, logger);
         Assert.True(ring.TryWrite(new() { TimestampUtcTicks = DateTime.MaxValue.Ticks + 1, Path = "/bad" }));
         Assert.True(ring.TryWrite(new() { TimestampUtcTicks = DateTime.UtcNow.Ticks, Method = "GET", Protocol = "HTTP/1.1", Path = "/good" }));
@@ -226,36 +226,6 @@ public sealed class AccessLogDrainServiceTests
             }
 
             Flushed = true;
-        }
-    }
-
-    /// <summary>Records what the drain reports, at any level.</summary>
-    private sealed class RecordingLogger : ILogger<AccessLogDrainService>
-    {
-        private readonly List<(LogLevel Level, string Message)> _entries = [];
-
-        public IReadOnlyList<(LogLevel Level, string Message)> Entries
-        {
-            get
-            {
-                lock (_entries)
-                {
-                    return [.. _entries];
-                }
-            }
-        }
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        {
-            lock (_entries)
-            {
-                _entries.Add((logLevel, formatter(state, exception)));
-            }
         }
     }
 }

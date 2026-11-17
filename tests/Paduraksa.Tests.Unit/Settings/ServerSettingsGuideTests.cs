@@ -39,18 +39,7 @@ public sealed class ServerSettingsGuideTests
         return text.ToString();
     }
 
-    private static string GuidePath()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Paduraksa.slnx")))
-            {
-                return Path.Combine(dir.FullName, "docs", "guide", "server-settings.md");
-            }
-        }
-
-        throw new InvalidOperationException("Paduraksa.slnx not found");
-    }
+    private static string GuidePath() => Path.Combine(Repository.Root, "docs", "guide", "server-settings.md");
 
     [Fact]
     public void TheGuidesTableIsTheCatalogues()

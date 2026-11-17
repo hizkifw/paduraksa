@@ -14,29 +14,6 @@ namespace Paduraksa.Tests.Proxy.Metrics;
 /// </summary>
 public sealed class MetricSlotConflictTests
 {
-    private sealed class ListLogger : ILoggerFactory, ILogger
-    {
-        public List<(LogLevel Level, string Message)> Entries { get; } = [];
-
-        public void AddProvider(ILoggerProvider provider)
-        {
-        }
-
-        public ILogger CreateLogger(string categoryName) => this;
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entries.Add((logLevel, formatter(state, exception)));
-
-        public void Dispose()
-        {
-        }
-    }
-
     private static ProxyConfigModel Model(string label) => new()
     {
         Hosts = [new HostSpec { Id = TestIds.Host(label), Names = [label + ".test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } }],
@@ -48,7 +25,7 @@ public sealed class MetricSlotConflictTests
         var ct = TestContext.Current.CancellationToken;
         ManualTimeProvider clock = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
         MetricsRegistry registry = new(processors: 2, gracePeriod: TimeSpan.FromSeconds(60), timeProvider: clock);
-        ListLogger logs = new();
+        ListLoggerFactory logs = new();
         SnapshotCompilerOptions options = new() { Metrics = registry };
         await using SnapshotPublisher publisher = new(new SnapshotStore(), logs, clock, metrics: registry);
 
@@ -88,7 +65,7 @@ public sealed class MetricSlotConflictTests
     {
         var ct = TestContext.Current.CancellationToken;
         MetricsRegistry registry = new(processors: 1);
-        ListLogger logs = new();
+        ListLoggerFactory logs = new();
         await using SnapshotPublisher publisher = new(new SnapshotStore(), logs, metrics: registry);
 
         Assert.True((await publisher.PublishAsync(SnapshotCompiler.Compile(Model("a"), new SnapshotCompilerOptions { Metrics = registry }).Snapshot!, ct)).Succeeded);

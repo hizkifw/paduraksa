@@ -1,5 +1,4 @@
 using Paduraksa.Application.Certificates;
-using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -305,7 +304,4 @@ public sealed class CustomHeadersValidationTests
 
     private static HostConfig[] Host(ConfigDocument document, HostSettings settings) =>
         [.. document.Hosts.Select(h => h.Id == AppHost ? h with { Settings = settings } : h)];
-
-    private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected) =>
-        Assert.Equal(expected, ConfigValidator.Validate(document).Select(e => (e.Path, e.Code)));
 }

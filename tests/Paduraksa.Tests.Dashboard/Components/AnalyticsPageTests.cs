@@ -21,6 +21,7 @@ using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Storage.Sqlite;
+using static Paduraksa.Tests.Shared.AnalyticsTestData;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
@@ -47,38 +48,6 @@ public sealed class AnalyticsPageTests
         Referer = referer,
         TotalTicks = ms * TimeSpan.TicksPerMillisecond,
     };
-
-    private static ulong Visitor(int i)
-    {
-        var z = (ulong)i + 0x9E3779B97F4A7C15UL;
-        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
-        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
-        return z ^ (z >> 31);
-    }
-
-    private static AnalyticsRollup Rollup(HostId host, DateTimeOffset at, params (AccessLogEntry Entry, int Visitor, bool Ignored)[] entries)
-    {
-        TrafficBucket bucket = new();
-        foreach (var (entry, visitor, ignored) in entries)
-        {
-            var copy = entry;
-            bucket.Record(in copy, Visitor(visitor), UserAgentClassifier.Classify(entry.UserAgent), ignored);
-        }
-
-        return new AnalyticsRollup(
-            host.IsEmpty ? AnalyticsSubject.Unmatched : AnalyticsSubject.Host,
-            host.IsEmpty ? string.Empty : host.ToString(),
-            at.ToUnixTimeSeconds(),
-            300,
-            bucket.Requests,
-            bucket.BytesOut,
-            bucket.BytesIn,
-            bucket.ServerErrors,
-            TrafficBucketCodec.Encode(bucket));
-    }
-
-    private static AnalyticsRollup Coverage(DateTimeOffset at, int seconds = 300) =>
-        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, 0, null);
 
     /// <summary>The database the test has opened, or - until it has - one that fails every time, as a database that is down does.</summary>
     private sealed class SwitchableFactory : IDbContextFactory<ConfigDbContext>

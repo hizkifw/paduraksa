@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
-using System.Globalization;
 using System.Net;
-using System.Net.Quic;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -18,7 +16,6 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Proxy;
 
@@ -255,51 +252,4 @@ internal sealed class ClientInfoProbe : IStartupFilter
         });
         next(app);
     };
-}
-
-/// <summary>
-/// QUIC needs libmsquic, which a dev machine usually lacks: there the H3 tests are skipped. CI installs it and sets <c>PADURAKSA_REQUIRE=quic</c>
-/// (<see cref="Requirements"/>), which turns a missing QUIC stack into a failure.
-/// </summary>
-internal static class QuicSupport
-{
-    public static void Require()
-    {
-        if (QuicListener.IsSupported && QuicConnection.IsSupported)
-        {
-            return;
-        }
-
-        Requirements.SkipOrFail(Requirements.Quic, "QUIC isn't supported here (libmsquic missing). tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh runs these in Docker.");
-    }
-
-    /// <summary>A port free for both TCP and UDP on dual-mode <c>[::]</c> (or <c>0.0.0.0</c>), as the public listener binds.</summary>
-    public static int FreeTcpAndUdpPort()
-    {
-        var bind = Socket.OSSupportsIPv6 ? IPAddress.IPv6Any : IPAddress.Any;
-        for (var attempt = 0; attempt < 50; attempt++)
-        {
-            using Socket tcp = new(bind.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            using Socket udp = new(bind.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-            if (bind.Equals(IPAddress.IPv6Any))
-            {
-                tcp.DualMode = true;
-                udp.DualMode = true;
-            }
-
-            tcp.Bind(new IPEndPoint(bind, 0));
-            var port = ((IPEndPoint)tcp.LocalEndPoint!).Port;
-            try
-            {
-                udp.Bind(new IPEndPoint(bind, port));
-                return port;
-            }
-            catch (SocketException)
-            {
-                // Taken on UDP: try another.
-            }
-        }
-
-        throw new InvalidOperationException(string.Create(CultureInfo.InvariantCulture, $"No port free for both TCP and UDP on {bind}."));
-    }
 }

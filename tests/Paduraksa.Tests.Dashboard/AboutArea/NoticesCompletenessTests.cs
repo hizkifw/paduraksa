@@ -60,7 +60,7 @@ public sealed class NoticesCompletenessTests
     [Fact]
     public void Libmsquic_IsTheVersionTheDockerfileInstalls()
     {
-        var pinned = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(Path.Combine(RepoRoot(), "Dockerfile")), @"^ARG LIBMSQUIC_VERSION=(\S+)", System.Text.RegularExpressions.RegexOptions.Multiline);
+        var pinned = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(Path.Combine(Repository.Root, "Dockerfile")), @"^ARG LIBMSQUIC_VERSION=(\S+)", System.Text.RegularExpressions.RegexOptions.Multiline);
         Assert.True(pinned.Success, "The Dockerfile has no ARG LIBMSQUIC_VERSION.");
 
         var listed = Assert.Single(ThirdPartyNotices.Embedded.Components, component => component.Name == "libmsquic");
@@ -78,7 +78,7 @@ public sealed class NoticesCompletenessTests
         {
             using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(python!)
             {
-                ArgumentList = { "-I", Path.Combine(RepoRoot(), "scripts", "generate-third-party-notices.py"), "--publish-dir", AppContext.BaseDirectory, "--output-dir", output },
+                ArgumentList = { "-I", Path.Combine(Repository.Root, "scripts", "generate-third-party-notices.py"), "--publish-dir", AppContext.BaseDirectory, "--output-dir", output },
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             })!;
@@ -89,7 +89,7 @@ public sealed class NoticesCompletenessTests
             foreach (var file in new[] { "THIRD-PARTY-NOTICES.json", "THIRD-PARTY-NOTICES.md" })
             {
                 Assert.True(
-                    File.ReadAllText(Path.Combine(output, file)) == File.ReadAllText(Path.Combine(RepoRoot(), file)),
+                    File.ReadAllText(Path.Combine(output, file)) == File.ReadAllText(Path.Combine(Repository.Root, file)),
                     $"{file} is not what the generator writes. {Fix}");
             }
         }
@@ -109,7 +109,7 @@ public sealed class NoticesCompletenessTests
     [Fact]
     public void TheMarkdownFileListsTheSameComponentsAsTheJson()
     {
-        var markdown = File.ReadAllText(Path.Combine(RepoRoot(), "THIRD-PARTY-NOTICES.md"));
+        var markdown = File.ReadAllText(Path.Combine(Repository.Root, "THIRD-PARTY-NOTICES.md"));
 
         var missing = ThirdPartyNotices.Embedded.Components
             .Select(component => $"## {component.Name}{(component.Version is null ? string.Empty : " " + component.Version)}")
@@ -130,18 +130,5 @@ public sealed class NoticesCompletenessTests
             .Where(library => library.Value.GetProperty("type").GetString() == "package")
             .Select(library => library.Name.Split('/'))
             .Select(parts => (parts[0], parts[1]))];
-    }
-
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Paduraksa.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"Paduraksa.slnx not found above {AppContext.BaseDirectory}");
     }
 }

@@ -8,7 +8,6 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Yarp;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 using SnapshotStore = Paduraksa.Proxy.Snapshot.SnapshotStore;
@@ -246,7 +245,7 @@ public sealed class ConfigServiceStartupTests
     /// <summary>Another process on the harness's database: its own store, publisher, last-good file and logs.</summary>
     private static Restarted Restart(ConfigServiceHarness h, IConfigCompiler? compiler = null)
     {
-        var logs = new CapturingLoggerFactory();
+        var logs = new ListLoggerFactory();
         var store = new SnapshotStore();
         var publisher = new SnapshotPublisher(store);
         var lastGood = new LastKnownGoodFile(LastKnownGoodPath(h), logs);
@@ -254,7 +253,7 @@ public sealed class ConfigServiceStartupTests
         return new Restarted(store, publisher, lastGood, service, logs);
     }
 
-    private sealed record Restarted(SnapshotStore Store, SnapshotPublisher Publisher, LastKnownGoodFile LastGood, ConfigService Service, CapturingLoggerFactory Logs)
+    private sealed record Restarted(SnapshotStore Store, SnapshotPublisher Publisher, LastKnownGoodFile LastGood, ConfigService Service, ListLoggerFactory Logs)
         : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()

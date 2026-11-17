@@ -723,14 +723,6 @@ public sealed class DualHostTests(SharedHost shared) : IClassFixture<SharedHost>
         }
     };
 
-    private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken ct)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while (!condition())
-        {
-            // Poll step of a wait bounded to 10 s.
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+    private static Task WaitUntilAsync(Func<bool> condition, CancellationToken ct) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(10), "the condition never held", ct);
 }

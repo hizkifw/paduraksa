@@ -31,7 +31,8 @@
     <Compile Include="../Paduraksa.Tests.Data/Config/PlanCapture.cs" LinkBase="Shared/Data" />
     <Compile Include="../Paduraksa.Tests.Data/Commands/ConfigServiceHarness.cs" LinkBase="Shared/Data" />
     <Compile Include="../Paduraksa.Tests.Data/Commands/TestConfigServices.cs" LinkBase="Shared/Data" />
-    <Compile Include="../Paduraksa.Tests.Data/Commands/CapturingLoggerFactory.cs" LinkBase="Shared/Data" />
+    <Compile Include="../Shared/ListLogger.cs" Link="Shared/ListLogger.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
   <Import Project="../Shared/TestPasswords.props" />
 </Project>

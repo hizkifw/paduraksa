@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Paduraksa.Acme;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
@@ -21,7 +20,7 @@ internal sealed class AcmeHarness : IDisposable
         Server = server ?? new FakeAcmeServer();
         Signer = new FakeJwsSigner();
         Time = new VirtualTimeProvider();
-        Logs = new ListLogger();
+        Logs = new ListLogger<AcmeClient>();
         EabSecretId = SecretId.New();
         EabKey = new FakeMacKey(Server.EabSecret);
         Client = new AcmeClient(
@@ -40,7 +39,7 @@ internal sealed class AcmeHarness : IDisposable
 
     public VirtualTimeProvider Time { get; }
 
-    public ListLogger Logs { get; }
+    public ListLogger<AcmeClient> Logs { get; }
 
     public SecretId EabSecretId { get; }
 
@@ -65,43 +64,4 @@ internal sealed class AcmeHarness : IDisposable
     }
 
     public void Dispose() => Client.Dispose();
-
-    /// <summary>Captures log messages so tests can assert nothing secret reached them.</summary>
-    public sealed class ListLogger : ILogger<AcmeClient>
-    {
-        private readonly Lock _gate = new();
-        private readonly List<(LogLevel Level, string Message)> _entries = [];
-
-        public IReadOnlyList<string> Messages
-        {
-            get
-            {
-                lock (_gate)
-                {
-                    return [.. _entries.Select(static e => e.Message)];
-                }
-            }
-        }
-
-        public IReadOnlyList<string> At(LogLevel level)
-        {
-            lock (_gate)
-            {
-                return [.. _entries.Where(e => e.Level == level).Select(static e => e.Message)];
-            }
-        }
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        {
-            lock (_gate)
-            {
-                _entries.Add((logLevel, formatter(state, exception)));
-            }
-        }
-    }
 }

@@ -226,16 +226,8 @@ public sealed class AuthenticationStateTests
     private static Task<AuthenticationState> StateOf(SessionIdentity session) =>
         Task.FromResult(new AuthenticationState(new ClaimsPrincipal(session)));
 
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while (!condition())
-        {
-            // Poll step of a wait bounded to 10 s.
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+    private static Task WaitUntilAsync(Func<bool> condition) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(10), "the condition never held", Ct);
 
     /// <summary>Sessions in memory: each one live until revoked, with roles that can change.</summary>
     private sealed class FakeSessions : IDashboardSessions

@@ -1,30 +1,14 @@
-using System.Globalization;
 using System.Net;
-using System.Net.Quic;
 using System.Net.Sockets;
 
 using Microsoft.AspNetCore.Connections;
 
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 
-/// <summary>
-/// QUIC tests need libmsquic, which a dev machine usually lacks: there they are skipped (xUnit v3 dynamic skip). CI installs it and sets
-/// <c>PADURAKSA_REQUIRE=quic</c> (<see cref="Requirements"/>), which turns a missing QUIC stack into a failure.
-/// </summary>
+/// <summary>Starting a QUIC test server on a port that is free for both TCP and UDP.</summary>
 internal static class QuicTestSupport
 {
-    public static void Require()
-    {
-        if (QuicListener.IsSupported && QuicConnection.IsSupported)
-        {
-            return;
-        }
-
-        Requirements.SkipOrFail(Requirements.Quic, "QUIC isn't supported here (libmsquic missing). tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh runs these in Docker.");
-    }
-
     /// <summary>
     /// Starts a server on a port free for both TCP and UDP, retrying with a new port when the bind loses a race
     /// (another process took the port between the probe and Kestrel's bind).
@@ -39,47 +23,13 @@ internal static class QuicTestSupport
         {
             try
             {
-                return await start(FreeTcpAndUdpPort(address));
+                return await start(QuicSupport.FreeTcpAndUdpPort(address));
             }
             catch (Exception error) when (attempt < Attempts && IsAddressInUse(error))
             {
                 // Lost the race for the port: probe again.
             }
         }
-    }
-
-    /// <summary>
-    /// A port currently free for both TCP and UDP (TCP and QUIC share it). Null means "any", probed the way Kestrel's
-    /// <c>ListenAnyIP</c> binds: dual-mode <c>[::]</c>, or <c>0.0.0.0</c> without IPv6.
-    /// </summary>
-    public static int FreeTcpAndUdpPort(IPAddress? address)
-    {
-        var bind = address ?? (Socket.OSSupportsIPv6 ? IPAddress.IPv6Any : IPAddress.Any);
-        var dualMode = address is null && bind.Equals(IPAddress.IPv6Any);
-        for (var attempt = 0; attempt < 50; attempt++)
-        {
-            using var tcp = new Socket(bind.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-            using var udp = new Socket(bind.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-            if (dualMode)
-            {
-                tcp.DualMode = true;
-                udp.DualMode = true;
-            }
-
-            tcp.Bind(new IPEndPoint(bind, 0));
-            var port = ((IPEndPoint)tcp.LocalEndPoint!).Port;
-            try
-            {
-                udp.Bind(new IPEndPoint(bind, port));
-                return port;
-            }
-            catch (SocketException)
-            {
-                // Taken on UDP: try another.
-            }
-        }
-
-        throw new InvalidOperationException(string.Create(CultureInfo.InvariantCulture, $"No port free for both TCP and UDP on {bind}."));
     }
 
     private static bool IsAddressInUse(Exception error)

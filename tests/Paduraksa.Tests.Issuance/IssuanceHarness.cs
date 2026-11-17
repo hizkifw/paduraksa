@@ -44,7 +44,7 @@ internal sealed partial class IssuanceHarness : IAsyncDisposable
     public FakeAcmeServer Server { get; }
 
     /// <summary>Everything the services and the ACME clients logged.</summary>
-    public CapturingLoggerFactory Loggers { get; } = new();
+    public ListLoggerFactory Loggers { get; } = new();
 
     public VirtualTimeProvider Time { get; }
 

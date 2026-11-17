@@ -17,8 +17,6 @@ public sealed class VaultCommandsTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static string Fingerprint(System.Security.Cryptography.X509Certificates.X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
-
     [Fact]
     public async Task RotateKekRewrapsTheVaultAndTheServiceStartsWithTheNewKey()
     {

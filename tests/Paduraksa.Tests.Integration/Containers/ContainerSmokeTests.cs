@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Containers;
 
@@ -33,7 +32,7 @@ public sealed class ContainerSmokeTests
             "Set PADURAKSA_CONTAINER_TESTS=1 to build and run the container image (slow).");
         Assert.SkipWhen(!await DockerIsAvailableAsync(), "Docker is not available.");
 
-        var repository = RepositoryRoot();
+        var repository = Repository.Root;
         var suffix = $"{Environment.ProcessId}-{Environment.TickCount64}-{(dropCapabilities ? "caps" : "default")}";
         var prebuilt = Environment.GetEnvironmentVariable("PADURAKSA_CONTAINER_IMAGE") is { Length: > 0 } named ? named : null;
         var image = prebuilt ?? $"paduraksa-smoke:{suffix}";
@@ -222,19 +221,5 @@ public sealed class ContainerSmokeTests
         };
 
         return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
-    }
-
-    /// <summary>The repository root (the directory holding <c>Paduraksa.slnx</c>), found from the test's base directory.</summary>
-    private static string RepositoryRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Paduraksa.slnx")))
-            {
-                return directory.FullName;
-            }
-        }
-
-        throw new InvalidOperationException("Could not find the repository root (Paduraksa.slnx) above the test's base directory.");
     }
 }

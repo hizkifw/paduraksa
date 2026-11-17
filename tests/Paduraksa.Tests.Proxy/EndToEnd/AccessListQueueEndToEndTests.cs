@@ -1,12 +1,10 @@
 using System.Net;
 using System.Net.Http.Headers;
-using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.ProxyProtocol;
 using Paduraksa.Tests.Proxy.AccessLists;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.AccessLists.AccessListFixtures;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
@@ -29,16 +27,8 @@ public sealed class AccessListQueueEndToEndTests(HeaderEchoUpstream upstream) : 
         return request;
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, "the condition never held");
-            // Poll step of a wait bounded to 30 s.
-            await Task.Delay(5, TestContext.Current.CancellationToken);
-        }
-    }
+    private static Task WaitUntilAsync(Func<bool> condition) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(30), TimeSpan.FromMilliseconds(5), "the condition never held", TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task ABurstOfColdLoginsIsQueuedServedAndNeverShownToTheUpstream()

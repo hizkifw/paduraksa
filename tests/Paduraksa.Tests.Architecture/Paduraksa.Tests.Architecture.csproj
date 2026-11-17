@@ -12,6 +12,10 @@
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Shared/Repository.cs" Link="Shared/Repository.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Data/Paduraksa.Data.csproj" />

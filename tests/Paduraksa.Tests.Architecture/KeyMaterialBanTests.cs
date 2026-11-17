@@ -301,20 +301,7 @@ public sealed class KeyMaterialBanTests
         return analyzers.ToImmutable();
     }
 
-    private static string BanFilePath { get; } = Path.Combine(FindRepoRoot(), "BannedSymbols.KeyMaterial.txt");
-
-    private static string FindRepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Paduraksa.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"Paduraksa.slnx not found above {AppContext.BaseDirectory}");
-    }
+    private static string BanFilePath { get; } = Path.Combine(Repository.Root, "BannedSymbols.KeyMaterial.txt");
 
     private sealed class FileText(string path) : AdditionalText
     {

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -143,14 +142,6 @@ public sealed class PassiveHealthRecoveryTests : IAsyncLifetime
         }
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan limit, string what)
-    {
-        var deadline = DateTime.UtcNow + limit;
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, $"timed out waiting for {what}");
-            // Poll step of a bounded wait.
-            await Task.Delay(25, Ct);
-        }
-    }
+    private static Task WaitUntilAsync(Func<bool> condition, TimeSpan limit, string what) =>
+        Polling.UntilAsync(condition, limit, TimeSpan.FromMilliseconds(25), $"timed out waiting for {what}", Ct);
 }

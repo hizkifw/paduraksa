@@ -304,10 +304,4 @@ public sealed class AccessListValidationTests
 
     private static ConfigDocument WithUsers(params AccessListUserConfig[] users) =>
         Valid() with { AccessLists = [new AccessListConfig(LanList, "lan", BasicAuth: new AccessListBasicAuth(Users: users))] };
-
-    private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected) =>
-        Assert.Equal(expected, ConfigValidator.Validate(document).Select(e => (e.Path, e.Code)));
-
-    private static HostConfig[] MapHost(ConfigDocument document, HostId id, Func<HostConfig, HostConfig> change) =>
-        [.. document.Hosts.Select(h => h.Id == id ? change(h) : h)];
 }

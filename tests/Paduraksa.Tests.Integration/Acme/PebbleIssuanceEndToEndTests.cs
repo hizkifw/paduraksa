@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.Data.Sqlite;
@@ -12,7 +11,6 @@ using Paduraksa.Server.Hosting;
 using Paduraksa.Storage.Sqlite;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
@@ -26,8 +24,6 @@ namespace Paduraksa.Tests.Integration.Acme;
 public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixture<PebbleRoot>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    private static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
 
     private Dictionary<string, string?> Settings(int httpPort, bool fastScheduler = false) => new()
     {

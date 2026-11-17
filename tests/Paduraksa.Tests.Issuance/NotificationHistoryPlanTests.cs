@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Paduraksa.Application.Notifications;
 using Paduraksa.Contracts.Notifications;

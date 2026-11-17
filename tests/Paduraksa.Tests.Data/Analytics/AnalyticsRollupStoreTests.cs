@@ -7,6 +7,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Tests.Data.Config;
+using static Paduraksa.Tests.Shared.AnalyticsTestData;
 
 namespace Paduraksa.Tests.Data.Analytics;
 
@@ -19,9 +20,6 @@ public sealed class AnalyticsRollupStoreTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static AnalyticsRollup Coverage(DateTimeOffset at, int seconds = 300) =>
-        new(AnalyticsSubject.Coverage, string.Empty, at.ToUnixTimeSeconds(), seconds, 0, 0, 0, 0, null);
-
     /// <summary>A host's bucket with <paramref name="requests"/> requests from visitors <paramref name="firstVisitor"/> up.</summary>
     internal static AnalyticsRollup Host(HostId host, DateTimeOffset at, int requests, ulong firstVisitor = 1, string path = "/p", int covered = 300, int status = 200, long bytes = 100, long bytesIn = 10)
     {
@@ -29,7 +27,7 @@ public sealed class AnalyticsRollupStoreTests
         for (var i = 0; i < requests; i++)
         {
             var entry = new AccessLogEntry { Path = path, Method = "GET", Protocol = "HTTP/1.1", StatusCode = status, ResponseBytes = bytes, RequestBytes = bytesIn, Host = "app.test", UserAgent = "curl/8.5.0", TotalTicks = TimeSpan.TicksPerMillisecond * 3 };
-            bucket.Record(in entry, MixOf(firstVisitor + (ulong)i), UserAgentClassifier.Classify(entry.UserAgent), false);
+            bucket.Record(in entry, Mix(firstVisitor + (ulong)i), UserAgentClassifier.Classify(entry.UserAgent), false);
         }
 
         return new AnalyticsRollup(
@@ -42,14 +40,6 @@ public sealed class AnalyticsRollupStoreTests
             bucket.BytesIn,
             bucket.ServerErrors,
             TrafficBucketCodec.Encode(bucket));
-    }
-
-    private static ulong MixOf(ulong index)
-    {
-        var z = index + 0x9E3779B97F4A7C15UL;
-        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
-        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
-        return z ^ (z >> 31);
     }
 
     private static AnalyticsRollupStore StoreOver(TestConfigDatabase database, AnalyticsBacklog? backlog = null) => new(database.Factory, backlog ?? new AnalyticsBacklog());

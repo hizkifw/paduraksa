@@ -178,16 +178,8 @@ public sealed class UpgradedStreamTests
         Assert.Equal(0, result.TotalBytes);
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, "timed out");
-            // Poll step of a bounded wait for the closer's next try.
-            await Task.Delay(10, Ct);
-        }
-    }
+    private static Task WaitUntilAsync(Func<bool> condition) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(10), "timed out", Ct);
 
     private sealed class AbortRecorder : IHttpRequestLifetimeFeature
     {

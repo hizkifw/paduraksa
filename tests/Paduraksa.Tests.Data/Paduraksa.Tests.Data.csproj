@@ -10,6 +10,8 @@
   <ItemGroup>
     <Compile Include="../Shared/TestMapping.cs" Link="Shared/TestMapping.cs" />
     <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Compile Include="../Shared/ListLogger.cs" Link="Shared/ListLogger.cs" />
+    <Compile Include="../Shared/AnalyticsTestData.cs" Link="Shared/AnalyticsTestData.cs" />
     <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
 </Project>

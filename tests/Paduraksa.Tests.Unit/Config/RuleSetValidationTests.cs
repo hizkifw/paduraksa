@@ -273,10 +273,4 @@ public sealed class RuleSetValidationTests
 
     private static ConfigDocument WithRules(params RuleConfig[] rules) =>
         Valid() with { RuleSets = [new RuleSetConfig(Scanners, "scanners", Rules: rules)] };
-
-    private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected) =>
-        Assert.Equal(expected, ConfigValidator.Validate(document).Select(e => (e.Path, e.Code)));
-
-    private static HostConfig[] MapHost(ConfigDocument document, HostId id, Func<HostConfig, HostConfig> change) =>
-        [.. document.Hosts.Select(h => h.Id == id ? change(h) : h)];
 }

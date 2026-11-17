@@ -474,16 +474,8 @@ public sealed class SandboxBoundaryTests
         Assert.Equal(0, tools.Pool.ChildCount);
     }
 
-    private static async Task WaitUntilGoneAsync(int pid)
-    {
-        for (var i = 0; i < 100 && Directory.Exists($"/proc/{pid}"); i++)
-        {
-            // Poll step of a wait bounded to five seconds for the child to be gone.
-            await Task.Delay(50, Ct);
-        }
-
-        Assert.False(Directory.Exists($"/proc/{pid}"), $"process {pid} is still there");
-    }
+    private static Task WaitUntilGoneAsync(int pid) =>
+        Polling.UntilAsync(() => !Directory.Exists($"/proc/{pid}"), TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(50), $"process {pid} is still there", Ct);
 
     private sealed class DelayedDispatcher(TimeSpan delay) : IApiDispatcher
     {

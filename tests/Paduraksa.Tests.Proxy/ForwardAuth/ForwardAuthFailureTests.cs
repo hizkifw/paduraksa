@@ -1,14 +1,11 @@
 using System.Net;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.ProxyProtocol;
-using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.ForwardAuth.ForwardAuthFixtures;
 
@@ -86,8 +83,8 @@ public sealed class ForwardAuthFailureTests
     [InlineData("lone \uD83D")]
     public async Task AnIdentityValueTheUpstreamCannotCarryCostsThatOneHeaderNotTheRequestAndTheClientsCopyIsNeverItsReplacement(string value)
     {
-        var lines = new List<(LogLevel Level, string Message)>();
-        ForwardAuthRuntime runtime = new(TimeProvider.System, new ListLogger(lines), _ => new StubHandler(_ => Status(HttpStatusCode.OK, ("Remote-User", value), ("Remote-Groups", "dev"))));
+        ListLogger log = new();
+        ForwardAuthRuntime runtime = new(TimeProvider.System, log, _ => new StubHandler(_ => Status(HttpStatusCode.OK, ("Remote-User", value), ("Remote-Groups", "dev"))));
         var gate = GateFor(runtime, Model(Spec("http://127.0.0.1:1/auth")), out var snapshot);
 
         var context = Context(cookie: "session=ok");
@@ -107,14 +104,14 @@ public sealed class ForwardAuthFailureTests
         Assert.Equal(["dev"], upstream.Headers.GetValues("Remote-Groups"));
 
         // Said once, at warning level, with the header's name and never its value.
-        var warning = Assert.Single(lines);
+        var warning = Assert.Single(log.Entries);
         Assert.Equal(LogLevel.Warning, warning.Level);
         Assert.Contains("Remote-User", warning.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(value, warning.Message, StringComparison.Ordinal);
 
         // A second request in the same minute is not logged again.
         Assert.Equal("pass", await RunAsync(gate, Context(cookie: "session=other")));
-        Assert.Single(lines);
+        Assert.Single(log.Entries);
     }
 
     [Fact]
@@ -212,17 +209,6 @@ public sealed class ForwardAuthFailureTests
         })), out _);
 
         Assert.Equal("401", await RunAsync(gate, Context(accept: "text/html", path: "/oauth2/start")));
-    }
-
-    private sealed class ListLogger(List<(LogLevel Level, string Message)> lines) : ILogger
-    {
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            lines.Add((logLevel, formatter(state, exception)));
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> answer) : HttpMessageHandler

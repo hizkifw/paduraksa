@@ -11,7 +11,7 @@ public sealed class BackupBoundaryTests
     [Fact]
     public void OnlyTheVaultReferencesTheArgon2Library()
     {
-        var referencing = Directory.EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
+        var referencing = Directory.EnumerateFiles(Repository.Root, "*.csproj", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                 && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(path => File.ReadAllText(path).Contains(Argon2Package, StringComparison.Ordinal))
@@ -19,20 +19,5 @@ public sealed class BackupBoundaryTests
             .ToList();
 
         Assert.Equal(["Paduraksa.Vault"], referencing);
-    }
-
-    private static string RepoRoot { get; } = FindRepoRoot();
-
-    private static string FindRepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Paduraksa.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"Paduraksa.slnx not found above {AppContext.BaseDirectory}");
     }
 }

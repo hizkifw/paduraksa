@@ -6,9 +6,7 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Model;
@@ -212,14 +210,6 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
 
     private static string Describe(DestinationHealthState health) => $"active {health.Active}, passive {health.Passive}";
 
-    private static async Task WaitUntilAsync(Func<bool> condition, string what, CancellationToken ct)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, $"timed out waiting until {what}");
-            // Poll step of a wait bounded to 15 s.
-            await Task.Delay(25, ct);
-        }
-    }
+    private static Task WaitUntilAsync(Func<bool> condition, string what, CancellationToken ct) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(15), TimeSpan.FromMilliseconds(25), $"timed out waiting until {what}", ct);
 }

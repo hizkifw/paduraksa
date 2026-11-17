@@ -122,7 +122,7 @@ public sealed class NoConfusableCharactersTests
         var scanned = 0;
         foreach (var path in await TrackedFilesAsync())
         {
-            var text = ReadText(Path.Combine(RepoRoot, path));
+            var text = ReadText(Path.Combine(Repository.Root, path));
             if (text is null)
             {
                 continue; // not UTF-8 text: no character in it can be confusable
@@ -132,7 +132,7 @@ public sealed class NoConfusableCharactersTests
             findings.AddRange(Scan(path, text));
         }
 
-        Assert.True(scanned > 100, $"Only {scanned} tracked text files were found under {RepoRoot}: the enumeration is broken.");
+        Assert.True(scanned > 100, $"Only {scanned} tracked text files were found under {Repository.Root}: the enumeration is broken.");
 
         var report = new StringBuilder();
         foreach (var finding in findings)
@@ -269,7 +269,7 @@ public sealed class NoConfusableCharactersTests
     {
         var startInfo = new ProcessStartInfo("git")
         {
-            WorkingDirectory = RepoRoot,
+            WorkingDirectory = Repository.Root,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             StandardOutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
@@ -302,7 +302,7 @@ public sealed class NoConfusableCharactersTests
     {
         var files = new List<string>();
         var pending = new Stack<string>();
-        pending.Push(RepoRoot);
+        pending.Push(Repository.Root);
         while (pending.Count > 0)
         {
             var directory = pending.Pop();
@@ -315,7 +315,7 @@ public sealed class NoConfusableCharactersTests
             }
 
             files.AddRange(
-                Directory.EnumerateFiles(directory).Select(f => Path.GetRelativePath(RepoRoot, f).Replace('\\', '/')));
+                Directory.EnumerateFiles(directory).Select(f => Path.GetRelativePath(Repository.Root, f).Replace('\\', '/')));
         }
 
         files.Sort(StringComparer.Ordinal);
@@ -339,21 +339,6 @@ public sealed class NoConfusableCharactersTests
         {
             return null;
         }
-    }
-
-    private static string RepoRoot { get; } = FindRepoRoot();
-
-    private static string FindRepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Paduraksa.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"Paduraksa.slnx not found above {AppContext.BaseDirectory}");
     }
 
     /// <summary>One offending character: where it is, what it is, and what to write instead.</summary>

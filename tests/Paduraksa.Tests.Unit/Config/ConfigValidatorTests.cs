@@ -1155,16 +1155,4 @@ public sealed class ConfigValidatorTests
             document with { Hosts = MapHost(document, AppHost, h => h with { Settings = undefined }) },
             ($"{Proxy}/settings/robots/mode", EnumUndefined));
     }
-
-    /// <summary>Validates <paramref name="document"/> as written and expects exactly these errors, in order.</summary>
-    private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected)
-    {
-        var errors = ConfigValidator.Validate(document);
-        Assert.Equal(expected, errors.Select(e => (e.Path, e.Code)));
-    }
-    private static HostConfig[] MapHost(ConfigDocument document, HostId id, Func<HostConfig, HostConfig> change) =>
-        MapHost(document.Hosts, id, change);
-
-    private static HostConfig[] MapHost(IReadOnlyList<HostConfig> hosts, HostId id, Func<HostConfig, HostConfig> change) =>
-        [.. hosts.Select(h => h.Id == id ? change(h) : h)];
 }

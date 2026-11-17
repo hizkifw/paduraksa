@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net;
@@ -7,7 +6,6 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -406,17 +404,8 @@ public sealed class BodyBytesTests(BodyUpstream upstream) : IClassFixture<BodyUp
         return totals;
     }
 
-    private static async Task WaitForAsync(Func<bool> condition, string what)
-    {
-        var timeout = Stopwatch.StartNew();
-        while (!condition() && timeout.Elapsed < TimeSpan.FromSeconds(10))
-        {
-            // Poll step of a wait bounded to ten seconds.
-            await Task.Delay(5, TestContext.Current.CancellationToken);
-        }
-
-        Assert.True(condition(), what);
-    }
+    private static Task WaitForAsync(Func<bool> condition, string what) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(5), what, TestContext.Current.CancellationToken);
 
     /// <summary>A body whose length the client can't tell, so HTTP/1.1 sends it chunked and HTTP/2 without a length.</summary>
     private sealed class UnknownLengthStream(byte[] data) : MemoryStream(data)

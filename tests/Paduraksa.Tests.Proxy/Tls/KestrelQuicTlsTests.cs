@@ -12,7 +12,6 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 
@@ -56,7 +55,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
 
     private static async Task<TlsTestServer> StartAsync(TlsHandshakeSelector selector, IPAddress? address = null, RequestDelegate? handler = null)
     {
-        QuicTestSupport.Require();
+        QuicSupport.Require();
         var http3 = false;
         var server = await QuicTestSupport.StartOnFreePortAsync(address, port => TlsTestServer.StartAsync(
             static web => web.UsePublicHttpsTransports(),
@@ -73,7 +72,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
     [Fact]
     public async Task TheCapCountsEstablishedHttp3ConnectionsAndTheDenyListRefusesTheHandshake()
     {
-        QuicTestSupport.Require();
+        QuicSupport.Require();
         var scanners = new AccessListSpec { Id = TestIds.AccessList("scanners"), Name = "scanners", Realm = "scanners", Deny = ["198.51.100.0/24"] };
         using var store = new SnapshotStore();
         store.Publish(TestSnapshots.Bound(new ProxyConfigModel
@@ -145,7 +144,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
     [Fact]
     public async Task ADenyListedAddressIsRefusedInTheQuicHandshake()
     {
-        QuicTestSupport.Require();
+        QuicSupport.Require();
         var scanners = new AccessListSpec { Id = TestIds.AccessList("scanners"), Name = "scanners", Realm = "scanners", Deny = ["127.0.0.0/8"] };
         using var store = new SnapshotStore();
         store.Publish(TestSnapshots.Bound(new ProxyConfigModel
@@ -169,7 +168,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
     [Fact]
     public void PortZeroIsRejectedWithHttp3()
     {
-        QuicTestSupport.Require();
+        QuicSupport.Require();
         var selector = new TlsHandshakeSelector(new CertificateTableSource(Table()));
 
         // Validated before any listener is added (TCP and UDP must share one port).
@@ -266,7 +265,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
     [Fact]
     public async Task AnAuthenticatedOriginPullsHostIsRefusedOverQuicWhileAnotherHostIsServed()
     {
-        QuicTestSupport.Require();
+        QuicSupport.Require();
         using var cloudflare = TestOriginPullCa.Create();
         var shared = _pki.Leaf("shared.test", "*.test");
         var id = TestIds.Certificate("shared");
@@ -306,7 +305,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
     [Fact]
     public async Task OriginLockdownRefusesAnUntrustedPeerBeforeTheQuicHandshakeCompletes()
     {
-        QuicTestSupport.Require();
+        QuicSupport.Require();
         var shared = _pki.Leaf("shared.test", "*.test");
         var id = TestIds.Certificate("shared");
         ProxyConfigModel model = new()

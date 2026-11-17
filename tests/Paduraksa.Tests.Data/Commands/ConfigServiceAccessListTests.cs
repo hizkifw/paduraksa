@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.Revisions;
@@ -12,7 +11,6 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Simulation;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
@@ -371,7 +369,7 @@ public sealed class ConfigServiceAccessListTests : IAsyncLifetime
     [Fact]
     public async Task ARestoreThatFailsIsAuditedByItselfNamingTheUserAndNeverThePassword()
     {
-        var loggers = new CapturingLoggerFactory();
+        var loggers = new ListLoggerFactory();
         var passwords = new TestPasswords { RevertFailure = new InvalidOperationException("The vault is gone.") };
         await using var h = await ConfigServiceHarness.CreateAsync(passwords: passwords, loggers: loggers);
         var id = AccessListId.New();

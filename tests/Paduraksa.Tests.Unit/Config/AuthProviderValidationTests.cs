@@ -245,10 +245,4 @@ public sealed class AuthProviderValidationTests
 
     private static ConfigDocument WithProvider(ForwardAuthConfig forward) =>
         Valid() with { AuthProviders = [new AuthProviderConfig(Sso, "sso", ForwardAuth: forward)] };
-
-    private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected) =>
-        Assert.Equal(expected, ConfigValidator.Validate(document).Select(e => (e.Path, e.Code)));
-
-    private static HostConfig[] MapHost(ConfigDocument document, HostId id, Func<HostConfig, HostConfig> change) =>
-        [.. document.Hosts.Select(h => h.Id == id ? change(h) : h)];
 }

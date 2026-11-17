@@ -72,7 +72,4 @@ public sealed class PathRewriteValidationTests
         RouteConfig[] routes = [.. host.Routes.Select((route, i) => i == index ? route with { Rewrite = rewrite } : route)];
         return document with { Hosts = [host with { Routes = routes }, .. document.Hosts.Skip(1)] };
     }
-
-    private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected) =>
-        Assert.Equal(expected, ConfigValidator.Validate(document).Select(e => (e.Path, e.Code)));
 }

@@ -94,7 +94,7 @@ public sealed class AuditLogTests : IAsyncLifetime
     {
         // A restart on a clock an hour behind the last run: the fresh generator would issue IDs below the latest.
         var latest = await AppendAsync(Entry("config.host.update"));
-        var logger = new ListLogger();
+        var logger = new ListLogger<AuditLog>();
         var behind = new AuditLog(new ManualTimeProvider(Now.AddHours(-1)), logger);
 
         await using (var context = _db.NewContext())
@@ -123,19 +123,6 @@ public sealed class AuditLogTests : IAsyncLifetime
         var stored = AuditMapping.ToRecord(await context.AuditEvents.SingleAsync(Ct));
         Assert.Equal(AuditChain.Encode(appended), AuditChain.Encode(stored));
         Assert.True((await AuditChainVerifier.VerifyAsync(context, Ct)).IsIntact);
-    }
-
-    private sealed class ListLogger : ILogger<AuditLog>
-    {
-        public List<(LogLevel Level, string Message)> Entries { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entries.Add((logLevel, formatter(state, exception)));
     }
 
     [Fact]

@@ -2,11 +2,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 
-using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -45,17 +43,8 @@ public sealed class MetricsEndToEndTests(TestUpstream upstream) : IClassFixture<
         return totals;
     }
 
-    private static async Task WaitForAsync(Func<bool> condition, string what)
-    {
-        var timeout = Stopwatch.StartNew();
-        while (!condition() && timeout.Elapsed < TimeSpan.FromSeconds(10))
-        {
-            // Poll step of a wait bounded to ten seconds.
-            await Task.Delay(5, TestContext.Current.CancellationToken);
-        }
-
-        Assert.True(condition(), what);
-    }
+    private static Task WaitForAsync(Func<bool> condition, string what) =>
+        Polling.UntilAsync(condition, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(5), what, TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task EachKindOfAnswerCountsAsItsStatusClassAndGateOutcome()
