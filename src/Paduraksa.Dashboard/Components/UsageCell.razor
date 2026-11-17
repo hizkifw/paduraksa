@@ -1,4 +1,4 @@
-@* Where a rule set is applied: how many hosts and routes, each linked to its host. Nothing when no host or route uses it. *@
+@* Where a referenced object is applied: how many hosts and routes, each linked to its host. *@
 @if (Usage.IsEmpty)
 {
     <span class="pdk-muted">No host or route</span>
@@ -22,5 +22,5 @@ else
 
 @code {
     [Parameter, EditorRequired]
-    public RuleSetUsage Usage { get; set; } = default!;
+    public ReferenceUsage Usage { get; set; } = default!;
 }

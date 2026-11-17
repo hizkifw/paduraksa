@@ -75,7 +75,7 @@ else
                 </div>
                 @foreach (var set in _document.RuleSets.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    var usage = RuleSetUsageOf.Find(_document, set.Id);
+                    var usage = ReferenceUsage.Find(_document, s => s.RuleSet?.RuleSetId == set.Id);
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(set)" data-rule-set="@set.Name" @key="set.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Rule" Size="Size.Small" /></span>
@@ -92,7 +92,7 @@ else
                             <span class="pdk-dt-note">@RuleSetText.Summary(set)</span>
                         </div>
                         <div role="cell" class="pdk-dt-cell" data-label="Used by" @onclick:stopPropagation="true">
-                            <RuleSetUsageCell Usage="usage" />
+                            <UsageCell Usage="usage" />
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
                             @if (_mayWrite && usage.IsEmpty)
@@ -120,7 +120,7 @@ else
                 </div>
                 @foreach (var preset in RuleSetPresets.All)
                 {
-                    var usage = RuleSetUsageOf.Find(_document, preset.Id);
+                    var usage = ReferenceUsage.Find(_document, s => s.RuleSet?.RuleSetId == preset.Id);
                     <div class="pdk-dt-row" role="row" data-preset="@preset.Name" @key="preset.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-list-icon pdk-tone-default"><MudIcon Icon="@Icons.Material.Outlined.Rule" Size="Size.Small" /></span>
@@ -133,7 +133,7 @@ else
                             <span class="pdk-dt-note">@RuleSetText.Summary(preset)</span>
                         </div>
                         <div role="cell" class="pdk-dt-cell" data-label="Used by">
-                            <RuleSetUsageCell Usage="usage" />
+                            <UsageCell Usage="usage" />
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-actions">
                             @if (_mayWrite)
@@ -245,7 +245,7 @@ else
 
     private async Task ReviewDeleteAsync(RuleSetConfig set)
     {
-        if (_document is null || !_mayWrite || !RuleSetUsageOf.Find(_document, set.Id).IsEmpty)
+        if (_document is null || !_mayWrite || !ReferenceUsage.Find(_document, s => s.RuleSet?.RuleSetId == set.Id).IsEmpty)
         {
             return;
         }

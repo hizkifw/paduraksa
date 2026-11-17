@@ -4,11 +4,11 @@ using Paduraksa.Dashboard.Config;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>What a set's usage says: how many hosts and routes, and the verb that agrees with it.</summary>
-public sealed class RuleSetUsageTests
+/// <summary>What a usage says: how many hosts and routes, and the verb that agrees with it.</summary>
+public sealed class ReferenceUsageTests
 {
     private static readonly HostConfig Host = new(HostId.New(), ["app.example.com"]);
-    private static readonly RuleSetRouteUse Route = new(Host, new RouteConfig(RouteId.New(), UpstreamId.New(), Path: "/admin"));
+    private static readonly RouteUse Route = new(Host, new RouteConfig(RouteId.New(), UpstreamId.New(), Path: "/admin"));
 
     [Theory]
     [InlineData(1, 0, "1 host", "uses")]
@@ -18,7 +18,7 @@ public sealed class RuleSetUsageTests
     [InlineData(1, 1, "1 host, 1 route", "use")]
     public void TheVerbAgreesWithTheSubjectTheCountTextBuilds(int hosts, int routes, string text, string verb)
     {
-        RuleSetUsage usage = new([.. Enumerable.Repeat(Host, hosts)], [.. Enumerable.Repeat(Route, routes)]);
+        ReferenceUsage usage = new([.. Enumerable.Repeat(Host, hosts)], [.. Enumerable.Repeat(Route, routes)]);
 
         Assert.Equal(text, usage.CountText);
         Assert.Equal(verb, usage.UseVerb);

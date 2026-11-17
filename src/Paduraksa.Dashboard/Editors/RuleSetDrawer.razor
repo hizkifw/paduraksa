@@ -246,8 +246,8 @@
 
     private string Title => Missing ? "Rule set not found" : Staged is { } staged ? staged.Name : Model is null ? (Id is null ? "New rule set" : "Rule set") : Model.IsNew ? "New rule set" : StoredName;
 
-    private RuleSetUsage Usage =>
-        Model is null || Document is null || Model.IsNew ? new RuleSetUsage([], []) : RuleSetUsageOf.Find(Document, Model.Id);
+    private ReferenceUsage Usage =>
+        Model is null || Document is null || Model.IsNew ? ReferenceUsage.None : ReferenceUsage.Find(Document, s => s.RuleSet?.RuleSetId == Model.Id);
 
     protected override string LoadFailureMessage => "Couldn't load the rule-set form.";
 

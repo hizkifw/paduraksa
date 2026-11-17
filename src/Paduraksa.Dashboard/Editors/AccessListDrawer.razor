@@ -230,8 +230,8 @@
 
     private string Title => Missing ? "Access list not found" : Staged is { } staged ? staged.Name : Model is null ? (Id is null ? "New access list" : "Access list") : Model.IsNew ? "New access list" : StoredName;
 
-    private AccessListUsage Usage =>
-        Model is null || Document is null || Model.IsNew ? new AccessListUsage([], []) : AccessListUsageOf.Find(Document, Model.Id);
+    private ReferenceUsage Usage =>
+        Model is null || Document is null || Model.IsNew ? ReferenceUsage.None : ReferenceUsage.Find(Document, s => s.AccessList?.AccessListId == Model.Id);
 
     private string SatisfyHelp => Model is { Satisfy: AccessListSatisfy.Any }
         ? "A visitor the allowed addresses and countries admit gets in without a password; any other visitor, a blocked country included, can still sign in. A denied address or country is refused even with the right password."

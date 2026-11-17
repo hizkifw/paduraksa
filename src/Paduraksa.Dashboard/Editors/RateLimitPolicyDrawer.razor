@@ -172,8 +172,8 @@
 
     private string Title => Missing ? "Rate limit not found" : Staged is { } staged ? staged.Name : Model is null ? (Id is null ? "New rate limit" : "Rate limit") : Model.IsNew ? "New rate limit" : StoredName;
 
-    private RateLimitUsage Usage =>
-        Model is null || Document is null || Model.IsNew ? new RateLimitUsage([], []) : RateLimitUsageOf.Find(Document, Model.Id);
+    private ReferenceUsage Usage =>
+        Model is null || Document is null || Model.IsNew ? ReferenceUsage.None : ReferenceUsage.Find(Document, s => s.RateLimit?.PolicyId == Model.Id);
 
     /// <summary>The key's own explanation, except for a header key: the header field below already says how it is keyed.</summary>
     private string? KeyHelp => Model?.Key switch

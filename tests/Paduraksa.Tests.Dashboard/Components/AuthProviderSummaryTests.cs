@@ -39,8 +39,8 @@ public sealed class AuthProviderSummaryTests
     public void TheVerbAgreesWithTheSubjectTheCountTextBuilds(int hosts, int routes, string text, string verb)
     {
         var host = new HostConfig(HostId.New(), ["app.example.com"]);
-        var route = new AuthProviderRouteUse(host, new RouteConfig(RouteId.New(), UpstreamId.New(), Path: "/admin"));
-        AuthProviderUsage usage = new([.. Enumerable.Repeat(host, hosts)], [.. Enumerable.Repeat(route, routes)]);
+        var route = new RouteUse(host, new RouteConfig(RouteId.New(), UpstreamId.New(), Path: "/admin"));
+        ReferenceUsage usage = new([.. Enumerable.Repeat(host, hosts)], [.. Enumerable.Repeat(route, routes)]);
 
         Assert.Equal(text, usage.CountText);
         Assert.Equal(verb, usage.UseVerb);
@@ -63,7 +63,7 @@ public sealed class AuthProviderSummaryTests
             AuthProviders: [Sso],
             Hosts: [inheriting, turnedOff, other]);
 
-        var usage = AuthProviderUsageOf.Find(document, Sso.Id);
+        var usage = ReferenceUsage.Find(document, s => s.AuthProvider?.AuthProviderId == Sso.Id);
 
         // The host that turns the switch off still names the provider (a reference kept while off), so deleting it would be refused too.
         Assert.Equal(["a.example.com", "b.example.com"], usage.Hosts.Select(h => h.Names[0]));

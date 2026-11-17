@@ -74,7 +74,7 @@ else
                 </div>
                 @foreach (var list in _document.AccessLists.OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    var usage = AccessListUsageOf.Find(_document, list.Id);
+                    var usage = ReferenceUsage.Find(_document, s => s.AccessList?.AccessListId == list.Id);
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(list)" data-access-list="@list.Name" @key="list.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" /></span>
@@ -91,26 +91,7 @@ else
                             <span class="pdk-dt-note">@AccessListText.Summary(list)</span>
                         </div>
                         <div role="cell" class="pdk-dt-cell" data-label="Used by" @onclick:stopPropagation="true">
-                            @if (usage.IsEmpty)
-                            {
-                                <span class="pdk-muted">No host or route</span>
-                            }
-                            else
-                            {
-                                <div class="pdk-dt-stack">
-                                    <span class="pdk-muted">@usage.CountText</span>
-                                    <span class="pdk-dt-chips">
-                                        @foreach (var host in usage.Hosts)
-                                        {
-                                            <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
-                                        }
-                                        @foreach (var use in usage.Routes)
-                                        {
-                                            <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(use.Host.Id)">@($"{ChangeView.HostTitle(use.Host)} {use.Route.Path}")</a>
-                                        }
-                                    </span>
-                                </div>
-                            }
+                            <UsageCell Usage="usage" />
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
                             @if (_mayWrite && usage.IsEmpty)
@@ -216,7 +197,7 @@ else
 
     private async Task ReviewDeleteAsync(AccessListConfig list)
     {
-        if (_document is null || !_mayWrite || !AccessListUsageOf.Find(_document, list.Id).IsEmpty)
+        if (_document is null || !_mayWrite || !ReferenceUsage.Find(_document, s => s.AccessList?.AccessListId == list.Id).IsEmpty)
         {
             return;
         }

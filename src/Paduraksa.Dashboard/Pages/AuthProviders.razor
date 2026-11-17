@@ -74,7 +74,7 @@ else
                 </div>
                 @foreach (var set in _document.AuthProviders.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    var usage = AuthProviderUsageOf.Find(_document, set.Id);
+                    var usage = ReferenceUsage.Find(_document, s => s.AuthProvider?.AuthProviderId == set.Id);
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(set)" data-auth-provider="@set.Name" @key="set.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" /></span>
@@ -91,7 +91,7 @@ else
                             <span class="pdk-dt-note">@AuthProviderText.Summary(set)</span>
                         </div>
                         <div role="cell" class="pdk-dt-cell" data-label="Used by" @onclick:stopPropagation="true">
-                            <AuthProviderUsageCell Usage="usage" />
+                            <UsageCell Usage="usage" />
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
                             @if (_mayWrite && usage.IsEmpty)
@@ -198,7 +198,7 @@ else
 
     private async Task ReviewDeleteAsync(AuthProviderConfig set)
     {
-        if (_document is null || !_mayWrite || !AuthProviderUsageOf.Find(_document, set.Id).IsEmpty)
+        if (_document is null || !_mayWrite || !ReferenceUsage.Find(_document, s => s.AuthProvider?.AuthProviderId == set.Id).IsEmpty)
         {
             return;
         }

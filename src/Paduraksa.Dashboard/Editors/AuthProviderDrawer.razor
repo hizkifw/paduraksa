@@ -228,8 +228,8 @@
 
     private string Title => Missing ? "Auth provider not found" : Staged is { } staged ? staged.Name : Model is null ? (Id is null ? "New auth provider" : "Auth provider") : Model.IsNew ? "New auth provider" : StoredName;
 
-    private AuthProviderUsage Usage =>
-        Model is null || Document is null || Model.IsNew ? new AuthProviderUsage([], []) : AuthProviderUsageOf.Find(Document, Model.Id);
+    private ReferenceUsage Usage =>
+        Model is null || Document is null || Model.IsNew ? ReferenceUsage.None : ReferenceUsage.Find(Document, s => s.AuthProvider?.AuthProviderId == Model.Id);
 
     protected override string LoadFailureMessage => "Couldn't load the auth-provider form.";
 
