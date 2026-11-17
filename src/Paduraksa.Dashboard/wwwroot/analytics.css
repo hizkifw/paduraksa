@@ -18,13 +18,6 @@
     margin-bottom: 0;
 }
 
-.pdk-analytics-approx-text {
-    display: block;
-    max-width: 340px;
-    font-size: 0.75rem;
-    line-height: 1.45;
-}
-
 .pdk-analytics-tables {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
 }

@@ -2,15 +2,6 @@
  * First-run setup and what follows it: the setup page's password strength, two-step enrolment (My account) and the overview's checklist.
  */
 
-.visually-hidden {
-    position: absolute !important;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-}
-
 /* ---------- The setup page's password strength ---------- */
 
 .pdk-strength {

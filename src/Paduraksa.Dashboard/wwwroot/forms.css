@@ -641,7 +641,7 @@
     display: grid;
 }
 
-.pdk-allow, .pdk-health {
+.pdk-health {
     display: grid;
     gap: 4px;
 }

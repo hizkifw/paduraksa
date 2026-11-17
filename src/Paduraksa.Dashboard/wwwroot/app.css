@@ -288,22 +288,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     gap: 8px;
 }
 
-/* A blocked entry in the review: what it is and why, with its Reload beside it. */
-.pdk-review-blocked {
-    margin: 8px 0 0;
-}
-
-.pdk-review-blocked li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.pdk-review-blocked .mud-button-root {
-    flex: none;
-}
-
 /* An entry says what it does in words that may be long, and its chip must not be the part that is cut off. */
 .pdk-draft-entry .pdk-list-title {
     overflow: visible;
