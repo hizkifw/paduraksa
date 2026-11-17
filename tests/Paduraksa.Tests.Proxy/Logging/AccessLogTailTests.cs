@@ -384,13 +384,13 @@ public sealed class AccessLogTailTests
 
     /// <summary>
     /// The stored query is cut at the file's cap before it is redacted. A sensitive parameter that straddles the cut must still show
-    /// no value: its name with a partial value reads REDACTED, a partial name has no value to show. An earlier long sensitive value
+    /// no value: its name with a partial value reads REDACTED, a partial name is dropped. An earlier long sensitive value
     /// shrinks under redaction, so the result still fits the visible cap and the cut is what the marker reports.
     /// </summary>
     [Theory]
     [InlineData(402, "token=REDACTED")]
     [InlineData(405, "token=REDACTED")]
-    [InlineData(408, "&tok")]
+    [InlineData(408, "x&")]
     public void ASensitiveParameterAtTheCutOfTheStoredQueryShowsNoValue(int filler, string expectedEnd)
     {
         var query = "?password=" + new string('p', 600) + "&a=" + new string('x', filler) + "&token=" + string.Concat(Enumerable.Repeat("SECRET", 20));
@@ -404,6 +404,22 @@ public sealed class AccessLogTailTests
         Assert.DoesNotContain("ppp", shown, StringComparison.Ordinal);
         Assert.StartsWith("?password=REDACTED&a=x", shown, StringComparison.Ordinal);
         Assert.EndsWith(expectedEnd + AccessLogFormatter.TruncationMarker, shown, StringComparison.Ordinal);
+    }
+
+    // Found by the access-log-tail fuzz target: "t" of "token" at the cut matched the sensitive key "t" and showed a "t=REDACTED" the request never had.
+    [Fact]
+    public void APartialNameAtTheCutOfTheStoredQueryIsDroppedNotReadAsAName()
+    {
+        AccessLogFormatOptions options = new() { SensitiveQueryKeys = ["t"] };
+        // The redacted value frees room, so the marker doesn't cover what the end of the cut query became.
+        var query = "?t=" + new string('v', 600) + "&a=" + new string('x', AccessLogFormatter.MaxQueryLength - 607) + "&token=abc";
+        AccessLogTail tail = new(4, options);
+        tail.Offer(Entry("/x") with { Query = query });
+
+        var shown = tail.Recent(AccessLogTailFilter.All, 1)[0].Query!;
+
+        Assert.DoesNotContain("&t=REDACTED", shown, StringComparison.Ordinal);
+        Assert.EndsWith("x&" + AccessLogFormatter.TruncationMarker, shown, StringComparison.Ordinal);
     }
 
     [Fact]

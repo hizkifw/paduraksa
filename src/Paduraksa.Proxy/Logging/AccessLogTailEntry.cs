@@ -128,10 +128,21 @@ public sealed class AccessLogTailEntry
     /// <summary>
     /// The raw query kept before redaction: the file's own query cap, so the tail never holds more of a query than it could show.
     /// Redaction after the cut stays safe: a cut only ever removes the end of the last parameter, so a sensitive parameter that
-    /// straddles it is a name with a partial value, which reads <c>name=REDACTED</c> like any other, or a partial name, which is no
-    /// value at all.
+    /// straddles it is a name with a partial value, which reads <c>name=REDACTED</c> like any other, or a partial name, which is
+    /// dropped: read as a name it could match a sensitive key it isn't (<c>t</c> of <c>token</c>) and show a pair the request never had.
     /// </summary>
     private const int MaxRawQueryLength = AccessLogFormatter.MaxQueryLength;
+
+    private static ReadOnlySpan<char> WithoutPartialName(string query)
+    {
+        var last = query.LastIndexOf('&') + 1;
+        if (last == 0 && query[0] == '?')
+        {
+            last = 1;
+        }
+
+        return query.AsSpan(last).Contains('=') ? query : query.AsSpan(0, last);
+    }
 
     private static bool Fits(string? value, int cap) => value is null || value.Length <= cap + 1;
 
@@ -181,9 +192,10 @@ public sealed class AccessLogTailEntry
         Span<char> redacted = stackalloc char[AccessLogFormatter.MaxQueryLength + AccessLogFormatter.TruncationMarker.Length];
         var length = 0;
         var truncated = false;
-        AccessLogFormatter.AppendQuery(query, options, redacted, ref length, ref truncated);
         // Bound kept one character more than the cap, so a longer query than that was cut before it got here (or is that long).
-        truncated |= query.Length > AccessLogFormatter.MaxQueryLength;
+        var cut = query.Length > AccessLogFormatter.MaxQueryLength;
+        AccessLogFormatter.AppendQuery(cut ? WithoutPartialName(query) : query, options, redacted, ref length, ref truncated);
+        truncated |= cut;
         if (truncated)
         {
             length = Math.Min(length, redacted.Length - AccessLogFormatter.TruncationMarker.Length);

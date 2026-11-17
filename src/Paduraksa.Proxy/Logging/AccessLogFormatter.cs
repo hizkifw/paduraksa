@@ -229,14 +229,14 @@ public static class AccessLogFormatter
     /// The query as the file writes it (the entry carries it raw, <c>?</c> included): its sensitive parameters redacted, written
     /// back as one token. Shared with the live tail, so what the tail shows is what the file says by construction.
     /// </summary>
-    internal static void AppendQuery(string query, AccessLogFormatOptions options, Span<char> target, ref int length, ref bool truncated)
+    internal static void AppendQuery(ReadOnlySpan<char> query, AccessLogFormatOptions options, Span<char> target, ref int length, ref bool truncated)
     {
         truncated |= !Append("?", target, ref length);
-        var start = query[0] == '?' ? 1 : 0;
+        var start = query is ['?', ..] ? 1 : 0;
         while (true)
         {
-            var end = query.AsSpan(start).IndexOf('&');
-            var parameter = end < 0 ? query.AsSpan(start) : query.AsSpan(start, end);
+            var end = query[start..].IndexOf('&');
+            var parameter = end < 0 ? query[start..] : query.Slice(start, end);
             var equals = parameter.IndexOf('=');
             var name = equals < 0 ? parameter : parameter[..equals];
             if (options.IsSensitive(name))
