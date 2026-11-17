@@ -6,7 +6,7 @@ namespace Paduraksa.Proxy.Metrics;
 /// What the gate's security counters gained over one stretch of time: a minute the sampler closed, a stored rollup minute, or a range
 /// summed from them; and how many of its seconds the process observed, as a <see cref="MetricPoint"/> records it.
 /// </summary>
-public sealed class SecurityPoint
+public sealed class SecurityPoint : IRollupPoint
 {
     /// <summary>How many counters a point holds: one per <see cref="SecurityCounter"/>.</summary>
     public const int Count = (int)SecurityCounter.RulesTimeouts + 1;
@@ -65,4 +65,4 @@ public sealed class SecurityPoint
 /// <param name="Subject">What the minute is about.</param>
 /// <param name="SubjectId">The typed-ID string (<c>aup_...</c>, <c>rls_...</c>); empty for <see cref="SecurityRollupSubject.Total"/>.</param>
 /// <param name="Point">The minute's figures.</param>
-public readonly record struct SecurityRollup(SecurityRollupSubject Subject, string SubjectId, SecurityPoint Point);
+public readonly record struct SecurityRollup(SecurityRollupSubject Subject, string SubjectId, SecurityPoint Point) : IRollup<SecurityRollupSubject, SecurityPoint>;

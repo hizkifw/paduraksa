@@ -9,7 +9,7 @@ namespace Paduraksa.Proxy.Metrics;
 /// A host series fills every field; an upstream series fills the requests, <see cref="Errors"/>, the bytes and the upstream-time fields;
 /// the totals series is the sum over every host, the unmatched slot included.
 /// </summary>
-public readonly record struct MetricPoint
+public readonly record struct MetricPoint : IRollupPoint
 {
     /// <summary>The bucket's first second, as Unix time.</summary>
     public long Start { get; init; }
@@ -94,4 +94,4 @@ public readonly record struct MetricPoint
 /// <param name="Subject">What the minute is about.</param>
 /// <param name="SubjectId">The typed-ID string (<c>host_...</c>, <c>ups_...</c>); empty for <see cref="MetricRollupSubject.Total"/>.</param>
 /// <param name="Point">The minute's figures: <see cref="MetricPoint.Width"/> 60, <see cref="MetricPoint.CoveredSeconds"/> the part of it the process observed.</param>
-public readonly record struct MetricRollup(MetricRollupSubject Subject, string SubjectId, MetricPoint Point);
+public readonly record struct MetricRollup(MetricRollupSubject Subject, string SubjectId, MetricPoint Point) : IRollup<MetricRollupSubject, MetricPoint>;
