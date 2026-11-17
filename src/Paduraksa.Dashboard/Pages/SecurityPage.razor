@@ -204,7 +204,7 @@ else
                                         @if (host.RuleSet?.Set is { } set)
                                         {
                                             <a class="pdk-row-link" href="@RuleSetHref(set)">@set.Name</a>
-                                            <span class="pdk-dt-note" title="Requests this set refused or dropped, across every host that applies it">@(SecurityFigures.RefusedText(set, Fmt) ?? $"{set.Rules} {(set.Rules == 1 ? "rule" : "rules")}")</span>
+                                            <span class="pdk-dt-note" title="Requests this set refused or dropped, across every host that applies it">@(SecurityFigures.RefusedText(set, Fmt) ?? Wording.Plural(set.Rules, "rule", "rules"))</span>
                                             @if (SecurityFigures.TimeoutText(set, Fmt) is { } timedOut)
                                             {
                                                 <span class="pdk-dt-note" data-part="rule-timeouts" title="Matches of a regex rule that ran past its time limit and were decided by the rule's action">@timedOut</span>

@@ -230,7 +230,7 @@
 
     private string? ExpiringDetail => ExpiringCount == 0
         ? null
-        : $"{Fmt.Count(ExpiringCount)}{(Snapshot?.ExpiringInUse == true ? " in use" : string.Empty)} {(ExpiringCount == 1 ? "expires" : "expire")} within {HomeSnapshot.ExpiryHorizonDays} days";
+        : $"{Fmt.Count(ExpiringCount)}{(Snapshot?.ExpiringInUse == true ? " in use" : string.Empty)} expiring within {HomeSnapshot.ExpiryHorizonDays} days";
 
     protected override Task OnInitializedAsync() => LoadAsync(force: false);
 

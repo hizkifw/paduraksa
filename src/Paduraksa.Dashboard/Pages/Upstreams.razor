@@ -252,7 +252,7 @@ else
     /// <summary>One line about how the upstream spreads load and checks health.</summary>
     internal static string Describe(UpstreamConfig upstream)
     {
-        List<string> parts = [upstream.Destinations.Count == 1 ? "1 destination" : $"{upstream.Destinations.Count} destinations"];
+        List<string> parts = [Wording.Plural(upstream.Destinations.Count, "destination", "destinations")];
         if (upstream.LoadBalancing is { } policy)
         {
             parts.Add(FieldLabels.Value(System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(policy.ToString())).ToLowerInvariant());

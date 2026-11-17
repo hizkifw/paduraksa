@@ -54,7 +54,7 @@
         {
             foreach (var notice in await Config.TakeDraftNoticesAsync())
             {
-                var changes = notice.Entries == 1 ? "1 change" : $"{notice.Entries} changes";
+                var changes = Wording.Plural(notice.Entries, "change", "changes");
                 Snackbar.Add($"Your draft with {changes} expired after {(int)DraftService.Lifetime.TotalDays} days untouched.", Severity.Info, options => options.RequireInteraction = true);
             }
         }

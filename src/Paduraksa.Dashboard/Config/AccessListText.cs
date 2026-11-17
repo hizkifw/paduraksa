@@ -1,5 +1,6 @@
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -29,17 +30,17 @@ public static class AccessListText
 
         if (allowCountries > 0)
         {
-            parts.Add($"only {allowCountries} {(allowCountries == 1 ? "country" : "countries")}");
+            parts.Add($"only {Wording.Plural(allowCountries, "country", "countries")}");
         }
 
         if (denyCountries > 0)
         {
-            parts.Add($"blocks {denyCountries} {(denyCountries == 1 ? "country" : "countries")}");
+            parts.Add($"blocks {Wording.Plural(denyCountries, "country", "countries")}");
         }
 
         if (users > 0)
         {
-            parts.Add($"{users} {(users == 1 ? "user" : "users")}");
+            parts.Add(Wording.Plural(users, "user", "users"));
         }
 
         if (users > 0 && (allow > 0 || deny > 0 || allowCountries > 0 || denyCountries > 0))

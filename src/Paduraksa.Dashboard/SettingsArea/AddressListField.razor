@@ -2,7 +2,7 @@
    how many entries the box holds, so a pasted list can be checked at a glance. *@
 <MudTextField T="string" Value="Text" ValueChanged="TextChanged" Immediate="true" DebounceInterval="250" Label="@Label" Placeholder="@Placeholder"
               Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="@ReadOnly"
-              HelperText="@(Count == 0 ? null : $"{Count} {(Count == 1 ? "entry" : "entries")}")"
+              HelperText="@(Count == 0 ? null : Wording.Plural(Count, "entry", "entries"))"
               Error="@(Error is not null)" ErrorText="@Error" data-field="@Field" spellcheck="false" autocomplete="off" />
 
 @code {

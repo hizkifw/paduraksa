@@ -4,6 +4,7 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -222,7 +223,7 @@ public static class HostOverview
         if (left <= TimeSpan.FromDays(ExpiringDays))
         {
             var days = Math.Max(1, (int)left.TotalDays);
-            return new CertificateState(days == 1 ? "Expires tomorrow" : $"Expires in {days} days", Tone.Warning, detail);
+            return new CertificateState(days == 1 ? "Expires tomorrow" : $"Expires in {Wording.Plural(days, "day", "days")}", Tone.Warning, detail);
         }
 
         return new CertificateState("Valid", Tone.Success, detail);

@@ -407,7 +407,7 @@ public sealed class DraftTests
         await drawers.Find("[data-action=apply-draft]").ClickAsync(new());
 
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=blocked]").Count == 1);
-        Assert.Contains("nothing can be applied", drawers.Find("[data-review=blocked]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("Nothing can be applied", drawers.Find("[data-review=blocked]").TextContent, StringComparison.Ordinal);
         Assert.Contains("Change upstream mine", drawers.Find("[data-entry='1']").TextContent, StringComparison.Ordinal);
         Assert.Single(drawers.FindAll("[data-entry='1'] [data-action=reload-entry]"));
         Assert.True(drawers.Find("[data-action=apply-draft]").HasAttribute("disabled"));
@@ -447,7 +447,7 @@ public sealed class DraftTests
         var (drawers, _) = await OpenReviewAsync(context);
 
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=blocked]").Count == 1);
-        Assert.Equal("1 change is changed elsewhere, so nothing can be applied.", drawers.Find("[data-review=blocked] strong").TextContent.Trim());
+        Assert.Equal("Changed elsewhere: 1 change. Nothing can be applied.", drawers.Find("[data-review=blocked] strong").TextContent.Trim());
         Assert.True(drawers.Find("[data-action=apply-draft]").HasAttribute("disabled"));
         Assert.Empty(config.DraftApplies);
 

@@ -82,8 +82,8 @@
                     @if (_blocked.Count > 0)
                     {
                         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="blocked">
-                            <strong>@(_blocked.Count == 1 ? "1 change is" : $"{_blocked.Count} changes are") changed elsewhere, so nothing can be applied.</strong>
-                            A draft goes in whole or not at all: reload or remove @(_blocked.Count == 1 ? "it" : "these"), then apply.
+                            <strong>Changed elsewhere: @Wording.Plural(_blocked.Count, "change", "changes"). Nothing can be applied.</strong>
+                            A draft goes in whole or not at all: reload or remove them, then apply.
                         </MudAlert>
                     }
 
@@ -385,7 +385,7 @@
     private async Task DiscardAsync()
     {
         var count = Drafts.Count;
-        var what = count == 1 ? "The 1 change in it is discarded." : $"The {count} changes in it are discarded.";
+        var what = $"Discarding the draft drops its {Wording.Plural(count, "change", "changes")}.";
         if (_busy || !await ConfirmActionDialog.AskAsync(Dialogs, "Discard the draft?", what, "Discard", "Nothing in a draft is live, so nothing is undone."))
         {
             return;
@@ -458,7 +458,7 @@
         switch (result.Status)
         {
             case ConfigCommandStatus.Committed:
-                Undo.Offer(result.Revision!, _entries.Count == 1 ? "1 change" : $"{_entries.Count} changes", pending: result.Publish?.Status == PublishOutcomeStatus.Pending);
+                Undo.Offer(result.Revision!, Wording.Plural(_entries.Count, "change", "changes"), pending: result.Publish?.Status == PublishOutcomeStatus.Pending);
                 Level?.Close(new ReviewOutcome(result, false));
                 break;
             case ConfigCommandStatus.PublishFailed:

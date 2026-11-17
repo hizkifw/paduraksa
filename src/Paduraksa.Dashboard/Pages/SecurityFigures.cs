@@ -1,5 +1,6 @@
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Pages;
 
@@ -48,11 +49,11 @@ internal static class SecurityFigures
         .. hosts.OrderBy(host => HasProtection(host) ? 0 : 1).ThenBy(host => host.Name, StringComparer.OrdinalIgnoreCase),
     ];
 
-    public static string Routes(int count) => count == 1 ? "1 route" : $"{count} routes";
+    public static string Routes(int count) => Wording.Plural(count, "route", "routes");
 
     /// <summary>What a list asks of a visitor, in a few words: its users, or that it only looks at addresses and countries.</summary>
     public static string ListText(AccessListRef list) =>
-        list.Users > 0 ? (list.Users == 1 ? "1 user" : $"{list.Users} users")
+        list.Users > 0 ? Wording.Plural(list.Users, "user", "users")
         : list.AddressRanges > 0 && list.Countries > 0 ? "addresses and countries only"
         : list.Countries > 0 ? "countries only"
         : list.AddressRanges > 0 ? "addresses only"
@@ -64,7 +65,7 @@ internal static class SecurityFigures
 
     /// <summary>A set's regex matches that timed out, said only once there are some: it should never happen, so it is worth a line.</summary>
     public static string? TimeoutText(RuleSetRef set, DisplayFormat? format = null) =>
-        set.Timeouts > 0 ? $"{(format ?? DisplayFormat.Invariant).Count(set.Timeouts)} regex {(set.Timeouts == 1 ? "timeout" : "timeouts")}" : null;
+        set.Timeouts > 0 ? Wording.Plural(set.Timeouts, "regex timeout", "regex timeouts", format ?? DisplayFormat.Invariant) : null;
 
     /// <summary>What a provider has decided, in a few words: "1,204 allowed, 12 refused", or that it hasn't been asked yet.</summary>
     public static string DecidedText(AuthProviderRef provider, DisplayFormat? format = null)
@@ -77,7 +78,7 @@ internal static class SecurityFigures
 
     /// <summary>A provider's failed calls, said only once there are some: they refuse requests, so they are worth a line.</summary>
     public static string? FailureText(AuthProviderRef provider, DisplayFormat? format = null) =>
-        provider.Failures > 0 ? $"{(format ?? DisplayFormat.Invariant).Count(provider.Failures)} failed {(provider.Failures == 1 ? "call" : "calls")}" : null;
+        provider.Failures > 0 ? Wording.Plural(provider.Failures, "failed call", "failed calls", format ?? DisplayFormat.Invariant) : null;
 
     public static string LockdownText(OriginLockdownMode mode) => mode switch
     {

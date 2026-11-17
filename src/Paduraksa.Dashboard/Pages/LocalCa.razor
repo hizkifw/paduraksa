@@ -183,7 +183,7 @@ else if (!_failed)
             var result = await Operations.ReissueLocalCaLeavesAsync(origin);
             if (result.Failures.Count == 0)
             {
-                Snackbar.Add($"Re-issued {result.Reissued} certificate{(result.Reissued == 1 ? string.Empty : "s")} from the new root.", Severity.Success);
+                Snackbar.Add($"Re-issued {Wording.Plural(result.Reissued, "certificate", "certificates")} from the new root.", Severity.Success);
             }
             else
             {

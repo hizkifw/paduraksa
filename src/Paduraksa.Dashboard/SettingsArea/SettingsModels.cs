@@ -1,6 +1,7 @@
 using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Config;
 
 namespace Paduraksa.Dashboard.SettingsArea;
@@ -129,7 +130,7 @@ public static class SettingsSummary
     private static string? HeadersText(HeadersSettings headers)
     {
         var count = (headers.Request?.Count ?? 0) + (headers.Response?.Count ?? 0);
-        return count == 0 ? null : count == 1 ? "1 header rule" : $"{count} header rules";
+        return count == 0 ? null : Wording.Plural(count, "header rule", "header rules");
     }
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -198,7 +199,7 @@ public static class SettingsSummary
         var own = pages.Entries().Count(static entry => entry.Content is not null && entry.Key != ErrorPageStatuses.MaintenanceKey);
         if (own > 0)
         {
-            parts.Add(own == 1 ? "1 error page" : $"{own.ToString(System.Globalization.CultureInfo.InvariantCulture)} error pages");
+            parts.Add(Wording.Plural(own, "error page", "error pages"));
         }
 
         if (pages.Maintenance is not null)

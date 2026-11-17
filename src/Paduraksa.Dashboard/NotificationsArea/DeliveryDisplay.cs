@@ -76,7 +76,7 @@ public static class DeliveryDisplay
     {
         ArgumentNullException.ThrowIfNull(delivery);
         format ??= DisplayFormat.Invariant;
-        var tries = delivery.Attempts == 1 ? "1 attempt" : $"{format.Count(delivery.Attempts)} attempts";
+        var tries = Wording.Plural(delivery.Attempts, "attempt", "attempts", format);
         return delivery.State switch
         {
             NotificationDeliveryState.Sent => delivery.SentAt is { } at ? $"Sent {format.Exact(at)} ({tries})" : "Sent",

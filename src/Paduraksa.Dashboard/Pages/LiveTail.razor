@@ -81,7 +81,7 @@ else
             }
             @if (_skipped > 0)
             {
-                <span class="pdk-badge pdk-tone-warning" data-part="skipped" title="Entries this page couldn't show: it fell behind, or paused while more arrived than it holds.">@Fmt.Count(_skipped) @(_skipped == 1 ? "line" : "lines") skipped</span>
+                <span class="pdk-badge pdk-tone-warning" data-part="skipped" title="Entries this page couldn't show: it fell behind, or paused while more arrived than it holds.">@Wording.Plural(_skipped, "line", "lines", Fmt) skipped</span>
             }
         </div>
         @if (_busy)

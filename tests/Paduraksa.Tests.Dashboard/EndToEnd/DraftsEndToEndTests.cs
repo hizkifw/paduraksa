@@ -205,7 +205,7 @@ public sealed class DraftsEndToEndTests
         // Nothing is applied; the drawer stays, says which entry is blocked, and Apply is off until it is resolved.
         var blocked = page.Locator(".pdk-sheet[data-top] [data-review=blocked]");
         await Expect(blocked).ToBeVisibleAsync(new() { Timeout = 15_000 });
-        await Expect(blocked).ToContainTextAsync("nothing can be applied");
+        await Expect(blocked).ToContainTextAsync("Nothing can be applied");
         await Expect(page.Locator(".pdk-sheet[data-top] [data-entry] [data-action=reload-entry]")).ToHaveCountAsync(1);
         await Expect(apply).ToBeDisabledAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "draft-blocked-review", fullPage: false);

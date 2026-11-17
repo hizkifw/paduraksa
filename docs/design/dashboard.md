@@ -779,6 +779,8 @@ Paduraksa is an appliance and reads like a tool: it states things as they are, i
 
 Errors say what failed and what to do, without apologising. The second person is for an instruction that needs it, not for warmth. A confirmation the person states themselves ("I have saved the recovery codes", "I have read and agree to the CA's terms") is theirs, not the software's voice, and stays.
 
+**Counts.** A count and its noun come from `Wording.Plural` ("1 host", "3 hosts"), and a list of parts from `Wording.List` ("a, b and c"). Neither picks a noun or a verb by hand. A sentence that would need a verb to agree with a count is worded without one: a delete refusal reads "Used by 2 hosts and 1 route. Pick another access list (or none) for them first." The list pages' Used by column keeps the short form, "2 hosts, 1 route". A span of time or a decimal amount ("1.5 seconds") stay in `DisplayFormat.Span`, since `Plural` counts whole numbers.
+
 **Terms.** One word per concept. The words in the last column are not used for it.
 
 | Concept | Use | Not |

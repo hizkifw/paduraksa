@@ -36,7 +36,7 @@
                 {
                     <MudIcon Icon="@Icons.Material.Outlined.Link" Size="Size.Small" Class="pdk-chain-ok" />
                     <span title="@(intact.HeadHash is { } hash ? $"Latest hash {hash}. A copy kept elsewhere shows if the newest events are removed." : null)">
-                        Chain intact: @Fmt.Count(intact.VerifiedEvents) @(intact.VerifiedEvents == 1 ? "event verifies" : "events verify")@(_verifiedAt is { } at ? $", checked {Fmt.Ago(at, Time.GetUtcNow())}" : null)
+                        Chain intact: @Wording.Plural(intact.VerifiedEvents, "event", "events", Fmt) verified@(_verifiedAt is { } at ? $", checked {Fmt.Ago(at, Time.GetUtcNow())}" : null)
                     </span>
                 }
                 <MudTooltip Text="Verify the chain again" Arrow="true">
@@ -583,7 +583,7 @@ else
                 using MemoryStream content = new(output.WrittenMemory.ToArray());
                 if (await Browser.DownloadAsync(name, "application/x-ndjson", content))
                 {
-                    Snackbar.Add($"Exported {Fmt.Count(written)} {(written == 1 ? "event" : "events")}{(written >= ExportLimit ? " (the most one export holds)" : string.Empty)}.", Severity.Success);
+                    Snackbar.Add($"Exported {Wording.Plural(written, "event", "events", Fmt)}{(written >= ExportLimit ? " (the most one export holds)" : string.Empty)}.", Severity.Success);
                 }
             });
         }

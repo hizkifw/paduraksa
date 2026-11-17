@@ -3,6 +3,7 @@ using System.Globalization;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -87,5 +88,5 @@ public static class RevisionText
     };
 
     private static string Count(int count, string noun) =>
-        noun == "global settings" ? noun : count == 1 ? $"1 {noun}" : $"{count} {noun}s";
+        noun == "global settings" ? noun : Wording.Plural(count, noun, noun + "s");
 }

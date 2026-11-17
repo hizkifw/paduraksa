@@ -1,3 +1,5 @@
+using Paduraksa.Dashboard.Components;
+
 namespace Paduraksa.Dashboard.AccountArea;
 
 /// <summary>
@@ -13,7 +15,7 @@ public static class PasswordStrength
         var length = password.EnumerateRunes().Count();
         if (length < minLength)
         {
-            return (0, $"Too short: {minLength - length} more {(minLength - length == 1 ? "character" : "characters")}");
+            return (0, $"Too short: {Wording.Plural(minLength - length, "more character", "more characters")}");
         }
 
         var kinds = (password.Any(char.IsLower) ? 1 : 0) + (password.Any(char.IsUpper) ? 1 : 0) + (password.Any(char.IsDigit) ? 1 : 0)

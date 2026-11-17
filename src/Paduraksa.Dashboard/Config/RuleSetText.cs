@@ -1,5 +1,6 @@
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -22,7 +23,7 @@ public static class RuleSetText
         var counts = string.Join(
             ", ",
             set.Rules.GroupBy(rule => rule.Action).OrderBy(group => group.Key).Select(group => $"{(set.Rules.Count == 1 ? string.Empty : group.Count().ToString(System.Globalization.CultureInfo.InvariantCulture) + " ")}{ActionWord(group.Key)}"));
-        return $"{set.Rules.Count} {(set.Rules.Count == 1 ? "rule" : "rules")}: {counts}";
+        return $"{Wording.Plural(set.Rules.Count, "rule", "rules")}: {counts}";
     }
 
     /// <summary>One rule as a sentence: "Deny when path starts with /admin and method is POST".</summary>

@@ -14,7 +14,7 @@
         @if (Roots.Sum(r => r.Leaves) > 0 && MayWrite)
         {
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="() => OnReissue.InvokeAsync()" Disabled="Busy" data-action="reissue-leaves">
-                Re-issue @Roots.Sum(r => r.Leaves) certificate@(Roots.Sum(r => r.Leaves) == 1 ? string.Empty : "s")
+                Re-issue @Wording.Plural(Roots.Sum(r => r.Leaves), "certificate", "certificates")
             </MudButton>
         }
     </div>
@@ -24,7 +24,7 @@
             <li class="pdk-list-item" data-retiring-root="@retiring.Root.Id">
                 <div>
                     <strong>@CertificateDisplay.CommonName(retiring.Root.Subject)</strong>
-                    <span class="pdk-muted"> &middot; valid until @Fmt.Date(retiring.Root.NotAfter) &middot; @(retiring.Leaves == 0 ? "nothing it signed is left" : $"{retiring.Leaves} certificate{(retiring.Leaves == 1 ? string.Empty : "s")} still signed by it")</span>
+                    <span class="pdk-muted"> &middot; valid until @Fmt.Date(retiring.Root.NotAfter) &middot; @(retiring.Leaves == 0 ? "nothing it signed is left" : $"{Wording.Plural(retiring.Leaves, "certificate", "certificates")} still signed by it")</span>
                 </div>
                 <div class="pdk-trust-actions">
                     @if (Pem(retiring.Root.Id) is { } pem)

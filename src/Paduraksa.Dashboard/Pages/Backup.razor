@@ -88,7 +88,7 @@
         var length = BackupPassphrase.Length(_passphrase);
         return BackupPassphrase.Rate(_passphrase) switch
         {
-            PassphraseStrength.TooShort => (1, $"Too short: {BackupPassphrase.MinLength - length} more {(BackupPassphrase.MinLength - length == 1 ? "character" : "characters")}"),
+            PassphraseStrength.TooShort => (1, $"Too short: {Wording.Plural(BackupPassphrase.MinLength - length, "more character", "more characters")}"),
             PassphraseStrength.Fair => (2, "Fair: more characters or words are harder to guess"),
             _ => (4, "Good"),
         };
