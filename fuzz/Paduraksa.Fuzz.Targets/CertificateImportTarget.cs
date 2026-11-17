@@ -100,7 +100,8 @@ internal static class CertificateImportTarget
     {
         Checks.That(info.Sha256Fingerprint.Length == 64 && info.Sha256Fingerprint.All(static c => c is (>= '0' and <= '9') or (>= 'a' and <= 'f')), $"'{info.Sha256Fingerprint}' is not a lower-case SHA-256");
         Checks.That(info.SubjectAlternativeNames.Count > 0, "an accepted certificate has no name");
-        Checks.That(!info.PublicChainPem.Contains("PRIVATE", StringComparison.Ordinal), "the public chain holds a key block");
+        // By label: the base64 of a certificate can spell "PRIVATE" itself.
+        Checks.That(PemLabels(info.PublicChainPem).All(static label => label == "CERTIFICATE"), "the public chain holds a block that is not a certificate");
         Checks.That(info.PublicChainPem.Contains("-----BEGIN CERTIFICATE-----", StringComparison.Ordinal), "the public chain holds no certificate");
         Checks.That(info.ChainIssuers.Count <= 64, "a chain of more certificates than an upload may hold");
 
@@ -129,6 +130,16 @@ internal static class CertificateImportTarget
             }
 
             Checks.That(found.Contains(info.Sha256Fingerprint), $"the leaf {info.Sha256Fingerprint} is not among the {found.Count} certificates of the upload");
+        }
+    }
+
+    private static IEnumerable<string> PemLabels(string pem)
+    {
+        var rest = pem.AsMemory();
+        while (PemEncoding.TryFind(rest.Span, out var fields))
+        {
+            yield return rest.Span[fields.Label].ToString();
+            rest = rest[fields.Location.End..];
         }
     }
 
