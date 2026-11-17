@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 
@@ -67,73 +68,18 @@ public sealed class HostSettingsFieldsTests
     private static readonly Field[] Fields =
     [
         // Group key: the validator names the certificate's mode for a host that forces HTTPS, never /forceHttps.
-        new(
-            "forceHttps",
-            "force-https",
-            "/forceHttps",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "HTTPS redirect", true),
-            new HostSettings { ForceHttps = true },
-            (fields, _) => SetSelect<bool>(fields, "HTTPS redirect", null),
-            new HostSettings(),
-            "Inherit (redirect)")
-        {
-            GroupKey = true,
-        },
-        new(
-            "tls.minimumVersion",
-            "minimum-tls",
-            "/tls",
-            new HostSettings(),
-            (fields, _) => SetSelect<TlsMinimumVersion>(fields, "Minimum TLS version", TlsMinimumVersion.Tls13),
-            new HostSettings { Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls13 } },
-            (fields, _) => SetSelect<TlsMinimumVersion>(fields, "Minimum TLS version", null),
-            new HostSettings(),
-            "Inherit (TLS 1.3)")
-        {
-            ValidatorPath = "/tls/minimumVersion",
-        },
-        new(
-            "tls.tcpAlpn",
-            "tcp-alpn",
-            "/tls",
-            new HostSettings(),
-            (fields, _) => SetSelect<TcpAlpn>(fields, "Protocols over TCP", TcpAlpn.Http11Only),
-            new HostSettings { Tls = new TlsSettings { TcpAlpn = TcpAlpn.Http11Only } },
-            (fields, _) => SetSelect<TcpAlpn>(fields, "Protocols over TCP", null),
-            new HostSettings(),
-            "Inherit (HTTP/1.1 only)")
-        {
-            ValidatorPath = "/tls/tcpAlpn",
-        },
+        SelectRow("forceHttps", "force-https", "/forceHttps", "HTTPS redirect", true,
+            new HostSettings { ForceHttps = true }, "Inherit (redirect)") with { GroupKey = true },
+        SelectRow("tls.minimumVersion", "minimum-tls", "/tls", "Minimum TLS version", TlsMinimumVersion.Tls13,
+            new HostSettings { Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls13 } }, "Inherit (TLS 1.3)") with { ValidatorPath = "/tls/minimumVersion" },
+        SelectRow("tls.tcpAlpn", "tcp-alpn", "/tls", "Protocols over TCP", TcpAlpn.Http11Only,
+            new HostSettings { Tls = new TlsSettings { TcpAlpn = TcpAlpn.Http11Only } }, "Inherit (HTTP/1.1 only)") with { ValidatorPath = "/tls/tcpAlpn" },
         // Group key: the validator has no rule of its own for HTTP/3.
-        new(
-            "tls.http3",
-            "http3",
-            "/tls",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "HTTP/3", false),
-            new HostSettings { Tls = new TlsSettings { Http3 = false } },
-            (fields, _) => SetSelect<bool>(fields, "HTTP/3", null),
-            new HostSettings(),
-            "Inherit (off)")
-        {
-            GroupKey = true,
-        },
+        SelectRow("tls.http3", "http3", "/tls", "HTTP/3", false,
+            new HostSettings { Tls = new TlsSettings { Http3 = false } }, "Inherit (off)") with { GroupKey = true },
         // Group key: HSTS's errors are at maxAge and preload; the switch itself has none.
-        new(
-            "hsts.enabled",
-            "hsts-enabled",
-            "/hsts",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "HSTS", true),
-            new HostSettings { Hsts = new HstsSettings { Enabled = true } },
-            (fields, _) => SetSelect<bool>(fields, "HSTS", null),
-            new HostSettings(),
-            "Inherit (on)")
-        {
-            GroupKey = true,
-        },
+        SelectRow("hsts.enabled", "hsts-enabled", "/hsts", "HSTS", true,
+            new HostSettings { Hsts = new HstsSettings { Enabled = true } }, "Inherit (on)") with { GroupKey = true },
         new(
             "hsts.maxAge",
             "hsts-max-age",
@@ -149,75 +95,17 @@ public sealed class HostSettingsFieldsTests
             ShowsAtField = true,
         },
         // Group key: the preload pair's error is at /hsts/preload, not here.
-        new(
-            "hsts.includeSubDomains",
-            "hsts-include-subdomains",
-            "/hsts/includeSubDomains",
-            new HostSettings { Hsts = new HstsSettings { Enabled = true } },
-            (fields, _) => SetSelect<bool>(fields, "Every subdomain", true),
-            new HostSettings { Hsts = new HstsSettings { Enabled = true, IncludeSubDomains = true } },
-            (fields, _) => SetSelect<bool>(fields, "Every subdomain", null),
-            new HostSettings { Hsts = new HstsSettings { Enabled = true } },
-            "Inherit (on)")
-        {
-            GroupKey = true,
-        },
-        new(
-            "hsts.preload",
-            "hsts-preload",
-            "/hsts/preload",
-            new HostSettings { Hsts = new HstsSettings { Enabled = true } },
-            (fields, _) => SetSelect<bool>(fields, "Preload list", true),
-            new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } },
-            (fields, _) => SetSelect<bool>(fields, "Preload list", null),
-            new HostSettings { Hsts = new HstsSettings { Enabled = true } },
-            "Inherit (on)")
-        {
-            ValidatorPath = "/hsts/preload",
-            ShowsAtField = true,
-        },
+        SelectRow("hsts.includeSubDomains", "hsts-include-subdomains", "/hsts/includeSubDomains", "Every subdomain", true,
+            new HostSettings { Hsts = new HstsSettings { Enabled = true, IncludeSubDomains = true } }, "Inherit (on)", layer: new HostSettings { Hsts = new HstsSettings { Enabled = true } }) with { GroupKey = true },
+        SelectRow("hsts.preload", "hsts-preload", "/hsts/preload", "Preload list", true,
+            new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } }, "Inherit (on)", layer: new HostSettings { Hsts = new HstsSettings { Enabled = true } }) with { ValidatorPath = "/hsts/preload", ShowsAtField = true },
         // Group key: the validator has no rule for the access log.
-        new(
-            "accessLog",
-            "access-log",
-            "/accessLog",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "Access log", false),
-            new HostSettings { AccessLog = false },
-            (fields, _) => SetSelect<bool>(fields, "Access log", null),
-            new HostSettings(),
-            "Inherit (off)")
-        {
-            GroupKey = true,
-        },
-        new(
-            "requestIdPropagation",
-            "request-id-propagation",
-            "/requestIdPropagation",
-            new HostSettings(),
-            (fields, _) => SetSelect<RequestIdPropagation>(fields, "Request ID", RequestIdPropagation.UpstreamOnly),
-            new HostSettings { RequestIdPropagation = RequestIdPropagation.UpstreamOnly },
-            (fields, _) => SetSelect<RequestIdPropagation>(fields, "Request ID", null),
-            new HostSettings(),
-            "Inherit (upstream only)")
-        {
-            ValidatorPath = "/requestIdPropagation",
-            ShowsAtField = true,
-        },
-        new(
-            "serverHeader.mode",
-            "server-header-mode",
-            "/serverHeader/mode",
-            new HostSettings(),
-            (fields, _) => SetSelect<ServerHeaderMode>(fields, "Server header", ServerHeaderMode.Remove),
-            new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove } },
-            (fields, _) => SetSelect<ServerHeaderMode>(fields, "Server header", null),
-            new HostSettings(),
-            "Inherit (custom: edge/1.0)")
-        {
-            ValidatorPath = "/serverHeader/mode",
-            ShowsAtField = true,
-        },
+        SelectRow("accessLog", "access-log", "/accessLog", "Access log", false,
+            new HostSettings { AccessLog = false }, "Inherit (off)") with { GroupKey = true },
+        SelectRow("requestIdPropagation", "request-id-propagation", "/requestIdPropagation", "Request ID", RequestIdPropagation.UpstreamOnly,
+            new HostSettings { RequestIdPropagation = RequestIdPropagation.UpstreamOnly }, "Inherit (upstream only)") with { ValidatorPath = "/requestIdPropagation", ShowsAtField = true },
+        SelectRow("serverHeader.mode", "server-header-mode", "/serverHeader/mode", "Server header", ServerHeaderMode.Remove,
+            new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove } }, "Inherit (custom: edge/1.0)") with { ValidatorPath = "/serverHeader/mode", ShowsAtField = true },
 
         // The custom value has no inherit choice of its own: it belongs to the mode, which says what a layer would inherit.
         new(
@@ -236,33 +124,10 @@ public sealed class HostSettingsFieldsTests
         },
 
         // Group key: the validator rules the difficulty and lifetime, not the switch.
-        new(
-            "proofOfWork.enabled",
-            "proof-of-work-enabled",
-            "/proofOfWork",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "Browser check", true),
-            new HostSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = true } },
-            (fields, _) => SetSelect<bool>(fields, "Browser check", null),
-            new HostSettings(),
-            "Inherit (on)")
-        {
-            GroupKey = true,
-        },
-        new(
-            "proofOfWork.difficulty",
-            "proof-of-work-difficulty",
-            "/proofOfWork/difficulty",
-            new HostSettings(),
-            (fields, _) => SetSelect<int>(fields, "Difficulty", 20),
-            new HostSettings { ProofOfWork = new ProofOfWorkSettings { Difficulty = 20 } },
-            (fields, _) => SetSelect<int>(fields, "Difficulty", null),
-            new HostSettings(),
-            "Inherit (18 bits")
-        {
-            ValidatorPath = "/proofOfWork/difficulty",
-            ShowsAtField = true,
-        },
+        SelectRow("proofOfWork.enabled", "proof-of-work-enabled", "/proofOfWork", "Browser check", true,
+            new HostSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = true } }, "Inherit (on)") with { GroupKey = true },
+        SelectRow("proofOfWork.difficulty", "proof-of-work-difficulty", "/proofOfWork/difficulty", "Difficulty", 20,
+            new HostSettings { ProofOfWork = new ProofOfWorkSettings { Difficulty = 20 } }, "Inherit (18 bits") with { ValidatorPath = "/proofOfWork/difficulty", ShowsAtField = true },
         new(
             "proofOfWork.tokenLifetimeHours",
             "proof-of-work-lifetime",
@@ -342,32 +207,10 @@ public sealed class HostSettingsFieldsTests
 
         // Group keys: the validator has no rule of its own for either (a lockdown mode the select can't make is the enum's
         // error, and the pair only warns).
-        new(
-            "cloudflare.originLockdown",
-            "cloudflare-lockdown",
-            "/cloudflare/originLockdown",
-            new HostSettings(),
-            (fields, _) => SetSelect<OriginLockdownMode>(fields, "Only allow Cloudflare", OriginLockdownMode.Drop),
-            new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop } },
-            (fields, _) => SetSelect<OriginLockdownMode>(fields, "Only allow Cloudflare", null),
-            new HostSettings(),
-            "Inherit (refuse with 403)")
-        {
-            GroupKey = true,
-        },
-        new(
-            "cloudflare.authenticatedOriginPulls",
-            "cloudflare-aop",
-            "/cloudflare/authenticatedOriginPulls",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "Authenticated Origin Pulls", false),
-            new HostSettings { Cloudflare = new CloudflareSettings { AuthenticatedOriginPulls = false } },
-            (fields, _) => SetSelect<bool>(fields, "Authenticated Origin Pulls", null),
-            new HostSettings(),
-            "Inherit (on)")
-        {
-            GroupKey = true,
-        },
+        SelectRow("cloudflare.originLockdown", "cloudflare-lockdown", "/cloudflare/originLockdown", "Only allow Cloudflare", OriginLockdownMode.Drop,
+            new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop } }, "Inherit (refuse with 403)") with { GroupKey = true },
+        SelectRow("cloudflare.authenticatedOriginPulls", "cloudflare-aop", "/cloudflare/authenticatedOriginPulls", "Authenticated Origin Pulls", false,
+            new HostSettings { Cloudflare = new CloudflareSettings { AuthenticatedOriginPulls = false } }, "Inherit (on)") with { GroupKey = true },
         new(
             "accessList.enabled",
             "access-list",
@@ -509,256 +352,33 @@ public sealed class HostSettingsFieldsTests
             ShowsAtField = true,
         },
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.forbidden",
-            "error-page-403",
-            "/errorPages/403/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "403 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-403-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(403, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "403 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/403/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.forbidden", 403, "403 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.notFound",
-            "error-page-404",
-            "/errorPages/404/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "404 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-404-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(404, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "404 page", null),
-            new HostSettings(),
-            "Inherit (message \"Gone fishing\")")
-        {
-            ValidatorPath = "/errorPages/404/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.notFound", 404, "404 page", "Inherit (message \"Gone fishing\")"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.contentTooLarge",
-            "error-page-413",
-            "/errorPages/413/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "413 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-413-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(413, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "413 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/413/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.contentTooLarge", 413, "413 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.uriTooLong",
-            "error-page-414",
-            "/errorPages/414/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "414 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-414-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(414, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "414 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/414/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.uriTooLong", 414, "414 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.misdirectedRequest",
-            "error-page-421",
-            "/errorPages/421/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "421 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-421-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(421, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "421 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/421/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.misdirectedRequest", 421, "421 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.tooManyRequests",
-            "error-page-429",
-            "/errorPages/429/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "429 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-429-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(429, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "429 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/429/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.tooManyRequests", 429, "429 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.headerFieldsTooLarge",
-            "error-page-431",
-            "/errorPages/431/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "431 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-431-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(431, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "431 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/431/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.headerFieldsTooLarge", 431, "431 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.badGateway",
-            "error-page-502",
-            "/errorPages/502/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "502 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-502-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(502, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "502 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/502/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.badGateway", 502, "502 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.serviceUnavailable",
-            "error-page-503",
-            "/errorPages/503/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "503 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-503-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(503, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "503 page", null),
-            new HostSettings(),
-            "Inherit (HTML document)")
-        {
-            ValidatorPath = "/errorPages/503/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.serviceUnavailable", 503, "503 page", "Inherit (HTML document)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.gatewayTimeout",
-            "error-page-504",
-            "/errorPages/504/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "504 page", ErrorPageMode.Message);
-                await Input(fields, "error-page-504-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(504, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "504 page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/504/mode",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.gatewayTimeout", 504, "504 page", "Inherit (no custom page)"),
         // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
-        new(
-            "errorPages.maintenance",
-            "error-page-maintenance",
-            "/errorPages/maintenance/mode",
-            new HostSettings(),
-            async (fields, _) =>
-            {
-                await SetSelect<ErrorPageMode>(fields, "Maintenance page", ErrorPageMode.Message);
-                await Input(fields, "error-page-maintenance-heading", "Not here");
-            },
-            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(ErrorPageStatuses.MaintenanceKey, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
-            (fields, _) => SetSelect<ErrorPageMode>(fields, "Maintenance page", null),
-            new HostSettings(),
-            "Inherit (no custom page)")
-        {
-            ValidatorPath = "/errorPages/maintenance/mode",
-            ShowsAtField = true,
-        },
-        new(
-            "errorPages.replaceUpstream",
-            "error-pages-replace-upstream",
-            "/errorPages/replaceUpstream",
-            new HostSettings(),
-            (fields, _) => SetSelect<UpstreamErrorReplacement>(fields, "Upstream errors", UpstreamErrorReplacement.Any),
-            new HostSettings { ErrorPages = new ErrorPagesSettings { ReplaceUpstream = UpstreamErrorReplacement.Any } },
-            (fields, _) => SetSelect<UpstreamErrorReplacement>(fields, "Upstream errors", null),
-            new HostSettings(),
-            "Inherit (replace its HTML error pages)")
-        {
-            ValidatorPath = "/errorPages/replaceUpstream",
-            ShowsAtField = true,
-        },
-        new(
-            "maintenance.enabled",
-            "maintenance-enabled",
-            "/maintenance/enabled",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "Maintenance mode", false),
-            new HostSettings { Maintenance = new MaintenanceSettings { Enabled = false } },
-            (fields, _) => SetSelect<bool>(fields, "Maintenance mode", null),
-            new HostSettings(),
-            "Inherit (on)")
-        {
-            ValidatorPath = "/maintenance/enabled",
-            ShowsAtField = true,
-        },
-        new(
-            "maintenance.status",
-            "maintenance-status",
-            "/maintenance/status",
-            new HostSettings(),
-            (fields, _) => SetSelect<int>(fields, "Maintenance status", 503),
-            new HostSettings { Maintenance = new MaintenanceSettings { Status = 503 } },
-            (fields, _) => SetSelect<int>(fields, "Maintenance status", null),
-            new HostSettings(),
-            "Inherit (200 OK)")
-        {
-            ValidatorPath = "/maintenance/status",
-            ShowsAtField = true,
-        },
+        ErrorPageRow("errorPages.maintenance", ErrorPageStatuses.MaintenanceKey, "Maintenance page", "Inherit (no custom page)", "maintenance"),
+        SelectRow("errorPages.replaceUpstream", "error-pages-replace-upstream", "/errorPages/replaceUpstream", "Upstream errors", UpstreamErrorReplacement.Any,
+            new HostSettings { ErrorPages = new ErrorPagesSettings { ReplaceUpstream = UpstreamErrorReplacement.Any } }, "Inherit (replace its HTML error pages)") with { ValidatorPath = "/errorPages/replaceUpstream", ShowsAtField = true },
+        SelectRow("maintenance.enabled", "maintenance-enabled", "/maintenance/enabled", "Maintenance mode", false,
+            new HostSettings { Maintenance = new MaintenanceSettings { Enabled = false } }, "Inherit (on)") with { ValidatorPath = "/maintenance/enabled", ShowsAtField = true },
+        SelectRow("maintenance.status", "maintenance-status", "/maintenance/status", "Maintenance status", 503,
+            new HostSettings { Maintenance = new MaintenanceSettings { Status = 503 } }, "Inherit (200 OK)") with { ValidatorPath = "/maintenance/status", ShowsAtField = true },
         new(
             "maintenance.retryAfterSeconds",
             "maintenance-retry-after",
@@ -773,20 +393,8 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/maintenance/retryAfterSeconds",
             ShowsAtField = true,
         },
-        new(
-            "maintenance.bypassAccessListId",
-            "maintenance-bypass",
-            "/maintenance/bypassAccessListId",
-            new HostSettings(),
-            (fields, _) => SetSelect<AccessListId>(fields, "Let through", SampleList),
-            new HostSettings { Maintenance = new MaintenanceSettings { BypassAccessListId = SampleList } },
-            (fields, _) => SetSelect<AccessListId>(fields, "Let through", null),
-            new HostSettings(),
-            "Inherit (Office)")
-        {
-            ValidatorPath = "/maintenance/bypassAccessListId",
-            ShowsAtField = true,
-        },
+        SelectRow("maintenance.bypassAccessListId", "maintenance-bypass", "/maintenance/bypassAccessListId", "Let through", SampleList,
+            new HostSettings { Maintenance = new MaintenanceSettings { BypassAccessListId = SampleList } }, "Inherit (Office)") with { ValidatorPath = "/maintenance/bypassAccessListId", ShowsAtField = true },
 
         new(
             "headers.request",
@@ -816,19 +424,8 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/headers/response/0/name",
             ShowsAtField = true,
         },
-        new(
-            "compression.enabled",
-            "compression-enabled",
-            "/compression/enabled",
-            new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "Compress responses", true),
-            new HostSettings { Compression = new CompressionSettings { Enabled = true } },
-            (fields, _) => SetSelect<bool>(fields, "Compress responses", null),
-            new HostSettings(),
-            "Inherit (off)")
-        {
-            GroupKey = true,
-        },
+        SelectRow("compression.enabled", "compression-enabled", "/compression/enabled", "Compress responses", true,
+            new HostSettings { Compression = new CompressionSettings { Enabled = true } }, "Inherit (off)") with { GroupKey = true },
         new(
             "compression.minimumSize",
             "compression-minimum-size",
@@ -1147,6 +744,35 @@ public sealed class HostSettingsFieldsTests
         }
 
         Assert.Equal(contract, Fields.Select(row => row.Name));
+    }
+
+    /// <summary>A row whose control is a select: <paramref name="value"/> sets it, and clearing it to null leaves <paramref name="layer"/> as it was.</summary>
+    private static Field SelectRow<T>(string name, string dataField, string path, string label, T value, HostSettings afterSet, string inheritText, HostSettings? layer = null)
+        where T : struct =>
+        new(name, dataField, path, layer ?? new HostSettings(), (fields, _) => SetSelect<T>(fields, label, value), afterSet, (fields, _) => SetSelect<T>(fields, label, null), layer ?? new HostSettings(), inheritText);
+
+    /// <summary>A custom error page's row: choosing the Message mode and a heading sets it, and clearing the mode removes the entry. The data-field and path use <paramref name="segment"/>, or the status.</summary>
+    private static Field ErrorPageRow(string name, int status, string label, string inheritText, string? segment = null)
+    {
+        var key = segment ?? status.ToString(CultureInfo.InvariantCulture);
+        return new(
+            name,
+            $"error-page-{key}",
+            $"/errorPages/{key}/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, label, ErrorPageMode.Message);
+                await Input(fields, $"error-page-{key}-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(status, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, label, null),
+            new HostSettings(),
+            inheritText)
+        {
+            ValidatorPath = $"/errorPages/{key}/mode",
+            ShowsAtField = true,
+        };
     }
 
     private static string Camel(string name) => char.ToLowerInvariant(name[0]) + name[1..];

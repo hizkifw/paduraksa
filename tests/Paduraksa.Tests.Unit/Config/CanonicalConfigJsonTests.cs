@@ -454,217 +454,87 @@ public sealed class CanonicalConfigJsonTests
         Assert.ThrowsAny<JsonException>(() => CanonicalConfigJson.Deserialize(bytes));
     }
 
-    [Fact]
-    public void ANullHstsLayerAddsNoKeyAndHstsChangesTheHash()
+    private sealed record LayerCase(string[] Keys, HostSettings Empty, HostSettings Set, string[] Wire, RouteConfig[]? Routes = null);
+
+    private static readonly Dictionary<string, LayerCase> Layers = new()
     {
-        // Revision hashes stay stable for configs that don't use HSTS: no key, not even an empty object.
-        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
-        Assert.DoesNotContain("hsts", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
-
-        var emptyLayer = without with
-        {
-            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, Hsts = new HstsSettings() } }],
-        };
-        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
-
-        // Set, it is written as the numbers and words they are, and it changes the bytes.
-        var enabled = without with
-        {
-            Hosts =
-            [
-                without.Hosts[0] with
-                {
-                    Settings = new HostSettings
-                    {
-                        ForceHttps = true,
-                        Hsts = new HstsSettings { Enabled = true, MaxAge = 31_536_000, IncludeSubDomains = true, Preload = false },
-                    },
-                },
-            ],
-        };
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(enabled));
-        Assert.Contains("\"hsts\":{\"enabled\":true,\"maxAge\":31536000,\"includeSubDomains\":true,\"preload\":false}", json, StringComparison.Ordinal);
-        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(enabled));
-        Assert.Equal(CanonicalConfigJson.Serialize(enabled), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(enabled))));
-    }
-
-    [Fact]
-    public void ANullServerHeaderLayerAddsNoKeyAndItsValueChangesTheHash()
-    {
-        // Existing revisions keep their hash: a config that doesn't set the Server header writes no key at all.
-        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
-        Assert.DoesNotContain("serverheader", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
-
-        var emptyLayer = without with
-        {
-            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, ServerHeader = new ServerHeaderSettings() } }],
-        };
-        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
-
-        var custom = without with
-        {
-            Hosts =
-            [
-                without.Hosts[0] with
-                {
-                    Settings = new HostSettings
-                    {
-                        ForceHttps = true,
-                        AccessLog = false,
-                        RequestIdPropagation = RequestIdPropagation.ResponseOnly,
-                        ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
-                    },
-                },
-            ],
-        };
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(custom));
-        Assert.Contains("\"serverHeader\":{\"mode\":\"custom\",\"value\":\"edge/1.0\"}", json, StringComparison.Ordinal);
-
-        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(custom));
-        Assert.Equal(CanonicalConfigJson.Serialize(custom), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(custom))));
-    }
-
-    [Fact]
-    public void ANullProofOfWorkLayerAddsNoKeyAndItsValuesChangeTheHash()
-    {
-        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
-        Assert.DoesNotContain("proofofwork", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
-
-        var emptyLayer = without with
-        {
-            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, ProofOfWork = new ProofOfWorkSettings() } }],
-        };
-        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
-
-        var enabled = without with
-        {
-            Hosts =
-            [
-                without.Hosts[0] with
-                {
-                    Settings = new HostSettings { ForceHttps = true, ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 } },
-                    Routes =
-                    [
-                        new RouteConfig(RootRoute, AppUpstream, Settings: new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = false } }),
-                    ],
-                },
-            ],
-        };
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(enabled));
-        Assert.Contains("\"proofOfWork\":{\"enabled\":true,\"difficulty\":20,\"tokenLifetimeHours\":24}", json, StringComparison.Ordinal);
-        Assert.Contains("\"proofOfWork\":{\"enabled\":false}", json, StringComparison.Ordinal);
-        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(enabled));
-        Assert.Equal(CanonicalConfigJson.Serialize(enabled), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(enabled))));
-    }
-
-    [Fact]
-    public void ANullRobotsLayerAddsNoKeyAndItsValuesChangeTheHash()
-    {
-        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
-        Assert.DoesNotContain("robots", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
-
-        var emptyLayer = without with
-        {
-            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, Robots = new RobotsSettings() } }],
-        };
-        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
-
-        var custom = without with
-        {
-            Hosts =
-            [
-                without.Hosts[0] with
-                {
-                    Settings = new HostSettings
-                    {
-                        ForceHttps = true,
-                        Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\r\nDisallow: /\r\n" },
-                    },
-                },
-            ],
-        };
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(custom));
-
+        ["hsts"] = new(
+            ["hsts"],
+            new HostSettings { ForceHttps = true, Hsts = new HstsSettings() },
+            new HostSettings { ForceHttps = true, Hsts = new HstsSettings { Enabled = true, MaxAge = 31_536_000, IncludeSubDomains = true, Preload = false } },
+            ["\"hsts\":{\"enabled\":true,\"maxAge\":31536000,\"includeSubDomains\":true,\"preload\":false}"]),
+        ["serverHeader"] = new(
+            ["serverheader"],
+            new HostSettings { ForceHttps = true, ServerHeader = new ServerHeaderSettings() },
+            new HostSettings
+            {
+                ForceHttps = true,
+                AccessLog = false,
+                RequestIdPropagation = RequestIdPropagation.ResponseOnly,
+                ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
+            },
+            ["\"serverHeader\":{\"mode\":\"custom\",\"value\":\"edge/1.0\"}"]),
+        ["proofOfWork"] = new(
+            ["proofofwork"],
+            new HostSettings { ForceHttps = true, ProofOfWork = new ProofOfWorkSettings() },
+            new HostSettings { ForceHttps = true, ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 } },
+            ["\"proofOfWork\":{\"enabled\":true,\"difficulty\":20,\"tokenLifetimeHours\":24}", "\"proofOfWork\":{\"enabled\":false}"],
+            [new RouteConfig(RootRoute, AppUpstream, Settings: new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = false } })]),
         // The stored document keeps the text as written; only the proxy normalises line endings when it compiles.
-        Assert.Contains("\"robots\":{\"mode\":\"custom\",\"customText\":\"User-agent: *\\r\\nDisallow: /\\r\\n\"}", json, StringComparison.Ordinal);
-        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(custom));
-        Assert.Equal(CanonicalConfigJson.Serialize(custom), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(custom))));
-    }
+        ["robots"] = new(
+            ["robots"],
+            new HostSettings { ForceHttps = true, Robots = new RobotsSettings() },
+            new HostSettings { ForceHttps = true, Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\r\nDisallow: /\r\n" } },
+            ["\"robots\":{\"mode\":\"custom\",\"customText\":\"User-agent: *\\r\\nDisallow: /\\r\\n\"}"]),
+        // Error pages keep their status keys on the wire.
+        ["errorPages"] = new(
+            ["errorPages", "maintenance"],
+            new HostSettings { ForceHttps = true, ErrorPages = new ErrorPagesSettings(), Maintenance = new MaintenanceSettings() },
+            new HostSettings
+            {
+                ForceHttps = true,
+                ErrorPages = new ErrorPagesSettings
+                {
+                    NotFound = new ErrorPageContent { Heading = "Gone", Text = "Not here." },
+                    Maintenance = new ErrorPageContent { Mode = ErrorPageMode.Html, Html = "<p>soon</p>" },
+                    ReplaceUpstream = UpstreamErrorReplacement.Any,
+                },
+                Maintenance = new MaintenanceSettings { Enabled = true, Status = 503, RetryAfterSeconds = 600 },
+            },
+            [
+                "\"errorPages\":{\"404\":{\"mode\":\"message\",\"heading\":\"Gone\",\"text\":\"Not here.\"},\"maintenance\":{\"mode\":\"html\",\"html\":\"\\u003Cp\\u003Esoon\\u003C/p\\u003E\"},\"replaceUpstream\":\"any\"}",
+                "\"maintenance\":{\"enabled\":true,\"status\":503,\"retryAfterSeconds\":600}",
+            ]),
+        ["cloudflare"] = new(
+            ["cloudflare"],
+            new HostSettings { ForceHttps = true, Cloudflare = new CloudflareSettings() },
+            new HostSettings { ForceHttps = true, Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop, AuthenticatedOriginPulls = true } },
+            ["\"cloudflare\":{\"originLockdown\":\"drop\",\"authenticatedOriginPulls\":true}"]),
+    };
 
-    [Fact]
-    public void ErrorPagesAndMaintenanceAddNoKeyUntilSetAndKeepStatusKeysOnTheWire()
+    /// <summary>Revision hashes stay stable for configs that don't use a setting: an unset layer writes no key, not even an empty object.</summary>
+    [Theory]
+    [InlineData("hsts")]
+    [InlineData("serverHeader")]
+    [InlineData("proofOfWork")]
+    [InlineData("robots")]
+    [InlineData("errorPages")]
+    [InlineData("cloudflare")]
+    public void ANullLayerAddsNoKeyAndItsValuesChangeTheHash(string layer)
     {
+        var (keys, empty, set, wire, routes) = Layers[layer];
         ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
         var bytes = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without));
-        Assert.DoesNotContain("errorPages", bytes, StringComparison.Ordinal);
-        Assert.DoesNotContain("maintenance", bytes, StringComparison.OrdinalIgnoreCase);
+        Assert.All(keys, key => Assert.DoesNotContain(key, bytes, StringComparison.OrdinalIgnoreCase));
 
-        var emptyLayers = without with
-        {
-            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, ErrorPages = new ErrorPagesSettings(), Maintenance = new MaintenanceSettings() } }],
-        };
-        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayers));
-
-        var set = without with
-        {
-            Hosts =
-            [
-                without.Hosts[0] with
-                {
-                    Settings = new HostSettings
-                    {
-                        ForceHttps = true,
-                        ErrorPages = new ErrorPagesSettings
-                        {
-                            NotFound = new ErrorPageContent { Heading = "Gone", Text = "Not here." },
-                            Maintenance = new ErrorPageContent { Mode = ErrorPageMode.Html, Html = "<p>soon</p>" },
-                            ReplaceUpstream = UpstreamErrorReplacement.Any,
-                        },
-                        Maintenance = new MaintenanceSettings { Enabled = true, Status = 503, RetryAfterSeconds = 600 },
-                    },
-                },
-            ],
-        };
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(set));
-        Assert.Contains(
-            "\"errorPages\":{\"404\":{\"mode\":\"message\",\"heading\":\"Gone\",\"text\":\"Not here.\"},\"maintenance\":{\"mode\":\"html\",\"html\":\"\\u003Cp\\u003Esoon\\u003C/p\\u003E\"},\"replaceUpstream\":\"any\"}",
-            json,
-            StringComparison.Ordinal);
-        Assert.Contains("\"maintenance\":{\"enabled\":true,\"status\":503,\"retryAfterSeconds\":600}", json, StringComparison.Ordinal);
-        Assert.Equal(CanonicalConfigJson.Serialize(set), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(set))));
-    }
-
-    [Fact]
-    public void ANullCloudflareLayerAddsNoKeyAndItsValuesChangeTheHash()
-    {
-        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
-        Assert.DoesNotContain("cloudflare", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
-
-        var emptyLayer = without with
-        {
-            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, Cloudflare = new CloudflareSettings() } }],
-        };
+        var emptyLayer = without with { Hosts = [without.Hosts[0] with { Settings = empty }] };
         Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
 
-        var locked = without with
-        {
-            Hosts =
-            [
-                without.Hosts[0] with
-                {
-                    Settings = new HostSettings
-                    {
-                        ForceHttps = true,
-                        Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop, AuthenticatedOriginPulls = true },
-                    },
-                },
-            ],
-        };
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(locked));
-
-        Assert.Contains("\"cloudflare\":{\"originLockdown\":\"drop\",\"authenticatedOriginPulls\":true}", json, StringComparison.Ordinal);
-        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(locked));
-        Assert.Equal(CanonicalConfigJson.Serialize(locked), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(locked))));
+        var configured = without with { Hosts = [without.Hosts[0] with { Settings = set, Routes = routes ?? without.Hosts[0].Routes }] };
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(configured));
+        Assert.All(wire, fragment => Assert.Contains(fragment, json, StringComparison.Ordinal));
+        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(configured));
+        Assert.Equal(CanonicalConfigJson.Serialize(configured), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(configured))));
     }
 
     [Fact]

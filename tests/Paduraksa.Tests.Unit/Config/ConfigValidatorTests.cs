@@ -791,22 +791,22 @@ public sealed class ConfigValidatorTests
         HostSettings tooLong = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = new string('a', 129) } };
 
         AssertErrors(
-            document with { Settings = document.Settings with { Defaults = invalid } },
+            InDefaults(document, invalid),
             ("/settings/defaults/serverHeader/value", ServerHeaderValueInvalid));
         AssertErrors(
-            document with { Profiles = [document.Profiles[0] with { Settings = tooLong }] },
+            InProfile(document, tooLong),
             ("/profiles/0/settings/serverHeader/value", ServerHeaderValueInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = invalid }) },
+            InHost(document, invalid),
             ($"{Proxy}/settings/serverHeader/value", ServerHeaderValueInvalid));
 
         // Custom with no value is refused where it would be sent, like HSTS's preload pair.
         HostSettings custom = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } };
-        var missing = Assert.Single(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = custom }) }));
+        var missing = Assert.Single(ConfigValidator.Validate(InHost(document, custom)));
         Assert.Equal(($"{Proxy}/settings/serverHeader/value", ServerHeaderValueRequired), (missing.Path, missing.Code));
         HostSettings empty = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = string.Empty } };
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = empty }) },
+            InHost(document, empty),
             ($"{Proxy}/settings/serverHeader/value", ServerHeaderValueRequired));
 
         // The mode and the value may come from different layers: field by field, the resolved pair is what matters.
@@ -836,7 +836,7 @@ public sealed class ConfigValidatorTests
 
         // A value is ignored while the resolved mode isn't custom, so an unusual one isn't refused then.
         HostSettings ignored = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove, Value = "bad\tvalue" } };
-        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = ignored }) }));
+        Assert.Empty(ConfigValidator.Validate(InHost(document, ignored)));
 
         // But when a higher layer makes it custom, the value it inherits has to be usable.
         var used = document with
@@ -867,13 +867,13 @@ public sealed class ConfigValidatorTests
         Assert.True(HstsHeader.MaxMaxAgeSeconds == 63_072_000, "two years");
 
         AssertErrors(
-            document with { Settings = document.Settings with { Defaults = tooLong } },
+            InDefaults(document, tooLong),
             ("/settings/defaults/hsts/maxAge", HstsMaxAgeInvalid));
         AssertErrors(
-            document with { Profiles = [document.Profiles[0] with { Settings = negative }] },
+            InProfile(document, negative),
             ("/profiles/0/settings/hsts/maxAge", HstsMaxAgeInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = tooLong }) },
+            InHost(document, tooLong),
             ($"{Proxy}/settings/hsts/maxAge", HstsMaxAgeInvalid));
 
         // 0 is valid, and means "tell browsers to forget the host"; the cap itself is valid too.
@@ -978,25 +978,25 @@ public sealed class ConfigValidatorTests
     {
         var document = Valid();
         HostSettings valid = new() { ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = ProofOfWorkLimits.MinDifficulty, TokenLifetimeHours = 24 } };
-        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = valid } }));
-        Assert.Empty(ConfigValidator.Validate(document with { Profiles = [document.Profiles[0] with { Settings = valid }] }));
-        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = valid }) }));
+        Assert.Empty(ConfigValidator.Validate(InDefaults(document, valid)));
+        Assert.Empty(ConfigValidator.Validate(InProfile(document, valid)));
+        Assert.Empty(ConfigValidator.Validate(InHost(document, valid)));
 
         HostSettings lowDifficulty = new() { ProofOfWork = new ProofOfWorkSettings { Difficulty = ProofOfWorkLimits.MinDifficulty - 1 } };
         HostSettings highDifficulty = new() { ProofOfWork = new ProofOfWorkSettings { Difficulty = ProofOfWorkLimits.MaxDifficulty + 1 } };
         HostSettings shortLifetime = new() { ProofOfWork = new ProofOfWorkSettings { TokenLifetimeHours = ProofOfWorkLimits.MinTokenLifetimeHours - 1 } };
         HostSettings longLifetime = new() { ProofOfWork = new ProofOfWorkSettings { TokenLifetimeHours = ProofOfWorkLimits.MaxTokenLifetimeHours + 1 } };
         AssertErrors(
-            document with { Settings = document.Settings with { Defaults = lowDifficulty } },
+            InDefaults(document, lowDifficulty),
             ("/settings/defaults/proofOfWork/difficulty", ProofOfWorkDifficultyInvalid));
         AssertErrors(
-            document with { Profiles = [document.Profiles[0] with { Settings = highDifficulty }] },
+            InProfile(document, highDifficulty),
             ("/profiles/0/settings/proofOfWork/difficulty", ProofOfWorkDifficultyInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = shortLifetime }) },
+            InHost(document, shortLifetime),
             ($"{Proxy}/settings/proofOfWork/tokenLifetimeHours", ProofOfWorkTokenLifetimeInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = longLifetime }) },
+            InHost(document, longLifetime),
             ($"{Proxy}/settings/proofOfWork/tokenLifetimeHours", ProofOfWorkTokenLifetimeInvalid));
 
         // A route overrides only the switch: the difficulty and lifetime are the host's.
@@ -1031,9 +1031,9 @@ public sealed class ConfigValidatorTests
             },
         };
         HostSettings unlimited = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = RequestLimitBounds.UnlimitedBodySize } };
-        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = edges } }));
-        Assert.Empty(ConfigValidator.Validate(document with { Profiles = [document.Profiles[0] with { Settings = unlimited }] }));
-        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = edges }) }));
+        Assert.Empty(ConfigValidator.Validate(InDefaults(document, edges)));
+        Assert.Empty(ConfigValidator.Validate(InProfile(document, unlimited)));
+        Assert.Empty(ConfigValidator.Validate(InHost(document, edges)));
 
         HostSettings negativeBody = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = -1 } };
         HostSettings hugeBody = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = RequestLimitBounds.MaxBodySize + 1 } };
@@ -1044,28 +1044,28 @@ public sealed class ConfigValidatorTests
         HostSettings shortUrl = new() { RequestLimits = new RequestLimitsSettings { MaxUrlLength = RequestLimitBounds.MinUrlLength - 1 } };
         HostSettings longUrl = new() { RequestLimits = new RequestLimitsSettings { MaxUrlLength = RequestLimitBounds.MaxUrlLength + 1 } };
         AssertErrors(
-            document with { Settings = document.Settings with { Defaults = negativeBody } },
+            InDefaults(document, negativeBody),
             ("/settings/defaults/requestLimits/maxBodySize", RequestLimitsMaxBodySizeInvalid));
         AssertErrors(
-            document with { Profiles = [document.Profiles[0] with { Settings = hugeBody }] },
+            InProfile(document, hugeBody),
             ("/profiles/0/settings/requestLimits/maxBodySize", RequestLimitsMaxBodySizeInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = fewHeaders }) },
+            InHost(document, fewHeaders),
             ($"{Proxy}/settings/requestLimits/maxHeaderCount", RequestLimitsMaxHeaderCountInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = manyHeaders }) },
+            InHost(document, manyHeaders),
             ($"{Proxy}/settings/requestLimits/maxHeaderCount", RequestLimitsMaxHeaderCountInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = smallHeaders }) },
+            InHost(document, smallHeaders),
             ($"{Proxy}/settings/requestLimits/maxHeaderBytes", RequestLimitsMaxHeaderBytesInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = bigHeaders }) },
+            InHost(document, bigHeaders),
             ($"{Proxy}/settings/requestLimits/maxHeaderBytes", RequestLimitsMaxHeaderBytesInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = shortUrl }) },
+            InHost(document, shortUrl),
             ($"{Proxy}/settings/requestLimits/maxUrlLength", RequestLimitsMaxUrlLengthInvalid));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = longUrl }) },
+            InHost(document, longUrl),
             ($"{Proxy}/settings/requestLimits/maxUrlLength", RequestLimitsMaxUrlLengthInvalid));
 
         // A route overrides only the body limit (even to none): the header and URL limits are judged before a route is known.
@@ -1094,33 +1094,33 @@ public sealed class ConfigValidatorTests
             Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\nDisallow: /admin\r\n" },
         };
         HostSettings preset = new() { Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers } };
-        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = valid } }));
-        Assert.Empty(ConfigValidator.Validate(document with { Profiles = [document.Profiles[0] with { Settings = valid }] }));
-        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = valid }) }));
-        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = preset } }));
+        Assert.Empty(ConfigValidator.Validate(InDefaults(document, valid)));
+        Assert.Empty(ConfigValidator.Validate(InProfile(document, valid)));
+        Assert.Empty(ConfigValidator.Validate(InHost(document, valid)));
+        Assert.Empty(ConfigValidator.Validate(InDefaults(document, preset)));
 
         // The resolved custom mode needs its text, wherever the mode is set; the error is at the host that would serve it.
         HostSettings missing = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom } };
         AssertErrors(
-            document with { Settings = document.Settings with { Defaults = missing } },
+            InDefaults(document, missing),
             ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired),
             ($"{RedirectHostPath}/settings/robots/customText", RobotsCustomTextRequired),
             ($"{RespondHostPath}/settings/robots/customText", RobotsCustomTextRequired));
         Assert.Contains(
             "inherited from the global defaults",
-            ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = missing } })[0].Message,
+            ConfigValidator.Validate(InDefaults(document, missing))[0].Message,
             StringComparison.Ordinal);
         AssertErrors(
-            document with { Profiles = [document.Profiles[0] with { Settings = missing }] },
+            InProfile(document, missing),
             ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired));
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = missing }) },
+            InHost(document, missing),
             ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired));
 
         // A blank text is no text.
         HostSettings blank = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "  \r\n\t" } };
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = blank }) },
+            InHost(document, blank),
             ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired));
 
         // A layer may set the mode and let a lower layer supply the text.
@@ -1133,7 +1133,7 @@ public sealed class ConfigValidatorTests
         // Text under any other mode is refused at the layer that sets it.
         HostSettings ignored = new() { Robots = new RobotsSettings { Mode = RobotsMode.DisallowAll, CustomText = "User-agent: *\nDisallow:\n" } };
         AssertErrors(
-            document with { Profiles = [document.Profiles[0] with { Settings = ignored }] },
+            InProfile(document, ignored),
             ("/profiles/0/settings/robots/customText", RobotsCustomTextUnexpected));
 
         // A text may be set under a mode it inherits, so a layer that only sets the text is fine.
@@ -1141,18 +1141,27 @@ public sealed class ConfigValidatorTests
 
         HostSettings tooLong = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = new string('a', RobotsText.MaxCustomBytes + 1) } };
         AssertErrors(
-            document with { Settings = document.Settings with { Defaults = tooLong } },
+            InDefaults(document, tooLong),
             ("/settings/defaults/robots/customText", RobotsCustomTextTooLong));
 
         HostSettings control = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\nDis\u0000allow: /\n" } };
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = control }) },
+            InHost(document, control),
             ($"{Proxy}/settings/robots/customText", RobotsCustomTextInvalid));
 
         // An undefined mode is the enum's error, not a text one.
         HostSettings undefined = new() { Robots = new RobotsSettings { Mode = (RobotsMode)9 } };
         AssertErrors(
-            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = undefined }) },
+            InHost(document, undefined),
             ($"{Proxy}/settings/robots/mode", EnumUndefined));
     }
+
+    private static ConfigDocument InDefaults(ConfigDocument document, HostSettings settings) =>
+        document with { Settings = document.Settings with { Defaults = settings } };
+
+    private static ConfigDocument InProfile(ConfigDocument document, HostSettings settings) =>
+        document with { Profiles = [document.Profiles[0] with { Settings = settings }] };
+
+    private static ConfigDocument InHost(ConfigDocument document, HostSettings settings) =>
+        document with { Hosts = MapHost(document, AppHost, h => h with { Settings = settings }) };
 }
