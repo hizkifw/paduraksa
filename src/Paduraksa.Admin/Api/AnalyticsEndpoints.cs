@@ -38,15 +38,9 @@ internal static class AnalyticsEndpoints
 
     private static async Task<IResult> Overview(HttpContext http, AnalyticsService service)
     {
-        var rangeText = Range.Read(http).ToString();
-        MetricsRange range;
-        if (rangeText.Length == 0)
+        if (!MetricsEndpoints.TryGetRange(http, Range, out var range, out var problem))
         {
-            range = MetricsRange.Hour;
-        }
-        else if (!TryParseRange(rangeText, out range))
-        {
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "range must be hour, day, week or month.");
+            return problem!;
         }
 
         var hostText = Host.Read(http).ToString();
@@ -68,27 +62,5 @@ internal static class AnalyticsEndpoints
 
         // A rollup table that can't be read is an exception the API pipeline answers as a 500 problem carrying a trace ID.
         return EndpointSupport.Json(await service.ReadOverviewAsync(range, host, unmatched, http.RequestAborted).ConfigureAwait(false), AdminJsonContext.Default.AnalyticsOverview);
-    }
-
-    private static bool TryParseRange(string text, out MetricsRange range)
-    {
-        switch (text)
-        {
-            case "hour":
-                range = MetricsRange.Hour;
-                return true;
-            case "day":
-                range = MetricsRange.Day;
-                return true;
-            case "week":
-                range = MetricsRange.Week;
-                return true;
-            case "month":
-                range = MetricsRange.Month;
-                return true;
-            default:
-                range = default;
-                return false;
-        }
     }
 }

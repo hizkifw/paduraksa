@@ -142,7 +142,7 @@ internal static class DraftEndpoints
 
     private static async Task<IResult> ReviewAsync(HttpContext http, DraftId id, AdminCaller caller, DraftService drafts, CancellationToken ct)
     {
-        if (!Preconditions.TryGetForce(http, out var force, out var problem))
+        if (!Preconditions.TryGetFlag(http, ApiQueries.Force, out var force, out var problem))
         {
             return problem!;
         }
@@ -153,7 +153,7 @@ internal static class DraftEndpoints
 
     private static async Task<IResult> ApplyAsync(HttpContext http, DraftId id, AdminCaller caller, DraftService drafts, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem) || !Preconditions.TryGetForce(http, out var force, out problem))
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem))
         {
             return problem!;
         }

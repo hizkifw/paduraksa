@@ -222,48 +222,26 @@ internal static class Preconditions
             : (IfMatchState.Tag, tag);
     }
 
-    /// <summary>Reads <c>?dryRun=</c> (<c>true</c> or <c>false</c>; absent is false).</summary>
-    public static bool TryGetDryRun(HttpContext http, out bool dryRun, out IResult? problem)
+    /// <summary>Reads <c>?dryRun=</c> and <c>?force=</c>, each <c>true</c> or <c>false</c> (absent is false). <c>force</c> is the explicit permission the admin host's lock-out guard needs for a change that would remove the caller's own way in.</summary>
+    public static bool TryGetFlags(HttpContext http, out bool dryRun, out bool force, out IResult? problem)
     {
-        ArgumentNullException.ThrowIfNull(http);
-        dryRun = false;
-        problem = null;
-        var values = ApiQueries.DryRun.Read(http);
-        if (values.Count == 0)
-        {
-            return true;
-        }
-
-        if (values.Count == 1 && bool.TryParse(values[0], out dryRun))
-        {
-            return true;
-        }
-
-        problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "dryRun must be 'true' or 'false'.");
-        return false;
+        force = false;
+        return TryGetFlag(http, ApiQueries.DryRun, out dryRun, out problem) && TryGetFlag(http, ApiQueries.Force, out force, out problem);
     }
 
-    /// <summary>
-    /// Reads <c>?force=</c> (<c>true</c> or <c>false</c>; absent is false): the explicit permission the admin host's lock-out
-    /// guard needs for a change that would remove the caller's own way in.
-    /// </summary>
-    public static bool TryGetForce(HttpContext http, out bool force, out IResult? problem)
+    /// <summary>Reads <paramref name="parameter"/> as <c>true</c> or <c>false</c>; absent is false.</summary>
+    public static bool TryGetFlag(HttpContext http, QueryParameter parameter, out bool flag, out IResult? problem)
     {
         ArgumentNullException.ThrowIfNull(http);
-        force = false;
+        flag = false;
         problem = null;
-        var values = ApiQueries.Force.Read(http);
-        if (values.Count == 0)
+        var values = parameter.Read(http);
+        if (values.Count == 0 || values.Count == 1 && bool.TryParse(values[0], out flag))
         {
             return true;
         }
 
-        if (values.Count == 1 && bool.TryParse(values[0], out force))
-        {
-            return true;
-        }
-
-        problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "force must be 'true' or 'false'.");
+        problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"{parameter.Name} must be 'true' or 'false'.");
         return false;
     }
 }
@@ -309,6 +287,30 @@ internal static class Pagination
         {
             return false;
         }
+    }
+
+    /// <summary>The page size and the ID after which a keyset-paginated query continues; a cursor that doesn't decode is a 400 saying <paramref name="badCursor"/>.</summary>
+    public static bool TryGetKeyset<TId>(HttpContext http, string badCursor, out int limit, out TId? after, out IResult? problem)
+        where TId : struct, ITypedId<TId>
+    {
+        after = null;
+        if (!TryGetPage(http, out limit, out var cursor, out problem))
+        {
+            return false;
+        }
+
+        if (cursor is not null)
+        {
+            if (!TryDecode(cursor, out TId id))
+            {
+                problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, badCursor);
+                return false;
+            }
+
+            after = id;
+        }
+
+        return true;
     }
 
     /// <summary>Reads <c>limit</c> (1 to <see cref="MaxLimit"/>) and <c>cursor</c>.</summary>

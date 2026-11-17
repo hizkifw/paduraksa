@@ -188,8 +188,7 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> PutRouteAsync(HttpContext http, AdminCaller caller, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
-            || !Preconditions.TryGetForce(http, out var force, out problem)
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem)
             || !Preconditions.TryGetVersion(http, out var version, out problem))
         {
             return problem!;
@@ -233,8 +232,7 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> DeleteRouteAsync(HttpContext http, AdminCaller caller, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
-            || !Preconditions.TryGetForce(http, out var force, out problem)
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem)
             || !Preconditions.TryGetVersion(http, out var version, out problem))
         {
             return problem!;
@@ -377,8 +375,7 @@ internal static class ConfigEndpoints
         CancellationToken ct)
         where T : class
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
-            || !Preconditions.TryGetForce(http, out var force, out problem))
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem))
         {
             return problem!;
         }
@@ -408,8 +405,7 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> DeleteAsync(HttpContext http, AdminCaller caller, ConfigService config, Func<long, ConfigCommand> command, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
-            || !Preconditions.TryGetForce(http, out var force, out problem)
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem)
             || !Preconditions.TryGetVersion(http, out var version, out problem))
         {
             return problem!;

@@ -84,6 +84,27 @@ internal sealed class QueryParameter
         return http.Request.Query[Name];
 #pragma warning restore RS0030
     }
+
+    /// <summary>The value read through <paramref name="parse"/>, one of the <c>ModelNames.Parse*</c> (null when the parameter is absent); false when the text isn't a name <paramref name="parse"/> knows.</summary>
+    public bool TryReadName<T>(HttpContext http, Func<string, T> parse, out T? value)
+        where T : struct
+    {
+        value = null;
+        if (Read(http).ToString() is not { Length: > 0 } text)
+        {
+            return true;
+        }
+
+        try
+        {
+            value = parse(text);
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
 }
 
 /// <summary>Endpoint metadata: a query parameter the endpoint reads, which the API description lists.</summary>

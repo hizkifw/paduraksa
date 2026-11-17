@@ -104,30 +104,10 @@ internal static class NotificationEndpoints
 
     private static async Task<IResult> HistoryAsync(HttpContext http, NotificationHistoryService history, CancellationToken ct)
     {
-        if (!Pagination.TryGetPage(http, out var limit, out var cursor, out var problem))
+        if (!Pagination.TryGetKeyset(http, "The cursor is not one this API issued for the notification history.", out var limit, out NotificationEventId? after, out var problem)
+            || !AuditEndpoints.TryGetTimeRange(http, out var from, out var to, out problem))
         {
             return problem!;
-        }
-
-        NotificationEventId? after = null;
-        if (cursor is not null)
-        {
-            if (!Pagination.TryDecode(cursor, out NotificationEventId id))
-            {
-                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The cursor is not one this API issued for the notification history.");
-            }
-
-            after = id;
-        }
-
-        if (!AuditEndpoints.TryGetTime(http, AuditEndpoints.From, out var from) || !AuditEndpoints.TryGetTime(http, AuditEndpoints.To, out var to))
-        {
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from and to must be ISO 8601 times with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
-        }
-
-        if (from > to)
-        {
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from must not be after to.");
         }
 
         NotificationChannelId? channel = null;
@@ -141,26 +121,14 @@ internal static class NotificationEndpoints
             channel = parsed;
         }
 
-        NotificationEventKind? kind = null;
-        if (Kind.Read(http).ToString() is { Length: > 0 } kindText)
+        if (!Kind.TryReadName(http, ModelNames.ParseNotificationEventKind, out var kind))
         {
-            if (!TryParse(kindText, ModelNames.ParseNotificationEventKind, out var parsedKind))
-            {
-                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "kind must be an event name such as upstream.down, certificate.expiring or signin.lockout.");
-            }
-
-            kind = parsedKind;
+            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "kind must be an event name such as upstream.down, certificate.expiring or signin.lockout.");
         }
 
-        NotificationDeliveryState? outcome = null;
-        if (Outcome.Read(http).ToString() is { Length: > 0 } outcomeText)
+        if (!Outcome.TryReadName(http, ModelNames.ParseNotificationDeliveryState, out var outcome))
         {
-            if (!TryParse(outcomeText, ModelNames.ParseNotificationDeliveryState, out var parsedOutcome))
-            {
-                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "outcome must be pending, sent, failed, expired or dropped.");
-            }
-
-            outcome = parsedOutcome;
+            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "outcome must be pending, sent, failed, expired or dropped.");
         }
 
         var page = await history.QueryAsync(new NotificationHistoryFilter(channel, kind, outcome, from, to), limit, after, ct).ConfigureAwait(false);
@@ -188,20 +156,6 @@ internal static class NotificationEndpoints
                 IssuanceChangeStatus.Unavailable => "The config store is unavailable, so changes are refused now.",
                 _ => "The request could not be completed.",
             }, null, result.Errors);
-    }
-
-    private static bool TryParse<T>(string text, Func<string, T> parse, out T value)
-    {
-        try
-        {
-            value = parse(text);
-            return true;
-        }
-        catch (FormatException)
-        {
-            value = default!;
-            return false;
-        }
     }
 
     private static IResult ListHealth(UpstreamHealthBoard board) =>

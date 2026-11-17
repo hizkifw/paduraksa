@@ -39,30 +39,10 @@ internal static class AuditEndpoints
 
     private static async Task<IResult> QueryAsync(HttpContext http, AuditQueryService audit, CancellationToken ct)
     {
-        if (!Pagination.TryGetPage(http, out var limit, out var cursor, out var problem))
+        if (!Pagination.TryGetKeyset(http, "The cursor is not one this API issued for the audit log.", out var limit, out AuditEventId? after, out var problem)
+            || !TryGetTimeRange(http, out var from, out var to, out problem))
         {
             return problem!;
-        }
-
-        AuditEventId? after = null;
-        if (cursor is not null)
-        {
-            if (!Pagination.TryDecode(cursor, out AuditEventId id))
-            {
-                return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The cursor is not one this API issued for the audit log.");
-            }
-
-            after = id;
-        }
-
-        if (!TryGetTime(http, From, out var from) || !TryGetTime(http, To, out var to))
-        {
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from and to must be ISO 8601 times with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
-        }
-
-        if (from > to)
-        {
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from must not be after to.");
         }
 
         if (!TryGetFilter(http, Actor, out var actor) || !TryGetFilter(http, Action, out var action) || !TryGetFilter(http, Target, out var target))
@@ -85,7 +65,7 @@ internal static class AuditEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "target must be a typed ID such as host_...");
         }
 
-        if (!TryGetOutcome(http, out var outcome))
+        if (!Outcome.TryReadName(http, ModelNames.ParseAuditOutcome, out var outcome))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "outcome must be success, denied, invalid, conflict or failed.");
         }
@@ -107,28 +87,6 @@ internal static class AuditEndpoints
         return text.Length <= MaxFilterLength;
     }
 
-    /// <summary>The outcome filter by its name (<c>success</c>, <c>denied</c>, ...); null when absent, false for anything else.</summary>
-    private static bool TryGetOutcome(HttpContext http, out AuditOutcome? outcome)
-    {
-        outcome = null;
-        var text = Outcome.Read(http).ToString();
-        if (text.Length == 0)
-        {
-            return true;
-        }
-
-        foreach (var candidate in Enum.GetValues<AuditOutcome>())
-        {
-            if (string.Equals(candidate.ToName(), text, StringComparison.Ordinal))
-            {
-                outcome = candidate;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool IsActionFilter(string action)
     {
         var name = action.EndsWith('*') ? action[..^1] : action;
@@ -137,6 +95,23 @@ internal static class AuditEndpoints
 
     private static bool IsActor(string actor) =>
         actor is "system" or "cli" || UserId.TryParse(actor, null, out _) || ApiTokenId.TryParse(actor, null, out _);
+
+    /// <summary>The <c>from</c> and <c>to</c> filters; a bad time, or a range that runs backwards, is a 400.</summary>
+    internal static bool TryGetTimeRange(HttpContext http, out DateTimeOffset? from, out DateTimeOffset? to, out IResult? problem)
+    {
+        to = null;
+        problem = null;
+        if (!TryGetTime(http, From, out from) || !TryGetTime(http, To, out to))
+        {
+            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "from and to must be ISO 8601 times with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
+        }
+        else if (from > to)
+        {
+            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "from must not be after to.");
+        }
+
+        return problem is null;
+    }
 
     private static readonly string[] TimeFormats = ["yyyy'-'MM'-'dd'T'HH':'mm':'ssK", "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'FFFFFFFK"];
 

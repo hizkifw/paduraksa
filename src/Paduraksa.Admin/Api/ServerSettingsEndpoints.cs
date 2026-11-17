@@ -43,8 +43,7 @@ internal static class ServerSettingsEndpoints
 
     private static async Task<IResult> PutAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
-            || !Preconditions.TryGetForce(http, out var force, out problem)
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem)
             || !Preconditions.TryGetVersion(http, out var version, out problem))
         {
             return problem!;

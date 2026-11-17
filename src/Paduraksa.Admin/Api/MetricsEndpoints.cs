@@ -50,40 +50,28 @@ internal static class MetricsEndpoints
 
     private static async Task<IResult> Overview(HttpContext http, MetricsService service)
     {
-        var text = Range.Read(http).ToString();
-        MetricsRange range;
-        if (text.Length == 0)
+        if (!TryGetRange(http, Range, out var range, out var problem))
         {
-            range = MetricsRange.Hour;
-        }
-        else if (!TryParseRange(text, out range))
-        {
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "range must be hour, day, week or month.");
+            return problem!;
         }
 
         // A rollup table that can't be read is an exception the API pipeline answers as a 500 problem carrying a trace ID.
         return EndpointSupport.Json(await service.ReadOverviewAsync(range, http.RequestAborted).ConfigureAwait(false), AdminJsonContext.Default.MetricsOverview);
     }
 
-    internal static bool TryParseRange(string text, out MetricsRange range)
+    /// <summary>Reads <paramref name="parameter"/> as a range: absent is an hour, anything but the four names is a 400.</summary>
+    internal static bool TryGetRange(HttpContext http, QueryParameter parameter, out MetricsRange range, out IResult? problem)
     {
-        switch (text)
+        MetricsRange? parsed = parameter.Read(http).ToString() switch
         {
-            case "hour":
-                range = MetricsRange.Hour;
-                return true;
-            case "day":
-                range = MetricsRange.Day;
-                return true;
-            case "week":
-                range = MetricsRange.Week;
-                return true;
-            case "month":
-                range = MetricsRange.Month;
-                return true;
-            default:
-                range = default;
-                return false;
-        }
+            "" or "hour" => MetricsRange.Hour,
+            "day" => MetricsRange.Day,
+            "week" => MetricsRange.Week,
+            "month" => MetricsRange.Month,
+            _ => null,
+        };
+        range = parsed ?? default;
+        problem = parsed is null ? ApiProblems.Problem(StatusCodes.Status400BadRequest, "range must be hour, day, week or month.") : null;
+        return parsed is not null;
     }
 }

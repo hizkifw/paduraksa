@@ -77,7 +77,7 @@ internal static class ConfigTransferEndpoints
 
     private static async Task<IResult> ImportAsync(HttpContext http, AdminCaller caller, ConfigImportService import, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem) || !Preconditions.TryGetForce(http, out var force, out problem))
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem))
         {
             return problem!;
         }

@@ -31,15 +31,9 @@ internal static class SecurityEndpoints
 
     private static async Task<IResult> Overview(HttpContext http, SecurityOverviewService service)
     {
-        var text = Range.Read(http).ToString();
-        MetricsRange range;
-        if (text.Length == 0)
+        if (!MetricsEndpoints.TryGetRange(http, Range, out var range, out var problem))
         {
-            range = MetricsRange.Hour;
-        }
-        else if (!MetricsEndpoints.TryParseRange(text, out range))
-        {
-            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "range must be hour, day, week or month.");
+            return problem!;
         }
 
         return EndpointSupport.Json(await service.ReadAsync(range, http.RequestAborted).ConfigureAwait(false), AdminJsonContext.Default.SecurityOverview);

@@ -108,7 +108,7 @@ internal static class LogEndpoints
 
     private static IResult Tail(HttpContext http, string name, ILogFileStore store)
     {
-        if (!TryGetLines(http, out var lines, out var problem))
+        if (!TryGetCount(http, Lines, out var lines, out var problem))
         {
             return problem!;
         }
@@ -142,7 +142,6 @@ internal static class LogEndpoints
         return Results.Stream(stream, contentType, fileDownloadName: name, enableRangeProcessing: false);
     }
 
-    /// <summary>Streams the entries as they come, until the client goes away (see the endpoint's description).</summary>
     private static IResult Recent(HttpContext http, LogTailService service)
     {
         if (!TryReadFilter(http, out var filter, out var limit, out var problem, RecentLimit))
@@ -153,6 +152,7 @@ internal static class LogEndpoints
         return EndpointSupport.Json(service.Recent(filter, limit), AdminJsonContext.Default.IReadOnlyListLogTailEntry);
     }
 
+    /// <summary>Streams the entries as they come, until the client goes away (see the endpoint's description).</summary>
     private static async Task<IResult> Stream(HttpContext http, LogTailService service)
     {
         if (!TryReadFilter(http, out var filter, out var backlog, out var problem, Backlog))
@@ -253,7 +253,7 @@ internal static class LogEndpoints
     private static bool TryReadFilter(HttpContext http, out LogTailFilter filter, out int backlog, out IResult? problem, QueryParameter count)
     {
         filter = new LogTailFilter();
-        backlog = int.Parse(count.Default!, CultureInfo.InvariantCulture);
+        backlog = 0;
         problem = null;
         int? statusClass = null;
         int? status = null;
@@ -282,10 +282,8 @@ internal static class LogEndpoints
             }
         }
 
-        if (count.Read(http).ToString() is { Length: > 0 } backlogText
-            && (!int.TryParse(backlogText, NumberStyles.None, CultureInfo.InvariantCulture, out backlog) || backlog < count.Minimum || backlog > count.Maximum))
+        if (!TryGetCount(http, count, out backlog, out problem))
         {
-            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"{count.Name} must be between {count.Minimum} and {count.Maximum}.");
             return false;
         }
 
@@ -302,21 +300,15 @@ internal static class LogEndpoints
 
     private static string? Text(Microsoft.Extensions.Primitives.StringValues values) => values.ToString() is { Length: > 0 } text ? text : null;
 
-    /// <summary><c>?lines=</c> (1 to 1000; absent is <see cref="LogFileStore.DefaultTailLines"/>).</summary>
-    private static bool TryGetLines(HttpContext http, out int lines, out IResult? problem)
+    /// <summary>An integer parameter within the range it declares; absent is its default.</summary>
+    private static bool TryGetCount(HttpContext http, QueryParameter parameter, out int value, out IResult? problem)
     {
         problem = null;
-        lines = LogFileStore.DefaultTailLines;
-        var text = Lines.Read(http).ToString();
-        if (text.Length == 0)
+        value = int.Parse(parameter.Default!, CultureInfo.InvariantCulture);
+        if (parameter.Read(http).ToString() is { Length: > 0 } text
+            && (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) || value < parameter.Minimum || value > parameter.Maximum))
         {
-            return true;
-        }
-
-        if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out lines)
-            || lines is < 1 or > LogFileStore.MaxTailLines)
-        {
-            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"lines must be between 1 and {LogFileStore.MaxTailLines}.");
+            problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"{parameter.Name} must be between {parameter.Minimum} and {parameter.Maximum}.");
             return false;
         }
 

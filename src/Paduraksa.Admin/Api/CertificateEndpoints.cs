@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -95,21 +96,8 @@ internal static class CertificateEndpoints
 
     private static async Task<IResult> ListAsync(HttpContext http, CertificateService certificates, CancellationToken ct)
     {
-        CertificateSource? source = null;
-        CertificateStatus? status = null;
-        try
-        {
-            if (Source.Read(http).ToString() is { Length: > 0 } sourceName)
-            {
-                source = ModelNames.ParseCertificateSource(sourceName);
-            }
-
-            if (Status.Read(http).ToString() is { Length: > 0 } statusName)
-            {
-                status = ModelNames.ParseCertificateStatus(statusName);
-            }
-        }
-        catch (FormatException)
+        if (!Source.TryReadName(http, ModelNames.ParseCertificateSource, out var source)
+            || !Status.TryReadName(http, ModelNames.ParseCertificateStatus, out var status))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "source and status must be names the API uses, e.g. source=acme, status=active.");
         }
@@ -226,19 +214,13 @@ internal static class CertificateEndpoints
 
     private static async Task<IResult> LocalCaAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {
-        LocalCaRequest request = new();
-        if (HasBody(http))
+        var body = await ReadOptionalJsonAsync(http, AdminJsonContext.Default.LocalCaRequest).ConfigureAwait(false);
+        if (!body.Ok)
         {
-            var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaRequest).ConfigureAwait(false);
-            if (!body.Ok)
-            {
-                return body.Problem!;
-            }
-
-            request = body.Value!;
+            return body.Problem!;
         }
 
-        return OperationResult(await operations.EnsureLocalCaAsync(request, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create);
+        return OperationResult(await operations.EnsureLocalCaAsync(body.Value ?? new(), caller.Origin, ct).ConfigureAwait(false), MutationKind.Create);
     }
 
     private static async Task<IResult> LocalCaStatusAsync(CertificateOperations operations, CancellationToken ct) =>
@@ -246,19 +228,13 @@ internal static class CertificateEndpoints
 
     private static async Task<IResult> RotateLocalCaAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {
-        LocalCaRotateRequest request = new();
-        if (HasBody(http))
+        var body = await ReadOptionalJsonAsync(http, AdminJsonContext.Default.LocalCaRotateRequest).ConfigureAwait(false);
+        if (!body.Ok)
         {
-            var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaRotateRequest).ConfigureAwait(false);
-            if (!body.Ok)
-            {
-                return body.Problem!;
-            }
-
-            request = body.Value!;
+            return body.Problem!;
         }
 
-        return OperationResult(await operations.RotateLocalCaAsync(request, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
+        return OperationResult(await operations.RotateLocalCaAsync(body.Value ?? new(), caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
     }
 
     private static async Task<IResult> ReissueLocalCaLeavesAsync(AdminCaller caller, CertificateOperations operations, CancellationToken ct) =>
@@ -274,19 +250,13 @@ internal static class CertificateEndpoints
 
     private static async Task<IResult> ReissueAsync(HttpContext http, AdminCaller caller, CertificateId id, CertificateOperations operations, CancellationToken ct)
     {
-        ReissueRequest? request = null;
-        if (HasBody(http))
+        var body = await ReadOptionalJsonAsync(http, AdminJsonContext.Default.ReissueRequest).ConfigureAwait(false);
+        if (!body.Ok)
         {
-            var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.ReissueRequest).ConfigureAwait(false);
-            if (!body.Ok)
-            {
-                return body.Problem!;
-            }
-
-            request = body.Value;
+            return body.Problem!;
         }
 
-        return OperationResult(await operations.ReissueAsync(id, request, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
+        return OperationResult(await operations.ReissueAsync(id, body.Value, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
     }
 
     private static async Task<IResult> DeleteAsync(HttpContext http, AdminCaller caller, CertificateId id, CertificateOperations operations, CancellationToken ct)
@@ -352,8 +322,12 @@ internal static class CertificateEndpoints
         return EndpointSupport.Located(EndpointSupport.Json(result, AdminJsonContext.Default.IssuanceResult, status), status == StatusCodes.Status201Created && result.CertificateId is { } created ? EndpointSupport.Path("certificates", created) : null);
     }
 
-    private static bool HasBody(HttpContext http) =>
-        http.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody ?? http.Request.ContentLength > 0;
+    /// <summary>The body when the request has one; an absent body is a result with no value, and an empty one a problem.</summary>
+    private static async Task<BodyResult<T>> ReadOptionalJsonAsync<T>(HttpContext http, JsonTypeInfo<T> typeInfo)
+        where T : class =>
+        http.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody ?? http.Request.ContentLength > 0
+            ? await ApiBody.ReadJsonAsync(http, typeInfo).ConfigureAwait(false)
+            : new BodyResult<T>(null, null);
 
     private static async Task<byte[]?> ReadSmallAsync(Stream stream, int max, CancellationToken ct)
     {

@@ -41,25 +41,14 @@ internal static class RevisionEndpoints
 
     private static async Task<IResult> ListAsync(HttpContext http, RevisionQueryService revisions, CancellationToken ct)
     {
-        if (!Pagination.TryGetPage(http, out var limit, out var cursor, out var problem))
+        if (!Pagination.TryGetKeyset(http, BadCursor, out var limit, out ConfigRevisionId? after, out var problem))
         {
             return problem!;
         }
 
-        ConfigRevisionId? after = null;
-        if (cursor is not null)
-        {
-            if (!Pagination.TryDecode(cursor, out ConfigRevisionId id))
-            {
-                return BadCursor();
-            }
-
-            after = id;
-        }
-
         var page = await revisions.ListAsync(limit, after, ct).ConfigureAwait(false);
         return page is null
-            ? BadCursor()
+            ? ApiProblems.Problem(StatusCodes.Status400BadRequest, BadCursor)
             : EndpointSupport.Json(new Page<RevisionSummary>(page.Items, page.Next is { } next ? Pagination.Encode(next) : null), AdminJsonContext.Default.PageRevisionSummary);
     }
 
@@ -82,8 +71,7 @@ internal static class RevisionEndpoints
 
     private static async Task<IResult> RollbackAsync(HttpContext http, AdminCaller caller, ConfigRevisionId id, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
-            || !Preconditions.TryGetForce(http, out var force, out problem)
+        if (!Preconditions.TryGetFlags(http, out var dryRun, out var force, out var problem)
             || !Preconditions.TryGetRevision(http, out ConfigRevisionId latest, out problem))
         {
             return problem!;
@@ -100,5 +88,5 @@ internal static class RevisionEndpoints
         return parameter.Read(http) is { Count: 1 } values && ConfigRevisionId.TryParse(values[0], null, out id);
     }
 
-    private static IResult BadCursor() => ApiProblems.Problem(StatusCodes.Status400BadRequest, "The cursor is not one this API issued for revisions, or its revision no longer exists.");
+    private const string BadCursor = "The cursor is not one this API issued for revisions, or its revision no longer exists.";
 }
