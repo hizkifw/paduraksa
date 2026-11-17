@@ -2,13 +2,11 @@ using System.IO.Compression;
 using System.Net;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Proxy.Config;
@@ -17,7 +15,6 @@ using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -33,31 +30,16 @@ public sealed class CompressionEndToEndTests : IAsyncLifetime
     // Repetitive text, so compression always wins and the sizes say so.
     private static readonly string Page = string.Concat(Enumerable.Repeat("<p>Paduraksa compresses this line of text.</p>\n", 200));
 
-    private IHost? _upstream;
-    private string _address = string.Empty;
+    private LoopbackUpstream? _upstream;
 
-    public async ValueTask InitializeAsync()
-    {
-        _upstream = new HostBuilder()
-            .ConfigureLogging(static logging => logging.ClearProviders())
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(static app =>
-                {
-                    app.UseWebSockets();
-                    app.Run(Answer);
-                }))
-            .Build();
-        await _upstream.StartAsync(TestContext.Current.CancellationToken);
-        _address = Assert.Single(_upstream.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses) + "/";
-    }
+    public async ValueTask InitializeAsync() =>
+        _upstream = await LoopbackUpstream.StartAsync(Answer, webSockets: true, cancellationToken: TestContext.Current.CancellationToken);
 
     public async ValueTask DisposeAsync()
     {
         if (_upstream is not null)
         {
-            await _upstream.StopAsync(TestContext.Current.CancellationToken);
-            _upstream.Dispose();
+            await _upstream.DisposeAsync();
         }
     }
 
@@ -484,7 +466,7 @@ public sealed class CompressionEndToEndTests : IAsyncLifetime
 
     private ProxyConfigModel Model() => new()
     {
-        Upstreams = [Upstream("up", _address)],
+        Upstreams = [Upstream("up", _upstream!.Address)],
         Hosts =
         [
             ProxyHost("app", "app.test", Route("app-root", "up")) with { Compression = new HostCompressionSpec { Enabled = true, MinimumSize = 1024 } },

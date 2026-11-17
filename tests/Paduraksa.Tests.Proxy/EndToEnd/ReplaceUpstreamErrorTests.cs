@@ -1,13 +1,10 @@
 using System.Net;
-using System.Net.Http;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Core.Model;
@@ -236,11 +233,11 @@ public sealed class ReplaceUpstreamErrorTests(ErrorUpstream upstream) : IClassFi
 /// <summary>An upstream that answers any status and content type on request, with a body of its own and an ETag, a cookie and a modification time.</summary>
 public sealed class ErrorUpstream : IAsyncLifetime
 {
-    private IHost? _host;
+    private LoopbackUpstream? _upstream;
     private long _hugeBytes;
     private TaskCompletionSource _hugeCutOff = NewCutOff();
 
-    public string Address { get; private set; } = string.Empty;
+    public string Address => _upstream!.Address;
 
     public long HugeBytesWritten => Interlocked.Read(ref _hugeBytes);
 
@@ -263,24 +260,13 @@ public sealed class ErrorUpstream : IAsyncLifetime
 
     private static TaskCompletionSource NewCutOff() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public async ValueTask InitializeAsync()
-    {
-        _host = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(app => app.Run(HandleAsync)))
-            .Build();
-        await _host.StartAsync();
-        var address = Assert.Single(_host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-        Address = address + "/";
-    }
+    public async ValueTask InitializeAsync() => _upstream = await LoopbackUpstream.StartAsync(HandleAsync);
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is not null)
+        if (_upstream is not null)
         {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
+            await _upstream.DisposeAsync();
         }
     }
 

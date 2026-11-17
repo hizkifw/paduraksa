@@ -1,18 +1,15 @@
 using System.Net;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -23,32 +20,23 @@ public sealed class UpstreamHealthReadingTests : IAsyncLifetime
 {
     private static readonly ActiveHealthSpec Probe = new() { Path = "/health", Interval = TimeSpan.FromMilliseconds(150), Timeout = TimeSpan.FromSeconds(1) };
 
-    private IHost? _upstream;
+    private LoopbackUpstream? _upstream;
     private int _status = 200;
-    private string _address = "";
 
-    public async ValueTask InitializeAsync()
-    {
-        _upstream = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(app => app.Run(context =>
-                {
-                    context.Response.StatusCode = context.Request.Path.Value!.EndsWith("/health", StringComparison.Ordinal) ? Volatile.Read(ref _status) : 200;
-                    return Task.CompletedTask;
-                })))
-            .Build();
-        await _upstream.StartAsync(TestContext.Current.CancellationToken);
-        var port = new Uri(Assert.Single(_upstream.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses)).Port;
-        _address = $"http://127.0.0.1:{port}/";
-    }
+    public async ValueTask InitializeAsync() =>
+        _upstream = await LoopbackUpstream.StartAsync(
+            context =>
+            {
+                context.Response.StatusCode = context.Request.Path.Value!.EndsWith("/health", StringComparison.Ordinal) ? Volatile.Read(ref _status) : 200;
+                return Task.CompletedTask;
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
 
     public async ValueTask DisposeAsync()
     {
         if (_upstream is not null)
         {
-            await _upstream.StopAsync(CancellationToken.None);
-            _upstream.Dispose();
+            await _upstream.DisposeAsync();
         }
     }
 
@@ -87,8 +75,8 @@ public sealed class UpstreamHealthReadingTests : IAsyncLifetime
             Revision = TestIds.Revision("health"),
             Upstreams =
             [
-                Upstream("app", _address, dead) with { ActiveHealth = Probe },
-                Upstream("plain", _address),
+                Upstream("app", _upstream!.Address, dead) with { ActiveHealth = Probe },
+                Upstream("plain", _upstream!.Address),
             ],
             Hosts = [ProxyHost("app", "app.test", Route("app-root", "app")), ProxyHost("plain", "plain.test", Route("plain-root", "plain"))],
         };

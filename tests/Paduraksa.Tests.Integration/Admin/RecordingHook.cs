@@ -1,28 +1,18 @@
 using System.Collections.Concurrent;
-using System.Net;
 using System.Text;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>A loopback server that records what is POSTed to it (and ignores the Node prober's <c>GET /</c> that this machine sends to new ports).</summary>
 internal sealed class RecordingHook : IAsyncDisposable
 {
-    private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    private readonly IHost _host;
+    private readonly LoopbackUpstream _upstream;
     private readonly ConcurrentQueue<(string Path, string Body, string? Signature, string? EventId)> _received = new();
 
-    private RecordingHook(IHost host, string url)
+    private RecordingHook(LoopbackUpstream upstream)
     {
-        _host = host;
-        Url = url;
+        _upstream = upstream;
+        Url = upstream.Address.TrimEnd('/');
     }
 
     public string Url { get; }
@@ -35,30 +25,22 @@ internal sealed class RecordingHook : IAsyncDisposable
     public static async Task<RecordingHook> StartAsync()
     {
         RecordingHook? hook = null;
-        var host = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(app => app.Run(async context =>
+        var upstream = await LoopbackUpstream.StartAsync(
+            async context =>
+            {
+                if (context.Request.Method != "POST")
                 {
-                    if (context.Request.Method != "POST")
-                    {
-                        return;
-                    }
+                    return;
+                }
 
-                    context.Response.StatusCode = hook!.Status;
-                    using StreamReader reader = new(context.Request.Body, Encoding.UTF8);
-                    hook!._received.Enqueue((context.Request.Path.Value!, await reader.ReadToEndAsync(), context.Request.Headers["X-Paduraksa-Signature"].ToString() is { Length: > 0 } sig ? sig : null, context.Request.Headers["X-Paduraksa-Event-Id"].ToString() is { Length: > 0 } id ? id : null));
-                })))
-            .Build();
-        await host.StartAsync(Ct);
-        var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single().TrimEnd('/');
-        hook = new RecordingHook(host, address);
+                context.Response.StatusCode = hook!.Status;
+                using StreamReader reader = new(context.Request.Body, Encoding.UTF8);
+                hook!._received.Enqueue((context.Request.Path.Value!, await reader.ReadToEndAsync(), context.Request.Headers["X-Paduraksa-Signature"].ToString() is { Length: > 0 } sig ? sig : null, context.Request.Headers["X-Paduraksa-Event-Id"].ToString() is { Length: > 0 } id ? id : null));
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+        hook = new RecordingHook(upstream);
         return hook;
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _host.StopAsync(CancellationToken.None);
-        _host.Dispose();
-    }
+    public ValueTask DisposeAsync() => _upstream.DisposeAsync();
 }

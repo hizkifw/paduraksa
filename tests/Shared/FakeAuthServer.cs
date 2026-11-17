@@ -1,14 +1,12 @@
 // Linked into Paduraksa.Tests.Proxy, Paduraksa.Tests.Integration and Paduraksa.Tests.Dashboard (<Compile Include Link>), so it
 // compiles into each test assembly as an internal type of its own.
 using System.Collections.Concurrent;
-using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -26,13 +24,13 @@ internal sealed record RecordedAuthCall(string Method, string Target, IReadOnlyD
 /// </summary>
 internal sealed class FakeAuthServer : IAsyncDisposable
 {
-    private readonly IHost _host;
+    private readonly LoopbackUpstream _upstream;
     private readonly ConcurrentQueue<RecordedAuthCall> _calls = new();
 
-    private FakeAuthServer(IHost host, string address)
+    private FakeAuthServer(LoopbackUpstream upstream)
     {
-        _host = host;
-        Address = address;
+        _upstream = upstream;
+        Address = upstream.Address.TrimEnd('/');
     }
 
     /// <summary>The server's base address with no trailing slash.</summary>
@@ -52,46 +50,37 @@ internal sealed class FakeAuthServer : IAsyncDisposable
     public static async Task<FakeAuthServer> StartAsync(CancellationToken cancellationToken = default)
     {
         FakeAuthServer? server = null;
-        var host = new HostBuilder()
-            .ConfigureLogging(static logging => logging.ClearProviders())
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel =>
+        var upstream = await LoopbackUpstream.StartAsync(
+            context =>
+            {
+                // The proxy always sends X-Forwarded-Proto, to an auth endpoint and to an upstream alike; a request without it is
+                // a stranger (a dev tool probing new localhost ports was seen doing GET /) and must not count as a call.
+                if (!context.Request.Headers.ContainsKey("X-Forwarded-Proto"))
                 {
-                    kestrel.Listen(IPAddress.Loopback, 0);
-                    kestrel.AddServerHeader = false;
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return Task.CompletedTask;
+                }
 
-                    // A provider writes a display name as UTF-8, as authentik does.
-                    kestrel.ResponseHeaderEncodingSelector = static _ => System.Text.Encoding.UTF8;
-                })
-                .Configure(app => app.Run(context =>
+                Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
+                foreach (var header in context.Request.Headers)
                 {
-                    // The proxy always sends X-Forwarded-Proto, to an auth endpoint and to an upstream alike; a request without it is
-                    // a stranger (a dev tool probing new localhost ports was seen doing GET /) and must not count as a call.
-                    if (!context.Request.Headers.ContainsKey("X-Forwarded-Proto"))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status404NotFound;
-                        return Task.CompletedTask;
-                    }
+                    headers[header.Key] = string.Join(", ", header.Value.ToArray());
+                }
 
-                    Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
-                    foreach (var header in context.Request.Headers)
-                    {
-                        headers[header.Key] = string.Join(", ", header.Value.ToArray());
-                    }
+                server!._calls.Enqueue(new RecordedAuthCall(context.Request.Method, context.Features.Get<IHttpRequestFeature>()!.RawTarget, headers));
+                return server.Handler(context);
+            },
+            kestrel: static kestrel =>
+            {
+                kestrel.AddServerHeader = false;
 
-                    server!._calls.Enqueue(new RecordedAuthCall(context.Request.Method, context.Features.Get<IHttpRequestFeature>()!.RawTarget, headers));
-                    return server.Handler(context);
-                })))
-            .Build();
-        await host.StartAsync(cancellationToken);
-        var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-        server = new FakeAuthServer(host, address);
+                // A provider writes a display name as UTF-8, as authentik does.
+                kestrel.ResponseHeaderEncodingSelector = static _ => System.Text.Encoding.UTF8;
+            },
+            cancellationToken: cancellationToken);
+        server = new FakeAuthServer(upstream);
         return server;
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _host.StopAsync(CancellationToken.None);
-        _host.Dispose();
-    }
+    public ValueTask DisposeAsync() => _upstream.DisposeAsync();
 }

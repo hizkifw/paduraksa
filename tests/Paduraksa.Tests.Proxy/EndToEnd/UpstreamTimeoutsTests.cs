@@ -4,13 +4,11 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -32,30 +30,14 @@ public sealed class UpstreamTimeoutsTests : IAsyncLifetime
     private static readonly TimeSpan ShortIdle = TimeSpan.FromSeconds(2);
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private IHost _upstream = null!;
-    private string _address = string.Empty;
+    private LoopbackUpstream _upstream = null!;
 
-    public async ValueTask InitializeAsync()
-    {
-        _upstream = new HostBuilder()
-            .ConfigureLogging(static logging => logging.ClearProviders())
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0, listen => listen.Protocols = HttpProtocols.Http1))
-                .Configure(app =>
-                {
-                    app.UseWebSockets();
-                    app.Run(HandleAsync);
-                }))
-            .Build();
-        await _upstream.StartAsync(Ct);
-        _address = _upstream.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-    }
+    private string Address => _upstream.Address.TrimEnd('/');
 
-    public async ValueTask DisposeAsync()
-    {
-        await _upstream.StopAsync(CancellationToken.None);
-        _upstream.Dispose();
-    }
+    public async ValueTask InitializeAsync() =>
+        _upstream = await LoopbackUpstream.StartAsync(HandleAsync, listen => listen.Protocols = HttpProtocols.Http1, webSockets: true, cancellationToken: Ct);
+
+    public ValueTask DisposeAsync() => _upstream.DisposeAsync();
 
     private static async Task HandleAsync(HttpContext context)
     {
@@ -108,7 +90,7 @@ public sealed class UpstreamTimeoutsTests : IAsyncLifetime
 
     private ProxyConfigModel Model(TimeSpan? idle = null, TimeSpan? connect = null, string? address = null) => new()
     {
-        Upstreams = [Upstream("up", address ?? _address) with { IdleTimeout = idle ?? UpstreamTimeouts.DefaultIdle, ConnectTimeout = connect ?? UpstreamTimeouts.DefaultConnect }],
+        Upstreams = [Upstream("up", address ?? Address) with { IdleTimeout = idle ?? UpstreamTimeouts.DefaultIdle, ConnectTimeout = connect ?? UpstreamTimeouts.DefaultConnect }],
         Hosts = [ProxyHost("app", "app.test", Route("app-root", "up"))],
     };
 

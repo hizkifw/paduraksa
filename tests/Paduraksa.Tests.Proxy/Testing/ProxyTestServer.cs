@@ -388,9 +388,9 @@ internal sealed class GateStats
 /// </summary>
 public sealed class TestUpstream : IAsyncLifetime
 {
-    private IHost? _host;
+    private LoopbackUpstream? _upstream;
 
-    public int Port { get; private set; }
+    public int Port => _upstream!.Port;
 
     /// <summary>A loopback port nothing listens on.</summary>
     public int DeadPort { get; } = FreePort();
@@ -398,36 +398,26 @@ public sealed class TestUpstream : IAsyncLifetime
     /// <summary>Destination address with a path prefix, e.g. <c>http://127.0.0.1:1234/a/</c>.</summary>
     public string Address(string prefix) => string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{Port}/{prefix}/");
 
-    public async ValueTask InitializeAsync()
-    {
-        _host = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(static app => app.Run(static context =>
-                {
-                    if (context.Request.Path.Value!.Contains("/bad", StringComparison.Ordinal))
-                    {
-                        context.Response.StatusCode = 500;
-                        return Task.CompletedTask;
-                    }
+    public async ValueTask InitializeAsync() =>
+        _upstream = await LoopbackUpstream.StartAsync(static context =>
+        {
+            if (context.Request.Path.Value!.Contains("/bad", StringComparison.Ordinal))
+            {
+                context.Response.StatusCode = 500;
+                return Task.CompletedTask;
+            }
 
-                    var raw = context.Features.Get<IHttpRequestFeature>()!.RawTarget;
-                    var query = raw.IndexOf('?', StringComparison.Ordinal);
-                    context.Response.Headers["x-query"] = query < 0 ? string.Empty : raw[query..];
-                    return context.Response.WriteAsync(query < 0 ? raw : raw[..query]);
-                })))
-            .Build();
-        await _host.StartAsync();
-        var address = Assert.Single(_host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-        Port = new Uri(address).Port;
-    }
+            var raw = context.Features.Get<IHttpRequestFeature>()!.RawTarget;
+            var query = raw.IndexOf('?', StringComparison.Ordinal);
+            context.Response.Headers["x-query"] = query < 0 ? string.Empty : raw[query..];
+            return context.Response.WriteAsync(query < 0 ? raw : raw[..query]);
+        });
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is not null)
+        if (_upstream is not null)
         {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
+            await _upstream.DisposeAsync();
         }
     }
 

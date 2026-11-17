@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -14,10 +13,8 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Logging;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Logging;
-using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Proxy;
 
@@ -301,7 +298,7 @@ public sealed class AccessLogEndToEndTests
     private static string NextTag() => "a" + Interlocked.Increment(ref s_tag).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>Compiles and publishes like the server does: its compiler options, the placeholder as the default certificate.</summary>
-    private static async Task PublishAsync(PaduraksaHost host, EchoUpstream upstream, CancellationToken ct, bool quiet = false, string? deadAddress = null)
+    private static async Task PublishAsync(PaduraksaHost host, LoopbackUpstream upstream, CancellationToken ct, bool quiet = false, string? deadAddress = null)
     {
         ProxyConfigModel model = new()
         {
@@ -419,39 +416,6 @@ public sealed class AccessLogEndToEndTests
                 // Poll step of a wait bounded to 15 s.
                 await Task.Delay(50, ct);
             }
-        }
-    }
-
-    /// <summary>A loopback upstream answering <c>upstream:{path}</c> with a known body, and remembering the last path.</summary>
-    private sealed class EchoUpstream : IAsyncDisposable
-    {
-        private readonly IHost _host;
-
-        private EchoUpstream(IHost host, string address)
-        {
-            _host = host;
-            Address = address;
-        }
-
-        public string Address { get; }
-
-        public static async Task<EchoUpstream> StartAsync(CancellationToken ct)
-        {
-            var host = new HostBuilder()
-                .ConfigureLogging(static logging => logging.ClearProviders())
-                .ConfigureWebHost(static web => web
-                    .UseKestrel(static kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                    .Configure(static app => app.Run(static context => context.Response.WriteAsync("upstream:" + context.Request.Path))))
-                .Build();
-            await host.StartAsync(ct);
-            var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-            return new EchoUpstream(host, address + "/");
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
         }
     }
 }

@@ -1,17 +1,14 @@
 using System.Net;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
@@ -24,25 +21,21 @@ namespace Paduraksa.Tests.Integration.Proxy;
 public sealed class PublicErrorPagesTests : IAsyncLifetime
 {
     private readonly TestCertificates _certificates = new();
-    private WebApplication? _upstream;
-    private string _upstreamAddress = string.Empty;
+    private LoopbackUpstream? _upstream;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public async ValueTask InitializeAsync()
-    {
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.WebHost.UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0));
-        _upstream = builder.Build();
-        _upstream.Run(async context =>
-        {
-            context.Response.StatusCode = context.Request.Path.Value is "/missing" ? 404 : 200;
-            context.Response.ContentType = "text/html";
-            await context.Response.WriteAsync("<h1>the upstream's own page</h1>", Ct);
-        });
-        await _upstream.StartAsync(Ct);
-        _upstreamAddress = Assert.Single(_upstream.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses) + "/";
-    }
+    private string UpstreamAddress => _upstream!.Address;
+
+    public async ValueTask InitializeAsync() =>
+        _upstream = await LoopbackUpstream.StartAsync(
+            async context =>
+            {
+                context.Response.StatusCode = context.Request.Path.Value is "/missing" ? 404 : 200;
+                context.Response.ContentType = "text/html";
+                await context.Response.WriteAsync("<h1>the upstream's own page</h1>", Ct);
+            },
+            cancellationToken: Ct);
 
     public async ValueTask DisposeAsync()
     {
@@ -59,7 +52,7 @@ public sealed class PublicErrorPagesTests : IAsyncLifetime
 
     private ProxyConfigModel Model() => new()
     {
-        Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("web"), Destinations = [new(TestIds.Destination("web-1"), _upstreamAddress)] }],
+        Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("web"), Destinations = [new(TestIds.Destination("web-1"), UpstreamAddress)] }],
         Hosts =
         [
             // No route takes anything but /app, so every other path is the gate's own 404.

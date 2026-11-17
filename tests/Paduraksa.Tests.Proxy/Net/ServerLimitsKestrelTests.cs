@@ -1,16 +1,13 @@
 using System.Diagnostics;
-using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Proxy.Net;
@@ -25,7 +22,7 @@ public sealed class ServerLimitsKestrelTests : IAsyncLifetime
 {
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(15);
 
-    private IHost? _host;
+    private LoopbackUpstream? _upstream;
     private Uri _address = null!;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -42,29 +39,15 @@ public sealed class ServerLimitsKestrelTests : IAsyncLifetime
             MinResponseRate = 100_000,
             MinResponseGrace = TimeSpan.FromSeconds(1.5),
         };
-        _host = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel =>
-                {
-                    limits.Apply(kestrel.Limits);
-                    kestrel.Listen(IPAddress.Loopback, 0, l => l.Protocols = HttpProtocols.Http1);
-                })
-                .Configure(app =>
-                {
-                    app.UseWebSockets();
-                    app.Run(HandleAsync);
-                }))
-            .Build();
-        await _host.StartAsync(Ct);
-        _address = new Uri(_host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single());
+        _upstream = await LoopbackUpstream.StartAsync(HandleAsync, listen => listen.Protocols = HttpProtocols.Http1, kestrel => limits.Apply(kestrel.Limits), webSockets: true, cancellationToken: Ct);
+        _address = new Uri(_upstream.Address.TrimEnd('/'));
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is not null)
+        if (_upstream is not null)
         {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
+            await _upstream.DisposeAsync();
         }
     }
 

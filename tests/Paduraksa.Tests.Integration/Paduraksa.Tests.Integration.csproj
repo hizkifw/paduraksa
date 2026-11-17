@@ -15,6 +15,7 @@
     <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
     <Compile Include="../Shared/McpTestSpec.cs" Link="Shared/McpTestSpec.cs" />
     <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Compile Include="../Shared/LoopbackUpstream.cs" Link="Shared/LoopbackUpstream.cs" />
     <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
   <Import Project="../Shared/TestPasswords.props" />

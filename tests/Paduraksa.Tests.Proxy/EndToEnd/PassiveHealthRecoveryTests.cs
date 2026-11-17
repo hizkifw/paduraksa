@@ -2,18 +2,15 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Proxy.Config;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Model;
@@ -32,37 +29,25 @@ public sealed class PassiveHealthRecoveryTests : IAsyncLifetime
     private static readonly ActiveHealthSpec Probe = new() { Path = "/health", Interval = TimeSpan.FromMilliseconds(250), Timeout = TimeSpan.FromSeconds(1) };
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private IHost _upstream = null!;
-    private int _port;
+    private LoopbackUpstream _upstream = null!;
     private volatile bool _down;
 
-    public async ValueTask InitializeAsync()
-    {
-        _upstream = new HostBuilder()
-            .ConfigureLogging(static logging => logging.ClearProviders())
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(app => app.Run(context =>
+    public async ValueTask InitializeAsync() =>
+        _upstream = await LoopbackUpstream.StartAsync(
+            context =>
+            {
+                var path = context.Request.Path.Value!;
+                if (_down && path.StartsWith("/flap/", StringComparison.Ordinal))
                 {
-                    var path = context.Request.Path.Value!;
-                    if (_down && path.StartsWith("/flap/", StringComparison.Ordinal))
-                    {
-                        context.Abort();
-                        return Task.CompletedTask;
-                    }
+                    context.Abort();
+                    return Task.CompletedTask;
+                }
 
-                    return context.Response.WriteAsync(path);
-                })))
-            .Build();
-        await _upstream.StartAsync(Ct);
-        _port = new Uri(_upstream.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()).Port;
-    }
+                return context.Response.WriteAsync(path);
+            },
+            cancellationToken: Ct);
 
-    public async ValueTask DisposeAsync()
-    {
-        await _upstream.StopAsync(CancellationToken.None);
-        _upstream.Dispose();
-    }
+    public ValueTask DisposeAsync() => _upstream.DisposeAsync();
 
     private ProxyConfigModel Model(TimeSpan reactivation, ActiveHealthSpec? active) => new()
     {
@@ -73,7 +58,7 @@ public sealed class PassiveHealthRecoveryTests : IAsyncLifetime
         Hosts = [ProxyHost("app", "app.test", Route("app-root", "up"))],
     };
 
-    private string Address(string prefix) => string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{_port}/{prefix}/");
+    private string Address(string prefix) => string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{_upstream.Port}/{prefix}/");
 
     [Fact]
     public async Task APassivelyEjectedDestinationIsBackAfterTheUpstreamsReactivationPeriod()

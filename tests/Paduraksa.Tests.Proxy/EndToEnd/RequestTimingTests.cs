@@ -1,18 +1,14 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Core.Model;
@@ -433,81 +429,71 @@ public sealed class RequestTimingTests : IAsyncLifetime
     {
         public const int BigBody = 16 * 1024 * 1024;
 
-        private readonly IHost _host;
+        private readonly LoopbackUpstream _upstream;
 
         private readonly TaskCompletionSource _earlyAnswer;
 
-        private TimingUpstream(IHost host, string address, TaskCompletionSource earlyAnswer)
+        private TimingUpstream(LoopbackUpstream upstream, TaskCompletionSource earlyAnswer)
         {
-            _host = host;
-            Address = address;
-            Port = new Uri(address).Port;
+            _upstream = upstream;
             _earlyAnswer = earlyAnswer;
         }
 
         /// <summary>Lets <c>/early/...</c> answer.</summary>
         public void ReleaseEarlyAnswer() => _earlyAnswer.TrySetResult();
 
-        public string Address { get; }
+        public string Address => _upstream.Address;
 
-        public int Port { get; }
+        public int Port => _upstream.Port;
 
         public static async Task<TimingUpstream> StartAsync(X509Certificate2? certificate)
         {
             TaskCompletionSource earlyAnswer = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            var host = new HostBuilder()
-                .ConfigureLogging(static logging => logging.ClearProviders())
-                .ConfigureWebHost(web => web
-                    .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0, listen =>
+            var upstream = await LoopbackUpstream.StartAsync(
+                async context =>
+                {
+                    var path = context.Request.Path.Value ?? string.Empty;
+                    var ct = context.RequestAborted;
+                    if (path.StartsWith("/slow/", StringComparison.Ordinal))
                     {
-                        if (certificate is not null)
-                        {
-                            listen.UseHttps(certificate);
-                        }
-                    }))
-                    .Configure(app => app.Run(async context =>
+                        await Task.Delay(Delay, ct);
+                    }
+                    else if (path.StartsWith("/upload/", StringComparison.Ordinal))
                     {
-                        var path = context.Request.Path.Value ?? string.Empty;
-                        var ct = context.RequestAborted;
-                        if (path.StartsWith("/slow/", StringComparison.Ordinal))
+                        await context.Request.Body.CopyToAsync(Stream.Null, ct);
+                    }
+                    else if (path.StartsWith("/early/", StringComparison.Ordinal))
+                    {
+                        await earlyAnswer.Task.WaitAsync(ct);
+                        context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                        return;
+                    }
+                    else if (path.StartsWith("/big/", StringComparison.Ordinal))
+                    {
+                        context.Response.ContentLength = BigBody;
+                        var chunk = new byte[64 * 1024];
+                        for (var sent = 0; sent < BigBody; sent += chunk.Length)
                         {
-                            await Task.Delay(Delay, ct);
-                        }
-                        else if (path.StartsWith("/upload/", StringComparison.Ordinal))
-                        {
-                            await context.Request.Body.CopyToAsync(Stream.Null, ct);
-                        }
-                        else if (path.StartsWith("/early/", StringComparison.Ordinal))
-                        {
-                            await earlyAnswer.Task.WaitAsync(ct);
-                            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
-                            return;
-                        }
-                        else if (path.StartsWith("/big/", StringComparison.Ordinal))
-                        {
-                            context.Response.ContentLength = BigBody;
-                            var chunk = new byte[64 * 1024];
-                            for (var sent = 0; sent < BigBody; sent += chunk.Length)
-                            {
-                                await context.Response.Body.WriteAsync(chunk, ct);
-                            }
-
-                            return;
+                            await context.Response.Body.WriteAsync(chunk, ct);
                         }
 
-                        await context.Response.WriteAsync("ok", ct);
-                    })))
-                .Build();
-            await host.StartAsync(TestContext.Current.CancellationToken);
-            var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-            return new TimingUpstream(host, address + "/", earlyAnswer);
+                        return;
+                    }
+
+                    await context.Response.WriteAsync("ok", ct);
+                },
+                listen =>
+                {
+                    if (certificate is not null)
+                    {
+                        listen.UseHttps(certificate);
+                    }
+                },
+                cancellationToken: TestContext.Current.CancellationToken);
+            return new TimingUpstream(upstream, earlyAnswer);
         }
 
-        public async ValueTask DisposeAsync()
-        {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
-        }
+        public ValueTask DisposeAsync() => _upstream.DisposeAsync();
     }
 
     /// <summary>The request body as the proxy reads it, completing <paramref name="signal"/> once a read has returned bytes.</summary>

@@ -1,12 +1,10 @@
 // Linked into Paduraksa.Tests.Proxy and Paduraksa.Tests.Integration (<Compile Include Link>), like HeaderEchoUpstreamHost.
-using System.Net;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Paduraksa.Tests.Shared;
@@ -17,19 +15,15 @@ namespace Paduraksa.Tests.Shared;
 /// </summary>
 internal sealed class BodyCountingUpstream : IAsyncDisposable
 {
-    private readonly IHost _host;
+    private readonly LoopbackUpstream _upstream;
     private long _bytes;
     private long _requests;
     private readonly System.Collections.Concurrent.ConcurrentQueue<string> _targets = new();
 
-    private BodyCountingUpstream(IHost host, string address)
-    {
-        _host = host;
-        Address = address;
-    }
+    private BodyCountingUpstream(LoopbackUpstream upstream) => _upstream = upstream;
 
     /// <summary>The base address, with a trailing <c>/</c>.</summary>
-    public string Address { get; }
+    public string Address => _upstream.Address;
 
     /// <summary>Body bytes received, over every request.</summary>
     public long Bytes => Interlocked.Read(ref _bytes);
@@ -43,48 +37,40 @@ internal sealed class BodyCountingUpstream : IAsyncDisposable
     public static async Task<BodyCountingUpstream> StartAsync(CancellationToken cancellationToken)
     {
         BodyCountingUpstream? self = null;
-        var host = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel =>
+        var upstream = await LoopbackUpstream.StartAsync(
+            async context =>
+            {
+                // The proxy always sends X-Forwarded-Proto; a request without it is a stranger (a dev tool probing new localhost ports was
+                // seen doing GET /) and must not count as one the proxy let through.
+                if (!context.Request.Headers.ContainsKey("X-Forwarded-Proto"))
                 {
-                    // Whatever the proxy lets through, this takes: a test about the proxy's limits can't be refused by the upstream's.
-                    kestrel.Limits.MaxRequestBodySize = null;
-                    kestrel.Limits.MaxRequestLineSize = 64 * 1024;
-                    kestrel.Limits.MaxRequestHeadersTotalSize = 256 * 1024;
-                    kestrel.Limits.MaxRequestHeaderCount = 256;
-                    kestrel.Listen(IPAddress.Loopback, 0);
-                })
-                .Configure(app => app.Run(async context =>
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
+
+                Interlocked.Increment(ref self!._requests);
+                self._targets.Enqueue(context.Request.Method + " " + context.Request.Path);
+                var buffer = new byte[16 * 1024];
+                int read;
+                while ((read = await context.Request.Body.ReadAsync(buffer, context.RequestAborted)) > 0)
                 {
-                    // The proxy always sends X-Forwarded-Proto; a request without it is a stranger (a dev tool probing new localhost ports was
-                    // seen doing GET /) and must not count as one the proxy let through.
-                    if (!context.Request.Headers.ContainsKey("X-Forwarded-Proto"))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status404NotFound;
-                        return;
-                    }
+                    Interlocked.Add(ref self._bytes, read);
+                }
 
-                    Interlocked.Increment(ref self!._requests);
-                    self._targets.Enqueue(context.Request.Method + " " + context.Request.Path);
-                    var buffer = new byte[16 * 1024];
-                    int read;
-                    while ((read = await context.Request.Body.ReadAsync(buffer, context.RequestAborted)) > 0)
-                    {
-                        Interlocked.Add(ref self._bytes, read);
-                    }
-
-                    await context.Response.WriteAsync("ok", context.RequestAborted);
-                })))
-            .Build();
-        await host.StartAsync(cancellationToken);
-        var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-        self = new BodyCountingUpstream(host, address + "/");
+                await context.Response.WriteAsync("ok", context.RequestAborted);
+            },
+            kestrel: static kestrel =>
+            {
+                // Whatever the proxy lets through, this takes: a test about the proxy's limits can't be refused by the upstream's.
+                kestrel.Limits.MaxRequestBodySize = null;
+                kestrel.Limits.MaxRequestLineSize = 64 * 1024;
+                kestrel.Limits.MaxRequestHeadersTotalSize = 256 * 1024;
+                kestrel.Limits.MaxRequestHeaderCount = 256;
+            },
+            cancellationToken: cancellationToken);
+        self = new BodyCountingUpstream(upstream);
         return self;
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _host.StopAsync(CancellationToken.None);
-        _host.Dispose();
-    }
+    public ValueTask DisposeAsync() => _upstream.DisposeAsync();
 }

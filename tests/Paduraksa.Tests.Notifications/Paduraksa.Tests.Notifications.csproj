@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Compile Include="../Shared/LoopbackUpstream.cs" Link="Shared/LoopbackUpstream.cs" />
     <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
 </Project>

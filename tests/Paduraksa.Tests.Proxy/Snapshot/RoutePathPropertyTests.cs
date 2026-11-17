@@ -1,21 +1,17 @@
-using System.Net;
 using System.Text.RegularExpressions;
 
 using CsCheck;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -97,7 +93,7 @@ public sealed class RoutePathPropertyTests(TestUpstream upstream) : IClassFixtur
     [Fact]
     public async Task WhatKestrelHandsOverCanonicalisesLikeThePlainModelAndEverySpellingOfAGuardedPathIsGuarded()
     {
-        await using var echo = await EchoPath.StartAsync();
+        await using var echo = await StartEchoPathAsync();
         await using var proxy = await ProxyTestServer.StartAsync(new ProxyConfigModel
         {
             Upstreams = [Upstream("ua", upstream.Address("a"))],
@@ -116,7 +112,7 @@ public sealed class RoutePathPropertyTests(TestUpstream upstream) : IClassFixtur
 
         foreach (var target in Sample(ManyTargets, 150, nameof(WhatKestrelHandsOverCanonicalisesLikeThePlainModelAndEverySpellingOfAGuardedPathIsGuarded)))
         {
-            var (status, escaped, _) = await RawHttp.GetAsync(echo.BaseAddress, "echo.test", target, token);
+            var (status, escaped, _) = await RawHttp.GetAsync(new Uri(echo.Address), "echo.test", target, token);
             var handedOver = Unescape(escaped);
             if (status != 200)
             {
@@ -212,38 +208,11 @@ public sealed class RoutePathPropertyTests(TestUpstream upstream) : IClassFixtur
     }
 
     /// <summary>A bare Kestrel that answers with the path the gate would be given.</summary>
-    private sealed class EchoPath : IAsyncDisposable
-    {
-        private readonly IHost _host;
-
-        private EchoPath(IHost host)
+    private static Task<LoopbackUpstream> StartEchoPathAsync() => LoopbackUpstream.StartAsync(
+        context =>
         {
-            _host = host;
-            var addresses = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
-            BaseAddress = new Uri(Assert.Single(addresses.Addresses));
-        }
-
-        public Uri BaseAddress { get; }
-
-        public static async Task<EchoPath> StartAsync()
-        {
-            var host = new HostBuilder()
-                .ConfigureWebHost(web => web
-                    .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                    .Configure(app => app.Run(context =>
-                    {
-                        context.Response.ContentType = "text/plain; charset=utf-8";
-                        return context.Response.WriteAsync(Escape(context.Request.Path.Value ?? string.Empty));
-                    })))
-                .Build();
-            await host.StartAsync(TestContext.Current.CancellationToken);
-            return new EchoPath(host);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await _host.StopAsync(TestContext.Current.CancellationToken);
-            _host.Dispose();
-        }
-    }
+            context.Response.ContentType = "text/plain; charset=utf-8";
+            return context.Response.WriteAsync(Escape(context.Request.Path.Value ?? string.Empty));
+        },
+        cancellationToken: TestContext.Current.CancellationToken);
 }

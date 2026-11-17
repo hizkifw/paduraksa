@@ -1,20 +1,15 @@
-using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
-using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Admin;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
 namespace Paduraksa.Tests.Integration.Config;
@@ -117,16 +112,10 @@ public sealed class UpstreamHealthNotificationTests
     /// <summary>A loopback server whose <c>/health</c> answers the status the test sets.</summary>
     private sealed class SwitchableUpstream : IAsyncDisposable
     {
-        private readonly IHost _host;
         private int _status = 200;
+        private LoopbackUpstream _upstream = null!;
 
-        private SwitchableUpstream(IHost host, string address)
-        {
-            _host = host;
-            Address = address;
-        }
-
-        public string Address { get; }
+        public string Address => _upstream.Address;
 
         public int Status
         {
@@ -135,26 +124,17 @@ public sealed class UpstreamHealthNotificationTests
 
         public static async Task<SwitchableUpstream> StartAsync()
         {
-            SwitchableUpstream? upstream = null;
-            var host = new HostBuilder()
-                .ConfigureWebHost(web => web
-                    .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                    .Configure(app => app.Run(context =>
-                    {
-                        context.Response.StatusCode = context.Request.Path.Value!.EndsWith("/health", StringComparison.Ordinal) ? Volatile.Read(ref upstream!._status) : 200;
-                        return Task.CompletedTask;
-                    })))
-                .Build();
-            await host.StartAsync(Ct);
-            var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-            upstream = new SwitchableUpstream(host, address.TrimEnd('/') + "/");
-            return upstream;
+            SwitchableUpstream self = new();
+            self._upstream = await LoopbackUpstream.StartAsync(
+                context =>
+                {
+                    context.Response.StatusCode = context.Request.Path.Value!.EndsWith("/health", StringComparison.Ordinal) ? Volatile.Read(ref self._status) : 200;
+                    return Task.CompletedTask;
+                },
+                cancellationToken: Ct);
+            return self;
         }
 
-        public async ValueTask DisposeAsync()
-        {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
-        }
+        public ValueTask DisposeAsync() => _upstream.DisposeAsync();
     }
 }

@@ -1,9 +1,7 @@
 using System.Collections.Concurrent;
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -92,14 +90,14 @@ internal sealed record Recorded(string Method, string Path, IReadOnlyDictionary<
 /// </summary>
 internal sealed class FakeEndpoint : IAsyncDisposable
 {
-    private readonly IHost _host;
+    private readonly LoopbackUpstream _upstream;
     private readonly ConcurrentQueue<Recorded> _requests = new();
     private readonly ConcurrentQueue<(int Status, string? Location)> _answers = new();
 
-    private FakeEndpoint(IHost host, Uri address)
+    private FakeEndpoint(LoopbackUpstream upstream)
     {
-        _host = host;
-        Address = address;
+        _upstream = upstream;
+        Address = new Uri(upstream.Address);
     }
 
     public Uri Address { get; }
@@ -111,40 +109,30 @@ internal sealed class FakeEndpoint : IAsyncDisposable
     public static async Task<FakeEndpoint> StartAsync()
     {
         FakeEndpoint? endpoint = null;
-        var host = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(app => app.Run(async context =>
-                {
-                    if (context.Request.Method != "POST")
-                    {
-                        return;
-                    }
+        var upstream = await LoopbackUpstream.StartAsync(async context =>
+        {
+            if (context.Request.Method != "POST")
+            {
+                return;
+            }
 
-                    using MemoryStream body = new();
-                    await context.Request.Body.CopyToAsync(body);
-                    endpoint!._requests.Enqueue(new Recorded(
-                        context.Request.Method,
-                        context.Request.Path.Value + context.Request.QueryString.Value,
-                        context.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase),
-                        body.ToArray()));
-                    var (status, location) = endpoint._answers.TryDequeue(out var next) ? next : (200, null);
-                    context.Response.StatusCode = status;
-                    if (location is not null)
-                    {
-                        context.Response.Headers.Location = location;
-                    }
-                })))
-            .Build();
-        await host.StartAsync();
-        var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-        endpoint = new FakeEndpoint(host, new Uri(address));
+            using MemoryStream body = new();
+            await context.Request.Body.CopyToAsync(body);
+            endpoint!._requests.Enqueue(new Recorded(
+                context.Request.Method,
+                context.Request.Path.Value + context.Request.QueryString.Value,
+                context.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase),
+                body.ToArray()));
+            var (status, location) = endpoint._answers.TryDequeue(out var next) ? next : (200, null);
+            context.Response.StatusCode = status;
+            if (location is not null)
+            {
+                context.Response.Headers.Location = location;
+            }
+        });
+        endpoint = new FakeEndpoint(upstream);
         return endpoint;
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _host.StopAsync(CancellationToken.None);
-        _host.Dispose();
-    }
+    public ValueTask DisposeAsync() => _upstream.DisposeAsync();
 }

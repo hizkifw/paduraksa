@@ -1,18 +1,15 @@
 using System.Net;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Hosting;
 
 using static Microsoft.Playwright.Assertions;
@@ -38,7 +35,8 @@ public sealed class ProofOfWorkEndToEndTests
         using var ownedPlaywright = playwright;
         await using var ownedBrowser = browser;
         await using var host = await DashboardHost.StartAsync(Ct);
-        await using var upstream = await Upstream.StartAsync(Ct);
+        await using var upstream = await LoopbackUpstream.StartAsync(
+            static context => context.Response.WriteAsync("the upstream page"), kestrel: static kestrel => kestrel.AddServerHeader = false, cancellationToken: Ct);
         await PublishProtectedHostAsync(host.Host, upstream.Address);
 
         await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
@@ -112,42 +110,5 @@ public sealed class ProofOfWorkEndToEndTests
     {
         var address = host.GetListenAddresses(HostRole.Public).Single(a => a.StartsWith("http://", StringComparison.Ordinal));
         return new UriBuilder(address) { Host = IPAddress.Loopback.ToString() }.Uri.ToString();
-    }
-
-    /// <summary>A loopback upstream whose page says where the request arrived.</summary>
-    private sealed class Upstream : IAsyncDisposable
-    {
-        private readonly IHost _host;
-
-        private Upstream(IHost host, string address)
-        {
-            _host = host;
-            Address = address;
-        }
-
-        public string Address { get; }
-
-        public static async Task<Upstream> StartAsync(CancellationToken cancellationToken)
-        {
-            var host = new HostBuilder()
-                .ConfigureLogging(static logging => logging.ClearProviders())
-                .ConfigureWebHost(web => web
-                    .UseKestrel(static kestrel =>
-                    {
-                        kestrel.Listen(IPAddress.Loopback, 0);
-                        kestrel.AddServerHeader = false;
-                    })
-                    .Configure(app => app.Run(static context => context.Response.WriteAsync("the upstream page"))))
-                .Build();
-            await host.StartAsync(cancellationToken);
-            var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-            return new Upstream(host, address + "/");
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await _host.StopAsync(Ct);
-            _host.Dispose();
-        }
     }
 }

@@ -1,17 +1,13 @@
 // Linked into Paduraksa.Tests.Proxy and Paduraksa.Tests.Integration (<Compile Include Link>), so it compiles into each
 // test assembly as an internal type of its own.
-using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Tests.Shared;
@@ -42,42 +38,35 @@ internal static class HeaderEchoUpstreamHost
         Action<HttpResponse>? onResponse, CancellationToken cancellationToken, System.Security.Cryptography.X509Certificates.X509Certificate2? certificate = null,
         Action<string?>? onHandshake = null)
     {
-        var host = new HostBuilder()
-            .ConfigureLogging(static logging => logging.ClearProviders())
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel =>
+        var upstream = await LoopbackUpstream.StartAsync(
+            context =>
+            {
+                onResponse?.Invoke(context.Response);
+                var serverName = context.Features.Get<IConnectionItemsFeature>()?.Items.TryGetValue(ServerNameItem, out var name) == true ? name as string : null;
+                return context.Response.WriteAsync(Render(context.Request, context.Features.Get<IHttpRequestFeature>()!.RawTarget, serverName));
+            },
+            listen =>
+            {
+                if (certificate is not null)
                 {
-                    kestrel.Listen(IPAddress.Loopback, 0, listen =>
+                    listen.UseHttps(new HttpsConnectionAdapterOptions
                     {
-                        if (certificate is not null)
+                        ServerCertificateSelector = (connection, name) =>
                         {
-                            listen.UseHttps(new HttpsConnectionAdapterOptions
+                            onHandshake?.Invoke(name);
+                            if (!string.IsNullOrEmpty(name) && connection is not null)
                             {
-                                ServerCertificateSelector = (connection, name) =>
-                                {
-                                    onHandshake?.Invoke(name);
-                                    if (!string.IsNullOrEmpty(name) && connection is not null)
-                                    {
-                                        connection.Items[ServerNameItem] = name;
-                                    }
+                                connection.Items[ServerNameItem] = name;
+                            }
 
-                                    return certificate;
-                                },
-                            });
-                        }
+                            return certificate;
+                        },
                     });
-                    kestrel.AddServerHeader = false;
-                })
-                .Configure(app => app.Run(context =>
-                {
-                    onResponse?.Invoke(context.Response);
-                    var serverName = context.Features.Get<IConnectionItemsFeature>()?.Items.TryGetValue(ServerNameItem, out var name) == true ? name as string : null;
-                    return context.Response.WriteAsync(Render(context.Request, context.Features.Get<IHttpRequestFeature>()!.RawTarget, serverName));
-                })))
-            .Build();
-        await host.StartAsync(cancellationToken);
-        var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-        return (host, address + "/");
+                }
+            },
+            static kestrel => kestrel.AddServerHeader = false,
+            cancellationToken: cancellationToken);
+        return (upstream.Host, upstream.Address);
     }
 
     /// <summary>

@@ -7,7 +7,6 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -15,7 +14,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Http;
@@ -436,9 +434,9 @@ public sealed class BodyBytesTests(BodyUpstream upstream) : IClassFixture<BodyUp
 public sealed class BodyUpstream : IAsyncLifetime
 {
     private readonly Dictionary<int, byte[]> _gzipped = [];
-    private IHost? _host;
+    private LoopbackUpstream? _upstream;
 
-    public string Address { get; private set; } = string.Empty;
+    public string Address => _upstream!.Address;
 
     /// <summary>What <c>/gzip?n=</c> sends.</summary>
     public byte[] Gzipped(int size)
@@ -460,25 +458,8 @@ public sealed class BodyUpstream : IAsyncLifetime
         }
     }
 
-    public async ValueTask InitializeAsync()
-    {
-        _host = new HostBuilder()
-            .ConfigureWebHost(web => web
-                .UseKestrel(kestrel =>
-                {
-                    kestrel.Listen(IPAddress.Loopback, 0);
-                    kestrel.Limits.MaxRequestBodySize = null;
-                })
-                .Configure(app =>
-                {
-                    app.UseWebSockets();
-                    app.Run(context => HandleAsync(context));
-                }))
-            .Build();
-        await _host.StartAsync();
-        var address = Assert.Single(_host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-        Address = $"http://127.0.0.1:{new Uri(address).Port}/";
-    }
+    public async ValueTask InitializeAsync() =>
+        _upstream = await LoopbackUpstream.StartAsync(HandleAsync, kestrel: static kestrel => kestrel.Limits.MaxRequestBodySize = null, webSockets: true);
 
     private async Task HandleAsync(HttpContext context)
     {
@@ -546,10 +527,9 @@ public sealed class BodyUpstream : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is not null)
+        if (_upstream is not null)
         {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
+            await _upstream.DisposeAsync();
         }
     }
 }

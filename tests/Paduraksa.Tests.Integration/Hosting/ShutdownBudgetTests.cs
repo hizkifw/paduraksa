@@ -4,20 +4,16 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Analytics;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Proxy;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Hosting;
 
@@ -291,41 +287,20 @@ public sealed class ShutdownBudgetTests
     /// <summary>A loopback upstream: <c>/ws</c> echoes WebSocket messages and notes the client's close; anything else answers 200.</summary>
     private sealed class WebSocketUpstream : IAsyncDisposable
     {
-        private readonly IHost _host;
+        private LoopbackUpstream _upstream = null!;
 
-        private WebSocketUpstream(IHost host)
-        {
-            _host = host;
-            Address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single() + "/";
-        }
-
-        public string Address { get; }
+        public string Address => _upstream.Address;
 
         public TaskCompletionSource SawClose { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public static async Task<WebSocketUpstream> StartAsync()
         {
-            WebSocketUpstream? created = null;
-            var host = new HostBuilder()
-                .ConfigureLogging(static logging => logging.ClearProviders())
-                .ConfigureWebHost(web => web
-                    .UseKestrel(static kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                    .Configure(app =>
-                    {
-                        app.UseWebSockets();
-                        app.Run(context => created!.HandleAsync(context));
-                    }))
-                .Build();
-            await host.StartAsync(Ct);
-            created = new WebSocketUpstream(host);
+            WebSocketUpstream created = new();
+            created._upstream = await LoopbackUpstream.StartAsync(created.HandleAsync, webSockets: true, cancellationToken: Ct);
             return created;
         }
 
-        public async ValueTask DisposeAsync()
-        {
-            await _host.StopAsync(CancellationToken.None);
-            _host.Dispose();
-        }
+        public ValueTask DisposeAsync() => _upstream.DisposeAsync();
 
         private async Task HandleAsync(HttpContext context)
         {
