@@ -13,6 +13,7 @@ using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
+using Paduraksa.Data;
 using Paduraksa.Data.Issuance;
 
 namespace Paduraksa.Application.Issuance;
@@ -337,11 +338,10 @@ public sealed partial class AcmeIssuanceService
         DnsProviderRow? provider = null;
         if (row.DnsProviderId is { } id)
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            await _contexts.UseAsync(async context =>
             {
                 provider = await context.DnsProviders.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false);
-            }
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         if (provider is null || _dns is null)

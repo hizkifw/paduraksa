@@ -447,8 +447,7 @@ public sealed partial class DraftService
     public async Task<IReadOnlyList<DraftNotice>> TakeNoticesAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<DraftNotice>>(async context =>
         {
             if (await OwnerAsync(context, origin, cancellationToken).ConfigureAwait(false) is not { } owner)
             {
@@ -464,7 +463,7 @@ public sealed partial class DraftService
             }
 
             return [.. rows.Select(static n => new DraftNotice(n.DraftId, n.DroppedAt, n.Entries))];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The credentials open drafts hold, which the startup sweep of the vault must leave alone.</summary>
@@ -610,8 +609,7 @@ public sealed partial class DraftService
             return (refusal, null, null);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<(DraftResult? Result, ConfigDraft? Draft, ConfigDocument? Document)>(async context =>
         {
             if (await OwnerAsync(context, origin, cancellationToken).ConfigureAwait(false) is not { } owner)
             {
@@ -632,7 +630,7 @@ public sealed partial class DraftService
             var (latest, head) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
             var (draft, document) = ToDraft(row, head, latest is null ? null : ConfigHead.Ref(latest.Info));
             return (null, draft, document);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private void Announce(UserId owner)

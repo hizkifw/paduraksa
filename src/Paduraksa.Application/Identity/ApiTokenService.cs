@@ -166,12 +166,11 @@ public sealed class ApiTokenService
             return new ApiTokenListResult(IdentityStatus.Denied, []);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var rows = await context.ApiTokens.AsNoTracking().Where(t => t.UserId == user).ToListAsync(cancellationToken).ConfigureAwait(false);
             return new ApiTokenListResult(IdentityStatus.Succeeded, [.. rows.OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Id).Select(IdentityMapping.ToSummary)]);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Every user's tokens in one read, newest first, revoked ones included, never with a secret.</summary>
@@ -183,20 +182,18 @@ public sealed class ApiTokenService
             return new ApiTokenListResult(IdentityStatus.Denied, []);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var rows = await context.ApiTokens.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             return new ApiTokenListResult(IdentityStatus.Succeeded, [.. rows.OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Id).Select(IdentityMapping.ToSummary)]);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Revokes a token (idempotent): the caller's own with <see cref="Permission.TokensOwn"/>, anyone's with <see cref="Permission.TokensAll"/>.</summary>
     public async Task<ApiTokenResult> RevokeAsync(CommandOrigin origin, ApiTokenId id, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -222,7 +219,7 @@ public sealed class ApiTokenService
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 return new ApiTokenResult(IdentityStatus.Succeeded, Token: IdentityMapping.ToSummary(row));
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -234,8 +231,7 @@ public sealed class ApiTokenService
     {
         ArgumentNullException.ThrowIfNull(origin);
         ArgumentNullException.ThrowIfNull(request);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -339,7 +335,7 @@ public sealed class ApiTokenService
                 var updated = await context.ApiTokens.AsNoTracking().SingleAsync(t => t.Id == id, cancellationToken).ConfigureAwait(false);
                 return new ApiTokenResult(IdentityStatus.Succeeded, Token: IdentityMapping.ToSummary(updated));
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Whether the caller may change or revoke <paramref name="row"/>: anyone's with <see cref="Permission.TokensAll"/>, their own with <see cref="Permission.TokensOwn"/>.</summary>
@@ -357,8 +353,7 @@ public sealed class ApiTokenService
             return new ApiTokenVerification(null);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var row = await context.ApiTokens.AsNoTracking().SingleOrDefaultAsync(t => t.Id == id, cancellationToken).ConfigureAwait(false);
             // Compared even when there is no such token, so that the time taken does not tell an unknown ID from a wrong secret.
@@ -383,6 +378,6 @@ public sealed class ApiTokenService
             }
 
             return new ApiTokenVerification(new ApiTokenPrincipal(row.Id, row.UserId, RolePermissions.Narrow(owner, IdentityMapping.ParseScopes(row.Scopes))));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 }

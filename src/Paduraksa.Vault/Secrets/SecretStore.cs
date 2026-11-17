@@ -49,12 +49,8 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
 
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        SecretRow? existing;
-        await using (context.ConfigureAwait(false))
-        {
-            existing = await context.Secrets.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
-        }
+        var existing = await runtime.UseAsync(
+            context => context.Secrets.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, cancellationToken), cancellationToken).ConfigureAwait(false);
 
         if (existing is not null)
         {
@@ -90,8 +86,7 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
             CreatedAt = now,
             UpdatedAt = now,
         };
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await runtime.UseAsync(async context =>
         {
             var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -101,7 +96,7 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
 
         return row;
     }
@@ -116,8 +111,7 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -158,7 +152,7 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
                 macKeys.Invalidate(id);
                 return SecretReader.ToMetadata(row);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<bool> DeleteAsync(SecretId id, CancellationToken cancellationToken)
@@ -166,24 +160,22 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var deleted = await context.Secrets.Where(s => s.Id == id).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false) > 0;
             macKeys.Invalidate(id);
             return deleted;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<SecretMetadata?> DescribeAsync(SecretId id, CancellationToken cancellationToken)
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var row = await context.Secrets.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
             return row is null ? null : SecretReader.ToMetadata(row);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The label and (normalised) hosts that fit the kind, or the <see cref="ArgumentException"/> that says why not.</summary>

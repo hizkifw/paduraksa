@@ -91,8 +91,7 @@ public sealed class LoginService
         }
 
         var system = client.ToOrigin(Actor.System);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var user = await context.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Username == name, cancellationToken).ConfigureAwait(false);
             if (user is null)
@@ -180,7 +179,7 @@ public sealed class LoginService
 
                 return new LoginResult(partial ? LoginStatus.SecondFactorRequired : LoginStatus.Succeeded, grant);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -198,8 +197,7 @@ public sealed class LoginService
 
         var hash = SessionService.HashOf(cookieValue!);
         var now = _time.GetUtcNow();
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var session = await context.Sessions.AsNoTracking().SingleOrDefaultAsync(s => s.TokenHash == hash, cancellationToken).ConfigureAwait(false);
             if (session is null || session.RevokedAt is not null || session.SecondFactorCompleted || now >= session.ExpiresAt || now >= session.CreatedAt + Options.PartialSessionLifetime)
@@ -271,7 +269,7 @@ public sealed class LoginService
 
                 return new LoginResult(LoginStatus.Succeeded, new SessionGrant(row.Id, cookie, expires));
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Marks a recovery code used if it is one of the user's and unused: one atomic update, so it works once.</summary>

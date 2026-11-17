@@ -52,8 +52,7 @@ internal sealed class JwsSigner(VaultRuntime runtime) : IJwsSigner
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
             await using var _ = transaction.ConfigureAwait(false);
@@ -81,18 +80,17 @@ internal sealed class JwsSigner(VaultRuntime runtime) : IJwsSigner
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return ToInfo(row);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<AcmeAccountKeyInfo?> GetAccountKeyAsync(AcmeAccountId id, CancellationToken cancellationToken)
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var row = await context.AccountKeys.AsNoTracking().SingleOrDefaultAsync(k => k.Id == id, cancellationToken).ConfigureAwait(false);
             return row is null ? null : ToInfo(row);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<JwsFlattened> SignAsync(
@@ -140,11 +138,10 @@ internal sealed class JwsSigner(VaultRuntime runtime) : IJwsSigner
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             return await context.AccountKeys.Where(k => k.Id == id).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false) > 0;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public static SealContext ContextOf(AcmeAccountId id, JwsAlgorithm algorithm) => new(id.ToString(), PurposeOf(algorithm), AccountKeyRow.SealedVersion);

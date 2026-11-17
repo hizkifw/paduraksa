@@ -60,8 +60,7 @@ public sealed class NotificationHistoryService
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, MaxPageSize);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var events = context.NotificationEvents.AsNoTracking();
             if (after is { } cursor)
@@ -110,7 +109,7 @@ public sealed class NotificationHistoryService
             var channels = await ChannelsAsync(context, cancellationToken).ConfigureAwait(false);
             var items = rows.Select(r => ToEvent(r, deliveries.Where(d => d.EventId == r.Id), channels, includeChannel: null)).ToList();
             return new NotificationHistoryPage(items, more && items.Count > 0 ? items[^1].Id : null);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>A channel's latest deliveries, newest first, each as its event with only this channel's delivery (the channel's drawer).</summary>
@@ -118,8 +117,7 @@ public sealed class NotificationHistoryService
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, MaxPageSize);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<NotificationHistoryEvent>>(async context =>
         {
             var deliveries = await context.NotificationDeliveries.AsNoTracking().Where(d => d.ChannelId == channel).OrderByDescending(d => d.Id).Take(limit)
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -127,7 +125,7 @@ public sealed class NotificationHistoryService
             var events = (await context.NotificationEvents.AsNoTracking().Where(e => ids.Contains(e.Id)).ToListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(e => e.Id);
             var channels = await ChannelsAsync(context, cancellationToken).ConfigureAwait(false);
             return [.. deliveries.Where(d => events.ContainsKey(d.EventId)).Select(d => ToEvent(events[d.EventId], [d], channels, channel))];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Sends a failed or expired delivery again: it goes back to pending, due now, with a full retry schedule. Needs <c>providers:write</c>; audited.</summary>

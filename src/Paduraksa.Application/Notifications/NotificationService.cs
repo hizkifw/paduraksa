@@ -263,13 +263,12 @@ public sealed partial class NotificationService
 
     public async Task<IReadOnlyList<NotificationChannelSummary>> ListAsync(CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<NotificationChannelSummary>>(async context =>
         {
             var rows = await context.NotificationChannels.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             var figures = await NotificationFigures.ReadAsync(context, _time.GetUtcNow() - NotificationHistoryService.FigureWindow, cancellationToken).ConfigureAwait(false);
             return [.. rows.OrderBy(c => c.Label, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.Id).Select(c => NotificationMapping.ToSummary(c) with { Delivery = figures.GetValueOrDefault(c.Id, new NotificationChannelFigures(0, 0, 0)) })];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One channel's settings and delivery state, without the delivery figures (those are the list's: they read every channel's deliveries).</summary>
@@ -328,11 +327,9 @@ public sealed partial class NotificationService
 
     private async Task<NotificationChannelRow?> FindRowAsync(NotificationChannelId id, CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await context.NotificationChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
-        }
+        return await _contexts.UseAsync(
+            context => context.NotificationChannels.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private static void Apply(NotificationChannelRow row, NotificationChannelBody body, string label, DateTimeOffset now)
@@ -497,15 +494,14 @@ internal static partial class NotificationChannelState
     {
         try
         {
-            var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            await contexts.UseAsync(async context =>
             {
                 var now = time.GetUtcNow();
                 var channels = context.NotificationChannels.Where(c => c.Id == id);
                 _ = error is null
                     ? await channels.ExecuteUpdateAsync(s => s.SetProperty(c => c.LastSentAt, now).SetProperty(c => c.LastError, (string?)null).SetProperty(c => c.LastErrorAt, (DateTimeOffset?)null), cancellationToken).ConfigureAwait(false)
                     : await channels.ExecuteUpdateAsync(s => s.SetProperty(c => c.LastError, error).SetProperty(c => c.LastErrorAt, now), cancellationToken).ConfigureAwait(false);
-            }
+            }, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is DbUpdateException or Microsoft.Data.Sqlite.SqliteException)
         {

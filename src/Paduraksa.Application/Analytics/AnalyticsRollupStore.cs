@@ -75,8 +75,7 @@ public sealed class AnalyticsRollupStore : IDisposable
 
     internal async Task WriteAsync(IReadOnlyList<AnalyticsRollup> rollups, CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await _contexts.UseAsync(async context =>
         {
             var first = rollups.Min(static rollup => rollup.Start);
             var last = rollups.Max(static rollup => rollup.Start);
@@ -105,7 +104,7 @@ public sealed class AnalyticsRollupStore : IDisposable
             }
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private static void Merge(AnalyticsRollupRow row, AnalyticsRollup added)
@@ -316,8 +315,7 @@ public sealed class AnalyticsRollupStore : IDisposable
     public async Task<int> RollUpAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
         var limit = Floor((now - RollUpDelay).ToUnixTimeSeconds(), HourSeconds);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var rolledEnd = await RolledEndAsync(context, AnalyticsTier.Hour, cancellationToken).ConfigureAwait(false);
             var fine = (int)AnalyticsTier.Fine;
@@ -348,7 +346,7 @@ public sealed class AnalyticsRollupStore : IDisposable
             }
 
             return hours.Count + days.Count;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     // One stretch of the finer tier merged into one row per host of the coarser: counts add, visitors union, the sketches merge at `scale` times a
@@ -411,15 +409,14 @@ public sealed class AnalyticsRollupStore : IDisposable
     {
         var retention = retentionCutoff.ToUnixTimeSeconds();
         var fineLimit = fineCutoff.ToUnixTimeSeconds();
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var fine = (int)AnalyticsTier.Fine;
             var rolledEnd = await RolledEndAsync(context, cancellationToken).ConfigureAwait(false);
             var rolledLimit = Math.Min(fineLimit, rolledEnd);
             var removed = await context.AnalyticsRollups.Where(row => row.Start < retention).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
             return removed + await context.AnalyticsRollups.Where(row => row.Tier == fine && row.Start < rolledLimit).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private static long Floor(long value, int width) => value - (((value % width) + width) % width);

@@ -35,8 +35,7 @@ public sealed class MetricRollupStore
             return;
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await _contexts.UseAsync(async context =>
         {
             var first = rollups.Min(static rollup => rollup.Point.Start) / 60;
             var last = rollups.Max(static rollup => rollup.Point.Start) / 60;
@@ -60,18 +59,16 @@ public sealed class MetricRollupStore
             }
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Deletes the minutes that started before <paramref name="cutoff"/>; returns how many rows went.</summary>
     public async Task<int> PruneAsync(DateTimeOffset cutoff, CancellationToken cancellationToken)
     {
         var minute = cutoff.ToUnixTimeSeconds() / 60;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await context.MetricRollups.Where(row => row.Minute < minute).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        }
+        return await _contexts.UseAsync(
+            context => context.MetricRollups.Where(row => row.Minute < minute).ExecuteDeleteAsync(cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -86,12 +83,11 @@ public sealed class MetricRollupStore
         ArgumentOutOfRangeException.ThrowIfLessThan(bucketMinutes, 1);
         var fromMinute = from.ToUnixTimeSeconds() / 60;
         var toMinute = to.ToUnixTimeSeconds() / 60;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<MetricPoint>>(async context =>
         {
             var steps = await SeriesQuery(context, subject, subjectId, fromMinute, toMinute, bucketMinutes).ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. steps.Select(step => PointOf(step, step.Key * bucketMinutes * 60, bucketMinutes * 60))];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -100,12 +96,11 @@ public sealed class MetricRollupStore
     /// </summary>
     public async Task<IReadOnlyList<MetricRollup>> ReadMinutesAsync(DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<MetricRollup>>(async context =>
         {
             var rows = await MinutesQuery(context, from.ToUnixTimeSeconds() / 60, to.ToUnixTimeSeconds() / 60).ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.Select(static row => new MetricRollup(row.Subject, row.SubjectKey, PointOf(row)))];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     internal static IQueryable<MetricRollupRow> MinutesQuery(ConfigDbContext context, long fromMinute, long toMinute) =>
@@ -117,8 +112,7 @@ public sealed class MetricRollupStore
     {
         var fromMinute = from.ToUnixTimeSeconds() / 60;
         var toMinute = to.ToUnixTimeSeconds() / 60;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var sums = await SummaryQuery(context, subject, fromMinute, toMinute).ToListAsync(cancellationToken).ConfigureAwait(false);
             Dictionary<string, MetricPoint> summaries = [];
@@ -128,7 +122,7 @@ public sealed class MetricRollupStore
             }
 
             return summaries;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     // The two aggregates the overview reads. Sums only, in SQL: a month of 150 series is millions of rows, which must never become

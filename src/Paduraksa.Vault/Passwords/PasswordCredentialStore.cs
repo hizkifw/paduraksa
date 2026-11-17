@@ -144,8 +144,7 @@ internal sealed partial class PasswordCredentialStore(VaultRuntime runtime, Pass
         RequireId(id);
         await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var deleted = await context.PasswordCredentials.Where(r => r.Id == id).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false) > 0;
             registry.Clear(id);
@@ -155,7 +154,7 @@ internal sealed partial class PasswordCredentialStore(VaultRuntime runtime, Pass
             }
 
             return deleted;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<IReadOnlyList<PasswordCredentialId>> ListAsync(CancellationToken cancellationToken)
@@ -200,8 +199,7 @@ internal sealed partial class PasswordCredentialStore(VaultRuntime runtime, Pass
             throw new InvalidOperationException("The master key changed since the password was set, so the old row can't be put back.");
         }
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await runtime.UseAsync(async context =>
         {
             var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -235,7 +233,7 @@ internal sealed partial class PasswordCredentialStore(VaultRuntime runtime, Pass
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
 
         if (undo.State is { } state)
         {

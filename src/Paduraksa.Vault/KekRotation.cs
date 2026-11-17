@@ -87,8 +87,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
             throw new ArgumentException("The new master key is the one already in use.", nameof(newKek));
         }
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -107,7 +106,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                 await CheckpointAsync(context).ConfigureAwait(false);
                 return rotated;
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -121,14 +121,13 @@ public sealed partial class UserService
             return new UserListResult(IdentityStatus.Denied, []);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var users = await context.Users.AsNoTracking().OrderBy(u => u.CreatedAt).ThenBy(u => u.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
             var roles = (await context.RoleAssignments.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false)).ToLookup(r => r.UserId, r => r.Role);
             var now = _time.GetUtcNow();
             return new UserListResult(IdentityStatus.Succeeded, [.. users.Select(u => IdentityMapping.ToSummary(u, roles[u.Id], now))]);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One user. A user may always read themselves; anyone else needs <see cref="Permission.UsersRead"/>.</summary>
@@ -140,13 +139,12 @@ public sealed partial class UserService
             return new UserResult(IdentityStatus.Denied);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             return await LoadAsync(context, id, cancellationToken).ConfigureAwait(false) is { } user
                 ? new UserResult(IdentityStatus.Succeeded, await SummaryAsync(context, user, cancellationToken).ConfigureAwait(false))
                 : new UserResult(IdentityStatus.NotFound);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Changes the display name, replaces the roles and/or disables or re-enables the user, all in one
@@ -513,8 +511,7 @@ public sealed partial class UserService
         Action<System.Text.Json.Utf8JsonWriter>? details,
         CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -537,7 +534,7 @@ public sealed partial class UserService
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 return new UserResult(IdentityStatus.Succeeded, await SummaryAsync(context, user, cancellationToken).ConfigureAwait(false));
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Audits a refusal (the actor and channel, the target when there is one) and answers it.</summary>

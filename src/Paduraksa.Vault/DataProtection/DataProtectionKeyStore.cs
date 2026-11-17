@@ -51,8 +51,7 @@ internal sealed partial class DataProtectionKeyStore(VaultRuntime runtime, ILogg
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var rows = await context.DataProtectionKeys
                 .AsNoTracking()
@@ -79,7 +78,7 @@ internal sealed partial class DataProtectionKeyStore(VaultRuntime runtime, ILogg
             }
 
             return keys;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask StoreAsync(string friendlyName, string keyXml, CancellationToken cancellationToken)
@@ -94,8 +93,7 @@ internal sealed partial class DataProtectionKeyStore(VaultRuntime runtime, ILogg
         var bytes = Encoding.UTF8.GetBytes(keyXml);
         try
         {
-            var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            await runtime.UseAsync(async context =>
             {
                 // The seal happens inside the transaction that checks the database still belongs to this process's KEK.
                 var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
@@ -126,7 +124,7 @@ internal sealed partial class DataProtectionKeyStore(VaultRuntime runtime, ILogg
                     await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                     LogSealed(logger, row.FriendlyName, row.Id);
                 }
-            }
+            }, cancellationToken).ConfigureAwait(false);
         }
         finally
         {

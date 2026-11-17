@@ -48,8 +48,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
     /// <returns>The channels that have new deliveries, to be woken.</returns>
     public async Task<IReadOnlyCollection<NotificationChannelId>> StoreAsync(IReadOnlyList<BufferedEvent> events, CancellationToken cancellationToken)
     {
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await contexts.UseAsync(async context =>
         {
             var channels = await context.NotificationChannels.AsNoTracking().Where(c => c.Enabled).ToListAsync(cancellationToken).ConfigureAwait(false);
             HashSet<NotificationChannelId> touched = [];
@@ -87,7 +86,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             _ = await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             stats.PendingAdded(deliveries);
             return touched;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -98,8 +97,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
     /// </summary>
     public async Task<IReadOnlyList<NotificationChannelId>> RecoverAsync(DateTimeOffset oldest, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await contexts.UseAsync(async context =>
         {
             var orphans = await context.NotificationDeliveries
                 .Where(d => d.State == NotificationDeliveryState.Pending && !context.NotificationChannels.Any(c => c.Id == d.ChannelId))
@@ -122,14 +120,13 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             return await context.NotificationDeliveries.AsNoTracking()
                 .Where(d => d.State == NotificationDeliveryState.Pending)
                 .Select(d => d.ChannelId).Distinct().ToListAsync(cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The channels that have a pending delivery that is due, one seek per channel on the claim index: what the upkeep wakes, so a channel is never left without a worker.</summary>
     public async Task<IReadOnlyList<NotificationChannelId>> ChannelsWithDueAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await contexts.UseAsync(async context =>
         {
             List<NotificationChannelId> due = [];
             foreach (var channel in await context.NotificationChannels.AsNoTracking().Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false))
@@ -142,31 +139,28 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             }
 
             return due;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Counts the pending deliveries again, so the queue-depth gauge cannot drift from what the table holds (a channel deleted through the service, a manual retry).</summary>
     public async Task RefreshPendingAsync(CancellationToken cancellationToken)
     {
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await contexts.UseAsync(async context =>
         {
             stats.PendingSet(await context.NotificationDeliveries.AsNoTracking().CountAsync(d => d.State == NotificationDeliveryState.Pending, cancellationToken).ConfigureAwait(false));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>When the channel's earliest retry that is not due yet comes due; null when it has none. While there is one, the channel's newer deliveries wait behind it, as its messages always have.</summary>
     public async Task<DateTimeOffset?> RetryWaitingUntilAsync(NotificationChannelId channel, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await context.NotificationDeliveries.AsNoTracking()
+        return await contexts.UseAsync(
+            context => context.NotificationDeliveries.AsNoTracking()
                 .Where(d => d.ChannelId == channel && d.State == NotificationDeliveryState.Pending && d.NextAttemptAt > now)
                 .OrderBy(d => d.NextAttemptAt)
                 .Select(d => (DateTimeOffset?)d.NextAttemptAt)
-                .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        }
+                .FirstOrDefaultAsync(cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -178,8 +172,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
     /// </summary>
     public async Task<IReadOnlyList<DeliveryGroup>> ClaimAsync(NotificationChannelId channel, NotificationChannelKind kind, DateTimeOffset now, DateTimeOffset oldest, int limit, CancellationToken cancellationToken)
     {
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await contexts.UseAsync(async context =>
         {
             var rows = await context.NotificationDeliveries
                 .Where(d => d.ChannelId == channel && d.State == NotificationDeliveryState.Pending && d.NextAttemptAt <= now)
@@ -228,7 +221,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             }
 
             return groups;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private static void End(NotificationDeliveryRow row, NotificationDeliveryState state, string reason, DateTimeOffset now)
@@ -292,8 +285,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
         var attempts = group.Attempts + 1;
         DateTimeOffset? sentAt = state == NotificationDeliveryState.Sent ? now : null;
         var next = retryAt ?? now;
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await contexts.UseAsync(async context =>
         {
             var changed = await context.NotificationDeliveries
                 .Where(d => rows.Contains(d.Id) && d.State == NotificationDeliveryState.Pending)
@@ -307,7 +299,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             }
 
             return changed;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Marks a channel's pending deliveries dropped (it was deleted or paused), in the transaction of whoever changed the channel.</summary>
@@ -321,8 +313,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
     /// <summary>Marks a deleted channel's pending deliveries dropped (a worker found its channel gone).</summary>
     public async Task<int> DropPendingAsync(NotificationChannelId channel, NotificationChannelKind? kind, string reason, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var context = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await contexts.UseAsync(async context =>
         {
             var dropped = await DropPendingAsync(context, channel, reason, now, cancellationToken).ConfigureAwait(false);
             stats.PendingAdded(-dropped);
@@ -332,7 +323,7 @@ internal sealed class NotificationOutbox(IDbContextFactory<ConfigDbContext> cont
             }
 
             return dropped;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Runs between choosing the events to prune and deleting them, for a test that races a manual retry against the prune.</summary>

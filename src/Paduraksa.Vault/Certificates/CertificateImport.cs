@@ -72,11 +72,9 @@ internal sealed class CertificateImport(VaultRuntime runtime, CertificateStore s
 
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await store.PutAsync(context, id, upload.Pkcs8, chain, isLocalCaRoot: false, "uploaded", cancellationToken).ConfigureAwait(false);
-        }
+        return await runtime.UseAsync(
+            context => store.PutAsync(context, id, upload.Pkcs8, chain, isLocalCaRoot: false, "uploaded", cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private static Pkcs12LoaderLimits CreateLimits()

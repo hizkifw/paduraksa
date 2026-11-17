@@ -104,8 +104,7 @@ internal sealed partial class ConfigPipeline
         ConfigCommand command, CommandOrigin origin, Audited audited, string? message,
         CancellationToken cancellationToken, bool simulation = false, DraftAttempt? draft = null)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var (latest, current, headLegacy) = await ConfigHead.LoadForCommandAsync(context, cancellationToken).ConfigureAwait(false);
             var head = latest is null ? null : ConfigHead.Ref(latest.Info);
@@ -237,7 +236,7 @@ internal sealed partial class ConfigPipeline
             _passwords.Keep(passwordChanges);
             await AccessListPasswords.DeleteUnreferencedAsync(_passwords, current, candidate, _logger, cancellationToken).ConfigureAwait(false);
             return execution;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     // Restores what the command's SetAsync calls replaced. A restore that fails is logged at Error and audited by itself, naming the

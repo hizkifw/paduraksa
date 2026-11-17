@@ -24,8 +24,7 @@ public static class ConfigDatabase
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(generator);
 
-        var context = await factory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await factory.UseAsync(async context =>
         {
             var databasePath = context.Database.GetDbConnection().DataSource;
             PrivateSqliteFile.EnsureCreated(databasePath);
@@ -34,7 +33,7 @@ public static class ConfigDatabase
             await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
             var observed = await context.ObserveInt64OrderedKeysAsync(generator, cancellationToken).ConfigureAwait(false);
             return new ConfigDatabaseInitialized(pending, observed) { RestrictedFiles = restricted.Changed, UnrestrictedFiles = [.. restricted.Failed.Select(f => new UnrestrictedFile(f.Path, f.Mode, f.Reason))] };
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

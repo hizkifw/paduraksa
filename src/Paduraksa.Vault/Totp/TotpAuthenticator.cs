@@ -45,8 +45,7 @@ internal sealed class TotpAuthenticator(VaultRuntime runtime, SecretReader reade
             CreatedAt = now,
             UpdatedAt = now,
         };
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await runtime.UseAsync(async context =>
         {
             // The seal and both inserts happen inside the transaction that checks the KEK against the database, like every seal.
             var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
@@ -58,7 +57,7 @@ internal sealed class TotpAuthenticator(VaultRuntime runtime, SecretReader reade
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
 
         return new TotpEnrollment(row.Id, ProvisioningUri(secret.Span, accountName, issuer));
     }
@@ -73,15 +72,14 @@ internal sealed class TotpAuthenticator(VaultRuntime runtime, SecretReader reade
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             // The state row goes with the secret (cascade). Only a TOTP secret: this is not a way to delete a DNS token.
             return await context.Secrets
                 .Where(s => s.Id == id && s.Kind == SecretKind.TotpSecret)
                 .ExecuteDeleteAsync(cancellationToken)
                 .ConfigureAwait(false) > 0;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask<bool> AcceptAsync(SecretId id, string code, bool confirming, CancellationToken cancellationToken)
@@ -98,8 +96,7 @@ internal sealed class TotpAuthenticator(VaultRuntime runtime, SecretReader reade
             return false;
         }
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var state = await context.TotpStates.AsNoTracking().SingleOrDefaultAsync(s => s.SecretId == id, cancellationToken).ConfigureAwait(false);
             if (state is null || state.Confirmed == confirming)
@@ -121,7 +118,7 @@ internal sealed class TotpAuthenticator(VaultRuntime runtime, SecretReader reade
                     cancellationToken)
                 .ConfigureAwait(false);
             return updated == 1;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private static Uri ProvisioningUri(ReadOnlySpan<byte> secret, string accountName, string issuer)

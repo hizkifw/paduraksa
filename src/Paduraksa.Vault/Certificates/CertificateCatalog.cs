@@ -18,23 +18,21 @@ internal sealed partial class CertificateCatalog(VaultRuntime runtime, ILogger<C
     public async ValueTask<IReadOnlyList<VaultCertificate>> ListAsync(CancellationToken cancellationToken)
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync<IReadOnlyList<VaultCertificate>>(async context =>
         {
             var rows = await Rows(context, null).ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.Select(TryDescribe).OfType<VaultCertificate>()];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<VaultCertificate?> DescribeAsync(CertificateId id, CancellationToken cancellationToken)
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var row = await Rows(context, id).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
             return row is null ? null : TryDescribe(row);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The public columns only: the projection leaves the sealed key where it is (a test pins that the query never names it).</summary>

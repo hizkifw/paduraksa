@@ -223,12 +223,11 @@ internal sealed partial class ConfigRecovery
     {
         if (database is { Latest: not null, Document: { } document })
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            await _contexts.UseAsync(async context =>
             {
                 var held = await DraftService.PendingOfAllAsync(context, cancellationToken).ConfigureAwait(false);
                 await AccessListPasswords.DeleteOrphansAsync(_passwords, document, held, _logger, cancellationToken).ConfigureAwait(false);
-            }
+            }, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -579,14 +578,13 @@ internal sealed partial class ConfigRecovery
                     return;
                 }
 
-                var context = await _contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
-                await using (context.ConfigureAwait(false))
+                await _contexts.UseAsync(async context =>
                 {
                     if (await CompileLiveAsync(context, CancellationToken.None).ConfigureAwait(false) is { } live)
                     {
                         ticket = PublishLive(live);
                     }
-                }
+                }, CancellationToken.None).ConfigureAwait(false);
             }
             finally
             {
@@ -624,14 +622,13 @@ internal sealed partial class ConfigRecovery
                     return false;
                 }
 
-                var context = await _contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
-                await using (context.ConfigureAwait(false))
+                await _contexts.UseAsync(async context =>
                 {
                     if (await CompileLiveAsync(context, CancellationToken.None).ConfigureAwait(false) is { } live)
                     {
                         ticket = PublishLive(live);
                     }
-                }
+                }, CancellationToken.None).ConfigureAwait(false);
             }
             finally
             {

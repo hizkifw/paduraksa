@@ -239,11 +239,10 @@ internal sealed class CertificateContexts(VaultRuntime runtime, CertificateStore
             return cached;
         }
 
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var row = await context.CertificateKeys.AsNoTracking().SingleOrDefaultAsync(k => k.Id == id, cancellationToken).ConfigureAwait(false);
             return row is null || row.IsLocalCaRoot ? null : store.CacheContext(id, store.BuildContext(row));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 }

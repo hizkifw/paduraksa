@@ -87,12 +87,11 @@ public sealed partial class SetupService
             return true;
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             _complete = await context.RoleAssignments.AsNoTracking().AnyAsync(r => r.Role == Role.Owner, cancellationToken).ConfigureAwait(false);
             return _complete;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The setup status for the admin app.</summary>

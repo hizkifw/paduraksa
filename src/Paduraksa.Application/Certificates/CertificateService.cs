@@ -231,8 +231,7 @@ public sealed partial class CertificateService
     /// <summary>The certificates matching <paramref name="query"/> (all when null), newest first.</summary>
     public async Task<IReadOnlyList<CertificateSummary>> ListAsync(CertificateQuery? query = null, CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<CertificateSummary>>(async context =>
         {
             var rows = context.Certificates.AsNoTracking();
             if (query?.Source is { } source)
@@ -260,14 +259,13 @@ public sealed partial class CertificateService
             var names = await NamesOfAsync(context, found.Select(c => c.Id), cancellationToken).ConfigureAwait(false);
             var now = _timeProvider.GetUtcNow();
             return [.. found.OrderByDescending(c => c.CreatedAt).ThenBy(c => c.Id).Select(c => ToSummary(c, [.. names[c.Id]], now))];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One certificate with its public chain; null when there is none.</summary>
     public async Task<CertificateDetail?> GetAsync(CertificateId id, CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var row = await context.Certificates.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
             if (row is null)
@@ -280,7 +278,7 @@ public sealed partial class CertificateService
                 ToSummary(row, [.. names[id]], _timeProvider.GetUtcNow()),
                 JsonSerializer.Deserialize<string[]>(row.ChainIssuers) ?? [],
                 row.PublicChainPem);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<CertificateChangeOutcome> RegisterCoreAsync(

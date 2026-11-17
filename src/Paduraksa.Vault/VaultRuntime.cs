@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Vault;
+using Paduraksa.Storage;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.Persistence;
 
@@ -46,6 +47,12 @@ internal sealed partial class VaultRuntime(
 
     public ValueTask<VaultDbContext> CreateContextAsync(CancellationToken cancellationToken) =>
         new(contexts.CreateDbContextAsync(cancellationToken));
+
+    public Task UseAsync(Func<VaultDbContext, Task> work, CancellationToken cancellationToken) =>
+        contexts.UseAsync(work, cancellationToken);
+
+    public Task<TResult> UseAsync<TResult>(Func<VaultDbContext, Task<TResult>> work, CancellationToken cancellationToken) =>
+        contexts.UseAsync(work, cancellationToken);
 
     public async ValueTask<VaultStatus> InitializeAsync(CancellationToken cancellationToken)
     {
@@ -178,18 +185,15 @@ internal sealed partial class VaultRuntime(
     public async Task PurgeExpiredPreviousAsync(CancellationToken cancellationToken)
     {
         var cutoff = options.Time.GetUtcNow() - options.Policy.MacGraceWindow;
-        var context = await CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            await context.Secrets
+        await UseAsync(
+            context => context.Secrets
                 .Where(s => s.PreviousRetiredAt != null && s.PreviousRetiredAt <= cutoff)
                 .ExecuteUpdateAsync(
                     u => u.SetProperty(s => s.PreviousSealed, (byte[]?)null)
                         .SetProperty(s => s.PreviousVersion, (int?)null)
                         .SetProperty(s => s.PreviousRetiredAt, (DateTimeOffset?)null),
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
+                    cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The synchronous twin of <see cref="PurgeExpiredPreviousAsync"/>, for the MAC cache. A failure is logged and ignored: it must not fail a MAC operation, and the next refresh tries again.</summary>

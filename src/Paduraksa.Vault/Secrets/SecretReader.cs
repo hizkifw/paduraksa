@@ -47,12 +47,11 @@ internal sealed class SecretReader(VaultRuntime runtime)
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var row = await context.Secrets.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
             return row is null ? null : Unseal(row, includePrevious);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The synchronous twin of <see cref="OpenAsync"/>, for the MAC cache's refresh (a rare read on a request path).</summary>

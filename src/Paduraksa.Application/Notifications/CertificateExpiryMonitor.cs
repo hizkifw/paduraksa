@@ -92,8 +92,7 @@ public sealed partial class CertificateExpiryMonitor : BackgroundService
 
         var now = _time.GetUtcNow();
         var sent = 0;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await _contexts.UseAsync(async context =>
         {
             var notices = (await context.ExpiryNotices.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false))
                 .ToLookup(n => (n.CertificateId, n.NotAfter), n => n.Days);
@@ -130,7 +129,7 @@ public sealed partial class CertificateExpiryMonitor : BackgroundService
             }
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
 
         return sent;
     }

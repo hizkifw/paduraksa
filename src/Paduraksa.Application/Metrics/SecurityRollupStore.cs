@@ -28,8 +28,7 @@ public sealed class SecurityRollupStore
             return;
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await _contexts.UseAsync(async context =>
         {
             var first = rollups.Min(static rollup => rollup.Point.Start) / 60;
             var last = rollups.Max(static rollup => rollup.Point.Start) / 60;
@@ -55,18 +54,16 @@ public sealed class SecurityRollupStore
             }
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Deletes the minutes that started before <paramref name="cutoff"/>; returns how many rows went.</summary>
     public async Task<int> PruneAsync(DateTimeOffset cutoff, CancellationToken cancellationToken)
     {
         var minute = cutoff.ToUnixTimeSeconds() / 60;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await context.SecurityRollups.Where(row => row.Minute < minute).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        }
+        return await _contexts.UseAsync(
+            context => context.SecurityRollups.Where(row => row.Minute < minute).ExecuteDeleteAsync(cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Every minute of every series from <paramref name="from"/> to <paramref name="to"/>, as stored, for the sampler's seed: a range of the Minute index.</summary>
@@ -74,12 +71,11 @@ public sealed class SecurityRollupStore
     {
         var fromMinute = from.ToUnixTimeSeconds() / 60;
         var toMinute = to.ToUnixTimeSeconds() / 60;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<SecurityRollup>>(async context =>
         {
             var rows = await MinutesQuery(context, fromMinute, toMinute).ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.Select(static row => new SecurityRollup(row.Subject, row.SubjectKey, PointOf(row)))];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     internal static IQueryable<SecurityRollupRow> MinutesQuery(ConfigDbContext context, long fromMinute, long toMinute) =>
@@ -91,13 +87,12 @@ public sealed class SecurityRollupStore
     {
         var fromMinute = from.ToUnixTimeSeconds() / 60;
         var toMinute = to.ToUnixTimeSeconds() / 60;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var sums = await SummaryQuery(context, subject, fromMinute, toMinute).ToListAsync(cancellationToken).ConfigureAwait(false);
             var width = (int)Math.Max((toMinute - fromMinute) * 60, 60);
             return sums.ToDictionary(static sum => sum.Key, sum => PointOf(sum, fromMinute * 60, width));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     // Sums only, in SQL, grouped by the key: it walks the subject's range of the (Subject, SubjectKey, Minute) index, as the request summary does.

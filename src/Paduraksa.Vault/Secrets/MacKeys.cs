@@ -21,8 +21,7 @@ internal sealed class MacKeySource(VaultRuntime runtime, MacKeyCache cache) : IM
         }
 
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var found = await context.Secrets.AsNoTracking()
                 .Where(s => s.Id == id)
@@ -30,7 +29,7 @@ internal sealed class MacKeySource(VaultRuntime runtime, MacKeyCache cache) : IM
                 .SingleOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
             return found is { MacAlgorithm: { } algorithm } && found.Kind == expected ? new MacKeyHandle(id, algorithm, cache) : null;
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 }
 

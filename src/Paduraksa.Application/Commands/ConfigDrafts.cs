@@ -48,8 +48,7 @@ internal sealed partial class ConfigDrafts
     internal async Task<StoredDocument?> ReadRevisionAsync(ConfigRevisionId id, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_publishing.IsDisposed, nameof(ConfigService));
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             StoredRevision? stored;
             try
@@ -77,7 +76,7 @@ internal sealed partial class ConfigDrafts
             return CanonicalConfigJson.TryDeserialize(stored.Document.Span, out var document, out var error)
                 ? new StoredDocument(revision, CanonicalConfigJson.Canonicalize(document), null)
                 : new StoredDocument(revision, null, error);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

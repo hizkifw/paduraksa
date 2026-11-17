@@ -172,12 +172,11 @@ public sealed class ConfigService : IDisposable
     /// <exception cref="RevisionIntegrityException">The latest revision is corrupt.</exception>
     public async Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var (latest, document) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
             return new CurrentConfig(document, latest is null ? null : ConfigHead.Ref(latest.Info));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

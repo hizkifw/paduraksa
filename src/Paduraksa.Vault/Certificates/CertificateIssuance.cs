@@ -67,8 +67,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
 
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             if (await context.CertificateKeys.AnyAsync(k => k.Id == id && k.IsLocalCaRoot, cancellationToken).ConfigureAwait(false))
             {
@@ -100,7 +99,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 return new CsrResult(stagedId, der, pem);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<CertificateInfo> AttachChainAsync(
@@ -134,8 +133,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
 
             await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
             using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-            var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            return await runtime.UseAsync(async context =>
             {
                 var staged = await context.StagedKeys.SingleOrDefaultAsync(s => s.CertificateId == id && s.StagedKeyId == stagedKey, cancellationToken).ConfigureAwait(false)
                     ?? throw new StagedKeyMismatchException(
@@ -158,7 +156,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
                 }
 
                 return await store.PutAsync(context, id, keyBytes, chain, isLocalCaRoot: false, "attached chain", cancellationToken).ConfigureAwait(false);
-            }
+            }, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -202,8 +200,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
         // Generated before the gate (RSA keys take a while) and thrown away again if a root exists.
         using var key = KeyPairs.Generate(spec);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var existing = await context.CertificateKeys.AsNoTracking().SingleOrDefaultAsync(k => k.IsLocalCaRoot, cancellationToken).ConfigureAwait(false);
             if (existing is not null)
@@ -222,7 +219,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
             using var rootChain = new CertificateChain([NewRoot(key, now, validity, checkedConstraints)]);
             using var pkcs8 = KeyPairs.ExportPkcs8(key);
             return await store.PutAsync(context, id, pkcs8, rootChain, isLocalCaRoot: true, "local CA root", cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<LocalCaRotation> RotateLocalCaAsync(
@@ -235,8 +232,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
 
         using var key = KeyPairs.Generate(spec);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var old = await context.CertificateKeys.AsNoTracking().SingleOrDefaultAsync(k => k.IsLocalCaRoot, cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("There is no local CA to rotate.");
@@ -254,7 +250,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
             // The old key goes and the new one comes in one transaction, so there is never no root and never two (the unique index would refuse).
             var info = await store.ReplaceLocalCaAsync(context, old.Id, newId, pkcs8, rootChain, cancellationToken).ConfigureAwait(false);
             return new LocalCaRotation(info, old.Id, retired);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<CertificateInfo> IssueFromLocalCaAsync(
@@ -267,8 +263,7 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
 
         using var key = KeyPairs.Generate(spec);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await runtime.UseAsync(async context =>
         {
             var rootRow = await context.CertificateKeys.AsNoTracking().SingleOrDefaultAsync(k => k.IsLocalCaRoot, cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("There is no local CA yet: call EnsureLocalCaAsync first.");
@@ -305,18 +300,14 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
             using var chain = new CertificateChain([SignServerCertificate(key, checkedNames, KeyPairs.Generator(rootKey), root, notBefore, notAfter, root.SubjectName)]);
             using var pkcs8 = KeyPairs.ExportPkcs8(key);
             return await store.PutAsync(context, id, pkcs8, chain, isLocalCaRoot: false, "issued by the local CA", cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<bool> DeleteAsync(CertificateId id, CancellationToken cancellationToken)
     {
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await store.DeleteAsync(context, id, cancellationToken).ConfigureAwait(false);
-        }
+        return await runtime.UseAsync(context => store.DeleteAsync(context, id, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask<CertificateInfo> PutAsync(
@@ -325,11 +316,9 @@ internal sealed class CertificateIssuance(VaultRuntime runtime, CertificateStore
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var pkcs8 = KeyPairs.ExportPkcs8(key);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
-        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await store.PutAsync(context, id, pkcs8, chain, isLocalCaRoot, how, cancellationToken).ConfigureAwait(false);
-        }
+        return await runtime.UseAsync(
+            context => store.PutAsync(context, id, pkcs8, chain, isLocalCaRoot, how, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>A local CA root: a CA with path length 0 over a random name, limited to <paramref name="constraints"/> (already normalised) when there are any.</summary>

@@ -106,12 +106,11 @@ public sealed partial class NotificationDispatcher : BackgroundService, INotific
 
     public async Task<bool> HasSubscribersAsync(NotificationEventKind kind, CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var channels = await context.NotificationChannels.AsNoTracking().Where(c => c.Enabled).ToListAsync(cancellationToken).ConfigureAwait(false);
             return channels.Any(c => NotificationMapping.Subscribes(c, kind));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     void IDeliveryWake.Wake(NotificationChannelId channel) => Wake([channel]);

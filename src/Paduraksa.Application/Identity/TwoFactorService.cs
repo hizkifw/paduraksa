@@ -82,8 +82,7 @@ public sealed partial class TwoFactorService
             return new TotpEnrollmentResult(IdentityStatus.Denied);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var guard = await ReauthenticateAsync(context, origin, id, password, "user.totp.enroll", cancellationToken).ConfigureAwait(false);
             if (guard != IdentityStatus.Succeeded)
@@ -128,7 +127,7 @@ public sealed partial class TwoFactorService
 
             await DeleteSecretAsync(previous).ConfigureAwait(false);
             return new TotpEnrollmentResult(IdentityStatus.Succeeded, new TotpEnrollmentStarted(enrollment.ProvisioningUri));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Finishes enrolling with a code from the authenticator: turns the second factor on and returns ten
@@ -142,8 +141,7 @@ public sealed partial class TwoFactorService
             return new RecoveryCodesResult(IdentityStatus.Denied);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var user = await context.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id && !u.Disabled, cancellationToken).ConfigureAwait(false);
             if (user is not { TotpSecretId: { } secret, TotpEnabled: false })
@@ -178,7 +176,7 @@ public sealed partial class TwoFactorService
             }
 
             return new RecoveryCodesResult(IdentityStatus.Succeeded, new RecoveryCodes(display));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Replaces the calling user's recovery codes with ten new ones (shown once). Needs the current password.</summary>
@@ -191,8 +189,7 @@ public sealed partial class TwoFactorService
             return new RecoveryCodesResult(IdentityStatus.Denied);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var guard = await ReauthenticateAsync(context, origin, id, password, "user.recovery_codes.regenerate", cancellationToken).ConfigureAwait(false);
             if (guard != IdentityStatus.Succeeded)
@@ -217,7 +214,7 @@ public sealed partial class TwoFactorService
             }
 
             return new RecoveryCodesResult(IdentityStatus.Succeeded, new RecoveryCodes(display));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Turns the calling user's second factor off. Needs the current password (a wrong one counts toward the lockout).</summary>
@@ -230,14 +227,13 @@ public sealed partial class TwoFactorService
             return new IdentityResult(IdentityStatus.Denied);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var guard = await ReauthenticateAsync(context, origin, id, password, "user.totp.disable", cancellationToken).ConfigureAwait(false);
             return guard == IdentityStatus.Succeeded
                 ? await ClearAsync(context, origin, u => u.Id == id, revokeSessions: false, cancellationToken).ConfigureAwait(false)
                 : new IdentityResult(guard);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -255,11 +251,9 @@ public sealed partial class TwoFactorService
         }
 
         var name = username.Trim();
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await ClearAsync(context, origin, u => u.Username == name, revokeSessions: true, cancellationToken).ConfigureAwait(false);
-        }
+        return await _contexts.UseAsync(
+            context => ClearAsync(context, origin, u => u.Username == name, revokeSessions: true, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The recovery codes as shown (ten, grouped) and the rows that store their hashes.</summary>

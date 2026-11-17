@@ -160,8 +160,7 @@ internal sealed partial class IdentityAudit(TimeProvider time, ILoggerFactory lo
     {
         try
         {
-            var context = await contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            await contexts.UseAsync(async context =>
             {
                 var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None).ConfigureAwait(false);
                 await using (transaction.ConfigureAwait(false))
@@ -169,7 +168,7 @@ internal sealed partial class IdentityAudit(TimeProvider time, ILoggerFactory lo
                     await _log.AppendAsync(context, entry, CancellationToken.None).ConfigureAwait(false);
                     await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-            }
+            }, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException or System.Data.Common.DbException)
         {

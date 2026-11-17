@@ -41,8 +41,7 @@ internal sealed partial class ConfigAudit
     {
         try
         {
-            var context = await _contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            await _contexts.UseAsync(async context =>
             {
                 var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None)
                     .ConfigureAwait(false);
@@ -51,7 +50,7 @@ internal sealed partial class ConfigAudit
                     await _log.AppendAsync(context, entry, CancellationToken.None).ConfigureAwait(false);
                     await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-            }
+            }, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is DbException or DbUpdateException or InvalidOperationException)
         {

@@ -299,23 +299,21 @@ public sealed partial class AcmeAccountService
     /// <summary>All accounts, newest first.</summary>
     public async Task<IReadOnlyList<AcmeAccountSummary>> ListAsync(CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<AcmeAccountSummary>>(async context =>
         {
             var rows = await context.AcmeAccounts.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id).Select(IssuanceMapping.ToSummary)];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One account; null when there is none.</summary>
     public async Task<AcmeAccountSummary?> GetAsync(AcmeAccountId id, CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var row = await context.AcmeAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken).ConfigureAwait(false);
             return row is null ? null : IssuanceMapping.ToSummary(row);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<ConfigError?> ValidateAsync(CreateAcmeAccountRequest request, CancellationToken cancellationToken)

@@ -216,12 +216,11 @@ public sealed partial class DnsProviderService
     /// <summary>All providers, newest first.</summary>
     public async Task<IReadOnlyList<DnsProviderSummary>> ListAsync(CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<DnsProviderSummary>>(async context =>
         {
             var rows = await context.DnsProviders.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Select(IssuanceMapping.ToSummary)];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One provider; null when there is none.</summary>
@@ -231,11 +230,9 @@ public sealed partial class DnsProviderService
     /// <summary>The provider's row, which (unlike the summary) names its credential in the vault: for the flows that use it, never for a response.</summary>
     private async Task<DnsProviderRow?> FindRowAsync(DnsProviderId id, CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await context.DnsProviders.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false);
-        }
+        return await _contexts.UseAsync(
+            context => context.DnsProviders.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>"Test credentials": asks the provider to check its credential with a read-only call, for an origin

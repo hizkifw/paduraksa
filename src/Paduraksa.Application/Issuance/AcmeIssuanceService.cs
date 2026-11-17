@@ -173,8 +173,7 @@ public sealed partial class AcmeIssuanceService
         var now = _time.GetUtcNow();
         try
         {
-            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            await using (context.ConfigureAwait(false))
+            await _contexts.UseAsync(async context =>
             {
                 context.AcmeOrders.Add(new AcmeOrderRow
                 {
@@ -192,7 +191,7 @@ public sealed partial class AcmeIssuanceService
                     UpdatedAt = now,
                 });
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
+            }, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -349,12 +348,11 @@ public sealed partial class AcmeIssuanceService
     /// <summary>The ACME state of every certificate that has an order, newest first.</summary>
     public async Task<IReadOnlyList<AcmeOrderSummary>> ListOrdersAsync(CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync<IReadOnlyList<AcmeOrderSummary>>(async context =>
         {
             var rows = await context.AcmeOrders.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.OrderByDescending(o => o.CreatedAt).ThenBy(o => o.Id).Select(IssuanceMapping.ToSummary)];
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The ACME state of one certificate; null when it has no order.</summary>
@@ -466,20 +464,16 @@ public sealed partial class AcmeIssuanceService
 
     private async Task<AcmeOrderRow?> LoadAsync(CertificateId id, CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await context.AcmeOrders.AsNoTracking().FirstOrDefaultAsync(o => o.CertificateId == id, cancellationToken).ConfigureAwait(false);
-        }
+        return await _contexts.UseAsync(
+            context => context.AcmeOrders.AsNoTracking().FirstOrDefaultAsync(o => o.CertificateId == id, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<AcmeAccountRow?> LoadAccountAsync(AcmeAccountId id, CancellationToken cancellationToken)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
-        {
-            return await context.AcmeAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken).ConfigureAwait(false);
-        }
+        return await _contexts.UseAsync(
+            context => context.AcmeAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -491,14 +485,13 @@ public sealed partial class AcmeIssuanceService
         var now = _time.GetUtcNow();
         change(row);
         row.UpdatedAt = now;
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await _contexts.UseAsync(async context =>
         {
             var stored = await context.AcmeOrders.FirstAsync(o => o.Id == row.Id, cancellationToken).ConfigureAwait(false);
             change(stored);
             stored.UpdatedAt = now;
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IssuanceResult> RunAsync(CertificateId id, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress, CancellationToken cancellationToken)

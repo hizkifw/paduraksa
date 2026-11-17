@@ -38,8 +38,7 @@ public sealed class AuditQueryService
         ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, MaxPageSize);
         (ActorKind Kind, UserId? User, ApiTokenId? Token)? actor = filter.Actor is null ? null : ParseActor(filter.Actor);
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var query = context.AuditEvents.AsNoTracking();
             if (after is { } cursor)
@@ -100,14 +99,13 @@ public sealed class AuditQueryService
             var more = rows.Count > limit;
             AuditEventSummary[] items = [.. rows.Take(limit).Select(ToSummary)];
             return new AuditPage(items, more ? items[^1].Id : null);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Walks the whole chain and reports the first event that doesn't verify.</summary>
     public async Task<AuditVerification> VerifyAsync(CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var report = await AuditChainVerifier.VerifyAsync(context, cancellationToken).ConfigureAwait(false);
             return new AuditVerification(
@@ -116,7 +114,7 @@ public sealed class AuditQueryService
                 report.Head,
                 report.Head is null ? null : Convert.ToHexStringLower(report.HeadHash.Span),
                 report.Break is { } b ? new AuditBreak(b.EventId, ProblemName(b.Problem), b.Description) : null);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Parses an actor filter: <c>system</c>, <c>cli</c>, a user ID or an API token ID.</summary>

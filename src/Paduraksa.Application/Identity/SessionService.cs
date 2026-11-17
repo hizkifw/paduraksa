@@ -97,12 +97,11 @@ public sealed class SessionService
         }
 
         var hash = HashOf(cookieValue!);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var session = await context.Sessions.AsNoTracking().SingleOrDefaultAsync(s => s.TokenHash == hash, cancellationToken).ConfigureAwait(false);
             return await CheckRowAsync(context, session, countAsUse: true, cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Re-checks a session that was already authenticated by its cookie, by its ID: for a long-lived
@@ -115,12 +114,11 @@ public sealed class SessionService
     /// <param name="cancellationToken">Cancels the check.</param>
     public async Task<SessionValidation> CheckAsync(SessionId id, bool countAsUse, CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var session = await context.Sessions.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
             return await CheckRowAsync(context, session, countAsUse, cancellationToken).ConfigureAwait(false);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<SessionValidation> CheckRowAsync(ConfigDbContext context, SessionRow? session, bool countAsUse, CancellationToken cancellationToken)
@@ -166,15 +164,14 @@ public sealed class SessionService
             return new SessionListResult(IdentityStatus.Denied, []);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var now = _time.GetUtcNow();
             var sessions = await context.Sessions.AsNoTracking().Where(s => s.UserId == owner && s.RevokedAt == null).ToListAsync(cancellationToken).ConfigureAwait(false);
             return new SessionListResult(
                 IdentityStatus.Succeeded,
                 [.. sessions.Where(s => IsLive(s, now)).OrderByDescending(s => s.CreatedAt).Select(s => ToSummary(s, current))]);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Ends one session: the caller's own, or anyone's with <see cref="Permission.SessionsAll"/>.</summary>
@@ -217,8 +214,7 @@ public sealed class SessionService
             return new IdentityResult(IdentityStatus.Denied);
         }
 
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await _contexts.UseAsync(async context =>
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -231,7 +227,7 @@ public sealed class SessionService
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
 
         return new IdentityResult(IdentityStatus.Succeeded);
     }
@@ -246,8 +242,7 @@ public sealed class SessionService
         }
 
         var hash = HashOf(cookieValue!);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        await _contexts.UseAsync(async context =>
         {
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
@@ -266,7 +261,7 @@ public sealed class SessionService
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>A fresh cookie value and the hash that is stored for it.</summary>

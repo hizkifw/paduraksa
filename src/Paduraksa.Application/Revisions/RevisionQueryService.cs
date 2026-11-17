@@ -35,8 +35,7 @@ public sealed class RevisionQueryService
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, MaxPageSize);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             if (await PageAsync(context, limit, after, cancellationToken).ConfigureAwait(false) is not { } rows)
             {
@@ -46,7 +45,7 @@ public sealed class RevisionQueryService
             var more = rows.Count > limit;
             RevisionSummary[] items = [.. rows.Take(limit).Select(ToSummary)];
             return new RevisionPage(items, more ? items[^1].Id : null);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -58,8 +57,7 @@ public sealed class RevisionQueryService
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, MaxPageSize);
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             if (await PageAsync(context, limit, after, cancellationToken).ConfigureAwait(false) is not { } rows)
             {
@@ -69,32 +67,30 @@ public sealed class RevisionQueryService
             var more = rows.Count > limit;
             RevisionTimelineEntry[] items = [.. rows.Take(limit).Select(row => new RevisionTimelineEntry(ToSummary(row), ReadChanges(row)))];
             return new RevisionTimelinePage(items, more ? items[^1].Revision.Id : null);
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>A revision with what it changed and its document; null if there is none with that ID.</summary>
     public async Task<RevisionDetail?> GetAsync(ConfigRevisionId id, CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var stored = await ConfigRevisionStore.GetAsync(context, id, cancellationToken).ConfigureAwait(false);
             return stored is null ? null : new RevisionDetail(ToSummary(stored.Info), ReadChanges(stored.Info), ReadDocument(stored));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>What changed from <paramref name="from"/> to <paramref name="to"/>; null if either doesn't exist.</summary>
     public async Task<RevisionDiff?> DiffAsync(ConfigRevisionId from, ConfigRevisionId to, CancellationToken cancellationToken = default)
     {
-        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        await using (context.ConfigureAwait(false))
+        return await _contexts.UseAsync(async context =>
         {
             var older = await ConfigRevisionStore.GetAsync(context, from, cancellationToken).ConfigureAwait(false);
             var newer = await ConfigRevisionStore.GetAsync(context, to, cancellationToken).ConfigureAwait(false);
             return older is null || newer is null
                 ? null
                 : new RevisionDiff(from, to, ConfigDiff.Compare(ReadDocument(older), ReadDocument(newer)));
-        }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Up to <paramref name="limit"/> + 1 revisions older than <paramref name="after"/> (one more than asked: whether it exists
