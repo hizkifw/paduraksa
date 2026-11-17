@@ -1,6 +1,7 @@
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -103,13 +104,9 @@ public sealed class SkeletonShiftEndToEndTests
 
     private static async Task VerifyAsync(string path, string name, Pair[] pairs, Below[] below, bool seed = false, bool dismissed = false, string[]? absent = null)
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true });
-        var setup = await context.NewPageAsync();
-        await AnalyticsEndToEndTests.SetUpAsync(setup, host);
+        await using var session = await BrowserSession.StartAsync(new());
+        var (host, setup) = session;
+        await SetUpAsync(setup, host);
         if (seed)
         {
             AnalyticsEndToEndTests.Seed(host);
@@ -118,7 +115,7 @@ public sealed class SkeletonShiftEndToEndTests
         await setup.CloseAsync();
         if (dismissed)
         {
-            await context.AddCookiesAsync([new Cookie { Name = "paduraksa-checklist", Value = "dismissed", Url = host.Admin.ToString() }]);
+            await session.Context.AddCookiesAsync([new Cookie { Name = "paduraksa-checklist", Value = "dismissed", Url = host.Admin.ToString() }]);
         }
 
         List<string> failures = [];
@@ -127,13 +124,13 @@ public sealed class SkeletonShiftEndToEndTests
             foreach (var scheme in new[] { ColorScheme.Dark, ColorScheme.Light })
             {
                 var label = $"{name}-{width}-{scheme.ToString().ToLowerInvariant()}";
-                var held = await OpenAsync(context, path, width, scheme, hold: true);
+                var held = await OpenAsync(session.Context, path, width, scheme, hold: true);
                 await Expect(held.Locator("[data-pending]").First).ToBeVisibleAsync(new() { Timeout = 15_000 });
                 var skeleton = await MeasureAsync(held, pairs.Select(p => p.Pending).Concat(absent ?? []), below);
                 await PlaywrightBrowser.ScreenshotAsync(held, $"skeleton-{label}");
                 await held.CloseAsync();
 
-                var live = await OpenAsync(context, path, width, scheme, hold: false);
+                var live = await OpenAsync(session.Context, path, width, scheme, hold: false);
                 await Expect(live.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
                 await Expect(live.Locator("[data-pending]")).ToHaveCountAsync(0, new() { Timeout = 20_000 });
                 var loaded = await MeasureAsync(live, pairs.Select(p => p.Loaded).Concat(absent ?? []), below);

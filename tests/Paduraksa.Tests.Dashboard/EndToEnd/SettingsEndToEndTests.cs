@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -25,25 +26,13 @@ public sealed class SettingsEndToEndTests
     [Fact]
     public async Task Users_Tokens_Defaults_Audit_AndMyAccount()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        BrowserNewContextOptions options = new()
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        };
-        await using var ownerContext = await browser.NewContextAsync(options);
-        var page = await ownerContext.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
 
         await SetUpAsync(page, host);
 
         // A second browser signed in as the Owner too: its session is ended from My account at the end.
-        await using var otherContext = await browser.NewContextAsync(options);
+        await using var otherContext = await session.NewContextAsync();
         var other = await otherContext.NewPageAsync();
         await SignInAsync(other, DashboardHost.OwnerName, DashboardHost.OwnerPassword);
 
@@ -61,7 +50,7 @@ public sealed class SettingsEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "users");
 
         // The Viewer, in a browser of their own, is offered no change.
-        await using (var viewerContext = await browser.NewContextAsync(options))
+        await using (var viewerContext = await session.NewContextAsync())
         {
             var viewer = await viewerContext.NewPageAsync();
             await SignInAsync(viewer, ViewerName, ViewerPassword);
@@ -102,7 +91,7 @@ public sealed class SettingsEndToEndTests
         await Expect(page.Locator("[data-token='e2e script']")).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "tokens");
 
-        await using (var api = await playwright.APIRequest.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true }))
+        await using (var api = await session.Playwright.APIRequest.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true }))
         {
             var me = await api.GetAsync("api/v1/auth/me", new() { Headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" } });
             Assert.True(me.Ok, $"auth/me answered {me.Status}");
@@ -196,19 +185,8 @@ public sealed class SettingsEndToEndTests
     [Fact]
     public async Task TheLogsPageListsAFileReadsItsLastLinesAndDownloadsIt()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-            AcceptDownloads = true,
-        });
-        var page = await context.NewPageAsync();
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(acceptDownloads: true));
+        var (host, page) = session;
         await SetUpAsync(page, host);
 
         // A line in the error log, written by the process's own writer: appending through a handle of the test's would race the
@@ -242,19 +220,8 @@ public sealed class SettingsEndToEndTests
     [Fact]
     public async Task AnApiTokenIsOpenedFromTheListRenamedAndDisabled_AndTheListShowsThePill()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
 
         await page.GotoAsync("/settings/tokens");
@@ -298,7 +265,7 @@ public sealed class SettingsEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "tokens-disabled");
 
         // Switched off means refused at once, and back on works again with the same secret.
-        await using (var api = await playwright.APIRequest.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true }))
+        await using (var api = await session.Playwright.APIRequest.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true }))
         {
             var headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" };
             Assert.Equal(401, (await api.GetAsync("api/v1/auth/me", new() { Headers = headers })).Status);
@@ -327,22 +294,6 @@ public sealed class SettingsEndToEndTests
         Assert.True(box.X >= 0 && box.X + box.Width <= width, $"The element spans {box.X} to {box.X + box.Width} in a {width} px window.");
     }
 
-    private static async Task SetUpAsync(IPage page, DashboardHost host)
-    {
-        await page.GotoAsync("/");
-        await Expect(page).ToHaveURLAsync(new Regex("/setup$"));
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=displayName]", "Ada Lovelace");
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        // Setup lands on the overview.
-        await Expect(page).ToHaveURLAsync(new Regex("/$"));
-        await ExpectHeadingAsync(page, "Overview");
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
     private static async Task SignInAsync(IPage page, string username, string password)
     {
         await page.GotoAsync("/signin");
@@ -352,12 +303,4 @@ public sealed class SettingsEndToEndTests
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
     }
 
-    private static async Task OpenFromNavigationAsync(IPage page, string name)
-    {
-        await page.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = name }).ClickAsync();
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
-    private static Task ExpectHeadingAsync(IPage page, string title) =>
-        Expect(page.GetByRole(AriaRole.Heading, new() { Name = title, Level = 1 })).ToBeVisibleAsync(new() { Timeout = 15_000 });
 }

@@ -1,6 +1,6 @@
-using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -16,13 +16,9 @@ public sealed class PageVisibilityEndToEndTests
     [Fact]
     public async Task ADetachTakesDownOnlyItsOwnersListener()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true });
-        var page = await context.NewPageAsync();
-        await AnalyticsEndToEndTests.SetUpAsync(page, host);
+        await using var session = await BrowserSession.StartAsync(new());
+        var (host, page) = session;
+        await SetUpAsync(page, host);
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
 
         // Two stand-ins for the circuit's object reference, each counting what it is told; the browser tab is shown, so a report is only

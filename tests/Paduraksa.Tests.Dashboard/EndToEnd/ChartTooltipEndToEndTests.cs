@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -19,22 +20,9 @@ public sealed class ChartTooltipEndToEndTests
     [Fact]
     public async Task HoveringAColumnShowsTheTooltipAtOnceInTheBrowsersZoneAndMovingAwayHidesIt()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new()
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-            TimezoneId = "Asia/Jakarta",
-            HasTouch = true,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
-        await AnalyticsEndToEndTests.SetUpAsync(page, host);
+        await using var session = await BrowserSession.StartAsync(new() { ViewportSize = new ViewportSize { Width = 1366, Height = 900 }, ColorScheme = ColorScheme.Dark, TimezoneId = "Asia/Jakarta", HasTouch = true });
+        var (host, page, problems) = session;
+        await SetUpAsync(page, host);
         AnalyticsEndToEndTests.Seed(host);
 
         await page.GotoAsync("/analytics?tab=visitors");

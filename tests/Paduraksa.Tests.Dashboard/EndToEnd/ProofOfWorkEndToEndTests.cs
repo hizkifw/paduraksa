@@ -1,6 +1,5 @@
 using System.Net;
 
-using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Playwright;
 
@@ -27,26 +26,16 @@ public sealed class ProofOfWorkEndToEndTests
     [Fact]
     public async Task ChromiumSolvesTheChallengeAndReachesTheUpstream()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
+        await using var session = await BrowserSession.StartAsync(new() { ViewportSize = new ViewportSize { Width = 1100, Height = 800 } });
+        var (host, page, problems) = session;
         await using var upstream = await LoopbackUpstream.StartAsync(
             static context => context.Response.WriteAsync("the upstream page"), kestrel: static kestrel => kestrel.AddServerHeader = false, cancellationToken: Ct);
         await PublishProtectedHostAsync(host.Host, upstream.Address);
-
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1100, Height = 800 },
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
         var address = PublicHttpAddress(host.Host);
 
         // The page's script solves the challenge and navigates on its own, so the body of the browser's own response may be gone by the time
         // a test reads it. The challenge as served is read by a plain request (no script, no cookie), with the browser's Accept.
-        var challenge = await context.APIRequest.GetAsync(address, new() { Headers = new Dictionary<string, string> { ["Accept"] = "text/html" } });
+        var challenge = await session.Context.APIRequest.GetAsync(address, new() { Headers = new Dictionary<string, string> { ["Accept"] = "text/html" } });
         Assert.Equal(200, challenge.Status);
         var challengeHtml = await challenge.TextAsync();
         Assert.Contains("Checking your browser", challengeHtml, StringComparison.Ordinal);
@@ -57,7 +46,7 @@ public sealed class ProofOfWorkEndToEndTests
         Assert.NotNull(first);
         Assert.Equal(200, first.Status);
         await Expect(page.Locator("body")).ToContainTextAsync("the upstream page", new() { Timeout = 30_000 });
-        var cookies = await context.CookiesAsync();
+        var cookies = await session.Context.CookiesAsync();
         var cookie = Assert.Single(cookies, cookie => cookie.Name == "paduraksa_pow");
         Assert.Equal("/", cookie.Path);
         Assert.True(cookie.HttpOnly);

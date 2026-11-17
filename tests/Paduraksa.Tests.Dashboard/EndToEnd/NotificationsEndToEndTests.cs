@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Text.RegularExpressions;
 
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -20,12 +20,8 @@ public sealed class NotificationsEndToEndTests
     [Fact]
     public async Task AddingAChannelSendsATestMessageAtOnce_AndEditingOneDoesNot()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true });
-        var page = await context.NewPageAsync();
+        await using var session = await BrowserSession.StartAsync(new());
+        var (host, page) = session;
         await SetUpAsync(page, host);
         using var ntfy = ListenOnLoopback(out var port);
         var posts = 0;
@@ -84,17 +80,4 @@ public sealed class NotificationsEndToEndTests
         return listener;
     }
 
-    private static async Task SetUpAsync(IPage page, DashboardHost host)
-    {
-        await page.GotoAsync("/");
-        await Expect(page).ToHaveURLAsync(new Regex("/setup$"));
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=displayName]", "Ada Lovelace");
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        await Expect(page).ToHaveURLAsync(new Regex("/$"));
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
 }

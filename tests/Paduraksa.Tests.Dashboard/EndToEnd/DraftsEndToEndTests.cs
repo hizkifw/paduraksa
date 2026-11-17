@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 
 using Microsoft.Playwright;
 
@@ -8,6 +7,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -27,19 +27,8 @@ public sealed class DraftsEndToEndTests
     [Fact]
     public async Task AnUpstreamInOnePageAndAHostUsingItInAnother_ReviewedAndAppliedAsOneRevision()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
         await Expect(page.Locator("[data-draft-bar]")).ToHaveCountAsync(0);
 
@@ -81,7 +70,7 @@ public sealed class DraftsEndToEndTests
         await page.ReloadAsync();
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
         await Expect(page.Locator("[data-draft-bar] [data-draft-count]")).ToHaveTextAsync("2 changes");
-        var second = await context.NewPageAsync();
+        var second = await session.Context.NewPageAsync();
         await second.GotoAsync("/upstreams");
         await Expect(second.Locator("[data-draft-bar] [data-draft-count]")).ToHaveTextAsync("2 changes", new() { Timeout = 15_000 });
         await second.CloseAsync();
@@ -129,19 +118,8 @@ public sealed class DraftsEndToEndTests
     [Fact]
     public async Task TheBar_FitsAPhoneAndTheListShowsDiscardAndRemove()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 390, Height = 800 },
-            ColorScheme = ColorScheme.Light,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(width: 390, height: 800, colorScheme: ColorScheme.Light));
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
 
         await page.GotoAsync("/upstreams/new");
@@ -173,19 +151,8 @@ public sealed class DraftsEndToEndTests
     [Fact]
     public async Task AnObjectChangedWhileTheDraftIsOpen_BlocksTheApply_AndTheDrawerShowsItInPlace()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
         UpstreamConfig web = new(UpstreamId.New(), "web", Destinations: [new DestinationConfig(DestinationId.New(), "http://127.0.0.1:18090")]);
         Assert.Equal(ConfigCommandStatus.Committed, (await host.Host.Shared.Config.ExecuteAsync(new UpsertUpstreamCommand(web), CommandOrigin.Cli, Ct)).Status);
@@ -227,32 +194,4 @@ public sealed class DraftsEndToEndTests
         await add.ClickAsync();
     }
 
-    private static async Task SetUpAsync(IPage page, DashboardHost host)
-    {
-        await page.GotoAsync("/");
-        await Expect(page).ToHaveURLAsync(new Regex("/setup$"));
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=displayName]", "Ada Lovelace");
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        await Expect(page).ToHaveURLAsync(new Regex("/$"));
-        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Overview", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 15_000 });
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
-    private static async Task OpenFromNavigationAsync(IPage page, string name)
-    {
-        await page.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = name, Exact = true }).ClickAsync();
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
-    private static async Task FillAsync(IPage page, string field, string value)
-    {
-        var scope = await page.Locator(".pdk-sheet[data-top]").CountAsync() > 0 ? page.Locator(".pdk-sheet[data-top]") : page.Locator("body");
-        var input = scope.Locator($"input[data-field='{field}'], textarea[data-field='{field}'], [data-field='{field}'] input").First;
-        await input.FillAsync(value);
-        await input.BlurAsync();
-    }
 }

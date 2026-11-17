@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Playwright;
 
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
@@ -21,6 +20,7 @@ using Paduraksa.Data.Issuance;
 using Paduraksa.Server.Hosting;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -40,19 +40,8 @@ public sealed class ReferenceLinksEndToEndTests
     [Fact]
     public async Task ACertificateLinksItsHostAndBack_AnAccountLinksItsCertificateAndBack_AndAProviderIsRenamed()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
         var seeded = await SeedAsync(host);
 
@@ -126,14 +115,8 @@ public sealed class ReferenceLinksEndToEndTests
     [Fact]
     public async Task AChannelsAddressOpensItsDrawerForAnOwner_AndTheListAloneForAViewer()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        var options = new BrowserNewContextOptions { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true, ViewportSize = new ViewportSize { Width = 1366, Height = 900 }, ColorScheme = ColorScheme.Dark };
-        await using var context = await browser.NewContextAsync(options);
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
         var created = await host.Host.GetServices(HostRole.Admin).GetRequiredService<NotificationService>().CreateAsync(
             new NotificationChannelBody(NotificationChannelKind.Webhook, "Ops hook", [NotificationEventKind.UpstreamDown], Secret: "http://127.0.0.1:1/hook"), CommandOrigin.Cli, Ct);
@@ -155,7 +138,7 @@ public sealed class ReferenceLinksEndToEndTests
         await page.FillAsync("input[data-field=password]", "a viewer's long password");
         await page.ClickAsync("[data-action=save-user]");
         await Expect(page.Locator("[data-user=viewer]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
-        await using var viewerContext = await browser.NewContextAsync(options);
+        await using var viewerContext = await session.NewContextAsync();
         var viewer = await viewerContext.NewPageAsync();
         await viewer.GotoAsync("/signin");
         await viewer.FillAsync("input[name=username]", "viewer");
@@ -226,17 +209,4 @@ public sealed class ReferenceLinksEndToEndTests
         return (certificate, proxied.Id, account, provider);
     }
 
-    private static async Task SetUpAsync(IPage page, DashboardHost host)
-    {
-        await page.GotoAsync("/");
-        await Expect(page).ToHaveURLAsync(new Regex("/setup$"));
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=displayName]", "Ada Lovelace");
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        await Expect(page).ToHaveURLAsync(new Regex("/$"));
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
-    }
 }

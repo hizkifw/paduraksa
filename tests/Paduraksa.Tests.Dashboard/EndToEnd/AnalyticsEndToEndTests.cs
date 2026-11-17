@@ -7,6 +7,7 @@ using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Logging;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 using static Paduraksa.Tests.Shared.AnalyticsTestData;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
@@ -83,19 +84,8 @@ public sealed class AnalyticsEndToEndTests
     [Fact]
     public async Task ThePageShowsTheTrafficAndItsPathsLeadToTheLiveTail()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new()
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
         Seed(host);
 
@@ -153,17 +143,4 @@ public sealed class AnalyticsEndToEndTests
         Assert.Empty(problems);
     }
 
-    internal static async Task SetUpAsync(IPage page, DashboardHost host)
-    {
-        await page.GotoAsync("/");
-        await Expect(page).ToHaveURLAsync(new Regex("/setup$"));
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=displayName]", "Ada Lovelace");
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        await Expect(page).ToHaveURLAsync(new Regex("/$"));
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
 }

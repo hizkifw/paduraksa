@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -21,19 +22,8 @@ public sealed class RuleSetsEndToEndTests
     [Fact]
     public async Task CopyAPreset_WriteASet_PickItOnAHost_AndSeeThemOnThePageAtBothWidths()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1280, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(width: 1280));
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
 
         // Nothing yet: the page says what a set is for, and the presets are there to start from.
@@ -125,42 +115,6 @@ public sealed class RuleSetsEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "rules-security-390");
 
         Assert.Empty(problems);
-    }
-
-    private static async Task SetUpAsync(IPage page, DashboardHost host)
-    {
-        await page.GotoAsync("/");
-        await Expect(page).ToHaveURLAsync(new Regex("/setup$"));
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=displayName]", "Ada Lovelace");
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        await Expect(page).ToHaveURLAsync(new Regex("/$"));
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
-    private static async Task OpenFromNavigationAsync(IPage page, string name)
-    {
-        await page.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = name }).ClickAsync();
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
-    private static Task ExpectDrawerTitleAsync(IPage page, string title) =>
-        Expect(page.Locator(".pdk-sheet[data-top] .pdk-drawer-title")).ToHaveTextAsync(title, new() { Timeout = 15_000 });
-
-    private static async Task FillAsync(IPage page, string field, string value)
-    {
-        var input = page.Locator($".pdk-sheet[data-top] input[data-field='{field}'], .pdk-sheet[data-top] textarea[data-field='{field}'], .pdk-sheet[data-top] [data-field='{field}'] input").First;
-        await input.FillAsync(value);
-        await input.BlurAsync();
-    }
-
-    private static async Task ChooseAsync(IPage page, string field, string item)
-    {
-        await Select(page, field).ClickAsync();
-        await page.Locator(".mud-popover-open .mud-list-item", new() { HasText = item }).First.ClickAsync();
     }
 
     /// <summary>A MudBlazor select by its <c>data-field</c>: the attribute is on the element that opens it.</summary>

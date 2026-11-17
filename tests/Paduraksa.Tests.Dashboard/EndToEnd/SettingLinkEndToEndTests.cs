@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -83,38 +84,14 @@ public sealed class SettingLinkEndToEndTests
         await Expect(row).Not.ToHaveClassAsync(highlighted, new() { Timeout = 6_000 });
     }
 
-    private static async Task<Session> SignedInAsync(bool phone, bool reducedMotion)
+    private static async Task<BrowserSession> SignedInAsync(bool phone, bool reducedMotion)
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        var host = await DashboardHost.StartAsync(Ct);
-        var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        var session = await BrowserSession.StartAsync(new()
         {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
             ViewportSize = phone ? Phone : Desktop,
             ReducedMotion = reducedMotion ? ReducedMotion.Reduce : ReducedMotion.NoPreference,
         });
-        var page = await context.NewPageAsync();
-        await page.GotoAsync("/");
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-        return new Session(playwright, browser, host, context, page);
-    }
-
-    private sealed class Session(IPlaywright playwright, IBrowser browser, DashboardHost host, IBrowserContext context, IPage page) : IAsyncDisposable
-    {
-        public IPage Page { get; } = page;
-
-        public async ValueTask DisposeAsync()
-        {
-            await context.DisposeAsync();
-            await host.DisposeAsync();
-            await browser.DisposeAsync();
-            playwright.Dispose();
-        }
+        await SetUpAsync(session.Page, session.Host, displayName: null);
+        return session;
     }
 }

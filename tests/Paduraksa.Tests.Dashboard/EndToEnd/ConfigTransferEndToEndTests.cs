@@ -31,19 +31,8 @@ public sealed class ConfigTransferEndToEndTests
     [Fact]
     public async Task PasteReviewApplyAndDownload()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            AcceptDownloads = true,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(colorScheme: null, acceptDownloads: true));
+        var (host, page, problems) = session;
 
         await page.GotoAsync("/");
         await Expect(page).ToHaveURLAsync(new Regex("/setup$"));

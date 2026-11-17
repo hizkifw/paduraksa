@@ -18,20 +18,8 @@ public sealed class LocalCaEndToEndTests
     [Fact]
     public async Task TheRootIsRotatedAfterAWarningTheReplacedOneStaysUntilRetired()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        BrowserNewContextOptions options = new()
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        };
-        await using var context = await browser.NewContextAsync(options);
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync();
+        var (host, page, problems) = session;
 
         await page.GotoAsync("/");
         await Expect(page).ToHaveURLAsync(new Regex("/setup$"));

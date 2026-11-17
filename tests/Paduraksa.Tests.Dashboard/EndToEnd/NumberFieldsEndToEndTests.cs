@@ -1,6 +1,6 @@
-using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -13,24 +13,9 @@ public sealed class NumberFieldsEndToEndTests
     [Fact]
     public async Task ANumberTypedAndTabbedOut_IsCommitted_WithoutEnterOrSubmit()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-        });
-        var page = await context.NewPageAsync();
-        await page.GotoAsync("/");
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(colorScheme: null));
+        var (host, page) = session;
+        await SetUpAsync(page, host, displayName: null);
 
         // A settings page: typing is real key presses, and nothing but Tab follows.
         await page.GotoAsync("/settings/defaults");

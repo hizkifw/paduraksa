@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 
-using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
 
@@ -19,19 +18,8 @@ public sealed class AccessListCountriesEndToEndTests
     [Fact]
     public async Task TheDrawerFindsCountriesByNameAndKeepsThemAsChips_AtDesktopAndPhoneWidth()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1280, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(width: 1280));
+        var (host, page, problems) = session;
 
         await page.GotoAsync("/");
         await Expect(page).ToHaveURLAsync(new Regex("/setup$"));

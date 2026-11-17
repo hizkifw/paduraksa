@@ -1,8 +1,8 @@
-using Microsoft.Playwright;
 
 using Paduraksa.Dashboard;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -25,13 +25,9 @@ public sealed class PrerenderEndToEndTests
     [InlineData(DashboardRoutes.Logs)]
     public async Task APrerenderedPageHasNothingToClickUntilTheCircuitIsLive(string path)
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true });
-        var page = await context.NewPageAsync();
-        await AnalyticsEndToEndTests.SetUpAsync(page, host);
+        await using var session = await BrowserSession.StartAsync(new());
+        var (host, page) = session;
+        await SetUpAsync(page, host);
         await PlaywrightBrowser.WatchPrerenderAsync(page);
 
         await page.GotoAsync(path);

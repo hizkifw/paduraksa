@@ -22,18 +22,8 @@ public sealed partial class DashboardEndToEndTests
     [Fact]
     public async Task SetUp_SignInWithTotp_SeeTheOverview_LoseTheSessionToARevocation_AndSignOut()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true, // the admin's certificate comes from the process's own local CA
-            ViewportSize = new ViewportSize { Width = 1366, Height = 860 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(height: 860));
+        var (host, page) = session;
         List<string> policyViolations = [];
         page.Console += (_, message) =>
         {
@@ -61,7 +51,7 @@ public sealed partial class DashboardEndToEndTests
         await ExpectOverviewAsync(page);
 
         // A second factor for the Owner, through the API with the browser's own session.
-        var (provisioningUri, recoveryCode) = await EnrolTotpAsync(context);
+        var (provisioningUri, recoveryCode) = await EnrolTotpAsync(session.Context);
 
         // Sign out from the user menu.
         await SignOutAsync(page);
@@ -93,7 +83,7 @@ public sealed partial class DashboardEndToEndTests
         await page.SetViewportSizeAsync(1366, 860);
 
         // Revoking the session elsewhere ends the open page within the re-check interval (one second here).
-        await RevokeOwnSessionAsync(context);
+        await RevokeOwnSessionAsync(session.Context);
         await Expect(page).ToHaveURLAsync(new Regex("/signin\\?.*notice=sessionEnded"), new() { Timeout = 15_000 });
         await Expect(page.GetByText("Your session ended")).ToBeVisibleAsync();
 
@@ -104,7 +94,7 @@ public sealed partial class DashboardEndToEndTests
         await page.ClickAsync("button[type=submit]");
         await ExpectOverviewAsync(page);
         await SignOutAsync(page);
-        Assert.DoesNotContain(await context.CookiesAsync(), cookie => cookie.Name == SessionCookie);
+        Assert.DoesNotContain(await session.Context.CookiesAsync(), cookie => cookie.Name == SessionCookie);
 
         Assert.Empty(policyViolations);
     }

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
+using static Paduraksa.Tests.Dashboard.EndToEnd.DashboardPage;
 
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
@@ -24,20 +25,9 @@ public sealed class ConfigPagesEndToEndTests
     [Fact]
     public async Task CreateAHostWithANewUpstream_SimulateIt_EditAndUndo_AndSeeTheHistory()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
+        await using var session = await BrowserSession.StartAsync(null, "status of 404");
         // The 404 the test asks for on purpose is logged by the browser; anything else in red is a problem.
-        var problems = PlaywrightBrowser.CollectProblems(page, "status of 404");
+        var (host, page, problems) = session;
 
         await SetUpAsync(page, host);
 
@@ -272,19 +262,8 @@ public sealed class ConfigPagesEndToEndTests
     [Fact]
     public async Task AnAccessListWithAGeneratedPassword_IsSavedAndTheStoredPasswordIsKeptOnTheNextEdit()
     {
-        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using var ownedPlaywright = playwright;
-        await using var ownedBrowser = browser;
-        await using var host = await DashboardHost.StartAsync(Ct);
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = host.Admin.ToString(),
-            IgnoreHTTPSErrors = true,
-            ViewportSize = new ViewportSize { Width = 1280, Height = 900 },
-            ColorScheme = ColorScheme.Dark,
-        });
-        var page = await context.NewPageAsync();
-        var problems = PlaywrightBrowser.CollectProblems(page);
+        await using var session = await BrowserSession.StartAsync(BrowserSession.Desktop(width: 1280));
+        var (host, page, problems) = session;
         await SetUpAsync(page, host);
 
         await OpenFromNavigationAsync(page, "Access lists");
@@ -323,52 +302,6 @@ public sealed class ConfigPagesEndToEndTests
         await page.Locator(".pdk-sheet[data-top] [data-review=apply]").ClickAsync();
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
         Assert.Empty(problems);
-    }
-
-    private static async Task SetUpAsync(IPage page, DashboardHost host)
-    {
-        await page.GotoAsync("/");
-        await Expect(page).ToHaveURLAsync(new Regex("/setup$"));
-        await page.FillAsync("input[name=setupToken]", await host.SetupTokenAsync(Ct));
-        await page.FillAsync("input[name=username]", DashboardHost.OwnerName);
-        await page.FillAsync("input[name=displayName]", "Ada Lovelace");
-        await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
-        await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
-        await page.ClickAsync("button[type=submit]");
-        // Setup lands on the overview.
-        await Expect(page).ToHaveURLAsync(new Regex("/$"));
-        await ExpectHeadingAsync(page, "Overview");
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
-    /// <summary>Follows a side-navigation link, and waits for the live page.</summary>
-    private static async Task OpenFromNavigationAsync(IPage page, string name)
-    {
-        await page.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = name, Exact = true }).ClickAsync();
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-    }
-
-    private static Task ExpectHeadingAsync(IPage page, string title) =>
-        Expect(page.GetByRole(AriaRole.Heading, new() { Name = title, Level = 1 })).ToBeVisibleAsync(new() { Timeout = 15_000 });
-
-    /// <summary>The top drawer's title.</summary>
-    private static Task ExpectDrawerTitleAsync(IPage page, string title) =>
-        Expect(page.Locator(".pdk-sheet[data-top] .pdk-drawer-title")).ToHaveTextAsync(title, new() { Timeout = 15_000 });
-
-    /// <summary>Types into a form field of the top drawer (or the page) by its <c>data-field</c> name (MudBlazor puts the attribute on the input).</summary>
-    private static async Task FillAsync(IPage page, string field, string value)
-    {
-        var scope = await page.Locator(".pdk-sheet[data-top]").CountAsync() > 0 ? page.Locator(".pdk-sheet[data-top]") : page.Locator("body");
-        var input = scope.Locator($"input[data-field='{field}'], textarea[data-field='{field}'], [data-field='{field}'] input").First;
-        await input.FillAsync(value);
-        await input.BlurAsync();
-    }
-
-    /// <summary>Opens a select in the top drawer by its <c>data-field</c> name and picks the item with <paramref name="item"/> in it.</summary>
-    private static async Task ChooseAsync(IPage page, string field, string item)
-    {
-        await page.Locator($".pdk-sheet[data-top] input[data-field='{field}'], .pdk-sheet[data-top] [data-field='{field}'] input").First.ClickAsync();
-        await page.Locator(".mud-popover-open .mud-list-item", new() { HasText = item }).ClickAsync();
     }
 
     /// <summary>Opens the review drawer from the top drawer, waits for the dry run, and applies.</summary>
