@@ -68,7 +68,7 @@ internal sealed partial class ApiPipelineMiddleware(RequestDelegate next, ILogge
 
         if (api && !context.Response.HasStarted && context.Response.StatusCode >= 400 && context.Response.ContentLength is null or 0 && context.Response.ContentType is null)
         {
-            await ApiProblems.WriteAsync(context, ApiProblems.Build(context, context.Response.StatusCode, EmptyAnswerDetail(context.Response.StatusCode))).ConfigureAwait(false);
+            await ApiProblems.Problem(context.Response.StatusCode, EmptyAnswerDetail(context.Response.StatusCode)).ExecuteAsync(context).ConfigureAwait(false);
         }
     }
 
@@ -102,7 +102,7 @@ internal sealed partial class ApiPipelineMiddleware(RequestDelegate next, ILogge
         }
 
         context.Response.Clear();
-        await ApiProblems.WriteAsync(context, ApiProblems.Build(context, status, detail)).ConfigureAwait(false);
+        await ApiProblems.Problem(status, detail).ExecuteAsync(context).ConfigureAwait(false);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception for {Method} {Path} (trace {TraceId}).")]

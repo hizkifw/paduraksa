@@ -33,57 +33,27 @@ public static class ApiProblems
         RevisionRef? revision = null,
         long? version = null,
         Paduraksa.Contracts.Drafts.DraftOutcome? review = null) =>
-        new ProblemResult(status, detail, instance, errors, relatedErrors, warnings, conflict, code, title, revision, version, review);
-
-    /// <summary>A 422 for what is wrong with a request body: the service's errors, verbatim.</summary>
-    public static IResult Invalid(IReadOnlyList<ConfigError> errors, IReadOnlyList<ConfigError>? relatedErrors = null, IReadOnlyList<ConfigWarning>? warnings = null, string? instance = null, string? code = null) =>
-        Problem(StatusCodes.Status422UnprocessableEntity, "The request is well-formed but can't be applied; see errors.", instance, errors, relatedErrors, warnings, code: code);
-
-    /// <summary>The problem for <paramref name="status"/> as data, with the request's trace ID.</summary>
-    public static ApiProblem Build(
-        HttpContext http,
-        int status,
-        string? detail = null,
-        string? instance = null,
-        IReadOnlyList<ConfigError>? errors = null,
-        IReadOnlyList<ConfigError>? relatedErrors = null,
-        IReadOnlyList<ConfigWarning>? warnings = null,
-        ConfigConflict? conflict = null,
-        string? code = null,
-        string? title = null,
-        RevisionRef? revision = null,
-        long? version = null,
-        Paduraksa.Contracts.Drafts.DraftOutcome? review = null)
-    {
-        ArgumentNullException.ThrowIfNull(http);
         // Every 403 names a code: a client can tell a missing permission from a CSRF or internal-hop refusal without reading
         // the sentence.
-        code ??= status == StatusCodes.Status403Forbidden ? ApiCodes.Auth.PermissionRequired : null;
-        return new ApiProblem(
+        new ProblemResult(new ApiProblem(
             TypeOf(status),
             title ?? TitleOf(status),
             status,
             detail,
             instance,
-            TraceIdOf(http),
+            null,
             errors is { Count: > 0 } ? errors : null,
             relatedErrors is { Count: > 0 } ? relatedErrors : null,
             warnings is { Count: > 0 } ? warnings : null,
             conflict,
-            code,
+            code ?? (status == StatusCodes.Status403Forbidden ? ApiCodes.Auth.PermissionRequired : null),
             revision,
             version,
-            review);
-    }
+            review));
 
-    /// <summary>Writes <paramref name="problem"/> as the response (headers not yet sent).</summary>
-    public static Task WriteAsync(HttpContext http, ApiProblem problem)
-    {
-        ArgumentNullException.ThrowIfNull(http);
-        ArgumentNullException.ThrowIfNull(problem);
-        http.Response.StatusCode = problem.Status;
-        return http.Response.WriteAsJsonAsync(problem, AdminJsonContext.Default.ApiProblem, ContentType, http.RequestAborted);
-    }
+    /// <summary>A 422 for what is wrong with a request body: the service's errors, verbatim.</summary>
+    public static IResult Invalid(IReadOnlyList<ConfigError> errors, IReadOnlyList<ConfigError>? relatedErrors = null, IReadOnlyList<ConfigWarning>? warnings = null, string? instance = null, string? code = null) =>
+        Problem(StatusCodes.Status422UnprocessableEntity, "The request is well-formed but can't be applied; see errors.", instance, errors, relatedErrors, warnings, code: code);
 
     /// <summary>The id that ties a response to the log: the trace's, else ASP.NET's request identifier.</summary>
     public static string TraceIdOf(HttpContext http)
@@ -136,21 +106,15 @@ public static class ApiProblems
         _ => "Error",
     };
 
-    private sealed class ProblemResult(
-        int status,
-        string? detail,
-        string? instance,
-        IReadOnlyList<ConfigError>? errors,
-        IReadOnlyList<ConfigError>? relatedErrors,
-        IReadOnlyList<ConfigWarning>? warnings,
-        ConfigConflict? conflict,
-        string? code,
-        string? title,
-        RevisionRef? revision,
-        long? version,
-        Paduraksa.Contracts.Drafts.DraftOutcome? review) : IResult
+    /// <summary>Holds the problem without its trace ID, which is the request's and so only known when the result executes.</summary>
+    private sealed class ProblemResult(ApiProblem problem) : IResult
     {
-        public Task ExecuteAsync(HttpContext httpContext) =>
-            WriteAsync(httpContext, Build(httpContext, status, detail, instance, errors, relatedErrors, warnings, conflict, code, title, revision, version, review));
+        public Task ExecuteAsync(HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+            httpContext.Response.StatusCode = problem.Status;
+            return httpContext.Response.WriteAsJsonAsync(
+                problem with { Trace = TraceIdOf(httpContext) }, AdminJsonContext.Default.ApiProblem, ContentType, httpContext.RequestAborted);
+        }
     }
 }
