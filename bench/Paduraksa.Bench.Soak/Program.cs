@@ -389,7 +389,7 @@ async Task<int> RunAsync()
             ["upstreams"] = JsonSerializer.SerializeToNode(config.AllNodes.Select(n => new { n.Name, n.Port, n.Requests, n.WebSocketsAccepted })),
             ["authProviderCalls"] = authProvider.Calls,
         };
-        await File.WriteAllTextAsync(Path.Combine(options.OutDirectory, "facts.json"), root.ToJsonString(indented));
+        await File.WriteAllTextAsync(Path.Combine(options.OutDirectory, "facts.json"), root.ToJsonString());
         await File.WriteAllTextAsync(Path.Combine(options.OutDirectory, "publishes.json"), JsonSerializer.Serialize(publisher.Log));
     }
 }

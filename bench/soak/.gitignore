@@ -1,0 +1,2 @@
+# Written while a run is live, so the stop path can find the server.
+results/*/server.pid
