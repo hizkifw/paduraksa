@@ -89,10 +89,8 @@ public static partial class SnapshotCompiler
 
             var routes = spec.Kind switch
             {
-                HostKind.Admin => CompileAdminRoute(spec, Options.AdminUpstream, RouteIdBySlot, YarpRoutes, where, Errors, hostRateLimit, AccessListOf(spec.AccessList.Effective)),
-                HostKind.Proxy => CompileRoutes(
-                    spec, Clusters, RouteIds, YarpRouteIds, YarpRoutes, RouteIdBySlot, where, Errors, Options.ProofOfWork,
-                    this, rateLimitCache, hostRateLimit, spec.RateLimit.EffectivePolicyId),
+                HostKind.Admin => CompileAdminRoute(spec, where, hostRateLimit, AccessListOf(spec.AccessList.Effective)),
+                HostKind.Proxy => CompileRoutes(spec, where, rateLimitCache, hostRateLimit, spec.RateLimit.EffectivePolicyId),
                 _ => RejectRoutes(spec, where, Errors),
             };
             var fixedResponse = CompileFixedResponse(spec, where, Errors);
@@ -246,6 +244,223 @@ public static partial class SnapshotCompiler
                 RemoveSlotsFrom(routes, YarpRoutes, RouteIdBySlot);
             }
         }
+
+        /// <summary>
+        /// The implicit route of an admin host: one prefix route matching every path, forwarding to the
+        /// <see cref="YarpConfig.AdminClusterId"/> cluster. It has no user route ID, so its slot's <see cref="RouteId"/> is empty.
+        /// </summary>
+        private CompiledRoute[] CompileAdminRoute(HostSpec host, CompileErrorSource where, RateLimitPolicy? rateLimit, AccessLists.CompiledAccessList? accessList)
+        {
+            if (host.Routes is { Count: > 0 })
+            {
+                Errors.Add(new(where, "an admin host has no routes of its own: it forwards every path to the admin app"));
+            }
+
+            if (host.Redirect is not null || host.Respond is not null)
+            {
+                Errors.Add(new(where, "an admin host can't have a redirect or respond setting"));
+            }
+
+            if (!host.Https)
+            {
+                Errors.Add(new(where, "an admin host is served over HTTPS"));
+            }
+
+            // With the internal listener disabled the route still matches, but there is no YARP endpoint, so the gate answers the
+            // snapshot's 503 instead of taking every other host down with it.
+            if (!Options.AdminUpstream)
+            {
+                return
+                [
+                    new CompiledRoute
+                    {
+                        Id = RouteId.Empty,
+                        MatchKind = RouteMatchKind.Prefix,
+                        Path = "/",
+                        Slot = -1,
+                        Policies = rateLimit is null ? [] : [rateLimit],
+                        AccessList = accessList,
+                        Admin = true,
+                    },
+                ];
+            }
+
+            var slot = RouteIdBySlot.Count;
+            RouteIdBySlot.Add(RouteId.Empty);
+            var routeId = YarpConfig.AdminClusterId + "-" + host.Id;
+            YarpRoutes.Add(new RouteConfig
+            {
+                RouteId = routeId,
+                ClusterId = YarpConfig.AdminClusterId,
+                Match = new RouteMatch { Path = InternalRoutePrefix + routeId + "/{**rest}" },
+            });
+            return
+            [
+                new CompiledRoute
+                {
+                    Id = RouteId.Empty,
+                    MatchKind = RouteMatchKind.Prefix,
+                    Path = "/",
+                    Slot = slot,
+                    Policies = rateLimit is null ? [] : [rateLimit],
+                    AccessList = accessList,
+                    Admin = true,
+                },
+            ];
+        }
+
+        private CompiledRoute[] CompileRoutes(
+            HostSpec host,
+            CompileErrorSource where,
+            Dictionary<RateLimitPolicyId, RateLimitPolicy>? rateLimits,
+            RateLimitPolicy? hostRateLimit,
+            RateLimitPolicyId? hostRateLimitId)
+        {
+            var specs = host.Routes ?? [];
+            if (specs.Count == 0)
+            {
+                Errors.Add(new(where, "a proxy host needs at least one route"));
+            }
+
+            if (host.Redirect is not null || host.Respond is not null)
+            {
+                Errors.Add(new(where, "a proxy host can't have a redirect or respond setting"));
+            }
+
+            // The evaluation order, fixed here so matching stays a scan: exact first, then the longest prefix, then Order,
+            // then as listed. The listed order is the last tiebreaker, never the rule.
+            var keys = new RouteOrderKey[specs.Count];
+            var order = new int[specs.Count];
+            for (var i = 0; i < order.Length; i++)
+            {
+                keys[i] = RouteOrderKey.For(specs[i].Match, specs[i].Path, specs[i].Order, i);
+                order[i] = i;
+            }
+
+            Array.Sort(order, (a, b) => keys[a].CompareTo(keys[b]));
+
+            var routes = new CompiledRoute[specs.Count];
+            for (var i = 0; i < order.Length; i++)
+            {
+                var spec = specs[order[i]];
+                var routeId = spec.Id.ToString();
+                var routeWhere = CompileErrorSource.Route(host.Id, spec.Id);
+                if (spec.Id.IsEmpty)
+                {
+                    Errors.Add(new(routeWhere, "the route ID is empty"));
+                }
+                else if (!RouteIds.Add(spec.Id))
+                {
+                    Errors.Add(new(routeWhere, "duplicate route ID"));
+                }
+                else if (!YarpRouteIds.TryAdd(routeId, spec.Id))
+                {
+                    Errors.Add(new(routeWhere, CaseCollision("route", routeId, YarpRouteIds[routeId].ToString())));
+                }
+
+                if (!Enum.IsDefined(spec.Match))
+                {
+                    Errors.Add(new(routeWhere, $"unknown match kind {spec.Match}"));
+                }
+
+                var path = spec.Path ?? string.Empty;
+                if (path.Length == 0 || path[0] != '/' || path.Contains('?', StringComparison.Ordinal) || path.Contains('#', StringComparison.Ordinal))
+                {
+                    Errors.Add(new(routeWhere, $"the path must start with '/' and have no query or fragment, got '{path}'"));
+                }
+                else if (path.Contains('%', StringComparison.Ordinal))
+                {
+                    Errors.Add(new(routeWhere, $"write the path decoded, without percent-encoding, got '{path}'"));
+                }
+                else if (RoutePath.Canonicalize(path) is var canonical && !string.Equals(canonical, path, StringComparison.Ordinal))
+                {
+                    // Requests are matched on the canonical view, so a non-canonical route path could never match.
+                    Errors.Add(new(routeWhere, $"the path isn't canonical ('\\', '//', ';', dot segments, trailing dots or spaces); use '{canonical}'"));
+                }
+
+                ClusterConfig? cluster = null;
+                if (spec.Upstream.IsEmpty)
+                {
+                    Errors.Add(new(routeWhere, "the route's upstream ID is empty"));
+                }
+                else if (!Clusters.TryGetValue(spec.Upstream, out cluster))
+                {
+                    Errors.Add(new(routeWhere, $"upstream '{spec.Upstream}' doesn't exist"));
+                }
+
+                // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
+                var own = CompilePolicies(spec.Policies ?? [], routeWhere, Errors, AccessLists, RuleSets);
+
+                // After the access policies and before proof of work: a client already over its budget gets the 429, not a
+                // challenge page. A route that resolves to the host's policy shares its pair's buckets; another policy gets
+                // its own pair for the same host.
+                if (rateLimits is not null && spec.RateLimit is { } routePolicyId)
+                {
+                    var routePolicy = routePolicyId == hostRateLimitId && hostRateLimit is not null
+                        ? hostRateLimit
+                        : CompileRateLimitPolicy(this, host, routePolicyId, spec.RateLimitRouteOverride, routeWhere, rateLimits);
+                    if (routePolicy is not null)
+                    {
+                        own = [.. own, routePolicy];
+                    }
+                }
+
+                // After the rate limit (a client over its budget is told so, and costs the endpoint nothing) and before proof of work, which
+                // only a request the provider let through is asked to solve.
+                if (spec.AuthProvider is { } providerId)
+                {
+                    if (AuthProviderOf(providerId) is { } provider)
+                    {
+                        own = [.. own, new ForwardAuthPolicy(provider, spec.AuthProviderRouteOverride)];
+                    }
+                    else
+                    {
+                        Errors.Add(new(routeWhere, $"auth provider '{providerId}' doesn't exist or didn't compile"));
+                    }
+                }
+
+                var routeProofOfWork = spec.ProofOfWorkRouteOverride ? spec.ProofOfWork : host.ProofOfWork;
+                if (routeProofOfWork.Enabled)
+                {
+                    // After the route's other policies: an allow list or a deny has already decided, so the challenge is only
+                    // reached by a request the rest of the chain lets through.
+                    own = [.. own, new ProofOfWorkPolicy(routeProofOfWork, HostScopeOf(host.Id), spec.ProofOfWorkRouteOverride, Options.ProofOfWork ?? ProofOfWorkRuntime.Unavailable)];
+                }
+
+                var slot = RouteIdBySlot.Count;
+                RouteIdBySlot.Add(spec.Id);
+                // YARP never matches on order: each route's internal path is unique and the gate sets the endpoint
+                // itself. The compiled route order above is the only evaluation order, so these routes carry no Order.
+                YarpRoutes.Add(new RouteConfig
+                {
+                    RouteId = routeId,
+                    ClusterId = cluster?.ClusterId,
+                    Match = new RouteMatch { Path = InternalRoutePrefix + routeId + "/{**rest}" },
+                });
+                routes[i] = new CompiledRoute
+                {
+                    Id = spec.Id,
+                    MatchKind = spec.Match,
+                    Path = path,
+                    Slot = slot,
+                    Policies = own,
+                    AccessList = AccessListOf(spec.AccessList),
+                    RuleSet = RuleSetOf(spec.RuleSet),
+                    AuthProvider = AuthProviderOf(spec.AuthProvider),
+                    ProofOfWork = routeProofOfWork,
+                    ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
+                    MaxBodySize = spec.MaxBodySizeRouteOverride ? spec.MaxBodySize : null,
+                    MetricSlot = MetricSlotOf(MetricSubject.Route, spec.Id.Value, host.Enabled),
+                    Upstream = UpstreamMetricsOf(spec.Upstream, host.Enabled),
+                    UpstreamHost = UpstreamHosts.GetValueOrDefault(spec.Upstream) ?? UpstreamHost.Original,
+                    // A route's resolved rules can only be empty when its host's are, so an empty spec (a hand-built model's default) is the host's.
+                    Headers = spec.Headers.IsEmpty ? HeadersOf(host.Headers, where) : HeadersOf(spec.Headers, routeWhere),
+                    Rewrite = CompileRewrite(spec, path, routeWhere, Errors),
+                };
+            }
+
+            return routes;
+        }
     }
 
     /// <summary>The lockdown the gate applies: the host's own setting when the trusted-proxy mode is a Cloudflare one, else
@@ -263,233 +478,6 @@ public static partial class SnapshotCompiler
 
     private static bool IsCloudflareMode(TrustedProxyMode mode) => mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
 
-    /// <summary>
-    /// The implicit route of an admin host: one prefix route matching every path, forwarding to the
-    /// <see cref="YarpConfig.AdminClusterId"/> cluster. It has no user route ID, so its slot's <see cref="RouteId"/> is empty.
-    /// </summary>
-    private static CompiledRoute[] CompileAdminRoute(
-        HostSpec host, bool available, List<RouteId> routeIdBySlot, List<RouteConfig> yarpRoutes, CompileErrorSource where, List<CompileError> errors,
-        RateLimitPolicy? rateLimit,
-        AccessLists.CompiledAccessList? accessList)
-    {
-        if (host.Routes is { Count: > 0 })
-        {
-            errors.Add(new(where, "an admin host has no routes of its own: it forwards every path to the admin app"));
-        }
-
-        if (host.Redirect is not null || host.Respond is not null)
-        {
-            errors.Add(new(where, "an admin host can't have a redirect or respond setting"));
-        }
-
-        if (!host.Https)
-        {
-            errors.Add(new(where, "an admin host is served over HTTPS"));
-        }
-
-        // With the internal listener disabled the route still matches, but there is no YARP endpoint, so the gate answers the
-        // snapshot's 503 instead of taking every other host down with it.
-        if (!available)
-        {
-            return
-            [
-                new CompiledRoute
-                {
-                    Id = RouteId.Empty,
-                    MatchKind = RouteMatchKind.Prefix,
-                    Path = "/",
-                    Slot = -1,
-                    Policies = rateLimit is null ? [] : [rateLimit],
-                    AccessList = accessList,
-                    Admin = true,
-                },
-            ];
-        }
-
-        var slot = routeIdBySlot.Count;
-        routeIdBySlot.Add(RouteId.Empty);
-        var routeId = YarpConfig.AdminClusterId + "-" + host.Id;
-        yarpRoutes.Add(new RouteConfig
-        {
-            RouteId = routeId,
-            ClusterId = YarpConfig.AdminClusterId,
-            Match = new RouteMatch { Path = InternalRoutePrefix + routeId + "/{**rest}" },
-        });
-        return
-        [
-            new CompiledRoute
-            {
-                Id = RouteId.Empty,
-                MatchKind = RouteMatchKind.Prefix,
-                Path = "/",
-                Slot = slot,
-                Policies = rateLimit is null ? [] : [rateLimit],
-                AccessList = accessList,
-                Admin = true,
-            },
-        ];
-    }
-
-    private static CompiledRoute[] CompileRoutes(
-        HostSpec host,
-        Dictionary<UpstreamId, ClusterConfig> clusters,
-        HashSet<RouteId> routeIds,
-        Dictionary<string, RouteId> yarpRouteIds,
-        List<RouteConfig> yarpRoutes,
-        List<RouteId> routeIdBySlot,
-        CompileErrorSource where,
-        List<CompileError> errors,
-        ProofOfWorkRuntime? proofOfWork,
-        CompileContext context,
-        Dictionary<RateLimitPolicyId, RateLimitPolicy>? rateLimits,
-        RateLimitPolicy? hostRateLimit,
-        RateLimitPolicyId? hostRateLimitId)
-    {
-        var specs = host.Routes ?? [];
-        if (specs.Count == 0)
-        {
-            errors.Add(new(where, "a proxy host needs at least one route"));
-        }
-
-        if (host.Redirect is not null || host.Respond is not null)
-        {
-            errors.Add(new(where, "a proxy host can't have a redirect or respond setting"));
-        }
-
-        // The evaluation order, fixed here so matching stays a scan: exact first, then the longest prefix, then Order,
-        // then as listed. The listed order is the last tiebreaker, never the rule.
-        var keys = new RouteOrderKey[specs.Count];
-        var order = new int[specs.Count];
-        for (var i = 0; i < order.Length; i++)
-        {
-            keys[i] = RouteOrderKey.For(specs[i].Match, specs[i].Path, specs[i].Order, i);
-            order[i] = i;
-        }
-
-        Array.Sort(order, (a, b) => keys[a].CompareTo(keys[b]));
-
-        var routes = new CompiledRoute[specs.Count];
-        for (var i = 0; i < order.Length; i++)
-        {
-            var spec = specs[order[i]];
-            var routeId = spec.Id.ToString();
-            var routeWhere = CompileErrorSource.Route(host.Id, spec.Id);
-            if (spec.Id.IsEmpty)
-            {
-                errors.Add(new(routeWhere, "the route ID is empty"));
-            }
-            else if (!routeIds.Add(spec.Id))
-            {
-                errors.Add(new(routeWhere, "duplicate route ID"));
-            }
-            else if (!yarpRouteIds.TryAdd(routeId, spec.Id))
-            {
-                errors.Add(new(routeWhere, CaseCollision("route", routeId, yarpRouteIds[routeId].ToString())));
-            }
-
-            if (!Enum.IsDefined(spec.Match))
-            {
-                errors.Add(new(routeWhere, $"unknown match kind {spec.Match}"));
-            }
-
-            var path = spec.Path ?? string.Empty;
-            if (path.Length == 0 || path[0] != '/' || path.Contains('?', StringComparison.Ordinal) || path.Contains('#', StringComparison.Ordinal))
-            {
-                errors.Add(new(routeWhere, $"the path must start with '/' and have no query or fragment, got '{path}'"));
-            }
-            else if (path.Contains('%', StringComparison.Ordinal))
-            {
-                errors.Add(new(routeWhere, $"write the path decoded, without percent-encoding, got '{path}'"));
-            }
-            else if (RoutePath.Canonicalize(path) is var canonical && !string.Equals(canonical, path, StringComparison.Ordinal))
-            {
-                // Requests are matched on the canonical view, so a non-canonical route path could never match.
-                errors.Add(new(routeWhere, $"the path isn't canonical ('\\', '//', ';', dot segments, trailing dots or spaces); use '{canonical}'"));
-            }
-
-            ClusterConfig? cluster = null;
-            if (spec.Upstream.IsEmpty)
-            {
-                errors.Add(new(routeWhere, "the route's upstream ID is empty"));
-            }
-            else if (!clusters.TryGetValue(spec.Upstream, out cluster))
-            {
-                errors.Add(new(routeWhere, $"upstream '{spec.Upstream}' doesn't exist"));
-            }
-
-            // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
-            var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors, context.AccessLists, context.RuleSets);
-
-            // After the access policies and before proof of work: a client already over its budget gets the 429, not a
-            // challenge page. A route that resolves to the host's policy shares its pair's buckets; another policy gets
-            // its own pair for the same host.
-            if (rateLimits is not null && spec.RateLimit is { } routePolicyId)
-            {
-                var routePolicy = routePolicyId == hostRateLimitId && hostRateLimit is not null
-                    ? hostRateLimit
-                    : CompileRateLimitPolicy(context, host, routePolicyId, spec.RateLimitRouteOverride, routeWhere, rateLimits);
-                if (routePolicy is not null)
-                {
-                    own = [.. own, routePolicy];
-                }
-            }
-
-            // After the rate limit (a client over its budget is told so, and costs the endpoint nothing) and before proof of work, which
-            // only a request the provider let through is asked to solve.
-            if (spec.AuthProvider is { } providerId)
-            {
-                if (context.AuthProviderOf(providerId) is { } provider)
-                {
-                    own = [.. own, new ForwardAuthPolicy(provider, spec.AuthProviderRouteOverride)];
-                }
-                else
-                {
-                    errors.Add(new(routeWhere, $"auth provider '{providerId}' doesn't exist or didn't compile"));
-                }
-            }
-
-            var routeProofOfWork = spec.ProofOfWorkRouteOverride ? spec.ProofOfWork : host.ProofOfWork;
-            if (routeProofOfWork.Enabled)
-            {
-                // After the route's other policies: an allow list or a deny has already decided, so the challenge is only
-                // reached by a request the rest of the chain lets through.
-                own = [.. own, new ProofOfWorkPolicy(routeProofOfWork, HostScopeOf(host.Id), spec.ProofOfWorkRouteOverride, proofOfWork ?? ProofOfWorkRuntime.Unavailable)];
-            }
-
-            var slot = routeIdBySlot.Count;
-            routeIdBySlot.Add(spec.Id);
-            // YARP never matches on order: each route's internal path is unique and the gate sets the endpoint
-            // itself. The compiled route order above is the only evaluation order, so these routes carry no Order.
-            yarpRoutes.Add(new RouteConfig
-            {
-                RouteId = routeId,
-                ClusterId = cluster?.ClusterId,
-                Match = new RouteMatch { Path = InternalRoutePrefix + routeId + "/{**rest}" },
-            });
-            routes[i] = new CompiledRoute
-            {
-                Id = spec.Id,
-                MatchKind = spec.Match,
-                Path = path,
-                Slot = slot,
-                Policies = own,
-                AccessList = context.AccessListOf(spec.AccessList),
-                RuleSet = context.RuleSetOf(spec.RuleSet),
-                AuthProvider = context.AuthProviderOf(spec.AuthProvider),
-                ProofOfWork = routeProofOfWork,
-                ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
-                MaxBodySize = spec.MaxBodySizeRouteOverride ? spec.MaxBodySize : null,
-                MetricSlot = context.MetricSlotOf(MetricSubject.Route, spec.Id.Value, host.Enabled),
-                Upstream = context.UpstreamMetricsOf(spec.Upstream, host.Enabled),
-                UpstreamHost = context.UpstreamHosts.GetValueOrDefault(spec.Upstream) ?? UpstreamHost.Original,
-                // A route's resolved rules can only be empty when its host's are, so an empty spec (a hand-built model's default) is the host's.
-                Headers = spec.Headers.IsEmpty ? context.HeadersOf(host.Headers, where) : context.HeadersOf(spec.Headers, routeWhere),
-                Rewrite = CompileRewrite(spec, path, routeWhere, errors),
-            };
-        }
-
-        return routes;
-    }
 
     /// <summary>The host's compression, its minimum checked again; null when off, and for an admin host, whose app answers for its
     /// own responses.</summary>

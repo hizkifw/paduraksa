@@ -118,6 +118,32 @@ public static partial class SnapshotCompiler
             AuthProviders = CompileAuthProviders(model.AuthProviders ?? [], options.ForwardAuth ?? ForwardAuthRuntime.Default, Errors);
         }
 
+        /// <summary>
+        /// A slot for an object of a compile that will be published, or the slot an earlier publish gave it (<paramref name="find"/>) for any other:
+        /// a draft, a dry run or a simulation must not allocate a slot that no publish would ever retire. False, with a compile error, when every slot
+        /// is taken and none is free, rather than throwing through the pipeline.
+        /// </summary>
+        public bool TryTakeSlot<TSlot>(CompileErrorSource where, Func<TSlot> take, Func<TSlot> find, out TSlot slot)
+        {
+            slot = default!;
+            if (!Options.WillBePublished)
+            {
+                slot = find();
+                return true;
+            }
+
+            try
+            {
+                slot = take();
+                return true;
+            }
+            catch (InvalidOperationException ex)
+            {
+                Errors.Add(new(where, ex.Message));
+                return false;
+            }
+        }
+
         public ProxyConfigModel Model { get; }
 
         public SnapshotCompilerOptions Options { get; }

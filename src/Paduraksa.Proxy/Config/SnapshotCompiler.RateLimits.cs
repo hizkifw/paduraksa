@@ -46,25 +46,10 @@ public static partial class SnapshotCompiler
         // Stable identities only: the policy's ID and the host's, never an array position, so a pair keeps its buckets
         // across every publish (docs/design/config.md "State that survives a publish").
         var identity = policyId.ToString() + "/" + host.Id.ToString();
-        ushort slot;
-        if (context.Options.WillBePublished)
+        // Slot 0 is a placeholder for a compile that isn't published: the policy reports a new, full bucket and the gate never runs this snapshot.
+        if (!context.TryTakeSlot(where, () => context.RateLimits.SlotFor(identity), () => context.RateLimits.Slots.TryGetSlot(identity, out var found) ? found : (ushort)0, out var slot))
         {
-            try
-            {
-                slot = context.RateLimits.SlotFor(identity);
-            }
-            catch (InvalidOperationException ex)
-            {
-                // Every slot is taken and none is free: a compile error says so, rather than throwing through the pipeline.
-                context.Errors.Add(new(where, ex.Message));
-                return null;
-            }
-        }
-        else if (!context.RateLimits.Slots.TryGetSlot(identity, out slot))
-        {
-            // A draft, a dry run or a simulation must not allocate a slot that no publish would ever retire. Slot 0 is a
-            // placeholder: the policy reports a new, full bucket and the gate never runs this snapshot.
-            slot = 0;
+            return null;
         }
 
         var policy = new RateLimitPolicy(

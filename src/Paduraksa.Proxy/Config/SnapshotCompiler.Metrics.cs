@@ -24,23 +24,9 @@ public static partial class SnapshotCompiler
                 return MetricSlot.None;
             }
 
-            MetricSlot slot;
-            if (Options.WillBePublished)
+            if (!TryTakeSlot(CompileErrorSource.Defaults, () => metrics.SlotFor(subject, id), () => metrics.FindSlot(subject, id), out var slot))
             {
-                try
-                {
-                    slot = metrics.SlotFor(subject, id);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    // Every slot is taken and none is free: a compile error says so, rather than throwing through the pipeline.
-                    Errors.Add(new(CompileErrorSource.Defaults, ex.Message));
-                    return MetricSlot.None;
-                }
-            }
-            else
-            {
-                slot = metrics.FindSlot(subject, id);
+                return MetricSlot.None;
             }
 
             if (!slot.IsNone)
