@@ -219,8 +219,8 @@ else
         var hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
         if (hosts.Count > 0)
         {
-            _deleteRefusal = $"{profile.Name} is still used by {string.Join(", ", hosts.Select(ChangeView.HostTitle))}, so it can't be deleted. "
-                + "Pick another profile (or none) for those hosts first.";
+            _deleteRefusal = $"{profile.Name} is still in use, so it can't be deleted. Used by {Wording.List([.. hosts.Select(ChangeView.HostTitle)])}. "
+                + "Pick another profile (or none) for them first.";
             Snackbar.Add($"{profile.Name} is in use and can't be deleted.", Severity.Warning);
             return;
         }

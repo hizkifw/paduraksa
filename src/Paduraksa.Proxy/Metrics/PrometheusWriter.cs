@@ -146,10 +146,11 @@ public static class PrometheusWriter
         var labels = Labels(rows, static row => new[] { ("upstream_id", row.Id) });
         var counters = Matrix(rows.Length, UpstreamMetric.Stride);
         var latency = Matrix(rows.Length, LatencyBuckets.Stride);
+        var unusedTotal = new long[LatencyBuckets.Stride];
         for (var i = 0; i < rows.Length; i++)
         {
             registry.ReadCounters(MetricSubject.Upstream, rows[i].Slot.Index, counters[i]);
-            registry.ReadLatency(MetricSubject.Upstream, rows[i].Slot.Index, new long[LatencyBuckets.Stride], latency[i]);
+            registry.ReadLatency(MetricSubject.Upstream, rows[i].Slot.Index, unusedTotal, latency[i]);
         }
 
         Counter(output, "paduraksa_upstream_requests_total", "Requests the gate forwarded to the upstream.", labels, counters, UpstreamMetric.Requests);

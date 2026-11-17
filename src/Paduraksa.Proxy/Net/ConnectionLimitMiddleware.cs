@@ -59,7 +59,7 @@ public sealed class ConnectionLimitMiddleware
         }
     }
 
-    // A pipeline that throws before it returns still gives the place back; the rest is ReleaseWhenDone's.
+    // A pipeline that throws before it returns still gives the place back; ReleaseWhenDone handles the rest.
     private Task ServeCounted(ConnectionContext connection, ulong hash)
     {
         Task served;

@@ -25,6 +25,9 @@ Section numbers written as `(§7.4)` in the entries below refer to the numbering
 ## Unreleased
 
 - **Dashboard:** the live tiles (Overview, Security overview) draw the last hour behind the figure, filling the tile with a fading area. Hovering the chart shows the hovered step's value and time in the figure's place.
+- **Security overview:** the admin host's access list no longer shows as turned off on its route while the internal admin listener is up.
+- **Dashboard:** the password-strength meters on setup, My account and the backup page show their bar again. A delete refused because the object is in use reads "Used by 2 hosts and 1 route. Pick another ... first.", and every count on the dashboard pairs its number and noun the same way.
+- **Code:** about 5,800 fewer lines in `src` and `tests` (shared list pages, pickers and drawer parts in the dashboard, one CRUD mapping for the config collections in the admin API, generic merges and checks in the config layer, shared test helpers), with behaviour unchanged. Soak results store `facts.json` without indentation.
 
 ## v0.1.0 (2026-11-15)
 

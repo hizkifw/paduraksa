@@ -471,7 +471,7 @@ public sealed class SettingsPagesTests
 
         await page.Find("[data-action=delete]").ClickAsync(new());
 
-        Assert.Contains("still used by nas.home.test", page.Find("[data-banner=in-use]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("Used by nas.home.test.", page.Find("[data-banner=in-use]").TextContent, StringComparison.Ordinal);
         Assert.Empty(config.Executed);
     }
 
