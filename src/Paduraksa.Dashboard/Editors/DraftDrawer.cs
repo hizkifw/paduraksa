@@ -13,6 +13,38 @@ using Paduraksa.Dashboard.Identity;
 
 namespace Paduraksa.Dashboard.Editors;
 
+/// <summary>What the drawer chrome (<see cref="DraftBanners"/>, <see cref="DraftFooter"/>) reads from its drawer.</summary>
+public interface IDraftDrawer
+{
+    /// <summary>What the drawer's messages call its object ("access list").</summary>
+    string Noun { get; }
+
+    /// <summary>What a button and a banner call it where <see cref="Noun"/> is too long ("provider" for "auth provider").</summary>
+    string ShortNoun { get; }
+
+    bool MayWrite { get; }
+
+    bool Stage { get; }
+
+    bool Failed { get; }
+
+    bool Denied { get; }
+
+    bool HasModel { get; }
+
+    bool IsNew { get; }
+
+    string StoredName { get; }
+
+    RevisionRef? ChangedElsewhere { get; }
+
+    string? DeleteRefusal { get; set; }
+
+    Task ReloadAsync();
+
+    void Cancel();
+}
+
 /// <summary>
 /// The shared life of the three draft drawers: the caller and its permissions, the document they edit,
 /// inline validation, the dirty guard, review-before-apply, "changed elsewhere" and the reload that starts over. A drawer
@@ -21,8 +53,8 @@ namespace Paduraksa.Dashboard.Editors;
 /// reads its dirty flag, and review closes it with the result), and a hook per difference keeps each drawer's markup
 /// and its few real differences visible.</para>
 /// </summary>
-public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
-    where TModel : class
+public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDraftDrawer, IDisposable
+    where TModel : class, IDraftModel
     where TConfig : class
 {
     private ILogger? _log;
@@ -95,6 +127,10 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
     protected IDisposable? Watch { get; private set; }
 
     protected ILogger Log => _log ??= Loggers.CreateLogger(GetType());
+
+    protected abstract string Noun { get; }
+
+    protected virtual string ShortNoun => Noun;
 
     protected abstract string LoadFailureMessage { get; }
 
@@ -292,7 +328,7 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
         }
     }
 
-    protected async Task ReloadAsync()
+    public async Task ReloadAsync()
     {
         Model = null;
         OnReload();
@@ -303,7 +339,33 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
         }
     }
 
-    protected void Cancel() => Level?.RequestClose();
+    public void Cancel() => Level?.RequestClose();
+
+    string IDraftDrawer.Noun => Noun;
+
+    string IDraftDrawer.ShortNoun => ShortNoun;
+
+    bool IDraftDrawer.MayWrite => MayWrite;
+
+    bool IDraftDrawer.Stage => Stage;
+
+    bool IDraftDrawer.Failed => Failed;
+
+    bool IDraftDrawer.Denied => Denied;
+
+    bool IDraftDrawer.HasModel => Model is not null;
+
+    bool IDraftDrawer.IsNew => Model is { IsNew: true };
+
+    string IDraftDrawer.StoredName => StoredName;
+
+    RevisionRef? IDraftDrawer.ChangedElsewhere => ChangedElsewhere;
+
+    string? IDraftDrawer.DeleteRefusal
+    {
+        get => DeleteRefusal;
+        set => DeleteRefusal = value;
+    }
 
     private void MarkDirty()
     {
@@ -335,5 +397,66 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
         }
 
         StateHasChanged();
+    }
+}
+
+/// <summary>
+/// A named config object changed through Review changes, deleted the same way, and handed back when opened from a host's form:
+/// the submit and the delete follow one script, and a drawer supplies its noun, its commands and what refuses its delete.
+/// </summary>
+public abstract class NamedObjectDrawer<TModel, TConfig> : DraftDrawer<TModel, TConfig>
+    where TModel : class, IDraftModel
+    where TConfig : class
+{
+    protected abstract string NameOf(TConfig config);
+
+    protected abstract ConfigCommand UpsertCommand(TConfig config);
+
+    protected abstract ConfigCommand DeleteCommand();
+
+    /// <summary>Why the object can't be deleted (what uses it), or null when nothing does.</summary>
+    protected abstract string? UseRefusal();
+
+    protected override async Task SubmitAsync()
+    {
+        if (!CanSubmit())
+        {
+            return;
+        }
+
+        var config = ToConfig();
+        if (Stage)
+        {
+            Level?.Close(config);
+            return;
+        }
+
+        var name = NameOf(config);
+        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New {Noun} {name}" : $"Edit {Noun} {name}", UpsertCommand(config))
+        {
+            SuccessMessage = $"{Noun} {name} {(Model.IsNew ? "added" : "changed")}",
+            OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
+        });
+    }
+
+    protected async Task ReviewDeleteAsync()
+    {
+        if (Model is null || Model.IsNew || !MayWrite)
+        {
+            return;
+        }
+
+        if (UseRefusal() is { } refusal)
+        {
+            DeleteRefusal = refusal;
+            Snackbar.Add($"{StoredName} is in use and can't be deleted.", Severity.Warning);
+            return;
+        }
+
+        await RunReviewAsync(new ReviewRequest($"Delete {Noun} {StoredName}", DeleteCommand())
+        {
+            Destructive = true,
+            SuccessMessage = $"{Noun} {StoredName} deleted",
+        });
     }
 }

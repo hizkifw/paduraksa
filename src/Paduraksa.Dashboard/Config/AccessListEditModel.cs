@@ -11,7 +11,7 @@ namespace Paduraksa.Dashboard.Config;
 /// whose box stays empty keeps the credential the list names, so an edit never asks for every password again. A new list gets a fresh typed
 /// ID, and the version the form opened with makes a concurrent edit a conflict.
 /// </summary>
-public sealed class AccessListEditModel
+public sealed class AccessListEditModel : IDraftModel
 {
     private readonly AccessListConfig? _original;
 

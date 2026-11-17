@@ -7,7 +7,7 @@ namespace Paduraksa.Dashboard.Config;
 /// The upstream form's state: name, destinations, load balancing and health. Destinations keep their IDs, so YARP's health
 /// state survives the edit; a new destination gets a fresh one.
 /// </summary>
-public sealed class UpstreamEditModel
+public sealed class UpstreamEditModel : IDraftModel
 {
     private readonly UpstreamConfig? _original;
 

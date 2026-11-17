@@ -12,34 +12,7 @@
 <DrawerShell Title="@Title"
              Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Hub" Name="upstream" OnSubmit="SubmitAsync">
     <Banner>
-        @if (ChangedElsewhere is { } elsewhere)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
-                This upstream was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
-                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
-            </MudAlert>
-        }
-        @if (DeleteRefusal is { } refusal)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => DeleteRefusal = null">
-                <strong>@StoredName is still in use, so it can't be deleted.</strong> @refusal Point those routes at another upstream (or delete them) first.
-            </MudAlert>
-        }
-        @if (Failed)
-        {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
-                The upstream couldn't be read. The details are in the server log.
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
-            </MudAlert>
-        }
-        @if (Denied)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
-        }
-        else if (!MayWrite && Model is not null)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this upstream but not change it.</MudAlert>
-        }
+        <DraftBanners Drawer="this" />
     </Banner>
     <ChildContent>
         @if (Missing)
@@ -308,16 +281,7 @@
         }
     </ChildContent>
     <Footer>
-        @if (MayWrite && Model is not null)
-        {
-            <DrawerActions ShowDelete="@(!Stage && Model.IsNew == false)" OnDelete="ReviewDeleteAsync" OnCancel="Cancel"
-                           PrimaryLabel="@(Stage ? "Use this upstream" : "Review changes")" PrimaryAction="@(Stage ? "stage" : "review")" Submit="true"
-                           StartIcon="@(Stage ? Icons.Material.Rounded.Check : null)" EndIcon="@(Stage ? null : Icons.Material.Rounded.ArrowForward)" />
-        }
-        else
-        {
-            <DrawerActions PrimaryLabel="Close" PrimaryAction="cancel" OnPrimary="Cancel" />
-        }
+        <DraftFooter Drawer="this" OnDelete="ReviewDeleteAsync" />
     </Footer>
 </DrawerShell>
 
@@ -462,6 +426,8 @@
         return candidate;
     }
 
+    protected override string Noun => "upstream";
+
     protected override string LoadFailureMessage => "Couldn't load the upstream form.";
 
     protected override string RefreshFailureMessage => "Couldn't refresh an upstream's usage.";
@@ -590,7 +556,7 @@
         // Refused here with the routes named, rather than by the dry run with a pointer: the service would refuse it the same way.
         if (Uses.Count > 0)
         {
-            DeleteRefusal = $"{string.Join(", ", Uses.Select(u => $"{ChangeView.HostTitle(u.Host)} (route {u.Route.Path})"))} {(Uses.Count == 1 ? "sends" : "send")} requests to it.";
+            DeleteRefusal = $"{string.Join(", ", Uses.Select(u => $"{ChangeView.HostTitle(u.Host)} (route {u.Route.Path})"))} {(Uses.Count == 1 ? "sends" : "send")} requests to it. Point those routes at another upstream (or delete them) first.";
             Snackbar.Add($"{StoredName} is still in use and can't be deleted.", Severity.Warning);
             return;
         }

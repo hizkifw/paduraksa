@@ -1,0 +1,23 @@
+@* The footer of a draft drawer: Delete, Cancel and "Review changes", or "Use this ..." when the object is handed back to a host's form. *@
+@if (Drawer.MayWrite && Drawer.HasModel)
+{
+    <DrawerActions ShowDelete="@(ShowDelete && !Drawer.Stage && !Drawer.IsNew)" OnDelete="OnDelete" OnCancel="Drawer.Cancel"
+                   PrimaryLabel="@(Drawer.Stage ? $"Use this {Drawer.ShortNoun}" : "Review changes")" PrimaryAction="@(Drawer.Stage ? "stage" : "review")" Submit="true"
+                   StartIcon="@(Drawer.Stage ? Icons.Material.Rounded.Check : null)" EndIcon="@(Drawer.Stage ? null : Icons.Material.Rounded.ArrowForward)" />
+}
+else
+{
+    <DrawerActions PrimaryLabel="Close" PrimaryAction="cancel" OnPrimary="Drawer.Cancel" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IDraftDrawer Drawer { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public EventCallback OnDelete { get; set; }
+
+    /// <summary>False while something still uses the object, so Delete isn't offered.</summary>
+    [Parameter]
+    public bool ShowDelete { get; set; } = true;
+}

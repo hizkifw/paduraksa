@@ -28,28 +28,7 @@
         }
     </HeaderActions>
     <Banner>
-        @if (ChangedElsewhere is { } elsewhere)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
-                This host was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
-                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
-            </MudAlert>
-        }
-        @if (Failed)
-        {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
-                The host couldn't be read. The details are in the server log.
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
-            </MudAlert>
-        }
-        @if (Denied)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
-        }
-        else if (!MayWrite && Model is not null)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this host but not change it.</MudAlert>
-        }
+        <DraftBanners Drawer="this" />
     </Banner>
     <ChildContent>
         @if (Missing)
@@ -234,15 +213,7 @@
         }
     </ChildContent>
     <Footer>
-        @if (MayWrite && Model is not null)
-        {
-            <DrawerActions ShowDelete="@(Model.IsNew == false)" OnDelete="ReviewDeleteAsync" OnCancel="Cancel"
-                           PrimaryLabel="Review changes" PrimaryAction="review" Submit="true" EndIcon="@Icons.Material.Rounded.ArrowForward" />
-        }
-        else
-        {
-            <DrawerActions PrimaryLabel="Close" PrimaryAction="cancel" OnPrimary="Cancel" />
-        }
+        <DraftFooter Drawer="this" OnDelete="ReviewDeleteAsync" />
     </Footer>
 </DrawerShell>
 
@@ -315,6 +286,8 @@
     private string? SampleHost => Model?.Names.Select(n => n.Value.Trim()).FirstOrDefault(n => n.Length > 0 && !n.StartsWith('*'));
 
     private string SimulateHref => SampleHost is { } host ? $"{DashboardRoutes.Simulator}?url={Uri.EscapeDataString($"https://{host}/")}" : DashboardRoutes.Simulator;
+
+    protected override string Noun => "host";
 
     protected override string LoadFailureMessage => "Couldn't load the host form.";
 

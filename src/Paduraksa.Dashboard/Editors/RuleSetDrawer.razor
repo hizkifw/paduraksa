@@ -1,4 +1,4 @@
-@inherits DraftDrawer<RuleSetEditModel, RuleSetConfig>
+@inherits NamedObjectDrawer<RuleSetEditModel, RuleSetConfig>
 
 @* A rule set in a drawer: a name and the rules in the order they are tried, each "When [path] [methods] [user agent] then [action]". On its
    own it goes through Review changes; opened from a host's form it is handed back, to be applied with the host in one revision. Its ID is
@@ -8,34 +8,7 @@
              Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : Usage.IsEmpty ? null : $"Used by {Usage.CountText}")"
              Icon="@Icons.Material.Outlined.Rule" Name="rule-set" OnSubmit="SubmitAsync">
     <Banner>
-        @if (ChangedElsewhere is { } elsewhere)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
-                This rule set was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
-                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
-            </MudAlert>
-        }
-        @if (DeleteRefusal is { } refusal)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => DeleteRefusal = null">
-                <strong>@StoredName is still in use, so it can't be deleted.</strong> @refusal
-            </MudAlert>
-        }
-        @if (Failed)
-        {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
-                The rule set couldn't be read. The details are in the server log.
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
-            </MudAlert>
-        }
-        @if (Denied)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
-        }
-        else if (!MayWrite && Model is not null)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this rule set but not change it.</MudAlert>
-        }
+        <DraftBanners Drawer="this" />
     </Banner>
     <ChildContent>
         @if (Missing)
@@ -186,52 +159,13 @@
 
                 @if (!Stage && !Model.IsNew)
                 {
-                    <FormSection Title="Used by" Name="usage">
-                        @if (Usage.IsEmpty)
-                        {
-                            <MudText Typo="Typo.body2" Class="pdk-muted">No host or route uses it yet. Pick it in a host's Access settings.</MudText>
-                        }
-                        else
-                        {
-                            <ul class="pdk-list" data-section="usage-list">
-                                @foreach (var host in Usage.Hosts)
-                                {
-                                    <li class="pdk-list-row">
-                                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
-                                        <span class="pdk-list-main">
-                                            <a class="pdk-ref-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
-                                            <span class="pdk-list-sub">Host default</span>
-                                        </span>
-                                    </li>
-                                }
-                                @foreach (var use in Usage.Routes)
-                                {
-                                    <li class="pdk-list-row">
-                                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.AltRoute" Size="Size.Small" /></span>
-                                        <span class="pdk-list-main">
-                                            <a class="pdk-ref-link" href="@DashboardRoutes.Host(use.Host.Id)">@ChangeView.HostTitle(use.Host)</a>
-                                            <span class="pdk-list-sub">Route @use.Route.Path uses it</span>
-                                        </span>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </FormSection>
+                    <UsedBySection Usage="Usage" />
                 }
             </div>
         }
     </ChildContent>
     <Footer>
-        @if (MayWrite && Model is not null)
-        {
-            <DrawerActions ShowDelete="@(!Stage && Model.IsNew == false && Usage.IsEmpty)" OnDelete="ReviewDeleteAsync" OnCancel="Cancel"
-                           PrimaryLabel="@(Stage ? "Use this rule set" : "Review changes")" PrimaryAction="@(Stage ? "stage" : "review")" Submit="true"
-                           StartIcon="@(Stage ? Icons.Material.Rounded.Check : null)" EndIcon="@(Stage ? null : Icons.Material.Rounded.ArrowForward)" />
-        }
-        else
-        {
-            <DrawerActions PrimaryLabel="Close" PrimaryAction="cancel" OnPrimary="Cancel" />
-        }
+        <DraftFooter Drawer="this" OnDelete="ReviewDeleteAsync" ShowDelete="Usage.IsEmpty" />
     </Footer>
 </DrawerShell>
 
@@ -382,46 +316,14 @@
         Changed();
     }
 
-    protected override async Task SubmitAsync()
-    {
-        if (!CanSubmit())
-        {
-            return;
-        }
+    protected override string Noun => "rule set";
 
-        var set = ToConfig();
-        if (Stage)
-        {
-            Level?.Close(set);
-            return;
-        }
+    protected override string NameOf(RuleSetConfig config) => config.Name;
 
-        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New rule set {set.Name}" : $"Edit rule set {set.Name}", new UpsertRuleSetCommand(set))
-        {
-            SuccessMessage = $"rule set {set.Name} {(Model.IsNew ? "added" : "changed")}",
-            OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
-        });
-    }
+    protected override ConfigCommand UpsertCommand(RuleSetConfig config) => new UpsertRuleSetCommand(config);
 
-    private async Task ReviewDeleteAsync()
-    {
-        if (Model is null || Model.IsNew || !MayWrite)
-        {
-            return;
-        }
+    protected override ConfigCommand DeleteCommand() => new DeleteRuleSetCommand(Model!.Id, Model.Version);
 
-        if (!Usage.IsEmpty)
-        {
-            DeleteRefusal = $"{Usage.CountText} {Usage.UseVerb} it. "
-                + "Pick another rule set (or none) for them first.";
-            Snackbar.Add($"{StoredName} is in use and can't be deleted.", Severity.Warning);
-            return;
-        }
-
-        await RunReviewAsync(new ReviewRequest($"Delete rule set {StoredName}", new DeleteRuleSetCommand(Model.Id, Model.Version))
-        {
-            Destructive = true,
-            SuccessMessage = $"rule set {StoredName} deleted",
-        });
-    }
+    protected override string? UseRefusal() =>
+        Usage.IsEmpty ? null : $"{Usage.CountText} {Usage.UseVerb} it. Pick another rule set (or none) for them first.";
 }

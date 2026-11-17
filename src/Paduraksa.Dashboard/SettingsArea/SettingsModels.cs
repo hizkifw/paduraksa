@@ -808,7 +808,7 @@ public sealed class GlobalSettingsEditModel
 }
 
 /// <summary>A profile as its form edits it: name, notes and its layer of host settings. A new profile gets a fresh typed ID.</summary>
-public sealed class ProfileEditModel
+public sealed class ProfileEditModel : IDraftModel
 {
     private readonly ProfileConfig? _original;
 

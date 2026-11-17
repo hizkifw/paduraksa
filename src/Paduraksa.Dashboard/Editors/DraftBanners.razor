@@ -1,0 +1,34 @@
+@* The banners above a draft drawer's body: changed elsewhere, a refused delete, a failed or denied read, and read-only. *@
+@if (Drawer.ChangedElsewhere is { } elsewhere)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
+        This @Drawer.ShortNoun was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
+        <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="Drawer.ReloadAsync" Class="ml-2">Reload</MudButton>
+    </MudAlert>
+}
+@if (Drawer.DeleteRefusal is { } refusal)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => Drawer.DeleteRefusal = null">
+        <strong>@Drawer.StoredName is still in use, so it can't be deleted.</strong> @refusal
+    </MudAlert>
+}
+@if (Drawer.Failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
+        The @Drawer.Noun couldn't be read. The details are in the server log.
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="Drawer.ReloadAsync" Class="ml-2">Retry</MudButton>
+    </MudAlert>
+}
+@if (Drawer.Denied)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
+}
+else if (!Drawer.MayWrite && Drawer.HasModel)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this @Drawer.ShortNoun but not change it.</MudAlert>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IDraftDrawer Drawer { get; set; } = default!;
+}

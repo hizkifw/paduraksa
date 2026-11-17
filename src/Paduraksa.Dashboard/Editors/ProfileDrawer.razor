@@ -1,5 +1,5 @@
 @using Paduraksa.Application.Compilation
-@inherits DraftDrawer<ProfileEditModel, ProfileConfig>
+@inherits NamedObjectDrawer<ProfileEditModel, ProfileConfig>
 
 @* A profile in a drawer: a name, notes and the host settings it sets. On its own it goes through Review changes; opened
    from a host's form it is handed back, to be applied with the host in one revision. *@
@@ -8,34 +8,7 @@
              Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : Hosts.Count == 0 ? null : $"Used by {Hosts.Count} {(Hosts.Count == 1 ? "host" : "hosts")}")"
              Icon="@Icons.Material.Outlined.Badge" Name="profile" OnSubmit="SubmitAsync">
     <Banner>
-        @if (ChangedElsewhere is { } elsewhere)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
-                This profile was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
-                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
-            </MudAlert>
-        }
-        @if (DeleteRefusal is { } refusal)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => DeleteRefusal = null">
-                <strong>@StoredName is still in use, so it can't be deleted.</strong> @refusal
-            </MudAlert>
-        }
-        @if (Failed)
-        {
-            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
-                The profile couldn't be read. The details are in the server log.
-                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Retry</MudButton>
-            </MudAlert>
-        }
-        @if (Denied)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
-        }
-        else if (!MayWrite && Model is not null)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this profile but not change it.</MudAlert>
-        }
+        <DraftBanners Drawer="this" />
     </Banner>
     <ChildContent>
         @if (Missing)
@@ -117,16 +90,7 @@
         }
     </ChildContent>
     <Footer>
-        @if (MayWrite && Model is not null)
-        {
-            <DrawerActions ShowDelete="@(!Stage && Model.IsNew == false)" OnDelete="ReviewDeleteAsync" OnCancel="Cancel"
-                           PrimaryLabel="@(Stage ? "Use this profile" : "Review changes")" PrimaryAction="@(Stage ? "stage" : "review")" Submit="true"
-                           StartIcon="@(Stage ? Icons.Material.Rounded.Check : null)" EndIcon="@(Stage ? null : Icons.Material.Rounded.ArrowForward)" />
-        }
-        else
-        {
-            <DrawerActions PrimaryLabel="Close" PrimaryAction="cancel" OnPrimary="Cancel" />
-        }
+        <DraftFooter Drawer="this" OnDelete="ReviewDeleteAsync" />
     </Footer>
 </DrawerShell>
 
@@ -223,45 +187,14 @@
         return _countedSet;
     }
 
-    protected override async Task SubmitAsync()
-    {
-        if (!CanSubmit())
-        {
-            return;
-        }
+    protected override string Noun => "profile";
 
-        var profile = ToConfig();
-        if (Stage)
-        {
-            Level?.Close(profile);
-            return;
-        }
+    protected override string NameOf(ProfileConfig config) => config.Name;
 
-        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New profile {profile.Name}" : $"Edit profile {profile.Name}", new UpsertProfileCommand(profile))
-        {
-            SuccessMessage = $"profile {profile.Name} {(Model.IsNew ? "added" : "changed")}",
-            OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
-        });
-    }
+    protected override ConfigCommand UpsertCommand(ProfileConfig config) => new UpsertProfileCommand(config);
 
-    private async Task ReviewDeleteAsync()
-    {
-        if (Model is null || Model.IsNew || !MayWrite)
-        {
-            return;
-        }
+    protected override ConfigCommand DeleteCommand() => new DeleteProfileCommand(Model!.Id, Model.Version);
 
-        if (Hosts.Count > 0)
-        {
-            DeleteRefusal = $"{string.Join(", ", Hosts.Select(ChangeView.HostTitle))} {(Hosts.Count == 1 ? "uses" : "use")} it. Pick another profile (or none) for them first.";
-            Snackbar.Add($"{StoredName} is in use and can't be deleted.", Severity.Warning);
-            return;
-        }
-
-        await RunReviewAsync(new ReviewRequest($"Delete profile {StoredName}", new DeleteProfileCommand(Model.Id, Model.Version))
-        {
-            Destructive = true,
-            SuccessMessage = $"profile {StoredName} deleted",
-        });
-    }
+    protected override string? UseRefusal() =>
+        Hosts.Count == 0 ? null : $"{string.Join(", ", Hosts.Select(ChangeView.HostTitle))} {(Hosts.Count == 1 ? "uses" : "use")} it. Pick another profile (or none) for them first.";
 }

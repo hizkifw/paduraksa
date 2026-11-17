@@ -8,7 +8,7 @@ namespace Paduraksa.Dashboard.Config;
 /// as stored (its <see cref="Version"/> is the one the form opened with, so Apply conflicts when someone changed it since) and keeps what
 /// the form doesn't show (a route's own settings), so saving never drops a field set elsewhere. A new host gets fresh typed IDs.
 /// </summary>
-public sealed class HostEditModel
+public sealed class HostEditModel : IDraftModel
 {
     private readonly HostConfig? _original;
 

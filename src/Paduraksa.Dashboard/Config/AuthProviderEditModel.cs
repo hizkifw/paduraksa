@@ -8,7 +8,7 @@ namespace Paduraksa.Dashboard.Config;
 /// lines. A field the person leaves empty is left null in the config, so the preset's value applies; the form shows what that value is. A new
 /// provider gets a fresh typed ID, and the version the form opened with makes a concurrent edit a conflict.
 /// </summary>
-public sealed class AuthProviderEditModel
+public sealed class AuthProviderEditModel : IDraftModel
 {
     private readonly AuthProviderConfig? _original;
 

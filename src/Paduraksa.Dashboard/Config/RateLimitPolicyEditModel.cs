@@ -7,7 +7,7 @@ namespace Paduraksa.Dashboard.Config;
 /// A rate-limit policy as its form edits it: name, notes, requests per period, burst and the key a bucket belongs to.
 /// A new policy gets a fresh typed ID, and the version the form opened with makes a concurrent edit a conflict.
 /// </summary>
-public sealed class RateLimitPolicyEditModel
+public sealed class RateLimitPolicyEditModel : IDraftModel
 {
     private readonly RateLimitPolicyConfig? _original;
 

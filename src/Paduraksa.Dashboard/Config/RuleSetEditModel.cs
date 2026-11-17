@@ -7,7 +7,7 @@ namespace Paduraksa.Dashboard.Config;
 /// A rule set as its form edits it: a name and the rules as rows, in the order they are tried. A new set gets a fresh typed ID, a
 /// copy of a preset gets one too, and the version the form opened with makes a concurrent edit a conflict.
 /// </summary>
-public sealed class RuleSetEditModel
+public sealed class RuleSetEditModel : IDraftModel
 {
     private readonly RuleSetConfig? _original;
 
