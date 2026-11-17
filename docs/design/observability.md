@@ -407,7 +407,7 @@ The policy that refuses records its kind on the pooled request state (`IRequestP
 
 **The hour is seeded from the rollups.**
 - Before the sampler's first tick, `MetricRollupJob.StartAsync` reads the last hour (and the minute before, for the window's edge) of rollups, every subject, once, and hands it to `MetricSampler.Seed`.
-- It is a snapshot held in memory (`MetricHistory`, minute points keyed by object, trimmed as they leave the hour) and never reread. That makes the boot minute right: its first half is the database row from before the stop, its second half is the ring. When the job later merges the live half into the row, the snapshot does not see it, so nothing is counted twice.
+- It is a snapshot held in memory (`RollupHistory`, minute points keyed by object, trimmed as they leave the hour) and never reread. That makes the boot minute right: its first half is the database row from before the stop, its second half is the ring. When the job later merges the live half into the row, the snapshot does not see it, so nothing is counted twice.
 - The busiest-hosts and upstream tables for the hour sum the seed and the live series. The tiles ("last 30 s") read the ring alone and, right after boot, divide by the time actually observed.
 - If the database is unreadable at startup, the sampler logs a warning and the view starts at boot.
 
