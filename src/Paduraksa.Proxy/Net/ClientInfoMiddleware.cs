@@ -31,6 +31,18 @@ public sealed class ClientInfoMiddleware
         _proxyProtocol = proxyProtocol;
     }
 
+    /// <summary>The connection's peer as the stages before TLS judge it: the PROXY protocol source when the connection has one, else the socket.</summary>
+    internal static IpKey PeerOf(BaseConnectionContext connection)
+    {
+        if (connection.Features.Get<IClientInfoFeature>()?.ClientInfo is { } info)
+        {
+            return info.Address;
+        }
+
+        _ = IpKey.TryFromEndPoint(connection.RemoteEndPoint, out var address, out _);
+        return address;
+    }
+
     public Task OnConnectionAsync(ConnectionContext connection)
     {
         ArgumentNullException.ThrowIfNull(connection);

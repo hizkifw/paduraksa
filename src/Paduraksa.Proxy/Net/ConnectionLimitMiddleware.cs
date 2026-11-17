@@ -44,7 +44,7 @@ public sealed class ConnectionLimitMiddleware
             return _next(connection);
         }
 
-        switch (_runtime.Admit(snapshot, AddressOf(connection), ConnectionTransport.Tcp, out var hash))
+        switch (_runtime.Admit(snapshot, ClientInfoMiddleware.PeerOf(connection), ConnectionTransport.Tcp, out var hash))
         {
             case ConnectionDecision.Denied:
                 connection.Abort(new ConnectionAbortedException("Connection limits: the address is in the connection deny list."));
@@ -59,18 +59,7 @@ public sealed class ConnectionLimitMiddleware
         }
     }
 
-    internal static IpKey AddressOf(ConnectionContext connection)
-    {
-        if (connection.Features.Get<IClientInfoFeature>()?.ClientInfo is { } info)
-        {
-            return info.Address;
-        }
-
-        _ = IpKey.TryFromEndPoint(connection.RemoteEndPoint, out var address, out _);
-        return address;
-    }
-
-    // A pipeline that already finished is given back at once, with no continuation; one still running is awaited.
+    // A pipeline that throws before it returns still gives the place back; the rest is ReleaseWhenDone's.
     private Task ServeCounted(ConnectionContext connection, ulong hash)
     {
         Task served;
@@ -84,25 +73,7 @@ public sealed class ConnectionLimitMiddleware
             throw;
         }
 
-        if (served.IsCompleted)
-        {
-            _runtime.Release(hash);
-            return served;
-        }
-
-        return ReleaseWhenDoneAsync(served, hash);
-    }
-
-    private async Task ReleaseWhenDoneAsync(Task served, ulong hash)
-    {
-        try
-        {
-            await served.ConfigureAwait(false);
-        }
-        finally
-        {
-            _runtime.Release(hash);
-        }
+        return _runtime.ReleaseWhenDone(served, hash);
     }
 }
 

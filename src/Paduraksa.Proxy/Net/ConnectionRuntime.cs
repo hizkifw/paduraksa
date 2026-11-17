@@ -124,6 +124,33 @@ public sealed partial class ConnectionRuntime
         Stats.Closed();
     }
 
+    /// <summary>
+    /// Gives the connection back when <paramref name="served"/> ends. A pipeline that already finished is released at once, with no
+    /// continuation: the one allocation a counted connection costs is the wait for one still running.
+    /// </summary>
+    internal Task ReleaseWhenDone(Task served, ulong hash)
+    {
+        if (served.IsCompleted)
+        {
+            Release(hash);
+            return served;
+        }
+
+        return AwaitAndReleaseAsync(served, hash);
+    }
+
+    private async Task AwaitAndReleaseAsync(Task served, ulong hash)
+    {
+        try
+        {
+            await served.ConfigureAwait(false);
+        }
+        finally
+        {
+            Release(hash);
+        }
+    }
+
     private bool IsDenied(ConnectionPolicy policy, IpKey address, ConnectionTransport transport)
     {
         if (policy.Deny.IsEmpty || !policy.Deny.Contains(address))

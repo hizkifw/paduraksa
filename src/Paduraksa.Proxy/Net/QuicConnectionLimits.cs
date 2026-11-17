@@ -85,8 +85,7 @@ public sealed class QuicConnectionLimitMiddleware
             return _next(connection);
         }
 
-        var address = connection.Features.Get<IClientInfoFeature>()?.ClientInfo.Address ?? AddressOfEndPoint(connection);
-        switch (_runtime.Admit(snapshot, address, ConnectionTransport.Quic, out var hash))
+        switch (_runtime.Admit(snapshot, ClientInfoMiddleware.PeerOf(connection), ConnectionTransport.Quic, out var hash))
         {
             case ConnectionDecision.Denied:
             case ConnectionDecision.OverCap:
@@ -99,13 +98,7 @@ public sealed class QuicConnectionLimitMiddleware
         }
     }
 
-    private static IpKey AddressOfEndPoint(MultiplexedConnectionContext connection)
-    {
-        _ = IpKey.TryFromEndPoint(connection.RemoteEndPoint, out var address, out _);
-        return address;
-    }
-
-    // A pipeline that already finished is given back at once, with no continuation; one still running is awaited.
+    // A pipeline that throws before it returns still gives the place back; the rest is ReleaseWhenDone's.
     private Task ServeCounted(MultiplexedConnectionContext connection, ulong hash)
     {
         Task served;
@@ -119,24 +112,6 @@ public sealed class QuicConnectionLimitMiddleware
             throw;
         }
 
-        if (served.IsCompleted)
-        {
-            _runtime.Release(hash);
-            return served;
-        }
-
-        return ReleaseWhenDoneAsync(served, hash);
-    }
-
-    private async Task ReleaseWhenDoneAsync(Task served, ulong hash)
-    {
-        try
-        {
-            await served.ConfigureAwait(false);
-        }
-        finally
-        {
-            _runtime.Release(hash);
-        }
+        return _runtime.ReleaseWhenDone(served, hash);
     }
 }

@@ -93,17 +93,7 @@ public sealed class OriginLockdownMiddleware
             return _next(connection);
         }
 
-        IpKey peer;
-        if (connection.Features.Get<IClientInfoFeature>()?.ClientInfo is { } info)
-        {
-            peer = info.Address;
-        }
-        else
-        {
-            _ = IpKey.TryFromEndPoint(connection.RemoteEndPoint, out peer, out _);
-        }
-
-        if (!OriginLockdown.RefusesBeforeTls(snapshot, peer))
+        if (!OriginLockdown.RefusesBeforeTls(snapshot, ClientInfoMiddleware.PeerOf(connection)))
         {
             return _next(connection);
         }
