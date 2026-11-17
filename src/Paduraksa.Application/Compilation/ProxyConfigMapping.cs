@@ -127,6 +127,9 @@ public static class ProxyConfigMapping
         return new MappedConfig(model, errors, warnings);
     }
 
+    private static void Warn(List<MappedWarning> warnings, CompileErrorSource source, string member, string code, string message) =>
+        warnings.Add(new MappedWarning(source, member, code, message));
+
     /// <summary>The default certificate: the one the settings name when it is usable, else the inventory's fallback.</summary>
     private static CertificateId? DefaultCertificate(CertificateId? named, CertificateInventory inventory, List<MappedWarning> warnings)
     {
@@ -141,12 +144,9 @@ public static class ProxyConfigMapping
             return id;
         }
 
-        warnings.Add(new MappedWarning(
-            CompileErrorSource.Defaults,
-            "/defaultCertificateId",
-            ConfigWarningCodes.CertificateDefaultUnusable,
+        Warn(warnings, CompileErrorSource.Defaults, "/defaultCertificateId", ConfigWarningCodes.CertificateDefaultUnusable,
             $"the default certificate {id} can't be used: {Why(id, inventory)}"
-            + (inventory.FallbackDefault is null ? "; unknown names are rejected" : "; the fallback default certificate serves instead")));
+            + (inventory.FallbackDefault is null ? "; unknown names are rejected" : "; the fallback default certificate serves instead"));
         return inventory.FallbackDefault;
     }
 
@@ -168,11 +168,8 @@ public static class ProxyConfigMapping
                 // A disabled host serves nothing, so its certificate only has to be valid (it is never loaded).
                 if (!inventory.TryGet(id, out var entry) || !(host.Enabled ? entry.IsUsable : entry.IsValid))
                 {
-                    warnings.Add(new MappedWarning(
-                        where,
-                        "/certificate",
-                        ConfigWarningCodes.CertificateSpecificUnusable,
-                        $"the certificate {id} can't be used: {Why(id, inventory)}; the host's names are served with the default certificate, if any"));
+                    Warn(warnings, where, "/certificate", ConfigWarningCodes.CertificateSpecificUnusable,
+                        $"the certificate {id} can't be used: {Why(id, inventory)}; the host's names are served with the default certificate, if any");
                     return (null, null);
                 }
 
@@ -184,11 +181,8 @@ public static class ProxyConfigMapping
                 string[] uncovered = [.. CertificateSelection.ServerNames(host.Names).Where(n => CertificateSelection.Match(entry.Names, n) == NameMatch.None)];
                 if (uncovered.Length > 0)
                 {
-                    warnings.Add(new MappedWarning(
-                        where,
-                        "/certificate",
-                        ConfigWarningCodes.CertificateSpecificNoCoverage,
-                        $"the certificate {id} doesn't cover {string.Join(", ", uncovered)}"));
+                    Warn(warnings, where, "/certificate", ConfigWarningCodes.CertificateSpecificNoCoverage,
+                        $"the certificate {id} doesn't cover {string.Join(", ", uncovered)}");
                 }
 
                 return (id, null);
@@ -210,11 +204,8 @@ public static class ProxyConfigMapping
 
                 if (uncoveredNames.Count > 0)
                 {
-                    warnings.Add(new MappedWarning(
-                        where,
-                        string.Empty,
-                        ConfigWarningCodes.CertificateAutoNoCoverage,
-                        $"no valid certificate covers {string.Join(", ", uncoveredNames)}, so they are served with the default certificate, if any"));
+                    Warn(warnings, where, string.Empty, ConfigWarningCodes.CertificateAutoNoCoverage,
+                        $"no valid certificate covers {string.Join(", ", uncoveredNames)}, so they are served with the default certificate, if any");
                 }
 
                 return (null, byName.Count == 0 ? null : byName);
@@ -239,11 +230,8 @@ public static class ProxyConfigMapping
         var where = CompileErrorSource.Host(host.Id);
         if (host.Kind == HostKind.Admin && host.Settings.ForceHttps is false)
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/forceHttps",
-                ConfigWarningCodes.AdminForceHttpsIgnored,
-                "an admin host is always served over HTTPS and redirects plain HTTP; forceHttps: false is ignored"));
+            Warn(warnings, where, "/settings/forceHttps", ConfigWarningCodes.AdminForceHttpsIgnored,
+                "an admin host is always served over HTTPS and redirects plain HTTP; forceHttps: false is ignored");
         }
 
         AddCloudflareWarnings(host, effective.Cloudflare, proxyMode, where, warnings);
@@ -289,11 +277,8 @@ public static class ProxyConfigMapping
         if (host is { Enabled: true } && host.Kind != HostKind.Admin && !effective.ForceHttps
             && UsedLists(effective, host).Any(id => accessLists.TryGetValue(id, out var list) && list.BasicAuth is { Users.Count: > 0 }))
         {
-            warnings.Add(new MappedWarning(
-                where,
-                string.Empty,
-                ConfigWarningCodes.AccessListInsecureCredentials,
-                "an access list with users guards this host, which also answers plain HTTP without forcing HTTPS, so a password could be sent in the clear; turn on forceHttps"));
+            Warn(warnings, where, string.Empty, ConfigWarningCodes.AccessListInsecureCredentials,
+                "an access list with users guards this host, which also answers plain HTTP without forcing HTTPS, so a password could be sent in the clear; turn on forceHttps");
         }
 
         // The country comes from Cloudflare's header, which only a Cloudflare mode trusts: anywhere else it is always unknown, so an
@@ -301,11 +286,8 @@ public static class ProxyConfigMapping
         if (host is { Enabled: true } && proxyMode is not (TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel)
             && UsedLists(effective, host).Any(id => accessLists.TryGetValue(id, out var list) && list.Ip?.Countries is { Allow.Count: > 0 } or { Deny.Count: > 0 }))
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/accessList",
-                ConfigWarningCodes.AccessListCountriesNoSource,
-                "an access list with country rules guards this host, but the country comes from Cloudflare and the trusted-proxy mode isn't Cloudflare, so every request's country is unknown"));
+            Warn(warnings, where, "/settings/accessList", ConfigWarningCodes.AccessListCountriesNoSource,
+                "an access list with country rules guards this host, but the country comes from Cloudflare and the trusted-proxy mode isn't Cloudflare, so every request's country is unknown");
         }
 
         // A plain-HTTP cookie cannot be Secure. A host that forces the redirect never serves a page over plain HTTP, so
@@ -313,11 +295,8 @@ public static class ProxyConfigMapping
         if (host is { Kind: HostKind.Proxy, Enabled: true } && !effective.ForceHttps
             && (effective.ProofOfWork.Enabled || routes.Any(static route => route.ProofOfWork.Enabled)))
         {
-            warnings.Add(new MappedWarning(
-                where,
-                string.Empty,
-                ConfigWarningCodes.ProofOfWorkInsecureCookie,
-                "the proof-of-work gate is on, but this host answers plain HTTP without forcing HTTPS, so its cookie cannot be Secure; turn on forceHttps or serve the host over HTTPS only"));
+            Warn(warnings, where, string.Empty, ConfigWarningCodes.ProofOfWorkInsecureCookie,
+                "the proof-of-work gate is on, but this host answers plain HTTP without forcing HTTPS, so its cookie cannot be Secure; turn on forceHttps or serve the host over HTTPS only");
         }
 
         var binding = host.Certificate;
@@ -386,11 +365,8 @@ public static class ProxyConfigMapping
 
         if (host.Enabled)
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/errorPages/replaceUpstream",
-                ConfigWarningCodes.ErrorPagesReplaceAdminIgnored,
-                "an admin host never replaces the admin app's own errors, so its API clients keep their JSON answers; the setting is ignored here"));
+            Warn(warnings, where, "/settings/errorPages/replaceUpstream", ConfigWarningCodes.ErrorPagesReplaceAdminIgnored,
+                "an admin host never replaces the admin app's own errors, so its API clients keep their JSON answers; the setting is ignored here");
         }
 
         return resolved with { ReplaceUpstream = UpstreamErrorReplacement.Off };
@@ -407,11 +383,8 @@ public static class ProxyConfigMapping
 
         if (host.Kind == HostKind.Admin)
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/maintenance/enabled",
-                ConfigWarningCodes.MaintenanceAdminIgnored,
-                "an admin host is never put in maintenance, so a layer that turns it on for every host can't lock the dashboard out; the setting is ignored here"));
+            Warn(warnings, where, "/settings/maintenance/enabled", ConfigWarningCodes.MaintenanceAdminIgnored,
+                "an admin host is never put in maintenance, so a layer that turns it on for every host can't lock the dashboard out; the setting is ignored here");
             return HostMaintenanceSpec.Off;
         }
 
@@ -419,11 +392,8 @@ public static class ProxyConfigMapping
             && accessLists.TryGetValue(resolved.BypassAccessListId, out var list)
             && list.Ip is not { Allow.Count: > 0 } and not { Countries.Allow.Count: > 0 })
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/maintenance/bypassAccessListId",
-                ConfigWarningCodes.MaintenanceBypassNoAllowRules,
-                $"the bypass access list '{list.Name}' has no allowed address or country, so no request bypasses maintenance"));
+            Warn(warnings, where, "/settings/maintenance/bypassAccessListId", ConfigWarningCodes.MaintenanceBypassNoAllowRules,
+                $"the bypass access list '{list.Name}' has no allowed address or country, so no request bypasses maintenance");
         }
 
         return resolved;
@@ -442,30 +412,21 @@ public static class ProxyConfigMapping
 
         if (proxyMode is not (TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel))
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/cloudflare",
-                ConfigWarningCodes.CloudflareNeedsMode,
-                "origin lockdown and Authenticated Origin Pulls do nothing unless the trusted-proxy mode is Cloudflare proxy or Cloudflare Tunnel"));
+            Warn(warnings, where, "/settings/cloudflare", ConfigWarningCodes.CloudflareNeedsMode,
+                "origin lockdown and Authenticated Origin Pulls do nothing unless the trusted-proxy mode is Cloudflare proxy or Cloudflare Tunnel");
             return;
         }
 
         if (cloudflare.AuthenticatedOriginPulls && proxyMode == TrustedProxyMode.CloudflareTunnel)
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/cloudflare/authenticatedOriginPulls",
-                ConfigWarningCodes.CloudflareAopTunnel,
-                "Authenticated Origin Pulls doesn't apply through a Cloudflare Tunnel: cloudflared sends no client certificate, so the host refuses every request"));
+            Warn(warnings, where, "/settings/cloudflare/authenticatedOriginPulls", ConfigWarningCodes.CloudflareAopTunnel,
+                "Authenticated Origin Pulls doesn't apply through a Cloudflare Tunnel: cloudflared sends no client certificate, so the host refuses every request");
         }
 
         if (cloudflare.AuthenticatedOriginPulls && host.Certificate.Mode == CertificateBindingMode.None)
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/cloudflare/authenticatedOriginPulls",
-                ConfigWarningCodes.CloudflareAopNeedsHttps,
-                "Authenticated Origin Pulls needs a certificate: without HTTPS the host can't see Cloudflare's client certificate, so it refuses every request"));
+            Warn(warnings, where, "/settings/cloudflare/authenticatedOriginPulls", ConfigWarningCodes.CloudflareAopNeedsHttps,
+                "Authenticated Origin Pulls needs a certificate: without HTTPS the host can't see Cloudflare's client certificate, so it refuses every request");
         }
     }
 
@@ -588,13 +549,10 @@ public static class ProxyConfigMapping
         {
             if (effective.AuthProvider.Effective is not null)
             {
-                warnings.Add(new MappedWarning(
-                    where,
-                    "/settings/authProvider",
-                    ConfigWarningCodes.AuthProviderIgnored,
+                Warn(warnings, where, "/settings/authProvider", ConfigWarningCodes.AuthProviderIgnored,
                     host.Kind == HostKind.Admin
                         ? "an admin host is never behind an auth provider (a provider that is down would lock the operator out); the setting is ignored"
-                        : "a redirect or respond host has no route to ask an auth provider on; the setting is ignored"));
+                        : "a redirect or respond host has no route to ask an auth provider on; the setting is ignored");
             }
 
             return;
@@ -602,11 +560,8 @@ public static class ProxyConfigMapping
 
         if (!effective.ForceHttps && routes.Any(static route => route.AuthProvider is not null))
         {
-            warnings.Add(new MappedWarning(
-                where,
-                string.Empty,
-                ConfigWarningCodes.AuthProviderInsecureSession,
-                "an auth provider guards this host, which also answers plain HTTP without forcing HTTPS, so a session cookie could be sent in the clear; turn on forceHttps"));
+            Warn(warnings, where, string.Empty, ConfigWarningCodes.AuthProviderInsecureSession,
+                "an auth provider guards this host, which also answers plain HTTP without forcing HTTPS, so a session cookie could be sent in the clear; turn on forceHttps");
         }
 
         AddSignInPageWarnings(host, routes, signIns, where, warnings);
@@ -632,12 +587,9 @@ public static class ProxyConfigMapping
             var taken = order.Select(i => routes[i]).FirstOrDefault(r => RoutePath.Takes(r.Match, RoutePath.Canonicalize(r.Path ?? string.Empty), page.Path));
             if (taken is null || taken.AuthProvider is not null)
             {
-                warnings.Add(new MappedWarning(
-                    where,
-                    string.Empty,
-                    ConfigWarningCodes.AuthProviderSignInUnreachable,
+                Warn(warnings, where, string.Empty, ConfigWarningCodes.AuthProviderSignInUnreachable,
                     $"the sign-in page {page.Path} of auth provider '{page.Name}' is on this host, but {(taken is null ? "no route takes it" : "the route that takes it is behind a provider too")}: "
-                    + "a browser would be refused there and sent there again; route the path with sign-in off"));
+                    + "a browser would be refused there and sent there again; route the path with sign-in off");
             }
         }
     }
@@ -705,12 +657,8 @@ public static class ProxyConfigMapping
 
     /// <summary>A provider named above a switch that is off stays unasked: it is the one way a provider named through the API can leave a host unprotected
     /// without a word, so each such layer says so, at the layer that names it (the host's own settings, or the profile, once however many hosts use it). A layer
-    /// that names a provider below the layer that switches it off, or in the same one, means it.</summary>
-    /// <param name="host">The host the layers resolve for.</param>
-    /// <param name="effective">The host's resolved settings.</param>
-    /// <param name="namingLayer">The index of the layer that names the provider above an off switch (1: the host's profile, 2: the host), else -1.</param>
-    /// <param name="profilesWarned">The profiles already warned about, so one profile shared by many hosts is said once.</param>
-    /// <param name="warnings">Where the warnings go.</param>
+    /// that names a provider below the layer that switches it off, or in the same one, means it. <paramref name="namingLayer"/> is the index of the layer that
+    /// names it above an off switch (1: the host's profile, 2: the host), else -1; <paramref name="profilesWarned"/> keeps one profile shared by many hosts to one warning.</summary>
     private static void AddAuthProviderSwitchWarnings(
         HostConfig host, EffectiveHostSettings effective, int namingLayer, HashSet<ProfileId> profilesWarned, List<MappedWarning> warnings)
     {
@@ -722,19 +670,13 @@ public static class ProxyConfigMapping
         var where = CompileErrorSource.Host(host.Id);
         if (namingLayer == 2)
         {
-            warnings.Add(new MappedWarning(
-                where,
-                "/settings/authProvider",
-                ConfigWarningCodes.AuthProviderNamedButOff,
-                "an auth provider is named here but a less specific layer (the defaults or the profile) switches sign-in off, so it is not asked; set enabled: true next to it"));
+            Warn(warnings, where, "/settings/authProvider", ConfigWarningCodes.AuthProviderNamedButOff,
+                "an auth provider is named here but a less specific layer (the defaults or the profile) switches sign-in off, so it is not asked; set enabled: true next to it");
         }
         else if (namingLayer == 1 && host.ProfileId is { } profileId && profilesWarned.Add(profileId))
         {
-            warnings.Add(new MappedWarning(
-                CompileErrorSource.Profile(profileId),
-                "/settings/authProvider",
-                ConfigWarningCodes.AuthProviderNamedButOff,
-                "an auth provider is named in this profile but the defaults switch sign-in off, so it is not asked on the hosts that use it; set enabled: true next to it"));
+            Warn(warnings, CompileErrorSource.Profile(profileId), "/settings/authProvider", ConfigWarningCodes.AuthProviderNamedButOff,
+                "an auth provider is named in this profile but the defaults switch sign-in off, so it is not asked on the hosts that use it; set enabled: true next to it");
         }
 
         if (effective.AuthProvider.Enabled)
@@ -746,11 +688,8 @@ public static class ProxyConfigMapping
         {
             if (route.Settings.AuthProvider is { AuthProviderId: { IsEmpty: false }, Enabled: null })
             {
-                warnings.Add(new MappedWarning(
-                    CompileErrorSource.Route(host.Id, route.Id),
-                    "/settings/authProvider",
-                    ConfigWarningCodes.AuthProviderNamedButOff,
-                    "an auth provider is named on this route but the host has sign-in switched off, so it is not asked; set enabled: true next to it"));
+                Warn(warnings, CompileErrorSource.Route(host.Id, route.Id), "/settings/authProvider", ConfigWarningCodes.AuthProviderNamedButOff,
+                    "an auth provider is named on this route but the host has sign-in switched off, so it is not asked; set enabled: true next to it");
             }
         }
     }
@@ -887,11 +826,8 @@ public static class ProxyConfigMapping
             var credential = pending.Overlay.TryGetValue(id, out var prepared) ? prepared : credentials.Open(id);
             if (!credential.IsSet && !pending.AssumedSet.Contains(id))
             {
-                warnings.Add(new MappedWarning(
-                    CompileErrorSource.AccessList(list.Id),
-                    $"/basicAuth/users/{i}",
-                    ConfigWarningCodes.AccessListUserNoPassword,
-                    $"the user '{user.Username}' has no password in the vault, so they can't sign in until one is set"));
+                Warn(warnings, CompileErrorSource.AccessList(list.Id), $"/basicAuth/users/{i}", ConfigWarningCodes.AccessListUserNoPassword,
+                    $"the user '{user.Username}' has no password in the vault, so they can't sign in until one is set");
             }
 
             users.Add(new AccessListUserSpec(user.Username, credential));
@@ -956,11 +892,8 @@ public static class ProxyConfigMapping
         if (trust == UpstreamTlsTrust.Any
             && upstream.Destinations.Any(d => d.Enabled && d.Address.StartsWith("https:", StringComparison.OrdinalIgnoreCase)))
         {
-            warnings.Add(new MappedWarning(
-                CompileErrorSource.Upstream(upstream.Id),
-                "/tls/trust",
-                ConfigWarningCodes.UpstreamTlsUnverified,
-                $"upstream {upstream.Name} accepts any certificate: the traffic is encrypted but not authenticated, so pin the certificate's fingerprint instead if you can"));
+            Warn(warnings, CompileErrorSource.Upstream(upstream.Id), "/tls/trust", ConfigWarningCodes.UpstreamTlsUnverified,
+                $"upstream {upstream.Name} accepts any certificate: the traffic is encrypted but not authenticated, so pin the certificate's fingerprint instead if you can");
         }
 
         string? loadBalancing = null;
@@ -1020,11 +953,8 @@ public static class ProxyConfigMapping
             && accessLists.TryGetValue(denyList, out var list)
             && (list.Ip is { Allow.Count: > 0 } || list.Ip?.Countries is { Allow.Count: > 0 } or { Deny.Count: > 0 } || list.BasicAuth is { Users.Count: > 0 }))
         {
-            warnings.Add(new MappedWarning(
-                CompileErrorSource.Defaults,
-                "/connections/denyListId",
-                ConfigWarningCodes.ConnectionsDenyListRequestRules,
-                $"before TLS only the deny addresses of '{list.Name}' apply; its allow addresses, countries and users are request rules for the hosts that name it"));
+            Warn(warnings, CompileErrorSource.Defaults, "/connections/denyListId", ConfigWarningCodes.ConnectionsDenyListRequestRules,
+                $"before TLS only the deny addresses of '{list.Name}' apply; its allow addresses, countries and users are request rules for the hosts that name it");
         }
 
         return new ConnectionsSpec { MaxPerIp = connections?.MaxConnectionsPerIp ?? ConnectionsSpec.DefaultMaxPerIp, DenyList = denyList };
