@@ -556,7 +556,7 @@
         // Refused here with the routes named, rather than by the dry run with a pointer: the service would refuse it the same way.
         if (Uses.Count > 0)
         {
-            DeleteRefusal = $"{string.Join(", ", Uses.Select(u => $"{ChangeView.HostTitle(u.Host)} (route {u.Route.Path})"))} {(Uses.Count == 1 ? "sends" : "send")} requests to it. Point those routes at another upstream (or delete them) first.";
+            DeleteRefusal = $"Used by {Wording.List([.. Uses.Select(u => $"{ChangeView.HostTitle(u.Host)} (route {u.Route.Path})")])}. Point those routes at another upstream (or delete them) first.";
             Snackbar.Add($"{StoredName} is still in use and can't be deleted.", Severity.Warning);
             return;
         }

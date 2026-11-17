@@ -31,21 +31,6 @@ public sealed class AuthProviderSummaryTests
         Assert.Equal("no endpoint", AuthProviderText.Summary(new AuthProviderConfig(AuthProviderId.New(), "x")));
     }
 
-    [Theory]
-    [InlineData(1, 0, "1 host", "uses")]
-    [InlineData(0, 1, "1 route", "uses")]
-    [InlineData(2, 0, "2 hosts", "use")]
-    [InlineData(1, 1, "1 host, 1 route", "use")]
-    public void TheVerbAgreesWithTheSubjectTheCountTextBuilds(int hosts, int routes, string text, string verb)
-    {
-        var host = new HostConfig(HostId.New(), ["app.example.com"]);
-        var route = new RouteUse(host, new RouteConfig(RouteId.New(), UpstreamId.New(), Path: "/admin"));
-        ReferenceUsage usage = new([.. Enumerable.Repeat(host, hosts)], [.. Enumerable.Repeat(route, routes)]);
-
-        Assert.Equal(text, usage.CountText);
-        Assert.Equal(verb, usage.UseVerb);
-    }
-
     [Fact]
     public void AProviderTheDefaultsNameIsInUseByEveryHostThatInheritsItAndARouteThatNamesItIsListed()
     {

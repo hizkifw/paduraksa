@@ -5,7 +5,7 @@
    never shown: a host or a route picks it by name. A password is typed or generated here, sent once and never read back. *@
 
 <DrawerShell Title="@Title"
-             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : Usage.IsEmpty ? null : $"Used by {Usage.CountText}")"
+             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : Usage.UsedByText)"
              Icon="@Icons.Material.Outlined.Lock" Name="access-list" OnSubmit="SubmitAsync">
     <Banner>
         <DraftBanners Drawer="this" />
@@ -289,5 +289,5 @@
     protected override ConfigCommand DeleteCommand() => new DeleteAccessListCommand(Model!.Id, Model.Version);
 
     protected override string? UseRefusal() =>
-        Usage.IsEmpty ? null : $"{Usage.CountText} {(Usage.Hosts.Count == 1 && Usage.Routes.Count == 0 ? "uses" : "use")} it. Pick another access list (or none) for them first.";
+        Usage.Refusal("access list (or none)");
 }

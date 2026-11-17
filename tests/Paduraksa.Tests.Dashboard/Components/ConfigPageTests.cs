@@ -138,7 +138,7 @@ public sealed class ConfigPageTests
 
         var banner = drawers.Find("[data-banner=in-use]").TextContent;
         Assert.Contains("app is still in use, so it can't be deleted.", banner, StringComparison.Ordinal);
-        Assert.Contains("app.example.com (route /)", banner, StringComparison.Ordinal);
+        Assert.Contains("Used by app.example.com (route /). Point those routes at another upstream (or delete them) first.", banner, StringComparison.Ordinal);
         Assert.Empty(config.Executed);
         Assert.Contains("app.example.com", drawers.Find("[data-section=usage]").TextContent, StringComparison.Ordinal);
     }

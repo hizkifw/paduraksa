@@ -5,7 +5,7 @@
    from a host's form it is handed back, to be applied with the host in one revision. *@
 
 <DrawerShell Title="@Title"
-             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : Hosts.Count == 0 ? null : $"Used by {Hosts.Count} {(Hosts.Count == 1 ? "host" : "hosts")}")"
+             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : Hosts.Count == 0 ? null : $"Used by {Wording.Plural(Hosts.Count, "host", "hosts")}")"
              Icon="@Icons.Material.Outlined.Badge" Name="profile" OnSubmit="SubmitAsync">
     <Banner>
         <DraftBanners Drawer="this" />
@@ -196,5 +196,5 @@
     protected override ConfigCommand DeleteCommand() => new DeleteProfileCommand(Model!.Id, Model.Version);
 
     protected override string? UseRefusal() =>
-        Hosts.Count == 0 ? null : $"{string.Join(", ", Hosts.Select(ChangeView.HostTitle))} {(Hosts.Count == 1 ? "uses" : "use")} it. Pick another profile (or none) for them first.";
+        Hosts.Count == 0 ? null : $"Used by {Wording.List([.. Hosts.Select(ChangeView.HostTitle)])}. Pick another profile (or none) for them first.";
 }

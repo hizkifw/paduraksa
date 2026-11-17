@@ -1,6 +1,7 @@
 using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -16,26 +17,32 @@ public sealed record ReferenceUsage(IReadOnlyList<HostConfig> Hosts, IReadOnlyLi
 
     public bool IsEmpty => Hosts.Count == 0 && Routes.Count == 0;
 
-    /// <summary>The verb that goes with <see cref="CountText"/>: one host or one route "uses" it, any other count "use" it.</summary>
-    public string UseVerb => Hosts.Count + Routes.Count == 1 ? "uses" : "use";
+    /// <summary>"2 hosts, 1 route", or a part of it when the other is empty. The list pages' Used by column.</summary>
+    public string CountText => IsEmpty ? "No host or route" : string.Join(", ", Counts);
 
-    /// <summary>"2 hosts, 1 route", or a part of it when the other is empty.</summary>
-    public string CountText
+    /// <summary>"Used by 2 hosts and 1 route", or nothing when it is unused.</summary>
+    public string? UsedByText => IsEmpty ? null : $"Used by {Wording.List(Counts)}";
+
+    /// <summary>Why the object can't be deleted: "Used by 2 hosts and 1 route. Pick another access list (or none) for them first.", or nothing when it is unused.</summary>
+    /// <param name="replacement">What to pick instead, as the sentence says it: "access list (or none)".</param>
+    public string? Refusal(string replacement) => UsedByText is { } usedBy ? $"{usedBy}. Pick another {replacement} for them first." : null;
+
+    private List<string> Counts
     {
         get
         {
             List<string> parts = [];
             if (Hosts.Count > 0)
             {
-                parts.Add(Hosts.Count == 1 ? "1 host" : $"{Hosts.Count} hosts");
+                parts.Add(Wording.Plural(Hosts.Count, "host", "hosts"));
             }
 
             if (Routes.Count > 0)
             {
-                parts.Add(Routes.Count == 1 ? "1 route" : $"{Routes.Count} routes");
+                parts.Add(Wording.Plural(Routes.Count, "route", "routes"));
             }
 
-            return parts.Count == 0 ? "No host or route" : string.Join(", ", parts);
+            return parts;
         }
     }
 
