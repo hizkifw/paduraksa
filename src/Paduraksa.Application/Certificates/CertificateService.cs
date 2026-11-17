@@ -82,12 +82,7 @@ public sealed partial class CertificateService
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(origin);
-        if (await DeniedAsync(origin, "certificate.add", registration.Id, cancellationToken).ConfigureAwait(false) is { } denied)
-        {
-            return denied;
-        }
-
-        return await _config.ApplyCertificateChangeAsync(origin, scope => RegisterCoreAsync(scope, registration, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ChangeAsync(origin, "certificate.add", registration.Id, scope => RegisterCoreAsync(scope, registration, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -99,13 +94,10 @@ public sealed partial class CertificateService
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(origin);
-        if (await DeniedAsync(origin, "certificate.add", registration.Id, cancellationToken).ConfigureAwait(false) is { } denied)
-        {
-            return denied;
-        }
-
-        return await _config.ApplyCertificateChangeAsync(
+        return await ChangeAsync(
             origin,
+            "certificate.add",
+            registration.Id,
             async scope => (await RegisterCoreAsync(scope, registration, origin, cancellationToken).ConfigureAwait(false)) with { Republish = false },
             cancellationToken).ConfigureAwait(false);
     }
@@ -130,13 +122,13 @@ public sealed partial class CertificateService
                 if (await scope.Context.Certificates.AnyAsync(c => c.Id == registration.Id, cancellationToken).ConfigureAwait(false))
                 {
                     step = CertificateRecoveryStep.AlreadyRegistered;
-                    return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged), null, false);
+                    return Unchanged();
                 }
 
                 if (await scope.Context.AuditEvents.AnyAsync(a => a.Action == "certificate.delete" && a.Outcome == AuditOutcome.Success && a.Target == target, cancellationToken).ConfigureAwait(false))
                 {
                     step = CertificateRecoveryStep.WasDeleted;
-                    return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged), null, false);
+                    return Unchanged();
                 }
 
                 var outcome = await RegisterCoreAsync(scope, registration, origin, cancellationToken).ConfigureAwait(false);
@@ -154,12 +146,7 @@ public sealed partial class CertificateService
     {
         ArgumentNullException.ThrowIfNull(names);
         ArgumentNullException.ThrowIfNull(origin);
-        if (await DeniedAsync(origin, "certificate.add", id, cancellationToken).ConfigureAwait(false) is { } denied)
-        {
-            return denied;
-        }
-
-        return await _config.ApplyCertificateChangeAsync(origin, scope => RegisterPendingCoreAsync(scope, id, source, names, label, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ChangeAsync(origin, "certificate.add", id, scope => RegisterPendingCoreAsync(scope, id, source, names, label, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -170,24 +157,14 @@ public sealed partial class CertificateService
     public async Task<CertificateChangeResult> SetStatusAsync(CertificateId id, CertificateStatus status, string? message, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        if (await DeniedAsync(origin, "certificate.update", id, cancellationToken).ConfigureAwait(false) is { } denied)
-        {
-            return denied;
-        }
-
-        return await _config.ApplyCertificateChangeAsync(origin, scope => SetStatusCoreAsync(scope, id, status, message, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ChangeAsync(origin, "certificate.update", id, scope => SetStatusCoreAsync(scope, id, status, message, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Replaces a certificate's label and notes (null clears). Doesn't affect serving: nothing is published.</summary>
     public async Task<CertificateChangeResult> UpdateDetailsAsync(CertificateId id, string? label, string? notes, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        if (await DeniedAsync(origin, "certificate.update", id, cancellationToken).ConfigureAwait(false) is { } denied)
-        {
-            return denied;
-        }
-
-        return await _config.ApplyCertificateChangeAsync(origin, scope => UpdateDetailsCoreAsync(scope, id, label, notes, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ChangeAsync(origin, "certificate.update", id, scope => UpdateDetailsCoreAsync(scope, id, label, notes, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Records in the audit trail that the local CA root <paramref name="retired"/> was replaced by <paramref name="root"/> (the rows are written by their own registrations).</summary>
@@ -203,7 +180,7 @@ public sealed partial class CertificateService
         };
         _ = await _config.ApplyCertificateChangeAsync(
             origin,
-            _ => Task.FromResult(new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged), audit, Republish: false)),
+            _ => Task.FromResult(Unchanged(audit: audit)),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -211,21 +188,17 @@ public sealed partial class CertificateService
     public async Task<CertificateChangeResult> DeleteAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        if (await DeniedAsync(origin, "certificate.delete", id, cancellationToken).ConfigureAwait(false) is { } denied)
-        {
-            return denied;
-        }
-
-        return await _config.ApplyCertificateChangeAsync(origin, scope => DeleteCoreAsync(scope, id, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ChangeAsync(origin, "certificate.delete", id, scope => DeleteCoreAsync(scope, id, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// The refusal for an origin without <see cref="Permission.CertificatesWrite"/> (audited as <see cref="AuditOutcome.Denied"/>), or
-    /// null if it may go on.
+    /// Runs <paramref name="change"/> as a certificate change, or refuses an origin without <see cref="Permission.CertificatesWrite"/>
+    /// (audited as <see cref="AuditOutcome.Denied"/>).
     /// </summary>
-    private async Task<CertificateChangeResult?> DeniedAsync(CommandOrigin origin, string action, CertificateId id, CancellationToken cancellationToken) =>
+    private async Task<CertificateChangeResult> ChangeAsync(
+        CommandOrigin origin, string action, CertificateId id, Func<CertificateChangeScope, Task<CertificateChangeOutcome>> change, CancellationToken cancellationToken) =>
         await PermissionGate.MayAsync(_permissions, _config, origin, Permission.CertificatesWrite, action, id.IsEmpty ? null : id.ToString(), cancellationToken).ConfigureAwait(false)
-            ? null
+            ? await _config.ApplyCertificateChangeAsync(origin, change, cancellationToken).ConfigureAwait(false)
             : new CertificateChangeResult(CertificateChangeStatus.Denied);
 
     /// <summary>The certificates matching <paramref name="query"/> (all when null), newest first.</summary>
@@ -313,7 +286,7 @@ public sealed partial class CertificateService
 
         var now = _timeProvider.GetUtcNow();
         var row = await context.Certificates.FirstOrDefaultAsync(c => c.Id == registration.Id, cancellationToken).ConfigureAwait(false);
-        var oldNames = row is null ? [] : await context.CertificateNames.Where(n => n.CertificateId == registration.Id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var oldNames = row is null ? [] : await NamesAsync(context, registration.Id, cancellationToken).ConfigureAwait(false);
         var isNew = row is null;
         var before = row is null ? default : ServingFacts.Of(row, oldNames);
         if (origin.ViaAdminProxy
@@ -343,7 +316,7 @@ public sealed partial class CertificateService
         var after = ServingFacts.Of(row, names);
         if (!isNew && context.Entry(row).State == EntityState.Unchanged && after == before)
         {
-            return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged, ToSummary(row, names, now)), null, false);
+            return Unchanged(ToSummary(row, names, now));
         }
 
         row.UpdatedAt = now;
@@ -445,11 +418,11 @@ public sealed partial class CertificateService
         }
 
         var statusMessage = status == CertificateStatus.Failed ? message : null;
-        var names = await context.CertificateNames.Where(n => n.CertificateId == id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var names = await NamesAsync(context, id, cancellationToken).ConfigureAwait(false);
         var now = _timeProvider.GetUtcNow();
         if (row.Status == status && row.StatusMessage == statusMessage)
         {
-            return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged, ToSummary(row, names, now)), null, false);
+            return Unchanged(ToSummary(row, names, now));
         }
 
         var before = ServingFacts.Of(row, names);
@@ -484,11 +457,11 @@ public sealed partial class CertificateService
             return NotFound(origin, "certificate.update", id);
         }
 
-        var names = await context.CertificateNames.Where(n => n.CertificateId == id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var names = await NamesAsync(context, id, cancellationToken).ConfigureAwait(false);
         var now = _timeProvider.GetUtcNow();
         if (row.Label == label && row.Notes == notes)
         {
-            return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged, ToSummary(row, names, now)), null, false);
+            return Unchanged(ToSummary(row, names, now));
         }
 
         row.Label = label;
@@ -575,11 +548,7 @@ public sealed partial class CertificateService
             return NotFound(origin, "certificate.delete", id);
         }
 
-        IReadOnlyList<string> oldNames = await context.CertificateNames
-            .Where(n => n.CertificateId == id)
-            .Select(n => n.Name)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+        IReadOnlyList<string> oldNames = await NamesAsync(context, id, cancellationToken).ConfigureAwait(false);
         if (origin.ViaAdminProxy
             && await AdminCoverageRefusalAsync(context, scope.Document, id, oldNames, newNames: null, cancellationToken).ConfigureAwait(false) is { } adminRefusal)
         {
@@ -678,6 +647,9 @@ public sealed partial class CertificateService
         }
     }
 
+    private static Task<List<string>> NamesAsync(ConfigDbContext context, CertificateId id, CancellationToken cancellationToken) =>
+        context.CertificateNames.Where(n => n.CertificateId == id).Select(n => n.Name).ToListAsync(cancellationToken);
+
     private static async Task<ILookup<CertificateId, string>> NamesOfAsync(ConfigDbContext context, IEnumerable<CertificateId> ids, CancellationToken cancellationToken)
     {
         CertificateId[] wanted = [.. ids];
@@ -711,6 +683,9 @@ public sealed partial class CertificateService
 
     private static AuditEntry Entry(CommandOrigin origin, string action, CertificateId id, AuditOutcome outcome) =>
         new(origin.Actor, origin.Channel, action, outcome) { Target = id.ToString(), ClientIp = origin.ClientIp };
+
+    private static CertificateChangeOutcome Unchanged(CertificateSummary? summary = null, AuditEntry? audit = null) =>
+        new(new CertificateChangeResult(CertificateChangeStatus.Unchanged, summary), audit, false);
 
     private static CertificateChangeOutcome Rejected(CommandOrigin origin, string action, CertificateId id, ConfigError error) =>
         new(
