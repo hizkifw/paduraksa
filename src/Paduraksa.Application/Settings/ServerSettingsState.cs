@@ -52,13 +52,6 @@ public sealed class ServerSettingsState
         return _current.Sources[setting.Key];
     }
 
-    /// <summary>The environment's value of <paramref name="setting"/> as the config writes it, or null when the environment leaves it to the config.</summary>
-    public string? EnvironmentValue(ServerSettingDefinition setting)
-    {
-        ArgumentNullException.ThrowIfNull(setting);
-        return _environment.GetValueOrDefault(setting.Key);
-    }
-
     /// <summary>Whether a setting read once at startup now resolves to something else than it runs with.</summary>
     public bool RestartPending(ServerSettingDefinition setting)
     {
