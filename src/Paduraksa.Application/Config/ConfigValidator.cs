@@ -10,13 +10,8 @@ using Paduraksa.Core.Text;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using static Paduraksa.Application.Config.ConfigErrorCodes;
-using HostAccessListSpec = Paduraksa.Proxy.Config.HostAccessListSpec;
-using HostAuthProviderSpec = Paduraksa.Proxy.Config.HostAuthProviderSpec;
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
-using HostMaintenanceSpec = Paduraksa.Proxy.Config.HostMaintenanceSpec;
-using HostRateLimitSpec = Paduraksa.Proxy.Config.HostRateLimitSpec;
 using HostRobotsSpec = Paduraksa.Proxy.Config.HostRobotsSpec;
-using HostRuleSetSpec = Paduraksa.Proxy.Config.HostRuleSetSpec;
 using HostServerHeaderSpec = Paduraksa.Proxy.Config.HostServerHeaderSpec;
 using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
@@ -92,13 +87,7 @@ public static class ConfigValidator
 
             var profiles = document.Profiles ?? [];
             Dictionary<string, string> profileNames = new(StringComparer.OrdinalIgnoreCase);
-            for (var i = 0; i < profiles.Count; i++)
-            {
-                if (NotNull(profiles[i], $"/profiles/{i}"))
-                {
-                    CheckProfile(profiles[i], $"/profiles/{i}", profileNames);
-                }
-            }
+            Each(profiles, "/profiles", (item, at) => CheckProfile(item, at, profileNames));
 
             var hosts = document.Hosts ?? [];
             HashSet<UpstreamId> routedTo =
@@ -110,13 +99,7 @@ public static class ConfigValidator
             ];
             var upstreams = document.Upstreams ?? [];
             Dictionary<string, string> upstreamNames = new(StringComparer.OrdinalIgnoreCase);
-            for (var i = 0; i < upstreams.Count; i++)
-            {
-                if (NotNull(upstreams[i], $"/upstreams/{i}"))
-                {
-                    CheckUpstream(upstreams[i], $"/upstreams/{i}", upstreamNames, routedTo);
-                }
-            }
+            Each(upstreams, "/upstreams", (item, at) => CheckUpstream(item, at, upstreamNames, routedTo));
 
             // A duplicate profile ID is reported above; the first one is the layer.
             Dictionary<ProfileId, HostSettings?> profileSettings = [];
@@ -128,56 +111,26 @@ public static class ConfigValidator
             var policies = document.RateLimitPolicies ?? [];
             Dictionary<string, string> policyNames = new(StringComparer.OrdinalIgnoreCase);
             HashSet<RateLimitPolicyId> policyIds = [];
-            for (var i = 0; i < policies.Count; i++)
-            {
-                if (NotNull(policies[i], $"/rateLimitPolicies/{i}"))
-                {
-                    CheckRateLimitPolicy(policies[i], $"/rateLimitPolicies/{i}", policyNames, policyIds);
-                }
-            }
+            Each(policies, "/rateLimitPolicies", (item, at) => CheckRateLimitPolicy(item, at, policyNames, policyIds));
 
             var accessLists = document.AccessLists ?? [];
             Dictionary<string, string> accessListNames = new(StringComparer.OrdinalIgnoreCase);
             HashSet<AccessListId> accessListIds = [];
-            for (var i = 0; i < accessLists.Count; i++)
-            {
-                if (NotNull(accessLists[i], $"/accessLists/{i}"))
-                {
-                    CheckAccessList(accessLists[i], $"/accessLists/{i}", accessListNames, accessListIds);
-                }
-            }
+            Each(accessLists, "/accessLists", (item, at) => CheckAccessList(item, at, accessListNames, accessListIds));
 
             var ruleSets = document.RuleSets ?? [];
             Dictionary<string, string> ruleSetNames = new(StringComparer.OrdinalIgnoreCase);
             HashSet<RuleSetId> ruleSetIds = [];
-            for (var i = 0; i < ruleSets.Count; i++)
-            {
-                if (NotNull(ruleSets[i], $"/ruleSets/{i}"))
-                {
-                    CheckRuleSet(ruleSets[i], $"/ruleSets/{i}", ruleSetNames, ruleSetIds);
-                }
-            }
+            Each(ruleSets, "/ruleSets", (item, at) => CheckRuleSet(item, at, ruleSetNames, ruleSetIds));
 
             var authProviders = document.AuthProviders ?? [];
             Dictionary<string, string> authProviderNames = new(StringComparer.OrdinalIgnoreCase);
             HashSet<AuthProviderId> authProviderIds = [];
-            for (var i = 0; i < authProviders.Count; i++)
-            {
-                if (NotNull(authProviders[i], $"/authProviders/{i}"))
-                {
-                    CheckAuthProvider(authProviders[i], $"/authProviders/{i}", authProviderNames, authProviderIds);
-                }
-            }
+            Each(authProviders, "/authProviders", (item, at) => CheckAuthProvider(item, at, authProviderNames, authProviderIds));
 
             HashSet<UpstreamId> upstreamIds = [.. upstreams.Where(u => u is not null).Select(u => u.Id)];
             var defaults = document.Settings?.Defaults;
-            for (var i = 0; i < hosts.Count; i++)
-            {
-                if (NotNull(hosts[i], $"/hosts/{i}"))
-                {
-                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds, accessListIds, ruleSetIds, authProviderIds);
-                }
-            }
+            Each(hosts, "/hosts", (item, at) => CheckHost(item, at, defaults, profileSettings, upstreamIds, policyIds, accessListIds, ruleSetIds, authProviderIds));
         }
 
         private void CheckSettings(GlobalSettings settings, string path, HashSet<AccessListId> accessLists)
@@ -187,7 +140,7 @@ public static class ConfigValidator
 
             // The defaults' own Server header is compiled for the answers given before a host is known, whatever the hosts say: a custom mode that
             // the defaults alone leave without a value can't be compiled, even when every host supplies one.
-            CheckServerHeader(HostSettingsLayers.Resolve(settings.Defaults).ServerHeader, settings.Defaults, null, null, $"{path}/defaults/serverHeader");
+            CheckServerHeader(HostSettingsLayers.Resolve(settings.Defaults).ServerHeader, new Layers(settings.Defaults, null, null), $"{path}/defaults/serverHeader");
             CheckEnum(settings.UnknownHost, $"{path}/unknownHost");
             if (settings.DefaultCertificateId is { IsEmpty: true })
             {
@@ -354,10 +307,7 @@ public static class ConfigValidator
                 }
             }
 
-            if (upstream.LoadBalancing is { } loadBalancing)
-            {
-                CheckEnum(loadBalancing, $"{path}/loadBalancing");
-            }
+            CheckEnum(upstream.LoadBalancing, $"{path}/loadBalancing");
 
             if (upstream.MaxConnectionsPerServer is < 1)
             {
@@ -486,14 +436,20 @@ public static class ConfigValidator
             }
 
             CheckHostSettings(host.Settings, $"{path}/settings");
-            CheckHstsPreload(resolved.Hsts, defaults, profile, host.Settings, $"{path}/settings/hsts");
-            CheckServerHeader(resolved.ServerHeader, defaults, profile, host.Settings, $"{path}/settings/serverHeader");
-            CheckRobots(resolved.Robots, defaults, profile, host.Settings, $"{path}/settings/robots");
-            CheckMaintenanceReference(resolved.Maintenance, accessLists, $"{path}/settings/maintenance", defaults, profile, host.Settings);
-            CheckRateLimit(resolved.RateLimit, policies, $"{path}/settings/rateLimit", HostRateLimitUnknown, defaults, profile, host.Settings);
-            CheckAccessListReference(resolved.AccessList, accessLists, $"{path}/settings/accessList", HostAccessListUnknown, defaults, profile, host.Settings);
-            CheckRuleSetReference(resolved.RuleSet, ruleSets, $"{path}/settings/ruleSet", HostRuleSetUnknown, defaults, profile, host.Settings);
-            CheckAuthProviderReference(resolved.AuthProvider, authProviders, $"{path}/settings/authProvider", HostAuthProviderUnknown, defaults, profile, host.Settings);
+            Layers layers = new(defaults, profile, host.Settings);
+            CheckHstsPreload(resolved.Hsts, layers, $"{path}/settings/hsts");
+            CheckServerHeader(resolved.ServerHeader, layers, $"{path}/settings/serverHeader");
+            CheckRobots(resolved.Robots, layers, $"{path}/settings/robots");
+            var bypass = resolved.Maintenance.BypassAccessListId;
+            CheckReference(bypass, accessLists.Contains(bypass), $"{path}/settings/maintenance/bypassAccessListId", HostMaintenanceBypassUnknown, "access list", layers, static s => s.Maintenance?.BypassAccessListId);
+            var policy = resolved.RateLimit.PolicyId;
+            CheckReference(policy, policies.Contains(policy), $"{path}/settings/rateLimit/policyId", HostRateLimitUnknown, "rate-limit policy", layers, static s => s.RateLimit?.PolicyId);
+            var list = resolved.AccessList.AccessListId;
+            CheckReference(list, accessLists.Contains(list), $"{path}/settings/accessList/accessListId", HostAccessListUnknown, "access list", layers, static s => s.AccessList?.AccessListId);
+            var ruleSet = resolved.RuleSet.RuleSetId;
+            CheckReference(ruleSet, ruleSets.Contains(ruleSet) || RuleSetPresets.IsPreset(ruleSet), $"{path}/settings/ruleSet/ruleSetId", HostRuleSetUnknown, "rule set", layers, static s => s.RuleSet?.RuleSetId);
+            var provider = resolved.AuthProvider.AuthProviderId;
+            CheckReference(provider, authProviders.Contains(provider), $"{path}/settings/authProvider/authProviderId", HostAuthProviderUnknown, "auth provider", layers, static s => s.AuthProvider?.AuthProviderId);
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -502,13 +458,7 @@ public static class ConfigValidator
 
             var routes = host.Routes ?? [];
             Dictionary<(RouteMatchKind, string), string> matches = new(RouteMatchComparer.Instance);
-            for (var i = 0; i < routes.Count; i++)
-            {
-                if (NotNull(routes[i], $"{path}/routes/{i}"))
-                {
-                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies, accessLists, ruleSets, authProviders);
-                }
-            }
+            Each(routes, $"{path}/routes", (item, at) => CheckRoute(item, at, upstreams, matches, policies, accessLists, ruleSets, authProviders));
 
             var tags = host.Tags ?? [];
             for (var i = 0; i < tags.Count; i++)
@@ -743,17 +693,17 @@ public static class ConfigValidator
             // Only the route's own named list is checked here: one inherited from the host is reported at the host.
             if (route.Settings?.AccessList?.AccessListId is { IsEmpty: false } routeList)
             {
-                CheckAccessListReference(new HostAccessListSpec { Enabled = true, AccessListId = routeList }, accessLists, $"{path}/settings/accessList", RouteAccessListUnknown, defaults: null, profile: null, host: null);
+                CheckReference(routeList, accessLists.Contains(routeList), $"{path}/settings/accessList/accessListId", RouteAccessListUnknown, "access list", default, static s => s.AccessList?.AccessListId);
             }
 
             if (route.Settings?.RuleSet?.RuleSetId is { IsEmpty: false } routeRuleSet)
             {
-                CheckRuleSetReference(new HostRuleSetSpec { Enabled = true, RuleSetId = routeRuleSet }, ruleSets, $"{path}/settings/ruleSet", RouteRuleSetUnknown, defaults: null, profile: null, host: null);
+                CheckReference(routeRuleSet, ruleSets.Contains(routeRuleSet) || RuleSetPresets.IsPreset(routeRuleSet), $"{path}/settings/ruleSet/ruleSetId", RouteRuleSetUnknown, "rule set", default, static s => s.RuleSet?.RuleSetId);
             }
 
             if (route.Settings?.AuthProvider?.AuthProviderId is { IsEmpty: false } routeProvider)
             {
-                CheckAuthProviderReference(new HostAuthProviderSpec { Enabled = true, AuthProviderId = routeProvider }, authProviders, $"{path}/settings/authProvider", RouteAuthProviderUnknown, defaults: null, profile: null, host: null);
+                CheckReference(routeProvider, authProviders.Contains(routeProvider), $"{path}/settings/authProvider/authProviderId", RouteAuthProviderUnknown, "auth provider", default, static s => s.AuthProvider?.AuthProviderId);
             }
 
             if (route.Settings?.ProofOfWork is { } proofOfWork)
@@ -792,14 +742,7 @@ public static class ConfigValidator
             // Only the route's own named policy is checked here: one inherited from the host is reported at the host.
             if (route.Settings?.RateLimit?.PolicyId is { IsEmpty: false } routePolicyId)
             {
-                CheckRateLimit(
-                    new HostRateLimitSpec { Enabled = true, PolicyId = routePolicyId },
-                    policies,
-                    $"{path}/settings/rateLimit",
-                    RouteRateLimitUnknown,
-                    defaults: null,
-                    profile: null,
-                    host: null);
+                CheckReference(routePolicyId, policies.Contains(routePolicyId), $"{path}/settings/rateLimit/policyId", RouteRateLimitUnknown, "rate-limit policy", default, static s => s.RateLimit?.PolicyId);
             }
         }
 
@@ -812,21 +755,11 @@ public static class ConfigValidator
 
             if (settings.Tls is { } tls)
             {
-                if (tls.MinimumVersion is { } minimum)
-                {
-                    CheckEnum(minimum, $"{path}/tls/minimumVersion");
-                }
-
-                if (tls.TcpAlpn is { } alpn)
-                {
-                    CheckEnum(alpn, $"{path}/tls/tcpAlpn");
-                }
+                CheckEnum(tls.MinimumVersion, $"{path}/tls/minimumVersion");
+                CheckEnum(tls.TcpAlpn, $"{path}/tls/tcpAlpn");
             }
 
-            if (settings.RequestIdPropagation is { } propagation)
-            {
-                CheckEnum(propagation, $"{path}/requestIdPropagation");
-            }
+            CheckEnum(settings.RequestIdPropagation, $"{path}/requestIdPropagation");
 
             if (settings.Hsts is { MaxAge: { } maxAge } && maxAge is < 0 or > HstsHeader.MaxMaxAgeSeconds)
             {
@@ -835,10 +768,7 @@ public static class ConfigValidator
 
             if (settings.ServerHeader is { } serverHeader)
             {
-                if (serverHeader.Mode is { } mode)
-                {
-                    CheckEnum(mode, $"{path}/serverHeader/mode");
-                }
+                CheckEnum(serverHeader.Mode, $"{path}/serverHeader/mode");
 
                 // A value is only used by the custom mode. Validate it where it is set, so an error points at the layer.
                 if (serverHeader is { Mode: ServerHeaderMode.Custom, Value: { Length: > 0 } value } && !ServerHeader.IsValidValue(value))
@@ -957,10 +887,7 @@ public static class ConfigValidator
         /// </summary>
         private void CheckErrorPages(ErrorPagesSettings settings, string path)
         {
-            if (settings.ReplaceUpstream is { } replace)
-            {
-                CheckEnum(replace, $"{path}/replaceUpstream");
-            }
+            CheckEnum(settings.ReplaceUpstream, $"{path}/replaceUpstream");
 
             foreach (var (key, content) in settings.Entries())
             {
@@ -1074,20 +1001,6 @@ public static class ConfigValidator
             }
         }
 
-        /// <summary>A host's resolved bypass list must exist; named even while maintenance is off, like any reference a switch keeps.</summary>
-        private void CheckMaintenanceReference(
-            HostMaintenanceSpec resolved, HashSet<AccessListId> lists, string path, HostSettings? defaults, HostSettings? profile, HostSettings? host)
-        {
-            if (resolved.BypassAccessListId.IsEmpty || lists.Contains(resolved.BypassAccessListId))
-            {
-                return;
-            }
-
-            var inherited = HostSettingsLayers.InheritedSuffix(
-                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Maintenance?.BypassAccessListId));
-            Add($"{path}/bypassAccessListId", HostMaintenanceBypassUnknown, $"access list '{resolved.BypassAccessListId}' doesn't exist{inherited}");
-        }
-
         /// <summary>
         /// The request limits, judged where a layer sets them. A route's layer carries only the body limit: the header and
         /// request-target limits are checked before a route is known, so an override there could only be ignored.
@@ -1099,40 +1012,25 @@ public static class ConfigValidator
                 Add($"{path}/maxBodySize", RequestLimitsMaxBodySizeInvalid, $"the body limit is 0 (no limit) or 1 byte to {RequestLimitBounds.MaxBodySize} bytes (1 TiB), got {body}");
             }
 
-            if (settings.MaxHeaderCount is { } count)
+            if (settings.MaxHeaderCount is { } count
+                && HostOnly(route, $"{path}/maxHeaderCount", RequestLimitsRouteMaxHeaderCountUnexpected, "a route can only override the body limit; set the header limit on the host")
+                && count is < RequestLimitBounds.MinHeaderCount or > RequestLimitBounds.MaxHeaderCount)
             {
-                if (route)
-                {
-                    Add($"{path}/maxHeaderCount", RequestLimitsRouteMaxHeaderCountUnexpected, "a route can only override the body limit; set the header limit on the host");
-                }
-                else if (count is < RequestLimitBounds.MinHeaderCount or > RequestLimitBounds.MaxHeaderCount)
-                {
-                    Add($"{path}/maxHeaderCount", RequestLimitsMaxHeaderCountInvalid, $"the header limit must be {RequestLimitBounds.MinHeaderCount}-{RequestLimitBounds.MaxHeaderCount} lines, got {count}");
-                }
+                Add($"{path}/maxHeaderCount", RequestLimitsMaxHeaderCountInvalid, $"the header limit must be {RequestLimitBounds.MinHeaderCount}-{RequestLimitBounds.MaxHeaderCount} lines, got {count}");
             }
 
-            if (settings.MaxHeaderBytes is { } bytes)
+            if (settings.MaxHeaderBytes is { } bytes
+                && HostOnly(route, $"{path}/maxHeaderBytes", RequestLimitsRouteMaxHeaderBytesUnexpected, "a route can only override the body limit; set the header size limit on the host")
+                && bytes is < RequestLimitBounds.MinHeaderBytes or > RequestLimitBounds.MaxHeaderBytes)
             {
-                if (route)
-                {
-                    Add($"{path}/maxHeaderBytes", RequestLimitsRouteMaxHeaderBytesUnexpected, "a route can only override the body limit; set the header size limit on the host");
-                }
-                else if (bytes is < RequestLimitBounds.MinHeaderBytes or > RequestLimitBounds.MaxHeaderBytes)
-                {
-                    Add($"{path}/maxHeaderBytes", RequestLimitsMaxHeaderBytesInvalid, $"the header size limit must be {RequestLimitBounds.MinHeaderBytes}-{RequestLimitBounds.MaxHeaderBytes} bytes, got {bytes}");
-                }
+                Add($"{path}/maxHeaderBytes", RequestLimitsMaxHeaderBytesInvalid, $"the header size limit must be {RequestLimitBounds.MinHeaderBytes}-{RequestLimitBounds.MaxHeaderBytes} bytes, got {bytes}");
             }
 
-            if (settings.MaxUrlLength is { } length)
+            if (settings.MaxUrlLength is { } length
+                && HostOnly(route, $"{path}/maxUrlLength", RequestLimitsRouteMaxUrlLengthUnexpected, "a route can only override the body limit; set the URL limit on the host")
+                && length is < RequestLimitBounds.MinUrlLength or > RequestLimitBounds.MaxUrlLength)
             {
-                if (route)
-                {
-                    Add($"{path}/maxUrlLength", RequestLimitsRouteMaxUrlLengthUnexpected, "a route can only override the body limit; set the URL limit on the host");
-                }
-                else if (length is < RequestLimitBounds.MinUrlLength or > RequestLimitBounds.MaxUrlLength)
-                {
-                    Add($"{path}/maxUrlLength", RequestLimitsMaxUrlLengthInvalid, $"the URL limit must be {RequestLimitBounds.MinUrlLength}-{RequestLimitBounds.MaxUrlLength} bytes, got {length}");
-                }
+                Add($"{path}/maxUrlLength", RequestLimitsMaxUrlLengthInvalid, $"the URL limit must be {RequestLimitBounds.MinUrlLength}-{RequestLimitBounds.MaxUrlLength} bytes, got {length}");
             }
         }
 
@@ -1144,10 +1042,7 @@ public static class ConfigValidator
         /// </summary>
         private void CheckRobots(RobotsSettings settings, string path)
         {
-            if (settings.Mode is { } mode)
-            {
-                CheckEnum(mode, $"{path}/mode");
-            }
+            CheckEnum(settings.Mode, $"{path}/mode");
 
             if (settings.Mode is { } other && other != RobotsMode.Custom && settings.CustomText is not null)
             {
@@ -1175,7 +1070,7 @@ public static class ConfigValidator
         /// value: a resolved custom mode needs a text, wherever the mode and the text were set, and the message names the
         /// layer that set the mode when the host didn't.
         /// </summary>
-        private void CheckRobots(HostRobotsSpec resolved, HostSettings? defaults, HostSettings? profile, HostSettings? host, string path)
+        private void CheckRobots(HostRobotsSpec resolved, in Layers layers, string path)
         {
             if (resolved.Mode != RobotsMode.Custom || !string.IsNullOrWhiteSpace(resolved.CustomText))
             {
@@ -1183,10 +1078,10 @@ public static class ConfigValidator
             }
 
             // Name the layer that left it blank when one does, else the layer that chose the mode the text is missing for.
-            var layer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Robots?.CustomText);
+            var layer = layers.Of(static s => s.Robots?.CustomText);
             if (layer == SettingsLayer.BuiltIn)
             {
-                layer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Robots?.Mode);
+                layer = layers.Of(static s => s.Robots?.Mode);
             }
 
             Add($"{path}/customText", RobotsCustomTextRequired, $"the custom robots.txt needs text{HostSettingsLayers.InheritedSuffix(layer)}");
@@ -1198,34 +1093,24 @@ public static class ConfigValidator
         /// </summary>
         private void CheckProofOfWork(ProofOfWorkSettings settings, string path, bool route)
         {
-            if (settings.Difficulty is { } difficulty)
+            if (settings.Difficulty is { } difficulty
+                && HostOnly(route, $"{path}/difficulty", ProofOfWorkRouteDifficultyUnexpected, "a route can only override the proof-of-work switch (enabled); set the difficulty on the host")
+                && difficulty is < ProofOfWorkLimits.MinDifficulty or > ProofOfWorkLimits.MaxDifficulty)
             {
-                if (route)
-                {
-                    Add($"{path}/difficulty", ProofOfWorkRouteDifficultyUnexpected, "a route can only override the proof-of-work switch (enabled); set the difficulty on the host");
-                }
-                else if (difficulty is < ProofOfWorkLimits.MinDifficulty or > ProofOfWorkLimits.MaxDifficulty)
-                {
-                    Add(
-                        $"{path}/difficulty",
-                        ProofOfWorkDifficultyInvalid,
-                        $"the difficulty is leading zero bits of SHA-256 and must be {ProofOfWorkLimits.MinDifficulty}-{ProofOfWorkLimits.MaxDifficulty}, got {difficulty}");
-                }
+                Add(
+                    $"{path}/difficulty",
+                    ProofOfWorkDifficultyInvalid,
+                    $"the difficulty is leading zero bits of SHA-256 and must be {ProofOfWorkLimits.MinDifficulty}-{ProofOfWorkLimits.MaxDifficulty}, got {difficulty}");
             }
 
-            if (settings.TokenLifetimeHours is { } hours)
+            if (settings.TokenLifetimeHours is { } hours
+                && HostOnly(route, $"{path}/tokenLifetimeHours", ProofOfWorkRouteTokenLifetimeUnexpected, "a route can only override the proof-of-work switch (enabled); set the token lifetime on the host")
+                && hours is < ProofOfWorkLimits.MinTokenLifetimeHours or > ProofOfWorkLimits.MaxTokenLifetimeHours)
             {
-                if (route)
-                {
-                    Add($"{path}/tokenLifetimeHours", ProofOfWorkRouteTokenLifetimeUnexpected, "a route can only override the proof-of-work switch (enabled); set the token lifetime on the host");
-                }
-                else if (hours is < ProofOfWorkLimits.MinTokenLifetimeHours or > ProofOfWorkLimits.MaxTokenLifetimeHours)
-                {
-                    Add(
-                        $"{path}/tokenLifetimeHours",
-                        ProofOfWorkTokenLifetimeInvalid,
-                        $"the token lifetime must be {ProofOfWorkLimits.MinTokenLifetimeHours}-{ProofOfWorkLimits.MaxTokenLifetimeHours} hours, got {hours}");
-                }
+                Add(
+                    $"{path}/tokenLifetimeHours",
+                    ProofOfWorkTokenLifetimeInvalid,
+                    $"the token lifetime must be {ProofOfWorkLimits.MinTokenLifetimeHours}-{ProofOfWorkLimits.MaxTokenLifetimeHours} hours, got {hours}");
             }
         }
 
@@ -1292,34 +1177,16 @@ public static class ConfigValidator
             Seconds(policy.Per) is { } seconds ? policy.Requests / seconds : null;
 
         /// <summary>
-        /// A host's or route's resolved rate limit: the policy must exist, and a limit that is on must name one. A
-        /// named policy is checked even while the switch is off, because the reference is kept for turning it back on.
+        /// A host's or route's resolved reference to a named policy must exist. It is checked even while its switch is off, because the reference
+        /// is kept for turning it back on, and a layer that names nothing refers to nothing. <paramref name="field"/> picks the setting that names it, to say which layer to change when the host inherited it.
         /// </summary>
-        /// <param name="resolved">The resolved switch and policy.</param>
-        /// <param name="policies">The document's policy IDs.</param>
-        /// <param name="path">The rate-limit settings path.</param>
-        /// <param name="unknownCode">The code for a policy that doesn't exist (the host's or the route's).</param>
-        /// <param name="defaults">The global defaults layer, when the resolved value is a host's.</param>
-        /// <param name="profile">The profile layer, when the resolved value is a host's.</param>
-        /// <param name="host">The host's own layer, when the resolved value is a host's.</param>
-        private void CheckRateLimit(
-            HostRateLimitSpec resolved,
-            HashSet<RateLimitPolicyId> policies,
-            string path,
-            string unknownCode,
-            HostSettings? defaults,
-            HostSettings? profile,
-            HostSettings? host)
+        private void CheckReference<TId>(TId id, bool known, string path, string code, string what, in Layers layers, Func<HostSettings, object?> field)
+            where TId : struct, ITypedId<TId>
         {
-            // Nothing named is no limit: the built-in switch is on, so a layer only has to name a policy.
-            if (resolved.PolicyId.IsEmpty || policies.Contains(resolved.PolicyId))
+            if (!id.IsEmpty && !known)
             {
-                return;
+                Add(path, code, $"{what} '{id}' doesn't exist{layers.Inherited(field)}");
             }
-
-            var inherited = HostSettingsLayers.InheritedSuffix(
-                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.RateLimit?.PolicyId));
-            Add($"{path}/policyId", unknownCode, $"rate-limit policy '{resolved.PolicyId}' doesn't exist{inherited}");
         }
 
         /// <summary>
@@ -1329,12 +1196,7 @@ public static class ConfigValidator
         /// are refused only through a host that resolves to the invalid pair, so a profile no host uses can't fail a document
         /// on its own. Off, the setting is inert: nothing is sent, so nothing to refuse.
         /// </summary>
-        /// <param name="resolved">The host's resolved HSTS.</param>
-        /// <param name="defaults">The global defaults layer.</param>
-        /// <param name="profile">The host's profile layer, if it has one.</param>
-        /// <param name="host">The host's own layer, on top.</param>
-        /// <param name="path">The host's HSTS path (<c>...</c>/hsts).</param>
-        private void CheckHstsPreload(HostHstsSpec resolved, HostSettings? defaults, HostSettings? profile, HostSettings? host, string path)
+        private void CheckHstsPreload(HostHstsSpec resolved, in Layers layers, string path)
         {
             if (!resolved.Enabled || !resolved.Preload || HstsPreloadIsValid(resolved))
             {
@@ -1342,8 +1204,7 @@ public static class ConfigValidator
             }
 
             // Where the preload came from, when it isn't this host's own: that is the layer to go and change.
-            var inherited = HostSettingsLayers.InheritedSuffix(
-                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Hsts?.Preload));
+            var inherited = layers.Inherited(static s => s.Hsts?.Preload);
 
             if (!resolved.IncludeSubDomains)
             {
@@ -1363,12 +1224,7 @@ public static class ConfigValidator
         /// is checked at the layer that set it; this catches a mode that inherited none, or inherited a value set by a
         /// layer whose mode didn't use it, naming that layer because the host's admin can't change it there.
         /// </summary>
-        /// <param name="resolved">The host's resolved <c>Server</c> header.</param>
-        /// <param name="defaults">The global defaults layer.</param>
-        /// <param name="profile">The host's profile layer, if it has one.</param>
-        /// <param name="host">The host's own layer, on top.</param>
-        /// <param name="path">The host's path (<c>...</c>/serverHeader).</param>
-        private void CheckServerHeader(HostServerHeaderSpec resolved, HostSettings? defaults, HostSettings? profile, HostSettings? host, string path)
+        private void CheckServerHeader(HostServerHeaderSpec resolved, in Layers layers, string path)
         {
             if (resolved.Mode != ServerHeaderMode.Custom)
             {
@@ -1377,19 +1233,18 @@ public static class ConfigValidator
 
             if (string.IsNullOrEmpty(resolved.Value))
             {
-                var missingFrom = HostSettingsLayers.InheritedSuffix(
-                    HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.ServerHeader?.Mode));
+                var missingFrom = layers.Inherited(static s => s.ServerHeader?.Mode);
                 Add($"{path}/value", ServerHeaderValueRequired, $"the custom Server header needs a value{missingFrom}");
                 return;
             }
 
             // A value set by a layer whose mode isn't custom is otherwise ignored, so its shape is judged where it is used.
-            var valueLayer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.ServerHeader?.Value);
+            var valueLayer = layers.Of(static s => s.ServerHeader?.Value);
             var checkedAtItsLayer = valueLayer switch
             {
-                SettingsLayer.Host => host!.ServerHeader!.Mode == ServerHeaderMode.Custom,
-                SettingsLayer.Profile => profile!.ServerHeader!.Mode == ServerHeaderMode.Custom,
-                SettingsLayer.GlobalDefaults => defaults!.ServerHeader!.Mode == ServerHeaderMode.Custom,
+                SettingsLayer.Host => layers.Host!.ServerHeader!.Mode == ServerHeaderMode.Custom,
+                SettingsLayer.Profile => layers.Profile!.ServerHeader!.Mode == ServerHeaderMode.Custom,
+                SettingsLayer.GlobalDefaults => layers.Defaults!.ServerHeader!.Mode == ServerHeaderMode.Custom,
                 _ => false,
             };
             if (!checkedAtItsLayer && !ServerHeader.IsValidValue(resolved.Value))
@@ -1443,13 +1298,7 @@ public static class ConfigValidator
             }
 
             HashSet<string> usernames = new(StringComparer.Ordinal);
-            for (var i = 0; i < users.Count; i++)
-            {
-                if (NotNull(users[i], $"{path}/basicAuth/users/{i}"))
-                {
-                    CheckUser(users[i], $"{path}/basicAuth/users/{i}", usernames);
-                }
-            }
+            Each(users, $"{path}/basicAuth/users", (item, at) => CheckUser(item, at, usernames));
         }
 
         private void CheckUser(AccessListUserConfig user, string path, HashSet<string> usernames)
@@ -1489,27 +1338,6 @@ public static class ConfigValidator
             {
                 Add($"{path}/credentialId", AccessListCredentialDuplicate, "another user already has this password credential; each user has their own");
             }
-        }
-
-        /// <summary>A host's or route's resolved access list: the list must exist. A named list is checked even while the
-        /// switch is off, because the reference is kept for turning it back on.</summary>
-        private void CheckAccessListReference(
-            HostAccessListSpec resolved,
-            HashSet<AccessListId> lists,
-            string path,
-            string unknownCode,
-            HostSettings? defaults,
-            HostSettings? profile,
-            HostSettings? host)
-        {
-            if (resolved.AccessListId.IsEmpty || lists.Contains(resolved.AccessListId))
-            {
-                return;
-            }
-
-            var inherited = HostSettingsLayers.InheritedSuffix(
-                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.AccessList?.AccessListId));
-            Add($"{path}/accessListId", unknownCode, $"access list '{resolved.AccessListId}' doesn't exist{inherited}");
         }
 
         private void CheckCountries(AccessListCountries? countries, string path)
@@ -1570,13 +1398,7 @@ public static class ConfigValidator
                 Add($"{path}/rules", RuleSetRulesTooMany, $"a rule set can have at most {RuleSetLimits.MaxRules} rules");
             }
 
-            for (var i = 0; i < rules.Count; i++)
-            {
-                if (NotNull(rules[i], $"{path}/rules/{i}"))
-                {
-                    CheckRule(rules[i], $"{path}/rules/{i}");
-                }
-            }
+            Each(rules, $"{path}/rules", CheckRule);
         }
 
         private void CheckRule(RuleConfig rule, string path)
@@ -1684,27 +1506,6 @@ public static class ConfigValidator
             }
         }
 
-        /// <summary>A host's or route's resolved rule set: the set must be one of the document's or a built-in preset. A named set
-        /// is checked even while the switch is off, because the reference is kept for turning it back on.</summary>
-        private void CheckRuleSetReference(
-            HostRuleSetSpec resolved,
-            HashSet<RuleSetId> sets,
-            string path,
-            string unknownCode,
-            HostSettings? defaults,
-            HostSettings? profile,
-            HostSettings? host)
-        {
-            if (resolved.RuleSetId.IsEmpty || sets.Contains(resolved.RuleSetId) || RuleSetPresets.IsPreset(resolved.RuleSetId))
-            {
-                return;
-            }
-
-            var inherited = HostSettingsLayers.InheritedSuffix(
-                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.RuleSet?.RuleSetId));
-            Add($"{path}/ruleSetId", unknownCode, $"rule set '{resolved.RuleSetId}' doesn't exist{inherited}");
-        }
-
         /// <summary>An auth provider's own endpoint and header lists, judged the way the compiler will read them.</summary>
         private void CheckAuthProvider(AuthProviderConfig provider, string path, Dictionary<string, string> names, HashSet<AuthProviderId> ids)
         {
@@ -1720,15 +1521,9 @@ public static class ConfigValidator
             }
 
             var own = $"{path}/forwardAuth";
-            if (forward.Preset is { } preset)
-            {
-                CheckEnum(preset, $"{own}/preset");
-            }
+            CheckEnum(forward.Preset, $"{own}/preset");
 
-            if (forward.CacheScope is { } scope)
-            {
-                CheckEnum(scope, $"{own}/cacheScope");
-            }
+            CheckEnum(forward.CacheScope, $"{own}/cacheScope");
 
             if (ForwardAuthUrls.EndpointProblem(forward.Url) is { } urlProblem)
             {
@@ -1781,27 +1576,6 @@ public static class ConfigValidator
                     Add($"{path}/{i}", response && ForwardAuthHeaderNames.NamesClientCredential(name) ? AuthProviderHeaderCredential : AuthProviderHeaderInvalid, problem);
                 }
             }
-        }
-
-        /// <summary>A host's or route's resolved auth provider: the provider must be one of the document's. A named provider is checked even
-        /// while the switch is off, because the reference is kept for turning it back on.</summary>
-        private void CheckAuthProviderReference(
-            HostAuthProviderSpec resolved,
-            HashSet<AuthProviderId> providers,
-            string path,
-            string unknownCode,
-            HostSettings? defaults,
-            HostSettings? profile,
-            HostSettings? host)
-        {
-            if (resolved.AuthProviderId.IsEmpty || providers.Contains(resolved.AuthProviderId))
-            {
-                return;
-            }
-
-            var inherited = HostSettingsLayers.InheritedSuffix(
-                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.AuthProvider?.AuthProviderId));
-            Add($"{path}/authProviderId", unknownCode, $"auth provider '{resolved.AuthProviderId}' doesn't exist{inherited}");
         }
 
         private void CheckAddresses(IReadOnlyList<string> addresses, string path)
@@ -1896,6 +1670,46 @@ public static class ConfigValidator
 
             Add(path, EnumUndefined, $"{value} isn't a {typeof(TEnum).Name}");
             return false;
+        }
+
+        private void CheckEnum<TEnum>(TEnum? value, string path)
+            where TEnum : struct, Enum
+        {
+            if (value is { } defined)
+            {
+                CheckEnum(defined, path);
+            }
+        }
+
+        /// <summary>The layers a host's value resolves over, to name the one that set it when it isn't the host's own.</summary>
+        private readonly record struct Layers(HostSettings? Defaults, HostSettings? Profile, HostSettings? Host)
+        {
+            public SettingsLayer Of(Func<HostSettings, object?> field) => HostSettingsLayers.LayerOf(Defaults, Profile, Host, field);
+
+            public string Inherited(Func<HostSettings, object?> field) => HostSettingsLayers.InheritedSuffix(Of(field));
+        }
+
+        // A field only a host owns: a route layer that sets it is refused here, and the caller judges the value only when this is true.
+        private bool HostOnly(bool route, string path, string code, string message)
+        {
+            if (route)
+            {
+                Add(path, code, message);
+            }
+
+            return !route;
+        }
+
+        private void Each<T>(IReadOnlyList<T> items, string path, Action<T, string> check)
+        {
+            for (var i = 0; i < items.Count; i++)
+            {
+                var at = $"{path}/{i}";
+                if (NotNull(items[i], at))
+                {
+                    check(items[i], at);
+                }
+            }
         }
 
         // Only a hand-built document has null elements; reading rejects them.
