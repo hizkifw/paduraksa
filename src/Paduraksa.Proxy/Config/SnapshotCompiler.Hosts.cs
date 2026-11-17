@@ -324,6 +324,7 @@ public static partial class SnapshotCompiler
                 Path = "/",
                 Slot = slot,
                 Policies = rateLimit is null ? [] : [rateLimit],
+                AccessList = accessList,
                 Admin = true,
             },
         ];

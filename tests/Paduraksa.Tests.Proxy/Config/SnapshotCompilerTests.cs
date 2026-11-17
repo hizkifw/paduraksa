@@ -140,6 +140,29 @@ public sealed class SnapshotCompilerTests
         Assert.Same(route, host.Match("/api/v1/auth/me"));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheAdminRouteNamesTheHostsAccessListWhetherOrNotTheListenerIsUp(bool adminUpstream)
+    {
+        HostSpec admin = new()
+        {
+            Id = TestIds.Host("admin"),
+            Names = ["admin.test"],
+            Kind = HostKind.Admin,
+            ForceHttps = true,
+            AccessList = new HostAccessListSpec { Enabled = true, AccessListId = AdminList.Id },
+        };
+
+        var snapshot = Compile(
+            new ProxyConfigModel { AccessLists = [AdminList], Hosts = [admin] },
+            new SnapshotCompilerOptions { AdminUpstream = adminUpstream });
+
+        var host = snapshot.Hosts.Find("admin.test")!;
+        Assert.NotNull(host.AccessList);
+        Assert.Same(host.AccessList, Assert.Single(host.Routes).AccessList);
+    }
+
     [Fact]
     public void TheAdminHostRulesHoldWhenTheHostStepRunsOnItsOwn()
     {
