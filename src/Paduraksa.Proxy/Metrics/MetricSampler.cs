@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 
+using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Metrics;
@@ -182,38 +183,32 @@ public sealed class MetricSampler
 
         Array.Clear(_securitySum);
         _security.ReadProcess(_securitySum);
-        var providers = _security.Providers;
-        for (var i = 0; i < providers.Length; i++)
-        {
-            if (i == _providers.Length)
-            {
-                var id = providers[i].Key;
-                Volatile.Write(ref _providers, [.. _providers, new SecuritySeries(SecurityRollupSubject.AuthProvider, id.Value, id.ToString())]);
-            }
-
-            Array.Clear(_securityRead);
-            SecuritySources.Read(providers[i].Value, _securityRead);
-            Add(_securitySum, _securityRead);
-            _providers[i].Sample(_securityRead);
-        }
-
-        var sets = _security.RuleSets;
-        for (var i = 0; i < sets.Length; i++)
-        {
-            if (i == _ruleSets.Length)
-            {
-                var id = sets[i].Key;
-                Volatile.Write(ref _ruleSets, [.. _ruleSets, new SecuritySeries(SecurityRollupSubject.RuleSet, id.Value, id.ToString())]);
-            }
-
-            Array.Clear(_securityRead);
-            SecuritySources.Read(sets[i].Value, _securityRead);
-            Add(_securitySum, _securityRead);
-            _ruleSets[i].Sample(_securityRead);
-        }
+        SampleSeries(_security.Providers, ref _providers, SecurityRollupSubject.AuthProvider, SecuritySources.Read);
+        SampleSeries(_security.RuleSets, ref _ruleSets, SecurityRollupSubject.RuleSet, SecuritySources.Read);
 
         _securityTotal.Sample(_securitySum);
         return _securityTotal.Delta.ContainsAnyExcept(0L);
+    }
+
+    private delegate void ReadSecurityCounters<TCounters>(TCounters counters, Span<long> into);
+
+    private void SampleSeries<TId, TCounters>(
+        ReadOnlySpan<KeyValuePair<TId, TCounters>> source, ref SecuritySeries[] series, SecurityRollupSubject subject, ReadSecurityCounters<TCounters> read)
+        where TId : struct, ITypedId<TId, Guid>
+    {
+        for (var i = 0; i < source.Length; i++)
+        {
+            if (i == series.Length)
+            {
+                var id = source[i].Key;
+                Volatile.Write(ref series, [.. series, new SecuritySeries(subject, id.Value, id.ToString() ?? string.Empty)]);
+            }
+
+            Array.Clear(_securityRead);
+            read(source[i].Value, _securityRead);
+            Add(_securitySum, _securityRead);
+            series[i].Sample(_securityRead);
+        }
     }
 
     /// <summary>

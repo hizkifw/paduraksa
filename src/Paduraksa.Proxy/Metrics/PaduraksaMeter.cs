@@ -40,16 +40,16 @@ public sealed class PaduraksaMeter : IDisposable
 
         _meter.CreateObservableCounter("paduraksa.requests", ObserveRequests, "{request}", "Requests answered, by host and the class of the status the client got.");
         _meter.CreateObservableCounter("paduraksa.gate.outcomes", ObserveOutcomes, "{request}", "What the gate did with each request, by host: forwarded, answered itself, or refused by which kind of policy or limit.");
-        _meter.CreateObservableCounter("paduraksa.response.size", ObserveBytesOut, "By", "Response body bytes written to clients, as they went out, by host.");
-        _meter.CreateObservableCounter("paduraksa.request.size", ObserveBytesIn, "By", "Request body bytes read from clients, by host.");
-        _meter.CreateObservableCounter("paduraksa.request.duration.sum", ObserveRequestSeconds, "s", "Total time spent on requests, by host. Divide its increase by the increase of paduraksa.requests for the mean.");
-        _meter.CreateObservableCounter("paduraksa.request.upstream.duration.sum", ObserveHostUpstreamSeconds, "s", "Total time spent forwarding and waiting for the upstream, by host; the difference to paduraksa.request.duration.sum is the proxy's own time.");
+        _meter.CreateObservableCounter("paduraksa.response.size", () => ObserveHost(RequestMetric.BytesOut), "By", "Response body bytes written to clients, as they went out, by host.");
+        _meter.CreateObservableCounter("paduraksa.request.size", () => ObserveHost(RequestMetric.BytesIn), "By", "Request body bytes read from clients, by host.");
+        _meter.CreateObservableCounter("paduraksa.request.duration.sum", () => ObserveHostSeconds(RequestMetric.TotalMicros), "s", "Total time spent on requests, by host. Divide its increase by the increase of paduraksa.requests for the mean.");
+        _meter.CreateObservableCounter("paduraksa.request.upstream.duration.sum", () => ObserveHostSeconds(RequestMetric.UpstreamMicros), "s", "Total time spent forwarding and waiting for the upstream, by host; the difference to paduraksa.request.duration.sum is the proxy's own time.");
         _meter.CreateObservableCounter("paduraksa.route.requests", ObserveRouteRequests, "{request}", "Requests answered, by route and status class.");
         _meter.CreateObservableCounter("paduraksa.upstream.requests", ObserveUpstreamRequests, "{request}", "Requests the gate forwarded to the upstream.");
         _meter.CreateObservableCounter("paduraksa.upstream.errors", ObserveUpstreamErrors, "{error}", "Forwards that failed, by YARP's kind of error.");
         _meter.CreateObservableCounter("paduraksa.upstream.duration.sum", ObserveUpstreamSeconds, "s", "Total time spent forwarding to the upstream and waiting for its answer.");
-        _meter.CreateObservableCounter("paduraksa.destination.requests", ObserveDestinationRequests, "{request}", "Requests the gate forwarded to the destination.");
-        _meter.CreateObservableCounter("paduraksa.destination.errors", ObserveDestinationErrors, "{error}", "Forwards to the destination that failed on its side of the connection.");
+        _meter.CreateObservableCounter("paduraksa.destination.requests", () => ObserveDestination(DestinationMetric.Requests), "{request}", "Requests the gate forwarded to the destination.");
+        _meter.CreateObservableCounter("paduraksa.destination.errors", () => ObserveDestination(DestinationMetric.Errors), "{error}", "Forwards to the destination that failed on its side of the connection.");
         _meter.CreateObservableGauge("paduraksa.config.generation", () => _snapshots.Current.Generation, "{generation}", "The generation of the live config snapshot: it grows with every publish.");
         _meter.CreateObservableGauge("paduraksa.hosts", () => (long)_snapshots.Current.HostsByIndex.Length, "{host}", "Enabled hosts in the live config.");
 
@@ -149,10 +149,6 @@ public sealed class PaduraksaMeter : IDisposable
         }
     }
 
-    private IEnumerable<Measurement<long>> ObserveBytesOut() => ObserveHost(RequestMetric.BytesOut);
-
-    private IEnumerable<Measurement<long>> ObserveBytesIn() => ObserveHost(RequestMetric.BytesIn);
-
     private IEnumerable<Measurement<long>> ObserveHost(int metric)
     {
         foreach (var host in Inventory().Hosts)
@@ -161,19 +157,11 @@ public sealed class PaduraksaMeter : IDisposable
         }
     }
 
-    private IEnumerable<Measurement<double>> ObserveRequestSeconds()
+    private IEnumerable<Measurement<double>> ObserveHostSeconds(int micros)
     {
         foreach (var host in Inventory().Hosts)
         {
-            yield return new(Seconds(Counters(MetricSubject.Host, host.Slot, RequestMetric.Stride)[RequestMetric.TotalMicros]), HostTags(host));
-        }
-    }
-
-    private IEnumerable<Measurement<double>> ObserveHostUpstreamSeconds()
-    {
-        foreach (var host in Inventory().Hosts)
-        {
-            yield return new(Seconds(Counters(MetricSubject.Host, host.Slot, RequestMetric.Stride)[RequestMetric.UpstreamMicros]), HostTags(host));
+            yield return new(Seconds(Counters(MetricSubject.Host, host.Slot, RequestMetric.Stride)[micros]), HostTags(host));
         }
     }
 
@@ -221,19 +209,11 @@ public sealed class PaduraksaMeter : IDisposable
         }
     }
 
-    private IEnumerable<Measurement<long>> ObserveDestinationRequests()
+    private IEnumerable<Measurement<long>> ObserveDestination(int metric)
     {
         foreach (var destination in Inventory().Destinations)
         {
-            yield return new(Counters(MetricSubject.Destination, destination.Slot, DestinationMetric.Stride)[DestinationMetric.Requests], new KeyValuePair<string, object?>("upstream_id", destination.UpstreamId), new KeyValuePair<string, object?>("destination_id", destination.Id));
-        }
-    }
-
-    private IEnumerable<Measurement<long>> ObserveDestinationErrors()
-    {
-        foreach (var destination in Inventory().Destinations)
-        {
-            yield return new(Counters(MetricSubject.Destination, destination.Slot, DestinationMetric.Stride)[DestinationMetric.Errors], new KeyValuePair<string, object?>("upstream_id", destination.UpstreamId), new KeyValuePair<string, object?>("destination_id", destination.Id));
+            yield return new(Counters(MetricSubject.Destination, destination.Slot, DestinationMetric.Stride)[metric], new KeyValuePair<string, object?>("upstream_id", destination.UpstreamId), new KeyValuePair<string, object?>("destination_id", destination.Id));
         }
     }
 }
