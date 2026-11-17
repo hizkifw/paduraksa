@@ -75,11 +75,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     public static PaduraksaHost Create(PaduraksaHostOptions? hostOptions = null)
     {
         hostOptions ??= new PaduraksaHostOptions();
-        var environmentName = hostOptions.EnvironmentName
-                              ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-                              ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-                              ?? Environments.Production;
-        var contentRootPath = Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory);
+        var (environmentName, contentRootPath) = Locate(hostOptions);
 
         ConfigurationManager configuration = new();
         SharedServices? shared = null;
@@ -317,15 +313,18 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     internal static PaduraksaOptions LoadOptions(PaduraksaHostOptions? hostOptions = null)
     {
         hostOptions ??= new PaduraksaHostOptions();
-        var environmentName = hostOptions.EnvironmentName
-                              ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-                              ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-                              ?? Environments.Production;
-        var contentRootPath = Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory);
+        var (environmentName, contentRootPath) = Locate(hostOptions);
         using ConfigurationManager configuration = new();
         AddConfigurationSources(configuration, hostOptions, environmentName, contentRootPath);
         return BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
     }
+
+    private static (string EnvironmentName, string ContentRootPath) Locate(PaduraksaHostOptions hostOptions) =>
+        (hostOptions.EnvironmentName
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environments.Production,
+        Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory));
 
     private static void AddConfigurationSources(ConfigurationManager configuration, PaduraksaHostOptions hostOptions, string environmentName, string contentRootPath)
     {
@@ -338,6 +337,15 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         hostOptions.ConfigureConfiguration?.Invoke(configuration);
     }
 
+    /// <summary>A relative path made absolute against the content root; one the validator has to judge (invalid characters) is left as it is.</summary>
+    private static string? UnderContentRoot(string? path, string contentRootPath) =>
+        path is { Length: > 0 } && path.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) < 0 && !Path.IsPathFullyQualified(path)
+            ? Path.GetFullPath(path, contentRootPath)
+            : path;
+
+    private static OptionsValidationException Invalid(params string[] failures) =>
+        new(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), failures);
+
     private static PaduraksaOptions BindAndValidate(ConfigurationManager configuration, bool allowEphemeralPorts, string contentRootPath)
     {
         PaduraksaOptions options;
@@ -348,7 +356,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         catch (InvalidOperationException ex)
         {
             // The binder throws InvalidOperationException for unparsable values (e.g. Http = "eighty").
-            throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), [ex.Message]);
+            throw Invalid(ex.Message);
         }
 
         options.ServerSettingEnvironment = ServerSettingEnvironment.Read(configuration.GetSection(PaduraksaOptions.SectionName));
@@ -358,24 +366,20 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         ConfigurationListOptions.Bind(configuration, options);
 
         // Before the validator reads it: a relative trust file is relative to the content root, like the data directory below.
-        if (options.Acme is { TrustedRootsFile: { Length: > 0 } trustedRoots }
-            && trustedRoots.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) < 0
-            && !Path.IsPathFullyQualified(trustedRoots))
+        if (options.Acme is { } acme)
         {
-            options.Acme.TrustedRootsFile = Path.GetFullPath(trustedRoots, contentRootPath);
+            acme.TrustedRootsFile = UnderContentRoot(acme.TrustedRootsFile, contentRootPath);
         }
 
-        if (options.Cloudflare is { OriginPullCaFile: { Length: > 0 } originPullCa }
-            && originPullCa.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) < 0
-            && !Path.IsPathFullyQualified(originPullCa))
+        if (options.Cloudflare is { } cloudflare)
         {
-            options.Cloudflare.OriginPullCaFile = Path.GetFullPath(originPullCa, contentRootPath);
+            cloudflare.OriginPullCaFile = UnderContentRoot(cloudflare.OriginPullCaFile, contentRootPath);
         }
 
         var result = new PaduraksaOptionsValidator(allowEphemeralPorts).Validate(Microsoft.Extensions.Options.Options.DefaultName, options);
         if (result.Failed)
         {
-            throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), result.Failures);
+            throw Invalid([.. result.Failures]);
         }
 
         // Relative paths resolve against the content root, like appsettings, never against the working directory
@@ -389,10 +393,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
             {
                 // The validator rejects the known cases ('\0'); anything else the platform refuses is still bad config.
-                throw new OptionsValidationException(
-                    PaduraksaOptions.SectionName,
-                    typeof(PaduraksaOptions),
-                    [$"{PaduraksaOptions.SectionName}:DataDirectory isn't a valid path: {ex.Message}"]);
+                throw Invalid($"{PaduraksaOptions.SectionName}:DataDirectory isn't a valid path: {ex.Message}");
             }
         }
 
@@ -408,10 +409,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            throw new OptionsValidationException(
-                PaduraksaOptions.SectionName,
-                typeof(PaduraksaOptions),
-                [$"{PaduraksaOptions.SectionName}:Logs:Directory isn't a valid path: {ex.Message}"]);
+            throw Invalid($"{PaduraksaOptions.SectionName}:Logs:Directory isn't a valid path: {ex.Message}");
         }
 
         return options;

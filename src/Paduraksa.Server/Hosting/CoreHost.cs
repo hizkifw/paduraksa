@@ -83,7 +83,7 @@ internal static class CoreHost
         // list changes, and the stored list is already in force from the first compile.
         builder.Services.AddHostedService(static services => services.GetRequiredService<CloudflareRangeRefresher>());
 
-        HostSetup.ApplyCallerServices(builder, context, HostRole.Core);
+        HostSetup.ApplyCallerServices(builder.Services, context, HostRole.Core);
         return builder.Build();
     }
 }

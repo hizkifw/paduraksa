@@ -147,8 +147,8 @@ internal static partial class AdminApp
             new AdminPasswordCheckSlots(sp.GetRequiredService<AdminThrottle>())));
         DashboardAssets.Use(builder);
 
-        HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);
-        HostSetup.PinListenerConfiguration(builder);
+        HostSetup.ApplyCallerServices(builder.Services, context, HostRole.Admin);
+        HostSetup.PinListenerConfiguration(builder.Configuration);
 
         var app = builder.Build();
         FollowServerSettings(app, context.Shared.ServerSettings);

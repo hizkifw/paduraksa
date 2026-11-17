@@ -72,13 +72,6 @@ internal static class HostSetup
     /// <c>URLS</c> environment variable or appsettings key can never move a listener, let alone put the admin on
     /// plain HTTP. Listeners come only from <c>Paduraksa:Listen</c>. Must be the last configuration source.
     /// </summary>
-    public static void PinListenerConfiguration(IHostApplicationBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        PinListenerConfiguration(builder.Configuration);
-    }
-
-    /// <inheritdoc cref="PinListenerConfiguration(IHostApplicationBuilder)"/>
     public static void PinListenerConfiguration(IConfigurationBuilder configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -93,13 +86,6 @@ internal static class HostSetup
     }
 
     /// <summary>Lets callers (tests, later milestones) add services to one host; applied last.</summary>
-    public static void ApplyCallerServices(IHostApplicationBuilder builder, HostContext context, HostRole role)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ApplyCallerServices(builder.Services, context, role);
-    }
-
-    /// <inheritdoc cref="ApplyCallerServices(IHostApplicationBuilder, HostContext, HostRole)"/>
     public static void ApplyCallerServices(IServiceCollection services, HostContext context, HostRole role)
     {
         ArgumentNullException.ThrowIfNull(services);
