@@ -153,13 +153,13 @@
                                     <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
                                 </MudSelect>
                                 <RateLimitField Value="route.RateLimit" ValueChanged="@(value => SetAsync(() => route.RateLimit = value, $"/routes/{index}/settings/rateLimit/policyId"))"
-                                                Inherited="HostRateLimit" Policies="RateLimits" Staged="StagedRateLimits" Label="Rate limit on this route"
+                                                Inherited="HostRateLimit" Items="RateLimits" Staged="StagedRateLimits" Label="Rate limit on this route"
                                                 OnNew="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(route)) : default)"
                                                 HelperText="Inherits the host's policy unless this route names one or turns it off."
                                                 Error="@(E($"/routes/{index}/settings/rateLimit/policyId") ?? E($"/routes/{index}/settings/rateLimit/enabled"))" ReadOnly="ReadOnly"
                                                 Field="@($"route-rate-limit-{index}")" />
                                 <AccessListField Value="route.AccessList" ValueChanged="@(value => SetAsync(() => route.AccessList = value, $"/routes/{index}/settings/accessList/accessListId"))"
-                                                 Inherited="HostAccessList" Lists="AccessLists" Staged="StagedAccessLists" Label="Access list on this route"
+                                                 Inherited="HostAccessList" Items="AccessLists" Staged="StagedAccessLists" Label="Access list on this route"
                                                  OnNew="@(OnNewAccessList.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAccessList.InvokeAsync(route)) : default)"
                                                  HelperText="Inherits the host's list unless this route names one or turns it off."
                                                  Error="@(E($"/routes/{index}/settings/accessList/accessListId") ?? E($"/routes/{index}/settings/accessList/enabled"))" ReadOnly="ReadOnly"
@@ -169,13 +169,13 @@
                                            Error="@E($"/routes/{index}/settings/requestLimits/maxBodySize")" ReadOnly="ReadOnly"
                                            Field="@($"route-max-body-size-{index}")" />
                                 <RuleSetField Value="route.RuleSet" ValueChanged="@(value => SetAsync(() => route.RuleSet = value, $"/routes/{index}/settings/ruleSet/ruleSetId"))"
-                                              Inherited="HostRuleSet" Sets="RuleSets" Staged="StagedRuleSets" Label="Rules on this route"
+                                              Inherited="HostRuleSet" Items="RuleSets" Staged="StagedRuleSets" Label="Rules on this route"
                                               OnNew="@(OnNewRuleSet.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRuleSet.InvokeAsync(route)) : default)"
                                               HelperText="Inherits the host's rule set unless this route names one or turns it off."
                                               Error="@(E($"/routes/{index}/settings/ruleSet/ruleSetId") ?? E($"/routes/{index}/settings/ruleSet/enabled"))" ReadOnly="ReadOnly"
                                               Field="@($"route-rule-set-{index}")" />
                                 <AuthProviderField Value="route.AuthProvider" ValueChanged="@(value => SetAsync(() => route.AuthProvider = value, $"/routes/{index}/settings/authProvider/authProviderId"))"
-                                                   Inherited="HostAuthProvider" Providers="AuthProviders" Staged="StagedAuthProviders" Label="Sign-in on this route"
+                                                   Inherited="HostAuthProvider" Items="AuthProviders" Staged="StagedAuthProviders" Label="Sign-in on this route"
                                                    OnNew="@(OnNewAuthProvider.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAuthProvider.InvokeAsync(route)) : default)"
                                                    HelperText="Inherits the host's provider unless this route names one or turns it off."
                                                    Error="@(E($"/routes/{index}/settings/authProvider/authProviderId") ?? E($"/routes/{index}/settings/authProvider/enabled"))" ReadOnly="ReadOnly"

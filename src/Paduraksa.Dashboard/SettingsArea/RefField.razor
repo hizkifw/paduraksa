@@ -1,0 +1,175 @@
+@typeparam TSettings where TSettings : class
+@typeparam TConfig where TConfig : class
+@typeparam TId where TId : struct, Paduraksa.Core.Ids.ITypedId<TId>
+@* One picker for a layer's reference to a named object (access list, rate limit, auth provider, rule set): inherit what the layer below
+   resolves, none, or one of the objects by name. The choices are the contract's settings record exactly: no record inherits, Enabled false
+   is none, and an object is Enabled true with its ID. An object is never shown by ID. *@
+<RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
+           ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="@Kind.NewLabel" OnNew="@OnNew"
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field"
+           OpenHref="@OpenHref" OpenLabel="@OpenLabel">
+    <MudSelectItem T="string" Value="@InheritChoice">
+        <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
+    </MudSelectItem>
+    <MudSelectItem T="string" Value="@OffChoice">
+        <span class="pdk-picker-item"><span>@Kind.OffLabel</span><span class="pdk-picker-hint">@Kind.OffHint</span></span>
+    </MudSelectItem>
+    @if (Missing is not null)
+    {
+        <MudSelectItem T="string" Value="@MissingChoice">
+            <span class="pdk-picker-item"><span>@Kind.MissingLabel</span><span class="pdk-picker-hint">@Kind.MissingHint</span></span>
+        </MudSelectItem>
+    }
+    @for (var i = 0; i < Choices.Count; i++)
+    {
+        var index = i;
+        var item = Choices[index];
+        var id = Kind.ConfigId(item);
+        <MudSelectItem T="string" Value="@ItemChoice(index)">
+            <span class="pdk-picker-item">
+                <span>@Kind.Name(item)</span>
+                @if (Staged.Contains(id))
+                {
+                    <span class="pdk-chip pdk-tone-primary">New</span>
+                }
+                else if (IsBuiltIn(id))
+                {
+                    <span class="pdk-chip pdk-tone-default">Built-in</span>
+                }
+                <DraftChip Target="@Kind.DraftTarget(id)" />
+                <span class="pdk-picker-hint">@Kind.Summary(item)</span>
+            </span>
+        </MudSelectItem>
+    }
+</RefPicker>
+
+@code {
+    private const string InheritChoice = "inherit";
+    private const string OffChoice = "off";
+    private const string MissingChoice = "missing";
+    private const string NewChoice = "new";
+
+    /// <summary>The words, accessors and routes of the kind of object this picker names.</summary>
+    protected abstract RefFieldKind<TSettings, TConfig, TId> Kind { get; }
+
+    /// <summary>This layer's record; null inherits.</summary>
+    [Parameter]
+    public TSettings? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TSettings?> ValueChanged { get; set; }
+
+    /// <summary>What the layer below resolves to, which the inherit choice names in words.</summary>
+    [Parameter, EditorRequired]
+    public TSettings Inherited { get; set; } = default!;
+
+    /// <summary>The objects a choice can name: the document's, and those staged in a host's draft. A kind's built-in ones follow them.</summary>
+    [Parameter]
+    public IReadOnlyList<TConfig> Items { get; set; } = [];
+
+    /// <summary>The objects made in the host's drawer, marked "New".</summary>
+    [Parameter]
+    public IReadOnlySet<TId> Staged { get; set; } = new HashSet<TId>();
+
+    /// <summary>"New access list...": the caller opens the editor and selects what it hands back.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    /// <summary>The words of the inherit choice: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>The <c>data-field</c> the tests and the browser select it by.</summary>
+    [Parameter]
+    public string? Field { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        Label ??= Kind.Label;
+        Field ??= Kind.Field;
+    }
+
+    private IReadOnlyList<TConfig> Choices => Kind.BuiltIn.Count == 0 ? Items : [.. Items, .. Kind.BuiltIn];
+
+    private TId? Named => Value is null ? null : Kind.IdOf(Value) is { IsEmpty: false } id ? id : null;
+
+    /// <summary>The object this layer names that the document doesn't have; it gets an option of its own so the select still says so.</summary>
+    private TId? Missing => Named is { } id && IndexOf(id) < 0 ? id : null;
+
+    /// <summary>The chosen object's page; none for one staged in this drawer (it has no page yet), or when none is chosen.</summary>
+    private string? OpenHref => Value is not null && Kind.Enabled(Value) != false && Named is { } id && IndexOf(id) >= 0 && !Staged.Contains(id) ? Kind.Href(id) : null;
+
+    private string? OpenLabel => Named is { } id && IndexOf(id) >= 0 ? $"Open {Kind.Name(Choices[IndexOf(id)])}" : null;
+
+    private string Choice => Value switch
+    {
+        null => InheritChoice,
+        _ when Kind.Enabled(Value) == false => OffChoice,
+        _ when Named is { } id => IndexOf(id) >= 0 ? ItemChoice(IndexOf(id)) : MissingChoice,
+        _ => InheritChoice,
+    };
+
+    private string? ChoiceText(string? key) => key switch
+    {
+        InheritChoice => $"{InheritWord} ({Kind.Inherited(Inherited, Choices)})",
+        OffChoice => Kind.OffLabel,
+        MissingChoice => Kind.MissingLabel,
+        _ when ChosenIndex(key) is { } index => Kind.Name(Choices[index]),
+        _ => string.Empty,
+    };
+
+    private bool IsBuiltIn(TId id) => Kind.BuiltIn.Any(item => Kind.ConfigId(item).Equals(id));
+
+    private int IndexOf(TId id)
+    {
+        var choices = Choices;
+        for (var i = 0; i < choices.Count; i++)
+        {
+            if (Kind.ConfigId(choices[i]).Equals(id))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private int? ChosenIndex(string? key) =>
+        key is not null && key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Choices.Count ? index : null;
+
+    private static string ItemChoice(int index) => $"p{index}";
+
+    private async Task OnChoiceAsync(string key)
+    {
+        if (key == InheritChoice)
+        {
+            await ValueChanged.InvokeAsync(default);
+        }
+        else if (key == OffChoice)
+        {
+            await ValueChanged.InvokeAsync(Kind.Make(false, null));
+        }
+        else if (ChosenIndex(key) is { } index)
+        {
+            await ValueChanged.InvokeAsync(Kind.Make(true, Kind.ConfigId(Choices[index])));
+        }
+    }
+}

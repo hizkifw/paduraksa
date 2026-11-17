@@ -56,7 +56,7 @@ public sealed class AccessListFieldTests
         await using DashboardTestContext context = new();
         var field = context.Render<AccessListField>(parameters => parameters
             .Add(f => f.Inherited, new AccessListSettings { Enabled = false, AccessListId = Office.Id })
-            .Add(f => f.Lists, [Office, Guests]));
+            .Add(f => f.Items, [Office, Guests]));
 
         Assert.Contains("Inherit (no access list)", Displayed(field), StringComparison.Ordinal);
     }
@@ -93,7 +93,7 @@ public sealed class AccessListFieldTests
             .Add(f => f.Value, value)
             .Add(f => f.ValueChanged, changed)
             .Add(f => f.Inherited, Inherited)
-            .Add(f => f.Lists, [Office, Guests]);
+            .Add(f => f.Items, [Office, Guests]);
 
     /// <summary>The text the select shows for its value, which is the selected item's words.</summary>
     private static string Displayed(IRenderedComponent<AccessListField> field) =>

@@ -61,7 +61,7 @@ public sealed class RuleSetFieldTests
         await using DashboardTestContext context = new();
         var field = context.Render<RuleSetField>(parameters => parameters
             .Add(f => f.Inherited, new RuleSetSettings { Enabled = false, RuleSetId = Scanners.Id })
-            .Add(f => f.Sets, [Scanners, Admin]));
+            .Add(f => f.Items, [Scanners, Admin]));
 
         Assert.Contains("Inherit (no rule set)", Displayed(field), StringComparison.Ordinal);
     }
@@ -72,7 +72,7 @@ public sealed class RuleSetFieldTests
         await using DashboardTestContext context = new();
         var field = context.Render<RuleSetField>(parameters => parameters
             .Add(f => f.Inherited, new RuleSetSettings { RuleSetId = RuleSetPresets.AiCrawlers.Id })
-            .Add(f => f.Sets, [Scanners]));
+            .Add(f => f.Items, [Scanners]));
 
         Assert.Contains("Inherit (Block AI crawlers)", Displayed(field), StringComparison.Ordinal);
     }
@@ -108,7 +108,7 @@ public sealed class RuleSetFieldTests
             .Add(f => f.Value, value)
             .Add(f => f.ValueChanged, changed)
             .Add(f => f.Inherited, Inherited)
-            .Add(f => f.Sets, [Scanners, Admin]);
+            .Add(f => f.Items, [Scanners, Admin]);
 
     private static string Displayed(IRenderedComponent<RuleSetField> field) =>
         field.Find("[data-field=rule-set]").GetAttribute("value") ?? string.Empty;

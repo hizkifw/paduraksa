@@ -78,25 +78,25 @@
 
         <SettingRow Title="Access list" Help="Who may reach it: the addresses a list allows or denies, and the users it asks a password of.">
             <AccessListField Value="_current.AccessList" ValueChanged="SetAccessList" Inherited="@(Resolved.AccessList ?? new AccessListSettings())"
-                             Lists="AccessLists" Staged="StagedAccessLists" InheritWord="@InheritWord" OnNew="OnNewAccessList"
+                             Items="AccessLists" Staged="StagedAccessLists" InheritWord="@InheritWord" OnNew="OnNewAccessList"
                              Error="@AccessListError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
         </SettingRow>
 
         <SettingRow Title="Rules" Help="Refuse, drop or allow requests by path, method and user agent. Asked before a password, so a refused request costs no check.">
             <RuleSetField Value="_current.RuleSet" ValueChanged="SetRuleSet" Inherited="@(Resolved.RuleSet ?? new RuleSetSettings())"
-                          Sets="RuleSets" Staged="StagedRuleSets" InheritWord="@InheritWord" OnNew="OnNewRuleSet"
+                          Items="RuleSets" Staged="StagedRuleSets" InheritWord="@InheritWord" OnNew="OnNewRuleSet"
                           Error="@RuleSetError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
         </SettingRow>
 
         <SettingRow Title="Sign-in" Help="Ask an auth provider (authentik, Authelia, oauth2-proxy) who the request is before it is forwarded. Route the provider's own sign-in pages with sign-in off.">
             <AuthProviderField Value="_current.AuthProvider" ValueChanged="SetAuthProvider" Inherited="@(Resolved.AuthProvider ?? new AuthProviderSettings())"
-                               Providers="AuthProviders" Staged="StagedAuthProviders" InheritWord="@InheritWord" OnNew="OnNewAuthProvider"
+                               Items="AuthProviders" Staged="StagedAuthProviders" InheritWord="@InheritWord" OnNew="OnNewAuthProvider"
                                Error="@AuthProviderError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
         </SettingRow>
 
         <SettingRow Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately.">
             <RateLimitField Value="_current.RateLimit" ValueChanged="SetRateLimit" Inherited="@(Resolved.RateLimit ?? new RateLimitSettings())"
-                            Policies="Policies" Staged="StagedRateLimits" InheritWord="@InheritWord" OnNew="OnNewRateLimit"
+                            Items="Policies" Staged="StagedRateLimits" InheritWord="@InheritWord" OnNew="OnNewRateLimit"
                             Error="@RateLimitError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
         </SettingRow>
 

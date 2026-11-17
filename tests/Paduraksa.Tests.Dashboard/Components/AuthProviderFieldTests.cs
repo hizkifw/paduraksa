@@ -55,7 +55,7 @@ public sealed class AuthProviderFieldTests
         await using DashboardTestContext context = new();
         var field = context.Render<AuthProviderField>(parameters => parameters
             .Add(f => f.Inherited, new AuthProviderSettings { Enabled = false, AuthProviderId = Authelia.Id })
-            .Add(f => f.Providers, [Authelia, Authentik]));
+            .Add(f => f.Items, [Authelia, Authentik]));
 
         Assert.Contains("Inherit (no sign-in)", Displayed(field), StringComparison.Ordinal);
     }
@@ -79,7 +79,7 @@ public sealed class AuthProviderFieldTests
             .Add(f => f.Value, chosen)
             .Add(f => f.ValueChanged, value => chosen = value)
             .Add(f => f.Inherited, Inherited)
-            .Add(f => f.Providers, [Authelia, Authentik])
+            .Add(f => f.Items, [Authelia, Authentik])
             .Add(f => f.OnNew, () => raised++));
 
         Assert.Equal(["inherit", "off", "p0", "p1", "new"], field.FindComponents<MudSelectItem<string>>().Select(item => item.Instance.Value));
@@ -113,7 +113,7 @@ public sealed class AuthProviderFieldTests
             .Add(f => f.Value, value)
             .Add(f => f.ValueChanged, changed)
             .Add(f => f.Inherited, Inherited)
-            .Add(f => f.Providers, [Authelia, Authentik]);
+            .Add(f => f.Items, [Authelia, Authentik]);
 
     private static string Displayed(IRenderedComponent<AuthProviderField> field) =>
         field.Find("[data-field=auth-provider]").GetAttribute("value") ?? string.Empty;

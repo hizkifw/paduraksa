@@ -74,7 +74,7 @@ public sealed class RateLimitFieldTests
             .Add(f => f.Value, value)
             .Add(f => f.ValueChanged, changed)
             .Add(f => f.Inherited, Inherited)
-            .Add(f => f.Policies, [Strict, Bulk]);
+            .Add(f => f.Items, [Strict, Bulk]);
 
     /// <summary>The text the select shows for its value, which is the selected item's words.</summary>
     private static string Displayed(IRenderedComponent<RateLimitField> field) =>

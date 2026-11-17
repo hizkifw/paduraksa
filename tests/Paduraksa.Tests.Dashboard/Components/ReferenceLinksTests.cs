@@ -78,12 +78,12 @@ public sealed class ReferenceLinksTests
         var chosen = context.Render<RateLimitField>(p => p
             .Add(f => f.Value, new RateLimitSettings { Enabled = true, PolicyId = strict.Id })
             .Add(f => f.Inherited, new RateLimitSettings())
-            .Add(f => f.Policies, [strict]));
-        var inherit = context.Render<RateLimitField>(p => p.Add(f => f.Inherited, new RateLimitSettings()).Add(f => f.Policies, [strict]));
+            .Add(f => f.Items, [strict]));
+        var inherit = context.Render<RateLimitField>(p => p.Add(f => f.Inherited, new RateLimitSettings()).Add(f => f.Items, [strict]));
         var staged = context.Render<RateLimitField>(p => p
             .Add(f => f.Value, new RateLimitSettings { Enabled = true, PolicyId = strict.Id })
             .Add(f => f.Inherited, new RateLimitSettings())
-            .Add(f => f.Policies, [strict])
+            .Add(f => f.Items, [strict])
             .Add(f => f.Staged, new HashSet<RateLimitPolicyId> { strict.Id }));
 
         var open = chosen.Find("a[data-action=open-ref]");
@@ -103,13 +103,13 @@ public sealed class ReferenceLinksTests
         var preset = RuleSetPresets.All[0];
 
         var accessList = context.Render<AccessListField>(p => p
-            .Add(f => f.Value, new AccessListSettings { Enabled = true, AccessListId = list.Id }).Add(f => f.Inherited, new AccessListSettings()).Add(f => f.Lists, [list]));
+            .Add(f => f.Value, new AccessListSettings { Enabled = true, AccessListId = list.Id }).Add(f => f.Inherited, new AccessListSettings()).Add(f => f.Items, [list]));
         var auth = context.Render<AuthProviderField>(p => p
-            .Add(f => f.Value, new AuthProviderSettings { Enabled = true, AuthProviderId = provider.Id }).Add(f => f.Inherited, new AuthProviderSettings()).Add(f => f.Providers, [provider]));
+            .Add(f => f.Value, new AuthProviderSettings { Enabled = true, AuthProviderId = provider.Id }).Add(f => f.Inherited, new AuthProviderSettings()).Add(f => f.Items, [provider]));
         var rules = context.Render<RuleSetField>(p => p
-            .Add(f => f.Value, new RuleSetSettings { Enabled = true, RuleSetId = mine.Id }).Add(f => f.Inherited, new RuleSetSettings()).Add(f => f.Sets, [mine]));
+            .Add(f => f.Value, new RuleSetSettings { Enabled = true, RuleSetId = mine.Id }).Add(f => f.Inherited, new RuleSetSettings()).Add(f => f.Items, [mine]));
         var presetRules = context.Render<RuleSetField>(p => p
-            .Add(f => f.Value, new RuleSetSettings { Enabled = true, RuleSetId = preset.Id }).Add(f => f.Inherited, new RuleSetSettings()).Add(f => f.Sets, [mine]));
+            .Add(f => f.Value, new RuleSetSettings { Enabled = true, RuleSetId = preset.Id }).Add(f => f.Inherited, new RuleSetSettings()).Add(f => f.Items, [mine]));
 
         Assert.Equal(DashboardRoutes.AccessList(list.Id), accessList.Find("a[data-action=open-ref]").GetAttribute("href"));
         Assert.Equal(DashboardRoutes.AuthProvider(provider.Id), auth.Find("a[data-action=open-ref]").GetAttribute("href"));

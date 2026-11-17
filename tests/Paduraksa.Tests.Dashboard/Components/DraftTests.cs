@@ -680,7 +680,7 @@ public sealed class DraftTests
         await LoadedAsync(context);
 
         var field = context.Render<RateLimitField>(parameters => parameters
-            .Add(p => p.Policies, [Bulk with { Version = 0 }])
+            .Add(p => p.Items, [Bulk with { Version = 0 }])
             .Add(p => p.Inherited, null)
             .Add(p => p.Label, "Rate limit"));
         await field.InvokeAsync(() => field.FindComponent<MudSelect<string>>().Instance.OpenMenu());
