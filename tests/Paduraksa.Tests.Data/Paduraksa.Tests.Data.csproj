@@ -13,6 +13,8 @@
     <Compile Include="../Shared/SelfSigned.cs" Link="Shared/SelfSigned.cs" />
     <Compile Include="../Shared/ListLogger.cs" Link="Shared/ListLogger.cs" />
     <Compile Include="../Shared/AnalyticsTestData.cs" Link="Shared/AnalyticsTestData.cs" />
+    <!-- The sample model and in-memory database the storage setup tests run on; the typed-ID tests (Paduraksa.TypedIds.Tests) link the same files. -->
+    <Compile Include="../Shared/TypedIdSample/*.cs" Link="Shared/TypedIdSample/%(Filename)%(Extension)" />
     <Using Include="Paduraksa.Tests.Shared" />
   </ItemGroup>
 </Project>

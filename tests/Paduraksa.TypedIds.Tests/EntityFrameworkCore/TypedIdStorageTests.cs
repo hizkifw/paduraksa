@@ -1,8 +1,8 @@
-using Paduraksa.Tests.Data.Sample;
+using Paduraksa.Tests.TypedIdSample;
 using Paduraksa.TypedIds;
-using static Paduraksa.Tests.Data.Sample.SampleDatabase;
+using static Paduraksa.Tests.TypedIdSample.SampleDatabase;
 
-namespace Paduraksa.Tests.Data;
+namespace Paduraksa.TypedIds.Tests;
 
 public sealed class TypedIdStorageTests
 {

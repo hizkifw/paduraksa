@@ -6,7 +6,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <!-- Internals are for the mapping tests. -->
-    <InternalsVisibleTo Include="Paduraksa.TypedIds.EntityFrameworkCore.Tests" />
-    <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
+    <InternalsVisibleTo Include="Paduraksa.TypedIds.Tests" />
   </ItemGroup>
 </Project>

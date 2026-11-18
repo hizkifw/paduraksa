@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
-namespace Paduraksa.Tests.Data.Sample;
+namespace Paduraksa.Tests.TypedIdSample;
 
 /// <summary>
 /// A real in-memory SQLite database that lives as long as this object: the connection is kept open (an in-memory

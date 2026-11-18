@@ -2,7 +2,6 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
-using Paduraksa.Tests.Unit.Ids;
 
 namespace Paduraksa.Tests.Unit.Certificates;
 

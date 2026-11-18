@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Generator tests drive TypedIdGenerator directly via CSharpGeneratorDriver. -->
+    <PaduraksaTypedIdsGeneratorReferenceOutputAssembly>true</PaduraksaTypedIdsGeneratorReferenceOutputAssembly>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.TypedIds/Paduraksa.TypedIds.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.TypedIds.EntityFrameworkCore/Paduraksa.TypedIds.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!-- The EF tests run on real in-memory SQLite. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
+    <Compile Include="../Shared/TypedIdSample/*.cs" Link="Shared/TypedIdSample/%(Filename)%(Extension)" />
+    <Using Include="Paduraksa.Tests.Shared" />
+  </ItemGroup>
+</Project>

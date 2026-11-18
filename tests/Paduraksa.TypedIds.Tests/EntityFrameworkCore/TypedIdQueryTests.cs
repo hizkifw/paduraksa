@@ -1,11 +1,11 @@
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
-using Paduraksa.Tests.Data.Sample;
+using Paduraksa.Tests.TypedIdSample;
 using Paduraksa.TypedIds;
-using static Paduraksa.Tests.Data.Sample.SampleDatabase;
+using static Paduraksa.Tests.TypedIdSample.SampleDatabase;
 
-namespace Paduraksa.Tests.Data;
+namespace Paduraksa.TypedIds.Tests;
 
 /// <summary>
 /// LINQ over typed IDs translates to SQL on the stored values (never client-side evaluation, which EF would reject

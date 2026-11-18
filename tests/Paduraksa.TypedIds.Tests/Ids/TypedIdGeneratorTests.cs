@@ -4,13 +4,14 @@ using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
+using Paduraksa.Tests.TypedIdSample;
 using Paduraksa.TypedIds;
 using Paduraksa.TypedIds.Generator;
 
 // Paduraksa.Tests.Unit.Compilation (the config compiler tests) hides Roslyn's Compilation here.
 using RoslynCompilation = Microsoft.CodeAnalysis.Compilation;
 
-namespace Paduraksa.Tests.Unit.Ids;
+namespace Paduraksa.TypedIds.Tests;
 
 public sealed class TypedIdGeneratorTests
 {

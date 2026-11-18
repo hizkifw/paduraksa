@@ -3,7 +3,7 @@ using System.Text;
 
 using Paduraksa.TypedIds;
 
-namespace Paduraksa.Tests.Unit.Ids;
+namespace Paduraksa.TypedIds.Tests;
 
 public sealed class Base62Tests
 {

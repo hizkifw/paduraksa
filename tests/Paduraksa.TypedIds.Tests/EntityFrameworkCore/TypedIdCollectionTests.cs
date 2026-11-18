@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Paduraksa.Tests.Data.Sample;
-using static Paduraksa.Tests.Data.Sample.SampleDatabase;
+using Paduraksa.Tests.TypedIdSample;
+using static Paduraksa.Tests.TypedIdSample.SampleDatabase;
 
-namespace Paduraksa.Tests.Data;
+namespace Paduraksa.TypedIds.Tests;
 
 public sealed class TypedIdCollectionTests
 {

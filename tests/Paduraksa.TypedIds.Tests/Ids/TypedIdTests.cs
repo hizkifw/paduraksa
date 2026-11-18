@@ -4,9 +4,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Paduraksa.Tests.TypedIdSample;
 using Paduraksa.TypedIds;
 
-namespace Paduraksa.Tests.Unit.Ids;
+namespace Paduraksa.TypedIds.Tests;
 
 public sealed class TypedIdTests
 {

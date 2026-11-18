@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 using Paduraksa.TypedIds;
 
-namespace Paduraksa.Tests.Unit.Ids;
+namespace Paduraksa.TypedIds.Tests;
 
 public sealed class IdValueGeneratorTests
 {

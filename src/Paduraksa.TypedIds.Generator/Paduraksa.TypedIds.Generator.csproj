@@ -13,6 +13,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
+    <InternalsVisibleTo Include="Paduraksa.TypedIds.Tests" />
   </ItemGroup>
 </Project>

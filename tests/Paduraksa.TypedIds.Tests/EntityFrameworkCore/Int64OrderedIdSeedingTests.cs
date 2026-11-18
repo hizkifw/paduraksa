@@ -1,12 +1,12 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Paduraksa.Tests.Data.Sample;
+using Paduraksa.Tests.TypedIdSample;
 using Paduraksa.TypedIds;
 using Paduraksa.TypedIds.EntityFrameworkCore;
-using static Paduraksa.Tests.Data.Sample.SampleDatabase;
+using static Paduraksa.Tests.TypedIdSample.SampleDatabase;
 
-namespace Paduraksa.Tests.Data;
+namespace Paduraksa.TypedIds.Tests;
 
 public sealed class Int64OrderedIdSeedingTests
 {
