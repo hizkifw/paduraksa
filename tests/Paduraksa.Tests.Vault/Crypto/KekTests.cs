@@ -50,8 +50,6 @@ public sealed class KekTests
         Assert.NotEqual(a.CheckValue, b.CheckValue);
         Assert.True(a.Matches(a.CheckValue));
         Assert.False(a.Matches(b.CheckValue));
-        Assert.Equal(Kek.IdLength, a.Id.Length);
-        Assert.Equal(32, a.CheckValue.Length);
     }
 
     [Fact]

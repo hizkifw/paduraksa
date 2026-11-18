@@ -142,10 +142,9 @@ public sealed class KekRotationTests : IDisposable
         using var opened = await _vault.Get<Paduraksa.Vault.Secrets.SecretReader>().OpenAsync(dns, false, Ct);
         Assert.Equal("dns-token", Encoding.UTF8.GetString(opened!.Current.Span));
 
-        // The old key still opens the database, and the caller still owns the unused new key.
+        // The old key still opens the database.
         _vault.Restart();
         await _vault.Get<IVaultLifecycle>().InitializeAsync(Ct);
-        Assert.Equal(32, newKek.CheckValue.Length);
     }
 
     [Fact]

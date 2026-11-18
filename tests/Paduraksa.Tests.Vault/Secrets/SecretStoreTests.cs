@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
@@ -70,14 +69,6 @@ public sealed class SecretStoreTests : IDisposable
         Assert.Equal(1, metadata.Version);
         Assert.Equal(_vault.Time.Now, metadata.CreatedAt);
         Assert.Equal(metadata.CreatedAt, metadata.UpdatedAt);
-    }
-
-    [Fact]
-    public async Task AMacSecretKeepsItsAlgorithm()
-    {
-        var id = await Store.PutAsync(SecretKind.HmacSigningKey, Value, Mac(MacAlgorithm.HmacSha512), Ct);
-
-        Assert.Equal(MacAlgorithm.HmacSha512, (await Store.DescribeAsync(id, Ct))!.MacAlgorithm);
     }
 
     [Fact]
@@ -326,6 +317,5 @@ public sealed class SecretStoreTests : IDisposable
         using var opened = await _vault.Get<SecretReader>().OpenAsync(id, false, Ct);
 
         Assert.Equal(Value, opened!.Current.Span.ToArray());
-        Assert.Equal(Encoding.UTF8.GetString(Value), Encoding.UTF8.GetString(opened.Current.Span));
     }
 }

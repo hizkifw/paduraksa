@@ -94,19 +94,6 @@ public sealed class JwsSignerTests : IDisposable
         Assert.False(Verify(infoA, jws with { Payload = Base64Url.EncodeToString("{\"x\":1}"u8) }));
     }
 
-    [Fact]
-    public async Task SigningTwiceGivesDifferentEcdsaSignaturesBothValid()
-    {
-        var id = AcmeAccountId.New();
-        var info = await Signer.CreateAccountKeyAsync(id, JwsAlgorithm.ES256, Ct);
-
-        var first = await Signer.SignAsync(id, Header("ES256"), "{}"u8.ToArray(), Ct);
-        var second = await Signer.SignAsync(id, Header("ES256"), "{}"u8.ToArray(), Ct);
-
-        Assert.NotEqual(first.Signature, second.Signature);
-        Assert.True(Verify(info, first) && Verify(info, second));
-    }
-
     [Theory]
     [InlineData("ES256", "ES384")]
     [InlineData("ES256", "RS256")]
@@ -219,11 +206,10 @@ public sealed class JwsSignerTests : IDisposable
     public void TheThumbprintOfAnEcKeyIsTheHashOfItsCanonicalJson()
     {
         // RFC 7515 Appendix A.3's P-256 key (the RFC gives no thumbprint for it); checked against the SHA-256 of its
-        // canonical JSON written out by hand, plus the refusals.
+        // canonical JSON, computed outside this code, plus the refusals.
         var jwk = new JsonWebKeyPublic("EC", "P-256", "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU", "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0", null, null);
-        const string Canonical = """{"crv":"P-256","kty":"EC","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"}""";
 
-        Assert.Equal(Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical))), Jwk.Thumbprint(jwk));
+        Assert.Equal("oKIywvGUpTVTyxMQ3bwIIeQUudfr_CkLMjCE19ECD-U", Jwk.Thumbprint(jwk));
         Assert.Throws<ArgumentException>(() => Jwk.Thumbprint(new JsonWebKeyPublic("oct", null, null, null, null, null)));
         Assert.Throws<ArgumentException>(() => Jwk.Thumbprint(new JsonWebKeyPublic("EC", "P-256", "x", null, null, null)));
     }

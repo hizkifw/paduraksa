@@ -39,29 +39,25 @@ public sealed class MacKeyTests : IDisposable
         return (id, key!);
     }
 
-    private static byte[] Tag(MacAlgorithm algorithm, byte[] key, byte[] data) => algorithm switch
-    {
-        MacAlgorithm.HmacSha256 => HMACSHA256.HashData(key, data),
-        MacAlgorithm.HmacSha384 => HMACSHA384.HashData(key, data),
-        _ => HMACSHA512.HashData(key, data),
-    };
+    private static byte[] Tag(byte[] key, byte[] data) => HMACSHA256.HashData(key, data);
 
+    // RFC 4231 test case 1: a 20-byte key of 0x0b and the data "Hi There".
     [Theory]
-    [InlineData(MacAlgorithm.HmacSha256, 32)]
-    [InlineData(MacAlgorithm.HmacSha384, 48)]
-    [InlineData(MacAlgorithm.HmacSha512, 64)]
-    public async Task SignComputesTheHmacOfTheAlgorithmFixedAtPut(MacAlgorithm algorithm, int length)
+    [InlineData(MacAlgorithm.HmacSha256, "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7")]
+    [InlineData(MacAlgorithm.HmacSha384, "afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9cb6")]
+    [InlineData(MacAlgorithm.HmacSha512, "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854")]
+    public async Task SignComputesTheHmacOfTheAlgorithmFixedAtPut(MacAlgorithm algorithm, string expectedHex)
     {
-        var (_, key) = await NewKey(algorithm);
+        var (_, key) = await NewKey(algorithm, value: [.. Enumerable.Repeat((byte)0x0b, 20)]);
+        var expected = Convert.FromHexString(expectedHex);
         var tag = new byte[100];
 
-        var written = key.Sign(Data, tag);
+        var written = key.Sign("Hi There"u8, tag);
 
         Assert.Equal(algorithm, key.Algorithm);
-        Assert.Equal(length, key.TagLength);
-        Assert.Equal(length, written);
-        Assert.Equal(Tag(algorithm, KeyA, Data), tag[..written]);
-        Assert.True(key.Verify(Data, tag.AsSpan(0, written)));
+        Assert.Equal(expected.Length, key.TagLength);
+        Assert.Equal(expected, tag[..written]);
+        Assert.True(key.Verify("Hi There"u8, expected));
     }
 
     [Fact]
@@ -83,7 +79,7 @@ public sealed class MacKeyTests : IDisposable
         Assert.False(key.VerifyTruncated(Data, ReadOnlySpan<byte>.Empty));
         Assert.False(key.Verify(Data, [.. tag, 0]));
         Assert.False(key.VerifyTruncated(Data, [.. tag, 0]));
-        Assert.False(key.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyB, Data)));
+        Assert.False(key.Verify(Data, Tag(KeyB, Data)));
         tag[5] ^= 1;
         Assert.False(key.Verify(Data, tag));
         Assert.False(key.VerifyTruncated(Data, tag.AsSpan(0, 16)));
@@ -123,7 +119,7 @@ public sealed class MacKeyTests : IDisposable
 
         var newTag = new byte[32];
         key.Sign(Data, newTag);
-        Assert.Equal(Tag(MacAlgorithm.HmacSha256, KeyB, Data), newTag);
+        Assert.Equal(Tag(KeyB, Data), newTag);
         Assert.NotEqual(oldTag, newTag);
     }
 
@@ -131,18 +127,18 @@ public sealed class MacKeyTests : IDisposable
     public async Task ThePreviousVersionVerifiesWithinTheGraceWindowOnly()
     {
         var (id, key) = await NewKey();
-        var oldTag = Tag(MacAlgorithm.HmacSha256, KeyA, Data);
+        var oldTag = Tag(KeyA, Data);
         await Store.ReplaceAsync(id, KeyB, null, Ct);
 
         Assert.True(key.Verify(Data, oldTag));
-        Assert.True(key.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyB, Data)));
+        Assert.True(key.Verify(Data, Tag(KeyB, Data)));
 
         _vault.Time.Advance(_vault.Policy.MacGraceWindow - TimeSpan.FromSeconds(1));
         Assert.True(key.Verify(Data, oldTag));
 
         _vault.Time.Advance(TimeSpan.FromSeconds(2));
         Assert.False(key.Verify(Data, oldTag));
-        Assert.True(key.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyB, Data)));
+        Assert.True(key.Verify(Data, Tag(KeyB, Data)));
     }
 
     [Fact]
@@ -152,9 +148,9 @@ public sealed class MacKeyTests : IDisposable
         await Store.ReplaceAsync(id, KeyB, null, Ct);
         await Store.ReplaceAsync(id, KeyC, null, Ct);
 
-        Assert.False(key.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyA, Data)));
-        Assert.True(key.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyB, Data)));
-        Assert.True(key.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyC, Data)));
+        Assert.False(key.Verify(Data, Tag(KeyA, Data)));
+        Assert.True(key.Verify(Data, Tag(KeyB, Data)));
+        Assert.True(key.Verify(Data, Tag(KeyC, Data)));
     }
 
     [Fact]
@@ -166,7 +162,7 @@ public sealed class MacKeyTests : IDisposable
 
         key.Sign(Data, tag);
 
-        Assert.NotEqual(Tag(MacAlgorithm.HmacSha256, KeyA, Data), tag);
+        Assert.NotEqual(Tag(KeyA, Data), tag);
     }
 
     [Fact]
@@ -207,11 +203,11 @@ public sealed class MacKeyTests : IDisposable
         // Still the cached key until the entry is old enough to be checked again.
         var tag = new byte[32];
         key.Sign(Data, tag);
-        Assert.Equal(Tag(MacAlgorithm.HmacSha256, KeyA, Data), tag);
+        Assert.Equal(Tag(KeyA, Data), tag);
 
         _vault.Time.Advance(_vault.Policy.MacCacheMaxAge);
         key.Sign(Data, tag);
-        Assert.Equal(Tag(MacAlgorithm.HmacSha256, KeyB, Data), tag);
+        Assert.Equal(Tag(KeyB, Data), tag);
     }
 
     [Fact]
@@ -234,7 +230,7 @@ public sealed class MacKeyTests : IDisposable
         _vault.Restart();
 
         var key = await Source.OpenAsync(id, SecretKind.HmacSigningKey, Ct);
-        Assert.True(key!.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyA, Data)));
+        Assert.True(key!.Verify(Data, Tag(KeyA, Data)));
     }
 
     [Fact]
@@ -242,7 +238,7 @@ public sealed class MacKeyTests : IDisposable
     {
         var (id, key) = await NewKey();
         var keys = new[] { KeyA, KeyB, KeyC };
-        var valid = keys.Select(k => Convert.ToHexString(Tag(MacAlgorithm.HmacSha256, k, Data))).ToHashSet(StringComparer.Ordinal);
+        var valid = keys.Select(k => Convert.ToHexString(Tag(k, Data))).ToHashSet(StringComparer.Ordinal);
         using var stop = new CancellationTokenSource();
         // Every signer must have run at least once before the replacements finish, or "everyone worked" only measures
         // the thread pool's scheduling: on a loaded CI runner three of four signers had not started before the 30
@@ -316,8 +312,8 @@ public sealed class MacKeyTests : IDisposable
         _vault.Policy = _vault.Policy with { MacCacheMaxAge = TimeSpan.Zero };
         var (id, key) = await NewKey();
         var keys = new[] { KeyA, KeyB, KeyC };
-        var valid = keys.Select(k => Convert.ToHexString(Tag(MacAlgorithm.HmacSha256, k, Data))).ToHashSet(StringComparer.Ordinal);
-        var forged = Tag(MacAlgorithm.HmacSha256, new byte[32], Data);
+        var valid = keys.Select(k => Convert.ToHexString(Tag(k, Data))).ToHashSet(StringComparer.Ordinal);
+        var forged = Tag(new byte[32], Data);
         var cache = _vault.Get<MacKeyCache>();
         using var stop = new CancellationTokenSource();
         // Prove every worker is alive before the invalidation storm starts. An invalidation advances the epoch and a

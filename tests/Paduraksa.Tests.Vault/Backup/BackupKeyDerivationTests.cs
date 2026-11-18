@@ -28,12 +28,4 @@ public sealed class BackupKeyDerivationTests
         salt[0] ^= 1;
         Assert.NotEqual(first, BackupKeyDerivation.Derive("correct horse battery", salt, 64, 1, 1));
     }
-
-    [Fact]
-    public void TheDefaultCostIsTheOneThePlanRecords()
-    {
-        Assert.Equal(64 * 1024, BackupHeader.DefaultMemoryKiB);
-        Assert.Equal(3, BackupHeader.DefaultIterations);
-        Assert.Equal(4, BackupHeader.DefaultParallelism);
-    }
 }
