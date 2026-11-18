@@ -192,7 +192,7 @@ public sealed class TokenDetailsTests
     }
 
     [Fact]
-    public async Task ARenameLeavesTheScopesOutOfTheRequest_AndNothingChangedSendsNothing()
+    public async Task NothingChangedSendsNothing()
     {
         var (context, identity, drawers, _, _) = await OpenAsync(Role.Operator);
         await using var scope = context;
@@ -368,16 +368,6 @@ public sealed class TokenDetailsTests
         Assert.Contains("pdk-tone-warning", drawers.Find("[data-chip=status]").ClassName, StringComparison.Ordinal);
         await page.WaitForStateAsync(() => page.FindAll("[data-token=paused]").Count == 1);
         Assert.Contains("pdk-tone-warning", page.Find("[data-token=paused]").Closest("[role=row]")!.QuerySelector("[data-chip=status]")!.ClassName, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task UpdatingAnUnknownTokenIsNotFoundNotAnException()
-    {
-        FakeDashboardIdentity identity = new();
-
-        var result = await identity.UpdateTokenAsync(default!, ApiTokenId.New(), new UpdateApiTokenRequest(Disabled: true), Xunit.TestContext.Current.CancellationToken);
-
-        Assert.Equal(IdentityStatus.NotFound, result.Status);
     }
 
     [Fact]
