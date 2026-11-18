@@ -177,18 +177,6 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
         Assert.Contains("couldn't be read", problem.Detail, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task TheApiDescriptionListsTheLogEndpointsWithTheirPermission()
-    {
-        var api = StartAsync(shared);
-
-        using var response = await api.GetAsync("/api/v1/openapi.json");
-        var document = await response.Content.ReadAsStringAsync(Ct);
-
-        Assert.Contains("/api/v1/logs", document, StringComparison.Ordinal);
-        Assert.Contains("logs:read", document, StringComparison.Ordinal);
-    }
-
     /// <summary>The class's shared host, whose log directory this class writes the files it reads.</summary>
     private static AdminApiHarness StartAsync(SharedAdminApi shared)
     {

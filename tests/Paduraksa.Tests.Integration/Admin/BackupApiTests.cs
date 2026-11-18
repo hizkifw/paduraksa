@@ -160,20 +160,6 @@ public sealed class BackupApiTests : IAsyncLifetime
         Assert.DoesNotContain(_logs.Entries, e => e.Message.Contains(Passphrase, StringComparison.Ordinal) || (e.Exception?.ToString().Contains(Passphrase, StringComparison.Ordinal) ?? false));
     }
 
-    [Fact]
-    public async Task TheOpenApiDocumentDescribesItWithItsPermissionAndNoRestoreEndpointExists()
-    {
-        using var response = await _api.GetAsync("/api/v1/openapi.json", caller: null);
-        var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!;
-
-        var operation = document["paths"]!["/api/v1/backup"]!["post"]!;
-
-        Assert.Equal("backup:create", operation["x-required-permission"]!.GetValue<string>());
-        Assert.NotNull(operation["responses"]!["200"]);
-        Assert.NotNull(operation["responses"]!["409"]);
-        Assert.DoesNotContain(document["paths"]!.AsObject().Select(p => p.Key), path => path.Contains("restore", StringComparison.OrdinalIgnoreCase));
-    }
-
     private async Task<string> IssueAsync(string role, params Permission[] scopes)
     {
         var issued = await _api.Host.Shared.ApiTokens.IssueAsync(

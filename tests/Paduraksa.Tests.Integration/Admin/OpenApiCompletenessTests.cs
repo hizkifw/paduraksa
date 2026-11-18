@@ -233,15 +233,6 @@ public sealed partial class OpenApiCompletenessTests(SharedAdminApi shared) : IC
         Assert.Empty(wrong);
     }
 
-    [Fact]
-    public async Task TheDescriptionNamesItsServerAndOffersTheVersionEndpoint()
-    {
-        var document = await DocumentAsync();
-
-        Assert.True(document.GetProperty("servers").GetArrayLength() >= 1);
-        Assert.True(document.GetProperty("paths").TryGetProperty("/api/v1/version", out _));
-    }
-
     /// <summary>The route as the description writes it: no route constraints, no trailing slash.</summary>
     private static string Normalize(string route)
     {

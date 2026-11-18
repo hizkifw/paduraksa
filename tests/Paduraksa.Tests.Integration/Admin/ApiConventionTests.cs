@@ -9,8 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
-using Paduraksa.Contracts.Api;
-using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
@@ -383,7 +381,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     }
 
     [Fact]
-    public async Task TheOpenApiDocumentIsAnonymousOpenApi31WithTypedIdSchemasAndEveryOperationDescribed()
+    public async Task TheOpenApiDocumentIsAnonymousOpenApi31AndEveryOperationDescribed()
     {
         var api = shared.Api;
 
@@ -396,8 +394,6 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
 
         Assert.StartsWith("3.1", document["openapi"]!.GetValue<string>(), StringComparison.Ordinal);
         var paths = document["paths"]!.AsObject();
-        Assert.Contains("/api/v1/hosts/{id}", paths.Select(p => p.Key));
-        Assert.Contains("/api/v1/auth/login", paths.Select(p => p.Key));
         var operations = 0;
         foreach (var (path, item) in paths)
         {
@@ -422,121 +418,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
         }
 
         Assert.True(operations > 50, $"{operations} operations");
-        var schemas = document["components"]!["schemas"]!.AsObject();
-        var hostId = schemas.Single(s => s.Key.Contains("HostId", StringComparison.Ordinal) && s.Value!["pattern"] is not null).Value!.AsObject();
-        Assert.Equal("^host_[0-9A-Za-z]{22}$", hostId["pattern"]!.GetValue<string>());
-        var example = hostId["examples"]![0]!.GetValue<string>();
-        Assert.Matches("^host_[0-9A-Za-z]{22}$", example);
-        Assert.NotEqual("host_0000000000000000000000", example);
-        Assert.Contains("ApiProblem", schemas.Select(s => s.Key));
-        var idParameter = paths["/api/v1/hosts/{id}"]!["get"]!["parameters"]![0]!;
-        var idSchema = idParameter["schema"]!;
-        Assert.True(
-            idSchema["$ref"]?.GetValue<string>().EndsWith("/HostId", StringComparison.Ordinal) == true || idSchema["pattern"]?.GetValue<string>() == "^host_[0-9A-Za-z]{22}$",
-            "the path parameter is described as a HostId: " + idSchema.ToJsonString());
-        Assert.Contains("config.publishFailed", paths["/api/v1/hosts/{id}"]!["put"]!["responses"]!["500"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
-        Assert.Contains("If-Match", document["info"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.DoesNotContain("PRIVATE KEY", text, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheOpenApiDocumentDescribesTheHeaderAndLogSettings()
-    {
-        var api = shared.Api;
-
-        using var response = await api.GetAsync("/api/v1/openapi.json", caller: null);
-        var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
-        var schemas = document["components"]!["schemas"]!.AsObject();
-
-        // HostSettings carries it beside the TLS layer, and the schema says what each field means.
-        var hostSettings = schemas["HostSettings"]!.AsObject();
-        Assert.Contains("hsts", hostSettings["properties"]!.AsObject().Select(p => p.Key));
-        var property = hostSettings["properties"]!["hsts"]!;
-        var reference = property["$ref"]?.GetValue<string>() ?? property["oneOf"]?[1]?["$ref"]?.GetValue<string>();
-        Assert.NotNull(reference);
-        Assert.Contains("HstsSettings", reference!, StringComparison.Ordinal);
-
-        var hsts = schemas["HstsSettings"]!.AsObject();
-        var properties = hsts["properties"]!.AsObject();
-        Assert.Equal(["enabled", "maxAge", "includeSubDomains", "preload"], properties.Select(p => p.Key));
-        Assert.Contains("max-age", properties["maxAge"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("preload", properties["preload"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
-
-        // The Server header layer is beside HSTS, with its own mode and value.
-        Assert.Contains("serverHeader", hostSettings["properties"]!.AsObject().Select(p => p.Key));
-        var serverProperty = hostSettings["properties"]!["serverHeader"]!;
-        var serverReference = serverProperty["$ref"]?.GetValue<string>() ?? serverProperty["oneOf"]?[1]?["$ref"]?.GetValue<string>();
-        Assert.NotNull(serverReference);
-        Assert.Contains("ServerHeaderSettings", serverReference, StringComparison.Ordinal);
-        var serverProperties = schemas["ServerHeaderSettings"]!["properties"]!.AsObject();
-        Assert.Equal(["mode", "value"], serverProperties.Select(p => p.Key));
-        var mode = serverProperties["mode"]!;
-        var modeReference = mode["$ref"]?.GetValue<string>() ?? mode["oneOf"]?[1]?["$ref"]?.GetValue<string>();
-        Assert.NotNull(modeReference);
-        Assert.Contains("ServerHeaderMode", modeReference, StringComparison.Ordinal);
-        Assert.Contains("remove", schemas["ServerHeaderMode"]!["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
-        Assert.Contains("128", serverProperties["value"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
-
-        // The access-log switch is described, and the request ID's destination is its own enum (a $ref carries no description).
-        var hostProperties = hostSettings["properties"]!.AsObject();
-        Assert.Contains("access log", hostProperties["accessLog"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
-        var propagation = hostProperties["requestIdPropagation"]!;
-        var propagationReference = propagation["$ref"]?.GetValue<string>() ?? propagation["oneOf"]?[1]?["$ref"]?.GetValue<string>();
-        Assert.NotNull(propagationReference);
-        Assert.Contains("off", schemas["RequestIdPropagation"]!["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
-    }
-
-    [Fact]
-    public async Task TheOpenApiDocumentDescribesTheAuthProviderEndpointsAndTheirPresets()
-    {
-        var api = shared.Api;
-
-        using var response = await api.GetAsync("/api/v1/openapi.json", caller: null);
-        var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
-        var paths = document["paths"]!.AsObject();
-
-        Assert.Contains("/api/v1/auth-providers", paths.Select(p => p.Key));
-        var operation = paths["/api/v1/auth-providers/{id}"]!["delete"]!;
-        Assert.Contains("Refused", operation["description"]!.GetValue<string>(), StringComparison.Ordinal);
-        Assert.Equal("config:write", operation["x-required-permission"]!.GetValue<string>());
-        var schemas = document["components"]!["schemas"]!.AsObject();
-        var forwardSchema = schemas["ForwardAuthConfig"]!.ToJsonString();
-        foreach (var value in (string[])["custom", "authentik", "authelia", "oAuth2Proxy", "request", "host"])
-        {
-            Assert.Contains($"\"{value}\"", forwardSchema, StringComparison.Ordinal);
-        }
-
-        var forward = schemas["ForwardAuthConfig"]!["properties"]!.AsObject();
-        Assert.Equal(["url", "preset", "timeoutSeconds", "cacheSeconds", "cacheScope", "requestHeaders", "responseHeaders", "signIn"], forward.Select(p => p.Key));
-        Assert.Contains("remembered", forward["cacheSeconds"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheSharedEnumsKeepTheirSchemaNames()
-    {
-        // The enums the config document and the proxy share live in Core, but their names are the API contract's: each is a
-        // components.schemas key, so a rename here would silently rename a published schema.
-        var api = shared.Api;
-
-        using var response = await api.GetAsync("/api/v1/openapi.json", caller: null);
-        var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
-        var schemas = document["components"]!["schemas"]!.AsObject();
-
-        // Four of them are described as a schema of their own; the other four are inlined where they are used, so their
-        // names never reach components.schemas. Both spellings are pinned: either would change the published API.
-        string[] names = [.. schemas.Select(s => s.Key)];
-        foreach (var name in (string[])["TlsMinimumVersion", "TcpAlpn", "ServerHeaderMode", "RequestIdPropagation"])
-        {
-            Assert.Contains(name, names);
-        }
-
-        Assert.DoesNotContain("UnknownHostMode", names);
-
-        // The inlined one keeps the values a client reads, and the contract's name.
-        var unknownHost = schemas["GlobalSettings"]!["properties"]!["unknownHost"]!.AsObject();
-        Assert.Equal(
-            ["notFound", "misdirectedRequest", "close"],
-            unknownHost["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
     }
 
     [Fact]

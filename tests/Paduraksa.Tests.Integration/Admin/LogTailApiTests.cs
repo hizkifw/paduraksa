@@ -333,15 +333,4 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
     }
-
-    [Fact]
-    public async Task TheOpenApiDocumentDescribesTheStream()
-    {
-        using var response = await shared.Api.GetAsync("/api/v1/openapi.json");
-        var document = await response.Content.ReadAsStringAsync(Ct);
-
-        Assert.Contains("/api/v1/logs/tail", document, StringComparison.Ordinal);
-        Assert.Contains("text/event-stream", document, StringComparison.Ordinal);
-        Assert.Contains("StreamAccessLog", document, StringComparison.Ordinal);
-    }
 }

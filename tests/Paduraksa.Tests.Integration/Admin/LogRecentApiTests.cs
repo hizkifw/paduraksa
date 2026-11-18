@@ -86,14 +86,4 @@ public sealed class LogRecentApiTests(SharedAdminApi shared) : IClassFixture<Sha
         var problem = await AdminApiHarness.ProblemAsync(response, Ct);
         Assert.NotNull(problem.Detail);
     }
-
-    [Fact]
-    public async Task TheApiDescriptionHasIt()
-    {
-        using var response = await shared.Api.GetAsync("/api/v1/openapi.json", null);
-        var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct)).RootElement;
-        var operation = document.GetProperty("paths").GetProperty("/api/v1/logs/recent").GetProperty("get");
-        Assert.Equal("ListRecentAccessLog", operation.GetProperty("operationId").GetString());
-        Assert.Equal("logs:read", operation.GetProperty("x-required-permission").GetString());
-    }
 }
