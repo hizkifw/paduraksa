@@ -58,7 +58,7 @@ The request path is held to a strict budget:
   - Two `FrozenDictionary` tables (exact names, wildcard parents), `OrdinalIgnoreCase`, looked up via `GetAlternateLookup<ReadOnlySpan<char>>`: 11 to 22 ns, 0 B. `Request.Host.Host` allocates when a port is present.
   - The compiler **rejects duplicate host names** (otherwise the last silently wins) and canonicalises IPv6-literal keys.
 - **Client-IP parsing.** Our own span parser into `UInt128`, because `IPAddress.TryParse` allocates 40 or 80 B. Ours is stricter than the BCL: no octal, hex, short forms, zone IDs or whitespace. An edge-case list plus a differential fuzz against the BCL guard it.
-- **Policies.** Sealed `IRequestPolicy` classes returning a 16-byte `PolicyDecision` struct.
+- **Policies.** Sealed `IRequestPolicy` classes returning a 24-byte `PolicyDecision` struct (two references and the action).
 - **Tests.** `AllocAssert.Zero(state, static lambda)` for synchronous code. In-process Kestrel tests assert that the gate's decision, the access log's completion callback and the reapply response-start hook allocate 0 B (`GateAllocationTests`). Kestrel and YARP numbers are tracked in `bench/`, not asserted.
 - **Benchmarks** run under workstation GC, because BenchmarkDotNet's `Allocated` column is wrong under Server GC with the in-process toolchain. Non-monotonic `GC.GetTotalAllocatedBytes` samples are discarded.
 
