@@ -30,7 +30,9 @@ namespace Paduraksa.TypedIds;
 /// </remarks>
 public sealed class Int64OrderedIdGenerator
 {
+    /// <summary>Bits of the millisecond timestamp.</summary>
     public const int TimestampBits = 44;
+    /// <summary>Bits of the counter below the timestamp.</summary>
     public const int CounterBits = 19;
 
     /// <summary>Custom epoch: 2025-01-01T00:00:00Z.</summary>
@@ -49,6 +51,8 @@ public sealed class Int64OrderedIdGenerator
     // The last issued value. Starts at timestamp 0 with a random counter.
     private long _last;
 
+    /// <summary>Creates a generator that reads time from <paramref name="timeProvider"/>. The counter starts at a random value.</summary>
+    /// <param name="timeProvider">The clock; <see cref="Shared"/> uses <see cref="TimeProvider.System"/>.</param>
     public Int64OrderedIdGenerator(TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -80,6 +84,8 @@ public sealed class Int64OrderedIdGenerator
         }
     }
 
+    /// <summary>Returns the next ID, strictly greater than every one this instance issued before.</summary>
+    /// <exception cref="InvalidOperationException">The ID space is exhausted.</exception>
     public long Next()
     {
         var now = Math.Clamp(

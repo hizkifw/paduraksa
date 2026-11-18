@@ -36,30 +36,43 @@ public static class Base62
     // The table the codec actually uses. Must equal Alphabet (checked by Base62Tests).
     private static ReadOnlySpan<byte> AlphabetUtf8 => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"u8;
 
+    /// <summary>Encodes <paramref name="value"/> as exactly <see cref="Width128"/> chars. Returns <see langword="false"/> when <paramref name="destination"/> is shorter.</summary>
     public static bool TryEncode(UInt128 value, Span<char> destination) => TryEncodeCore(value, destination);
 
+    /// <summary>Encodes <paramref name="value"/> as exactly <see cref="Width128"/> ASCII bytes. Returns <see langword="false"/> when <paramref name="utf8Destination"/> is shorter.</summary>
     public static bool TryEncode(UInt128 value, Span<byte> utf8Destination) => TryEncodeCore(value, utf8Destination);
 
+    /// <summary>Encodes <paramref name="value"/> as exactly <see cref="Width64"/> chars. Returns <see langword="false"/> when <paramref name="destination"/> is shorter.</summary>
     public static bool TryEncode(ulong value, Span<char> destination) => TryEncodeCore(value, destination);
 
+    /// <summary>Encodes <paramref name="value"/> as exactly <see cref="Width64"/> ASCII bytes. Returns <see langword="false"/> when <paramref name="utf8Destination"/> is shorter.</summary>
     public static bool TryEncode(ulong value, Span<byte> utf8Destination) => TryEncodeCore(value, utf8Destination);
 
+    /// <summary>Encodes <paramref name="value"/> (big-endian byte order) as exactly <see cref="Width128"/> chars. Returns <see langword="false"/> when <paramref name="destination"/> is shorter.</summary>
     public static bool TryEncode(Guid value, Span<char> destination) => TryEncodeCore(ToUInt128(value), destination);
 
+    /// <summary>Encodes <paramref name="value"/> (big-endian byte order) as exactly <see cref="Width128"/> ASCII bytes. Returns <see langword="false"/> when <paramref name="utf8Destination"/> is shorter.</summary>
     public static bool TryEncode(Guid value, Span<byte> utf8Destination) => TryEncodeCore(ToUInt128(value), utf8Destination);
 
+    /// <summary>Encodes <paramref name="value"/> as a <see cref="Width128"/>-char string.</summary>
     public static string Encode(UInt128 value) => string.Create(Width128, value, static (span, v) => TryEncodeCore(v, span));
 
+    /// <summary>Encodes <paramref name="value"/> as a <see cref="Width64"/>-char string.</summary>
     public static string Encode(ulong value) => string.Create(Width64, value, static (span, v) => TryEncodeCore(v, span));
 
+    /// <summary>Encodes <paramref name="value"/> (big-endian byte order) as a <see cref="Width128"/>-char string.</summary>
     public static string Encode(Guid value) => Encode(ToUInt128(value));
 
+    /// <summary>Decodes exactly <see cref="Width128"/> chars. Fails on another length, a character outside the alphabet, or a value above <see cref="UInt128.MaxValue"/>.</summary>
     public static bool TryDecodeUInt128(ReadOnlySpan<char> source, out UInt128 value) => TryDecodeCore(source, out value);
 
+    /// <summary>Decodes exactly <see cref="Width128"/> ASCII bytes. Fails on another length, a byte outside the alphabet, or a value above <see cref="UInt128.MaxValue"/>.</summary>
     public static bool TryDecodeUInt128(ReadOnlySpan<byte> utf8Source, out UInt128 value) => TryDecodeCore(utf8Source, out value);
 
+    /// <summary>Decodes exactly <see cref="Width64"/> chars. Fails on another length, a character outside the alphabet, or a value above <see cref="ulong.MaxValue"/>.</summary>
     public static bool TryDecodeUInt64(ReadOnlySpan<char> source, out ulong value) => TryDecodeCore(source, out value);
 
+    /// <summary>Decodes exactly <see cref="Width64"/> ASCII bytes. Fails on another length, a byte outside the alphabet, or a value above <see cref="ulong.MaxValue"/>.</summary>
     public static bool TryDecodeUInt64(ReadOnlySpan<byte> utf8Source, out ulong value) => TryDecodeCore(utf8Source, out value);
 
     /// <summary>Decodes exactly <see cref="Width128"/> chars into a <see cref="Guid"/> (big-endian byte order).</summary>

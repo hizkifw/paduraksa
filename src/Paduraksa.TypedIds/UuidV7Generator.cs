@@ -8,7 +8,7 @@ namespace Paduraksa.TypedIds;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>Guid.CreateVersion7()</c> (banned repo-wide) fills <c>rand_a</c> with random bits, so two IDs created in the same
+/// <c>Guid.CreateVersion7()</c> fills <c>rand_a</c> with random bits, so two IDs created in the same
 /// millisecond sort randomly. This generator keeps IDs from one process strictly increasing (in big-endian byte
 /// order, and therefore in base62 string order), which keeps B-tree inserts append-only and makes
 /// "created after" cursors exact.
@@ -34,6 +34,7 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
     // (unix ms << 12) | counter of the last issued ID.
     private long _state;
 
+    /// <summary>Returns the next UUIDv7, strictly greater than every one this instance issued before.</summary>
     public Guid Next()
     {
         Span<byte> bytes = stackalloc byte[16];

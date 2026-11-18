@@ -4,11 +4,12 @@ namespace Paduraksa.TypedIds;
 
 /// <summary>RFC 9562 UUIDv4 from <see cref="RandomNumberGenerator"/> (122 random bits).</summary>
 /// <remarks>
-/// <c>Guid.NewGuid()</c> is banned repo-wide so that bare GUIDs never get minted ad hoc. Generating v4
-/// here keeps that ban free of suppressions (nothing to audit) and makes the CSPRNG source explicit.
+/// Generated <c>New()</c> for <see cref="IdKind.UuidV4"/> IDs uses this rather than <c>Guid.NewGuid()</c>, so the random source is
+/// explicitly a CSPRNG and a project that bans bare GUIDs has nothing to suppress.
 /// </remarks>
 public static class UuidV4Generator
 {
+    /// <summary>Returns a new random UUIDv4.</summary>
     public static Guid Next()
     {
         Span<byte> bytes = stackalloc byte[16];

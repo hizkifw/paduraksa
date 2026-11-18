@@ -13,12 +13,14 @@ namespace Paduraksa.TypedIds;
 /// </remarks>
 public sealed class TypedIdJsonConverterFactory : JsonConverterFactory
 {
+    /// <inheritdoc />
     public override bool CanConvert(Type typeToConvert)
     {
         ArgumentNullException.ThrowIfNull(typeToConvert);
         return GetConverterType(typeToConvert) is not null;
     }
 
+    /// <inheritdoc />
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(typeToConvert);

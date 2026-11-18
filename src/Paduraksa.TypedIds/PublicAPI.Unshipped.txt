@@ -1,0 +1,86 @@
+#nullable enable
+const Paduraksa.TypedIds.Base62.Width128 = 22 -> int
+const Paduraksa.TypedIds.Base62.Width64 = 11 -> int
+const Paduraksa.TypedIds.Int64OrderedIdGenerator.CounterBits = 19 -> int
+const Paduraksa.TypedIds.Int64OrderedIdGenerator.TimestampBits = 44 -> int
+override Paduraksa.TypedIds.TypedIdJsonConverter<T>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> T
+override Paduraksa.TypedIds.TypedIdJsonConverter<T>.ReadAsPropertyName(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> T
+override Paduraksa.TypedIds.TypedIdJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, T value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Paduraksa.TypedIds.TypedIdJsonConverter<T>.WriteAsPropertyName(System.Text.Json.Utf8JsonWriter! writer, T value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Paduraksa.TypedIds.TypedIdJsonConverterFactory.CanConvert(System.Type! typeToConvert) -> bool
+override Paduraksa.TypedIds.TypedIdJsonConverterFactory.CreateConverter(System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> System.Text.Json.Serialization.JsonConverter?
+override Paduraksa.TypedIds.TypedIdTypeConverter<T>.CanConvertFrom(System.ComponentModel.ITypeDescriptorContext? context, System.Type! sourceType) -> bool
+override Paduraksa.TypedIds.TypedIdTypeConverter<T>.CanConvertTo(System.ComponentModel.ITypeDescriptorContext? context, System.Type? destinationType) -> bool
+override Paduraksa.TypedIds.TypedIdTypeConverter<T>.ConvertFrom(System.ComponentModel.ITypeDescriptorContext? context, System.Globalization.CultureInfo? culture, object! value) -> object?
+override Paduraksa.TypedIds.TypedIdTypeConverter<T>.ConvertTo(System.ComponentModel.ITypeDescriptorContext? context, System.Globalization.CultureInfo? culture, object? value, System.Type! destinationType) -> object?
+override Paduraksa.TypedIds.TypedIdTypeConverter<T>.IsValid(System.ComponentModel.ITypeDescriptorContext? context, object? value) -> bool
+Paduraksa.TypedIds.Base62
+Paduraksa.TypedIds.IdKind
+Paduraksa.TypedIds.IdKind.Int64Ordered = 2 -> Paduraksa.TypedIds.IdKind
+Paduraksa.TypedIds.IdKind.UuidV4 = 1 -> Paduraksa.TypedIds.IdKind
+Paduraksa.TypedIds.IdKind.UuidV7 = 0 -> Paduraksa.TypedIds.IdKind
+Paduraksa.TypedIds.Int64OrderedIdGenerator
+Paduraksa.TypedIds.Int64OrderedIdGenerator.Int64OrderedIdGenerator(System.TimeProvider! timeProvider) -> void
+Paduraksa.TypedIds.Int64OrderedIdGenerator.Next() -> long
+Paduraksa.TypedIds.Int64OrderedIdGenerator.Observe(long lastIssued) -> void
+Paduraksa.TypedIds.ITypedId<TSelf, TValue>
+Paduraksa.TypedIds.ITypedId<TSelf, TValue>.FromValue(TValue value) -> TSelf
+Paduraksa.TypedIds.ITypedId<TSelf, TValue>.Value.get -> TValue
+Paduraksa.TypedIds.ITypedId<TSelf>
+Paduraksa.TypedIds.ITypedId<TSelf>.Empty.get -> TSelf
+Paduraksa.TypedIds.ITypedId<TSelf>.FormattedLength.get -> int
+Paduraksa.TypedIds.ITypedId<TSelf>.IsEmpty.get -> bool
+Paduraksa.TypedIds.ITypedId<TSelf>.Kind.get -> Paduraksa.TypedIds.IdKind
+Paduraksa.TypedIds.ITypedId<TSelf>.New() -> TSelf
+Paduraksa.TypedIds.ITypedId<TSelf>.Parse(System.ReadOnlySpan<byte> utf8Text) -> TSelf
+Paduraksa.TypedIds.ITypedId<TSelf>.Parse(System.ReadOnlySpan<char> s) -> TSelf
+Paduraksa.TypedIds.ITypedId<TSelf>.Prefix.get -> string!
+Paduraksa.TypedIds.ITypedId<TSelf>.TryParse(System.ReadOnlySpan<byte> utf8Text, out TSelf result) -> bool
+Paduraksa.TypedIds.ITypedId<TSelf>.TryParse(System.ReadOnlySpan<char> s, out TSelf result) -> bool
+Paduraksa.TypedIds.TypedIdAttribute
+Paduraksa.TypedIds.TypedIdAttribute.Kind.get -> Paduraksa.TypedIds.IdKind
+Paduraksa.TypedIds.TypedIdAttribute.Prefix.get -> string!
+Paduraksa.TypedIds.TypedIdAttribute.TypedIdAttribute(string! prefix, Paduraksa.TypedIds.IdKind kind = Paduraksa.TypedIds.IdKind.UuidV7) -> void
+Paduraksa.TypedIds.TypedIdCodec
+Paduraksa.TypedIds.TypedIdJsonConverter<T>
+Paduraksa.TypedIds.TypedIdJsonConverter<T>.TypedIdJsonConverter() -> void
+Paduraksa.TypedIds.TypedIdJsonConverterFactory
+Paduraksa.TypedIds.TypedIdJsonConverterFactory.TypedIdJsonConverterFactory() -> void
+Paduraksa.TypedIds.TypedIdTypeConverter<T>
+Paduraksa.TypedIds.TypedIdTypeConverter<T>.TypedIdTypeConverter() -> void
+Paduraksa.TypedIds.UuidV4Generator
+Paduraksa.TypedIds.UuidV7Generator
+Paduraksa.TypedIds.UuidV7Generator.Next() -> System.Guid
+Paduraksa.TypedIds.UuidV7Generator.UuidV7Generator(System.TimeProvider! timeProvider) -> void
+static Paduraksa.TypedIds.Base62.Encode(System.Guid value) -> string!
+static Paduraksa.TypedIds.Base62.Encode(System.UInt128 value) -> string!
+static Paduraksa.TypedIds.Base62.Encode(ulong value) -> string!
+static Paduraksa.TypedIds.Base62.FromUInt128(System.UInt128 value) -> System.Guid
+static Paduraksa.TypedIds.Base62.ToUInt128(System.Guid value) -> System.UInt128
+static Paduraksa.TypedIds.Base62.TryDecodeGuid(System.ReadOnlySpan<byte> utf8Source, out System.Guid value) -> bool
+static Paduraksa.TypedIds.Base62.TryDecodeGuid(System.ReadOnlySpan<char> source, out System.Guid value) -> bool
+static Paduraksa.TypedIds.Base62.TryDecodeUInt128(System.ReadOnlySpan<byte> utf8Source, out System.UInt128 value) -> bool
+static Paduraksa.TypedIds.Base62.TryDecodeUInt128(System.ReadOnlySpan<char> source, out System.UInt128 value) -> bool
+static Paduraksa.TypedIds.Base62.TryDecodeUInt64(System.ReadOnlySpan<byte> utf8Source, out ulong value) -> bool
+static Paduraksa.TypedIds.Base62.TryDecodeUInt64(System.ReadOnlySpan<char> source, out ulong value) -> bool
+static Paduraksa.TypedIds.Base62.TryEncode(System.Guid value, System.Span<byte> utf8Destination) -> bool
+static Paduraksa.TypedIds.Base62.TryEncode(System.Guid value, System.Span<char> destination) -> bool
+static Paduraksa.TypedIds.Base62.TryEncode(System.UInt128 value, System.Span<byte> utf8Destination) -> bool
+static Paduraksa.TypedIds.Base62.TryEncode(System.UInt128 value, System.Span<char> destination) -> bool
+static Paduraksa.TypedIds.Base62.TryEncode(ulong value, System.Span<byte> utf8Destination) -> bool
+static Paduraksa.TypedIds.Base62.TryEncode(ulong value, System.Span<char> destination) -> bool
+static Paduraksa.TypedIds.Int64OrderedIdGenerator.GetTimestamp(long id) -> System.DateTimeOffset
+static Paduraksa.TypedIds.Int64OrderedIdGenerator.Shared.get -> Paduraksa.TypedIds.Int64OrderedIdGenerator!
+static Paduraksa.TypedIds.TypedIdCodec.ParseError(string! typeName, string! prefix, int width) -> System.FormatException!
+static Paduraksa.TypedIds.TypedIdCodec.TryFormat(long value, System.ReadOnlySpan<byte> utf8Prefix, System.Span<byte> utf8Destination, out int bytesWritten) -> bool
+static Paduraksa.TypedIds.TypedIdCodec.TryFormat(long value, System.ReadOnlySpan<char> prefix, System.Span<char> destination, out int charsWritten) -> bool
+static Paduraksa.TypedIds.TypedIdCodec.TryFormat(System.Guid value, System.ReadOnlySpan<byte> utf8Prefix, System.Span<byte> utf8Destination, out int bytesWritten) -> bool
+static Paduraksa.TypedIds.TypedIdCodec.TryFormat(System.Guid value, System.ReadOnlySpan<char> prefix, System.Span<char> destination, out int charsWritten) -> bool
+static Paduraksa.TypedIds.TypedIdCodec.TryParse(System.ReadOnlySpan<byte> utf8Text, System.ReadOnlySpan<byte> utf8Prefix, out long value) -> bool
+static Paduraksa.TypedIds.TypedIdCodec.TryParse(System.ReadOnlySpan<byte> utf8Text, System.ReadOnlySpan<byte> utf8Prefix, out System.Guid value) -> bool
+static Paduraksa.TypedIds.TypedIdCodec.TryParse(System.ReadOnlySpan<char> s, System.ReadOnlySpan<char> prefix, out long value) -> bool
+static Paduraksa.TypedIds.TypedIdCodec.TryParse(System.ReadOnlySpan<char> s, System.ReadOnlySpan<char> prefix, out System.Guid value) -> bool
+static Paduraksa.TypedIds.UuidV4Generator.Next() -> System.Guid
+static Paduraksa.TypedIds.UuidV7Generator.Shared.get -> Paduraksa.TypedIds.UuidV7Generator!
+static readonly Paduraksa.TypedIds.Base62.Alphabet -> string!
+static readonly Paduraksa.TypedIds.Int64OrderedIdGenerator.Epoch -> System.DateTimeOffset

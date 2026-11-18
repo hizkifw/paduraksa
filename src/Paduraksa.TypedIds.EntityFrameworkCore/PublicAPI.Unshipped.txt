@@ -1,0 +1,5 @@
+#nullable enable
+Paduraksa.TypedIds.EntityFrameworkCore.Int64OrderedIdSeeding
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdModelConfigurationBuilderExtensions
+static Paduraksa.TypedIds.EntityFrameworkCore.Int64OrderedIdSeeding.ObserveInt64OrderedKeysAsync(this Microsoft.EntityFrameworkCore.DbContext! context, Paduraksa.TypedIds.Int64OrderedIdGenerator! generator, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
+static Paduraksa.TypedIds.EntityFrameworkCore.TypedIdModelConfigurationBuilderExtensions.AddTypedIdConventions(this Microsoft.EntityFrameworkCore.ModelConfigurationBuilder! configurationBuilder) -> Microsoft.EntityFrameworkCore.ModelConfigurationBuilder!

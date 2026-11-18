@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -6,15 +7,18 @@ namespace Paduraksa.TypedIds;
 /// <summary>
 /// <see cref="System.Text.Json"/> converter for any typed ID: a JSON string in the canonical <c>prefix_base62</c>
 /// form, also usable as a dictionary key. Applied to generated IDs via <see cref="JsonConverterAttribute"/>;
-/// source-generated <see cref="JsonSerializerContext"/>s must register <see cref="TypedIdJsonConverterFactory"/>.
+/// source-generated <see cref="JsonSerializerContext"/>s must register <see cref="TypedIdJsonConverterFactory"/>. For generated code: it is
+/// not meant to be used directly.
 /// </summary>
 /// <typeparam name="T">The typed ID.</typeparam>
+[EditorBrowsable(EditorBrowsableState.Never)]
 public sealed class TypedIdJsonConverter<T> : JsonConverter<T>
     where T : struct, ITypedId<T>
 {
     // JSON escapes expand one char to at most 6 bytes (\uXXXX); anything longer can't be a valid ID.
     private const int MaxEscapeExpansion = 6;
 
+    /// <inheritdoc />
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType != JsonTokenType.String)
@@ -25,6 +29,7 @@ public sealed class TypedIdJsonConverter<T> : JsonConverter<T>
         return ReadCore(ref reader);
     }
 
+    /// <inheritdoc />
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
         Span<byte> buffer = stackalloc byte[T.FormattedLength];
@@ -32,9 +37,11 @@ public sealed class TypedIdJsonConverter<T> : JsonConverter<T>
         writer.WriteStringValue(buffer[..written]);
     }
 
+    /// <inheritdoc />
     public override T ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         ReadCore(ref reader);
 
+    /// <inheritdoc />
     public override void WriteAsPropertyName(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
         Span<byte> buffer = stackalloc byte[T.FormattedLength];

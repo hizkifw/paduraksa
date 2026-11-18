@@ -1,0 +1,9 @@
+<Project>
+  <Import Project="Packaging.props" />
+  <PropertyGroup>
+    <!-- The family's version: CI passes -p:Version=<the typedids-v* tag without that prefix> to pack a release, so a tag decides it.
+         Unconditional, so it overrides the app's Version from Directory.Build.props: the packages release on their own tag. -->
+    <Version>0.1.0</Version>
+    <PackageTags>typed-id;strongly-typed-id;uuidv7;base62;source-generator</PackageTags>
+  </PropertyGroup>
+</Project>

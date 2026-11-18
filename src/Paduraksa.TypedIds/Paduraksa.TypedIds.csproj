@@ -1,7 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- BCL only. The [TypedId] source generator is wired up for every project in Directory.Build.props. -->
+  <!-- BCL only. The package carries the [TypedId] source generator in analyzers/dotnet/cs, so one reference brings both and their versions can't drift.
+       Directory.Build.props already makes the generator an analyzer of this project, which builds it first. -->
+  <Import Project="../Packaging.TypedIds.props" />
   <PropertyGroup>
-    <TargetFramework />
-    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+    <PackageId>Paduraksa.TypedIds</PackageId>
+    <Description>Strongly typed, prefixed IDs for .NET: a source generator makes one struct per entity (user_ plus 22 base62 characters), as a time-ordered UUIDv7, a random UUIDv4 or an ordered Int64. Allocation-free formatting and parsing; System.Text.Json and TypeConverter support built in.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- The generator is not a dependency of the package, only a file in it. -->
+    <ProjectReference Update="../Paduraksa.TypedIds.Generator/Paduraksa.TypedIds.Generator.csproj" PrivateAssets="all" />
+    <None Include="../Paduraksa.TypedIds.Generator/bin/$(Configuration)/netstandard2.0/Paduraksa.TypedIds.Generator.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
 </Project>

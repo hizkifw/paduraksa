@@ -7,7 +7,9 @@ namespace Paduraksa.TypedIds;
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 public sealed class TypedIdAttribute(string prefix, IdKind kind = IdKind.UuidV7) : Attribute
 {
+    /// <summary>The prefix, without the trailing underscore.</summary>
     public string Prefix { get; } = prefix ?? throw new ArgumentNullException(nameof(prefix));
 
+    /// <summary>How values are generated and stored.</summary>
     public IdKind Kind { get; } = kind;
 }

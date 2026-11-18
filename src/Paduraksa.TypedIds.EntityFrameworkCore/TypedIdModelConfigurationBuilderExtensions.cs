@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Paduraksa.TypedIds.EntityFrameworkCore;
 
+/// <summary>Registers the typed-ID conventions on a <see cref="DbContext"/>.</summary>
 public static class TypedIdModelConfigurationBuilderExtensions
 {
     /// <summary>
