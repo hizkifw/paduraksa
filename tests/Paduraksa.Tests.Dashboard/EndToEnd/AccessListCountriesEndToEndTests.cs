@@ -6,8 +6,8 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// The access-list drawer's countries in a real browser: a search that finds a country by name, Tor and unknown offered first, chips for
-/// what is picked, and a phone width with no sideways scroll. Skipped when no Chromium is installed (see <see cref="PlaywrightBrowser"/>);
+/// The access-list drawer's countries in a real browser: a country found by name and picked from the popover, chips for what is picked, the
+/// popover closing when the person clicks away, and a phone width with no sideways scroll (the search and the chips' rules are in the component tests). Skipped when no Chromium is installed (see <see cref="PlaywrightBrowser"/>);
 /// screenshots of the drawer at both widths are kept when <see cref="PlaywrightBrowser.ScreenshotVariable"/> names a directory.
 /// </summary>
 [Collection(PlaywrightBrowser.CollectionName)]
@@ -34,13 +34,10 @@ public sealed class AccessListCountriesEndToEndTests
         await page.GotoAsync("/access-lists/new");
         var drawer = page.Locator(".pdk-sheet [data-drawer=access-list]");
         await Expect(drawer).ToBeVisibleAsync(new() { Timeout = 15_000 });
-        await Expect(drawer.Locator("[data-banner=no-country-source]")).ToContainTextAsync("every visitor's country is unknown");
 
         var allowed = drawer.Locator("[data-field=allowed-countries]");
         var denied = drawer.Locator("[data-field=denied-countries]");
         await allowed.Locator("input").ClickAsync();
-        await Expect(page.Locator(".mud-popover-open .mud-list-item").First).ToContainTextAsync("Tor exit nodes");
-        await Expect(page.Locator(".mud-popover-open .mud-list-item").Nth(1)).ToContainTextAsync("Unknown country");
         await PlaywrightBrowser.ScreenshotAsync(page, "access-list-countries-search", fullPage: false);
         await allowed.Locator("input").FillAsync("germ");
         await page.Locator(".mud-popover-open .mud-list-item", new() { HasText = "Germany (DE)" }).ClickAsync();
@@ -50,9 +47,6 @@ public sealed class AccessListCountriesEndToEndTests
         await page.Locator(".mud-popover-open .mud-list-item", new() { HasText = "Tor exit nodes" }).ClickAsync();
         await Expect(denied.Locator("[data-country=T1]")).ToContainTextAsync("Tor exit nodes");
 
-        // Germany is allowed, so the denied side no longer offers it.
-        await denied.Locator("input").FillAsync("germ");
-        await Expect(page.Locator(".mud-popover-open .mud-list-item", new() { HasText = "Germany" })).ToHaveCountAsync(0);
         await drawer.Locator(".pdk-section-title", new() { HasText = "Countries" }).ClickAsync();
         await Expect(denied.Locator("input")).ToHaveAttributeAsync("aria-expanded", "false");
         await Expect(page.Locator(".mud-popover-open")).ToHaveCountAsync(0);

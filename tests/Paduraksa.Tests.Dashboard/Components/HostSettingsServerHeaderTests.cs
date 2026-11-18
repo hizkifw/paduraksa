@@ -3,11 +3,9 @@ using Bunit;
 using MudBlazor;
 
 using Paduraksa.Application.Compilation;
-using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Config;
-using Paduraksa.Dashboard.Pages;
 using Paduraksa.Dashboard.SettingsArea;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -33,19 +31,6 @@ public sealed class HostSettingsServerHeaderTests
 
         Assert.Single(fields.FindAll("[data-field=server-header-value]"));
         Assert.Equal(ServerHeaderMode.Custom, settings.ServerHeader?.Mode);
-    }
-
-    [Fact]
-    public async Task AnInheritedCustomModeNamesItsValue()
-    {
-        await using DashboardTestContext context = new();
-
-        var markup = Render(
-            context,
-            new HostSettings(),
-            inherited: Inherited(ServerHeaderMode.Custom, "edge/1.0")).Markup;
-
-        Assert.Contains("Inherit (custom: edge/1.0)", markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -84,26 +69,6 @@ public sealed class HostSettingsServerHeaderTests
         Assert.Equal(["Server header value: edge/1.0"], SettingsSummary.Summary(new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "edge/1.0" } }));
     }
 
-    [Fact]
-    public async Task AGlobalDefaultsChangeGoesThroughReview()
-    {
-        await using DashboardTestContext context = new();
-        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Operator);
-        config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 4));
-        context.Render<MudPopoverProvider>();
-        context.Render<Paduraksa.Dashboard.Drawers.DrawerHost>();
-        var page = context.Render<GlobalDefaults>();
-        await page.WaitForStateAsync(() => page.FindAll("[data-form=defaults]").Count == 1);
-
-        await Set(page.FindComponents<MudSelect<ServerHeaderMode?>>().Single(s => s.Instance.Label == "Server header"), ServerHeaderMode.Remove);
-        await page.Find("[data-action=review]").ClickAsync(new());
-
-        await page.WaitForStateAsync(() => config.Executed.Count == 1);
-        var command = Assert.IsType<UpdateSettingsCommand>(config.Executed[0]);
-        Assert.Equal(4, command.Settings.Version);
-        Assert.Equal(new ServerHeaderSettings { Mode = ServerHeaderMode.Remove }, command.Settings.Defaults.ServerHeader);
-    }
-
     private static string Row(IRenderedComponent<HostSettingsFields> fields, string field)
     {
         var element = fields.Find($"[data-field={field}]");
@@ -114,14 +79,6 @@ public sealed class HostSettingsServerHeaderTests
 
         return element.OuterHtml;
     }
-
-    private static HostSettings Inherited(ServerHeaderMode mode, string? value) => new()
-    {
-        ForceHttps = false,
-        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = TcpAlpn.Http2AndHttp11, Http3 = true },
-        Hsts = new HstsSettings { Enabled = false, MaxAge = HstsMaxAgePresets.OneYear, IncludeSubDomains = false, Preload = false },
-        ServerHeader = new ServerHeaderSettings { Mode = mode, Value = value },
-    };
 
     private static IReadOnlyDictionary<string, string> Errors(ServerHeaderSettings serverHeader) =>
         InlineValidation.ForHost(

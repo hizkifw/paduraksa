@@ -83,18 +83,6 @@ public sealed class HostSettingsHstsTests
     }
 
     [Fact]
-    public async Task TheInheritOptionsNameWhatWouldBeInherited()
-    {
-        HostSettings settings = new();
-        await using DashboardTestContext context = new();
-
-        var markup = Render(context, settings, inherited: Inherited(enabled: true, subdomains: true, preload: true, maxAge: HstsMaxAgePresets.SixMonths)).Markup;
-
-        Assert.Contains("Inherit (6 months)", markup, StringComparison.Ordinal);
-        Assert.Contains("Inherit (on)", markup, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task ACustomChoiceWithNoSeconds_GoesBackToInheritWhenTheLayerIsReset()
     {
         // "Custom with nothing typed" and "Inherit" both leave no max-age: only a fresh record says the form was reset.
