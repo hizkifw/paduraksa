@@ -5,7 +5,7 @@ Typed IDs for .NET. One declaration per entity generates an ID struct with its o
 - **One struct per entity.** A source generator, packed inside this package, writes the struct from a one-line declaration. There is no second package to reference and no version to keep in step.
 - **Three ID kinds, chosen per type.** UUIDv7 is the default: time-ordered, so inserts append to an index. UUIDv4 is for public IDs that must not reveal when something was created. Ordered Int64 is for high-volume internal tables, where an 8-byte key matters.
 - **Prefixed base62 strings.** The width is fixed, so ordinal string order is ID order, and for the time-ordered kinds that is creation order.
-- **Allocation-free text.** Formatting and parsing work over `Span<char>` and UTF-8 bytes without allocating.
+- **Allocation-free text.** Formatting and parsing work over `Span<char>` and UTF-8 bytes without allocating. The parser is fuzzed against an independent reading of the format.
 - **JSON and `TypeConverter` built in.** An ID is a JSON string, also as a dictionary key, and converts to and from its string form wherever `TypeDescriptor` is used.
 
 Entity Framework Core mapping is in [Paduraksa.TypedIds.EntityFrameworkCore](https://www.nuget.org/packages/Paduraksa.TypedIds.EntityFrameworkCore).

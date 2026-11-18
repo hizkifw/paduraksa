@@ -8,7 +8,7 @@ For contributors: what each kind of test covers, how the suites are shaped, and 
 - Architecture tests (ArchUnitNET) enforce the project dependency graph, the typed-ID and DTO rules, internal-only vault types and the hot-path namespace bans.
 - Every gate and response path has a 0 B allocation assertion. Benchmarks and a one-hour soak guard the rest of the budget.
 - Property tests (CsCheck) check the parsers, matchers and the config pipeline against slow, obvious models. Seeds are derived, so a run is the same every time.
-- Sixteen coverage-guided fuzz targets (SharpFuzz and libFuzzer) run nightly. Committed corpora replay on every commit.
+- Seventeen coverage-guided fuzz targets (SharpFuzz and libFuzzer) run nightly. Committed corpora replay on every commit.
 - CI requires the capabilities a test needs (Chromium, libmsquic, Docker for Pebble) instead of skipping without them.
 - A sleep in a test must be one of a few allowed kinds. The rule is in [development.md](../development.md).
 - Code: `tests/`, `fuzz/`, `bench/`, `tests/Shared/Property.cs`, `tests/Shared/Requirements.cs`.
@@ -216,10 +216,13 @@ Each property and harness was shown to fail by breaking the code it checks.
 | `mcp-sandbox` | The parent of the MCP sandbox against a child that is not to be trusted (below). |
 | `yaml-import` | The YAML reader and importer (below). |
 | `ip-network` | `IpNetwork.TryParse` against an independent reading of its three rules. A parsed block spans exactly 2^(128-prefix) addresses, contains its ends and not the addresses beside them, and its canonical text parses back to the same block. |
+| `typed-id` | The parser of `Paduraksa.TypedIds` for one test ID of each kind (prefixes of 2, 5 and 8 characters), as chars and as UTF-8. It accepts exactly when an independent reading does (the exact prefix and `_`, the exact length, every character in the base62 alphabet, a `BigInteger` value of at most 2^128-1 for a UUID and 2^63-1 for an Int64), with the same value. The char and UTF-8 parsers agree, an accepted input comes back exactly from `ToString` and both `TryFormat` overloads, parse and span formatting cost 0 B, and a value wrapped with `FromValue` formats to `FormattedLength`, parses back, and a span one short refuses without writing past it. |
 | `glob-pattern` | A pattern compiles exactly when it is ASCII, starts with a slash and fits the token limit. A match equals a memoised recursion written from the rules, the case of the path never matters, and a 64 KiB path takes well under a second. |
 | `cloudflare-ranges` | The real `CloudflareRangeFetcher` over a handler that answers with the input. A list is accepted exactly when an independent reading of the list rules accepts the first source that gives one. A refusal is one short printable line. |
 | `backup-archive` | The header and chunk reader up to the passphrase check, under a fixed key (the Argon2 derivation is not run, because a header may ask for up to a gigabyte). Only `BackupException` escapes, with the reason a second reading of the rules gives. |
 | `certificate-import` | The vault's `ICertificateImport` over a scratch directory. Only `CertificateImportException` escapes, the same upload gives the same verdict, an import takes under 30 s and 512 MiB, a refusal never repeats the password, and the public chain holds no key. |
+
+`Paduraksa.TypedIds` is on the instrumented list too; without it the run sees no features (a blind run ends at 2, an instrumented one starts above 200). The target declares its own test IDs, so it doesn't depend on Paduraksa's model. Its first 30-minute run (four passes of 450 s, one process) made 132 million inputs at about 74,000 per second, reached 260 features within the first minute and found no crash and no disagreement. The corpus is 60 files. A bound moved by one in the codec (the 128-bit overflow check, the 63-bit limit, the digit range) fails the seeds, so the edges are in the corpus.
 
 `Paduraksa.Vault` is instrumented by `scripts/fuzz.sh` and lets `Paduraksa.Fuzz.Targets` see its internals (`InternalsVisibleTo`, like `Paduraksa.Tests.Vault`). The targets project is a key-material boundary project (`PaduraksaKeyMaterialBoundary`), because the backup target decrypts with `AesGcm` and the import target builds seed certificates. No other target uses either.
 
@@ -230,8 +233,8 @@ Each property and harness was shown to fail by breaking the code it checks.
 - `.gitattributes` marks both binary (a PROXY header ends in CR LF).
 - `tests/Paduraksa.Tests.Fuzz` replays every committed input through its target on every commit, with no libFuzzer and no instrumented assembly, so a corpus regression fails CI.
 - A crash is copied into `regressions/`, fixed, and gets a unit test beside the code.
-- `scripts/fuzz.sh [--time S] [--target T] [--merge] [--replay] [--list]` publishes the harness, instruments, runs libFuzzer per target for the time box, and fails on a crash or an error.
-- `.github/workflows/fuzz.yml` (`workflow_dispatch` and a nightly schedule, never push or pull request) runs every target (15 minutes each by default) and the property tests 50 times deeper. It uploads crash inputs, logs and the grown corpus. It runs the 16 targets one after another, so its timeout is 300 minutes, and `FuzzWorkflowTests` fails when a target is added without raising it.
+- `scripts/fuzz.sh [--time S] [--target T] [--jobs N] [--nice N] [--merge] [--replay] [--list]` publishes the harness, instruments, runs libFuzzer per target for the time box, and fails on a crash or an error. `--jobs N` runs one target in N processes that share its corpus (libFuzzer's `-fork=N`); `--nice N` runs libFuzzer at that niceness.
+- `.github/workflows/fuzz.yml` (`workflow_dispatch` and a nightly schedule, never push or pull request) runs every target (15 minutes each by default) and the property tests 50 times deeper. It uploads crash inputs, logs and the grown corpus. It runs the 17 targets one after another, so its timeout is 300 minutes, and `FuzzWorkflowTests` fails when a target is added without raising it.
 - The release run is `scripts/fuzz.sh --time 3600 --merge`. The one before v0.1 was two parallel hours on each target.
 
 ### The `mcp-sandbox` target
