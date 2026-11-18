@@ -39,9 +39,9 @@ public sealed class BackupEndToEndTests
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "backup-empty");
 
-        await page.FillAsync("input[data-field=passphrase]", Passphrase);
+        await DashboardPage.FillAsync(page, "passphrase", Passphrase);
         await Expect(page.Locator("[data-strength]")).ToContainTextAsync("Good");
-        await page.FillAsync("input[data-field=repeat]", Passphrase);
+        await DashboardPage.FillAsync(page, "repeat", Passphrase);
         await PlaywrightBrowser.ScreenshotAsync(page, "backup-filled");
         var download = await page.RunAndWaitForDownloadAsync(() => page.ClickAsync("[data-action=download-backup]"), new() { Timeout = 60_000 });
 
