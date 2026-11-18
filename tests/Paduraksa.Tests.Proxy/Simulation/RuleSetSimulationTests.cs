@@ -87,7 +87,13 @@ public sealed class RuleSetSimulationTests
         Assert.Equal(rule, Fact(step, "rule"));
         Assert.Equal(matched, Fact(step, "matched"));
         Assert.Equal(action, Fact(step, "action"));
-        Assert.Contains($"rule {rule} of 'rules' matches ({matched})", step.Summary, StringComparison.Ordinal);
+        var tail = action switch
+        {
+            "deny" => "refuses it with 403",
+            "drop" => "drops it",
+            _ => "allows it, so the set's later rules are skipped",
+        };
+        Assert.Contains($"rule {rule} of 'rules' matches ({matched}) and {tail}", step.Summary, StringComparison.Ordinal);
         Assert.Equal(action == "allow" ? GateStepVerdict.Passed : GateStepVerdict.Stopped, step.Verdict);
     }
 

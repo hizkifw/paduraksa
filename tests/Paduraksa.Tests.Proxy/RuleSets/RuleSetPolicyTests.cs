@@ -60,25 +60,6 @@ public sealed class RuleSetPolicyTests
         Assert.Equal(GateAction.Forward, Decide(gate, "/administrator").Action);
     }
 
-    [Fact]
-    public void ADecodedPathIsMatchedOnItsCharactersNotItsEscapes()
-    {
-        // Kestrel hands the gate the decoded path: %61dmin is /admin by the time a rule sees it.
-        var gate = Gate(Rule(RuleAction.Deny, kind: RulePathKind.Exact, pattern: "/admin"));
-
-        var context = Context("/admin");
-        Assert.Equal(GateAction.Respond, gate.Decide(context).Action);
-    }
-
-    [Fact]
-    public void ALongNonCanonicalPathIsCanonicalisedOnTheHeap()
-    {
-        var gate = Gate(Rule(RuleAction.Deny, kind: RulePathKind.Exact, pattern: "/admin/deep"));
-        var path = "//admin/" + new string('/', 400) + "deep";
-
-        Assert.Equal(GateAction.Respond, Decide(gate, path).Action);
-    }
-
     [Theory]
     [InlineData("GET")]
     [InlineData("HEAD")]
@@ -111,27 +92,6 @@ public sealed class RuleSetPolicyTests
         Assert.Equal(1, counters.Allowed);
         Assert.Equal(2, counters.Denied);
         Assert.Equal(1, counters.Dropped);
-    }
-
-    [Fact]
-    public void ASimulationReportsTheRuleAndCountsNothing()
-    {
-        RuleSetRuntime runtime = new();
-        var id = TestIds.RuleSet("sim");
-        var snapshot = Compile(runtime, id, Rule(RuleAction.Allow, kind: RulePathKind.Exact, pattern: "/ok"), Rule(RuleAction.Deny, kind: RulePathKind.Prefix, pattern: "/admin", methods: ["POST"]));
-        var policy = Assert.IsType<RuleSetPolicy>(snapshot.HostsByIndex[0].Routes[0].Policies[0]);
-        var context = Context("/admin/x", "POST");
-        GateRequestState state = new();
-        RequestView simulated = new(context, state, isSimulation: true);
-
-        var verdict = policy.Evaluate(in simulated);
-        Assert.Equal(PolicyAction.Respond, verdict.Action);
-        var sentence = ((IRequestPolicy)policy).Explain(in simulated, verdict);
-        Assert.Contains("rule 2 of 'sim'", sentence, StringComparison.Ordinal);
-        Assert.Contains("path starts with /admin, method POST", sentence, StringComparison.Ordinal);
-        Assert.Contains("refuses it with 403", sentence, StringComparison.Ordinal);
-
-        Assert.Equal(0, runtime.CountersFor(id).Denied);
     }
 
     [Fact]

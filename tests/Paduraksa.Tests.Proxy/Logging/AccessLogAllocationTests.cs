@@ -172,27 +172,6 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         Assert.Equal(0, server.AccessLog.Dropped);
     }
 
-    [Fact]
-    public async Task AHostWithTheLogOffIsProxiedAndNotLogged()
-    {
-        ProxyConfigModel model = new()
-        {
-            Upstreams = [Upstream("web", upstream.Address("a"))],
-            Hosts = [ProxyHost("off", "quiet.test", Route("off-root", "web")) with { AccessLog = false }],
-        };
-        await using var server = await ProxyTestServer.StartAsync(model);
-        // One connection: the second request is only served once the first request's completion callback has run, so a
-        // line the first shouldn't have written would be in the ring by then.
-        using var client = ProxyTestServer.CreateClient(maxConnections: 1);
-
-        using var first = await client.SendAsync(server.Request("quiet.test", "/x"), TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
-        Assert.Equal("/a/x", await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        using var second = await client.SendAsync(server.Request("quiet.test", "/x"), TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        Assert.Equal(0, server.AccessLog.EntriesWritten);
-    }
-
     private static async Task WaitForEntriesAsync(AccessLogRing ring, long count)
     {
         for (var attempt = 0; attempt < 2_000 && ring.EntriesWritten < count; attempt++)

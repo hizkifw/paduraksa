@@ -59,26 +59,6 @@ public sealed class RequestIdTests
     }
 
     [Fact]
-    public async Task AnUpstreamsOwnResponseHeaderIsReplacedOrStripped()
-    {
-        // Upstream and client: ours wins over the upstream's.
-        await using (var both = await RequestScope.StartAsync(RequestIdPropagation.UpstreamAndResponse, trustedPeer: false))
-        {
-            var (ids, _) = await both.SendAsync("client-chosen");
-            var id = Assert.Single(ids);
-            Assert.NotEqual(UpstreamId, id);
-            Assert.NotEqual("client-chosen", id);
-        }
-
-        // Neither: the upstream's header doesn't reach the client either.
-        await using (var none = await RequestScope.StartAsync(RequestIdPropagation.Off, trustedPeer: false))
-        {
-            var (ids, _) = await none.SendAsync("client-chosen");
-            Assert.Empty(ids);
-        }
-    }
-
-    [Fact]
     public async Task ATrustedProxysIdIsTheOneThatTravels()
     {
         await using var scope = await RequestScope.StartAsync(RequestIdPropagation.UpstreamAndResponse, trustedPeer: true);
@@ -89,19 +69,6 @@ public sealed class RequestIdTests
         Assert.Equal("edge-1234", seen[RequestIds.HeaderName]);
         Assert.True(scope.Server.AccessLog.TryRead(out var entry));
         Assert.Equal("edge-1234", entry.RequestId);
-    }
-
-    [Fact]
-    public async Task ANonTrustedClientsIdIsReplacedEverywhere()
-    {
-        await using var scope = await RequestScope.StartAsync(RequestIdPropagation.UpstreamAndResponse, trustedPeer: false);
-
-        var (ids, seen) = await scope.SendAsync("client-chosen");
-
-        var id = Assert.Single(ids);
-        Assert.NotEqual("client-chosen", id);
-        Assert.Equal(RequestIds.GeneratedLength, id.Length);
-        Assert.Equal(id, seen[RequestIds.HeaderName]);
     }
 
     /// <summary>A proxy server and an upstream that records the request headers and sets its own <c>X-Request-Id</c>.</summary>

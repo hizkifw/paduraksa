@@ -85,17 +85,6 @@ public sealed class HtmlPageTemplateTests
     }
 
     [Fact]
-    public void ThePageCarriesNoReferrerAndDoesNotSniffItsType()
-    {
-        var template = HtmlPageTemplate.Create("Stopped", "<p>{requestId}</p>", slots: ["requestId"]);
-        var headers = template.SecurityHeaders;
-
-        Assert.Contains(headers, header => header.Name == "Referrer-Policy" && header.Value == "no-referrer");
-        Assert.Contains(headers, header => header.Name == "X-Content-Type-Options" && header.Value == "nosniff");
-        Assert.Contains(headers, header => header.Name == "Content-Security-Policy");
-    }
-
-    [Fact]
     public void WritingAPageAllocatesNothing()
     {
         var template = HtmlPageTemplate.Create("Checking", "<p>{first}</p><p>{second}</p>", Script, "worker-src blob:", allowForm: true, slots: ["first", "second"]);

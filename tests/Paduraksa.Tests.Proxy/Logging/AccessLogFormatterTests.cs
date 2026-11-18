@@ -200,19 +200,9 @@ public sealed class AccessLogFormatterTests
         Assert.True(line.Length <= AccessLogFormatter.MaxLineLength, $"the line is {line.Length} characters");
         Assert.Contains(AccessLogFormatter.TruncationMarker, line, StringComparison.Ordinal);
         // No field can exceed its cap, marker included, so one pathological request can't blow up a line.
+        Assert.DoesNotContain(new string('a', AccessLogFormatter.MaxPathLength + 1), line, StringComparison.Ordinal);
         Assert.DoesNotContain(new string('b', AccessLogFormatter.MaxHeaderValueLength + 1), line, StringComparison.Ordinal);
         Assert.DoesNotContain(new string('c', AccessLogFormatter.MaxQueryLength + 1), line, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AVeryLongPathIsMarkedAsCut()
-    {
-        var entry = Target("/" + new string('a', AccessLogFormatter.MaxPathLength * 2));
-
-        var line = Format(entry);
-
-        Assert.Contains(AccessLogFormatter.TruncationMarker, line, StringComparison.Ordinal);
-        Assert.DoesNotContain(new string('a', AccessLogFormatter.MaxPathLength + 1), line, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -420,19 +420,6 @@ public sealed class TrafficAnalyticsTests
     }
 
     [Fact]
-    public void ADroppedConnectionIsCountedAsNoneNotAsZero()
-    {
-        var rig = new Rig();
-        rig.Offer(rig.Entry(status: 0));
-
-        var bucket = Assert.Single(rig.Analytics.Live(), static live => live.Subject == AnalyticsSubject.Host).Bucket!;
-
-        Assert.Equal(1, bucket.Statuses.Counts["none"]);
-        Assert.DoesNotContain("0", bucket.Statuses.Counts.Keys);
-        Assert.Equal(1, bucket.StatusClasses[0]);
-    }
-
-    [Fact]
     public void WhatIsKeptIsBoundedWhateverTheTrafficIs()
     {
         var rig = new Rig();

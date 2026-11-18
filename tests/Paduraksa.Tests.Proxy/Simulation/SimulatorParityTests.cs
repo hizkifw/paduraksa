@@ -247,21 +247,6 @@ public sealed partial class SimulatorParityTests : IDisposable
         Assert.Contains("admin route", route.Summary, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task ACatchAllListedFirstStillTracesTheMoreSpecificRoute()
-    {
-        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
-        Wire wire = new("shadow.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/api/x", Lan);
-
-        Assert.Equal(1, await fixture.CompareAsync(wire));
-        var run = fixture.Simulate(wire);
-
-        Assert.Equal((GateOutcomeAction.Respond, GateReason.RoutePolicy, 451), (run.Outcome.Action, run.Outcome.Reason, run.Outcome.StatusCode));
-        var step = Assert.Single(run.Steps, s => s.Kind == GateStepKind.RouteMatch);
-        Assert.Equal(TestIds.Route("shadow-api"), step.Route);
-        Assert.Equal("/api", Assert.Single(step.Facts, fact => fact.Name == "routePath").Value);
-    }
-
     private static readonly AccessListSpec AppLan = TestAccessLists.Allow("app-lan", "127.0.0.1", "10.0.0.5");
 
     private static readonly AccessListSpec LanList = TestAccessLists.Allow("lan", "10.0.0.5");

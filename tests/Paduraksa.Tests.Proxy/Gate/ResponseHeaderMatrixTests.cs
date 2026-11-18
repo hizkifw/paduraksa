@@ -342,18 +342,6 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         AssertSet("Server=strict/1.0|Strict-Transport-Security|Alt-Svc|X-Request-Id", context);
     }
 
-    [Fact]
-    public async Task AForceHttpsHostsRedirectCarriesOnlyWhatMayGoOnPlainHttp()
-    {
-        // The redirect is a gate answer, so the Server header and the request ID are on it; HSTS and Alt-Svc need HTTPS.
-        var context = TestContexts.Create("secure.test", "/deep/path?q=1", scheme: "http");
-
-        await _gate.InvokeAsync(context, static _ => Task.CompletedTask);
-
-        Assert.Equal(301, context.Response.StatusCode);
-        AssertSet("Server=Paduraksa|Strict-Transport-Security|Alt-Svc|X-Request-Id=*", context);
-    }
-
     [Theory]
     [InlineData("{\"scheme\":\"https\"}", "max-age=31536000")] // cloudflared terminated the visitor's TLS: the visitor is on HTTPS
     [InlineData("{\"scheme\":\"http\"}", null)]

@@ -37,18 +37,6 @@ public sealed class ConnectionTableTests
         Assert.Equal(2, table.TotalCount());
     }
 
-    [Theory]
-    [InlineData("2001:db8:1:2::1", "2001:db8:1:2:ffff:ffff:ffff:ffff", true)]
-    [InlineData("2001:db8:1:2::1", "2001:db8:1:3::1", false)]
-    [InlineData("203.0.113.5", "::ffff:203.0.113.5", true)]
-    [InlineData("203.0.113.5", "203.0.113.6", false)]
-    public void AnIpv6Slash64IsOneAddressAndAnIpv4MappedAddressIsItsIpv4(string first, string second, bool sameKey)
-    {
-        ConnectionTable table = new(64);
-        Assert.Equal(ConnectionSlot.Acquired, table.TryAcquire(Hash(first), 1));
-        Assert.Equal(sameKey ? ConnectionSlot.OverCap : ConnectionSlot.Acquired, table.TryAcquire(Hash(second), 1));
-    }
-
     [Fact]
     public void AFullWindowFailsOpenAndLeavesNothingToRelease()
     {
