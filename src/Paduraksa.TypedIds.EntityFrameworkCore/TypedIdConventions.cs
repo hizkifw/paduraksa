@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 
-namespace Paduraksa.Storage.Ids;
+namespace Paduraksa.TypedIds.EntityFrameworkCore;
 
 /// <summary>
 /// EF Core's property discovery, extended to treat every typed ID as a scalar property and every collection of

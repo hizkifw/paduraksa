@@ -65,7 +65,7 @@ For each declaration the generator emits:
 - The generator is an analyzer in every project (`Directory.Build.props`). Prefix uniqueness is checked per compilation (PDKID004) and across all src assemblies by an architecture test.
 - EF value converters cannot call static abstract members in expression trees (CS8927). Generic converters go through a plain helper: `static T Wrap<T, TV>(TV v) => T.FromValue(v)`.
 
-### EF mapping (`Paduraksa.Storage.Ids`)
+### EF mapping (`Paduraksa.TypedIds.EntityFrameworkCore`)
 
 - `AddTypedIdConventions()` swaps in a `PropertyDiscoveryConvention` that finds typed IDs from the model's own CLR member types (no scanning, no type lists), in entities and complex types, as keys, FKs and nullables. They are `ValueGenerated.Never`.
 - **Inside JSON complex types an ID is its canonical string** (`host_...`), not BLOB or INTEGER. The document stays readable, and JSON members compare against a string parameter.

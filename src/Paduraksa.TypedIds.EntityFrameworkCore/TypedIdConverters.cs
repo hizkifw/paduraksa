@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Paduraksa.TypedIds;
 
-namespace Paduraksa.Storage.Ids;
+namespace Paduraksa.TypedIds.EntityFrameworkCore;
 
 /// <summary>
 /// Plain generic helpers called from converter expression trees, which cannot call static abstract interface members

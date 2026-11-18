@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
 using Paduraksa.TypedIds;
 
-namespace Paduraksa.Storage.Ids;
+namespace Paduraksa.TypedIds.EntityFrameworkCore;
 
 /// <summary>
 /// Startup hook for <see cref="IdKind.Int64Ordered"/> IDs: after a restart the clock may be behind the last persisted

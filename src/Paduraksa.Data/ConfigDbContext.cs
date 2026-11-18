@@ -12,7 +12,7 @@ using Paduraksa.Data.Metrics;
 using Paduraksa.Data.Notifications;
 using Paduraksa.Data.Revisions;
 using Paduraksa.Storage;
-using Paduraksa.Storage.Ids;
+using Paduraksa.TypedIds.EntityFrameworkCore;
 
 namespace Paduraksa.Data;
 

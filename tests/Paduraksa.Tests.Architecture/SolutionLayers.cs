@@ -9,6 +9,7 @@ namespace Paduraksa.Tests.Architecture;
 public static class Layer
 {
     public const string TypedIds = "TypedIds";
+    public const string TypedIdsEntityFrameworkCore = "TypedIds.EntityFrameworkCore";
     public const string Core = "Core";
     public const string Contracts = "Contracts";
     public const string Storage = "Storage";
@@ -42,11 +43,12 @@ public static class SolutionLayers
     public static readonly IReadOnlyDictionary<string, string[]> AllowedDependencies = new Dictionary<string, string[]>
     {
         [Layer.TypedIds] = [],
+        [Layer.TypedIdsEntityFrameworkCore] = [Layer.TypedIds],
         [Layer.Core] = [Layer.TypedIds],
         [Layer.Contracts] = [Layer.TypedIds, Layer.Core],
-        [Layer.Storage] = [Layer.TypedIds, Layer.Core],
-        [Layer.Data] = [Layer.TypedIds, Layer.Core, Layer.Storage],
-        [Layer.Vault] = [Layer.TypedIds, Layer.Core, Layer.Storage],
+        [Layer.Storage] = [Layer.TypedIds, Layer.TypedIdsEntityFrameworkCore],
+        [Layer.Data] = [Layer.TypedIds, Layer.TypedIdsEntityFrameworkCore, Layer.Core, Layer.Storage],
+        [Layer.Vault] = [Layer.TypedIds, Layer.TypedIdsEntityFrameworkCore, Layer.Core, Layer.Storage],
         [Layer.Acme] = [Layer.TypedIds, Layer.Core],
         [Layer.Notifications] = [Layer.TypedIds, Layer.Core],
         [Layer.Mcp] = [],
@@ -58,7 +60,7 @@ public static class SolutionLayers
         [Layer.Dashboard] = [Layer.TypedIds, Layer.Core, Layer.Application, Layer.Contracts],
         [Layer.Server] =
         [
-            Layer.TypedIds, Layer.Core, Layer.Contracts, Layer.Storage, Layer.Data, Layer.Vault, Layer.Acme, Layer.Notifications,
+            Layer.TypedIds, Layer.TypedIdsEntityFrameworkCore, Layer.Core, Layer.Contracts, Layer.Storage, Layer.Data, Layer.Vault, Layer.Acme, Layer.Notifications,
             Layer.ProxyProtocol, Layer.Proxy, Layer.Application, Layer.Admin, Layer.Dashboard, Layer.Mcp,
         ],
     };

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Paduraksa.TypedIds;
 
-namespace Paduraksa.Storage.Ids;
+namespace Paduraksa.TypedIds.EntityFrameworkCore;
 
 /// <summary>
 /// Recognizes typed-ID CLR types and hands out their cached, immutable converters and comparers.

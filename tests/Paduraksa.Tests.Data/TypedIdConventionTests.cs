@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Paduraksa.Storage.Ids;
 using Paduraksa.Tests.Data.Sample;
+using Paduraksa.TypedIds.EntityFrameworkCore;
 using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;

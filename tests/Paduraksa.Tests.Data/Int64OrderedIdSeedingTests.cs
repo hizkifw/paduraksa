@@ -1,9 +1,9 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Paduraksa.Storage.Ids;
 using Paduraksa.Tests.Data.Sample;
 using Paduraksa.TypedIds;
+using Paduraksa.TypedIds.EntityFrameworkCore;
 using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;

@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Paduraksa.Core.Vault;
 using Paduraksa.Storage;
-using Paduraksa.Storage.Ids;
+using Paduraksa.TypedIds.EntityFrameworkCore;
 using Paduraksa.Vault.Secrets;
 
 namespace Paduraksa.Vault.Persistence;

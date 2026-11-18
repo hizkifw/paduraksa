@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Provider-neutral: the relational package, no SQLite. The [TypedId] generator is wired up for every project in Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="../Paduraksa.TypedIds/Paduraksa.TypedIds.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <!-- Internals are for the mapping tests. -->
+    <InternalsVisibleTo Include="Paduraksa.TypedIds.EntityFrameworkCore.Tests" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
+  </ItemGroup>
+</Project>
