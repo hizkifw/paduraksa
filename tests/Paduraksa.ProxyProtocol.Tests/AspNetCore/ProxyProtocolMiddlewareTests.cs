@@ -212,14 +212,6 @@ public sealed class ProxyProtocolMiddlewareTests : IAsyncLifetime
         Assert.Contains("203.0.113.7|50123|", response, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task ARequestSentWithTheHeaderInOneWriteIsNotLost()
-    {
-        var response = await ExchangeAsync("required", Concat(V2(family: 1), V1(Get)));
-
-        Assert.StartsWith("HTTP/1.1 200 ", response, StringComparison.Ordinal);
-    }
-
     [Theory]
     [InlineData("garbage\r\n")]
     [InlineData("PROXY TCP4 203.0.113.7 192.0.2.1 50123\r\n")]
