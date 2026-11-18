@@ -9,7 +9,7 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
 /// Settings > Backup in a real browser against a real <c>PaduraksaHost</c>: the Owner downloads an archive through the page, a Viewer is
-/// offered no such page, and the passphrase is gone from the page afterwards. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
+/// offered no such page, and the passphrase is gone from the page afterwards (what a weak one says is in the component tests). Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).
 /// </summary>
 [Collection(PlaywrightBrowser.CollectionName)]
 public sealed class BackupEndToEndTests
@@ -38,13 +38,6 @@ public sealed class BackupEndToEndTests
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Backup", Level = 1 })).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "backup-empty");
-
-        // A weak passphrase is refused where it is typed.
-        await page.FillAsync("input[data-field=passphrase]", "short");
-        await Expect(page.Locator("[data-strength]")).ToContainTextAsync("more characters");
-        await page.FillAsync("input[data-field=repeat]", "short");
-        await page.ClickAsync("[data-action=download-backup]");
-        await Expect(page.GetByText("at least 12 characters").First).ToBeVisibleAsync();
 
         await page.FillAsync("input[data-field=passphrase]", Passphrase);
         await Expect(page.Locator("[data-strength]")).ToContainTextAsync("Good");
