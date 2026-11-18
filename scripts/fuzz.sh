@@ -8,8 +8,11 @@
 #   scripts/fuzz.sh --list                           # the targets
 #   scripts/fuzz.sh --merge                          # after a run: keep what the run found that the committed corpus lacks, minimised
 #   scripts/fuzz.sh --replay                         # no libFuzzer: every committed input through every target (what CI runs per commit)
+#   scripts/fuzz.sh --target typed-id --jobs 8 --nice 19 --time 1800 --merge   # one target on 8 cores, at the lowest priority
 #
-# Options: --time SECONDS (per target, default 60), --target NAME (repeatable), --out DIR (default artifacts/fuzz), --merge, --replay, --list.
+# Options: --time SECONDS (per target, default 60), --target NAME (repeatable), --out DIR (default artifacts/fuzz), --merge, --replay, --list,
+#   --jobs N (libFuzzer's -fork=N: N worker processes on one target that share its corpus; default off, one process),
+#   --nice N (run libFuzzer under `nice -n N`, so a long run leaves the machine's other work its cores; default off).
 # Needs: the .NET SDK, `dotnet tool restore` (sharpfuzz, pinned in .config/dotnet-tools.json) and network once, for libfuzzer-dotnet.
 # A crash input is written to <out>/crashes/<target>/. To keep it: copy it to fuzz/regressions/<target>/, fix the bug and add a unit test beside the code.
 set -euo pipefail
@@ -20,6 +23,8 @@ root="$PWD"
 seconds=60
 out="$root/artifacts/fuzz"
 merge=false
+jobs=0
+niceness=
 mode=run
 targets=()
 while [[ $# -gt 0 ]]; do
@@ -27,13 +32,18 @@ while [[ $# -gt 0 ]]; do
         --time) seconds="$2"; shift 2 ;;
         --target) targets+=("$2"); shift 2 ;;
         --out) out="$(realpath -m "$2")"; shift 2 ;;
+        --jobs) jobs="$2"; shift 2 ;;
+        --nice) niceness="$2"; shift 2 ;;
         --merge) merge=true; shift ;;
         --replay) mode=replay; shift ;;
         --list) mode=list; shift ;;
-        -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
+
+[[ "$jobs" =~ ^[0-9]+$ ]] || { echo "--jobs takes a number of processes" >&2; exit 2; }
+[[ -z "$niceness" || "$niceness" =~ ^(1[0-9]|[0-9])$ ]] || { echo "--nice takes a niceness from 0 to 19" >&2; exit 2; }
 
 harness=(dotnet run -c Release --project fuzz/Paduraksa.Fuzz --)
 if [[ "$mode" == list ]]; then
@@ -85,10 +95,21 @@ for target in "${targets[@]}"; do
     cp -n "$root/fuzz/regressions/$target"/* "$work"/ 2>/dev/null || true
     echo "=== $target: ${seconds}s, $(find "$work" -type f | wc -l) starting inputs"
     log="$out/$target.log"
-    if ! PADURAKSA_FUZZ_TARGET="$target" "$libfuzzer" \
+    runner=()
+    [[ -n "$niceness" ]] && runner=(nice -n "$niceness")
+    # -fork=N writes each worker's own log (fuzz-<job>.log) into the working directory, so it runs in a folder of its own.
+    flags=()
+    rundir="$root"
+    if [[ "$jobs" -gt 1 ]]; then
+        flags=(-fork="$jobs")
+        rundir="$out/fork/$target"
+        rm -rf "$rundir"
+        mkdir -p "$rundir"
+    fi
+    if ! (cd "$rundir" && PADURAKSA_FUZZ_TARGET="$target" "${runner[@]}" "$libfuzzer" \
         --target_path="$bin/Paduraksa.Fuzz" \
-        -max_total_time="$seconds" -max_len=4096 -timeout=10 -rss_limit_mb=4096 -print_final_stats=1 \
-        -artifact_prefix="$crashes/" "$work" > "$log" 2>&1; then
+        -max_total_time="$seconds" -max_len=4096 -timeout=10 -rss_limit_mb=4096 -print_final_stats=1 "${flags[@]}" \
+        -artifact_prefix="$crashes/" "$work" > "$log" 2>&1); then
         echo "!!! $target: libFuzzer stopped with an error (see $log)" >&2
         status=1
     fi

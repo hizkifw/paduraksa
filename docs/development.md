@@ -66,7 +66,11 @@ A counterexample becomes a plain test beside the code it found a bug in, and the
 scripts/fuzz.sh --list                                   # the targets
 scripts/fuzz.sh --time 600                               # every target, ten minutes each
 scripts/fuzz.sh --target proxy-protocol --time 3600 --merge   # one target, an hour, then keep what it found
+scripts/fuzz.sh --target typed-id --jobs 8 --nice 19 --time 1800 --merge   # one target on 8 cores, at the lowest priority
 ```
+
+`--jobs N` passes libFuzzer's `-fork=N`: one target runs in N worker processes that share one corpus (without it, one process per target). `--nice N` runs libFuzzer under `nice -n N`,
+so a long run leaves the machine's other work its cores. Both are off by default.
 
 It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemblies (the parser's among them) there with the pinned `sharpfuzz` tool and runs the pinned release of
 `libfuzzer-dotnet` (downloaded once into `~/.cache/paduraksa`). A crash is a file in `artifacts/fuzz/crashes/<target>/`. To keep it: copy it to
