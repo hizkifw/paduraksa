@@ -10,7 +10,7 @@ namespace Paduraksa.Tests.Integration.Admin;
 public sealed class ApiCsrfTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     [Fact]
-    public async Task ASameOriginMultipartUploadWithTheSessionCookieIsAcceptedThoughABodyMustOtherwiseBeJson()
+    public async Task ASameOriginMultipartUploadWithTheSessionCookieIsAccepted()
     {
         var api = shared.Api;
         var cookie = await api.SignInAsync("owner");

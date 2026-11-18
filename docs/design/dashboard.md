@@ -743,7 +743,7 @@ Shared pieces first. If a page needs its own look for one of these, the shared p
 - **Preferences** are one record, `DisplayPreferences` (zone, culture, 24 hour clock), with UTC, invariant and 24 hours as the default. A per-user setting would call `DisplayFormat.Use`; there is no such page. The build runs with `InvariantGlobalization`, so numbers and months are spelled the invariant way until ICU is switched on.
 - **Numbers:** `Count` (grouped), `Compact` (axes), `PerSecond`, `RateText`, `Percent`, `Share`, `Bytes` (decimal units, as a network is measured), `FileSize` (binary units, as sizes are typed into settings), `Duration` and `Latency` (ms or s), `Seconds`, `Number`.
 - **Not through it:** exported data, API responses, log files and machine values (IDs, fingerprints, what a form field holds), and SVG geometry. `DashboardMarkupConventionTests` fails when a `.razor` or `.cs` file in the dashboard formats with `ToString("...")`, a format string in an interpolation hole or `UtcDateTime`, apart from a short allowlist with the reason for each.
-- **Old names.** `TrafficFigures`, `AnalyticsFigures`, `SecurityFigures`, `LiveTailText.Duration`, `RevisionText.Exact` and `Ago`, and `CertificateDisplay.Date`/`DateTime` stay as shims over `DisplayFormat.Invariant`. New code injects the service.
+- **Old names.** `TrafficFigures`, `AnalyticsFigures`, `SecurityFigures`, `RevisionText.Exact` and `Ago`, and `CertificateDisplay.Date`/`DateTime` stay as shims over `DisplayFormat.Invariant`. New code injects the service.
 - **A `datetime-local` input has no zone**, so the audit filter reads its value in the zone the page shows times in.
 
 **Charts (`TimeSeriesChart`).** One inline SVG per chart, drawn on the server, and a tooltip drawn by the browser.
