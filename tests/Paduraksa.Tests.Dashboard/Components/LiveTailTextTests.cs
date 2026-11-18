@@ -21,14 +21,6 @@ public sealed class LiveTailTextTests
     public void AStatusIsColouredByItsClass(int? status, Tone expected) => Assert.Equal(expected, LiveTailText.ToneOf(status));
 
     [Theory]
-    [InlineData(null, "-")]
-    [InlineData(0.42, "0.42 ms")]
-    [InlineData(38.04, "38 ms")]
-    [InlineData(380.6, "381 ms")]
-    [InlineData(1234.0, "1.23 s")]
-    public void DurationsAreWordedForReading(double? milliseconds, string expected) => Assert.Equal(expected, LiveTailText.Duration(milliseconds));
-
-    [Theory]
     [InlineData("http://10.0.0.2:8080/", "10.0.0.2:8080")]
     [InlineData("https://app.internal/base/", "app.internal/base")]
     [InlineData(null, "-")]

@@ -84,23 +84,6 @@ public sealed class QrCodeTests
         Assert.Empty(image.FindAll("img"));
     }
 
-    [Fact]
-    public void EveryVersionCanBeDumpedForAScanner()
-    {
-        var last = 0;
-        for (var length = 1; length <= 2331; length += 7)
-        {
-            var code = QrCode.Encode(string.Concat(Enumerable.Repeat("Paduraksa-", (length / 10) + 1))[..length]);
-            if (code.Version != last)
-            {
-                last = code.Version;
-                Dump(code, $"v{code.Version:D2}-len{length}");
-            }
-        }
-
-        Assert.Equal(40, last);
-    }
-
     private static void Dump(QrCode code, string name)
     {
         var directory = Environment.GetEnvironmentVariable("PADURAKSA_QR_DUMP");

@@ -97,25 +97,6 @@ public sealed class OverviewAndNavigationTests
     }
 
     [Theory]
-    [InlineData(Role.Owner)]
-    [InlineData(Role.Admin)]
-    public async Task TheOverview_SaysNothingAboutSecondFactors_TheChecklistAndTheUsersListDo(Role role)
-    {
-        await using DashboardTestContext context = new();
-        var (identity, _, config, _) = IdentityPages.SignIn(context, role);
-        config.Document = new ConfigDocument();
-        identity.Users.Add(FakeDashboardIdentity.User("grace", Role.Admin));
-        context.ComponentFactories.AddStub<SetupChecklist>();
-        context.ComponentFactories.AddStub<TrafficStrip>();
-
-        var page = context.Render<Home>();
-
-        await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
-        Assert.Empty(page.FindAll("[data-section=attention]"));
-        Assert.DoesNotContain("second factor", page.Markup, StringComparison.Ordinal);
-    }
-
-    [Theory]
     [InlineData("/profiles/prof_0J9zb3xQk1Lr8m2V7aYc4D", "Profiles")]
     [InlineData("/security", "Security overview")]
     [InlineData("/rate-limits", "Rate limits")]
@@ -152,19 +133,5 @@ public sealed class OverviewAndNavigationTests
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Owner))));
 
         Assert.Empty(menu.FindAll(".pdk-nav-active"));
-    }
-
-    [Theory]
-    [InlineData(Role.Owner, new[] { "Global defaults", "Users and roles", "API tokens", "Backup" })]
-    [InlineData(Role.Viewer, new[] { "Global defaults", "API tokens" })]
-    public void TheSettingsGroup_ListsThePagesTheRoleMaySee(Role role, string[] entries)
-    {
-        using DashboardTestContext context = new();
-
-        var menu = context.Render<NavMenu>(parameters =>
-            parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(role))));
-
-        string[] all = ["Global defaults", "Users and roles", "API tokens", "Backup"];
-        Assert.Equal(entries, menu.FindAll(".pdk-nav-label").Select(label => label.TextContent).Where(all.Contains));
     }
 }

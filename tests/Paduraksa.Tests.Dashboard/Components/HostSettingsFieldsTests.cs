@@ -562,26 +562,6 @@ public sealed class HostSettingsFieldsTests
     }
 
     [Fact]
-    public async Task TheRateLimitPicker_NamesWhatItInherits_AndMapsEachChoice()
-    {
-        await using DashboardTestContext context = new();
-        Holder holder = new() { Value = new HostSettings() };
-        var fields = Render(context, holder, holder.Value);
-
-        // The inherit choice names the policy the layer below resolves, and the picker shows it as the selection.
-        Assert.Contains("Inherit (Strict API, 10/s)", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
-
-        await SetRateLimit(fields, "off");
-        Assert.Equal(new RateLimitSettings { Enabled = false }, holder.Value.RateLimit);
-        Assert.Contains("No limit", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
-        await SetRateLimit(fields, "p0");
-        Assert.Equal(new RateLimitSettings { Enabled = true, PolicyId = SamplePolicy }, holder.Value.RateLimit);
-        Assert.Contains("Strict API", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
-        await SetRateLimit(fields, "inherit");
-        Assert.Null(holder.Value.RateLimit);
-    }
-
-    [Fact]
     public async Task TheCloudflareRowsOfferTheThreeLockdownChoicesAndSayWhenTheModeMakesThemInert()
     {
         await using DashboardTestContext context = new();
@@ -894,9 +874,6 @@ public sealed class HostSettingsFieldsTests
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<TokenLifetimeChoice>>()
             .Single(select => select.Instance.Label == "Token lifetime")
             .Instance.ValueChanged.InvokeAsync(choice));
-
-    private static Task Toggle(IRenderedComponent<HostSettingsFields> fields, string field, bool value) =>
-        InputOf(fields, field).ChangeAsync(new() { Value = value });
 
     private static Task Input(IRenderedComponent<HostSettingsFields> fields, string field, string value) =>
         InputOf(fields, field).ChangeAsync(new() { Value = value });

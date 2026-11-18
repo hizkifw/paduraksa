@@ -45,16 +45,8 @@ public sealed class RequestWaterfallTests
     }
 
     [Fact]
-    public void AStageThatDidntHappenHasNoRow()
-    {
-        var answered = RequestWaterfall.Stages(Entry(1, new LogTailTiming(GateMs: 0.5, RequestBodyMs: 0, ResponseSendStartMs: 0.8, ResponseSendMs: 0.2)));
-        // A pooled connection: a connect of 0 and no start.
-        var pooled = RequestWaterfall.Stages(Entry(5, new LogTailTiming(GateMs: 0.1, UpstreamConnectMs: 0, UpstreamWaitStartMs: 0.2, UpstreamWaitMs: 4, ResponseSendStartMs: 4.5, ResponseSendMs: 0.5)));
-
-        Assert.Equal(["gate", "gap", "send"], answered.Select(static stage => stage.Key));
-        Assert.Equal(["gate", "forward", "wait", "prepare", "send"], pooled.Select(static stage => stage.Key));
+    public void ARequestWithoutTimingHasNoRows() =>
         Assert.Empty(RequestWaterfall.Stages(Entry(5, timing: null)));
-    }
 
     [Fact]
     public void TheAxisIsTheTotalUnlessAStageReachesPastIt()

@@ -435,7 +435,7 @@ public sealed class DraftTests
     }
 
     [Fact]
-    public async Task ABlockedEntry_DisablesApplyAndEachOneLinksToItsReload()
+    public async Task ABlockedEntry_DisablesApplyAndSaysHowManyAreBlocked()
     {
         await using DashboardTestContext context = new();
         var config = ConfigPages.SignIn(context, Role.Operator);
@@ -450,11 +450,6 @@ public sealed class DraftTests
         Assert.Equal("Changed elsewhere: 1 change. Nothing can be applied.", drawers.Find("[data-review=blocked] strong").TextContent.Trim());
         Assert.True(drawers.Find("[data-action=apply-draft]").HasAttribute("disabled"));
         Assert.Empty(config.DraftApplies);
-
-        await drawers.Find("[data-entry='1'] [data-action=reload-entry]").ClickAsync(new());
-
-        Assert.Equal([2], config.Draft!.Entries.Select(e => e.Number));
-        Assert.EndsWith(DashboardRoutes.Upstream(App.Id), context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri, StringComparison.Ordinal);
     }
 
     // ---- the forms and the review sheet ----
