@@ -174,8 +174,6 @@ internal sealed class FakeTotp : ITotpAuthenticator
     /// <summary>The code that would be accepted for <paramref name="id"/> now.</summary>
     public string CodeFor(SecretId id) => _secrets[id].Code;
 
-    public bool IsConfirmed(SecretId id) => _secrets[id].Confirmed;
-
     /// <summary>Moves a secret on to its next code, as the next time step does.</summary>
     public void Rotate(SecretId id)
     {

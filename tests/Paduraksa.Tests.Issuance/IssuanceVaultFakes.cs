@@ -46,8 +46,6 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
     }
 
     /// <summary>The ARI certificate ID of what <see cref="AttachChainAsync"/> reported.</summary>
-    public static string AriId(CertificateInfo info) => Paduraksa.Acme.AcmeRenewalInfoId.Create(info);
-
     public ValueTask<CsrResult> CreateKeyAndCsrAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> names, CancellationToken cancellationToken)
     {
         lock (_gate)
