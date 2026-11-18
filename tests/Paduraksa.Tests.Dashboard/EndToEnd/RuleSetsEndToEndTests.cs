@@ -117,9 +117,6 @@ public sealed class RuleSetsEndToEndTests
         Assert.Empty(problems);
     }
 
-    /// <summary>A MudBlazor select by its <c>data-field</c>: the attribute is on the element that opens it.</summary>
-    private static ILocator Select(IPage page, string field) => page.Locator($".pdk-sheet[data-top] [data-field='{field}']").First;
-
     private static async Task ReviewAndApplyAsync(IPage page, string screenshot)
     {
         await page.Locator(".pdk-sheet[data-top] [data-action=review]").ClickAsync();
