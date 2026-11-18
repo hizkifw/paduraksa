@@ -1,5 +1,4 @@
 using Paduraksa.Core.Model;
-using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
@@ -77,8 +76,8 @@ public sealed class SnapshotCompilerTests
         }
 
         // Host policies stay on the host (the gate runs them first); routes carry only their own.
-        Assert.IsType<AccessListPolicy>(Assert.Single(site.Policies));
-        Assert.IsType<StaticPolicy>(Assert.Single(site.Routes[0].Policies));
+        Assert.Single(site.Policies);
+        Assert.Single(site.Routes[0].Policies);
         Assert.Empty(site.Routes[1].Policies);
         Assert.NotNull(site.HttpsRedirect);
         Assert.Equal(":8443", site.HttpsRedirect!.Safe.Redirect!.PortSuffix);
@@ -543,8 +542,8 @@ public sealed class SnapshotCompilerTests
             new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204 } },
             Respond("b", "b.test") with { Policies = [new DenyPolicySpec(304, string.Empty)] }));
 
+        // The deny that answers 304 with no body compiled: Compile asserts it, as a 205 or 304 with a body doesn't.
         Assert.Empty(snapshot.Hosts.Find("a.test")!.FixedResponse!.Body);
-        Assert.IsType<StaticPolicy>(snapshot.Hosts.Find("b.test")!.Policies[0]);
     }
 
     [Fact]

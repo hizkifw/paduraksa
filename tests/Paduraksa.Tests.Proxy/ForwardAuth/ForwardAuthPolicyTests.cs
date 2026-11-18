@@ -610,24 +610,42 @@ public sealed class ForwardAuthPolicyTests
     }
 
     [Fact]
-    public void TheProviderSitsAfterTheRateLimitAndBeforeProofOfWork()
+    public async Task TheRateLimitSpendsBeforeTheProviderIsCalledAndTheProviderAnswersBeforeTheBrowserCheck()
     {
-        var model = Model(Spec("http://127.0.0.1:1/auth")) with
+        await using var auth = await FakeAuthServer.StartAsync(Cancel);
+        auth.Handler = AllowsSessionOk();
+        var limit = TestIds.RateLimitPolicy("rl");
+        var spec = Spec(auth.Address);
+        var model = Model(spec) with
         {
-            RateLimitPolicies = [new RateLimitPolicySpec { Id = TestIds.RateLimitPolicy("rl"), Name = "rl", Parameters = new RateLimitParameters(10, 10) }],
+            RateLimitPolicies = [new RateLimitPolicySpec { Id = limit, Name = "rl", Parameters = new RateLimitParameters(1.0 / 60, 1) }],
         };
-        var host = model.Hosts[0] with
+        model = model with
         {
-            RateLimit = new HostRateLimitSpec { Enabled = true, PolicyId = TestIds.RateLimitPolicy("rl") },
-            ProofOfWork = new HostProofOfWorkSpec { Enabled = true },
-            Routes = [model.Hosts[0].Routes[0] with { RateLimit = TestIds.RateLimitPolicy("rl") }],
+            Hosts =
+            [
+                model.Hosts[0] with
+                {
+                    ProofOfWork = new HostProofOfWorkSpec { Enabled = true },
+                    Routes = [model.Hosts[0].Routes[0] with { RateLimit = limit, RateLimitRouteOverride = true }],
+                },
+            ],
         };
+        ProofOfWorkRuntime pow = new();
+        var snapshot = TestSnapshots.Bound(
+            model,
+            options: new SnapshotCompilerOptions { ForwardAuth = new ForwardAuthRuntime(), RateLimits = new RateLimitRuntime(new RateLimitTable(64)), ProofOfWork = pow });
+        SnapshotStore store = new();
+        store.Publish(snapshot);
+        GateMiddleware gate = new(store, new TrustedProxyClientAddressSource(), challenges: null, pow);
 
-        var snapshot = TestSnapshots.Compile(model with { Hosts = [host] }, new SnapshotCompilerOptions { ForwardAuth = new ForwardAuthRuntime() });
+        // The provider's own refusal is what a browser gets: the browser check (which has no key here and would answer 503) comes after it.
+        Assert.Equal("401", await RunAsync(gate, Context(accept: "text/html")));
+        Assert.Equal(1, auth.CallCount);
 
-        Assert.Equal(
-            ["RateLimitPolicy", "ForwardAuthPolicy", "ProofOfWorkPolicy"],
-            snapshot.HostsByIndex[0].Routes[0].Policies.Select(static p => p.GetType().Name));
+        // The limit's one token is spent, so the next request never reaches the provider.
+        Assert.Equal("429", await RunAsync(gate, Context(accept: "text/html")));
+        Assert.Equal(1, auth.CallCount);
     }
 }
 

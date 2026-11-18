@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 
-using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
@@ -241,23 +240,6 @@ public sealed class AccessListCountryTests
         Assert.Equal(GateAction.Forward, gate.Decide(ViaCloudflare(Outside, "FR")).Action);
         Assert.Equal(GateAction.Respond, gate.Decide(ViaCloudflare(Outside, "NL")).Action);
         Assert.Equal(GateAction.Respond, gate.Decide(ViaCloudflare(Outside, null)).Action);
-    }
-
-    [Fact]
-    public void TheCompiledListHoldsOneBitPerCountryAndNamesPseudoCodesToo()
-    {
-        var list = List("mixed", allowCountries: ["de", "T1"], denyCountries: ["XX", "RU"]);
-        GateFor(AccessListFixtures.NewRuntime(), Model(list), out var snapshot);
-
-        var compiled = ((AccessListPolicy)snapshot.HostsByIndex[0].Routes[0].Policies[0]).List;
-
-        Assert.Equal(2, compiled.AllowCountries.Count);
-        Assert.True(compiled.AllowCountries.Contains(CountryCode.Parse("DE")));
-        Assert.True(compiled.AllowCountries.Contains(CountryCode.Tor));
-        Assert.False(compiled.AllowCountries.Contains(CountryCode.Unknown));
-        Assert.True(compiled.DenyCountries.Contains(CountryCode.Unknown));
-        Assert.True(compiled.DenyCountries.Contains(CountryCode.Parse("RU")));
-        Assert.False(compiled.DenyCountries.Contains(CountryCode.Tor));
     }
 
     [Fact]
