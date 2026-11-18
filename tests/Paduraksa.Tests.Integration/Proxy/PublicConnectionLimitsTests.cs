@@ -221,16 +221,15 @@ public sealed class PublicConnectionLimitsTests : IAsyncLifetime
     {
         await using var host = await StartAsync();
         var limits = host.Public.Services.GetRequiredService<IOptions<KestrelServerOptions>>().Value.Limits;
-        var expected = ServerLimits.Default;
 
-        Assert.Equal(expected.RequestHeadersTimeout, limits.RequestHeadersTimeout);
-        Assert.Equal(expected.KeepAliveTimeout, limits.KeepAliveTimeout);
-        Assert.Equal(expected.MinRequestBodyRate, limits.MinRequestBodyDataRate!.BytesPerSecond);
-        Assert.Equal(expected.MinRequestBodyGrace, limits.MinRequestBodyDataRate.GracePeriod);
-        Assert.Equal(expected.MinResponseRate, limits.MinResponseDataRate!.BytesPerSecond);
-        Assert.Equal(expected.MaxConnections, limits.MaxConcurrentConnections);
-        Assert.Equal(expected.MaxUpgradedConnections, limits.MaxConcurrentUpgradedConnections);
-        Assert.Equal(expected.Http2MaxStreamsPerConnection, limits.Http2.MaxStreamsPerConnection);
+        Assert.Equal(TimeSpan.FromSeconds(15), limits.RequestHeadersTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(120), limits.KeepAliveTimeout);
+        Assert.Equal(120, limits.MinRequestBodyDataRate!.BytesPerSecond);
+        Assert.Equal(TimeSpan.FromSeconds(10), limits.MinRequestBodyDataRate.GracePeriod);
+        Assert.Equal(240, limits.MinResponseDataRate!.BytesPerSecond);
+        Assert.Equal(10_000, limits.MaxConcurrentConnections);
+        Assert.Equal(2_000, limits.MaxConcurrentUpgradedConnections);
+        Assert.Equal(100, limits.Http2.MaxStreamsPerConnection);
     }
 
     private static async Task SetAsync(PaduraksaHost host, ServerSettings server)
