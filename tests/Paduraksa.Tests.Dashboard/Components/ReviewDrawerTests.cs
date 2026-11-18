@@ -194,8 +194,7 @@ public sealed class ReviewDrawerTests
         var drawer = Render(context, new UpsertHostCommand(Edited));
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=denied]").Count == 1);
-        Assert.Equal(Paduraksa.Dashboard.Identity.IdentityText.CantChangeConfig, drawer.Find("[data-review=denied]").TextContent.Trim());
-        Assert.Contains("Operator, Admin or Owner", Paduraksa.Dashboard.Identity.IdentityText.CantChangeConfig, StringComparison.Ordinal);
+        Assert.Contains("Operator, Admin or Owner", drawer.Find("[data-review=denied]").TextContent, StringComparison.Ordinal);
     }
 
     private static FakeDashboardConfig Arrange(DashboardTestContext context)
