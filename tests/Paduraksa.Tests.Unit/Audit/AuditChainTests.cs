@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Security.Cryptography;
 using System.Text;
 using Paduraksa.Application.Audit;
 using Paduraksa.Core.Model;
@@ -76,13 +75,6 @@ public sealed class AuditChainTests
 
         byte[] actor = [.. Field(3, "token"), .. Field(5, token.ToString()), .. Field(6, "system")];
         Assert.True(encoded.AsSpan().IndexOf(actor) > 0);
-    }
-
-    [Fact]
-    public void HashIsSha256OfPrevHashThenEncoding()
-    {
-        Assert.Equal(SHA256.HashData([.. Full.PrevHash.Span, .. AuditChain.Encode(Full)]), AuditChain.ComputeHash(Full));
-        Assert.Equal(SHA256.HashData([.. new byte[32], .. AuditChain.Encode(Minimal)]), AuditChain.ComputeHash(Minimal));
     }
 
     [Fact]

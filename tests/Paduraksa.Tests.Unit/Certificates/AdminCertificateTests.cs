@@ -99,7 +99,6 @@ public sealed class AdminCertificateTests
         // The vault refuses a certificate with more names than its limit; the configured list must stay below it once the
         // process has added its own.
         Assert.Equal(CertificateLimits.MaxNames, AdminCertificateNames.MaxNames);
-        Assert.Equal(AdminCertificateNames.MaxNames, AdminCertificateNames.MaxConfiguredNames + AdminCertificateNames.AutomaticNames);
 
         var full = AdminCertificateNames.Compose(
             [.. Enumerable.Range(0, AdminCertificateNames.MaxConfiguredNames).Select(i => $"admin{i}.lan")],

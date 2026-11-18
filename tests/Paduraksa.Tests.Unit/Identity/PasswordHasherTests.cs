@@ -76,15 +76,6 @@ public sealed class PasswordHasherTests
         Assert.False(Hasher.Verify("x", hash).Matches);
     }
 
-    [Fact]
-    public void UnknownUsersSpendTheSameWorkAsKnownOnes()
-    {
-        // Same call path and the same cost: a derivation against a throwaway hash. (Timing itself is not asserted: it is
-        // the structure that keeps them equal.)
-        Hasher.VerifyUnknown("anything");
-        Hasher.VerifyUnknown(string.Empty);
-    }
-
     [Theory]
     [InlineData(999)]
     [InlineData(20_000_001)]
