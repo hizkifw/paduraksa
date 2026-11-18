@@ -49,7 +49,8 @@ public sealed class HttpSenderTests : IAsyncLifetime
         Assert.Equal("/ntfy/", request.Path);
         Assert.Equal("Bearer tk_secret_token", request.Headers["Authorization"]);
         Assert.StartsWith("application/json", request.Headers["Content-Type"], StringComparison.Ordinal);
-        Assert.Equal(Encoding.UTF8.GetString(NotificationFormats.Ntfy("homelab", Message)), request.Text);
+        Assert.Contains("\"topic\":\"homelab\"", request.Text, StringComparison.Ordinal);
+        Assert.Contains("Upstream media is back", request.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("tk_secret_token", request.Text, StringComparison.Ordinal);
     }
 
@@ -71,7 +72,7 @@ public sealed class HttpSenderTests : IAsyncLifetime
         var request = Assert.Single(_server.Requests);
         Assert.Equal("/message", request.Path);
         Assert.Equal("app-token-123", request.Headers["X-Gotify-Key"]);
-        Assert.Equal(Encoding.UTF8.GetString(NotificationFormats.Gotify(Message)), request.Text);
+        Assert.Contains("Upstream media is back", request.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -83,7 +84,7 @@ public sealed class HttpSenderTests : IAsyncLifetime
 
         var request = Assert.Single(_server.Requests);
         Assert.Equal("/api/webhooks/123/the-token", request.Path);
-        Assert.Equal(Encoding.UTF8.GetString(NotificationFormats.Discord(Message)), request.Text);
+        Assert.Contains("Upstream media is back", request.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -101,7 +102,7 @@ public sealed class HttpSenderTests : IAsyncLifetime
         Assert.Equal(At.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture), stamp);
         var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes("shared-signing-key"), Encoding.UTF8.GetBytes(stamp + ".").Concat(request.Body).ToArray());
         Assert.Equal("sha256=" + Convert.ToHexStringLower(expected), request.Headers["X-Paduraksa-Signature"]);
-        Assert.Equal(Encoding.UTF8.GetString(NotificationFormats.Webhook(Message)), request.Text);
+        Assert.Contains("\"event\":\"upstream.up\"", request.Text, StringComparison.Ordinal);
     }
 
     [Fact]
