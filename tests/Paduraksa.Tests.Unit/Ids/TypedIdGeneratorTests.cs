@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
 using Paduraksa.Core.Ids;
-using Paduraksa.Ids.Generator;
+using Paduraksa.TypedIds.Generator;
 
 // Paduraksa.Tests.Unit.Compilation (the config compiler tests) hides Roslyn's Compilation here.
 using RoslynCompilation = Microsoft.CodeAnalysis.Compilation;

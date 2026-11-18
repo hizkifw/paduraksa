@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Referenced as an analyzer by every project via Directory.Build.props (opt out: PaduraksaIdsGenerator=false).
+  <!-- Referenced as an analyzer by every project via Directory.Build.props (opt out: PaduraksaTypedIdsGenerator=false).
        Generated code targets runtime types in Paduraksa.Core.Ids. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>

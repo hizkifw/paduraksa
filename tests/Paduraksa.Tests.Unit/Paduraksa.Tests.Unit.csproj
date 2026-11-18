@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- Generator tests drive TypedIdGenerator directly via CSharpGeneratorDriver. -->
-    <PaduraksaIdsGeneratorReferenceOutputAssembly>true</PaduraksaIdsGeneratorReferenceOutputAssembly>
+    <PaduraksaTypedIdsGeneratorReferenceOutputAssembly>true</PaduraksaTypedIdsGeneratorReferenceOutputAssembly>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />

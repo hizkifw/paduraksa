@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace Paduraksa.Ids.Generator;
+namespace Paduraksa.TypedIds.Generator;
 
 public static class Diagnostics
 {

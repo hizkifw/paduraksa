@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Paduraksa.Ids.Generator;
+namespace Paduraksa.TypedIds.Generator;
 
 /// <summary>
 /// Generates typed-ID members for every <c>[TypedId]</c> <c>readonly partial record struct</c>. The generated code

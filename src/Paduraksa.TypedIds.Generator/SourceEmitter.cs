@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Paduraksa.Ids.Generator;
+namespace Paduraksa.TypedIds.Generator;
 
 internal static class SourceEmitter
 {
@@ -11,7 +11,7 @@ internal static class SourceEmitter
         $NAMESPACE_OPEN$
         [global::System.Text.Json.Serialization.JsonConverter(typeof(global::Paduraksa.Core.Ids.TypedIdJsonConverter<$TYPE$>))]
         [global::System.ComponentModel.TypeConverter(typeof(global::Paduraksa.Core.Ids.TypedIdTypeConverter<$TYPE$>))]
-        [global::System.CodeDom.Compiler.GeneratedCode("Paduraksa.Ids.Generator", "$GENERATOR_VERSION$")]
+        [global::System.CodeDom.Compiler.GeneratedCode("Paduraksa.TypedIds.Generator", "$GENERATOR_VERSION$")]
         readonly partial record struct $NAME$ : global::Paduraksa.Core.Ids.ITypedId<$TYPE$, $VALUE$>
         {
             private const string PrefixWithSeparator = "$PREFIX$_";

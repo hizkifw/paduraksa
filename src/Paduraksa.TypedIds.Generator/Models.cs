@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Paduraksa.Ids.Generator;
+namespace Paduraksa.TypedIds.Generator;
 
 // Pipeline models must be value-equatable (no symbols or syntax nodes) so incremental caching works. Locations
 // change on every edit above a declaration, so only the diagnostic branches carry them; TypedIdModel (which drives

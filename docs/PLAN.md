@@ -51,7 +51,7 @@ Other documents: [the user guide](guide/getting-started.md) and [operating it](o
 Paduraksa.slnx
 +- src/
 |  +- Paduraksa.Core            Typed IDs, primitives, Result types, capability interfaces (vault, clock)
-|  +- Paduraksa.Ids.Generator   Roslyn incremental source generator for [TypedId] structs
+|  +- Paduraksa.TypedIds.Generator   Roslyn incremental source generator for [TypedId] structs
 |  +- Paduraksa.Contracts       DTOs for API/MCP/Dashboard/YAML. No EF, no entities.
 |  +- Paduraksa.Storage         Shared EF Core/SQLite infrastructure: typed-ID conventions and converters, SQLite pragmas, UTC timestamps. No entities, no DbContext.
 |  +- Paduraksa.Data            EF Core (SQLite) entities, DbContext, migrations, entity-specific converters

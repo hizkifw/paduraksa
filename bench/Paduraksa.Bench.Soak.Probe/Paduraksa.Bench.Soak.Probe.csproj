@@ -7,7 +7,7 @@
     <OutputType>Library</OutputType>
     <AssemblyName>StartupHook</AssemblyName>
     <RootNamespace>Paduraksa.Bench.Soak.Probe</RootNamespace>
-    <PaduraksaIdsGenerator>false</PaduraksaIdsGenerator>
+    <PaduraksaTypedIdsGenerator>false</PaduraksaTypedIdsGenerator>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>

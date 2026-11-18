@@ -19,7 +19,7 @@ namespace Paduraksa.Tests.Architecture;
 public sealed class ProjectReferenceTests
 {
     /// <summary>The typed-ID source generator; any project may use it, but only as an analyzer.</summary>
-    private const string IdsGenerator = "Ids.Generator";
+    private const string TypedIdsGenerator = "TypedIds.Generator";
 
     public static TheoryData<string> Layers => [.. All];
 
@@ -32,12 +32,12 @@ public sealed class ProjectReferenceTests
         Assert.True(
             violations.Count == 0,
             $"Paduraksa.{layer} may reference only [{string.Join(", ", AllowedDependencies[layer])}] "
-            + $"(PLAN §1) plus {IdsGenerator} as an analyzer, but references [{string.Join(", ", violations)}]");
+            + $"(PLAN §1) plus {TypedIdsGenerator} as an analyzer, but references [{string.Join(", ", violations)}]");
     }
 
     [Fact]
-    public async Task IdsGeneratorReferencesNoSolutionProjects() =>
-        Assert.Empty(await ProjectReferencesAsync($"Paduraksa.{IdsGenerator}"));
+    public async Task TypedIdsGeneratorReferencesNoSolutionProjects() =>
+        Assert.Empty(await ProjectReferencesAsync($"Paduraksa.{TypedIdsGenerator}"));
 
     [Fact]
     public void EveryLayerHasAProject()
@@ -46,7 +46,7 @@ public sealed class ProjectReferenceTests
             .Select(Path.GetFileName)
             .Order(StringComparer.Ordinal)
             .ToList();
-        var expected = All.Select(l => $"Paduraksa.{l}").Append($"Paduraksa.{IdsGenerator}").Order(StringComparer.Ordinal);
+        var expected = All.Select(l => $"Paduraksa.{l}").Append($"Paduraksa.{TypedIdsGenerator}").Order(StringComparer.Ordinal);
 
         // A new project must also be added to the graph in SolutionLayers.
         Assert.Equal(expected, projects);
@@ -67,7 +67,7 @@ public sealed class ProjectReferenceTests
     {
         // Holds whether the generator is referenced from Core.csproj or from Directory.Build.props.
         var core = await ProjectReferencesAsync($"Paduraksa.{Layer.Core}");
-        Assert.Contains(new ProjectReference(IdsGenerator, IsAnalyzerOnly: true), core);
+        Assert.Contains(new ProjectReference(TypedIdsGenerator, IsAnalyzerOnly: true), core);
 
         var application = (await ProjectReferencesAsync($"Paduraksa.{Layer.Application}")).Select(r => r.Name).ToList();
         Assert.Contains(Layer.Data, application);
@@ -77,10 +77,10 @@ public sealed class ProjectReferenceTests
     [Fact]
     public void SanityRuleFlagsForbiddenAndRuntimeGeneratorReferences()
     {
-        Assert.Empty(Violations(Layer.Proxy, [new(Layer.Core, false), new(IdsGenerator, true)]));
+        Assert.Empty(Violations(Layer.Proxy, [new(Layer.Core, false), new(TypedIdsGenerator, true)]));
         Assert.Equal(
-            [Layer.Data, $"{IdsGenerator} (runtime reference)", $"{Layer.Contracts} (analyzer)"],
-            Violations(Layer.Proxy, [new(Layer.Data, false), new(IdsGenerator, false), new(Layer.Contracts, true)]));
+            [Layer.Data, $"{TypedIdsGenerator} (runtime reference)", $"{Layer.Contracts} (analyzer)"],
+            Violations(Layer.Proxy, [new(Layer.Data, false), new(TypedIdsGenerator, false), new(Layer.Contracts, true)]));
     }
 
     /// <summary>A direct project reference, named by layer (the part after <c>Paduraksa.</c>).</summary>
@@ -90,8 +90,8 @@ public sealed class ProjectReferenceTests
     [
         .. references.Select(r => r switch
         {
-            { Name: IdsGenerator, IsAnalyzerOnly: true } => null,
-            { Name: IdsGenerator } => $"{r.Name} (runtime reference)",
+            { Name: TypedIdsGenerator, IsAnalyzerOnly: true } => null,
+            { Name: TypedIdsGenerator } => $"{r.Name} (runtime reference)",
             { IsAnalyzerOnly: true } => $"{r.Name} (analyzer)",
             _ when AllowedDependencies[layer].Contains(r.Name) => null,
             _ => r.Name,
