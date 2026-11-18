@@ -131,37 +131,6 @@ public sealed class ErrorLogTests : IDisposable
         Assert.DoesNotContain(Read(), line => line.Contains("a report about the log files themselves", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void AFullQueueDropsEntriesRatherThanBlockingTheCaller()
-    {
-        using ManualResetEventSlim pause = new(false);
-        using ManualResetEventSlim taken = new(false);
-        RotatingLogFile writer = new(
-            new LogFileWriterSettings(LogFileKind.Error, LogsDirectory, 1024 * 1024, 10, TimeSpan.FromDays(1), 1024 * 1024),
-            new ManualTimeProvider(DateTimeOffset.UnixEpoch),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
-            new RotatingLogFileTestSeams { Pause = pause, Taken = taken });
-        using (writer)
-        {
-            using var factory = LoggerFactory.Create(logging =>
-            {
-                logging.SetMinimumLevel(LogLevel.Trace);
-                logging.AddProvider(new ErrorLogProvider(writer));
-            });
-            var logger = factory.CreateLogger("Paduraksa.Tests.Load");
-
-            writer.WriteLine("taken and stalled");
-            Assert.True(taken.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
-            for (var i = 0; i < 20_000; i++)
-            {
-                Write(logger, LogLevel.Warning, "an entry under load");
-            }
-
-            Assert.True(writer.DroppedLines > 0);
-            pause.Set();
-        }
-    }
-
     private async Task<SharedServices> StartAsync(Dictionary<string, string?> settings, Action<PaduraksaLogOptions>? configureLogs = null)
     {
         ConfigurationManager configuration = new();

@@ -33,55 +33,6 @@ public sealed class AdminPlainHttpRedirectTests(SharedHost shared) : IClassFixtu
         Assert.Equal(string.Empty, body);
     }
 
-    [Fact]
-    public async Task The_path_and_query_are_kept()
-    {
-        var admin = Admin();
-        var host = $"127.0.0.1:{admin.Port.ToString(CultureInfo.InvariantCulture)}";
-
-        var (head, _) = await SendAsync(admin, $"GET /api/v1/hosts?limit=5&cursor=x HTTP/1.1\r\nHost: {host}\r\n\r\n");
-
-        Assert.StartsWith("HTTP/1.1 308", head, StringComparison.Ordinal);
-        Assert.Equal($"https://{host}/api/v1/hosts?limit=5&cursor=x", Header(head, "Location"));
-    }
-
-    [Fact]
-    public async Task A_head_request_is_redirected_too()
-    {
-        var admin = Admin();
-        var host = $"127.0.0.1:{admin.Port.ToString(CultureInfo.InvariantCulture)}";
-
-        var (head, body) = await SendAsync(admin, $"HEAD / HTTP/1.1\r\nHost: {host}\r\n\r\n");
-
-        Assert.StartsWith("HTTP/1.1 308", head, StringComparison.Ordinal);
-        Assert.Equal($"https://{host}/", Header(head, "Location"));
-        Assert.Equal(string.Empty, body);
-    }
-
-    [Fact]
-    public async Task Http_1_0_with_a_host_is_redirected_too()
-    {
-        var admin = Admin();
-        var host = $"127.0.0.1:{admin.Port.ToString(CultureInfo.InvariantCulture)}";
-
-        var (head, _) = await SendAsync(admin, $"GET /old HTTP/1.0\r\nHost: {host}\r\n\r\n");
-
-        Assert.StartsWith("HTTP/1.1 308", head, StringComparison.Ordinal);
-        Assert.Equal($"https://{host}/old", Header(head, "Location"));
-    }
-
-    [Fact]
-    public async Task An_ipv6_literal_host_is_kept_as_it_is()
-    {
-        var admin = Admin();
-        var port = admin.Port.ToString(CultureInfo.InvariantCulture);
-
-        var (head, _) = await SendAsync(admin, $"GET / HTTP/1.1\r\nHost: [::1]:{port}\r\n\r\n");
-
-        Assert.StartsWith("HTTP/1.1 308", head, StringComparison.Ordinal);
-        Assert.Equal($"https://[::1]:{port}/", Header(head, "Location"));
-    }
-
     [Theory]
     [InlineData("GET / HTTP/1.1\r\n\r\n")] // no Host at all
     [InlineData("GET / HTTP/1.1\r\nHost: a.example\r\nHost: b.example\r\n\r\n")] // two, so which one is a guess

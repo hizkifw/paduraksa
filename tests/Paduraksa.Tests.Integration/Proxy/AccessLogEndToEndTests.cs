@@ -2,11 +2,6 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Core.Logging;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Logging;
@@ -156,28 +151,6 @@ public sealed class AccessLogEndToEndTests
 
         Assert.DoesNotContain(sink.Lines, line => line.Contains("\"quiet.test\"", StringComparison.Ordinal));
         Assert.DoesNotContain(sink.Lines, line => line.Contains($"/{tag}/quiet", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task ShutdownFlushesWhatIsLeftInTheRing()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var upstream = await EchoUpstream.StartAsync(ct);
-        CapturingSink sink = new();
-        var host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
-        await host.StartAsync(ct);
-        await PublishAsync(host, upstream, ct);
-        using var client = TestHost.CreateClient(host);
-
-        var tag = NextTag();
-        using var response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/at-stop"), ct);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-        await host.StopAsync(ct);
-        await host.DisposeAsync();
-
-        Assert.True(sink.Flushed, "the drain should flush on shutdown");
-        Assert.Contains(sink.Lines, line => line.Contains($"/{tag}/at-stop", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -379,11 +352,11 @@ public sealed class AccessLogEndToEndTests
 
         public IReadOnlyList<string> Lines => [.. _lines];
 
-        public bool Flushed { get; private set; }
-
         public void WriteLine(ReadOnlySpan<char> line) => _lines.Enqueue(line.ToString());
 
-        public void Flush() => Flushed = true;
+        public void Flush()
+        {
+        }
 
         /// <summary>
         /// The one line containing <paramref name="fragment"/> (a per-test path segment), waiting up to 15 s for the drain

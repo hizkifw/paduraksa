@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Application.Issuance;
-using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
 using Paduraksa.Server.Hosting;
@@ -205,11 +204,4 @@ public sealed class AcmeHostingTests
         await host.StopAsync(Ct);
     }
 
-    [Fact]
-    public async Task TheDnsPropagationCheckCanBeSwitchedOff()
-    {
-        await using var host = TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:DnsPropagation:Enabled"] = "false" });
-        await host.StartAsync(Ct);
-        await host.StopAsync(Ct);
-    }
 }

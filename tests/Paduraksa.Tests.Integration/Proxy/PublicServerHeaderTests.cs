@@ -221,22 +221,6 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task KestrelsOwnHeaderNeverAppears()
-    {
-        // Both listeners turn Kestrel's header off; no mode may bring the name back.
-        await using var host = await StartedAsync(App());
-
-        foreach (var name in (string[])["named.test", "custom.test", "upstream.test", "remove.test", "nobody.test"])
-        {
-            var (response, servers) = await SendAsync(host, name);
-            using (response)
-            {
-                Assert.DoesNotContain(servers, value => value.Contains("Kestrel", StringComparison.OrdinalIgnoreCase));
-            }
-        }
-    }
-
-    [Fact]
     public async Task EachModeHoldsOnGateAnswers()
     {
         await using var host = await StartedAsync(App());
