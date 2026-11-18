@@ -18,6 +18,7 @@ public static class FuzzTargets
         YamlImportTarget.Target,
         McpSandboxTarget.Target,
         IpNetworkTarget.Target,
+        TypedIdTarget.Target,
         GlobPatternTarget.Target,
         CloudflareRangesTarget.Target,
         BackupArchiveTarget.Target,
