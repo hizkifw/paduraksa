@@ -20,9 +20,6 @@ public static class LiveTailText
 
     public static string StatusText(int? status) => status is { } code ? code.ToString(CultureInfo.InvariantCulture) : "-";
 
-    /// <summary>Milliseconds the way a person reads them (<see cref="DisplayFormat.Duration"/>), written in the invariant default.</summary>
-    public static string Duration(double? milliseconds) => DisplayFormat.Invariant.Duration(milliseconds);
-
     /// <summary>The upstream's address without its scheme and trailing slash, which every line would repeat.</summary>
     public static string UpstreamText(string? upstream)
     {

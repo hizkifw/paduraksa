@@ -6,16 +6,6 @@ namespace Paduraksa.Dashboard.Pages;
 /// <summary>How the overview writes the traffic numbers: short, with the unit, and the same everywhere on the page.</summary>
 internal static class TrafficFigures
 {
-    // The numbers are DisplayFormat's. These keep the names the pages and other branches call; they write the invariant default, and a page
-    // that shows them to a person calls the injected DisplayFormat instead.
-    public static string PerSecond(double rate) => DisplayFormat.Invariant.PerSecond(rate);
-
-    public static string Percent(double share) => DisplayFormat.Invariant.Percent(share);
-
-    public static string Millis(double ms) => DisplayFormat.Invariant.Latency(ms);
-
-    public static string Count(long value) => DisplayFormat.Invariant.Count(value);
-
     /// <summary>A tooltip line for a step the server observed only in part (it started or stopped inside it); null when it saw all of it or none.</summary>
     public static string? Coverage(MetricsSeriesPoint point, DisplayFormat? format = null) => Coverage(point.CoveredSeconds, point.WidthSeconds, format);
 
