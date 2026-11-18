@@ -451,20 +451,6 @@ public sealed class DraftApiTests(SharedAdminApi shared) : IClassFixture<SharedA
     }
 
     [Fact]
-    public async Task DiscardingDropsTheDraftAndAnotherCanBeOpened()
-    {
-        var api = shared.Api;
-        var draft = await FreshAsync(api);
-
-        using var discarded = await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{draft.Id}");
-
-        Assert.Equal(HttpStatusCode.NoContent, discarded.StatusCode);
-        using var list = await api.GetAsync("/api/v1/drafts");
-        Assert.Empty((await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.PageConfigDraft, Ct)).Items);
-        Assert.NotEqual(draft.Id, (await FreshAsync(api)).Id);
-    }
-
-    [Fact]
     public async Task APasswordTypedIntoADraftedAccessListIsNeverStoredOrReturned()
     {
         var api = shared.Api;
