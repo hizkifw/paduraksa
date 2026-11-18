@@ -73,6 +73,14 @@ public sealed class DisplayFormatTests
         Assert.Equal(expected, new DisplayFormat().Ago(Noon.AddSeconds(-seconds), Noon));
 
     [Theory]
+    [InlineData(0, "-")]
+    [InlineData(0.4, "0.4 ms")]
+    [InlineData(4.4, "4.4 ms")]
+    [InlineData(44, "44 ms")]
+    [InlineData(1_300, "1.3 s")]
+    public void LatenciesAreWrittenInTheUnitThatReadsBest(double ms, string expected) => Assert.Equal(expected, new DisplayFormat().Latency(ms));
+
+    [Theory]
     [InlineData(null, "-")]
     [InlineData(0.42, "0.42 ms")]
     [InlineData(38.0, "38 ms")]

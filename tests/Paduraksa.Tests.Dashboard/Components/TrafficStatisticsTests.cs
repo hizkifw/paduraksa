@@ -249,12 +249,4 @@ public sealed class TrafficStatisticsTests
     [InlineData(31, 50)]
     [InlineData(480, 500)]
     public void TheChartScaleTopsOutAtARoundNumber(double peak, double expected) => Assert.Equal(expected, TimeSeriesChart.Nice(peak));
-
-    [Theory]
-    [InlineData(0, "-")]
-    [InlineData(0.4, "0.4 ms")]
-    [InlineData(4.4, "4.4 ms")]
-    [InlineData(44, "44 ms")]
-    [InlineData(1_300, "1.3 s")]
-    public void LatenciesAreWrittenInTheUnitThatReadsBest(double ms, string expected) => Assert.Equal(expected, TrafficFigures.Millis(ms));
 }
