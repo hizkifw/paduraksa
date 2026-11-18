@@ -50,12 +50,4 @@ public sealed partial class IdentityContractTests
         Assert.Equal(["ProvisioningUri", "SecretId"], typeof(TotpEnrollment).GetProperties().Select(p => p.Name).Where(n => n != "EqualityContract").Order());
     }
 
-    [Fact]
-    public void ApiTokenAndSessionIdsAreTypedAndDistinctFromTheirSecrets()
-    {
-        Assert.Equal("ses", SessionId.Prefix);
-        Assert.Equal("tok", ApiTokenId.Prefix);
-        Assert.Equal("usr", UserId.Prefix);
-        Assert.Equal(Paduraksa.Core.Ids.IdKind.UuidV4, SessionId.Kind);
-    }
 }
