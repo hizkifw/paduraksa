@@ -212,7 +212,7 @@ Not layered settings:
 3. **Its built-in default** as a `const` of `HostSettingsLayers`, from which `BuiltIn` is assembled. Nowhere else states one.
 4. **A row in `SettingsInheritanceTests`**, the table that walks the contract: the field accessor, a layer that sets it, what the compiled host then carries, the built-in default and two sample values.
    - The table's completeness test fails until the row exists.
-   - `SettingsMergeReflectionTests` walks the merge from the contract, so a field missing from `Merge` fails without a row.
+   - Once the row exists, a field missing from `Merge` fails it.
    - A field on a **nested** record must also be added to `ISettingsLayer.SetsNothing` (or `EveryNestedRecordKnowsWhenItSetsNothing` fails) and to the record's line in the nested-merge cases (or `EveryNestedRecordHasANestedMergeCase` fails).
 5. **Its rules in `ConfigValidator`**: field rules at the layer, and resolved-value rules on the host's resolved settings with the layer named by `HostSettingsLayers.LayerOf`. Add the compiler's backstop for the same value.
 6. **If it sends a header:** its operation in `CompiledHost.ResponseHeaders` (kind, stage and conditions in `ResponseHeaders`, and its line in `SnapshotCompiler.CompileResponseHeaders`).
