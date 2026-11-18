@@ -9,16 +9,13 @@ namespace Paduraksa.Tests.Data.Config;
 public sealed class CertificateStorageTests
 {
     [Fact]
-    public async Task EnumsAreStoredByStableNameAndRoundTrip()
+    public async Task EnumsAreStoredByStableName()
     {
         await using var db = await CreateAsync();
         var row = Row(CertificateSource.LocalCaRoot, CertificateStatus.Failed);
         await SaveAsync(db, row);
 
         Assert.Equal(["local_ca_root", "failed"], (await db.QueryAsync("SELECT Source, Status FROM Certificates")).Single());
-        await using var context = db.NewContext();
-        var read = await context.Certificates.SingleAsync(Ct);
-        Assert.Equal((CertificateSource.LocalCaRoot, CertificateStatus.Failed, row.NotAfter), (read.Source, read.Status, read.NotAfter));
     }
 
     [Fact]

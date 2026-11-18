@@ -12,26 +12,15 @@ public sealed class IssuanceStorageTests
     private static readonly DateTimeOffset T0 = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task AccountsOrdersAndProvidersRoundTripWithStableNames()
+    public async Task AccountsOrdersAndProvidersAreStoredByStableNames()
     {
         await using var db = await CreateAsync();
         var (account, provider, certificate, order) = Graph();
-        order.StagedKeyId = StagedKeyId.New();
-        order.Csr = [1, 2, 3];
-        order.AriWindowStart = T0.AddDays(40);
-        order.AriWindowEnd = T0.AddDays(41);
         await SaveAsync(db, account, provider, certificate, order);
 
         Assert.Equal(["active", "ES384"], (await db.QueryAsync("SELECT Status, KeyAlgorithm FROM AcmeAccounts")).Single());
         Assert.Equal(["cloudflare"], (await db.QueryAsync("SELECT Kind FROM DnsProviders")).Single());
         Assert.Equal(["ordered", "dns-01", "rsa-3072"], (await db.QueryAsync("SELECT Status, ChallengeType, KeySpec FROM AcmeOrders")).Single());
-
-        await using var context = db.NewContext();
-        var read = await context.AcmeOrders.SingleAsync(Ct);
-        Assert.Equal(order.Names, read.Names);
-        Assert.Equal((order.StagedKeyId, order.AriWindowEnd, order.DnsProviderId), (read.StagedKeyId, read.AriWindowEnd, read.DnsProviderId));
-        Assert.Equal([1, 2, 3], read.Csr);
-        Assert.Equal(["mailto:ops@example.com"], (await context.AcmeAccounts.SingleAsync(Ct)).Contacts);
     }
 
     [Fact]

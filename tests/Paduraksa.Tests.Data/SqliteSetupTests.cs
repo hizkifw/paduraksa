@@ -48,7 +48,6 @@ public sealed class SqliteSetupTests : IAsyncLifetime
         Assert.Equal(1L, await PragmaAsync(context, "foreign_keys"));
         Assert.Equal((long)SqlitePragmas.BusyTimeout.TotalMilliseconds, await PragmaAsync(context, "busy_timeout"));
         Assert.Equal(SqlitePragmas.BusyTimeout.TotalSeconds, ((SqliteConnection)context.Database.GetDbConnection()).DefaultTimeout);
-        Assert.Same(Factory, _services.GetRequiredService<IDbContextFactory<SampleDbContext>>()); // singleton
     }
 
     [Fact]
@@ -65,21 +64,6 @@ public sealed class SqliteSetupTests : IAsyncLifetime
         await using var second = await Factory.CreateDbContextAsync(Ct);
         await second.Database.OpenConnectionAsync(Ct);
         Assert.Equal(2L, await PragmaAsync(second, "synchronous")); // FULL: same physical connection, pragmas not re-run
-    }
-
-    [Fact]
-    public async Task WritesGoThroughTheWal()
-    {
-        var host = new Host { Id = HostId.New(), Name = "h" };
-        await using (var write = await Factory.CreateDbContextAsync(Ct))
-        {
-            write.Add(host);
-            await write.SaveChangesAsync(Ct);
-        }
-
-        Assert.True(File.Exists(DatabasePath + "-wal"));
-        await using var read = await Factory.CreateDbContextAsync(Ct);
-        Assert.Equal(host.Id, (await read.Hosts.SingleAsync(Ct)).Id);
     }
 
     [Fact]

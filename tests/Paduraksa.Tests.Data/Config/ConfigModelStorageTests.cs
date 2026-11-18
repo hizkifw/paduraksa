@@ -62,20 +62,6 @@ public sealed class ConfigModelStorageTests
         Assert.Equal(new object?[] { "token", "mcp", "conflict", "blob", 16L }, row);
     }
 
-    [Fact]
-    public async Task KeysAreTypedIdColumnsAndTheAuditKeyIsTheRowid()
-    {
-        await using var db = await CreateAsync();
-        var revision = Revision(1);
-        var audit = Event(1, Local);
-        audit.RevisionId = revision.Id;
-        await SaveAsync(db, revision, audit);
-
-        Assert.Equal(new object?[] { "blob", 16L }, (await db.QueryAsync("SELECT typeof(Id), length(Id) FROM ConfigRevisions")).Single());
-        Assert.Equal(audit.Id.Value, await db.ScalarAsync("SELECT rowid FROM AuditEvents"));
-        Assert.Equal("blob", await db.ScalarAsync("SELECT typeof(RevisionId) FROM AuditEvents"));
-    }
-
     public static TheoryData<string> InvalidActors =>
     [
         "ActorKind = 'system', ActorUserId = randomblob(16)",

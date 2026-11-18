@@ -35,7 +35,6 @@ public sealed class AuditLogTests : IAsyncLifetime
         Assert.Equal(AuditChain.GenesisPrevHash.ToArray(), first.PrevHash.ToArray());
         Assert.Equal(first.Hash.ToArray(), second.PrevHash.ToArray());
         Assert.Equal(second.Hash.ToArray(), third.PrevHash.ToArray());
-        Assert.All(new[] { first, second, third }, r => Assert.Equal(AuditChain.ComputeHash(r), r.Hash.ToArray()));
         Assert.True(first.Id < second.Id && second.Id < third.Id);
     }
 

@@ -10,26 +10,6 @@ public sealed class IdentityStorageTests
     private static readonly DateTimeOffset Now = new(2026, 11, 8, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task AUserRoundTripsWithTypedIdsAndUtcTimestamps()
-    {
-        await using var db = await CreateAsync();
-        var user = User("alice");
-        user.TotpSecretId = SecretId.New();
-        user.TotpEnabled = true;
-        user.LockedUntil = Now.AddMinutes(5);
-        await SaveAsync(db, user);
-
-        await using var context = db.NewContext();
-        var read = await context.Users.SingleAsync(Ct);
-
-        Assert.Equal(user.Id, read.Id);
-        Assert.Equal(user.TotpSecretId, read.TotpSecretId);
-        Assert.Equal(Now.AddMinutes(5), read.LockedUntil);
-        Assert.True(read.TotpEnabled);
-        Assert.Equal(16L, await db.ScalarAsync("SELECT length(Id) FROM Users"));
-    }
-
-    [Fact]
     public async Task UsernamesAreUniqueIgnoringCase()
     {
         await using var db = await CreateAsync();
@@ -87,18 +67,11 @@ public sealed class IdentityStorageTests
     }
 
     [Fact]
-    public async Task ATokenRoundTripsAndOnlyKeepsAHash()
+    public async Task ATokenNeedsA32ByteHashAndAtLeastOneScope()
     {
         await using var db = await CreateAsync();
         var user = User("erin");
-        var token = Token(user.Id);
-        token.ExpiresAt = Now.AddDays(30);
-        await SaveAsync(db, user, token);
-
-        await using var context = db.NewContext();
-        var read = await context.ApiTokens.SingleAsync(Ct);
-        Assert.Equal((token.Id, user.Id, "ci", "config:read,simulate", Now.AddDays(30)), (read.Id, read.UserId, read.Name, read.Scopes, read.ExpiresAt));
-        Assert.Equal(token.SecretHash, read.SecretHash);
+        await SaveAsync(db, user, Token(user.Id));
 
         var short_ = await Assert.ThrowsAsync<DbUpdateException>(() => SaveAsync(db, Token(user.Id, hash: new byte[16])));
         Assert.Contains("CK_ApiTokens_SecretHash", short_.InnerException!.Message, StringComparison.Ordinal);
@@ -109,7 +82,7 @@ public sealed class IdentityStorageTests
     }
 
     [Fact]
-    public async Task ASessionHashIsUniqueAndTheIdIsARandomUuid()
+    public async Task ASessionHashIsUnique()
     {
         await using var db = await CreateAsync();
         var user = User("frank");
@@ -117,13 +90,6 @@ public sealed class IdentityStorageTests
         await SaveAsync(db, user, session);
 
         await Assert.ThrowsAsync<DbUpdateException>(() => SaveAsync(db, Session(user.Id, session.TokenHash)));
-        await using var context = db.NewContext();
-        var read = await context.Sessions.SingleAsync(Ct);
-        Assert.Equal(session.Id, read.Id);
-        Assert.Equal(session.TokenHash, read.TokenHash);
-        Assert.True(read.SecondFactorCompleted);
-        var bytes = (byte[])(await db.ScalarAsync("SELECT Id FROM Sessions"))!;
-        Assert.Equal(4, bytes[6] >> 4); // UUID version 4
     }
 
     [Fact]

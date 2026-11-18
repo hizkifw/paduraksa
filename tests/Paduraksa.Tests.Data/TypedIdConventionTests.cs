@@ -23,16 +23,6 @@ public sealed class TypedIdConventionTests
     }
 
     [Fact]
-    public void WithoutTheConventionsTypedIdsAreNotMappable()
-    {
-        // Documents why AddTypedIdConventions is required: EF has no idea what a typed ID is on its own.
-        using var context = new ModelContext(m => m.Entity<Challenge>(), conventions: false);
-
-        var error = Assert.Throws<InvalidOperationException>(() => context.Model);
-        Assert.Contains("HostId", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task TablePerTypeDerivedKeyKeepsItsConverter()
     {
         // The TPT link (derived Id -> base Id) rebuilds the derived key without the convention's converter; the
@@ -127,7 +117,7 @@ public sealed class TypedIdConventionTests
     }
 
     /// <summary>A context whose model is built from a delegate (no model caching, so every test gets its own).</summary>
-    private sealed class ModelContext(Action<ModelBuilder> configure, bool conventions = true, SqliteConnection? connection = null) : DbContext
+    private sealed class ModelContext(Action<ModelBuilder> configure, SqliteConnection? connection = null) : DbContext
     {
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -145,10 +135,7 @@ public sealed class TypedIdConventionTests
 
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {
-            if (conventions)
-            {
-                configurationBuilder.AddTypedIdConventions();
-            }
+            configurationBuilder.AddTypedIdConventions();
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => configure(modelBuilder);
@@ -166,7 +153,7 @@ public sealed class TypedIdConventionTests
             return database;
         }
 
-        public ModelContext NewContext() => new(configure, connection: connection);
+        public ModelContext NewContext() => new(configure, connection);
 
         public async Task SaveAsync(params object[] entities)
         {

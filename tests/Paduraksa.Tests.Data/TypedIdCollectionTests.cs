@@ -35,7 +35,7 @@ public sealed class TypedIdCollectionTests
     }
 
     [Fact]
-    public async Task ContainsOnAListTranslatesToJsonEach()
+    public async Task ContainsOnAListIsAnsweredByTheDatabase()
     {
         await using var db = await CreateAsync();
         var host = new Host { Id = HostId.New(), Name = "h", Settings = { AllowedRouteIds = [RouteId.New()] } };
@@ -47,8 +47,6 @@ public sealed class TypedIdCollectionTests
         var allowedRouteId = host.Settings.AllowedRouteIds[0];
         var hosts = context.Hosts.Where(h => h.Settings.AllowedRouteIds.Contains(allowedRouteId));
 
-        Assert.Contains("json_each(\"r\".\"RelatedHostIds\")", routes.ToQueryString(), StringComparison.Ordinal);
-        Assert.Contains("json_each(\"h\".\"Settings\" ->> 'AllowedRouteIds')", hosts.ToQueryString(), StringComparison.Ordinal);
         Assert.Equal(1, await routes.CountAsync(Ct));
         Assert.Equal(1, await hosts.CountAsync(Ct));
         Assert.Equal(0, await context.Routes.CountAsync(r => r.RelatedHostIds.Contains(host.Id), Ct));

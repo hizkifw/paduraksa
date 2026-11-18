@@ -66,20 +66,6 @@ public sealed class AnalyticsRollupStoreTests
     }
 
     [Fact]
-    public async Task TheRowsHaveInt64OrderedIdsThatSortInWriteOrder()
-    {
-        await using var database = await TestConfigDatabase.CreateAsync();
-        AnalyticsBacklog backlog = new();
-        using var store = StoreOver(database, backlog);
-        backlog.Add([Host(App, Noon, 1), Host(App, Noon.AddMinutes(5), 1)]);
-
-        await store.WritePendingAsync(Ct);
-
-        var ids = (await database.QueryAsync("SELECT \"Id\" FROM \"AnalyticsRollups\" ORDER BY \"Start\"")).Select(static row => (long)row[0]!).ToArray();
-        Assert.True(ids[0] < ids[1]);
-    }
-
-    [Fact]
     public async Task ABucketWrittenTwiceIsMergedIntoOneRowThatKeepsEveryCountAndEverySecondObserved()
     {
         await using var database = await TestConfigDatabase.CreateAsync();

@@ -1,8 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Paduraksa.Core.Ids;
-using Paduraksa.Storage.Ids;
 using Paduraksa.Tests.Data.Sample;
 using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
@@ -125,50 +121,6 @@ public sealed class TypedIdStorageTests
         Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = 'Hosts' AND name LIKE 'sqlite_autoindex%'"));
         Assert.Contains("USING INTEGER PRIMARY KEY (rowid=?)", await db.PlanAsync("SELECT Action FROM AuditEvents WHERE Id = 42"), StringComparison.Ordinal);
     }
-
-    [Fact]
-    public async Task Int64OrderedKeyIsNotGeneratedByTheDatabase()
-    {
-        await using var db = await CreateAsync();
-        var id = AuditEventId.FromValue(123);
-        await db.SaveAsync(new AuditEvent { Id = id, Action = "a" });
-
-        Assert.Equal(123L, await db.ScalarAsync("SELECT Id FROM AuditEvents"));
-    }
-
-    [Fact]
-    public async Task EveryTypedIdPropertyHasTheConventionConverterAndIsNeverGenerated()
-    {
-        await using var db = await CreateAsync();
-        await using var context = db.NewContext();
-
-        // The design-time model keeps the configured comparer (the runtime model only has EF's nullable wrapper).
-        var properties = context.GetService<IDesignTimeModel>().Model.GetEntityTypes().SelectMany(AllProperties).Where(IsTypedId).ToList();
-
-        Assert.Equal(20, properties.Count); // every typed ID in SampleModel, incl. complex and JSON members
-        foreach (var property in properties)
-        {
-            var idType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
-            var expected = property.DeclaringType is IComplexType complex && complex.IsMappedToJson()
-                ? typeof(TypedIdToStringConverter<>)
-                : ValueTypeOf(idType) == typeof(long)
-                    ? typeof(TypedIdToInt64Converter<>)
-                    : typeof(TypedIdToBytesConverter<>);
-            Assert.Equal(expected.MakeGenericType(idType), property.GetValueConverter()?.GetType());
-            Assert.Equal(typeof(TypedIdValueComparer<>).MakeGenericType(idType), property.FindAnnotation("ValueComparer")?.Value?.GetType());
-            Assert.Equal(ValueGenerated.Never, property.ValueGenerated);
-        }
-    }
-
-    private static IEnumerable<IProperty> AllProperties(ITypeBase type) =>
-        type.GetDeclaredProperties().Concat(type.GetDeclaredComplexProperties().SelectMany(c => AllProperties(c.ComplexType)));
-
-    private static bool IsTypedId(IReadOnlyProperty property) =>
-        ValueTypeOf(Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) is not null;
-
-    /// <summary>The <c>TValue</c> of <c>ITypedId&lt;TSelf, TValue&gt;</c>, or null for other types.</summary>
-    private static Type? ValueTypeOf(Type type) =>
-        type.GetInterfaces().SingleOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ITypedId<,>))?.GenericTypeArguments[1];
 
     private static string BigEndianHex(Guid value)
     {

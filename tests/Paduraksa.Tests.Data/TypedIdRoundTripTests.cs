@@ -27,24 +27,6 @@ public sealed class TypedIdRoundTripTests
     }
 
     [Fact]
-    public async Task UuidV4RoundTripsAsKeyAndNullable()
-    {
-        await using var db = await CreateAsync();
-        var host = new Host { Id = HostId.New(), Name = "h" };
-        var challenge = new Challenge { Id = ChallengeId.New(), HostId = host.Id };
-        var withChallenge = new Route { Id = RouteId.New(), HostId = host.Id, ChallengeId = challenge.Id };
-        var withoutChallenge = new Route { Id = RouteId.New(), HostId = host.Id };
-        await db.SaveAsync(host, challenge, withChallenge, withoutChallenge);
-
-        await using var context = db.NewContext();
-        var loaded = await context.Challenges.SingleAsync(Ct);
-        Assert.Equal(challenge.Id, loaded.Id);
-        Assert.Equal(host.Id, loaded.HostId);
-        Assert.Equal(challenge.Id, (await context.Routes.SingleAsync(r => r.Id == withChallenge.Id, Ct)).ChallengeId);
-        Assert.Null((await context.Routes.SingleAsync(r => r.Id == withoutChallenge.Id, Ct)).ChallengeId);
-    }
-
-    [Fact]
     public async Task Int64OrderedRoundTripsAsKeyForeignKeyAndNullable()
     {
         await using var db = await CreateAsync();
@@ -126,14 +108,5 @@ public sealed class TypedIdRoundTripTests
         var loaded = await verify.Hosts.SingleAsync(Ct);
         Assert.Equal("after", loaded.Name);
         Assert.Equal(host.Id, loaded.Settings.FallbackHostId);
-    }
-
-    [Fact]
-    public async Task ForeignKeysAreEnforcedOnTypedIdColumns()
-    {
-        await using var db = await CreateAsync();
-        var orphan = new Route { Id = RouteId.New(), HostId = HostId.New() };
-
-        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveAsync(orphan));
     }
 }

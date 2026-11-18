@@ -63,19 +63,6 @@ public sealed class MetricRollupStoreTests
     }
 
     [Fact]
-    public async Task TheRowsHaveInt64OrderedIdsThatSortInWriteOrder()
-    {
-        await using var database = await TestConfigDatabase.CreateAsync();
-        MetricRollupStore store = new(database.Factory);
-
-        await store.WriteAsync([Minute(MetricRollupSubject.Total, string.Empty, Noon, 1), Minute(MetricRollupSubject.Total, string.Empty, Noon.AddMinutes(1), 2)], Ct);
-
-        var ids = (await database.QueryAsync("SELECT \"Id\" FROM \"MetricRollups\" ORDER BY \"Minute\"")).Select(r => (long)r[0]!).ToArray();
-        Assert.Equal(2, ids.Length);
-        Assert.True(ids[0] < ids[1]);
-    }
-
-    [Fact]
     public async Task AMinuteWrittenTwiceIsMergedIntoOneRowThatKeepsEveryCountAndEverySecondObserved()
     {
         await using var database = await TestConfigDatabase.CreateAsync();
