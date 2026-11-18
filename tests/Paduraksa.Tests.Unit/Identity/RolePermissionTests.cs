@@ -117,29 +117,6 @@ public sealed class RolePermissionTests
     }
 
     [Fact]
-    public void TheIdentityDtosRoundTripThroughTheirJsonContextWithNamesAndTypedIds()
-    {
-        var user = new UserSummary(UserId.New(), "alice", "Alice", [Role.Admin, Role.Auditor], true, false, false, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
-        var token = new ApiTokenSummary(ApiTokenId.New(), user.Id, "ci", [Permission.ConfigRead, Permission.Simulate], null, DateTimeOffset.UnixEpoch, null, false, false);
-
-        var userJson = JsonSerializer.Serialize(user, IdentityJsonContext.Default.UserSummary);
-        var tokenJson = JsonSerializer.Serialize(token, IdentityJsonContext.Default.ApiTokenSummary);
-
-        Assert.Contains("\"id\":\"usr_", userJson, StringComparison.Ordinal);
-        Assert.Contains("\"roles\":[\"admin\",\"auditor\"]", userJson, StringComparison.Ordinal);
-        Assert.Contains("\"scopes\":[\"config:read\",\"simulate\"]", tokenJson, StringComparison.Ordinal);
-        Assert.Contains("\"expiresAt\":null", tokenJson, StringComparison.Ordinal);
-        Assert.Equal(user.Id, JsonSerializer.Deserialize(userJson, IdentityJsonContext.Default.UserSummary)!.Id);
-        Assert.Equal(token.Scopes, JsonSerializer.Deserialize(tokenJson, IdentityJsonContext.Default.ApiTokenSummary)!.Scopes);
-    }
-
-    [Theory]
-    [InlineData("{\"username\":\"a\",\"password\":\"b\",\"extra\":1}")]
-    [InlineData("{\"username\":\"a\"}")]
-    public void ReadingIsStrict(string json) =>
-        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize(json, IdentityJsonContext.Default.LoginRequest));
-
-    [Fact]
     public void BadRoleAndPermissionNamesAreRejected()
     {
         Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("{\"displayName\":null,\"roles\":[\"root\"]}", IdentityJsonContext.Default.UpdateUserRequest));

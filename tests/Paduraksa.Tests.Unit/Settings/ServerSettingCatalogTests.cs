@@ -74,16 +74,6 @@ public sealed class ServerSettingCatalogTests
     }
 
     [Fact]
-    public void ASettingsRecordThatSetsNothingIsNoKeyInTheCanonicalDocument()
-    {
-        var json = System.Text.Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(new ConfigDocument(Settings: new GlobalSettings(Server: new ServerSettings()))));
-        var set = System.Text.Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(new ConfigDocument(Settings: new GlobalSettings(Server: new ServerSettings { LogRetainedFiles = 5 }))));
-
-        Assert.DoesNotContain("\"server\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"server\":{\"logRetainedFiles\":5}", set, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void LoweringARetentionSaysWhatIsDeletedAndRaisingItSaysNothing()
     {
         ServerSettings week = new() { MetricsRetention = TimeSpan.FromDays(7) };

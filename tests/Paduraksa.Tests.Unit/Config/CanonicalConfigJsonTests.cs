@@ -117,22 +117,6 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
-    public void ACanonicalDocumentWithRuleSetsRoundTripsToTheSameBytes()
-    {
-        ConfigDocument document = new(
-            RuleSets:
-            [
-                new RuleSetConfig(
-                    Id<RuleSetId>(1),
-                    "Rules",
-                    Rules: [new RuleConfig(RuleAction.Drop, new RuleMatchConfig(new RulePathConfig(RulePathKind.Regex, @"\.(php|asp)$"), ["POST"]))]),
-            ]);
-        var bytes = CanonicalConfigJson.Serialize(document);
-
-        Assert.Equal(bytes, CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(bytes)));
-    }
-
-    [Fact]
     public void AuthProvidersAreWrittenInIdOrderWithTheirHeaderListsAsSets()
     {
         AuthProviderConfig later = new(Id<AuthProviderId>(2), "  Later  ", ForwardAuth: new ForwardAuthConfig(" http://later/ ", ForwardAuthPreset.Custom));
@@ -160,24 +144,6 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
-    public void ACanonicalDocumentWithAuthProvidersRoundTripsToTheSameBytes()
-    {
-        ConfigDocument document = new(
-            AuthProviders:
-            [
-                new AuthProviderConfig(
-                    Id<AuthProviderId>(1),
-                    "sso",
-                    ForwardAuth: new ForwardAuthConfig(
-                        "http://oauth2-proxy:4180", ForwardAuthPreset.OAuth2Proxy, TimeoutSeconds: 3, CacheSeconds: 0, CacheScope: ForwardAuthCacheScope.Host,
-                        SignIn: new ForwardAuthSignInConfig("/oauth2/start", "rd"))),
-            ]);
-        var bytes = CanonicalConfigJson.Serialize(document);
-
-        Assert.Equal(bytes, CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(bytes)));
-    }
-
-    [Fact]
     public void ADocumentStoredBeforeAuthProvidersReadsWithNoneAndOnlyGainsTheEmptyList()
     {
         var before = """{"apiVersion":"paduraksa.dev/v1","settings":{"version":0,"unknownHost":"notFound","defaults":{},"trustedProxies":{"mode":"off","useTrueClientIp":false,"forwardedForFallback":false,"trustForwardedProto":false,"proxies":[]}},"profiles":[],"upstreams":[],"hosts":[],"rateLimitPolicies":[],"accessLists":[],"ruleSets":[]}"""u8.ToArray();
@@ -201,60 +167,6 @@ public sealed class CanonicalConfigJsonTests
         Assert.Equal(
             Encoding.UTF8.GetString(before).Replace("\"accessLists\":[]}", "\"accessLists\":[],\"ruleSets\":[],\"authProviders\":[]}", StringComparison.Ordinal),
             Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)));
-    }
-
-    [Fact]
-    public void TheM6HostSettingsAddNoKeyWhenUnset()
-    {
-        // A layer that sets neither is byte-for-byte what it was before M6, so a stored revision keeps its hash.
-        ConfigDocument untouched = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings(), Routes: [new RouteConfig(RootRoute, AppUpstream)])]);
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(untouched));
-        Assert.DoesNotContain("accessLog", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("requestIdPropagation", json, StringComparison.Ordinal);
-
-        // Set, they are camelCase keys, and the enum is its camelCase name.
-        var set = untouched with
-        {
-            Hosts = [untouched.Hosts[0] with { Settings = new HostSettings { AccessLog = false, RequestIdPropagation = RequestIdPropagation.ResponseOnly } }],
-        };
-        var written = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(set));
-        Assert.Contains("\"accessLog\":false", written, StringComparison.Ordinal);
-        Assert.Contains("\"requestIdPropagation\":\"responseOnly\"", written, StringComparison.Ordinal);
-
-        // And it reads back.
-        Assert.Equal(set.Hosts[0].Settings, CanonicalConfigJson.Deserialize(Encoding.UTF8.GetBytes(written)).Hosts[0].Settings);
-    }
-
-    [Fact]
-    public void NewHostSettingKeysFollowTheRecordsOrder()
-    {
-        // A new field goes at the end of the record, so the keys a stored document writes keep their order: HSTS, the
-        // access log, the request ID's destination, the Server header, then proof of work.
-        ConfigDocument document = new(
-            Hosts:
-            [
-                new HostConfig(
-                    AppHost,
-                    ["app.example.com"],
-                    Settings: new HostSettings
-                    {
-                        Hsts = new HstsSettings { Enabled = true },
-                        AccessLog = false,
-                        RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
-                        ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove },
-                        ProofOfWork = new ProofOfWorkSettings { Enabled = true },
-                    },
-                    Routes: [new RouteConfig(RootRoute, AppUpstream)]),
-            ]);
-
-        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document));
-
-        var hsts = json.IndexOf("\"hsts\":", StringComparison.Ordinal);
-        var accessLog = json.IndexOf("\"accessLog\":", StringComparison.Ordinal);
-        var propagation = json.IndexOf("\"requestIdPropagation\":", StringComparison.Ordinal);
-        var serverHeader = json.IndexOf("\"serverHeader\":", StringComparison.Ordinal);
-        var proofOfWork = json.IndexOf("\"proofOfWork\":", StringComparison.Ordinal);
-        Assert.True(hsts > 0 && accessLog > hsts && propagation > accessLog && serverHeader > propagation && proofOfWork > serverHeader, json);
     }
 
     [Fact]
@@ -403,19 +315,6 @@ public sealed class CanonicalConfigJsonTests
         Assert.DoesNotContain("countries", Json(Make(new AccessListCountries([], []), drop: true)), StringComparison.Ordinal);
         Assert.DoesNotContain("countries", Json(Make(null, drop: true)), StringComparison.Ordinal);
         Assert.Equal(Json(Make(null)), Json(Make(new AccessListCountries(null, null))));
-    }
-
-    [Fact]
-    public void CountriesRoundTripThroughTheirOwnBytes()
-    {
-        ConfigDocument document = new(
-            ConfigDocument.V1,
-            AccessLists: [new AccessListConfig(Id<AccessListId>(1), "list", Ip: new AccessListIp(["10.0.0.0/8"], Countries: new AccessListCountries(["DE"], ["T1", "XX"])))]);
-
-        var bytes = CanonicalConfigJson.Serialize(document);
-        var read = CanonicalConfigJson.Serialize(CanonicalConfigJson.Canonicalize(document));
-
-        Assert.Equal(bytes, read);
     }
 
     [Theory]

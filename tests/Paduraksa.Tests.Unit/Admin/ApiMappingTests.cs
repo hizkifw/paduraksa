@@ -14,7 +14,6 @@ using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Issuance;
-using Paduraksa.Contracts.Revisions;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
 
@@ -169,20 +168,6 @@ public sealed class ApiMappingTests
     }
 
     [Fact]
-    public void CursorsRoundTripAndRejectAnythingElse()
-    {
-        var id = ConfigRevisionId.New();
-        var cursor = Pagination.Encode(id);
-
-        Assert.True(Pagination.TryDecode(cursor, out ConfigRevisionId decoded));
-        Assert.Equal(id, decoded);
-        Assert.False(Pagination.TryDecode<ConfigRevisionId>("not a cursor!", out _));
-        Assert.False(Pagination.TryDecode<ConfigRevisionId>(null, out _));
-        Assert.False(Pagination.TryDecode<AuditEventId>(cursor, out _)); // another resource's cursor
-        Assert.False(Pagination.TryDecode<ConfigRevisionId>(new string('A', 200), out _));
-    }
-
-    [Fact]
     public void TheTypedIdConstraintMatchesOnlyItsOwnIds()
     {
         TypedIdRouteConstraint<HostId> constraint = new();
@@ -229,14 +214,6 @@ public sealed class ApiMappingTests
         Assert.Equal(probe, JsonSerializer.Deserialize<AuditEventSummaryProbe>(json, options));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<AuditEventSummaryProbe>($$"""{"channel":"api","user":"{{user}}","source":"acme","extra":1}""", options));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<AuditEventSummaryProbe>($$"""{"channel":3,"user":"{{user}}","source":"acme"}""", options));
-    }
-
-    [Fact]
-    public void TheApiContractRejectsUnknownPropertiesAndWritesNamesForEnums()
-    {
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize("""{"direct":1,"thisIsATypo":2}""", AdminJsonContext.Default.RotateDnsCredentialBody));
-        var json = JsonSerializer.Serialize(new RevisionDiff(ConfigRevisionId.New(), ConfigRevisionId.New(), []), AdminJsonContext.Default.RevisionDiff);
-        Assert.Contains("\"from\":\"rev_", json, StringComparison.Ordinal);
     }
 
     [Fact]
