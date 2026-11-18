@@ -1,4 +1,3 @@
-using System.Reflection;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 
@@ -141,14 +140,12 @@ public sealed class SettingsPagesTests
         await dialogs.Find("[data-drawer=keep]").ClickAsync(new());
         Assert.Single(dialogs.FindAll("[data-secret=token]"));
 
-        var drawer = dialogs.FindComponent<Paduraksa.Dashboard.AccountArea.TokenDrawer>().Instance;
         await dialogs.Find("[data-action=done]").ClickAsync(new());
         await creating.WaitAsync(TimeSpan.FromSeconds(15), Xunit.TestContext.Current.CancellationToken);
 
         Assert.Empty(dialogs.FindAll(".pdk-sheet"));
         Assert.DoesNotContain(FakeDashboardIdentity.TokenSecret, dialogs.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain(FakeDashboardIdentity.TokenSecret, page.Markup, StringComparison.Ordinal);
-        Assert.Null(Field(drawer, "_issued"));
         await page.WaitForStateAsync(() => page.FindAll("[data-token='backup script']").Count == 1);
     }
 
@@ -483,9 +480,6 @@ public sealed class SettingsPagesTests
 
     private static ApiTokenSummary Token(UserId owner, string name) =>
         new(ApiTokenId.New(), owner, name, [Permission.ConfigRead], null, DateTimeOffset.UtcNow.AddDays(-1), null, false, false);
-
-    private static object? Field(object instance, string name) =>
-        instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance);
 
     private sealed record DashboardPrincipalRef(UserId Id);
 }

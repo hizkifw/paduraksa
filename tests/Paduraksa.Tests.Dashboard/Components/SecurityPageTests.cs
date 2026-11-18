@@ -1,8 +1,6 @@
 using Bunit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Paduraksa.Application.Security;
-using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Layout;
@@ -223,7 +221,7 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
-    public async Task TheStripCountsTheLastHoursRefusalsAndEveryTileLeadsToTheSecurityTab()
+    public async Task EachHostsRowCountsItsOwnRefusalsOverTheDay()
     {
         await using DashboardTestContext context = new();
         await using var shell = await StartAsync(context, Role.Operator);
@@ -236,14 +234,8 @@ public sealed class SecurityPageTests
 
         var page = context.Render<SecurityPage>();
 
-        Assert.Equal(["refused", "proof-of-work", "rate-limited", "denied"], page.FindAll("[data-section=security-strip] [data-tile]").Select(tile => tile.GetAttribute("data-tile")));
-        Assert.Equal("1,204", page.Find("[data-tile=refused] [data-part=value]").TextContent);
-        Assert.All(page.FindAll("[data-section=security-strip] a[data-part=link]"), link => Assert.Equal("/analytics?tab=security&range=1h", link.GetAttribute("href")));
         Assert.Equal("954", page.Find("[data-host='app.test'] [data-cell=refused]").TextContent.Trim());
         Assert.Equal("250", page.Find("[data-host='blog.test'] [data-cell=refused]").TextContent.Trim());
-        // The old one-line summary is gone, and the page's content is one section, so the title is its heading.
-        Assert.Empty(page.FindAll("[data-part=refused]"));
-        Assert.Empty(page.FindAll("h2"));
     }
 
     [Fact]

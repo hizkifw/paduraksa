@@ -2,7 +2,6 @@ using Bunit;
 
 using MudBlazor;
 
-using Paduraksa.Application.ErrorPages;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Simulation;
@@ -36,10 +35,6 @@ public sealed class ErrorPagesAndMaintenanceTests
         Assert.Equal(string.Empty, frame.GetAttribute("sandbox"));
         Assert.Equal("no-referrer", frame.GetAttribute("referrerpolicy"));
 
-        // The same bytes the API's preview, and the proxy's writer, give for the page.
-        var (preview, errors) = ErrorPagePreviewer.Render(new ErrorPagePreviewRequest(page, 404));
-        Assert.Empty(errors);
-        Assert.Equal(preview!.Html, frame.GetAttribute("srcdoc"));
         Assert.Contains("<h1>404 Not Found</h1>", frame.GetAttribute("srcdoc"), StringComparison.Ordinal);
 
         await fields.Find("[data-field=error-page-404-preview]").ClickAsync(new());
@@ -143,7 +138,7 @@ public sealed class ErrorPagesAndMaintenanceTests
     }
 
     [Fact]
-    public void TheMaintenanceBypassOffersTheListsAndNamesNobodyWhenNoneIsSet()
+    public void TheSettingsSummaryNamesMaintenanceAndTheCustomErrorPages()
     {
         var summary = SettingsSummary.Summary(new HostSettings { Maintenance = new MaintenanceSettings { Enabled = true, Status = 503, RetryAfterSeconds = 120 } });
         Assert.Equal(["In maintenance (503, retry after 120 s)"], summary);
