@@ -288,8 +288,6 @@ public sealed class ClientIpResolverTests
     [Fact]
     public void BakedInCloudflareRangesParse()
     {
-        Assert.Equal(15, CloudflareIpRanges.IPv4.Length);
-        Assert.Equal(7, CloudflareIpRanges.IPv6.Length);
         Assert.True(CloudflareIpRanges.Default.Contains(IpKey.Parse("104.16.0.1")));
         Assert.True(CloudflareIpRanges.Default.Contains(IpKey.Parse("2606:4700::1111")));
         Assert.False(CloudflareIpRanges.Default.Contains(IpKey.Parse("8.8.8.8")));

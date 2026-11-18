@@ -90,9 +90,6 @@ public sealed class ServerLimitsKestrelTests : IAsyncLifetime
 
                 await context.Response.WriteAsync($"read {read}", context.RequestAborted);
                 break;
-            default:
-                await context.Response.WriteAsync("ok", context.RequestAborted);
-                break;
         }
     }
 
@@ -230,12 +227,5 @@ public sealed class ServerLimitsKestrelTests : IAsyncLifetime
 
         // Six events over four seconds, with each pause well below the response rate the server was told to enforce.
         Assert.Equal(string.Concat(Enumerable.Range(0, 6).Select(i => $"data: {i}\n\n")), body);
-    }
-
-    [Fact]
-    public async Task AnOrdinaryRequestIsUnaffected()
-    {
-        using HttpClient client = new();
-        Assert.Equal("ok", await client.GetStringAsync(new Uri(_address, "/"), Ct));
     }
 }

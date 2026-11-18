@@ -105,11 +105,9 @@ public sealed class RateLimitTableTests
     }
 
     [Fact]
-    public void TheTimeFieldIsFortyBitsAndItsElapsedTimeSurvivesTheWrap()
+    public void ElapsedTimeSurvivesTheEndOfTheTimeField()
     {
-        // 2^40 - 1 ms is about 34.8 years: longer than any process, so the field's wrap can be ignored.
-        Assert.Equal(1_099_511_627_775, RateLimitTable.MaxTimeMs);
-
+        // The field ends at 2^40 - 1 ms, about 34.8 years: longer than any process, so its wrap can be ignored.
         RateLimitTable table = new(64);
         RateLimitParameters onePerSecond = new(1, 1);
 

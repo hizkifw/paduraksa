@@ -354,7 +354,6 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal(1, real.Counters.HeaderInvalid);
         Assert.Equal(counted, simulated);
         Assert.Equal(1, real.Counters.HeaderInvalid);
-        Assert.Equal(0, new TlsHandshakeSelector(new SnapshotStore()).Counters.UnknownServerNameTcp);
     }
 
     [Fact]

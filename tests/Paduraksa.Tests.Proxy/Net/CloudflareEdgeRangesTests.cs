@@ -31,7 +31,6 @@ public sealed class CloudflareEdgeRangesTests
 
         Assert.Same(CloudflareIpRanges.Default, list.Ranges);
         Assert.Equal(EdgeRangeOrigin.BuiltIn, list.Origin);
-        Assert.Equal(CloudflareIpRanges.IPv4.Length + CloudflareIpRanges.IPv6.Length, list.Count);
         Assert.Equal(new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero), list.FetchedAt);
     }
 

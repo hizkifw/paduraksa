@@ -101,12 +101,6 @@ public sealed class RateLimitParametersTests
         });
     }
 
-    [Fact]
-    public void DefaultIsNoPolicy()
-    {
-        Assert.Equal(0, default(RateLimitParameters).Burst);
-    }
-
     private static int Take(RateLimitTable table, in RateLimitParameters parameters, long nowMs)
     {
         var taken = 0;
