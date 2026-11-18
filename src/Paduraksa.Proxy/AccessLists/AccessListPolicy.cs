@@ -68,8 +68,6 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
         _deferPasswords = deferPasswordsOnPlainHttp;
     }
 
-    public CompiledAccessList List => _list;
-
     public AccessListStage Stage => _stage;
 
     public PolicyDecision Evaluate(in RequestView request)
