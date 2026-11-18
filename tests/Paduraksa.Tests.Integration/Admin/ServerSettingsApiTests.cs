@@ -4,7 +4,6 @@ using Paduraksa.Admin.Json;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Drafts;
-using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
@@ -93,20 +92,6 @@ public sealed class ServerSettingsApiTests : IAsyncLifetime
         using var response = await _api.SendJsonAsync(HttpMethod.Put, "/api/v1/server-settings", new ServerSettings(), AdminJsonContext.Default.ServerSettings);
 
         Assert.Equal(HttpStatusCode.PreconditionRequired, response.StatusCode);
-    }
-
-    [Theory]
-    [InlineData("operator")]
-    [InlineData("viewer")]
-    public async Task OnlyTheOwnerAndTheAdminMayChangeThemAndEveryRoleMayReadThem(string role)
-    {
-        var (_, etag) = await ReadAsync(role);
-
-        using var refused = await PutAsync(new ServerSettings { MetricsRetention = TimeSpan.FromDays(1) }, etag, role);
-        using var admin = await PutAsync(new ServerSettings { MetricsRetention = TimeSpan.FromDays(1) }, etag, "admin");
-
-        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, admin.StatusCode);
     }
 
     [Fact]

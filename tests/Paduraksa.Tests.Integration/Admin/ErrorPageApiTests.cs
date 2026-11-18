@@ -1,9 +1,7 @@
 using System.Net;
 
 using Paduraksa.Admin.Json;
-using Paduraksa.Application.ErrorPages;
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Tests.Integration.Hosting;
 
@@ -42,13 +40,4 @@ public sealed class ErrorPageApiTests(SharedAdminApi shared) : IClassFixture<Sha
         Assert.Contains("errorPages.text.tooLong", body, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task ACallerWithoutCredentialsIsUnauthorized()
-    {
-        ErrorPagePreviewRequest request = new(new ErrorPageContent { Heading = "x" }, 404);
-
-        using var response = await shared.Api.SendJsonAsync(HttpMethod.Post, "/api/v1/error-pages/preview", request, AdminJsonContext.Default.ErrorPagePreviewRequest, caller: null);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 }

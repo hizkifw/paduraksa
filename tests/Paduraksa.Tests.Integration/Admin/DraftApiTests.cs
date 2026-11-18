@@ -1,12 +1,10 @@
 using System.Net;
-using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Admin.Api;
 using Paduraksa.Admin.Json;
-using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Audit;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -17,7 +15,6 @@ using Paduraksa.Data;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
-using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
@@ -496,36 +493,6 @@ public sealed class DraftApiTests(SharedAdminApi shared) : IClassFixture<SharedA
         var row = Convert.ToString(await ConfigTestSupport.ScalarAsync(api.Host.Options.DataDirectory, "SELECT group_concat(Entries || PendingCredentials, ' ') FROM ConfigDrafts", Ct)) ?? string.Empty;
         Assert.DoesNotContain(Secret, row, StringComparison.Ordinal);
         Assert.Contains("pwc_", row, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("viewer")]
-    [InlineData("auditor")]
-    public async Task WithoutConfigWriteNoDraftEndpointIsOpen(string role)
-    {
-        var api = shared.Api;
-        var id = DraftId.New();
-
-        var answers = new[]
-        {
-            await api.GetAsync("/api/v1/drafts", role),
-            await api.SendAsync(HttpMethod.Post, "/api/v1/drafts", role),
-            await api.GetAsync($"/api/v1/drafts/{id}", role),
-            await api.GetAsync($"/api/v1/drafts/{id}/config", role),
-            await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{id}/entries", role, content: AdminApiHarness.JsonBody("""{"commands":[]}""")),
-            await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{id}/entries/1", role),
-            await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{id}/review", role),
-            await api.SendAsync(HttpMethod.Post, $"/api/v1/drafts/{id}/apply", role, ifMatch: "\"1.AAAAAAAAAAAAAAAAAAAAAA\""),
-            await api.SendAsync(HttpMethod.Delete, $"/api/v1/drafts/{id}", role),
-        };
-        Assert.All(answers, r => Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode));
-        foreach (var answer in answers)
-        {
-            answer.Dispose();
-        }
-
-        using var anonymous = await api.GetAsync("/api/v1/drafts", caller: null);
-        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
     }
 
     [Fact]

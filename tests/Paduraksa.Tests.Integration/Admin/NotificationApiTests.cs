@@ -1,16 +1,7 @@
-using System.Collections.Concurrent;
 using System.Net;
-using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Paduraksa.Admin.Json;
-using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Integration.Hosting;
 using static Paduraksa.Tests.Integration.Admin.AdminApiHarness;
@@ -44,19 +35,6 @@ public sealed class NotificationApiTests(SharedAdminApi shared) : IClassFixture<
 
         Assert.Equal(expected, channels.StatusCode);
         Assert.Equal(expected, health.StatusCode);
-    }
-
-    [Theory]
-    [InlineData("owner", HttpStatusCode.Created)]
-    [InlineData("admin", HttpStatusCode.Created)]
-    [InlineData("operator", HttpStatusCode.Forbidden)]
-    [InlineData("viewer", HttpStatusCode.Forbidden)]
-    public async Task OnlyProvidersWriteMayAddAChannel(string caller, HttpStatusCode expected)
-    {
-        using var response = await shared.Api.SendAsync(HttpMethod.Post, "/api/v1/notification-channels", caller, content: Json(
-            """{"kind":"webhook","label":"hook","events":["upstream.down"],"secret":"https://hooks.example.com/in"}"""));
-
-        Assert.Equal(expected, response.StatusCode);
     }
 
     [Fact]

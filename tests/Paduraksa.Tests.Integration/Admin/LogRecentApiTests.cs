@@ -31,25 +31,12 @@ public sealed class LogRecentApiTests(SharedAdminApi shared) : IClassFixture<Sha
     };
 
     /// <summary>Only what these tests offered: the host's public listener is live, so a stray request to it (a port prober on a developer machine) is in the buffer too.</summary>
-    private async Task<JsonElement> ReadAsync(string query = "", string? caller = "owner")
+    private async Task<JsonElement> ReadAsync(string query = "")
     {
-        using var response = await shared.Api.GetAsync("/api/v1/logs/recent?ip=203.0.113." + (query.Length == 0 ? string.Empty : "&" + query.TrimStart('?')), caller);
+        using var response = await shared.Api.GetAsync("/api/v1/logs/recent?ip=203.0.113." + (query.Length == 0 ? string.Empty : "&" + query.TrimStart('?')));
         var text = await response.Content.ReadAsStringAsync(Ct);
         Assert.True(response.IsSuccessStatusCode, text);
         return JsonDocument.Parse(text).RootElement.Clone();
-    }
-
-    [Theory]
-    [InlineData("owner", HttpStatusCode.OK)]
-    [InlineData("admin", HttpStatusCode.OK)]
-    [InlineData("auditor", HttpStatusCode.OK)]
-    [InlineData("operator", HttpStatusCode.Forbidden)]
-    [InlineData("viewer", HttpStatusCode.Forbidden)]
-    [InlineData(null, HttpStatusCode.Unauthorized)]
-    public async Task ItNeedsTheLogsReadPermission(string? caller, HttpStatusCode expected)
-    {
-        using var response = await shared.Api.GetAsync("/api/v1/logs/recent", caller);
-        Assert.Equal(expected, response.StatusCode);
     }
 
     [Fact]

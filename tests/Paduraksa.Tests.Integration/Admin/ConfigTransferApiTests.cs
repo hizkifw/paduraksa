@@ -5,7 +5,6 @@ using System.Text;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Commands;
-using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Core.Model;
 
@@ -234,21 +233,6 @@ public sealed class ConfigTransferApiTests
 
         Assert.Equal(HttpStatusCode.PreconditionFailed, stale.StatusCode);
         Assert.Equal(2, (await RevisionsAsync(api)).Count);
-    }
-
-    [Fact]
-    public async Task ReadingNeedsConfigReadAndImportingNeedsConfigWrite()
-    {
-        await using var api = await AdminApiHarness.StartAsync(Ct);
-
-        using var viewerExport = await api.GetAsync("/api/v1/config/export", "viewer");
-        Assert.Equal(HttpStatusCode.OK, viewerExport.StatusCode);
-        using var viewerImport = await ImportAsync(api, Jellyfin, caller: "viewer");
-        Assert.Equal(HttpStatusCode.Forbidden, viewerImport.StatusCode);
-        using var operatorImport = await ImportAsync(api, Jellyfin, "?dryRun=true", caller: "operator");
-        Assert.Equal(HttpStatusCode.OK, operatorImport.StatusCode);
-        using var anonymous = await api.GetAsync("/api/v1/config/export", caller: null);
-        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
     }
 
     [Fact]

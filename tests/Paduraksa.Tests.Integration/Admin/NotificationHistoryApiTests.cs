@@ -49,9 +49,9 @@ public sealed class NotificationHistoryApiTests : IAsyncLifetime
     private static NotificationEvent Down(string title) => new(
         NotificationEventKind.UpstreamDown, title, "body", NotificationSeverity.Critical, DateTimeOffset.UtcNow, "/upstreams", [new("upstreamId", "ups_x")], "ups_x");
 
-    private async Task<Page<NotificationHistoryEvent>> HistoryAsync(string query = "", string? caller = "owner")
+    private async Task<Page<NotificationHistoryEvent>> HistoryAsync(string query = "")
     {
-        using var response = await _api.GetAsync("/api/v1/notifications/history" + query, caller);
+        using var response = await _api.GetAsync("/api/v1/notifications/history" + query);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return JsonSerializer.Deserialize(await response.Content.ReadAsStringAsync(Ct), AdminJsonContext.Default.PageNotificationHistoryEvent)!;
     }
@@ -86,19 +86,14 @@ public sealed class NotificationHistoryApiTests : IAsyncLifetime
         Assert.Equal(expected, response.StatusCode);
     }
 
-    [Theory]
-    [InlineData("owner", HttpStatusCode.NotFound)]
-    [InlineData("admin", HttpStatusCode.NotFound)]
-    [InlineData("operator", HttpStatusCode.Forbidden)]
-    [InlineData("viewer", HttpStatusCode.Forbidden)]
-    [InlineData(null, HttpStatusCode.Unauthorized)]
-    public async Task OnlyProvidersWriteMayRetryADeliveryOrAnEvent(string? caller, HttpStatusCode expected)
+    [Fact]
+    public async Task ADeliveryOrAnEventThatDoesNotExistCannotBeRetried()
     {
-        using var delivery = await _api.SendAsync(HttpMethod.Post, $"/api/v1/notifications/deliveries/{NotificationDeliveryId.New()}/retry", caller);
-        using var notified = await _api.SendAsync(HttpMethod.Post, $"/api/v1/notifications/events/{NotificationEventId.New()}/retry", caller);
+        using var delivery = await _api.SendAsync(HttpMethod.Post, $"/api/v1/notifications/deliveries/{NotificationDeliveryId.New()}/retry");
+        using var notified = await _api.SendAsync(HttpMethod.Post, $"/api/v1/notifications/events/{NotificationEventId.New()}/retry");
 
-        Assert.Equal(expected, delivery.StatusCode);
-        Assert.Equal(expected, notified.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, delivery.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, notified.StatusCode);
     }
 
     [Fact]

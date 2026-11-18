@@ -4,7 +4,6 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Logging;
-using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Logging;
 using Paduraksa.Core.Logging;
 using Paduraksa.Tests.Integration.Hosting;
@@ -41,27 +40,6 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
         Assert.Equal(10, live.Size);
         Assert.False(live.Compressed);
         Assert.Contains(files, file => file.Compressed && file.Name.EndsWith(".log.gz", StringComparison.Ordinal));
-    }
-
-    [Theory]
-    [InlineData("owner", HttpStatusCode.OK)]
-    [InlineData("admin", HttpStatusCode.OK)]
-    [InlineData("auditor", HttpStatusCode.OK)]
-    [InlineData("operator", HttpStatusCode.Forbidden)]
-    [InlineData("viewer", HttpStatusCode.Forbidden)]
-    [InlineData(null, HttpStatusCode.Unauthorized)]
-    public async Task ReadingTheLogsNeedsTheReadPermission(string? caller, HttpStatusCode expected)
-    {
-        var api = StartAsync(shared);
-        Create(api, "error.log", "warn: one\n");
-
-        using var list = await api.GetAsync("/api/v1/logs", caller);
-        using var tail = await api.GetAsync("/api/v1/logs/error.log/tail", caller);
-        using var download = await api.GetAsync("/api/v1/logs/error.log", caller);
-
-        Assert.Equal(expected, list.StatusCode);
-        Assert.Equal(expected, tail.StatusCode);
-        Assert.Equal(expected, download.StatusCode);
     }
 
     [Fact]

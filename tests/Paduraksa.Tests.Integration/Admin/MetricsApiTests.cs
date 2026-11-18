@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Commands;
-using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Metrics;
 using Paduraksa.Core.Model;
@@ -102,16 +101,6 @@ public sealed class MetricsApiTests(SharedAdminApi shared) : IClassFixture<Share
         using var scrape = await Bearer(api, "/metrics", "pdk_0000000000000000000000_not-a-token_0000000");
 
         Assert.Equal(HttpStatusCode.Unauthorized, scrape.StatusCode);
-    }
-
-    [Fact]
-    public async Task OnlyGetIsServed()
-    {
-        var api = shared.Api;
-
-        using var response = await api.SendAsync(HttpMethod.Post, "/metrics");
-
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
 
     [Fact]

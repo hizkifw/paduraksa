@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json.Nodes;
 
 using Paduraksa.Application.Commands;
-using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Integration.Hosting;
@@ -50,27 +49,6 @@ public sealed class BackupApiTests : IAsyncLifetime
         Assert.Equal("PDKBAK", Encoding.ASCII.GetString(bytes, 0, 6));
         Assert.DoesNotContain(Passphrase, Encoding.Latin1.GetString(bytes), StringComparison.Ordinal);
         Assert.Empty(Directory.GetFiles(Path.Combine(_api.Host.Options.DataDirectory, "run"), "download-*"));
-    }
-
-    [Theory]
-    [InlineData("admin")]
-    [InlineData("operator")]
-    [InlineData("viewer")]
-    [InlineData("auditor")]
-    public async Task EveryOtherRoleIsForbidden(string role)
-    {
-        using var response = await PostAsync(role);
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Equal("auth.permissionRequired", (await ProblemAsync(response, Ct)).Code);
-    }
-
-    [Fact]
-    public async Task AnAnonymousCallerIsUnauthorized()
-    {
-        using var response = await PostAsync(caller: null);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

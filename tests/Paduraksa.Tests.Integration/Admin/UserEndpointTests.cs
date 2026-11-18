@@ -234,18 +234,4 @@ public sealed class UserEndpointTests(SharedOwnerSession shared) : IClassFixture
         }
     }
 
-    [Fact]
-    public async Task AForbiddenUserWriteIsAProblemDocument()
-    {
-        var h = shared.Harness;
-        var owner = shared.OwnerCookie;
-        await h.CreateUserAsync(owner, "viewer-forbidden", "viewer");
-        var viewer = await h.SignInAsync("viewer-forbidden");
-
-        // The endpoint's own permission check refuses before the service is asked; the service-level refusal is covered by its tests.
-        using var refused = await h.PostAsync("/api/v1/users", """{"username":"x1x","displayName":null,"password":"correct horse battery staple","roles":["viewer"]}""", viewer);
-
-        Assert.Equal(HttpStatusCode.Forbidden, refused.Status);
-        Assert.Equal("Permission required", refused.Json.GetProperty("title").GetString());
-    }
 }

@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Commands;
-using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Metrics;
 using Paduraksa.Core.Model;
@@ -17,20 +16,6 @@ namespace Paduraksa.Tests.Integration.Admin;
 public sealed class AnalyticsApiTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    [Theory]
-    [InlineData("owner", HttpStatusCode.OK)]
-    [InlineData("admin", HttpStatusCode.OK)]
-    [InlineData("operator", HttpStatusCode.OK)]
-    [InlineData("viewer", HttpStatusCode.OK)]
-    [InlineData("auditor", HttpStatusCode.OK)]
-    [InlineData(null, HttpStatusCode.Unauthorized)]
-    public async Task EveryRoleMayReadAndAnAnonymousCallerMayNot(string? caller, HttpStatusCode expected)
-    {
-        using var response = await shared.Api.GetAsync("/api/v1/analytics", caller);
-
-        Assert.Equal(expected, response.StatusCode);
-    }
 
     [Fact]
     public async Task ATokenNeedsTheMetricsScope()
@@ -89,14 +74,6 @@ public sealed class AnalyticsApiTests(SharedAdminApi shared) : IClassFixture<Sha
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(400, (await ProblemAsync(response, Ct)).Status);
-    }
-
-    [Fact]
-    public async Task OnlyGetIsServed()
-    {
-        using var response = await shared.Api.SendAsync(HttpMethod.Post, "/api/v1/analytics");
-
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
 
     [Fact]

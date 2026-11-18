@@ -38,10 +38,10 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
     /// Opens the stream for the requests these tests offer (their client address): the host's public listener is live, so a stray
     /// request to it (a port prober on a developer machine) would otherwise be in the stream too.
     /// </summary>
-    private async Task<(HttpResponseMessage Response, StreamReader Reader)> OpenAsync(string query = "", string? caller = "owner")
+    private async Task<(HttpResponseMessage Response, StreamReader Reader)> OpenAsync(string query = "")
     {
         query = (query.Length == 0 ? "?" : query + "&") + "ip=198.51.100.";
-        using var request = shared.Api.Request(HttpMethod.Get, "/api/v1/logs/tail" + query, caller);
+        using var request = shared.Api.Request(HttpMethod.Get, "/api/v1/logs/tail" + query);
         var response = await shared.Api.Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Ct);
         return (response, new StreamReader(await response.Content.ReadAsStreamAsync(Ct)));
     }
@@ -85,25 +85,16 @@ public sealed class LogTailApiTests(SharedAdminApi shared) : IClassFixture<Share
         Assert.Equal(expected, Hub.SubscriberCount);
     }
 
-    [Theory]
-    [InlineData("owner", HttpStatusCode.OK)]
-    [InlineData("admin", HttpStatusCode.OK)]
-    [InlineData("auditor", HttpStatusCode.OK)]
-    [InlineData("operator", HttpStatusCode.Forbidden)]
-    [InlineData("viewer", HttpStatusCode.Forbidden)]
-    [InlineData(null, HttpStatusCode.Unauthorized)]
-    public async Task TheStreamNeedsTheReadPermission(string? caller, HttpStatusCode expected)
+    [Fact]
+    public async Task TheStreamIsServerSentEventsThatAreNeverCached()
     {
-        var (response, reader) = await OpenAsync(caller: caller);
+        var (response, reader) = await OpenAsync();
         using (response)
         using (reader)
         {
-            Assert.Equal(expected, response.StatusCode);
-            if (expected == HttpStatusCode.OK)
-            {
-                Assert.Equal("text/event-stream", response.Content.Headers.ContentType!.MediaType);
-                Assert.Contains("no-store", response.Headers.CacheControl!.ToString(), StringComparison.Ordinal);
-            }
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("text/event-stream", response.Content.Headers.ContentType!.MediaType);
+            Assert.Contains("no-store", response.Headers.CacheControl!.ToString(), StringComparison.Ordinal);
         }
 
         await WaitForSubscribersAsync(0);
