@@ -28,7 +28,15 @@ Contents:
 
 ## Typed IDs
 
-Every ID is a typed struct, declared with an attribute and completed by a source generator.
+Every ID is a typed struct, declared with an attribute and completed by a source generator. The machinery is generic and is published as two NuGet packages, in the `Paduraksa.TypedIds` and `Paduraksa.TypedIds.EntityFrameworkCore` namespaces; the ID structs themselves (`HostId` and the rest) stay in `Paduraksa.Core.Model`.
+- **`Paduraksa.TypedIds`** (`src/Paduraksa.TypedIds`, net10.0 and net8.0) holds `ITypedId`, `IdKind`, `[TypedId]`, `TypedIdCodec`, `Base62`, the three generators and the JSON and `TypeConverter` adapters. The generator (`src/Paduraksa.TypedIds.Generator`, netstandard2.0) is packed inside it, under `analyzers/dotnet/cs`, so one reference brings both and their versions can't drift.
+- **`Paduraksa.TypedIds.EntityFrameworkCore`** (net10.0) holds the convention, converters, mapping and Int64 seeding. It needs `Microsoft.EntityFrameworkCore.Relational`, not SQLite.
+- The namespace is plural on purpose: a `Paduraksa.TypedId` namespace would shadow the `[TypedId]` attribute in all code under `namespace Paduraksa.*`.
+- Stored data is unchanged by the move: the string form, the BLOB and INTEGER columns and the JSON form are byte-identical, and the migration snapshots did not change.
+- Paduraksa-specific rules stay here: the architecture tests (`TypedIdRuleTests`, `TypedIdPrefixTests`) and the `Guid.NewGuid()` ban in `BannedSymbols.txt`.
+- `TypedIdCodec`, `TypedIdJsonConverter<T>` and `TypedIdTypeConverter<T>` exist for generated code: public, hidden from completion, documented as such. Generated code disables CS1591, so a consumer that turns on documentation files and warnings-as-errors still builds.
+- The generic tests live in `tests/Paduraksa.TypedIds.Tests`. The sample model and in-memory database they share with the SQLite setup tests are linked from `tests/Shared/TypedIdSample`. `Paduraksa.Storage` no longer references Core: it held only the EF code that moved.
+- Releases: `typedids-v*` tag, version in `src/Packaging.TypedIds.props` ([development.md](../development.md#publishing-the-nuget-packages)).
 
 ```csharp
 [TypedId("host", IdKind.UuidV7)]   public readonly partial record struct HostId;

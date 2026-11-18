@@ -74,20 +74,27 @@ It publishes the harness to `artifacts/fuzz/bin`, instruments the proxy's assemb
 
 ## Publishing the NuGet packages
 
-`Paduraksa.ProxyProtocol` (the PROXY protocol parser, BCL only) and `Paduraksa.ProxyProtocol.AspNetCore` (a Kestrel `UseProxyProtocol` over it) are the solution's only packable projects.
-`src/Packaging.props` holds what they share, and each has its own README, which is the package readme.
+Four packages in two families are the solution's only packable projects:
 
-- **Every CI run** packs both (`pack` job in `.github/workflows/ci.yml`), with warnings as errors and package validation on, and uploads the `.nupkg` and `.snupkg` files as the `nuget-packages` artifact. Locally:
-  `dotnet pack src/Paduraksa.ProxyProtocol -c Release -o artifacts/nupkg`, then the same for `src/Paduraksa.ProxyProtocol.AspNetCore`.
-- **The version** is the `Version` property in `Packaging.props` (0.1.0). A `proxyprotocol-v*` tag packs at the tag's version instead (`proxyprotocol-v0.1.0` gives `0.1.0`, `proxyprotocol-v0.2.0-rc.1` gives `0.2.0-rc.1`), so the tag decides.
-- **The packages have their own tag.** They ship when they change, not with every release of the app: a `proxyprotocol-v*` tag publishes them and builds no image, and the app's `v*` tags publish no package.
-  For a `proxyprotocol-v*` tag, once `build-test` and `pack` pass, the `publish-nuget` job pushes the `.nupkg` files to nuget.org with one `dotnet nuget push --skip-duplicate`, which also pushes the `.snupkg` symbol package beside each. A version already there is skipped.
+| Family | Packages | Tag |
+|---|---|---|
+| ProxyProtocol | `Paduraksa.ProxyProtocol` (the PROXY protocol parser, BCL only) and `Paduraksa.ProxyProtocol.AspNetCore` (a Kestrel `UseProxyProtocol` over it) | `proxyprotocol-v*` |
+| TypedIds | `Paduraksa.TypedIds` (typed IDs and their source generator, packed inside it) and `Paduraksa.TypedIds.EntityFrameworkCore` (the EF Core mapping, .NET 10 only) | `typedids-v*` |
+
+`src/Packaging.props` holds what all four share. Each family has its own file that imports it (`src/Packaging.ProxyProtocol.props`, `src/Packaging.TypedIds.props`) and holds that family's version and tags, so the families version independently. Each package has its own README, which is the package readme.
+
+- **Every CI run** packs all four (`pack` job in `.github/workflows/ci.yml`), with warnings as errors and package validation on, and uploads the `.nupkg` and `.snupkg` files as the `nuget-packages` artifact, one folder per family. Locally, for each project:
+  `dotnet pack src/Paduraksa.TypedIds -c Release -o artifacts/nupkg`, and the same for the other three.
+- **The version** is the `Version` property in the family's props file (both 0.1.0). A `proxyprotocol-v*` or `typedids-v*` tag packs the family it names at the tag's version instead (`typedids-v0.1.0` gives `0.1.0`, `typedids-v0.2.0-rc.1` gives `0.2.0-rc.1`), so the tag decides. The other family is packed at its props version and not published.
+- **The generator ships inside `Paduraksa.TypedIds`**, under `analyzers/dotnet/cs`, and is not a dependency of it: one package reference brings both, and their versions can't drift. `Paduraksa.TypedIds.EntityFrameworkCore` depends on `Paduraksa.TypedIds` at its own version, so tag a TypedIds release as a whole. The generator needs Roslyn 4.14, which is the C# compiler of the .NET 9.0.300 SDK and later.
+- **The packages have their own tags.** They ship when they change, not with every release of the app: a `proxyprotocol-v*` or `typedids-v*` tag builds no image, and the app's `v*` tags publish no package.
+  For a package tag, once `build-test` and `pack` pass, the `publish-nuget` job pushes the tagged family's `.nupkg` files to nuget.org with one `dotnet nuget push --skip-duplicate`, which also pushes the `.snupkg` symbol package beside each. A version already there is skipped.
 - **No API key is stored.** The job uses nuget.org's [trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing): it asks GitHub for an OIDC token (`id-token: write`, on that job only), `NuGet/login` exchanges it for an API key that lives one hour, and nuget.org grants it only to the repository and workflow file a policy names.
   Until the repository has a variable named `NUGET_USER`, the push is skipped and the job says so.
 - **To enable it,** on nuget.org open your username, Trusted Publishing, and add a policy: Repository Owner `hizkifw`, Repository `paduraksa`, Workflow File `ci.yml` (the file name only, no `.github/workflows/`), Environment empty.
-  Then set the variable to your nuget.org profile name (not the email address): `gh variable set NUGET_USER --body <profile name>`. The next `proxyprotocol-v*` tag then publishes.
+  Then set the variable to your nuget.org profile name (not the email address): `gh variable set NUGET_USER --body <profile name>`. The next package tag then publishes. One policy covers both families.
   Renaming `ci.yml` or moving the job to another workflow file breaks the policy until it is edited to match.
-- **After the first release** move the lines of each `PublicAPI.Unshipped.txt` to `PublicAPI.Shipped.txt`. From then on a change to the public API shows as an added line in `Unshipped`, and a removed or changed member is a build error until the shipped file says so; set `PackageValidationBaselineVersion` in `Packaging.props` to the last version so a breaking change fails the pack.
+- **After a family's first release** move the lines of each of its `PublicAPI.Unshipped.txt` files to `PublicAPI.Shipped.txt`. From then on a change to the public API shows as an added line in `Unshipped`, and a removed or changed member is a build error until the shipped file says so; set `PackageValidationBaselineVersion` in the family's props file to the last version so a breaking change fails the pack.
 - **The icon** is `src/icon.png`, 128x128 and 762 bytes, made from the dashboard's `src/Paduraksa.Dashboard/wwwroot/favicon.svg` (NuGet takes no SVG). The PNG is committed; nothing in the build makes it.
   To regenerate it after the favicon changes, render the SVG, reduce it to a 48-colour palette (it can't be told from the full render: at most 3/255 per channel on white or black) and recompress it with zopfli.
   The snippet needs `rsvg-convert`, and Pillow built with libimagequant (the PyPI wheels aren't; a distro's usually is) and the `zopfli` package:
@@ -249,9 +256,9 @@ no backup-specific step.
 
 ## Repository layout
 
-- `src/`: the product projects (layering in [PLAN section 1](PLAN.md#1-solution-layout)), among them the two NuGet packages `Paduraksa.ProxyProtocol` and `Paduraksa.ProxyProtocol.AspNetCore`.
+- `src/`: the product projects (layering in [PLAN section 1](PLAN.md#1-solution-layout)), among them the four NuGet packages `Paduraksa.ProxyProtocol`, `Paduraksa.ProxyProtocol.AspNetCore`, `Paduraksa.TypedIds` and `Paduraksa.TypedIds.EntityFrameworkCore`.
 - `tests/`: unit (`Paduraksa.Tests.Unit`), data (`Paduraksa.Tests.Data`), proxy hot path and end-to-end
-  (`Paduraksa.Tests.Proxy`), the NuGet packages' parser and Kestrel middleware (`Paduraksa.ProxyProtocol.Tests`), integration (`Paduraksa.Tests.Integration`), architecture (`Paduraksa.Tests.Architecture`)
+  (`Paduraksa.Tests.Proxy`), the PROXY protocol packages' parser and Kestrel middleware (`Paduraksa.ProxyProtocol.Tests`), the typed-ID packages' runtime, generator, allocation and EF mapping tests (`Paduraksa.TypedIds.Tests`), integration (`Paduraksa.Tests.Integration`), architecture (`Paduraksa.Tests.Architecture`)
   and vault (`Paduraksa.Tests.Vault`, a key-material boundary project like the vault itself) tests.
 - `bench/`: BenchmarkDotNet micro-benchmarks, the end-to-end runner and the nginx/Caddy baseline
   ([bench/README.md](../bench/README.md)).

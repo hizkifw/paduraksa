@@ -50,10 +50,12 @@ Other documents: [the user guide](guide/getting-started.md) and [operating it](o
 ```
 Paduraksa.slnx
 +- src/
-|  +- Paduraksa.Core            Typed IDs, primitives, Result types, capability interfaces (vault, clock)
-|  +- Paduraksa.TypedIds.Generator   Roslyn incremental source generator for [TypedId] structs
+|  +- Paduraksa.TypedIds        Typed IDs: ITypedId, the three ID kinds and their generators, base62, JSON and TypeConverter (BCL only; a NuGet package that carries the generator)
+|  +- Paduraksa.TypedIds.Generator   Roslyn incremental source generator for [TypedId] structs (packed inside Paduraksa.TypedIds, not a package of its own)
+|  +- Paduraksa.TypedIds.EntityFrameworkCore   EF Core typed-ID convention, converters and Int64 seeding (a NuGet package; net10.0 only)
+|  +- Paduraksa.Core            Primitives, Result types, the ID structs of the model, capability interfaces (vault, clock)
 |  +- Paduraksa.Contracts       DTOs for API/MCP/Dashboard/YAML. No EF, no entities.
-|  +- Paduraksa.Storage         Shared EF Core/SQLite infrastructure: typed-ID conventions and converters, SQLite pragmas, UTC timestamps. No entities, no DbContext.
+|  +- Paduraksa.Storage         Shared EF Core/SQLite infrastructure: SQLite pragmas, UTC timestamps. No entities, no DbContext.
 |  +- Paduraksa.Data            EF Core (SQLite) entities, DbContext, migrations, entity-specific converters
 |  +- Paduraksa.Vault           TRUST BOUNDARY: keys, certs' private keys, secrets. Everything `internal`.
 |  +- Paduraksa.Acme            RFC 8555 client + DNS providers. Signs via vault capabilities.
@@ -68,7 +70,8 @@ Paduraksa.slnx
 |  +- Paduraksa.Server          Composition root + CLI. Hosts the public and admin apps in one process. Binary: `paduraksa`
 +- tests/
 |  +- Paduraksa.Tests.Unit
-|  +- Paduraksa.Tests.Data          (EF Core mapping on real SQLite: typed IDs, pragmas, seeding; covers Storage and Data)
+|  +- Paduraksa.Tests.Data          (EF Core on real SQLite: pragmas, the stores; covers Storage and Data)
+|  +- Paduraksa.TypedIds.Tests      (the typed-ID runtime, generator, allocation tests and EF mapping on in-memory SQLite)
 |  +- Paduraksa.Tests.Proxy         (hot path: gate, client IP, TLS selection, YARP glue, zero-alloc; end-to-end through PaduraksaHost)
 |  +- Paduraksa.Tests.Integration   (real Kestrel, real SQLite, Pebble ACME test server in CI)
 |  +- Paduraksa.Tests.Issuance      (ACME issuance on real SQLite against the fake CA and a Pebble container; the one test project that lifts the key-material ban)
@@ -82,10 +85,13 @@ Paduraksa.slnx
 ### Dependency rules (enforced by architecture tests)
 
 ```
+TypedIds --> (nothing)               (BCL only; typed IDs, a NuGet package of its own)
+TypedIds.EntityFrameworkCore --> TypedIds   (EF Core only; also a NuGet package)
+Core --> TypedIds
 Core <-- everything
 Contracts --> Core
-Storage --> Core                     (generic EF/SQLite infrastructure; no entities)
-Data --> Core, Storage
+Storage --> TypedIds.EntityFrameworkCore   (generic EF/SQLite infrastructure; no entities)
+Data --> Core, Storage               (also the EF convention, through Storage)
 Vault --> Core, Storage              (has its OWN store and DbContext; never references Data)
 Acme --> Core                        (signing/creds via Core capability interfaces)
 Notifications --> Core               (secrets via Core's notification-secret capability, HMAC via IMacKeySource)
@@ -106,7 +112,7 @@ The two rules that matter most: **Proxy cannot reach the database**, and **Admin
 
 | Rule | Mechanism |
 |---|---|
-| **Typed IDs all the way to EF** | `[TypedId]` source generator; EF conventions map every typed ID automatically; BannedApiAnalyzer bans `Guid.NewGuid()` repo-wide; an arch test fails if any `Contracts`/entity property named `*Id` is `Guid`/`string`/`long`. |
+| **Typed IDs all the way to EF** | `[TypedId]` source generator (`Paduraksa.TypedIds`); EF conventions (`Paduraksa.TypedIds.EntityFrameworkCore`) map every typed ID automatically; BannedApiAnalyzer bans `Guid.NewGuid()` repo-wide; an arch test fails if any `Contracts`/entity property named `*Id` is `Guid`/`string`/`long`. |
 | **DTOs decoupled from entities** | `Admin`/`Dashboard` can't reference `Data` (project graph + arch test). Mapping is explicit (hand-written or Mapperly source-gen), never reflection auto-mapping. DTOs are `sealed record`s. Entities never get serialized (an arch test checks that no `Data` type appears in a JSON context). |
 | **Trust boundary for key material** | `BannedSymbols.KeyMaterial.txt` bans private-key export/load APIs, `AesGcm` and `HMAC*` in **every project except `Paduraksa.Vault`** (already wired up in `Directory.Build.props`). The vault exposes *capabilities* (sign, decrypt-and-use, select-cert), never bytes. Its types are `internal`, and only the Server composition root registers it. |
 | Warnings are errors, nullable on | `Directory.Build.props` |
