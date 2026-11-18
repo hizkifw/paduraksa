@@ -17,7 +17,7 @@ public sealed class ProtocolValueTests
 
     [Fact]
     public void KeyAuthorizationIsTokenDotThumbprint() =>
-        Assert.Equal($"{Token}.{Thumbprint}", AcmeChallenges.KeyAuthorization(Token, Thumbprint));
+        Assert.Equal("evaGxfADs6pSRb2LAv9IZf17Dt3juxGJ-PCt92wr-oA.nP1qzpXGymHBrUEepNY9HCsQk7K8KhOypzEt62jcerQ", AcmeChallenges.KeyAuthorization(Token, Thumbprint));
 
     [Fact]
     public void Dns01ValueIsTheUnpaddedBase64UrlSha256OfTheKeyAuthorization() =>
@@ -48,7 +48,7 @@ public sealed class ProtocolValueTests
 
     [Fact]
     public void Http01PathIsUnderWellKnown() =>
-        Assert.Equal($"/.well-known/acme-challenge/{Token}", AcmeChallenges.Http01Path(Token));
+        Assert.Equal("/.well-known/acme-challenge/evaGxfADs6pSRb2LAv9IZf17Dt3juxGJ-PCt92wr-oA", AcmeChallenges.Http01Path(Token));
 
     [Fact]
     public void IdentifiersHaveTheirProtocolForms()

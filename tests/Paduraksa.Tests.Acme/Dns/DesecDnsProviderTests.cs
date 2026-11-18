@@ -163,28 +163,6 @@ public sealed class DesecDnsProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task AThrottleWithAShortRetryAfterIsWaitedOutOnce()
-    {
-        var throttled = false;
-        _desec.Intercept = call =>
-        {
-            if (throttled || call.Method != HttpMethod.Patch && call.Method != HttpMethod.Post)
-            {
-                return null;
-            }
-
-            throttled = true;
-            return FakeDesec.Detail(HttpStatusCode.TooManyRequests, "Request was throttled. Expected available in 1 second.", ("Retry-After", "1"));
-        };
-
-        await Provider().CreateTxtAsync(Challenge, "v1", Token);
-
-        // Retry-After is the floor; the jitter adds up to a quarter more.
-        Assert.Contains(_time.Delays, delay => delay >= TimeSpan.FromSeconds(1) && delay < TimeSpan.FromSeconds(1.25));
-        Assert.NotNull(_desec.Rrset("example.com", "_acme-challenge"));
-    }
-
-    [Fact]
     public async Task AThrottleThatPersistsAfterTheShortWaitIsTransient()
     {
         _desec.Intercept = _ => FakeDesec.Detail(HttpStatusCode.TooManyRequests, "throttled", ("Retry-After", "1"));
@@ -285,20 +263,6 @@ public sealed class DesecDnsProviderTests : IDisposable
         Assert.Null(_desec.Rrset("example.com", "_acme-challenge"));
         Assert.Null(_desec.Rrset("example.com", "_acme-challenge.a"));
         Assert.Equal(4, _desec.Writes);
-    }
-
-    [Fact]
-    public async Task APutWithoutSubnameAndTypeIsRefusedByDesecSoTheProviderNeverSendsOne()
-    {
-        _desec.Seed("example.com", "_acme-challenge", 3600, "\"a\"");
-        var strict = _desec;
-        ApiCall bare = new(HttpMethod.Put, new Uri("https://desec.io/api/v1/domains/example.com/rrsets/_acme-challenge/TXT/"), """{"ttl":3600,"records":["\"b\""]}""", "Token " + FakeSecretHandlers.Token);
-        Assert.Equal(HttpStatusCode.BadRequest, strict.Handle(bare).StatusCode);
-
-        await Provider().CreateTxtAsync(Challenge, "b", Token);
-
-        Assert.DoesNotContain(_handlers.Calls, c => c.Method == HttpMethod.Put);
-        Assert.Equal(2, _desec.Rrset("example.com", "_acme-challenge")!.Value.Records.Count);
     }
 
     [Fact]

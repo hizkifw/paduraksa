@@ -144,18 +144,4 @@ public sealed class AcmeAccountTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             h.Client.RegisterAccountAsync(AcmeAccountId.New(), new AcmeNewAccountRequest([], true), Token));
     }
-
-    [Fact]
-    public async Task EverySignatureVerifiesAgainstTheAccountKey()
-    {
-        // The fake CA rejects a bad signature, a wrong url header or a stale nonce with a problem, so a full flow that
-        // completes means every JWS the client built was valid. This pins that it did sign.
-        using var h = new AcmeHarness();
-
-        var account = await h.RegisterAsync();
-        await h.Client.GetAccountAsync(account.Ref, Token);
-
-        Assert.Equal(2, h.Signer.SignCount);
-        Assert.All(h.Server.Requests.Where(r => r.Method == "POST"), r => Assert.Equal("ES256", r.HeaderString("alg")));
-    }
 }

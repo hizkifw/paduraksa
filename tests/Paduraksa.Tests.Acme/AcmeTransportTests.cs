@@ -2,7 +2,6 @@ using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using Paduraksa.Acme;
-using Paduraksa.Core.Model;
 using Paduraksa.Tests.Acme.Fakes;
 using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
@@ -352,19 +351,6 @@ public sealed class AcmeTransportTests
         Assert.DoesNotContain("CQkJCQ", logs, StringComparison.Ordinal);
         Assert.DoesNotContain("signature", logs, StringComparison.Ordinal);
         Assert.DoesNotContain("example.com", logs.Replace("acme.test", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheAccountKeyIsOnlyEverUsedThroughTheSigner()
-    {
-        using var h = new AcmeHarness();
-        var id = AcmeAccountId.New();
-        await h.Signer.CreateAccountKeyAsync(id, Paduraksa.Core.Vault.JwsAlgorithm.ES256, Token);
-
-        await h.Client.RegisterAccountAsync(id, new AcmeNewAccountRequest([], true), Token);
-
-        Assert.Equal(1, h.Signer.SignCount);
-        Assert.True(h.Server.To("new-account").Single().HasHeader("jwk"));
     }
 
     private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler

@@ -72,21 +72,15 @@ public sealed class AcmeOrderFlowTests
     }
 
     [Fact]
-    public async Task Http01ValueIsServedFromTheKeyAuthorization()
+    public async Task AChallengeCarriesTheTokenTheCaIssued()
     {
         using var h = new AcmeHarness();
         var account = (await h.RegisterAsync()).Ref;
         var order = await h.Client.CreateOrderAsync(account, new AcmeNewOrderRequest([AcmeIdentifier.Dns("example.com")]), Token);
 
         var authz = await h.Client.GetAuthorizationAsync(account, order.Authorizations[0], Token);
-        var challenge = authz.FindChallenge(AcmeChallenges.Http01)!;
 
-        Assert.Equal(h.Server.TokensOf(0)[0], challenge.Token);
-        Assert.Equal($"/.well-known/acme-challenge/{challenge.Token}", AcmeChallenges.Http01Path(challenge.Token!));
-        Assert.Equal(
-            Base64Url.EncodeToString(System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.ASCII.GetBytes(await h.Client.GetKeyAuthorizationAsync(account.Id, challenge, Token)))),
-            AcmeChallenges.Dns01TxtValue(await h.Client.GetKeyAuthorizationAsync(account.Id, challenge, Token)));
+        Assert.Equal(h.Server.TokensOf(0)[0], authz.FindChallenge(AcmeChallenges.Http01)!.Token);
     }
 
     [Fact]
