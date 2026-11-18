@@ -127,12 +127,11 @@ public sealed class HostFormTests
         var stored = new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(route, App.Id, Settings: settings)]);
         var model = HostEditModel.From(stored);
         await using DashboardTestContext context = new();
-        var popovers = context.Render<MudPopoverProvider>();
+        context.Render<MudPopoverProvider>();
         var form = Render(context, model);
 
         // A route that sets its own access list shows its settings without the menu.
         Assert.Single(form.FindAll("[data-section='route-settings-0']"));
-        Assert.NotNull(popovers);
         await form.InvokeAsync(() => form.FindComponents<MudSelect<bool?>>()
             .Single(select => select.Instance.Label == "Browser check on this route")
             .Instance.ValueChanged.InvokeAsync(false));
@@ -140,18 +139,6 @@ public sealed class HostFormTests
         var kept = Assert.Single(model.ToConfig().Routes);
         Assert.Equal((route, false), (kept.Id, kept.Settings.ProofOfWork?.Enabled));
         Assert.Same(settings.AccessList, kept.Settings.AccessList);
-    }
-
-    [Fact]
-    public async Task ARouteThatOverridesShowsItsSettingsWithoutTheMenu()
-    {
-        var stored = new HostConfig(HostId.New(), ["app.example.com"],
-            Routes: [new RouteConfig(RouteId.New(), App.Id, Settings: new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = false } })]);
-        await using DashboardTestContext context = new();
-
-        var form = Render(context, HostEditModel.From(stored));
-
-        Assert.Single(form.FindAll("[data-section='route-settings-0']"));
     }
 
     [Fact]

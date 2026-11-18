@@ -113,7 +113,7 @@ public sealed class AccessListCountriesTests
         {
             var text = drawers.Find(Drawer).TextContent;
 
-            Assert.Contains("a blocked country included, can still sign in", text, StringComparison.Ordinal);
+            Assert.Contains("gets in without a password; any other visitor, a blocked country included, can still sign in", text, StringComparison.Ordinal);
             Assert.Contains("A denied address or country is refused even with the right password", text, StringComparison.Ordinal);
         }
     }

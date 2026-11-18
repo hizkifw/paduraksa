@@ -12,7 +12,6 @@ using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Pages;
 using Paduraksa.Data;
-using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Storage.Sqlite;
@@ -250,22 +249,6 @@ public sealed class TrafficStatisticsTests
     [InlineData(31, 50)]
     [InlineData(480, 500)]
     public void TheChartScaleTopsOutAtARoundNumber(double peak, double expected) => Assert.Equal(expected, TimeSeriesChart.Nice(peak));
-
-    [Theory]
-    [InlineData(0, "0/s")]
-    [InlineData(0.04, "<0.1/s")]
-    [InlineData(4.24, "4.2/s")]
-    [InlineData(340.4, "340/s")]
-    [InlineData(1_240, "1.2k/s")]
-    [InlineData(12_400, "12k/s")]
-    public void RatesAreShortWithTheirUnit(double rate, string expected) => Assert.Equal(expected, TrafficFigures.PerSecond(rate));
-
-    [Theory]
-    [InlineData(0, "0%")]
-    [InlineData(0.0004, "<0.1%")]
-    [InlineData(0.0123, "1.2%")]
-    [InlineData(0.5, "50%")]
-    public void SharesAreWrittenAsPercentages(double share, string expected) => Assert.Equal(expected, TrafficFigures.Percent(share));
 
     [Theory]
     [InlineData(0, "-")]

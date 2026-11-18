@@ -112,6 +112,7 @@ public sealed class DisplayFormatTests
     [InlineData(0.05, "<0.1/s")]
     [InlineData(4.2, "4.2/s")]
     [InlineData(340, "340/s")]
+    [InlineData(1_240, "1.2k/s")]
     [InlineData(12_000, "12k/s")]
     public void RatesAreShortWithTheirUnit(double rate, string expected) => Assert.Equal(expected, new DisplayFormat().PerSecond(rate));
 
@@ -119,6 +120,8 @@ public sealed class DisplayFormatTests
     [InlineData(0, "0%")]
     [InlineData(0.0004, "<0.1%")]
     [InlineData(0.004, "0.4%")]
+    [InlineData(0.0123, "1.2%")]
+    [InlineData(0.5, "50%")]
     [InlineData(0.12, "12%")]
     public void SharesAreWrittenAsPercentages(double share, string expected) => Assert.Equal(expected, new DisplayFormat().Percent(share));
 
