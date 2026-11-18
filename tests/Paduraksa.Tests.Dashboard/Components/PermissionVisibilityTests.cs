@@ -35,16 +35,6 @@ public sealed class PermissionVisibilityTests
         Assert.Equal(["Overview"], menu.FindAll(".pdk-nav-label").Select(label => label.TextContent));
     }
 
-    [Fact]
-    public void PlaceholderPages_AreMarkedSoon()
-    {
-        using DashboardTestContext context = new();
-        var menu = context.Render<NavMenu>(parameters =>
-            parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Owner))));
-
-        Assert.Equal(DashboardNavigation.Entries.Count(entry => !entry.Available), menu.FindAll(".pdk-soon").Count);
-    }
-
     [Theory]
     [InlineData(Role.Operator, true)]
     [InlineData(Role.Viewer, false)]

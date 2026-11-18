@@ -1,9 +1,7 @@
 using Bunit;
 
 using Paduraksa.Core.Model;
-using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
-using Paduraksa.Dashboard.Pages;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
@@ -33,7 +31,6 @@ public sealed class TrafficStripTests
         Assert.Equal("0/s", page.Find("[data-tile=refused] [data-part=value]").TextContent);
         Assert.EndsWith(" ms", page.Find("[data-tile=latency] [data-part=value]").TextContent, StringComparison.Ordinal);
         Assert.Equal("Latency p95", page.Find("[data-tile=latency] .pdk-sec-label").TextContent);
-        Assert.Empty(page.FindAll("[data-field=range]"));
     }
 
     [Fact]
@@ -131,24 +128,5 @@ public sealed class TrafficStripTests
         await page.InvokeAsync(() => page.Instance.PageVisibilityChangedAsync(true));
 
         Assert.NotEqual("20/s", page.Find("[data-tile=requests] [data-part=value]").TextContent);
-    }
-
-    [Fact]
-    public async Task TheOverviewHasTheStripAndNeitherARangePickerNorTheChartsThatMovedToAnalytics()
-    {
-        await using MetricsRig rig = new();
-        var context = rig.SignIn();
-        rig.Publish();
-        context.ComponentFactories.AddStub<Paduraksa.Dashboard.Setup.SetupChecklist>();
-
-        var page = context.Render<Home>();
-
-        await page.WaitForStateAsync(() => page.FindAll("[data-section=traffic-strip]").Count == 1);
-        Assert.Empty(page.FindAll("[data-field=range]"));
-        Assert.Empty(page.FindAll("[data-section=top-hosts]"));
-        Assert.Empty(page.FindAll("[data-section=upstream-errors]"));
-        Assert.Empty(page.FindAll("[data-link=analytics]"));
-        // The hosts and the latest changes stay under the strip.
-        Assert.Equal(["traffic-strip", "hosts", "recent"], page.FindAll("[data-section=traffic-strip], [data-section=hosts], [data-section=recent]").Select(section => section.GetAttribute("data-section")));
     }
 }

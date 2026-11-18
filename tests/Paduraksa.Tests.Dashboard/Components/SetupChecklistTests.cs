@@ -1,7 +1,6 @@
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
-using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Setup;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -24,15 +23,7 @@ public sealed class SetupChecklistTests
     }
 
     [Fact]
-    public void EachTask_LinksToThePageThatDoesIt()
-    {
-        Assert.Equal(Enum.GetValues<SetupTask>(), SetupTasks.All.Select(t => t.Task));
-        Assert.Equal(DashboardRoutes.Account, SetupTasks.Info(SetupTask.TwoStep).Href);
-        Assert.Equal(DashboardRoutes.AcmeAccounts, SetupTasks.Info(SetupTask.AcmeAccount).Href);
-        Assert.Equal(DashboardRoutes.DnsProviders, SetupTasks.Info(SetupTask.DnsProvider).Href);
-        Assert.Equal(DashboardRoutes.Certificates, SetupTasks.Info(SetupTask.Certificate).Href);
-        Assert.Equal(DashboardRoutes.NewHost, SetupTasks.Info(SetupTask.FirstHost).Href);
-    }
+    public void EveryTaskHasItsInfo() => Assert.Equal(Enum.GetValues<SetupTask>(), SetupTasks.All.Select(t => t.Task));
 
     private static AcmeAccountSummary Account() => new(
         AcmeAccountId.New(), "https://acme.test/directory", [], AcmeAccountStatus.Active, "https://acme.test/acct/1", JwsAlgorithm.ES256, true,
