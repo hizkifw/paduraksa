@@ -3,9 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
-    # A version tag publishes the image under its version too (see the publish job). A `proxyprotocol-v*` tag is the NuGet packages'
-    # own release (see the publish-nuget job): they ship when they change, not with every release of the app.
-    tags: ["v*", "proxyprotocol-v*"]
+    # A version tag publishes the image under its version too (see the publish job). A `proxyprotocol-v*` or `typedids-v*` tag is that
+    # family's NuGet packages' own release (see the publish-nuget job): they ship when they change, not with every release of the app.
+    tags: ["v*", "proxyprotocol-v*", "typedids-v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -136,7 +136,7 @@ jobs:
   image:
     name: Container image
     # A package tag releases no image.
-    if: ${{ !startsWith(github.ref, 'refs/tags/proxyprotocol-v') }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/proxyprotocol-v') && !startsWith(github.ref, 'refs/tags/typedids-v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -199,7 +199,7 @@ jobs:
   publish:
     name: Publish image
     needs: [build-test, image]
-    if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/proxyprotocol-v') }}
+    if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/proxyprotocol-v') && !startsWith(github.ref, 'refs/tags/typedids-v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -257,9 +257,11 @@ jobs:
           provenance: mode=max
           sbom: true
 
-  # Packs Paduraksa.ProxyProtocol and Paduraksa.ProxyProtocol.AspNetCore (src/Packaging.props) on every run, so a change that breaks packing or the
-  # package validation fails here and not at the tag. A `proxyprotocol-v*` tag packs them at the tag's version (proxyprotocol-v0.1.0 -> 0.1.0); any
-  # other run packs the version in Packaging.props. The packages are uploaded as an artifact either way.
+  # Packs all four packages on every run, so a change that breaks packing or the package validation fails here and not at the tag. There are two
+  # families, each with its own version (src/Packaging.ProxyProtocol.props, src/Packaging.TypedIds.props): Paduraksa.ProxyProtocol and .AspNetCore,
+  # and Paduraksa.TypedIds and .EntityFrameworkCore. A `proxyprotocol-v*` or `typedids-v*` tag packs the family it names at the tag's version
+  # (typedids-v0.1.0 -> 0.1.0) and the other at its version in its props file; any other run packs both at their props versions. The packages are
+  # uploaded as an artifact either way, one folder per family, which is what lets the publish job push only the tagged family.
   pack:
     name: Pack NuGet packages
     runs-on: ubuntu-latest
@@ -281,23 +283,29 @@ jobs:
 
       - name: Pack
         run: |
-          version_args=()
-          if [[ "$GITHUB_REF" == refs/tags/proxyprotocol-v* ]]; then
-            version_args=("-p:Version=${GITHUB_REF_NAME#proxyprotocol-v}")
-          fi
+          proxyprotocol_args=()
+          typedids_args=()
+          case "$GITHUB_REF" in
+            refs/tags/proxyprotocol-v*) proxyprotocol_args=("-p:Version=${GITHUB_REF_NAME#proxyprotocol-v}") ;;
+            refs/tags/typedids-v*) typedids_args=("-p:Version=${GITHUB_REF_NAME#typedids-v}") ;;
+          esac
           for project in Paduraksa.ProxyProtocol Paduraksa.ProxyProtocol.AspNetCore; do
-            dotnet pack "src/$project" -c Release -warnaserror -o artifacts/nupkg "${version_args[@]}"
+            dotnet pack "src/$project" -c Release -warnaserror -o artifacts/nupkg/proxyprotocol "${proxyprotocol_args[@]}"
           done
-          ls -l artifacts/nupkg
+          for project in Paduraksa.TypedIds Paduraksa.TypedIds.EntityFrameworkCore; do
+            dotnet pack "src/$project" -c Release -warnaserror -o artifacts/nupkg/typedids "${typedids_args[@]}"
+          done
+          ls -lR artifacts/nupkg
 
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
           name: nuget-packages
-          path: artifacts/nupkg/*
+          path: artifacts/nupkg
           if-no-files-found: error
 
-  # Pushes the packs to nuget.org for a `proxyprotocol-v*` tag once the tests pass (the app's own `v*` tags publish no package).
+  # Pushes the tagged family's packs to nuget.org for a `proxyprotocol-v*` or `typedids-v*` tag once the tests pass: the other family's packs are not
+  # pushed (the app's own `v*` tags publish no package).
   # No API key is stored: nuget.org's trusted publishing exchanges this job's GitHub OIDC token for a key that lives one hour, under the policy that
   # names this repository and this workflow file (docs/development.md, Publishing the NuGet packages). It does nothing until the repository has a
   # NUGET_USER variable (the nuget.org profile name that owns the policy): without it the push is skipped and the job says so.
@@ -305,7 +313,7 @@ jobs:
   publish-nuget:
     name: Publish NuGet packages
     needs: [build-test, pack]
-    if: ${{ startsWith(github.ref, 'refs/tags/proxyprotocol-v') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/proxyprotocol-v') || startsWith(github.ref, 'refs/tags/typedids-v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -329,11 +337,14 @@ jobs:
           user: ${{ vars.NUGET_USER }}
 
       # One push: for each .nupkg, `dotnet nuget push` also pushes the .snupkg lying beside it (--no-symbols is what turns that off).
+      # The folder is the tag's family: proxyprotocol-v0.1.0 -> proxyprotocol, typedids-v0.1.0 -> typedids.
       - name: Push the packages and their symbols to nuget.org
         if: ${{ vars.NUGET_USER != '' }}
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
-        run: dotnet nuget push "artifacts/nupkg/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          family="${GITHUB_REF_NAME%%-v*}"
+          dotnet nuget push "artifacts/nupkg/$family/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Skipped, no NUGET_USER
         if: ${{ vars.NUGET_USER == '' }}
