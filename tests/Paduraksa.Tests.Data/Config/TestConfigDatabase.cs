@@ -2,9 +2,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
-using Paduraksa.Core.Ids;
 using Paduraksa.Data;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Data.Config;
 

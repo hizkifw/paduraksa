@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 using Paduraksa.TypedIds.Generator;
 
 // Paduraksa.Tests.Unit.Compilation (the config compiler tests) hides Roslyn's Compilation here.
@@ -27,7 +27,7 @@ public sealed class TypedIdGeneratorTests
     public void ValidDeclarationsGenerateCompilingCode()
     {
         var result = Run("""
-                         using Paduraksa.Core.Ids;
+                         using Paduraksa.TypedIds;
 
                          namespace Sample
                          {
@@ -56,7 +56,7 @@ public sealed class TypedIdGeneratorTests
     public void NotPartialReportsPDKID001()
     {
         var result = Run("""
-                         [Paduraksa.Core.Ids.TypedId("host")] public readonly record struct HostId;
+                         [Paduraksa.TypedIds.TypedId("host")] public readonly record struct HostId;
                          """);
 
         Assert.Equal(["PDKID001"], result.GeneratorDiagnosticIds);
@@ -68,12 +68,12 @@ public sealed class TypedIdGeneratorTests
     [InlineData("public readonly partial struct HostId { }")] // not a record
     [InlineData("public readonly partial record struct HostId(System.Guid Value);")] // positional
     [InlineData("public readonly partial record struct HostId<T>;")] // generic
-    [InlineData("public partial class Outer { [Paduraksa.Core.Ids.TypedId(\"host\")] public readonly partial record struct HostId; }")] // nested
+    [InlineData("public partial class Outer { [Paduraksa.TypedIds.TypedId(\"host\")] public readonly partial record struct HostId; }")] // nested
     public void NotReadonlyRecordStructReportsPDKID002(string declaration)
     {
         var source = declaration.StartsWith("public partial class", StringComparison.Ordinal)
             ? declaration
-            : $"[Paduraksa.Core.Ids.TypedId(\"host\")] {declaration}";
+            : $"[Paduraksa.TypedIds.TypedId(\"host\")] {declaration}";
 
         var result = Run(source);
 
@@ -93,7 +93,7 @@ public sealed class TypedIdGeneratorTests
     public void InvalidPrefixReportsPDKID003(string prefix)
     {
         var result = Run($$"""
-                           [Paduraksa.Core.Ids.TypedId("{{prefix}}")] public readonly partial record struct HostId;
+                           [Paduraksa.TypedIds.TypedId("{{prefix}}")] public readonly partial record struct HostId;
                            """);
 
         Assert.Equal(["PDKID003"], result.GeneratorDiagnosticIds);
@@ -108,7 +108,7 @@ public sealed class TypedIdGeneratorTests
     public void ValidPrefixesAreAccepted(string prefix)
     {
         var result = Run($$"""
-                           [Paduraksa.Core.Ids.TypedId("{{prefix}}")] public readonly partial record struct SomeId;
+                           [Paduraksa.TypedIds.TypedId("{{prefix}}")] public readonly partial record struct SomeId;
                            """);
 
         Assert.Empty(result.GeneratorDiagnostics);
@@ -119,7 +119,7 @@ public sealed class TypedIdGeneratorTests
     public void NullPrefixReportsPDKID003()
     {
         var result = Run("""
-                         [Paduraksa.Core.Ids.TypedId(null!)] public readonly partial record struct HostId;
+                         [Paduraksa.TypedIds.TypedId(null!)] public readonly partial record struct HostId;
                          """);
 
         Assert.Equal(["PDKID003"], result.GeneratorDiagnosticIds);
@@ -129,7 +129,7 @@ public sealed class TypedIdGeneratorTests
     public void UnknownKindReportsPDKID005()
     {
         var result = Run("""
-                         [Paduraksa.Core.Ids.TypedId("host", (Paduraksa.Core.Ids.IdKind)42)] public readonly partial record struct HostId;
+                         [Paduraksa.TypedIds.TypedId("host", (Paduraksa.TypedIds.IdKind)42)] public readonly partial record struct HostId;
                          """);
 
         Assert.Equal(["PDKID005"], result.GeneratorDiagnosticIds);
@@ -139,7 +139,7 @@ public sealed class TypedIdGeneratorTests
     public void DuplicatePrefixReportsPDKID004OnEachDeclaration()
     {
         var result = Run("""
-                         using Paduraksa.Core.Ids;
+                         using Paduraksa.TypedIds;
                          namespace A { [TypedId("host")] public readonly partial record struct HostId; }
                          namespace B { [TypedId("host", IdKind.UuidV4)] public readonly partial record struct OtherHostId; }
                          namespace C { [TypedId("usr")] public readonly partial record struct UserId; }
@@ -154,7 +154,7 @@ public sealed class TypedIdGeneratorTests
     public void DiagnosticsPointAtTheDeclaration()
     {
         var result = Run("""
-                         [Paduraksa.Core.Ids.TypedId("host")]
+                         [Paduraksa.TypedIds.TypedId("host")]
                          public readonly record struct HostId;
                          """);
 
@@ -166,7 +166,7 @@ public sealed class TypedIdGeneratorTests
     public void GeneratorIsCachedAcrossUnrelatedEdits()
     {
         var compilation = CreateCompilation("""
-                                            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
+                                            [Paduraksa.TypedIds.TypedId("host")] public readonly partial record struct HostId;
                                             """);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new TypedIdGenerator().AsSourceGenerator()],
@@ -188,7 +188,7 @@ public sealed class TypedIdGeneratorTests
     public void EmissionModelIsCachedWhenDeclarationMovesWithinFile()
     {
         var compilation = CreateCompilation("""
-                                            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
+                                            [Paduraksa.TypedIds.TypedId("host")] public readonly partial record struct HostId;
                                             """);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new TypedIdGenerator().AsSourceGenerator()],
@@ -212,7 +212,7 @@ public sealed class TypedIdGeneratorTests
         var result = Run("""
                          namespace Bar.@event
                          {
-                             [Paduraksa.Core.Ids.TypedId("ev")] public readonly partial record struct @class;
+                             [Paduraksa.TypedIds.TypedId("ev")] public readonly partial record struct @class;
 
                              public static class Use
                              {
@@ -220,7 +220,7 @@ public sealed class TypedIdGeneratorTests
                              }
                          }
 
-                         [Paduraksa.Core.Ids.TypedId("st", Paduraksa.Core.Ids.IdKind.Int64Ordered)] public readonly partial record struct @struct;
+                         [Paduraksa.TypedIds.TypedId("st", Paduraksa.TypedIds.IdKind.Int64Ordered)] public readonly partial record struct @struct;
                          """);
 
         Assert.Empty(result.GeneratorDiagnostics);
@@ -233,7 +233,7 @@ public sealed class TypedIdGeneratorTests
     {
         // Same name and namespace in two files is legal for file-local types; it used to collide on the hint name.
         const string Declaration = """
-            namespace Sample { [Paduraksa.Core.Ids.TypedId("$PREFIX$")] file readonly partial record struct HostId; }
+            namespace Sample { [Paduraksa.TypedIds.TypedId("$PREFIX$")] file readonly partial record struct HostId; }
             """;
 
         var result = Run(
@@ -250,11 +250,11 @@ public sealed class TypedIdGeneratorTests
     public void GeneratedCodeAttributeCarriesGeneratorVersion()
     {
         const string Source = """
-            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
+            [Paduraksa.TypedIds.TypedId("host")] public readonly partial record struct HostId;
             """;
 
         var first = GenerateSingleSource(Source);
-        var match = Regex.Match(first, @"GeneratedCode\(""Paduraksa\.Ids\.Generator"", ""(?<version>[^""]*)""\)");
+        var match = Regex.Match(first, @"GeneratedCode\(""Paduraksa\.TypedIds\.Generator"", ""(?<version>[^""]*)""\)");
 
         Assert.True(match.Success);
         var version = match.Groups["version"].Value;

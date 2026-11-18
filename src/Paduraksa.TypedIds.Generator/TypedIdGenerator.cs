@@ -12,13 +12,13 @@ namespace Paduraksa.TypedIds.Generator;
 
 /// <summary>
 /// Generates typed-ID members for every <c>[TypedId]</c> <c>readonly partial record struct</c>. The generated code
-/// depends on runtime helpers in <c>Paduraksa.Core.Ids</c> (Base62, ITypedId, converters), so any project that
-/// declares IDs must reference Paduraksa.Core.
+/// depends on runtime helpers in <c>Paduraksa.TypedIds</c> (Base62, ITypedId, converters), so any project that
+/// declares IDs must reference Paduraksa.TypedIds.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class TypedIdGenerator : IIncrementalGenerator
 {
-    public const string AttributeMetadataName = "Paduraksa.Core.Ids.TypedIdAttribute";
+    public const string AttributeMetadataName = "Paduraksa.TypedIds.TypedIdAttribute";
 
     /// <summary>Tracking name of the location-free model step (for incremental caching tests).</summary>
     public const string ModelsTrackingName = "TypedIdModels";

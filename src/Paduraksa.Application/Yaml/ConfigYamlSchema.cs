@@ -1,9 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Serialization.Metadata;
-
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Application.Yaml;
 

@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
 using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Security;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
 using Paduraksa.Proxy.AccessLists;
@@ -18,6 +16,7 @@ using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Storage.Sqlite;
 using Paduraksa.Tests.Shared;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 

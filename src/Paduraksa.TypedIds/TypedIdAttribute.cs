@@ -1,4 +1,4 @@
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>Marks a <c>readonly partial record struct</c> as a typed ID.</summary>
 /// <example><c>[TypedId("host")] public readonly partial record struct HostId;</c></example>

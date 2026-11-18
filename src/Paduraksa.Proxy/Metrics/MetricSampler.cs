@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
-
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Proxy.Metrics;
 

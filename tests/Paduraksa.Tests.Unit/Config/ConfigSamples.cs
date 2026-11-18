@@ -1,7 +1,7 @@
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Unit.Config;
 

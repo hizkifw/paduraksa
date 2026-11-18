@@ -1,10 +1,9 @@
 using System.Text.Json.Serialization;
-
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Drafts;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Json;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Contracts.Config;
 

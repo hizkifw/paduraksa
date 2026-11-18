@@ -1,10 +1,8 @@
 using CsCheck;
-
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Shared;
-
+using Paduraksa.TypedIds;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Config;

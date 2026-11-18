@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Unit.Ids;
 

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Admin.Api;
 

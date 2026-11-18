@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>
 /// Generates <see cref="IdKind.Int64Ordered"/> values: <c>0 | 44-bit ms since <see cref="Epoch"/> | 19-bit counter</c>.

@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>
 /// Fixed-width base62 codec using the alphabet <c>0-9A-Za-z</c> (ASCII order). Values are left-padded with

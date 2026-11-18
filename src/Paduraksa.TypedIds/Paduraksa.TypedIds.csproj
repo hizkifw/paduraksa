@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BCL only. The [TypedId] source generator is wired up for every project in Directory.Build.props. -->
+  <PropertyGroup>
+    <TargetFramework />
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+  </PropertyGroup>
+</Project>

@@ -1,4 +1,4 @@
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>How a typed ID's underlying value is generated and stored.</summary>
 public enum IdKind

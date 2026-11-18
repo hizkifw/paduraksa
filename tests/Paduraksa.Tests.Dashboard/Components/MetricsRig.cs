@@ -1,17 +1,15 @@
 using Bunit;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-
 using Paduraksa.Application.Metrics;
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 

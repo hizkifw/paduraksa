@@ -86,6 +86,7 @@ public sealed class DependencyRuleTests
         Assert.Contains("Microsoft.EntityFrameworkCore.DbContext", failures, StringComparison.Ordinal);
         Assert.Contains(FakeTypeName(Layer.Data), failures, StringComparison.Ordinal);
         Assert.DoesNotContain(FakeTypeName(Layer.Core), failures, StringComparison.Ordinal);
+        Assert.DoesNotContain(FakeTypeName(Layer.TypedIds), failures, StringComparison.Ordinal);
     }
 
     [Fact]

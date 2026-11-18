@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Admin.Api;
 

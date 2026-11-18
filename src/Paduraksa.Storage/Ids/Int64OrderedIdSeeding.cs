@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Storage.Ids;
 

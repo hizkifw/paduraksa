@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using Paduraksa.Core.Ids;
 using Paduraksa.Storage.Ids;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Data;
 

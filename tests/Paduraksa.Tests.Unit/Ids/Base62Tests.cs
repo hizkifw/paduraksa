@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Text;
 
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Unit.Ids;
 

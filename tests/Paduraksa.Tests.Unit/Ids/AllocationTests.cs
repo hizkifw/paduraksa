@@ -1,7 +1,7 @@
 using System.Runtime.ExceptionServices;
 using System.Text;
 
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Unit.Ids;
 

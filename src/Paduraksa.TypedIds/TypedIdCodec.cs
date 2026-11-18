@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Numerics;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>Formatting and parsing primitives shared by all generated typed IDs. All members are allocation-free.</summary>
 /// <remarks>

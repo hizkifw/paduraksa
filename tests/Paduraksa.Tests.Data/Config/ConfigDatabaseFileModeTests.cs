@@ -1,9 +1,8 @@
 using System.Runtime.Versioning;
-
 using Microsoft.EntityFrameworkCore;
-using Paduraksa.Core.Ids;
 using Paduraksa.Data;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.TypedIds;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;

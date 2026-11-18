@@ -1,8 +1,8 @@
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Drafts;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Config;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Dashboard.SettingsArea;
 

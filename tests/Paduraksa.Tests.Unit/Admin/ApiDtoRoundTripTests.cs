@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 using Paduraksa.Admin.Json;
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Unit.Admin;
 

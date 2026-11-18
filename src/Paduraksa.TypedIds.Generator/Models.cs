@@ -10,7 +10,7 @@ namespace Paduraksa.TypedIds.Generator;
 // change on every edit above a declaration, so only the diagnostic branches carry them; TypedIdModel (which drives
 // code emission) is location-free and stays cached.
 
-// Mirrors Paduraksa.Core.Ids.IdKind (the generator can't reference Core); a unit test keeps them in sync.
+// Mirrors Paduraksa.TypedIds.IdKind (the generator can't reference the runtime); a unit test keeps them in sync.
 internal enum IdKindValue
 {
     UuidV7 = 0,

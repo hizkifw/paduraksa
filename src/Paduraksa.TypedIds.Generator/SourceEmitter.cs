@@ -9,10 +9,10 @@ internal static class SourceEmitter
         #nullable enable
 
         $NAMESPACE_OPEN$
-        [global::System.Text.Json.Serialization.JsonConverter(typeof(global::Paduraksa.Core.Ids.TypedIdJsonConverter<$TYPE$>))]
-        [global::System.ComponentModel.TypeConverter(typeof(global::Paduraksa.Core.Ids.TypedIdTypeConverter<$TYPE$>))]
+        [global::System.Text.Json.Serialization.JsonConverter(typeof(global::Paduraksa.TypedIds.TypedIdJsonConverter<$TYPE$>))]
+        [global::System.ComponentModel.TypeConverter(typeof(global::Paduraksa.TypedIds.TypedIdTypeConverter<$TYPE$>))]
         [global::System.CodeDom.Compiler.GeneratedCode("Paduraksa.TypedIds.Generator", "$GENERATOR_VERSION$")]
-        readonly partial record struct $NAME$ : global::Paduraksa.Core.Ids.ITypedId<$TYPE$, $VALUE$>
+        readonly partial record struct $NAME$ : global::Paduraksa.TypedIds.ITypedId<$TYPE$, $VALUE$>
         {
             private const string PrefixWithSeparator = "$PREFIX$_";
 
@@ -30,7 +30,7 @@ internal static class SourceEmitter
             /// <summary>The prefix (without the trailing underscore): <c>$PREFIX$</c>.</summary>
             public static string Prefix => "$PREFIX$";
 
-            public static global::Paduraksa.Core.Ids.IdKind Kind => global::Paduraksa.Core.Ids.IdKind.$KIND$;
+            public static global::Paduraksa.TypedIds.IdKind Kind => global::Paduraksa.TypedIds.IdKind.$KIND$;
 
             /// <summary>Length of the string form: <c>$PREFIX$_</c> + $WIDTH$ base62 chars.</summary>
             public static int FormattedLength => $LENGTH$;
@@ -55,26 +55,26 @@ internal static class SourceEmitter
             public static bool operator >=($TYPE$ left, $TYPE$ right) => left.CompareTo(right) >= 0;
 
             public override string ToString() =>
-                string.Create($LENGTH$, Value, static (span, value) => global::Paduraksa.Core.Ids.TypedIdCodec.TryFormat(value, PrefixWithSeparator, span, out _));
+                string.Create($LENGTH$, Value, static (span, value) => global::Paduraksa.TypedIds.TypedIdCodec.TryFormat(value, PrefixWithSeparator, span, out _));
 
             public string ToString(string? format, global::System.IFormatProvider? formatProvider) => ToString();
 
             public bool TryFormat(global::System.Span<char> destination, out int charsWritten, global::System.ReadOnlySpan<char> format = default, global::System.IFormatProvider? provider = null) =>
-                global::Paduraksa.Core.Ids.TypedIdCodec.TryFormat(Value, PrefixWithSeparator, destination, out charsWritten);
+                global::Paduraksa.TypedIds.TypedIdCodec.TryFormat(Value, PrefixWithSeparator, destination, out charsWritten);
 
             public bool TryFormat(global::System.Span<byte> utf8Destination, out int bytesWritten, global::System.ReadOnlySpan<char> format = default, global::System.IFormatProvider? provider = null) =>
-                global::Paduraksa.Core.Ids.TypedIdCodec.TryFormat(Value, Utf8PrefixWithSeparator, utf8Destination, out bytesWritten);
+                global::Paduraksa.TypedIds.TypedIdCodec.TryFormat(Value, Utf8PrefixWithSeparator, utf8Destination, out bytesWritten);
 
             public static bool TryParse(global::System.ReadOnlySpan<char> s, out $TYPE$ result)
             {
-                bool ok = global::Paduraksa.Core.Ids.TypedIdCodec.TryParse(s, PrefixWithSeparator, out $VALUE$ value);
+                bool ok = global::Paduraksa.TypedIds.TypedIdCodec.TryParse(s, PrefixWithSeparator, out $VALUE$ value);
                 result = new(value);
                 return ok;
             }
 
             public static bool TryParse(global::System.ReadOnlySpan<byte> utf8Text, out $TYPE$ result)
             {
-                bool ok = global::Paduraksa.Core.Ids.TypedIdCodec.TryParse(utf8Text, Utf8PrefixWithSeparator, out $VALUE$ value);
+                bool ok = global::Paduraksa.TypedIds.TypedIdCodec.TryParse(utf8Text, Utf8PrefixWithSeparator, out $VALUE$ value);
                 result = new(value);
                 return ok;
             }
@@ -83,10 +83,10 @@ internal static class SourceEmitter
                 TryParse(global::System.MemoryExtensions.AsSpan(s), out result);
 
             public static $TYPE$ Parse(global::System.ReadOnlySpan<char> s) =>
-                TryParse(s, out $TYPE$ result) ? result : throw global::Paduraksa.Core.Ids.TypedIdCodec.ParseError("$DISPLAYNAME$", PrefixWithSeparator, $WIDTH$);
+                TryParse(s, out $TYPE$ result) ? result : throw global::Paduraksa.TypedIds.TypedIdCodec.ParseError("$DISPLAYNAME$", PrefixWithSeparator, $WIDTH$);
 
             public static $TYPE$ Parse(global::System.ReadOnlySpan<byte> utf8Text) =>
-                TryParse(utf8Text, out $TYPE$ result) ? result : throw global::Paduraksa.Core.Ids.TypedIdCodec.ParseError("$DISPLAYNAME$", PrefixWithSeparator, $WIDTH$);
+                TryParse(utf8Text, out $TYPE$ result) ? result : throw global::Paduraksa.TypedIds.TypedIdCodec.ParseError("$DISPLAYNAME$", PrefixWithSeparator, $WIDTH$);
 
             public static $TYPE$ Parse(string s)
             {
@@ -122,9 +122,9 @@ internal static class SourceEmitter
         var width = isGuid ? 22 : 11;
         var factory = model.Kind switch
         {
-            IdKindValue.UuidV4 => "global::Paduraksa.Core.Ids.UuidV4Generator.Next()",
-            IdKindValue.Int64Ordered => "global::Paduraksa.Core.Ids.Int64OrderedIdGenerator.Shared.Next()",
-            _ => "global::Paduraksa.Core.Ids.UuidV7Generator.Shared.Next()",
+            IdKindValue.UuidV4 => "global::Paduraksa.TypedIds.UuidV4Generator.Next()",
+            IdKindValue.Int64Ordered => "global::Paduraksa.TypedIds.Int64OrderedIdGenerator.Shared.Next()",
+            _ => "global::Paduraksa.TypedIds.UuidV7Generator.Shared.Next()",
         };
         var fullType = model.Namespace is null ? $"global::{model.Name}" : $"global::{model.Namespace}.{model.Name}";
         var constructorGuard = isGuid ? string.Empty : "global::System.ArgumentOutOfRangeException.ThrowIfNegative(value);";

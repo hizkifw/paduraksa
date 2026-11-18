@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
@@ -9,11 +8,11 @@ using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Application.Commands;
 

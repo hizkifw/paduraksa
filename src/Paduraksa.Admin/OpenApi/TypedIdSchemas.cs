@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Admin.OpenApi;
 

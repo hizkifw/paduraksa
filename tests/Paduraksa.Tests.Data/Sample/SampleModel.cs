@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Paduraksa.Core.Ids;
 using Paduraksa.Storage.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Data.Sample;
 

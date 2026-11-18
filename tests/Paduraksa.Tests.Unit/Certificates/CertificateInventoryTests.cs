@@ -299,7 +299,7 @@ public sealed class CertificateInventoryTests : IDisposable
 
     /// <summary>The same ID for the same label, a different one for another.</summary>
     private static T Label<T>(string label)
-        where T : struct, Paduraksa.Core.Ids.ITypedId<T, Guid>
+        where T : struct, Paduraksa.TypedIds.ITypedId<T, Guid>
     {
         lock (Labels)
         {

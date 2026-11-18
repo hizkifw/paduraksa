@@ -1,16 +1,12 @@
 using Bunit;
-
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-
 using MudBlazor;
-
 using Paduraksa.Application.Analytics;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Metrics;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
@@ -21,6 +17,7 @@ using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.TypedIds;
 using static Paduraksa.Tests.Shared.AnalyticsTestData;
 
 namespace Paduraksa.Tests.Dashboard.Components;

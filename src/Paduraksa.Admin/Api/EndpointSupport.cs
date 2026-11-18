@@ -22,7 +22,7 @@ internal static class EndpointSupport
 
     /// <summary>The path of a resource of the API, for <c>Location</c> and for <c>instance</c>.</summary>
     public static string Path<TId>(string collection, TId id)
-        where TId : struct, Paduraksa.Core.Ids.ITypedId<TId> =>
+        where TId : struct, Paduraksa.TypedIds.ITypedId<TId> =>
         $"/api/v1/{collection}/{id}";
 
     /// <summary><paramref name="inner"/> with a <c>Location</c> header (when there is one), set as the result executes.</summary>

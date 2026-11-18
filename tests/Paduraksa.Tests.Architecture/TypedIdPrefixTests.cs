@@ -1,6 +1,6 @@
 using System.Reflection;
-using Paduraksa.Core.Ids;
 using Paduraksa.Tests.Architecture.Fixtures;
+using Paduraksa.TypedIds;
 using static Paduraksa.Tests.Architecture.SolutionLayers;
 
 namespace Paduraksa.Tests.Architecture;

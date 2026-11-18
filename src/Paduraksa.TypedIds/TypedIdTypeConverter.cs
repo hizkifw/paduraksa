@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>
 /// <see cref="TypeConverter"/> between a typed ID and its string form, for consumers that bind through

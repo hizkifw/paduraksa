@@ -1,6 +1,6 @@
 @typeparam TSettings where TSettings : class
 @typeparam TConfig where TConfig : class
-@typeparam TId where TId : struct, Paduraksa.Core.Ids.ITypedId<TId>
+@typeparam TId where TId : struct, Paduraksa.TypedIds.ITypedId<TId>
 @* One picker for a layer's reference to a named object (access list, rate limit, auth provider, rule set): inherit what the layer below
    resolves, none, or one of the objects by name. The choices are the contract's settings record exactly: no record inherits, Enabled false
    is none, and an object is Enabled true with its ID. An object is never shown by ID. *@

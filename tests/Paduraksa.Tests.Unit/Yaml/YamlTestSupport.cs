@@ -1,11 +1,10 @@
 using System.Text;
-
 using Paduraksa.Application.Config;
 using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Unit.Config;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Unit.Yaml;
 

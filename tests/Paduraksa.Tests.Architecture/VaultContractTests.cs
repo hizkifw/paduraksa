@@ -4,10 +4,10 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Architecture.Fixtures;
+using Paduraksa.TypedIds;
 using static Paduraksa.Tests.Architecture.SolutionLayers;
 
 namespace Paduraksa.Tests.Architecture;

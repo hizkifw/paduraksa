@@ -2,9 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Paduraksa.Application.Metrics;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
+using Paduraksa.TypedIds;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;

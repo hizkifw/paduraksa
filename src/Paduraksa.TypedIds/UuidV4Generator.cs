@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>RFC 9562 UUIDv4 from <see cref="RandomNumberGenerator"/> (122 random bits).</summary>
 /// <remarks>

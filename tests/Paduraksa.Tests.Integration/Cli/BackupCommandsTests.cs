@@ -12,7 +12,6 @@ using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Notifications;
 using Paduraksa.Core.Hosting;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Server.Cli;
 using Paduraksa.Server.Hosting;
@@ -21,6 +20,7 @@ using Paduraksa.Tests.Integration.Admin;
 using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;
+using Paduraksa.TypedIds;
 using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
 namespace Paduraksa.Tests.Integration.Cli;

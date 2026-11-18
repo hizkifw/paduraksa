@@ -15,9 +15,9 @@ using Paduraksa.Contracts.Notifications;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Contracts.Simulation;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Json;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Admin.Json;
 

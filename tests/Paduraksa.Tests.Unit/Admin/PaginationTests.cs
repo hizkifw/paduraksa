@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Admin.Api;
 using Paduraksa.Contracts.Api;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Unit.Admin;
 

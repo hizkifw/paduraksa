@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>Supplies <see cref="TypedIdJsonConverter{T}"/> for every generated typed ID.</summary>
 /// <remarks>

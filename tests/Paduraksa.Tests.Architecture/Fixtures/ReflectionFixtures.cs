@@ -7,7 +7,7 @@ using Paduraksa.Data.ArchFixtures;
 
 namespace Paduraksa.Tests.Architecture.Fixtures;
 
-/// <summary>Stand-in for a generated typed ID (the real ones implement Paduraksa.Core.Ids.ITypedId).</summary>
+/// <summary>Stand-in for a generated typed ID (the real ones implement Paduraksa.TypedIds.ITypedId).</summary>
 public readonly record struct FixtureTypedId(Guid Value);
 
 public sealed record UntypedIdDto(Guid Id, string TenantId, long? RouteId, int HostId);

@@ -2,9 +2,8 @@
 // test assembly as an internal type of its own.
 using System.Security.Cryptography;
 using System.Text;
-
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Tests.Shared;
 

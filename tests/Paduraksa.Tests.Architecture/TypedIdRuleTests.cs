@@ -17,7 +17,7 @@ public sealed class TypedIdRuleTests
         var violations = UntypedIdProperties(LoadAssembly(layer).GetTypes());
         Assert.True(
             violations.Count == 0,
-            "Use a [TypedId] struct (Paduraksa.Core.Ids) instead of a primitive for: " + string.Join(", ", violations));
+            "Use a [TypedId] struct (Paduraksa.TypedIds) instead of a primitive for: " + string.Join(", ", violations));
     }
 
     [Fact]

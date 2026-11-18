@@ -3,12 +3,9 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Encodings.Web;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
-
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
@@ -16,6 +13,7 @@ using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Fuzz;
 

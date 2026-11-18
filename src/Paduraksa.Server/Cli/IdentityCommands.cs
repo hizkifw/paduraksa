@@ -1,18 +1,16 @@
 using System.CommandLine;
 using System.Text;
-
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Options;
 using Paduraksa.Data;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.TypedIds;
 using Paduraksa.Vault;
 
 namespace Paduraksa.Server.Cli;

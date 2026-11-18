@@ -1,4 +1,4 @@
-using Paduraksa.Core.Ids;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Core.Model;
 

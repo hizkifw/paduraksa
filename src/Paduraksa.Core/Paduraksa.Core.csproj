@@ -1,3 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The [TypedId] generator is wired up for every project in Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="../Paduraksa.TypedIds/Paduraksa.TypedIds.csproj" />
+  </ItemGroup>
 </Project>

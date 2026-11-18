@@ -19,6 +19,7 @@ using Paduraksa.ProxyProtocol.AspNetCore.ArchFixtures;
 using Paduraksa.Server.ArchFixtures;
 using Paduraksa.Storage.ArchFixtures;
 using Paduraksa.Tests.Architecture.Fixtures;
+using Paduraksa.TypedIds.ArchFixtures;
 using Paduraksa.Vault.ArchFixtures;
 
 namespace Paduraksa.Acme.ArchFixtures
@@ -38,6 +39,7 @@ namespace Paduraksa.Acme.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -63,6 +65,7 @@ namespace Paduraksa.Admin.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -88,6 +91,7 @@ namespace Paduraksa.Application.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -113,6 +117,7 @@ namespace Paduraksa.Contracts.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -138,6 +143,7 @@ namespace Paduraksa.Core.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -163,6 +169,7 @@ namespace Paduraksa.Dashboard.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -188,6 +195,7 @@ namespace Paduraksa.Data.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -213,6 +221,7 @@ namespace Paduraksa.Mcp.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -238,6 +247,7 @@ namespace Paduraksa.Notifications.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -263,6 +273,7 @@ namespace Paduraksa.Proxy.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -288,6 +299,7 @@ namespace Paduraksa.ProxyProtocol.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -313,6 +325,7 @@ namespace Paduraksa.ProxyProtocol.AspNetCore.ArchFixtures
         public FakeProxyProtocol? ProxyProtocol { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -338,6 +351,7 @@ namespace Paduraksa.Server.ArchFixtures
         public FakeProxyProtocol? ProxyProtocol { get; set; }
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -363,6 +377,7 @@ namespace Paduraksa.Storage.ArchFixtures
         public FakeProxyProtocol? ProxyProtocol { get; set; }
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
         public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
@@ -389,6 +404,33 @@ namespace Paduraksa.Vault.ArchFixtures
         public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
         public FakeServer? Server { get; set; }
         public FakeStorage? Storage { get; set; }
+        public FakeTypedIds? TypedIds { get; set; }
+        public DbContext? Db { get; set; }
+        public ILookup<int, int>? Lookup { get; set; }
+        public NonLayerType? NotALayer { get; set; }
+        public static int CountPositive(int[] values) => values.Count(v => v > 0);
+    }
+}
+
+namespace Paduraksa.TypedIds.ArchFixtures
+{
+    public sealed class FakeTypedIds
+    {
+        public FakeAcme? Acme { get; set; }
+        public FakeAdmin? Admin { get; set; }
+        public FakeApplication? Application { get; set; }
+        public FakeContracts? Contracts { get; set; }
+        public FakeCore? Core { get; set; }
+        public FakeDashboard? Dashboard { get; set; }
+        public FakeData? Data { get; set; }
+        public FakeMcp? Mcp { get; set; }
+        public FakeNotifications? Notifications { get; set; }
+        public FakeProxy? Proxy { get; set; }
+        public FakeProxyProtocol? ProxyProtocol { get; set; }
+        public FakeProxyProtocolAspNetCore? ProxyProtocolAspNetCore { get; set; }
+        public FakeServer? Server { get; set; }
+        public FakeStorage? Storage { get; set; }
+        public FakeVault? Vault { get; set; }
         public DbContext? Db { get; set; }
         public ILookup<int, int>? Lookup { get; set; }
         public NonLayerType? NotALayer { get; set; }

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>
 /// <see cref="System.Text.Json"/> converter for any typed ID: a JSON string in the canonical <c>prefix_base62</c>

@@ -2,14 +2,13 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-
 using Paduraksa.Admin.Api;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Identity;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Admin.Identity;
 

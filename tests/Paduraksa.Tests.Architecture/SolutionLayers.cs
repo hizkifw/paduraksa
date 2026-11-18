@@ -8,6 +8,7 @@ namespace Paduraksa.Tests.Architecture;
 /// <summary>Layer names. Always written <c>Layer.X</c>: a bare <c>Proxy</c> etc. would bind to the <c>Paduraksa.Proxy</c> namespace.</summary>
 public static class Layer
 {
+    public const string TypedIds = "TypedIds";
     public const string Core = "Core";
     public const string Contracts = "Contracts";
     public const string Storage = "Storage";
@@ -40,23 +41,24 @@ public static class SolutionLayers
     /// <summary>Allowed direct dependencies per layer. A layer may always use itself.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> AllowedDependencies = new Dictionary<string, string[]>
     {
-        [Layer.Core] = [],
-        [Layer.Contracts] = [Layer.Core],
-        [Layer.Storage] = [Layer.Core],
-        [Layer.Data] = [Layer.Core, Layer.Storage],
-        [Layer.Vault] = [Layer.Core, Layer.Storage],
-        [Layer.Acme] = [Layer.Core],
-        [Layer.Notifications] = [Layer.Core],
+        [Layer.TypedIds] = [],
+        [Layer.Core] = [Layer.TypedIds],
+        [Layer.Contracts] = [Layer.TypedIds, Layer.Core],
+        [Layer.Storage] = [Layer.TypedIds, Layer.Core],
+        [Layer.Data] = [Layer.TypedIds, Layer.Core, Layer.Storage],
+        [Layer.Vault] = [Layer.TypedIds, Layer.Core, Layer.Storage],
+        [Layer.Acme] = [Layer.TypedIds, Layer.Core],
+        [Layer.Notifications] = [Layer.TypedIds, Layer.Core],
         [Layer.Mcp] = [],
         [Layer.ProxyProtocol] = [],
         [Layer.ProxyProtocolAspNetCore] = [Layer.ProxyProtocol],
-        [Layer.Proxy] = [Layer.Core, Layer.ProxyProtocol],
-        [Layer.Application] = [Layer.Core, Layer.Contracts, Layer.Data, Layer.ProxyProtocol, Layer.Proxy, Layer.Acme, Layer.Notifications],
-        [Layer.Admin] = [Layer.Core, Layer.Application, Layer.Contracts, Layer.Mcp],
-        [Layer.Dashboard] = [Layer.Core, Layer.Application, Layer.Contracts],
+        [Layer.Proxy] = [Layer.TypedIds, Layer.Core, Layer.ProxyProtocol],
+        [Layer.Application] = [Layer.TypedIds, Layer.Core, Layer.Contracts, Layer.Data, Layer.ProxyProtocol, Layer.Proxy, Layer.Acme, Layer.Notifications],
+        [Layer.Admin] = [Layer.TypedIds, Layer.Core, Layer.Application, Layer.Contracts, Layer.Mcp],
+        [Layer.Dashboard] = [Layer.TypedIds, Layer.Core, Layer.Application, Layer.Contracts],
         [Layer.Server] =
         [
-            Layer.Core, Layer.Contracts, Layer.Storage, Layer.Data, Layer.Vault, Layer.Acme, Layer.Notifications,
+            Layer.TypedIds, Layer.Core, Layer.Contracts, Layer.Storage, Layer.Data, Layer.Vault, Layer.Acme, Layer.Notifications,
             Layer.ProxyProtocol, Layer.Proxy, Layer.Application, Layer.Admin, Layer.Dashboard, Layer.Mcp,
         ],
     };

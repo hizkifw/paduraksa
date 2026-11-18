@@ -1,6 +1,6 @@
 using System.Net;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Application.Audit;
 

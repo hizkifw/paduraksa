@@ -68,7 +68,7 @@ public static class ArchRules
         Types().That().ResideInNamespaceMatching(NamespacePattern(Layer.Contracts))
             .Should().OnlyDependOn(
                 Types(true).That().ResideInNamespaceMatching(
-                    $@"^(|System(\..+)?|Paduraksa\.(Core|Contracts)(\..+)?)$"))
+                    $@"^(|System(\..+)?|Paduraksa\.(Core|Contracts|TypedIds)(\..+)?)$"))
             .Because("PLAN §1: Contracts are DTOs (no EF, no entities, no framework types)")
             .WithoutRequiringPositiveResults();
 

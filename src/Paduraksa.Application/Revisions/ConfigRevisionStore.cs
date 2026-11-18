@@ -2,10 +2,10 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Storage;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
 using Paduraksa.Data.Revisions;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Application.Revisions;
 

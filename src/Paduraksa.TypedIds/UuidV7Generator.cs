@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Paduraksa.Core.Ids;
+namespace Paduraksa.TypedIds;
 
 /// <summary>
 /// Monotonic RFC 9562 UUIDv7 generator: 48-bit Unix ms timestamp, 12-bit counter in <c>rand_a</c>

@@ -4,10 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Storage;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
 using Paduraksa.Data.Audit;
+using Paduraksa.TypedIds;
 
 namespace Paduraksa.Application.Audit;
 
