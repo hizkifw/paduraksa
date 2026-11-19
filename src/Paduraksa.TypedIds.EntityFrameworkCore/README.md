@@ -8,7 +8,7 @@ Entity Framework Core mapping for [Paduraksa.TypedIds](https://www.nuget.org/pac
 - **Int64 seeding.** `ObserveInt64OrderedKeysAsync` reads the largest key of every table keyed by an ordered Int64 ID and feeds it to the generator at startup, so new IDs stay above the stored ones when the clock is behind.
 - **Explicit configuration wins.** A `HasConversion` on a property replaces the convention for that property.
 
-Provider-neutral: it needs `Microsoft.EntityFrameworkCore.Relational` and no particular database. Tested on SQLite. Targets .NET 10 (EF Core 10).
+Provider-neutral: it needs `Microsoft.EntityFrameworkCore.Relational` and no particular database. Tested on SQLite and PostgreSQL. Targets .NET 10 (EF Core 10).
 
 ## Use
 
@@ -38,8 +38,19 @@ await using var context = await factory.CreateDbContextAsync();
 await context.ObserveInt64OrderedKeysAsync(Int64OrderedIdGenerator.Shared);
 ```
 
+## Column storage
+
+UUID-based IDs are a 16-byte big-endian binary column by default: it sorts in RFC 9562 order on every provider, so UUIDv7 IDs stay in creation order. On PostgreSQL, `uuid` is the natural type and sorts the same way. Opt in:
+
+```csharp
+protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
+    configurationBuilder.AddTypedIdConventions(options => options.GuidColumns = TypedIdGuidColumns.Native);
+```
+
+`Native` stores a `Guid` and lets the provider pick the column type. Keep the default elsewhere: SQL Server's `uniqueidentifier` sorts by its last six bytes first, so UUIDv7 IDs lose creation order and a clustered key fragments; SQLite and MySQL store a `Guid` as 36 characters of text, which is larger and slower than binary. Ordered Int64 IDs stay `long`, and IDs inside JSON stay strings, either way. The setting is fixed per `DbContext` type.
+
 ## Queries
 
-Compare IDs directly: `db.Users.Where(u => u.Id == id)`. `id.Value` can't be translated through the converter. An ID inside a JSON document is text and a column ID is binary or an integer, so comparing or joining the two matches nothing: resolve references that live in JSON in memory.
+Compare IDs directly: `db.Users.Where(u => u.Id == id)`. `id.Value` can't be translated through the converter. An ID inside a JSON document is text and a column ID is binary, a `uuid` or an integer, so comparing or joining the two matches nothing: resolve references that live in JSON in memory.
 
 A property needs a setter of any accessibility, possibly on a base type. A property without one, such as `UserId Other => Id`, stays unmapped. Typed IDs inside an owned type mapped with `OwnsOne(...).ToJson()` are rejected; use `ComplexProperty(...).ToJson()`.

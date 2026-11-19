@@ -76,6 +76,7 @@ For each declaration the generator emits:
 ### EF mapping (`Paduraksa.TypedIds.EntityFrameworkCore`)
 
 - `AddTypedIdConventions()` swaps in a `PropertyDiscoveryConvention` that finds typed IDs from the model's own CLR member types (no scanning, no type lists), in entities and complex types, as keys, FKs and nullables. They are `ValueGenerated.Never`.
+- Guid-backed IDs are 16-byte big-endian binary columns by default, so Paduraksa's SQLite schema and the byte order are fixed. `AddTypedIdConventions(o => o.GuidColumns = TypedIdGuidColumns.Native)` stores them as `Guid` instead, for PostgreSQL's `uuid` (same RFC 9562 byte order, so UUIDv7 stays in time order). It is a package option; Paduraksa itself does not use it. The setting is read when the convention is registered, and the shared per-type `TypedIdMapping` keeps both column converters, so two contexts with different settings in one process do not affect each other.
 - **Inside JSON complex types an ID is its canonical string** (`host_...`), not BLOB or INTEGER. The document stays readable, and JSON members compare against a string parameter.
 - ID lists (`List<RouteId>`) are primitive collections of canonical strings, as a column or inside JSON.
 - Owned types mapped to JSON are rejected at model build. Use complex types.

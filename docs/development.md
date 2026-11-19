@@ -40,8 +40,9 @@ Three kinds of test need more than the SDK, and skip when it is missing:
 | Chromium | the Playwright browser tests of the dashboard (`Paduraksa.Tests.Dashboard/EndToEnd`) | `PADURAKSA_E2E_CHROMIUM=/usr/bin/chromium`, or `playwright.ps1 install chromium` (see `PlaywrightBrowser`) |
 | libmsquic | the QUIC and HTTP/3 tests (trait `Transport=Quic`) | install it, or `tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh` runs them in Docker |
 | Docker and the Pebble image | the ACME tests against Pebble (`Paduraksa.Tests.Issuance`, `Paduraksa.Tests.Integration/Acme`); the container smoke test is separate and needs `PADURAKSA_CONTAINER_TESTS=1` | `docker pull` works; `PADURAKSA_PEBBLE=off` skips them on purpose |
+| Docker and the PostgreSQL image | the typed-ID round trip on PostgreSQL (`Paduraksa.TypedIds.Tests`, `PostgresRoundTripTests`) | `docker pull` works; `PADURAKSA_POSTGRES=off` skips them on purpose |
 
-**`PADURAKSA_REQUIRE`** turns a skip into a failure for what it names, a comma-separated list of `playwright`, `quic` and `pebble` (`tests/Shared/Requirements.cs`). CI installs all three and sets all three, so a runner that loses one goes red ([testing.md](design/testing.md#what-ci-runs-and-sleeping-in-tests) says why). Nothing changes locally unless you set it, for example `PADURAKSA_REQUIRE=quic` to check that a QUIC run is not all skips (`run-quic-tests.sh` sets it).
+**`PADURAKSA_REQUIRE`** turns a skip into a failure for what it names, a comma-separated list of `playwright`, `quic`, `pebble` and `postgres` (`tests/Shared/Requirements.cs`). CI installs all four and sets all four, so a runner that loses one goes red ([testing.md](design/testing.md#what-ci-runs-and-sleeping-in-tests) says why). Nothing changes locally unless you set it, for example `PADURAKSA_REQUIRE=quic` to check that a QUIC run is not all skips (`run-quic-tests.sh` sets it).
 
 ## Property tests and fuzzing
 

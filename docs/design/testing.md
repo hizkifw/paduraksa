@@ -79,10 +79,10 @@ The test projects compile the files they need from `tests/Shared` (`<Compile Inc
 
 ## What CI runs, and sleeping in tests
 
-**Skips must not hide a gap.** The Playwright tests skip when no Chromium is found, the QUIC tests when libmsquic is missing, and the Pebble tests when Docker can't pull the image. CI once had neither of the first two, so 19 browser tests and 19 QUIC tests skipped on every run.
+**Skips must not hide a gap.** The Playwright tests skip when no Chromium is found, the QUIC tests when libmsquic is missing, and the Pebble and PostgreSQL tests when Docker can't pull the image. CI once had neither of the first two, so 19 browser tests and 19 QUIC tests skipped on every run.
 
-- `.github/workflows/ci.yml` installs Playwright's own Chromium for the pinned package version (`playwright.ps1 install --with-deps chromium`, cached by version, because Ubuntu's `chromium` is a snap) and libmsquic at the version the Dockerfile pins. The Test step sets `PADURAKSA_REQUIRE=playwright,quic,pebble`.
-- `tests/Shared/Requirements.cs` reads it. `Requirements.SkipOrFail` is what the three skip sites call (`PlaywrightBrowser.LaunchOrSkipAsync`, `QuicSupport.Require`, the Pebble fixtures' `SkipReason`). If a named capability is missing, the test fails with the reason. If it isn't named, the test skips.
+- `.github/workflows/ci.yml` installs Playwright's own Chromium for the pinned package version (`playwright.ps1 install --with-deps chromium`, cached by version, because Ubuntu's `chromium` is a snap) and libmsquic at the version the Dockerfile pins. The Test step sets `PADURAKSA_REQUIRE=playwright,quic,pebble,postgres`.
+- `tests/Shared/Requirements.cs` reads it. `Requirements.SkipOrFail` is what the skip sites call (`PlaywrightBrowser.LaunchOrSkipAsync`, `QuicSupport.Require`, the Pebble and PostgreSQL fixtures' `SkipReason`). If a named capability is missing, the test fails with the reason. If it isn't named, the test skips.
 - `run-quic-tests.sh` stays for machines without libmsquic (it sets `PADURAKSA_REQUIRE=quic`). CI covers the QUIC tests in the normal run.
 - The build-test job's timeout is 30 minutes.
 
