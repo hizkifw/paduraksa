@@ -6,13 +6,13 @@ namespace Paduraksa.TypedIds.Tests;
 
 /// <summary>
 /// A throwaway PostgreSQL in Docker for the round-trip tests. Tests <b>skip</b> when <see cref="SkipReason"/> is set
-/// (no Docker, no way to get the image, or <c>PADURAKSA_POSTGRES=off</c>), and fail instead when <c>PADURAKSA_REQUIRE</c> names <c>postgres</c>.
+/// (not Linux, no Docker, no way to get the image, or <c>PADURAKSA_POSTGRES=off</c>), and fail instead when <c>PADURAKSA_REQUIRE</c> names <c>postgres</c>.
 /// </summary>
 /// <remarks>
 /// The container runs on the host's network (<c>--network host</c>) and listens on a probed loopback port. A bridge container adds a
 /// veth interface to the host, and Chromium's network change notifier answers that by failing the requests in flight in the browser
-/// tests, which run in another test module at the same time. Docker Desktop has no host network that reaches the host's loopback (unless
-/// it is enabled in its settings): the connection then fails after a minute and the tests fail; run them on Linux or set <c>PADURAKSA_POSTGRES=off</c>.
+/// tests, which run in another test module at the same time. Only Linux's host network reaches the host's loopback, so elsewhere
+/// the tests skip at once.
 /// </remarks>
 public sealed class PostgresContainer : IAsyncLifetime
 {
@@ -32,6 +32,13 @@ public sealed class PostgresContainer : IAsyncLifetime
         if (string.Equals(Environment.GetEnvironmentVariable("PADURAKSA_POSTGRES"), "off", StringComparison.OrdinalIgnoreCase))
         {
             SkipReason = "PADURAKSA_POSTGRES=off";
+            return;
+        }
+
+        if (!OperatingSystem.IsLinux())
+        {
+            // Host networking reaches the host's loopback only on Linux; elsewhere the connection would time out after a minute.
+            SkipReason = "The PostgreSQL tests need Docker on Linux (host networking).";
             return;
         }
 

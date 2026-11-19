@@ -16,8 +16,8 @@ namespace Paduraksa.Tests.Issuance;
 /// of its own. A bridge container adds a veth interface to the host, and Chromium's network change notifier answers that by failing
 /// the requests in flight in the browser tests, which run in another test module at the same time. A probed port can be taken before
 /// Pebble binds it; Pebble then exits at once and the start is retried with fresh ports (<see cref="DockerCli.StartOnFreePortsAsync{T}"/>).
-/// Docker Desktop has no host network that reaches the host's loopback (unless it is enabled in its settings): Pebble then does not
-/// answer, and the tests skip (fail under <c>PADURAKSA_REQUIRE=pebble</c>); run them on Linux or set <c>PADURAKSA_PEBBLE=off</c>.
+/// Only Linux's host network reaches the host's loopback, so elsewhere the tests skip at once (fail under <c>PADURAKSA_REQUIRE=pebble</c>)
+/// unless <c>PADURAKSA_PEBBLE_DIRECTORY</c> names a running Pebble.
 /// </remarks>
 public sealed class PebbleFixture : IAsyncLifetime
 {
@@ -53,6 +53,13 @@ public sealed class PebbleFixture : IAsyncLifetime
         {
             Directory = new Uri(existing);
             SkipReason = await WaitUntilServingAsync(Directory) is { } problem ? $"Pebble at {existing} did not answer: {problem}" : null;
+            return;
+        }
+
+        if (!OperatingSystem.IsLinux())
+        {
+            // Host networking reaches the host's loopback only on Linux; elsewhere the fixture would wait out its timeout for a sure skip.
+            SkipReason = "The Pebble tests need Docker on Linux (host networking).";
             return;
         }
 
@@ -113,8 +120,8 @@ public sealed class PebbleFixture : IAsyncLifetime
 
     /// <summary>
     /// Pebble's config with every listener on loopback and a probed port. The values are the image's own
-    /// (<c>/test/config/pebble-config.json</c>) except the ports, which the validation (<c>httpPort</c>, <c>tlsPort</c>) never uses here
-    /// but which must not be the image's fixed 5002 and 5001: on the host's network they would collide with anything else there.
+    /// (<c>/test/config/pebble-config.json</c>) except the listen addresses and ports. Pebble only connects out to <c>httpPort</c> and <c>tlsPort</c> when it
+    /// validates HTTP-01 or TLS-ALPN-01, which these tests never ask for; they are probed so the config never names a port another process owns.
     /// </summary>
     internal static string ConfigFor(int directoryPort, int managementPort, int httpPort, int tlsPort) => $$"""
         {

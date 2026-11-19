@@ -19,9 +19,8 @@ namespace Paduraksa.Tests.Issuance;
 /// time. What this gives up is isolation: the containers share the host's loopback with everything else. That is fine here because every
 /// port is probed per start, the listeners are bound to 127.0.0.1 only, and challtestsrv's other listeners (HTTP-01, HTTPS-01, TLS-ALPN-01,
 /// DoH) are off, so nothing it serves is reachable from outside or collides with a fixed port. A port that was taken between the probe and the
-/// bind makes a container exit at once, and the whole start is retried with fresh ports (<see cref="DockerCli.StartOnFreePortsAsync{T}"/>).
-/// Docker Desktop has no host network that reaches the host's loopback (unless it is enabled in its settings): the management API does not answer
-/// and the tests skip (fail under <c>PADURAKSA_REQUIRE=pebble</c>); run them on Linux or set <c>PADURAKSA_PEBBLE=off</c>.
+/// bind shows as "address in use" in the container's logs (Pebble exits, challtestsrv keeps running), and the whole start is retried with fresh ports (<see cref="DockerCli.StartOnFreePortsAsync{T}"/>).
+/// Only Linux's host network reaches the host's loopback, so elsewhere the tests skip at once (fail under <c>PADURAKSA_REQUIRE=pebble</c>).
 /// </remarks>
 public sealed class PebbleDnsFixture : IAsyncLifetime
 {
@@ -45,6 +44,13 @@ public sealed class PebbleDnsFixture : IAsyncLifetime
         if (string.Equals(Environment.GetEnvironmentVariable("PADURAKSA_PEBBLE"), "off", StringComparison.OrdinalIgnoreCase))
         {
             SkipReason = "PADURAKSA_PEBBLE=off";
+            return;
+        }
+
+        if (!OperatingSystem.IsLinux())
+        {
+            // Host networking reaches the host's loopback only on Linux; elsewhere the fixture would wait out its timeout for a sure skip.
+            SkipReason = "The Pebble tests need Docker on Linux (host networking).";
             return;
         }
 

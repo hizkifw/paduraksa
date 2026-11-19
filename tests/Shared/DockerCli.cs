@@ -91,7 +91,7 @@ internal static class DockerCli
     /// <summary>
     /// Runs <paramref name="start"/> (which probes ports, starts a container and waits for it), again with fresh ports when it throws
     /// <see cref="PortsTakenException"/>, up to five times. Containers use <c>--network host</c> and so can't be given a port by Docker
-    /// as <c>-p 127.0.0.1::port</c> does: another test's host or a leftover container can win any probed port in the gap.
+    /// as <c>-p 127.0.0.1::port</c> does: another process on the host or a leftover container can take a probed port in the gap.
     /// </summary>
     public static async Task<T> StartOnFreePortsAsync<T>(Func<Task<T>> start)
     {
