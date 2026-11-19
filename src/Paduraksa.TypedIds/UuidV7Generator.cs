@@ -24,6 +24,17 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
     private const int CounterBits = 12;
     private const long MaxTimestamp = (1L << 48) - 1;
     private const int SeedMask = (1 << (CounterBits - 1)) - 1;
+    private const int RandomBytes = 10;
+
+    // One CSPRNG call costs ~270 ns, more than the rest of Next(). The random bits of a V7 ID only break ties and
+    // are not a secret, so they come from a per-thread buffer, each byte handed out once. UuidV4Generator does not
+    // buffer: its bits are the secret (session IDs), and a buffer would keep the bytes of future IDs in memory.
+    // The buffer length is a multiple of RandomBytes, so a read never straddles its end.
+    [ThreadStatic]
+    private static byte[]? s_random;
+
+    [ThreadStatic]
+    private static int s_randomPosition;
 
     /// <summary>Process-wide instance on <see cref="TimeProvider.System"/>, used by generated <c>New()</c>.</summary>
     // Shared stays on the system clock; a caller that needs another clock makes its own.
@@ -38,7 +49,7 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
     public Guid Next()
     {
         Span<byte> bytes = stackalloc byte[16];
-        RandomNumberGenerator.Fill(bytes[6..]);
+        TakeRandom(bytes[6..]);
         long seed = ((bytes[6] << 8) | bytes[7]) & SeedMask;
 
         var now = Math.Clamp(_timeProvider.GetUtcNow().ToUnixTimeMilliseconds(), 0, MaxTimestamp);
@@ -65,5 +76,18 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
         bytes[7] = (byte)counter;
         bytes[8] = (byte)(0x80 | (bytes[8] & 0x3F));
         return new Guid(bytes, bigEndian: true);
+    }
+
+    private static void TakeRandom(Span<byte> destination)
+    {
+        var buffer = s_random ??= new byte[64 * RandomBytes];
+        var position = s_randomPosition;
+        if (position == 0)
+        {
+            RandomNumberGenerator.Fill(buffer);
+        }
+
+        buffer.AsSpan(position, RandomBytes).CopyTo(destination);
+        s_randomPosition = (position + RandomBytes == buffer.Length) ? 0 : position + RandomBytes;
     }
 }

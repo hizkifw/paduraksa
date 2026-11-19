@@ -132,6 +132,25 @@ public sealed class IdValueGeneratorTests
     }
 
     [Fact]
+    public void UuidV7RandomBitsAreNeverReusedAcrossBufferRefillsAndThreads()
+    {
+        // rand_b is the only part not derived from the clock: a refill that replays bytes would repeat it.
+        var tails = new ConcurrentBag<UInt128>();
+        var mask = (UInt128.One << 62) - 1;
+
+        Parallel.For(0, 4, new ParallelOptions { MaxDegreeOfParallelism = 4 }, _ =>
+        {
+            var generator = new UuidV7Generator(TimeProvider.System);
+            for (var i = 0; i < 3000; i++)
+            {
+                tails.Add(Base62.ToUInt128(generator.Next()) & mask);
+            }
+        });
+
+        Assert.Equal(12_000, tails.Distinct().Count());
+    }
+
+    [Fact]
     public void UuidV7ConcurrentGenerationIsUniqueAndMonotonicPerThread()
     {
         var generator = new UuidV7Generator(TimeProvider.System);
