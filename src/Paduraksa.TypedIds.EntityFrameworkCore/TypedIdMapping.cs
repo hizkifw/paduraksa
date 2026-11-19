@@ -20,6 +20,9 @@ internal sealed class TypedIdMapping
         ColumnConverter = (ValueConverter)Activator.CreateInstance(
             (valueType == typeof(Guid) ? typeof(TypedIdToBytesConverter<>) : typeof(TypedIdToInt64Converter<>))
                 .MakeGenericType(idType))!;
+        NativeGuidConverter = valueType == typeof(Guid)
+            ? (ValueConverter)Activator.CreateInstance(typeof(TypedIdToGuidConverter<>).MakeGenericType(idType))!
+            : null;
         JsonConverter = (ValueConverter)Activator.CreateInstance(typeof(TypedIdToStringConverter<>).MakeGenericType(idType))!;
         Comparer = (ValueComparer)Activator.CreateInstance(typeof(TypedIdValueComparer<>).MakeGenericType(idType))!;
     }
@@ -30,8 +33,18 @@ internal sealed class TypedIdMapping
     /// <summary><see cref="Guid"/> or <see cref="long"/>.</summary>
     public Type ValueType { get; }
 
-    /// <summary>Column storage: 16-byte big-endian BLOB for Guid-backed IDs, INTEGER for Int64Ordered.</summary>
+    /// <summary>Default column storage: 16-byte big-endian BLOB for Guid-backed IDs, INTEGER for Int64Ordered.</summary>
     public ValueConverter ColumnConverter { get; }
+
+    /// <summary>The provider's own Guid column for Guid-backed IDs; null for Int64Ordered.</summary>
+    public ValueConverter? NativeGuidConverter { get; }
+
+    /// <summary>
+    /// The column converter for <paramref name="guidColumns"/>. The mapping is shared by every context in the process, so
+    /// the choice is made per call here and never stored on the mapping.
+    /// </summary>
+    public ValueConverter ColumnConverterFor(TypedIdGuidColumns guidColumns) =>
+        guidColumns == TypedIdGuidColumns.Native ? NativeGuidConverter ?? ColumnConverter : ColumnConverter;
 
     /// <summary>Storage inside JSON documents: the canonical string form.</summary>
     public ValueConverter JsonConverter { get; }

@@ -47,7 +47,7 @@ internal sealed class TypedIdPropertyDiscoveryConvention(ProviderConventionSetBu
     }
 }
 
-internal sealed class TypedIdConvention : IPropertyAddedConvention, IModelFinalizingConvention
+internal sealed class TypedIdConvention(TypedIdGuidColumns guidColumns) : IPropertyAddedConvention, IModelFinalizingConvention
 {
     public void ProcessPropertyAdded(
         IConventionPropertyBuilder propertyBuilder, IConventionContext<IConventionPropertyBuilder> context)
@@ -55,7 +55,7 @@ internal sealed class TypedIdConvention : IPropertyAddedConvention, IModelFinali
         var clrType = propertyBuilder.Metadata.ClrType;
         if (TypedIdMapping.TryGet(clrType, out var mapping))
         {
-            propertyBuilder.HasConversion(mapping.ColumnConverter);
+            propertyBuilder.HasConversion(mapping.ColumnConverterFor(guidColumns));
             propertyBuilder.HasValueComparer(mapping.Comparer);
             propertyBuilder.ValueGenerated(ValueGenerated.Never);
         }
@@ -89,7 +89,7 @@ internal sealed class TypedIdConvention : IPropertyAddedConvention, IModelFinali
         }
     }
 
-    private static void Apply(IConventionTypeBase type, bool inJson)
+    private void Apply(IConventionTypeBase type, bool inJson)
     {
         foreach (var property in type.GetDeclaredProperties())
         {
@@ -101,7 +101,7 @@ internal sealed class TypedIdConvention : IPropertyAddedConvention, IModelFinali
                 }
                 else if (property.GetValueConverter() is null && property.GetProviderClrType() is null)
                 {
-                    property.Builder.HasConversion(mapping.ColumnConverter);
+                    property.Builder.HasConversion(mapping.ColumnConverterFor(guidColumns));
                     property.Builder.HasValueComparer(mapping.Comparer);
                 }
             }

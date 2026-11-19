@@ -44,6 +44,16 @@ internal sealed class TypedIdToBytesConverter<TId>()
         new ConverterMappingHints(size: TypedIdValue.GuidByteCount))
     where TId : struct, ITypedId<TId, Guid>;
 
+/// <summary>
+/// Stores a Guid-backed typed ID as a <see cref="Guid"/>, so the provider picks its own Guid column type
+/// (PostgreSQL <c>uuid</c>). Whether that keeps time order depends on the provider's Guid comparison.
+/// </summary>
+internal sealed class TypedIdToGuidConverter<TId>()
+    : ValueConverter<TId, Guid>(
+        id => id.Value,
+        value => TypedIdValue.Wrap<TId, Guid>(value))
+    where TId : struct, ITypedId<TId, Guid>;
+
 /// <summary>Stores an <see cref="IdKind.Int64Ordered"/> typed ID as its <see cref="long"/> value (SQLite <c>INTEGER</c>).</summary>
 internal sealed class TypedIdToInt64Converter<TId>()
     : ValueConverter<TId, long>(

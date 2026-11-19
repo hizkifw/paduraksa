@@ -1,5 +1,12 @@
 #nullable enable
 Paduraksa.TypedIds.EntityFrameworkCore.Int64OrderedIdSeeding
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdConventionOptions
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdConventionOptions.GuidColumns.get -> Paduraksa.TypedIds.EntityFrameworkCore.TypedIdGuidColumns
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdConventionOptions.GuidColumns.set -> void
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdConventionOptions.TypedIdConventionOptions() -> void
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdGuidColumns
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdGuidColumns.Binary = 0 -> Paduraksa.TypedIds.EntityFrameworkCore.TypedIdGuidColumns
+Paduraksa.TypedIds.EntityFrameworkCore.TypedIdGuidColumns.Native = 1 -> Paduraksa.TypedIds.EntityFrameworkCore.TypedIdGuidColumns
 Paduraksa.TypedIds.EntityFrameworkCore.TypedIdModelConfigurationBuilderExtensions
 static Paduraksa.TypedIds.EntityFrameworkCore.Int64OrderedIdSeeding.ObserveInt64OrderedKeysAsync(this Microsoft.EntityFrameworkCore.DbContext! context, Paduraksa.TypedIds.Int64OrderedIdGenerator! generator, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, long>!>!
-static Paduraksa.TypedIds.EntityFrameworkCore.TypedIdModelConfigurationBuilderExtensions.AddTypedIdConventions(this Microsoft.EntityFrameworkCore.ModelConfigurationBuilder! configurationBuilder) -> Microsoft.EntityFrameworkCore.ModelConfigurationBuilder!
+static Paduraksa.TypedIds.EntityFrameworkCore.TypedIdModelConfigurationBuilderExtensions.AddTypedIdConventions(this Microsoft.EntityFrameworkCore.ModelConfigurationBuilder! configurationBuilder, System.Action<Paduraksa.TypedIds.EntityFrameworkCore.TypedIdConventionOptions!>? configure = null) -> Microsoft.EntityFrameworkCore.ModelConfigurationBuilder!
