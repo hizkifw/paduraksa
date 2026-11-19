@@ -3,7 +3,7 @@
   <Import Project="../Packaging.TypedIds.props" />
   <PropertyGroup>
     <PackageId>Paduraksa.TypedIds.EntityFrameworkCore</PackageId>
-    <Description>Entity Framework Core support for Paduraksa.TypedIds: one model convention maps every typed ID to a binary or integer column, with its ordering intact, and as a string inside JSON. Seeds the Int64 generator from the stored keys at startup.</Description>
+    <Description>Entity Framework Core support for Paduraksa.TypedIds: one model convention maps every typed ID to a binary or integer column (or, opt-in, the provider's native uuid type), with its ordering intact, and as a string inside JSON. Seeds the Int64 generator from the stored keys at startup.</Description>
     <!-- EF Core 10 only. -->
     <TargetFrameworks>net10.0</TargetFrameworks>
     <PackageTags>$(PackageTags);efcore;entity-framework-core</PackageTags>
@@ -12,7 +12,8 @@
     <ProjectReference Include="../Paduraksa.TypedIds/Paduraksa.TypedIds.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <!-- The package's floor, not the repo's pin: built against 10.0.0 so a project on any EF Core 10 patch can take it (the app and tests still resolve the pinned version). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" VersionOverride="10.0.0" />
     <!-- Internals are for the mapping tests. -->
     <InternalsVisibleTo Include="Paduraksa.TypedIds.Tests" />
   </ItemGroup>
