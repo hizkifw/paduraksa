@@ -42,6 +42,23 @@ public sealed class AllocAssertTests
         Assert.Equal(0, result.TotalBytes);
     }
 
+    [Theory]
+    [InlineData(1_500, 7, true)]
+    [InlineData(1_500, 8, false)]
+    [InlineData(1_500, 24, false)] // a pool that grows every 64th request
+    [InlineData(100, 1, true)]
+    [InlineData(100, 2, false)]
+    public void GateStatsToleratesOneRequestIn200(int requests, int allocating, bool steady)
+    {
+        GateStats stats = new();
+        for (var i = 0; i < requests; i++)
+        {
+            stats.Record(i < allocating ? 8_192 : 0, freshState: false);
+        }
+
+        Assert.Equal(steady, stats.SteadyStateZero);
+    }
+
     // Allocates on the calls whose index within each 100 is one of the two given, so each measured run of 100 sees the same number of them.
     private static void AllocateAt(int[] calls, int first, int second = -1)
     {

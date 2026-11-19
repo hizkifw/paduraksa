@@ -346,6 +346,17 @@ internal sealed class GateStats
 
     public long Max => Volatile.Read(ref _max);
 
+    /// <summary>0 B a request in steady state, give or take <see cref="Tolerated"/> requests.</summary>
+    public bool SteadyStateZero => NonZero <= Tolerated(Requests);
+
+    /// <summary>How many requests of a run may allocate with nothing of ours allocating: 1 in 200, at least 1.</summary>
+    /// <remarks>
+    /// Under parallel test load the runtime now and then lands a one-off on the per-thread counter during a request (one allocation
+    /// quantum, 2-25 KB, seen once in 3000 and twice in 1500 on 4 cores; never in isolation). An allocation of the code under test
+    /// shows on every request, or on a fixed share of them (a pool growing every 64th request is 1.6%), so it still fails.
+    /// </remarks>
+    public static long Tolerated(long requests) => Math.Max(1, requests / 200);
+
     public void Record(long bytes, bool freshState)
     {
         Interlocked.Increment(ref _requests);

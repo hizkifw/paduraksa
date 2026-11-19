@@ -329,8 +329,7 @@ public sealed class BodyBytesTests(BodyUpstream upstream) : IClassFixture<BodyUp
         await SendAsync(server, client, path, SmallBody, Measured, Connections);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        // One request in the run may carry a one-off of the runtime's own on that thread (see AccessLogAllocationTests).
-        Assert.True(server.GateStats.NonZero <= 1, $"the counted request allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"the counted request allocated on Kestrel: {server.GateStats}");
         var expected = (long)(Warmup + Measured) * SmallBody;
         var app = server.Store.Current.Hosts.Find("app.test", out _)!;
         await WaitForAsync(() => Counters(registry, app.MetricSlot.Index)[upload ? RequestMetric.BytesIn : RequestMetric.BytesOut] >= expected, "every request's bytes are counted");

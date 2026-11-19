@@ -112,11 +112,9 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         // A request can be counted twice (the client retries an idempotent request on a connection that closed
         // under it), never less: every measured request passed the gate before its response was sent.
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        // Steady state is 0 B a request: one request in the run may carry a one-off of the runtime's own on that thread
-        // (CI's official build has shown 4-25 KB once in 3000), while an allocation of the gate's shows on every request.
         // A client reconnect (or a new H2 stream beyond the pooled ones) creates the gate's pooled state once (spike S3
         // §3); those requests are counted apart and must stay rare.
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -157,7 +155,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         await SendAsync(server, client, host, "/", expected, Measured, credentials);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -205,7 +203,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         await SendAsync(server, client, "rules.test", path, expected, Measured, Agent);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -243,7 +241,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
 
         Assert.True(auth.CallCount <= Connections + 1, $"{auth.CallCount} calls: the allow wasn't remembered");
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -294,9 +292,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         await SendAsync(server, http, "app.test", "/", HttpStatusCode.OK, Measured, WithHeader);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        // Steady state is 0 B a request: one request in the run may carry a one-off of the runtime's own on that thread
-        // (CI's official build has shown 4-25 KB once in 3000), while an allocation of the gate's shows on every request.
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -324,7 +320,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         await SendAsync(server, client, "app.test", "/", expected, Measured);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -394,7 +390,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         }
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
 
         // A refused body over HTTP/2 (the host's limit or the route's) leaves the stream with unread data, and Kestrel resets rather than pools such a stream,
         // so a fresh one now and then is the protocol's doing, not a leak. How many depends on timing: 3 in 3000 here, 12 and

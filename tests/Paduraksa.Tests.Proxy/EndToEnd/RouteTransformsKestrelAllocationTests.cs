@@ -89,9 +89,9 @@ public sealed class RouteTransformsKestrelAllocationTests(TestUpstream upstream)
         await SendAsync(server, client, Measured);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(transforms.Requests >= Measured, $"only {transforms.Requests} transforms measured");
-        Assert.True(transforms.NonZero <= 1, $"the response rules allocated on Kestrel: {transforms}");
+        Assert.True(transforms.SteadyStateZero, $"the response rules allocated on Kestrel: {transforms}");
         // One string of "/app/login" (42 B) a mapped redirect; a runtime one-off of a few KB may land in one request of the run.
         Assert.True(locations.Bytes <= (locations.Requests * 48) + 32_768, $"the Location mapping allocated more than its string: {locations}");
     }

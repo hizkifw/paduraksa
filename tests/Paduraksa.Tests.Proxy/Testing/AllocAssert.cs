@@ -67,7 +67,7 @@ internal static class AllocAssert
     /// (2.5-8 KB seen, 2 KB at iteration 6 700 of a run on CI), with nothing allocated by the code under test: always exactly one sample
     /// at a random iteration, also with tiered compilation off and with no GC during that call, never in isolation. A real hot-path allocation
     /// in deterministic code happens on every call, or at least repeatably, so it survives the re-measure and a run with more than one
-    /// allocating call fails. This is the tolerance <c>GateAllocationTests</c> applies to the gate on Kestrel (<c>NonZero &lt;= 1</c>).
+    /// allocating call fails. The Kestrel tests, with many threads per run, tolerate a share of requests instead (<c>GateStats.Tolerated</c>).
     /// </remarks>
     public static Result MeasureSettled<TState>(TState state, Action<TState> action, int warmup = 1_000, int iterations = 10_000)
     {

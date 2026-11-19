@@ -49,9 +49,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         await SendAsync(server, client, host, path, expected, Measured);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        // Steady state is 0 B a request: one request in the run may carry a one-off of the runtime's own on that thread
-        // (CI's official build has shown 4-25 KB once in 3000), while an allocation of the gate's shows on every request.
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel with the access log on: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel with the access log on: {server.GateStats}");
         // A line per request, in order, none dropped: the log really was on for these requests. The lines are written
         // from the response's completion, which can trail the client's last read by a moment.
         await WaitForEntriesAsync(server.AccessLog, Measured);
@@ -87,7 +85,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         await drain.StopAsync(TestContext.Current.CancellationToken);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel with a tail subscriber attached: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel with a tail subscriber attached: {server.GateStats}");
         Assert.True(tail.Offered >= Warmup + Measured, $"the tail was offered only {tail.Offered} entries");
         Assert.True(subscription.Skipped > 0, "the slow subscriber should have been skipping");
     }
@@ -118,7 +116,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         await drain.StopAsync(TestContext.Current.CancellationToken);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel with the analytics on: {server.GateStats}");
+        Assert.True(server.GateStats.SteadyStateZero, $"gate allocated on Kestrel with the analytics on: {server.GateStats}");
         // The analytics really counted them: stopping the drain closed the bucket into the backlog.
         var counted = backlog.Unwritten().Where(static rollup => rollup.Subject == AnalyticsSubject.Host).Sum(static rollup => rollup.Requests);
         Assert.True(counted >= Warmup + Measured, $"the analytics counted only {counted} requests");
@@ -162,10 +160,8 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         probe.Enabled = false;
 
         Assert.True(probe.Requests >= Measured, $"only {probe.Requests} requests measured");
-        // 0 B a request, except that one request in the run may carry a one-off of the runtime's own on that thread (see the gate test above):
-        // an allocation of the callbacks' own shows on every request.
         Assert.True(
-            probe.RequestsThatAllocated <= 1,
+            probe.RequestsThatAllocated <= GateStats.Tolerated(probe.Requests),
             $"callbacks allocated in {probe.RequestsThatAllocated} of {probe.Requests} requests: registrations {probe.RegistrationBytes} B, access-log {probe.RecordingBytes} B, "
             + $"request counter {probe.MetricsBytes} B, reapply {probe.ReapplyBytes} B, response-start hook {probe.ResponseStartBytes} B");
         await WaitForEntriesAsync(server.AccessLog, Measured);
