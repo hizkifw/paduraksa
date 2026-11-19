@@ -7,13 +7,19 @@ namespace Paduraksa.TypedIds.Tests;
 
 public sealed class Base62Tests
 {
+    // 62^k and its neighbours sit on every digit-pair and chunk boundary of the encoder.
     private static readonly UInt128[] Edge128 =
     [
-        UInt128.Zero, UInt128.One, 61, 62, 63, ulong.MaxValue, (UInt128)ulong.MaxValue + 1,
+        UInt128.Zero, UInt128.One, 61, 62, 63, 3843, 3844, 3845, ulong.MaxValue, (UInt128)ulong.MaxValue + 1,
         UInt128.MaxValue - 1, UInt128.MaxValue,
+        .. PowersOf62<UInt128>(UInt128.MaxValue).SelectMany(p => new[] { p - 1, p, p + 1 }),
     ];
 
-    private static readonly ulong[] Edge64 = [0, 1, 61, 62, 63, long.MaxValue, (ulong)long.MaxValue + 1, ulong.MaxValue - 1, ulong.MaxValue];
+    private static readonly ulong[] Edge64 =
+    [
+        0, 1, 61, 62, 63, 3843, 3844, 3845, long.MaxValue, (ulong)long.MaxValue + 1, ulong.MaxValue - 1, ulong.MaxValue,
+        .. PowersOf62<ulong>(ulong.MaxValue).SelectMany(p => new[] { p - 1, p, p + 1 }),
+    ];
 
     [Fact]
     public void AlphabetIsInOrdinalOrder()
@@ -187,6 +193,19 @@ public sealed class Base62Tests
     {
         Assert.False(Base62.TryEncode(UInt128.One, new char[21]));
         Assert.False(Base62.TryEncode(1UL, new byte[10]));
+    }
+
+    private static IEnumerable<T> PowersOf62<T>(T max)
+        where T : IBinaryInteger<T>
+    {
+        var power = T.CreateChecked(62);
+        while (power <= max / T.CreateChecked(62))
+        {
+            yield return power;
+            power *= T.CreateChecked(62);
+        }
+
+        yield return power;
     }
 
     private static IEnumerable<UInt128> Random128(int count)

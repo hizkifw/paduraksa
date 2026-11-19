@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Paduraksa.TypedIds;
 
@@ -35,6 +36,22 @@ public static class Base62
 
     // The table the codec actually uses. Must equal Alphabet (checked by Base62Tests).
     private static ReadOnlySpan<byte> AlphabetUtf8 => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"u8;
+
+    // The two digits of every value below 62^2, so a chunk takes 5 divisions by 3844 instead of 10 by 62. One table per
+    // destination width: a pair is then a single 16-bit (UTF-8) or 32-bit (UTF-16) store.
+    private static readonly ushort[] Utf8Pairs = BuildPairs(static (hi, lo) => MemoryMarshal.Read<ushort>([(byte)hi, (byte)lo]));
+    private static readonly uint[] Utf16Pairs = BuildPairs(static (hi, lo) => MemoryMarshal.Read<uint>(MemoryMarshal.AsBytes<char>([hi, lo])));
+
+    private static T[] BuildPairs<T>(Func<char, char, T> pack)
+    {
+        var pairs = new T[62 * 62];
+        for (var i = 0; i < pairs.Length; i++)
+        {
+            pairs[i] = pack(Alphabet[i / 62], Alphabet[i % 62]);
+        }
+
+        return pairs;
+    }
 
     /// <summary>Encodes <paramref name="value"/> as exactly <see cref="Width128"/> chars. Returns <see langword="false"/> when <paramref name="destination"/> is shorter.</summary>
     public static bool TryEncode(UInt128 value, Span<char> destination) => TryEncodeCore(value, destination);
@@ -118,7 +135,7 @@ public static class Base62
         // 22 digits = 2 (high) + 10 (mid) + 10 (low).
         var (upper, low) = UInt128.DivRem(value, Pow10);
         var (high, mid) = UInt128.DivRem(upper, Pow10);
-        EncodeChunk((ulong)high, destination[..2]);
+        WritePair((int)(ulong)high, destination, 0); // high < 62^2: MaxHigh128 is 483
         EncodeChunk((ulong)mid, destination.Slice(2, ChunkDigits));
         EncodeChunk((ulong)low, destination.Slice(2 + ChunkDigits, ChunkDigits));
         return true;
@@ -134,19 +151,35 @@ public static class Base62
 
         // 11 digits = 1 (high) + 10 (low).
         var (high, low) = Math.DivRem(value, Pow10);
-        EncodeChunk(high, destination[..1]);
+        destination[0] = TChar.CreateTruncating(AlphabetUtf8[(int)high]); // high <= MaxHigh64 (21)
         EncodeChunk(low, destination.Slice(1, ChunkDigits));
         return true;
     }
 
+    // value < 62^10 (the callers split by Pow10), so every pair is < 62^2 and indexes the pair tables.
     private static void EncodeChunk<TChar>(ulong value, Span<TChar> destination)
         where TChar : unmanaged, IBinaryInteger<TChar>
     {
-        var alphabet = AlphabetUtf8;
-        for (var i = destination.Length - 1; i >= 0; i--)
+        for (var i = ChunkDigits - 2; i >= 0; i -= 2)
         {
-            (value, var digit) = Math.DivRem(value, 62UL);
-            destination[i] = TChar.CreateTruncating(alphabet[(int)digit]);
+            (value, var pair) = Math.DivRem(value, 62UL * 62);
+            WritePair((int)pair, destination, i);
+        }
+    }
+
+    // Pair 0..3843 into destination[index..index + 2]; the caller has checked the length.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WritePair<TChar>(int pair, Span<TChar> destination, int index)
+        where TChar : unmanaged, IBinaryInteger<TChar>
+    {
+        ref var target = ref Unsafe.As<TChar, byte>(ref destination[index]);
+        if (typeof(TChar) == typeof(char))
+        {
+            Unsafe.WriteUnaligned(ref target, Utf16Pairs[pair]);
+        }
+        else
+        {
+            Unsafe.WriteUnaligned(ref target, Utf8Pairs[pair]);
         }
     }
 
