@@ -1,4 +1,4 @@
-using System.Net;
+using System.Text;
 
 using Paduraksa.Tests.Acme.Dns;
 using Paduraksa.Tests.Shared;
@@ -7,17 +7,28 @@ namespace Paduraksa.Tests.Issuance;
 
 /// <summary>
 /// A <a href="https://github.com/letsencrypt/pebble">Pebble</a> ACME test CA that <b>really validates DNS-01</b>: it is started in Docker without
-/// <c>PEBBLE_VA_ALWAYS_VALID</c>, on a network of its own with a <c>pebble-challtestsrv</c> container as its resolver, so a challenge passes only if the TXT
-/// record is in that server when Pebble asks (<see cref="SetTxtAsync"/>, <see cref="SetCnameAsync"/> write there through its management API). The container
-/// and the host share nothing but published ports, so a host firewall between them can't matter. The propagation check asks <see cref="Dns"/>, a fake
-/// authoritative server (challtestsrv doesn't set the AA bit the check requires) that the tests keep in step. Skips like <see cref="PebbleFixture"/> without Docker.
+/// <c>PEBBLE_VA_ALWAYS_VALID</c>, with a <c>pebble-challtestsrv</c> container as its resolver, so a challenge passes only if the TXT
+/// record is in that server when Pebble asks (<see cref="SetTxtAsync"/>, <see cref="SetCnameAsync"/> write there through its management API).
+/// The propagation check asks <see cref="Dns"/>, a fake authoritative server (challtestsrv doesn't set the AA bit the check requires) that the
+/// tests keep in step. Skips like <see cref="PebbleFixture"/> without Docker.
 /// </summary>
+/// <remarks>
+/// Both containers run on the host's network (<c>--network host</c>), each listener on a probed loopback port, so the host's firewall
+/// is not between them and neither is a bridge: a bridge or a network of their own adds interfaces to the host, and Chromium's network
+/// change notifier answers that by failing the requests in flight in the browser tests, which run in another test module at the same
+/// time. What this gives up is isolation: the containers share the host's loopback with everything else. That is fine here because every
+/// port is probed per start, the listeners are bound to 127.0.0.1 only, and challtestsrv's other listeners (HTTP-01, HTTPS-01, TLS-ALPN-01,
+/// DoH) are off, so nothing it serves is reachable from outside or collides with a fixed port. A port that was taken between the probe and the
+/// bind makes a container exit at once, and the whole start is retried with fresh ports (<see cref="DockerCli.StartOnFreePortsAsync{T}"/>).
+/// Docker Desktop has no host network that reaches the host's loopback (unless it is enabled in its settings): the management API does not answer
+/// and the tests skip (fail under <c>PADURAKSA_REQUIRE=pebble</c>); run them on Linux or set <c>PADURAKSA_PEBBLE=off</c>.
+/// </remarks>
 public sealed class PebbleDnsFixture : IAsyncLifetime
 {
     private const string ChallengeServerImage = DockerCli.ChallengeTestServerImage;
 
     private readonly List<string> _containers = [];
-    private string? _network;
+    private string? _configDirectory;
     private HttpClient? _management;
 
     /// <summary>The directory URL of the running Pebble; null when it is unavailable.</summary>
@@ -40,49 +51,126 @@ public sealed class PebbleDnsFixture : IAsyncLifetime
         try
         {
             Dns = new FakeDnsServer();
-            var suffix = $"{Environment.ProcessId}-{Environment.TickCount64}";
-            _network = $"paduraksa-pebble-dns-{suffix}";
-            if (await DockerCli.RunAsync("network", "create", _network) is { ExitCode: not 0 } noNetwork)
-            {
-                SkipReason = $"Docker could not create a network: {noNetwork.Output.Trim()}";
-                return;
-            }
-
-            var server = $"paduraksa-challtestsrv-{suffix}";
-            var (serverCode, serverOutput) = await DockerCli.RunAsync(
-                "run", "-d", "--rm", "--name", server, "--network", _network, "-p", "127.0.0.1::8055",
-                ChallengeServerImage, "-http01", string.Empty, "-https01", string.Empty, "-tlsalpn01", string.Empty, "-doh", string.Empty);
-            if (serverCode != 0)
-            {
-                SkipReason = $"Docker could not start the challenge test server: {serverOutput.Trim()}";
-                return;
-            }
-
-            _containers.Add(server);
-            var (_, address) = await DockerCli.RunAsync("inspect", "-f", $"{{{{(index .NetworkSettings.Networks \"{_network}\").IPAddress}}}}", server);
-            var (_, managementPort) = await DockerCli.RunAsync("port", server, "8055/tcp");
-            _management = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{LastPort(managementPort)}/") };
-
-            var pebble = $"paduraksa-pebble-dns-{suffix}";
-            var (started, output) = await DockerCli.RunAsync(
-                "run", "-d", "--rm", "--name", pebble, "--network", _network, "-p", "127.0.0.1::14000",
-                "-e", "PEBBLE_VA_NOSLEEP=1", "-e", "PEBBLE_WFE_NONCEREJECT=0", "-e", "PEBBLE_AUTHZREUSE=0",
-                DockerCli.PebbleImage, "-config", "/test/config/pebble-config.json", "-dnsserver", $"{address.Trim()}:8053");
-            if (started != 0)
-            {
-                SkipReason = $"Docker could not start Pebble: {output.Trim()}";
-                return;
-            }
-
-            _containers.Add(pebble);
-            var (_, port) = await DockerCli.RunAsync("port", pebble, "14000/tcp");
-            Directory = new Uri($"https://127.0.0.1:{LastPort(port)}/dir", UriKind.Absolute);
-            SkipReason = await WaitUntilServingAsync(Directory) is { } notReady ? $"Pebble did not become ready in time: {notReady}" : null;
+            await DockerCli.RemoveLeftoversAsync(DockerCli.PebbleOwnerLabel);
+            SkipReason = await DockerCli.StartOnFreePortsAsync(StartAsync);
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or InvalidOperationException or FormatException or System.Net.Sockets.SocketException)
         {
             SkipReason = $"Docker is not available: {ex.Message}";
         }
+    }
+
+    /// <summary>One start on freshly probed ports; null when Pebble is serving, else why it is not.</summary>
+    /// <exception cref="DockerCli.PortsTakenException">Another process took a port between the probe and a container's bind.</exception>
+    private async Task<string?> StartAsync()
+    {
+        var ports = DockerCli.FreeLoopbackPorts(6);
+        int dnsPort = ports[0], managementPort = ports[1];
+        var suffix = $"{Environment.ProcessId}-{Environment.TickCount64}-{dnsPort}";
+        var started = new List<string>();
+        try
+        {
+            // Off: the HTTP-01, HTTPS-01, TLS-ALPN-01 and DoH listeners, whose default ports are fixed ones on the host's network.
+            var server = $"paduraksa-challtestsrv-{suffix}";
+            var (serverCode, serverOutput) = await DockerCli.RunAsync(
+                "run", "-d", "--name", server, "--label", $"{DockerCli.PebbleOwnerLabel}={Environment.ProcessId}", "--network", "host",
+                ChallengeServerImage, "-dnsserver", $"127.0.0.1:{dnsPort}", "-management", $"127.0.0.1:{managementPort}",
+                "-http01", string.Empty, "-https01", string.Empty, "-tlsalpn01", string.Empty, "-doh", string.Empty);
+            if (serverCode != 0)
+            {
+                return $"Docker could not start the challenge test server: {serverOutput.Trim()}";
+            }
+
+            started.Add(server);
+            if (await WaitUntilListeningAsync(server, dnsPort, managementPort) is { } serverProblem)
+            {
+                return $"The challenge test server did not become ready in time: {serverProblem}";
+            }
+
+            _management = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{managementPort}/") };
+
+            if (_configDirectory is not null)
+            {
+                // The config of an attempt that lost a port.
+                System.IO.Directory.Delete(_configDirectory, recursive: true);
+            }
+
+            _configDirectory = System.IO.Directory.CreateTempSubdirectory("paduraksa-pebble-config-").FullName;
+            var config = Path.Combine(_configDirectory, "pebble-config.json");
+            await File.WriteAllTextAsync(config, PebbleFixture.ConfigFor(ports[2], ports[3], ports[4], ports[5]), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            // No --rm: a container that exits on a lost port stays until its logs are read; DisposeAsync and the failure path remove it.
+            var pebble = $"paduraksa-pebble-dns-{suffix}";
+            var (pebbleCode, pebbleOutput) = await DockerCli.RunAsync(
+                "run", "-d", "--name", pebble, "--label", $"{DockerCli.PebbleOwnerLabel}={Environment.ProcessId}", "--network", "host",
+                "-e", "PEBBLE_VA_NOSLEEP=1", "-e", "PEBBLE_WFE_NONCEREJECT=0", "-e", "PEBBLE_AUTHZREUSE=0",
+                "-v", $"{config}:/paduraksa/pebble-config.json:ro",
+                DockerCli.PebbleImage, "-config", "/paduraksa/pebble-config.json", "-dnsserver", $"127.0.0.1:{dnsPort}");
+            if (pebbleCode != 0)
+            {
+                return $"Docker could not start Pebble: {pebbleOutput.Trim()}";
+            }
+
+            started.Add(pebble);
+            Directory = PebbleFixture.DirectoryUrl(ports[2]);
+            return await PebbleFixture.WaitUntilServingAsync(Directory, pebble) is { } notReady ? $"Pebble did not become ready in time: {notReady}" : null;
+        }
+        catch (DockerCli.PortsTakenException)
+        {
+            foreach (var container in started)
+            {
+                _ = await DockerCli.RunAsync("rm", "-f", container);
+            }
+
+            started.Clear();
+            _management?.Dispose();
+            _management = null;
+            throw;
+        }
+        finally
+        {
+            _containers.AddRange(started);
+        }
+    }
+
+    /// <summary>
+    /// Waits until the challenge test server accepts connections on both its ports (it starts its listeners one after the other); null
+    /// when it does, else the last thing that went wrong.
+    /// </summary>
+    private static async Task<string?> WaitUntilListeningAsync(string container, params int[] ports)
+    {
+        var last = "no answer";
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            if (await DockerCli.ExitedAsync(container) is { } exited)
+            {
+                return exited;
+            }
+
+            // Unlike Pebble, it keeps running when one listener failed to bind, and the port then answers: from whoever holds it.
+            await DockerCli.ThrowIfPortsTakenAsync(container);
+
+            try
+            {
+                foreach (var port in ports)
+                {
+                    using System.Net.Sockets.TcpClient probe = new();
+                    await probe.ConnectAsync(System.Net.IPAddress.Loopback, port);
+                }
+
+                await DockerCli.ThrowIfPortsTakenAsync(container);
+                return null;
+            }
+            catch (System.Net.Sockets.SocketException ex)
+            {
+                last = ex.Message;
+            }
+
+            // Poll step of the wait for the challenge test server's listeners, bounded by the attempts above.
+            await Task.Delay(TimeSpan.FromMilliseconds(250));
+        }
+
+        return last;
     }
 
     /// <summary>Sets the TXT value the CA's resolver answers for <paramref name="name"/> (replacing what was there); an empty value clears it.</summary>
@@ -101,12 +189,6 @@ public sealed class PebbleDnsFixture : IAsyncLifetime
         response.EnsureSuccessStatusCode();
     }
 
-    private static string LastPort(string output)
-    {
-        var line = output.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0].Trim();
-        return line[(line.LastIndexOf(':') + 1)..];
-    }
-
     public async ValueTask DisposeAsync()
     {
         foreach (var container in _containers)
@@ -114,41 +196,12 @@ public sealed class PebbleDnsFixture : IAsyncLifetime
             _ = await DockerCli.RunAsync("rm", "-f", container);
         }
 
-        if (_network is not null)
+        if (_configDirectory is not null)
         {
-            _ = await DockerCli.RunAsync("network", "rm", _network);
+            System.IO.Directory.Delete(_configDirectory, recursive: true);
         }
 
         _management?.Dispose();
         Dns?.Dispose();
-    }
-
-    private static async Task<string?> WaitUntilServingAsync(Uri directory)
-    {
-        using HttpClient http = new(PebbleFixture.CreateHandler());
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("Paduraksa-Tests/1.0");
-        var last = "no answer";
-        for (var attempt = 0; attempt < 60; attempt++)
-        {
-            try
-            {
-                using var response = await http.GetAsync(directory);
-                if (response.IsSuccessStatusCode)
-                {
-                    return null;
-                }
-
-                last = $"HTTP {(int)response.StatusCode}";
-            }
-            catch (HttpRequestException ex)
-            {
-                last = ex.GetBaseException().Message;
-            }
-
-            // Poll step of the wait for Pebble to answer, bounded by the deadline above.
-            await Task.Delay(TimeSpan.FromMilliseconds(500));
-        }
-
-        return last;
     }
 }

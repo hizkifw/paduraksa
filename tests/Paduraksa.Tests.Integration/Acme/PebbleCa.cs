@@ -17,7 +17,7 @@ public sealed class PebbleRoot : IAsyncLifetime
     internal const string Image = DockerCli.PebbleImage;
 
     /// <summary>The label on every container these tests start; its value is the id of the test process that started it.</summary>
-    internal const string OwnerLabel = "paduraksa.test.pebble";
+    internal const string OwnerLabel = DockerCli.PebbleOwnerLabel;
 
     private string? _directory;
 
@@ -46,7 +46,7 @@ public sealed class PebbleRoot : IAsyncLifetime
         var container = $"paduraksa-pebble-root-{Environment.ProcessId}-{Environment.TickCount64}";
         try
         {
-            await RemoveLeftoversAsync();
+            await DockerCli.RemoveLeftoversAsync(OwnerLabel);
 
             // `create` pulls the image when it is not there; nothing runs.
             var (code, output) = await DockerCli.RunAsync("create", "--name", container, Image);
@@ -76,38 +76,6 @@ public sealed class PebbleRoot : IAsyncLifetime
             {
                 // Docker was not there to begin with; nothing was created.
             }
-        }
-    }
-
-    /// <summary>Removes Pebble containers a test run that was killed left behind: labelled with the id of a process that is gone.</summary>
-    private static async Task RemoveLeftoversAsync()
-    {
-        var (code, listing) = await DockerCli.RunAsync("ps", "-a", "--filter", $"label={OwnerLabel}", "--format", $"{{{{.ID}}}} {{{{.Label \"{OwnerLabel}\"}}}}");
-        if (code != 0)
-        {
-            return;
-        }
-
-        foreach (var line in listing.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var parts = line.Split(' ', 2);
-            if (parts.Length == 2 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var owner) && !IsRunning(owner))
-            {
-                _ = await DockerCli.RunAsync("rm", "-f", parts[0]);
-            }
-        }
-    }
-
-    private static bool IsRunning(int processId)
-    {
-        try
-        {
-            using var process = System.Diagnostics.Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
         }
     }
 

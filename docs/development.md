@@ -42,6 +42,8 @@ Three kinds of test need more than the SDK, and skip when it is missing:
 | Docker and the Pebble image | the ACME tests against Pebble (`Paduraksa.Tests.Issuance`, `Paduraksa.Tests.Integration/Acme`); the container smoke test is separate and needs `PADURAKSA_CONTAINER_TESTS=1` | `docker pull` works; `PADURAKSA_PEBBLE=off` skips them on purpose |
 | Docker and the PostgreSQL image | the typed-ID round trip on PostgreSQL (`Paduraksa.TypedIds.Tests`, `PostgresRoundTripTests`) | `docker pull` works; `PADURAKSA_POSTGRES=off` skips them on purpose |
 
+The test containers (Pebble, challtestsrv, PostgreSQL) run on Docker's host network, because a new bridge interface makes Chromium drop in-flight requests in the browser tests. They listen on probed loopback ports. Docker Desktop's host network does not reach the host's loopback unless it is enabled in its settings, so there the Pebble tests skip and the PostgreSQL tests fail; run them on Linux or turn them off with `PADURAKSA_PEBBLE=off` and `PADURAKSA_POSTGRES=off`.
+
 **`PADURAKSA_REQUIRE`** turns a skip into a failure for what it names, a comma-separated list of `playwright`, `quic`, `pebble` and `postgres` (`tests/Shared/Requirements.cs`). CI installs all four and sets all four, so a runner that loses one goes red ([testing.md](design/testing.md#what-ci-runs-and-sleeping-in-tests) says why). Nothing changes locally unless you set it, for example `PADURAKSA_REQUIRE=quic` to check that a QUIC run is not all skips (`run-quic-tests.sh` sets it).
 
 ## Property tests and fuzzing
