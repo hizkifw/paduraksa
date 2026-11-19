@@ -4,6 +4,8 @@
     <!-- The family's version: CI passes -p:Version=<the proxyprotocol-v* tag without that prefix> to pack a release, so a tag decides it.
          Unconditional, so it overrides the app's Version from Directory.Build.props: the packages release on their own tag. -->
     <Version>0.1.0</Version>
+    <!-- The last release on nuget.org: the pack fails if this one breaks its API. -->
+    <PackageValidationBaselineVersion>0.1.0</PackageValidationBaselineVersion>
     <PackageTags>proxy-protocol;haproxy;kestrel;aspnetcore</PackageTags>
   </PropertyGroup>
 </Project>
