@@ -6,7 +6,7 @@ namespace Paduraksa.Tests.Shared;
 /// </summary>
 internal static class Requirements
 {
-    /// <summary>A comma-separated list of the capabilities that must be present (<see cref="Playwright"/>, <see cref="Quic"/>, <see cref="Pebble"/>).</summary>
+    /// <summary>A comma-separated list of the capabilities that must be present (<see cref="Playwright"/>, <see cref="Quic"/>, <see cref="Pebble"/>, <see cref="Postgres"/>).</summary>
     public const string Variable = "PADURAKSA_REQUIRE";
 
     public const string Playwright = "playwright";
@@ -14,6 +14,8 @@ internal static class Requirements
     public const string Quic = "quic";
 
     public const string Pebble = "pebble";
+
+    public const string Postgres = "postgres";
 
     public static bool IsRequired(string capability) =>
         IsRequired(Environment.GetEnvironmentVariable(Variable), capability);

@@ -94,10 +94,10 @@ jobs:
       # A project that runs zero tests exits 8 and fails the step on purpose.
       # Two test apps at a time: all nine at once on the runner's four cores starved the bUnit renderer and the integration
       # hosts into timeouts (waits past 30 s in tests that take 2 s alone); Integration's own length sets the step's time anyway.
-      # The Pebble tests use the runner's Docker and pull their image from ghcr.io.
+      # The Pebble and PostgreSQL tests use the runner's Docker and pull their images (ghcr.io, Docker Hub).
       - name: Test
         env:
-          PADURAKSA_REQUIRE: playwright,quic,pebble
+          PADURAKSA_REQUIRE: playwright,quic,pebble,postgres
         run: >-
           dotnet test --no-build -c Release
           --max-parallel-test-modules 2

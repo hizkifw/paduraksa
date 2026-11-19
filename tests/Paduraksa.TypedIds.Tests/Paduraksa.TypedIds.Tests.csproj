@@ -11,8 +11,12 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <!-- The EF tests run on real in-memory SQLite. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!-- Test-only: the native-Guid model checks and the PostgreSQL round trip. The package itself stays provider-neutral. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Shared/DockerCli.cs" Link="Shared/DockerCli.cs" />
+    <Compile Include="../Shared/Requirements.cs" Link="Shared/Requirements.cs" />
     <Compile Include="../Shared/ManualTimeProvider.cs" Link="Shared/ManualTimeProvider.cs" />
     <Compile Include="../Shared/TypedIdSample/*.cs" Link="Shared/TypedIdSample/%(Filename)%(Extension)" />
     <Using Include="Paduraksa.Tests.Shared" />
