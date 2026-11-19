@@ -17,5 +17,6 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="6.0.4" />
     <ProjectReference Include="../../src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <ProjectReference Include="../../src/Paduraksa.ProxyProtocol/Paduraksa.ProxyProtocol.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.TypedIds/Paduraksa.TypedIds.csproj" />
   </ItemGroup>
 </Project>

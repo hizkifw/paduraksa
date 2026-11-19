@@ -39,6 +39,7 @@ nothing or any benchmark fails.
 | `GateBenchmarks` | `GateMiddleware.Decide`: forward (canonical and rewritten path, and behind a trusted Cloudflare Tunnel with `CF-Connecting-IP` and `CF-Visitor`), Respond host, Redirect host, HTTP→HTTPS redirect, unknown host |
 | `ProxyProtocolBenchmarks` | `ProxyProtocolParser.TryParse`: v1 TCP4/TCP6, v2 IPv4, v2 IPv6 with 40 B of TLVs, the same over a split `ReadOnlySequence` |
 | `MixedInputBenchmarks` | `HostTable.Find` and IP parsing (ours and the BCL's) cycling through 256 mixed inputs per invocation, so branch prediction can't learn one value |
+| `TypedIdBenchmarks` | `Paduraksa.TypedIds`: base62 encode and decode of a `Guid` and a `long` (chars and UTF-8), prefixed `TypedIdCodec` format and parse, a generated ID's `ToString()`, the three generators, vs `Guid.NewGuid`, `Guid.CreateVersion7`, `Guid.ToString` and `Guid.TryParse` |
 
 **GC settings, and why.** The project runs **workstation, non-concurrent GC** (`Paduraksa.Benchmarks.csproj`), and
 `Program.cs` always runs BenchmarkDotNet **in-process** (it adds `--inProcess` unless `--inProcess` or `-i` is given)
