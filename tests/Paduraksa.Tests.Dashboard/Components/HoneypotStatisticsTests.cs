@@ -122,7 +122,12 @@ public sealed class HoneypotStatisticsTests
         context.Honeypot.Summary = Summary();
         var session = FakeDashboardHoneypot.Session(ip: "203.0.113.9", agent: "GPTBot/1.1", botKind: "aiCrawler", botName: "GPTBot", pages: 7, robotsFirst: true) with
         {
-            JsRuns = 2, Images = 4, ChallengesShown = 3, ChallengesSolved = 1, ChallengesPassed = 2, MaxDepth = 5,
+            JsRuns = 2,
+            Images = 4,
+            ChallengesShown = 3,
+            ChallengesSolved = 1,
+            ChallengesPassed = 2,
+            MaxDepth = 5,
         };
         context.Honeypot.Sessions.Add(session);
 
