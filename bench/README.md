@@ -40,6 +40,7 @@ nothing or any benchmark fails.
 | `ProxyProtocolBenchmarks` | `ProxyProtocolParser.TryParse`: v1 TCP4/TCP6, v2 IPv4, v2 IPv6 with 40 B of TLVs, the same over a split `ReadOnlySequence` |
 | `MixedInputBenchmarks` | `HostTable.Find` and IP parsing (ours and the BCL's) cycling through 256 mixed inputs per invocation, so branch prediction can't learn one value |
 | `TypedIdBenchmarks` | `Paduraksa.TypedIds`: base62 encode and decode of a `Guid` and a `long` (chars and UTF-8), prefixed `TypedIdCodec` format and parse, a generated ID's `ToString()`, the three generators, vs `Guid.NewGuid`, `Guid.CreateVersion7`, `Guid.ToString` and `Guid.TryParse` |
+| `HoneypotSiteBenchmarks` | `HoneypotSite`: render a post, the index, the sitemap and the feed into a reused buffer; `Resolve` of a valid token, one with a changed tag character (refused on its fields) and one with changed URL text (HMAC computed, fails) |
 
 **GC settings, and why.** The project runs **workstation, non-concurrent GC** (`Paduraksa.Benchmarks.csproj`), and
 `Program.cs` always runs BenchmarkDotNet **in-process** (it adds `--inProcess` unless `--inProcess` or `-i` is given)
