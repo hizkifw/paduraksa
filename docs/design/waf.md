@@ -21,6 +21,7 @@ Contents:
 - [Rule sets](#rule-sets)
 - [Forward-auth](#forward-auth)
 - [Managed robots.txt](#managed-robotstxt)
+- [Honeypot](#honeypot)
 - [Error pages](#error-pages)
 - [Request limits](#request-limits)
 
@@ -37,6 +38,7 @@ Contents:
 | Forward-auth | A named object (`authp_`): an endpoint that every request to a host or route naming it is checked against before it is forwarded. See [Forward-auth](#forward-auth). |
 | Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page, solved by pure-JS SHA-256 workers. The verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. See [Proof of work](#proof-of-work). |
 | Robots.txt | Per host: passthrough or managed (preset: disallow all, block AI crawlers, or custom text). Served from pre-encoded bytes. |
+| Honeypot | Per host: a trap blog with no end behind a robots.txt `Disallow` line or a rule action. Pages are derived from the URL, and links record their kind. It only records what visitors do. See [Honeypot](#honeypot). |
 | Error pages | Per status (and "upstream down", "blocked", "rate limited", "maintenance"). Templates are pre-split into byte segments at compile time. See [Error pages](#error-pages). |
 | Maintenance mode | Per host (layered like the rest): a toggle with a status, a page and a bypass named by an access list. See [Maintenance mode](#maintenance-mode). |
 
@@ -723,6 +725,94 @@ So two requests that differ in anything the provider is sent never share an entr
 - The answer is 0 B per request (`RobotsTxtGateTests`).
 - The AI crawler list lives once in `Paduraksa.Core.Model.RobotsText`, shared by the proxy and the dashboard copy. It goes stale as crawlers appear, so it is refreshed with each Paduraksa release rather than by an operator who would have to notice.
 - The simulator reports a `robotsTxt` step either way: the mode served, or that the path goes on to the upstream.
+
+## Honeypot
+
+A trap site that has no end, for crawlers that ignore robots.txt or probe for weak spots. It only observes: nothing it records refuses, bans or slows a client in phase 1. Planned later: a tarpit, fake forms and credentials, bans or harder proof of work after N trap pages, fingerprint columns, links hidden in the real site's HTML, and generated raster images.
+
+### Settings
+
+`HostSettings.Honeypot` inherits through defaults, profile and host like the other host settings. It has no route override, because the trap answers before route matching.
+
+| Field | Built-in | Meaning |
+|---|---|---|
+| `Enabled` | off | Serve the trap on this host. |
+| `Path` | derived | The trap prefix, such as `/archive-k7f3/`. If unset, it is derived from the host's ID and the key, so every host gets its own stable prefix that names nothing about Paduraksa. |
+| `SiteName` | derived | The blog's title. If unset, it is derived like the path. |
+| `PowShare` | 20 | Percent of trap pages behind a proof-of-work challenge, 0 to 100. |
+| `PowDifficulty` | 16 | Leading zero bits for those challenges, in the gate's range. |
+| `NoIndex` | on | Send `X-Robots-Tag: noindex, nofollow` on trap answers, so a search engine that reaches the trap through a leaked link keeps it out of results. |
+
+- **Validation:**
+  - The path must be canonical, start and end with `/`, and contain no `/.well-known/` (`host.honeypot.path.invalid`).
+  - The trap shadows the routes under its prefix. If a route's path is under the prefix, the review warns about it (`host.honeypot.path.shadowsRoute`).
+  - An admin host can't have a trap.
+- **Warning:** if a host has a trap on but robots.txt passes through to the upstream, nothing adds the `Disallow` line, so only the rule action leads into the trap (`host.honeypot.robotsPassthrough`).
+- **Server option:** `Paduraksa:Honeypot:MaxConcurrent` (default 16) caps the trap answers being generated at once. Above the cap, the trap answers `503` with `Retry-After`, and the request is recorded as shed.
+
+### Ways in
+
+1. **robots.txt.** If the host serves a managed robots.txt, `Disallow: <prefix>` is added to every group, and a `User-agent: *` group is added if the file has none. The line is added once at compile time, so the bytes stay precomputed. Any request into the prefix then breaks robots.txt.
+2. **The rule action.** `RuleAction.Honeypot` sits beside deny, drop and allow. A matching request gets a landing page for the requested path: a blog page whose links lead into the prefix, answered with `200`. If the host has no trap, the rule set is compiled with the action as deny, and the simulator says so.
+
+### Where it answers
+
+- The gate answers the prefix after robots.txt and before maintenance mode, a fixed answer and route matching. The host's chain runs first, so an access list or a rule set still applies inside the trap.
+- The prefix check is one ordinal prefix compare on the canonical path. It allocates 0 B, so requests outside the trap cost nothing (`GateMiddleware.Decide` allocation test).
+- Generating a trap answer allocates, which is acceptable because only trap traffic pays for it.
+- `GateAction.Honeypot` hands the request to the honeypot handler, which runs async like the proof-of-work verify endpoint.
+- The simulator reports a `honeypot` step: the entry (prefix or rule), the page kind, and whether it would be challenged.
+
+### The site
+
+- **It's stateless and deterministic.** The site key is HMAC-SHA-256 over a `paduraksa-honeypot-site-v1` prefix and the host ID, under the proof-of-work key. Each page's content comes from HMAC(site key, page ID). The same URL always returns the same page, and nothing is stored.
+- **The URLs look like a blog's:**
+  - `<prefix>2024/07/<slug>-<token>/` for posts
+  - `<prefix>category/<slug>-<token>/` for categories, and the same for `tag/` and `author/`
+  - `<prefix>page/<n>/` for index pagination
+  - `<prefix>sitemap.xml` and `<prefix>feed/`
+  - `<prefix>media/<slug>-<token>.svg` for images
+- **The token** is lowercase base32 of the link kind, the page ID, the parent page ID and a truncated HMAC tag. A request with a token that fails to decode or verify gets a themed 404 page, which has links of its own. It is recorded as a guessed URL.
+- **Pages** are the index, posts, categories, tags, author pages, pagination, a sitemap, an RSS feed and a 404 page. Text is English-like gibberish built from a bundled word list and sentence templates. Titles, dates, authors, tags, reading times and comment counts look real. `Last-Modified` comes from the post's date. There is one theme, a blog, with inline CSS and no external assets.
+- **Link kinds.** Each link names its kind in its token, so a request shows which link the crawler followed:
+
+| Kind | How it's linked |
+|---|---|
+| `normal` | A plain `<a href>`. |
+| `nofollow`, `ugc`, `sponsored` | `<a rel=...>`. |
+| `hidden` | An `<a>` hidden with CSS. People don't see it. |
+| `comment` | A URL inside an HTML comment. |
+| `script` | A link that exists only after inline JS runs. |
+| `beacon` | A `fetch` that inline JS makes on load. It shows that JS ran without a click. |
+| `sitemap`, `feed` | URLs that appear only in the sitemap or the feed. |
+| `noindexPage` | Links on a page marked `<meta name=robots content="noindex, nofollow">`. |
+| `image` | An `<img>` pointing at a generated SVG. |
+
+- **Proof of work.** `PowShare` percent of pages, chosen by page ID, need a solved challenge.
+  - The page and the JS solver are the gate's, so the trap tests the real thing.
+  - The challenge tag uses a `paduraksa-honeypot-pow-v1` prefix. The trap has its own verify path and its own cookie. A token solved in the trap therefore passes nothing on the real site, and the real site's token passes nothing in the trap.
+- **The canary phrase.** Each visitor (host, IP, user agent) gets a made-up two-word phrase, derived with HMAC from the site key, inside the post text. The phrase is stored with the session. If it later appears in a search engine or a model's answer, it names the visitor that scraped the page.
+
+### Recording
+
+- Every trap request becomes a `HoneypotHit`, written to a bounded channel. If the channel is full, the hit is dropped and counted. Each hit records:
+  - time, host, full client IP and user agent
+  - entry (`robots`, `prefix` or `rule`), page kind, link kind, page ID and parent ID
+  - status, and the proof-of-work outcome (`shown`, `solved` with the solve time, `passed`)
+  - protocol, TLS version, `Accept`, `Accept-Language`, the `Sec-Fetch-*` headers and `Referer`
+- On a host with a trap on, robots.txt fetches are recorded too. That shows whether a visitor read the file before going in.
+- **Sessions** are keyed by host, IP and user agent, and end after 30 idle minutes. A session keeps counters:
+  - requests, pages and guessed URLs
+  - each link kind followed
+  - images fetched, and JS run (a beacon or a script link)
+  - challenges shown, solved and passed
+  - the deepest page reached, from parent IDs within the session
+- The tables keep 30 days, capped at 100k sessions and 1M requests, oldest first.
+- **Client IPs are stored in full here, unlike in the rest of analytics.** Trap visitors are crawlers that ignored robots.txt or probed, and the IP is what the operator studies.
+- **The API** (analytics read permission):
+  - `GET /api/v1/honeypot/summary?range=` gives the counts, the behaviour matrix (sessions that followed each link kind, ran JS, fetched images, solved a challenge) and the top user agents.
+  - `GET /api/v1/honeypot/sessions?range=&host=&q=` is a paged list. `q` matches an IP, a user agent substring or a canary phrase.
+  - `GET /api/v1/honeypot/sessions/{id}` gives a session and its requests.
 
 ## Error pages
 
