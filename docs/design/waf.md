@@ -769,11 +769,14 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
 - **The URLs look like a blog's:**
   - `<prefix>2024/07/<slug>-<token>/` for posts
   - `<prefix>category/<slug>-<token>/` for categories, and the same for `tag/` and `author/`
-  - `<prefix>page/<n>/` for index pagination
+  - `<prefix>page/<n>/` for index pagination, with `n` from 2 to 99999
   - `<prefix>sitemap.xml` and `<prefix>feed/`
   - `<prefix>media/<slug>-<token>.svg` for images
-- **The token** is lowercase base32 of the link kind, the page ID, the parent page ID and a truncated HMAC tag. A request with a token that fails to decode or verify gets a themed 404 page, which has links of its own. It is recorded as a guessed URL.
-- **Pages** are the index, posts, categories, tags, author pages, pagination, a sitemap, an RSS feed and a 404 page. Text is English-like gibberish built from a bundled word list and sentence templates. Titles, dates, authors, tags, reading times and comment counts look real. `Last-Modified` comes from the post's date. There is one theme, a blog, with inline CSS and no external assets.
+  - `<prefix>assets/stats-<token>.json` for the beacon, which answers `200` with `{}`
+  - The index, the pagination, the sitemap and the feed carry no token, so they record the link kind `direct`.
+- **The token** is 20 lowercase base32 characters (100 bits): the link kind (4 bits), the parent's page kind (4) and ID (28), the page's own ID (28) and a 36-bit tag. The tag is a truncated HMAC-SHA-256 over those fields, the page kind the URL names and the URL text before the token (the date and slug of a post). The first 64 bits are XORed with a mix of the tag and a per-site salt, so tokens show no structure. A request with a token that fails to decode or verify, or with any other path under the prefix that is not a page, gets a themed 404 page, which has links of its own. It is recorded as a guessed URL.
+- **Page IDs** are 28 bits inside a token. `HoneypotTarget.PageId` and `ParentId` hold the page kind in the bits above them (`kind << 28 | id`), so an ID names one page across kinds. The index is 0, which is also the parent of a page linked from it.
+- **Pages** are the index, posts, categories, tags, author pages, pagination, a sitemap, an RSS feed and a 404 page. Text is English-like gibberish built from a bundled word list and sentence templates. Titles, dates, authors, tags, reading times and comment counts look real. `Last-Modified` comes from the post's date. Post dates are drawn from a fixed window, 1 January 2021 to about June 2026, because a page can't depend on the clock. There is one theme, a blog, with inline CSS and no external assets. The sitemap and the feed use root-relative URLs, because the site is not told the host name. A landing page is a post-like page whose ID is a hash of the probed path, so a path always gets the same page.
 - **Link kinds.** Each link names its kind in its token, so a request shows which link the crawler followed:
 
 | Kind | How it's linked |
@@ -785,13 +788,13 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
 | `script` | A link that exists only after inline JS runs. |
 | `beacon` | A `fetch` that inline JS makes on load. It shows that JS ran without a click. |
 | `sitemap`, `feed` | URLs that appear only in the sitemap or the feed. |
-| `noindexPage` | Links on a page marked `<meta name=robots content="noindex, nofollow">`. |
+| `noindexPage` | Links on a page marked `<meta name=robots content="noindex, nofollow">`, which is about one in ten posts, categories, tags, authors and pagination pages. The links on it all carry this kind, except images and the beacon, which stay what they are. |
 | `image` | An `<img>` pointing at a generated SVG. |
 
-- **Proof of work.** `PowShare` percent of pages, chosen by page ID, need a solved challenge.
+- **Proof of work.** `PowShare` percent of the posts, categories, tags and authors, chosen by page ID, need a solved challenge. The index, pagination, landing pages, the 404, the sitemap, the feed, images and the beacon never do.
   - The page and the JS solver are the gate's, so the trap tests the real thing.
   - The challenge tag uses a `paduraksa-honeypot-pow-v1` prefix. The trap has its own verify path and its own cookie. A token solved in the trap therefore passes nothing on the real site, and the real site's token passes nothing in the trap.
-- **The canary phrase.** Each visitor (host, IP, user agent) gets a made-up two-word phrase, derived with HMAC from the site key, inside the post text. The phrase is stored with the session. If it later appears in a search engine or a model's answer, it names the visitor that scraped the page.
+- **The canary phrase.** Each visitor (host, IP, user agent) gets a made-up two-word phrase, derived with HMAC from the site key, inside the post text, as one added sentence. The phrase is stored with the session. If it later appears in a search engine or a model's answer, it names the visitor that scraped the page.
 
 ### Recording
 
