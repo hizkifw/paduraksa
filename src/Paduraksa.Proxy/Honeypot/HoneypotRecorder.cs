@@ -6,11 +6,14 @@ using Paduraksa.ProxyProtocol;
 namespace Paduraksa.Proxy.Honeypot;
 
 /// <summary>
-/// The trap's sink (docs/design/waf.md "Honeypot", "Recording"): hands each hit to a bounded queue and returns, and <see cref="Drain"/>, called by the
-/// recording job, folds the queue into sessions and the rows waiting to be written. A request never waits on the database, a lock or an allocation
-/// beyond the hit's own strings.
+/// The trap's sink (docs/design/waf.md "Honeypot", "Recording"): hands each hit to a bounded queue and returns. <see cref="FoldAsync"/> folds the queue
+/// into sessions as hits arrive, and <see cref="Drain"/>, called by the recording job before each write, folds what is left and readies the rows. A
+/// request never waits on the database, a lock or an allocation beyond the hit's own strings.
 /// </summary>
 /// <remarks>
+/// <para><b>Counts stay whole under a flood.</b> The queue is folded continuously, and folding a hit is a dictionary update, far cheaper than serving
+/// the trap page that produced it, so the queue only fills if the folding thread is starved. Only request rows are bounded by what the database
+/// keeps up with, and by <see cref="MaxStoredRequestsPerSession"/>: a session's counters include every hit that wasn't dropped at the queue.</para>
 /// <para><b>Overload loses hits, not time.</b> A full queue drops the hit and counts it (<see cref="HoneypotStats.CountDropped"/>); a robots.txt fetch that
 /// finds it full is lost without a count, because it only decides one flag of a session. The rows waiting for a database that is down are
 /// bounded too: the oldest go first, and the lost requests are counted as dropped.</para>
@@ -29,12 +32,19 @@ public sealed class HoneypotRecorder : IHoneypotSink
     /// <summary>How long a robots.txt fetch counts as having come first for a session that begins after it.</summary>
     public static readonly TimeSpan RobotsMemory = TimeSpan.FromHours(24);
 
-    public const int DefaultQueueCapacity = 8_192;
+    // Room for a GC pause or a scheduling gap of the folding thread at the trap's full rate (tens of thousands of pages a second).
+    public const int DefaultQueueCapacity = 65_536;
+
+    // Hits folded per hold of the lock, so a write's Take never waits behind a long fold.
+    private const int FoldChunk = 4_096;
     public const int MaxActiveSessions = 10_000;
     public const int MaxRememberedRobotsFetches = 50_000;
     public const int MaxPagesPerSession = 256;
     public const int MaxWaitingRequests = 200_000;
     public const int MaxWaitingSessions = 100_000;
+
+    /// <summary>Request rows kept per session. A session's counters go on past it; its timeline holds the first this many.</summary>
+    public const int MaxStoredRequestsPerSession = 10_000;
 
     private static readonly int LinkKinds = Enum.GetValues<HoneypotLinkKind>().Length;
 
@@ -61,7 +71,8 @@ public sealed class HoneypotRecorder : IHoneypotSink
         var queue = System.Threading.Channels.Channel.CreateBounded<Event>(new BoundedChannelOptions(queueCapacity)
         {
             FullMode = BoundedChannelFullMode.Wait,
-            SingleReader = true,
+            // Two readers: the folding loop and the job's drain before a write (both read under _gate).
+            SingleReader = false,
             AllowSynchronousContinuations = false,
         });
         _reader = queue.Reader;
@@ -113,22 +124,57 @@ public sealed class HoneypotRecorder : IHoneypotSink
     {
         lock (_gate)
         {
-            while (_reader.TryRead(out var next))
+            while (FoldQueued())
             {
-                if (next.Robots)
-                {
-                    RememberRobots(next.Hit);
-                }
-                else
-                {
-                    Apply(next.Hit);
-                }
             }
 
             Snapshot();
             EndIdle(_time.GetUtcNow());
             EnforceSessionCaps();
         }
+    }
+
+    /// <summary>
+    /// Folds hits into the sessions as they arrive, until <paramref name="cancellationToken"/> ends it. The recording job runs it beside its writes, so
+    /// the queue stays near empty however fast the trap answers.
+    /// </summary>
+    public async Task FoldAsync(CancellationToken cancellationToken)
+    {
+        while (await _reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            bool more;
+            do
+            {
+                lock (_gate)
+                {
+                    more = FoldQueued();
+                }
+            }
+            while (more);
+        }
+    }
+
+    // Under _gate. True when it stopped at FoldChunk with more queued.
+    private bool FoldQueued()
+    {
+        for (var i = 0; i < FoldChunk; i++)
+        {
+            if (!_reader.TryRead(out var next))
+            {
+                return false;
+            }
+
+            if (next.Robots)
+            {
+                RememberRobots(next.Hit);
+            }
+            else
+            {
+                Apply(next.Hit);
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Hands over what waits to be written. A batch that couldn't be written goes back with <see cref="Requeue"/>.</summary>
@@ -205,8 +251,13 @@ public sealed class HoneypotRecorder : IHoneypotSink
             _dirty.Add(session);
         }
 
-        _waitingRequests.Add(new HoneypotRequestRecord(session.Id, HoneypotRequestId.New(), hit));
-        TrimWaiting();
+        // The counters take every hit; the rows stop at a cap per session, so a flood costs a database write per request only for its first ones.
+        if (session.StoredRequests < MaxStoredRequestsPerSession)
+        {
+            session.StoredRequests++;
+            _waitingRequests.Add(new HoneypotRequestRecord(session.Id, HoneypotRequestId.New(), hit));
+            TrimWaiting();
+        }
     }
 
     // A record of every session that changed, once per drain: the counters are running totals, so the newest record of a session is all a write needs.
@@ -337,6 +388,9 @@ public sealed class HoneypotRecorder : IHoneypotSink
         }
 
         public bool Dirty { get; set; }
+
+        /// <summary>Request rows this session has queued for the database, for <see cref="MaxStoredRequestsPerSession"/>.</summary>
+        public int StoredRequests { get; set; }
 
         public DateTimeOffset LastSeen { get; private set; }
 

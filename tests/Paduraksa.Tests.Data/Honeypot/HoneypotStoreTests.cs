@@ -64,6 +64,22 @@ public sealed class HoneypotStoreTests
     }
 
     [Fact]
+    public async Task AFloodsRequestsAreWrittenInChunksAndAllOfThemArrive()
+    {
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
+        var total = (HoneypotStore.RequestChunk * 2) + 1;
+        // Three visitors, each under the per-session row cap, so every request has a row.
+        var hits = Enumerable.Range(0, total).Select(i => Hit(agent: "bot-" + (i % 3), id: (ulong)i, after: TimeSpan.FromMilliseconds(i))).ToArray();
+
+        await rig.RecordAsync(hits);
+
+        Assert.Equal(3L, await rig.Database.ScalarAsync("SELECT count(*) FROM HoneypotSessions"));
+        Assert.Equal((long)total, await rig.Database.ScalarAsync("SELECT count(*) FROM HoneypotRequests"));
+        Assert.Equal((long)total, await rig.Database.ScalarAsync("SELECT sum(\"Requests\") FROM HoneypotSessions"));
+        Assert.Equal((0, 0), rig.Recorder.Waiting);
+    }
+
+    [Fact]
     public async Task AFailedWriteIsKeptAndTheNextPassWritesIt()
     {
         await using var down = HoneypotRecordingRig.Down();

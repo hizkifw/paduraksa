@@ -4,14 +4,14 @@ using Microsoft.Extensions.Logging;
 namespace Paduraksa.Application.Honeypot;
 
 /// <summary>
-/// Folds what the trap's sink queued into sessions and writes them every <see cref="WriteInterval"/>, and deletes what is past retention every
+/// Folds what the trap's sink queues into sessions as it arrives, writes them every <see cref="WriteInterval"/>, and deletes what is past retention every
 /// <see cref="PruneInterval"/> (docs/design/waf.md "Honeypot", "Recording"). A hosted service of the core host, registered before the access-log drain like the analytics job, so its last
 /// write on shutdown follows the requests the public host answered while it drained. A write that fails puts its batch back with the recorder and is
 /// tried again; what waits is bounded there, so a database that stays down loses the oldest rows and never memory.
 /// </summary>
 public sealed partial class HoneypotRecordingJob(HoneypotStore store, HoneypotRetention retention, TimeProvider time, ILogger<HoneypotRecordingJob> logger) : BackgroundService
 {
-    /// <summary>How often the queue is folded into sessions and written.</summary>
+    /// <summary>How often the sessions and requests are written.</summary>
     public static readonly TimeSpan WriteInterval = TimeSpan.FromSeconds(5);
 
     /// <summary>How often rows past retention are deleted.</summary>
@@ -19,6 +19,7 @@ public sealed partial class HoneypotRecordingJob(HoneypotStore store, HoneypotRe
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var folding = store.FoldAsync(stoppingToken);
         using PeriodicTimer timer = new(WriteInterval, time);
         var nextPrune = time.GetUtcNow();
         try
@@ -41,6 +42,15 @@ public sealed partial class HoneypotRecordingJob(HoneypotStore store, HoneypotRe
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Stopping: what the public host answered on its way out is written below.
+        }
+
+        try
+        {
+            await folding.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // The flush below folds what is still queued.
         }
 
         await FlushAsync().ConfigureAwait(false);

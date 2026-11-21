@@ -35,6 +35,9 @@ public readonly record struct HoneypotPruned(int Sessions, int Requests)
 /// </remarks>
 public sealed class HoneypotStore
 {
+    /// <summary>Requests written per transaction.</summary>
+    public const int RequestChunk = 5_000;
+
     // Sessions looked up by ID in one statement; well under SQLite's bound-variable limit.
     private const int LookupChunk = 500;
 
@@ -47,7 +50,14 @@ public sealed class HoneypotStore
         _recorder = recorder;
     }
 
-    /// <summary>Folds what the sink queued into sessions and writes what changed. A failed write puts the batch back for the next pass and throws.</summary>
+    /// <summary>Folds hits into sessions as they arrive, until <paramref name="cancellationToken"/> ends it (<see cref="HoneypotRecorder.FoldAsync"/>).</summary>
+    public Task FoldAsync(CancellationToken cancellationToken) => _recorder.FoldAsync(cancellationToken);
+
+    /// <summary>
+    /// Folds what the sink queued into sessions and writes what changed: the sessions with the first requests, then the rest of the requests in chunks of
+    /// <see cref="RequestChunk"/>, one transaction each, so a flood's batch never holds the database's one writer for long. A failed write puts back the
+    /// sessions (a session row is overwritten, so writing it twice is harmless) and the requests not yet written, then throws.
+    /// </summary>
     public async Task WritePendingAsync(CancellationToken cancellationToken)
     {
         _recorder.Drain();
@@ -57,15 +67,40 @@ public sealed class HoneypotStore
             return;
         }
 
+        var written = 0;
         try
         {
-            await WriteAsync(batch, cancellationToken).ConfigureAwait(false);
+            var sessions = batch.Sessions;
+            do
+            {
+                var count = Math.Min(RequestChunk, batch.Requests.Count - written);
+                await WriteAsync(new HoneypotBatch(sessions, Slice(batch.Requests, written, count)), cancellationToken).ConfigureAwait(false);
+                written += count;
+                sessions = [];
+            }
+            while (written < batch.Requests.Count);
         }
         catch
         {
-            _recorder.Requeue(batch);
+            _recorder.Requeue(new HoneypotBatch(batch.Sessions, Slice(batch.Requests, written, batch.Requests.Count - written)));
             throw;
         }
+    }
+
+    private static IReadOnlyList<HoneypotRequestRecord> Slice(IReadOnlyList<HoneypotRequestRecord> requests, int start, int count)
+    {
+        if (start == 0 && count == requests.Count)
+        {
+            return requests;
+        }
+
+        var slice = new HoneypotRequestRecord[count];
+        for (var i = 0; i < count; i++)
+        {
+            slice[i] = requests[start + i];
+        }
+
+        return slice;
     }
 
     internal async Task WriteAsync(HoneypotBatch batch, CancellationToken cancellationToken)

@@ -403,9 +403,10 @@ public sealed class HoneypotRecorderTests
     public void RowsWaitingForADatabaseThatIsDownAreBoundedAndTheOldestGoFirst()
     {
         var recorder = Recorder(capacity: HoneypotRecorder.MaxWaitingRequests + 100);
+        // Many visitors, each under the per-session row cap, so only the waiting-row cap applies.
         for (var i = 0; i < HoneypotRecorder.MaxWaitingRequests + 100; i++)
         {
-            recorder.Record(Hit(id: (ulong)i));
+            recorder.Record(Hit(id: (ulong)i, agent: "bot-" + (i / 1_000)));
         }
 
         recorder.Drain();
@@ -443,7 +444,7 @@ public sealed class HoneypotRecorderTests
 
         for (var i = 0; i < 20_000; i++)
         {
-            recorder.Record(Hit(id: (ulong)i));
+            recorder.Record(Hit(id: (ulong)i, agent: "bot-" + (i % 4)));
         }
 
         await drain;
@@ -451,5 +452,75 @@ public sealed class HoneypotRecorderTests
 
         var batch = recorder.Take();
         Assert.Equal(20_000 - _stats.Dropped, batch.Requests.Count);
+    }
+
+    [Fact]
+    public async Task TheFoldingLoopFoldsHitsAsTheyArriveWithoutADrain()
+    {
+        var recorder = Recorder();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var folding = recorder.FoldAsync(stop.Token);
+
+        for (var i = 0; i < 50; i++)
+        {
+            recorder.Record(Hit(id: (ulong)i));
+        }
+
+        // Folded hits wait as request rows; nothing but the loop moves them there.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (recorder.Waiting.Requests < 50 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(50, recorder.Waiting.Requests);
+        await stop.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => folding);
+    }
+
+    [Fact]
+    public async Task UnderParallelLoadEveryHitIsCountedInItsSessionOrCountedAsDropped()
+    {
+        // A small queue, so producers that only enqueue outrun the loop and some hits are dropped: the counts must still add up.
+        var recorder = Recorder(capacity: 1_024);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var folding = recorder.FoldAsync(stop.Token);
+        const int Producers = 4;
+        const int PerProducer = 40_000;
+
+        await Task.WhenAll(Enumerable.Range(0, Producers).Select(p => Task.Run(() =>
+        {
+            for (var i = 0; i < PerProducer; i++)
+            {
+                recorder.Record(Hit(agent: "bot-" + p, id: (ulong)i));
+            }
+        }, TestContext.Current.CancellationToken)));
+
+        await stop.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => folding);
+        recorder.Drain();
+        var batch = recorder.Take();
+
+        var counted = batch.Sessions.Sum(session => session.Requests);
+        Assert.Equal(Producers * PerProducer, counted + _stats.Dropped);
+        Assert.Equal(batch.Sessions.Sum(session => Math.Min(session.Requests, HoneypotRecorder.MaxStoredRequestsPerSession)), batch.Requests.Count);
+    }
+
+    [Fact]
+    public void ASessionKeepsRowsForItsFirstRequestsAndCountsEveryOne()
+    {
+        var recorder = Recorder();
+        var total = HoneypotRecorder.MaxStoredRequestsPerSession + 5;
+        for (var i = 0; i < total; i++)
+        {
+            recorder.Record(Hit(id: (ulong)i));
+        }
+
+        recorder.Drain();
+        var batch = recorder.Take();
+
+        Assert.Equal(total, Only(batch).Requests);
+        Assert.Equal(HoneypotRecorder.MaxStoredRequestsPerSession, batch.Requests.Count);
+        Assert.Equal(0, _stats.Dropped);
     }
 }
