@@ -159,6 +159,9 @@ public enum SimulationStepKind
     /// <summary>The managed <c>robots.txt</c>: served for the host, or passed through to the upstream.</summary>
     RobotsTxt,
 
+    /// <summary>The host's trap: a request under its prefix, or one a rule set's honeypot action sends there. It answers with a page of its site, or its proof-of-work challenge.</summary>
+    Honeypot,
+
     /// <summary>The host's maintenance mode: off, bypassed by an access list, or answering with the maintenance page.</summary>
     Maintenance,
 

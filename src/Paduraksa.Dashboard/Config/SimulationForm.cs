@@ -120,6 +120,7 @@ public sealed class SimulationForm
             SimulationStepKind.HostPolicy => $"Host policy{policy}",
             SimulationStepKind.HttpsRedirect => "HTTPS redirect",
             SimulationStepKind.RobotsTxt => "robots.txt",
+            SimulationStepKind.Honeypot => "Honeypot trap",
             SimulationStepKind.Maintenance => "Maintenance mode",
             SimulationStepKind.RequestLimits => "Request limits",
             SimulationStepKind.FixedResponse => "Fixed answer",

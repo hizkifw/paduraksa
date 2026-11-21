@@ -491,6 +491,7 @@ public sealed partial class RequestSimulator : IDisposable
         GateStepKind.RequestLimits => SimulationStepKind.RequestLimits,
         GateStepKind.HttpsRedirect => SimulationStepKind.HttpsRedirect,
         GateStepKind.RobotsTxt => SimulationStepKind.RobotsTxt,
+        GateStepKind.Honeypot => SimulationStepKind.Honeypot,
         GateStepKind.Maintenance => SimulationStepKind.Maintenance,
         GateStepKind.FixedResponse => SimulationStepKind.FixedResponse,
         GateStepKind.ProofOfWork => SimulationStepKind.ProofOfWork,

@@ -26368,6 +26368,7 @@
           "requestLimits",
           "httpsRedirect",
           "robotsTxt",
+          "honeypot",
           "maintenance",
           "fixedResponse",
           "proofOfWork",

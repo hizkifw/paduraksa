@@ -397,6 +397,51 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
         }
     }
 
+    [Theory]
+    [InlineData("GET", "post-1/", null)]
+    [InlineData("HEAD", "post-1/", null)]
+    [InlineData("GET", "", "text/html")]
+    [InlineData("GET", "nothing/", null)]
+    [InlineData("GET", "image.svg", null)]
+    [InlineData("GET", "secure-9/", "text/html")]
+    [InlineData("GET", "secure-9/", "application/json")]
+    [InlineData("GET", "secure-9/", null)]
+    [InlineData("POST", "post-1/", null)]
+    [InlineData("PUT", "", null)]
+    [InlineData("POST", "verify", null)]
+    public async Task TheSimulatorSaysWhatTheTrapAnswers(string method, string path, string? accept)
+    {
+        var rig = new HoneypotRig();
+        await using var server = await StartAsync(Model(Host("trap")), rig);
+        using var client = ProxyTestServer.CreateClient();
+        var ct = TestContext.Current.CancellationToken;
+        using var request = server.Request("trap.test", Prefix + path, new HttpMethod(method));
+        if (accept is not null)
+        {
+            request.Headers.TryAddWithoutValidation("Accept", accept);
+        }
+
+        if (method == "POST")
+        {
+            request.Content = new FormUrlEncodedContent(new Dictionary<string, string>());
+        }
+
+        using var real = await client.SendAsync(request, ct);
+        var simulated = Paduraksa.Proxy.Simulation.GateSimulator.Run(
+            server.Store.Current,
+            new Paduraksa.Proxy.Simulation.GateProbe
+            {
+                Host = "trap.test",
+                Path = Prefix + path,
+                Method = method,
+                ClientAddress = IPAddress.Loopback,
+                Headers = accept is null ? [] : [new Paduraksa.Proxy.Simulation.ProbeHeader("Accept", accept)],
+            });
+
+        Assert.Equal((int)real.StatusCode, simulated.Outcome.StatusCode);
+        Assert.DoesNotContain(rig.Sink.Hits, hit => hit.Status != (int)real.StatusCode);
+    }
+
     private static HttpRequestMessage Browser(ProxyTestServer server, string host, string path)
     {
         var request = server.Request(host, path);

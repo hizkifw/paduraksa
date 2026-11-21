@@ -86,6 +86,10 @@ internal interface IGateTracer
     /// managed file answered it, or it goes on to the upstream (or the host's fixed answer).</summary>
     void RobotsTxt(CompiledHost host, bool served);
 
+    /// <summary>The request goes into the host's trap: by the prefix (after robots.txt) or by a rule set's honeypot action. Reported once the gate has set
+    /// the entry on the request's state, which the report reads.</summary>
+    void Honeypot(HttpContext context, CompiledHost host);
+
     /// <summary>The host's maintenance mode was consulted: <paramref name="maintenance"/> is null when the host serves none. Otherwise
     /// <paramref name="bypassed"/> says the request's address is one the bypass list admits, so it goes on; if not, the maintenance page answers it.</summary>
     void Maintenance(CompiledHost host, CompiledMaintenance? maintenance, bool bypassed);
@@ -170,6 +174,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RobotsTxt(CompiledHost host, bool served)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Honeypot(HttpContext context, CompiledHost host)
     {
     }
 

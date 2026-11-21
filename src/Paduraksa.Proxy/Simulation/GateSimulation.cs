@@ -42,6 +42,9 @@ public enum GateReason : byte
     /// <summary>The host's managed <c>/robots.txt</c> answered the request.</summary>
     RobotsTxt,
 
+    /// <summary>The request is in the host's trap, which answers it with a page of its site.</summary>
+    Honeypot,
+
     /// <summary>The host is in maintenance and the request isn't bypassed.</summary>
     Maintenance,
 
@@ -125,6 +128,9 @@ public enum GateStepKind : byte
 
     /// <summary>The managed <c>robots.txt</c>: served, or passed through to the upstream.</summary>
     RobotsTxt,
+
+    /// <summary>The host's trap: a request under its prefix, or one a rule set's honeypot action sends there. It answers with a page of the site, or a challenge.</summary>
+    Honeypot,
 
     /// <summary>The host's maintenance mode: off, bypassed by an access list, or answering with the maintenance page.</summary>
     Maintenance,

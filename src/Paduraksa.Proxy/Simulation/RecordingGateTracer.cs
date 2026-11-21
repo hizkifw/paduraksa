@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -320,7 +321,8 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
 
     public void PolicyEvaluated(PolicyScope scope, int index, IRequestPolicy policy, in RequestView request, PolicyDecision verdict)
     {
-        var stopped = verdict.Action != PolicyAction.Continue;
+        // A honeypot verdict hands the request on to the trap, whose own step is the one that decides.
+        var stopped = verdict.Action is not (PolicyAction.Continue or PolicyAction.Honeypot);
         List<GateFact> facts = [new("policy", policy.Name), new("verdict", TraceNames.Of(verdict.Action))];
         if (verdict.Response is { } response)
         {
@@ -475,6 +477,73 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
                 : $"robots.txt is not managed on this host ({mode}): it goes on to {(host.Kind == HostKind.Proxy || host.Kind == HostKind.Admin ? "the upstream" : "the host's fixed answer")}",
             [new("mode", mode), new("served", Flag(served))],
             host.Id));
+    }
+
+    public void Honeypot(HttpContext context, CompiledHost host)
+    {
+        var state = context.Features.Get<IGateFeature>()!.State;
+        var plan = HoneypotEndpoint.Plan(context, host, state);
+        var trap = host.Honeypot!;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var entry = TraceNames.Of(plan.Entry);
+        List<GateFact> facts =
+        [
+            new("entry", entry),
+            new("prefix", trap.Prefix),
+            new("status", plan.Status.ToString(inv)),
+        ];
+        var door = plan.Entry == HoneypotEntry.Rule
+            ? "a rule set's honeypot action sends it to the host's trap"
+            : $"the path is under the host's trap prefix {trap.Prefix}{(plan.Entry == HoneypotEntry.Robots ? ", which robots.txt disallows" : ", and robots.txt doesn't disallow it")}";
+        string summary;
+        switch (plan.Kind)
+        {
+            case HoneypotPlanKind.KeyUnavailable:
+                facts.Add(new("answer", "unavailable"));
+                summary = $"{door}, but the proof-of-work key it comes from isn't open: 503";
+                break;
+            case HoneypotPlanKind.MethodNotAllowed:
+                facts.Add(new("answer", "methodNotAllowed"));
+                summary = $"{door}: only GET and HEAD read a page, so {context.Request.Method} is answered 405";
+                break;
+            case HoneypotPlanKind.Verify:
+                facts.Add(new("answer", "verify"));
+                summary = $"{door}: the trap's own proof-of-work verify endpoint; a solved challenge gets 303 and a cookie, and a simulated request posts no form, so it gets 403";
+                break;
+            default:
+                AddPageFacts(facts, plan);
+                summary = plan.Kind switch
+                {
+                    HoneypotPlanKind.Challenge when plan.Status == StatusCodes.Status403Forbidden =>
+                        $"{door}: a {Page(plan)}, which is behind the trap's proof-of-work challenge, and the request isn't a browser's: 403",
+                    HoneypotPlanKind.Challenge => $"{door}: a {Page(plan)}, which is behind the trap's proof-of-work challenge: the challenge page is answered",
+                    HoneypotPlanKind.PagePassed => $"{door}: a {Page(plan)}, behind the trap's proof-of-work challenge, which the request's cookie has passed: the page is answered",
+                    _ => $"{door}: a {Page(plan)} is answered {plan.Status.ToString(inv)}",
+                };
+                break;
+        }
+
+        if (plan.Kind is HoneypotPlanKind.Page or HoneypotPlanKind.PagePassed)
+        {
+            facts.Add(new("noIndex", Flag(trap.NoIndex)));
+        }
+
+        steps.Add(new GateStep(GateStepKind.Honeypot, GateStepVerdict.Stopped, summary, facts, host.Id));
+
+        static string Page(in HoneypotPlan plan) => plan.Target.Kind switch
+        {
+            HoneypotPageKind.NotFound => "page that isn't there",
+            HoneypotPageKind.Landing => "landing page",
+            _ => $"{TraceNames.Of(plan.Target.Kind)} page",
+        };
+
+        static void AddPageFacts(List<GateFact> facts, in HoneypotPlan plan)
+        {
+            facts.Add(new("answer", plan.Kind switch { HoneypotPlanKind.Challenge => "challenge", _ => "page" }));
+            facts.Add(new("pageKind", TraceNames.Of(plan.Target.Kind)));
+            facts.Add(new("linkKind", TraceNames.Of(plan.Target.Via)));
+            facts.Add(new("challenged", Flag(plan.Kind == HoneypotPlanKind.Challenge)));
+        }
     }
 
     public void Maintenance(CompiledHost host, CompiledMaintenance? maintenance, bool bypassed)

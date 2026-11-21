@@ -180,6 +180,55 @@ internal static class HoneypotEndpoint
         return ResponseWriter.WriteAsync(context, answer);
     }
 
+    /// <summary>
+    /// What <see cref="HandleAsync"/> would answer for the request, without answering it, counting it or recording a hit: the simulator's
+    /// view of the trap. The status is the one the answer carries (the page's, or its challenge's, or the refusal's).
+    /// </summary>
+    internal static HoneypotPlan Plan(HttpContext context, CompiledHost host, GateRequestState state)
+    {
+        var trap = host.Honeypot!;
+        var request = context.Request;
+        var viaRule = state.HoneypotViaRule;
+        var entry = viaRule ? HoneypotEntry.Rule : trap.EntryByPrefix;
+        if (trap.Site is not { } site)
+        {
+            return new HoneypotPlan(entry, default, HoneypotPlanKind.KeyUnavailable, StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var path = request.Path.Value ?? "/";
+        var canonical = RoutePath.IsCanonical(path) ? path : RoutePath.Canonicalize(path);
+        if (!viaRule && !HoneypotTargets.IsRead(request))
+        {
+            var target = site.Resolve(canonical);
+            return HttpMethods.IsPost(request.Method) && string.Equals(canonical, trap.VerifyPath, StringComparison.Ordinal)
+                ? new HoneypotPlan(entry, target, HoneypotPlanKind.Verify, StatusCodes.Status403Forbidden)
+                : new HoneypotPlan(entry, target, HoneypotPlanKind.MethodNotAllowed, StatusCodes.Status405MethodNotAllowed);
+        }
+
+        var resolved = viaRule ? site.Landing(canonical) : site.Resolve(canonical);
+        var pageStatus = resolved.Kind == HoneypotPageKind.NotFound ? StatusCodes.Status404NotFound : StatusCodes.Status200OK;
+        if (!resolved.NeedsPow || viaRule || trap.Page is null)
+        {
+            return new HoneypotPlan(entry, resolved, HoneypotPlanKind.Page, pageStatus);
+        }
+
+        if (trap.ProofOfWork.Key is not { } key)
+        {
+            return new HoneypotPlan(entry, resolved, HoneypotPlanKind.KeyUnavailable, StatusCodes.Status503ServiceUnavailable);
+        }
+
+        if (HasValidCookie(request, host, trap, key, state))
+        {
+            return new HoneypotPlan(entry, resolved, HoneypotPlanKind.PagePassed, pageStatus);
+        }
+
+        return new HoneypotPlan(
+            entry,
+            resolved,
+            HoneypotPlanKind.Challenge,
+            ProofOfWorkTargets.IsBrowserRequest(request) ? StatusCodes.Status200OK : StatusCodes.Status403Forbidden);
+    }
+
     private static bool HasValidCookie(HttpRequest request, CompiledHost host, CompiledHoneypot trap, IMacKey key, GateRequestState state)
     {
         Span<char> cookie = stackalloc char[ProofOfWorkToken.MaxCookieLength + 1];
@@ -273,3 +322,32 @@ internal static class HoneypotEndpoint
 
     private static string? Header(StringValues value) => value.Count == 0 ? null : value.ToString();
 }
+
+/// <summary>What the trap answers a request with, by kind.</summary>
+internal enum HoneypotPlanKind : byte
+{
+    /// <summary>A page of the site, or its 404.</summary>
+    Page,
+
+    /// <summary>A page behind the proof-of-work challenge, served because the request carries a valid trap cookie.</summary>
+    PagePassed,
+
+    /// <summary>The proof-of-work challenge page, or the 403 a client that isn't a browser gets.</summary>
+    Challenge,
+
+    /// <summary>The key the trap comes from isn't open: 503.</summary>
+    KeyUnavailable,
+
+    /// <summary>A method other than <c>GET</c> and <c>HEAD</c> under the prefix: 405.</summary>
+    MethodNotAllowed,
+
+    /// <summary>The trap's verify endpoint: a simulated request posts no form, so it is refused.</summary>
+    Verify,
+}
+
+/// <summary>The trap's answer to one request, worked out without answering it.</summary>
+/// <param name="Entry">How the request got in.</param>
+/// <param name="Target">What its URL names; empty when the site couldn't be asked.</param>
+/// <param name="Kind">What the trap answers with.</param>
+/// <param name="Status">The status of that answer.</param>
+internal readonly record struct HoneypotPlan(HoneypotEntry Entry, HoneypotTarget Target, HoneypotPlanKind Kind, int Status);

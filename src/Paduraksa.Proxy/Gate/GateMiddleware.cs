@@ -358,6 +358,7 @@ public sealed class GateMiddleware
             state.Outcome = GateOutcome.Answered;
             state.ProxyAnswered = true;
             state.HoneypotViaRule = false;
+            tracer.Honeypot(context, host);
             return GateDecision.Honeypot;
         }
 
@@ -557,6 +558,7 @@ public sealed class GateMiddleware
                     view.State.Outcome = GateOutcome.Answered;
                     view.State.ProxyAnswered = true;
                     view.State.HoneypotViaRule = true;
+                    tracer.Honeypot(view.Http, view.State.Host!);
                     decision = GateDecision.Honeypot;
                     return true;
                 case PolicyAction.Defer:

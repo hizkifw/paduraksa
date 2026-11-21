@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -98,7 +99,7 @@ public static class GateSimulator
 
         var context = BuildContext(bound, probe, peer, negotiated, tlsVersion, certificateAsked, path, hostHeader);
         var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, proofOfWork ?? ProofOfWorkRuntime.Unavailable, new RecordingGateTracer(steps, now));
-        if (decision.Action is GateAction.Respond or GateAction.VerifyProofOfWork && context.Features.Get<IGateFeature>()?.State is { Host: { } answering } answered)
+        if (decision.Action is GateAction.Respond or GateAction.VerifyProofOfWork or GateAction.Honeypot && context.Features.Get<IGateFeature>()?.State is { Host: { } answering } answered)
         {
             RecordingGateTracer.AddAnswerHeaders(steps, answering, (answered.Route?.Headers ?? answering.Headers).Response);
         }
@@ -633,6 +634,11 @@ public static class GateSimulator
                     ? context.Response.Headers.Location.ToString()
                     : null;
                 return new GateOutcome(GateOutcomeAction.Respond, reason, response.StatusCode, location, BodyOf(response), ErrorPageOf(context, response));
+            case GateAction.Honeypot:
+                // What the trap answers, worked out without answering it: the page's status, or its challenge's, or the refusal's.
+                var state = context.Features.Get<IGateFeature>()!.State;
+                return new GateOutcome(GateOutcomeAction.Respond, reason, HoneypotEndpoint.Plan(context, state.Host!, state).Status);
+
             // A probe carries no body, and the real gate refuses a post without a challenge and solution with 403.
             case GateAction.VerifyProofOfWork:
                 return new GateOutcome(GateOutcomeAction.Respond, GateReason.ProofOfWork, StatusCodes.Status403Forbidden);
@@ -698,6 +704,7 @@ public static class GateSimulator
                     GateStepKind.RequestLimits => GateReason.RequestLimits,
                     GateStepKind.HttpsRedirect => GateReason.HttpsRedirect,
                     GateStepKind.RobotsTxt => GateReason.RobotsTxt,
+                    GateStepKind.Honeypot => GateReason.Honeypot,
                     GateStepKind.Maintenance => GateReason.Maintenance,
                     GateStepKind.FixedResponse => GateReason.FixedHost,
                     GateStepKind.ProofOfWork => GateReason.ProofOfWork,
