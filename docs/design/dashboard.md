@@ -459,6 +459,7 @@ A component (`Components/SecurityStatistics.razor`) with no page of its own: it 
 - Cards: proof of work (served, solved with its share, bad solution, not a browser, the four cookie reasons), rate limits (checked, limited with its share), access lists, connections (the live limit and deny list, what was refused, counted now, and table full once it happened), sign-in, and "Not served" (unknown host, no route, unavailable, dropped) once there are some. Short cards align to the top rather than stretching.
 - Numbers and times go through `DisplayFormat`. Polling as the overview's: the hour every 2 s, the longer ranges a tenth as often, paused while hidden and read at once when shown. If a range can't be read, the tab shows an alert with "Retry" (`data-part=security-failed`). A role without `config:read` sees a lock.
 - It has no section heading (the tab is the heading) and no host scope.
+- Under it is the **Honeypot** section (`HoneypotArea`, a sibling of this component so the tab's skeleton box stays the counters'), with a section heading. See [Honeypot](waf.md#honeypot).
 
 ### The Analytics page
 
