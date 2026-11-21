@@ -6,6 +6,7 @@ using Paduraksa.Data.Audit;
 using Paduraksa.Data.Certificates;
 using Paduraksa.Data.Conversion;
 using Paduraksa.Data.Drafts;
+using Paduraksa.Data.Honeypot;
 using Paduraksa.Data.Identity;
 using Paduraksa.Data.Issuance;
 using Paduraksa.Data.Metrics;
@@ -56,6 +57,10 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<AnalyticsRollupRow> AnalyticsRollups => Set<AnalyticsRollupRow>();
 
+    internal DbSet<HoneypotSessionRow> HoneypotSessions => Set<HoneypotSessionRow>();
+
+    internal DbSet<HoneypotRequestRow> HoneypotRequests => Set<HoneypotRequestRow>();
+
     internal DbSet<NotificationChannelRow> NotificationChannels => Set<NotificationChannelRow>();
 
     internal DbSet<ExpiryNoticeRow> ExpiryNotices => Set<ExpiryNoticeRow>();
@@ -102,6 +107,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration(new MetricRollupRowConfiguration());
         modelBuilder.ApplyConfiguration(new SecurityRollupRowConfiguration());
         modelBuilder.ApplyConfiguration(new AnalyticsRollupRowConfiguration());
+        modelBuilder.ApplyConfiguration(new HoneypotSessionRowConfiguration());
+        modelBuilder.ApplyConfiguration(new HoneypotRequestRowConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationChannelRowConfiguration());
         modelBuilder.ApplyConfiguration(new ExpiryNoticeRowConfiguration());
         modelBuilder.ApplyConfiguration(new NotificationEventRowConfiguration());

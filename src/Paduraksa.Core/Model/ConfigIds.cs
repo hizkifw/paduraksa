@@ -86,6 +86,15 @@ public readonly partial record struct SecurityRollupId;
 [TypedId("anr", IdKind.Int64Ordered)]
 public readonly partial record struct AnalyticsRollupId;
 
+/// <summary>One visitor's stretch of activity in a host's honeypot (host, client address and user agent, ended by 30 idle minutes). Int64Ordered: admin-only,
+/// append-only and high-volume, and its order is the order sessions began.</summary>
+[TypedId("hps", IdKind.Int64Ordered)]
+public readonly partial record struct HoneypotSessionId;
+
+/// <summary>One request a honeypot answered, as the recording keeps it. Int64Ordered, like its session.</summary>
+[TypedId("hpr", IdKind.Int64Ordered)]
+public readonly partial record struct HoneypotRequestId;
+
 /// <summary>A notification event as the outbox stores it: what happened, once, however many channels it was addressed to. Int64Ordered: admin-only,
 /// append-only and high-volume.</summary>
 [TypedId("nev", IdKind.Int64Ordered)]

@@ -41,7 +41,7 @@ public sealed class ConfigDatabaseTests
         Assert.Empty(await context.Database.GetPendingMigrationsAsync(Ct));
         var tables = await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
         Assert.Equal(
-            ["AcmeAccounts", "AcmeOrders", "AnalyticsRollups", "ApiTokens", "AuditEvents", "CertificateNames", "Certificates", "ConfigDraftNotices", "ConfigDrafts", "ConfigRevisions", "DnsProviders", "ExpiryNotices", "MetricRollups", "NotificationChannels", "NotificationDeliveries", "NotificationEvents", "RecoveryCodes", "RoleAssignments", "SecurityRollups", "Sessions", "Users", "__EFMigrationsHistory", "__EFMigrationsLock"],
+            ["AcmeAccounts", "AcmeOrders", "AnalyticsRollups", "ApiTokens", "AuditEvents", "CertificateNames", "Certificates", "ConfigDraftNotices", "ConfigDrafts", "ConfigRevisions", "DnsProviders", "ExpiryNotices", "HoneypotRequests", "HoneypotSessions", "MetricRollups", "NotificationChannels", "NotificationDeliveries", "NotificationEvents", "RecoveryCodes", "RoleAssignments", "SecurityRollups", "Sessions", "Users", "__EFMigrationsHistory", "__EFMigrationsLock"],
             tables.Select(r => (string)r[0]!).Order(StringComparer.Ordinal));
         Assert.Equal("wal", await db.ScalarAsync("PRAGMA journal_mode"));
     }
@@ -107,10 +107,33 @@ public sealed class ConfigDatabaseTests
 
         var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
 
-        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn", "20261113023752_AnalyticsRollupBytesIn", "20261114051015_MetricRollupRefusals", "20261114051633_SecurityRollups", "20261115040341_ApiTokenDisabled"], result.AppliedMigrations);
+        Assert.Equal(["20261111050534_DropConfigProjection", "20261111195820_MetricRollups", "20261112013131_NotificationChannels", "20261112024452_AuditSignInIndex", "20261112055123_MetricRollupCoverage", "20261112125909_AnalyticsRollups", "20261112141908_NotificationOutbox", "20261112200011_ConfigDrafts", "20261113023733_MetricRollupBytesIn", "20261113023752_AnalyticsRollupBytesIn", "20261114051015_MetricRollupRefusals", "20261114051633_SecurityRollups", "20261115040341_ApiTokenDisabled", "20261121085057_HoneypotRecording"], result.AppliedMigrations);
         var tables = (await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).Select(r => (string)r[0]!).ToList();
         Assert.All(["GlobalSettings", "Profiles", "Upstreams", "Destinations", "Hosts", "HostNames", "Routes"], dropped => Assert.DoesNotContain(dropped, tables));
         Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM ConfigRevisions WHERE Seq = 1"));
+        await using var upgraded = db.NewContext();
+        Assert.Empty(await upgraded.Database.GetPendingMigrationsAsync(Ct));
+    }
+
+    [Fact]
+    public async Task ADatabaseFromV010GetsTheHoneypotTablesAndKeepsItsRows()
+    {
+        await using var db = Empty();
+        await using (var context = db.NewContext())
+        {
+            // The newest migration v0.1.0 shipped.
+            await context.GetService<IMigrator>().MigrateAsync("20261115040341_ApiTokenDisabled", Ct);
+        }
+
+        await db.ExecuteAsync(
+            "INSERT INTO AnalyticsRollups (Id, Tier, Subject, HostKey, Start, CoveredSeconds, Requests, BytesOut, BytesIn, ServerErrors) VALUES (1, 0, 0, '', 29000000, 300, 0, 0, 0, 0)");
+
+        var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
+
+        Assert.Equal(["20261121085057_HoneypotRecording"], result.AppliedMigrations);
+        Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM AnalyticsRollups"));
+        Assert.Equal(0L, await db.ScalarAsync("SELECT count(*) FROM HoneypotSessions"));
+        Assert.Equal(0L, await db.ScalarAsync("SELECT count(*) FROM HoneypotRequests"));
         await using var upgraded = db.NewContext();
         Assert.Empty(await upgraded.Database.GetPendingMigrationsAsync(Ct));
     }

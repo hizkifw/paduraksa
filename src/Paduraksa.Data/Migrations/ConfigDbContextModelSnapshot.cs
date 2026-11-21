@@ -14,7 +14,7 @@ namespace Paduraksa.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
             modelBuilder.Entity("Paduraksa.Data.Analytics.AnalyticsRollupRow", b =>
                 {
@@ -319,6 +319,201 @@ namespace Paduraksa.Data.Migrations
 
                             t.HasCheckConstraint("CK_ConfigDrafts_Version", "\"Version\" >= 1");
                         });
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Honeypot.HoneypotRequestRow", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Accept")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AcceptLanguage")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Entry")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PageKey")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PageKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ParentKey")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PathTruncated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Pow")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Protocol")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Referer")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecFetchDest")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecFetchMode")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecFetchSite")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SecFetchUser")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SessionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SolveMilliseconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Time")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TlsVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Time");
+
+                    b.HasIndex("SessionId", "Id");
+
+                    b.ToTable("HoneypotRequests", (string)null);
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Honeypot.HoneypotSessionRow", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Canary")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ChallengesPassed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ChallengesShown")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ChallengesSolved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientIp")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GuessedUrls")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("HostKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Images")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("JsRuns")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LastSeen")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkBeacon")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkComment")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkDirect")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkFeed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkHidden")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkImage")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkNoFollow")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkNoIndexPage")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkNormal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkScript")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkSitemap")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkSponsored")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LinkUgc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaxDepth")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Pages")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ReadRobotsFirst")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Requests")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StartedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserAgent")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastSeen");
+
+                    b.ToTable("HoneypotSessions", (string)null);
                 });
 
             modelBuilder.Entity("Paduraksa.Data.Identity.ApiTokenRow", b =>
