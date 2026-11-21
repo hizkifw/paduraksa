@@ -1,4 +1,4 @@
-<MudPaper Class="@("pdk-card pdk-sec-tile" + (Href is null ? null : " pdk-sec-tile-linked") + (Spark is null ? null : " pdk-sec-tile-bleed"))" Elevation="0" Outlined="true"
+<MudPaper Class="@("pdk-card pdk-sec-tile" + (Href is null ? null : " pdk-sec-tile-linked") + (Spark is null ? null : " pdk-sec-tile-bleed") + (Pending ? " pdk-sec-tile-pending" : null))" Elevation="0" Outlined="true"
           data-tile="@(Pending ? null : Name)" data-pending="@(Pending ? Name : null)" aria-busy="@(Pending ? "true" : null)">
     @if (Href is null)
     {
@@ -10,18 +10,14 @@
         <a class="pdk-sec-label pdk-sec-link" href="@Href" data-part="link" title="@LinkTitle">@Label</a>
     }
     <div class="pdk-sec-figure">
-        <span class="@("pdk-sec-value" + (Pending ? " pdk-pending" : null))" data-part="value">@(Pending ? "0" : Value)</span>
+        <span class="pdk-sec-value" data-part="value">@(Pending ? "0" : Value)</span>
         <span class="pdk-sec-rate" data-part="rate">@Rate</span>
     </div>
     <span class="pdk-sec-detail" data-part="detail">@Detail</span>
     @if (Spark is not null)
     {
         <div class="pdk-sec-spark" data-part="spark">
-            @if (Pending)
-            {
-                <div class="pdk-pending-block"></div>
-            }
-            else
+            @if (!Pending)
             {
                 @Spark
             }
@@ -40,8 +36,8 @@
     public string Value { get; set; } = string.Empty;
 
     /// <summary>
-    /// The figure is not here yet: the tile is the same tile (its label, detail, link and the sparkline's room) with a bar where the value
-    /// goes, so nothing moves when it arrives.
+    /// The figure is not here yet: the tile is the same tile (its label, detail, link and the sparkline's room), hidden under one
+    /// placeholder the size of the tile, so nothing moves when it arrives.
     /// </summary>
     [Parameter]
     public bool Pending { get; set; }

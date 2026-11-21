@@ -304,10 +304,11 @@
     height: 8px;
     border-radius: 50%;
     background: var(--mud-palette-primary);
-    animation: pdk-pulse 1.2s ease-in-out infinite;
+    animation: pdk-step-pulse 1.2s ease-in-out infinite;
 }
 
-@keyframes pdk-pulse {
+/* Its own name: keyframes are global, and the skeletons' pdk-pulse must not scale. */
+@keyframes pdk-step-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.35; transform: scale(0.7); }
 }

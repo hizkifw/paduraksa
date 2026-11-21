@@ -313,9 +313,21 @@
     justify-content: flex-end;
 }
 
-.pdk-sec-tile-bleed .pdk-sec-spark .pdk-pending-block {
-    height: var(--pdk-spark-height);
-    border-radius: 0;
+/* A pending tile is one placeholder: an empty card the loaded tile's size (its content keeps the size but isn't shown) that pulses. */
+.pdk-sec-tile-pending.mud-paper,
+.pdk-sec-tile-pending:hover.mud-paper {
+    border-color: var(--mud-palette-lines-default);
+    animation: pdk-pulse 1.5s ease-in-out infinite;
+}
+
+.pdk-sec-tile-pending > * {
+    visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pdk-sec-tile-pending.mud-paper {
+        animation: none;
+    }
 }
 
 .pdk-sec-tile-bleed .pdk-chart-compact,
