@@ -19,13 +19,15 @@ public sealed partial class HoneypotRuntime
         IHoneypotSiteFactory? siteFactory = null,
         int maxConcurrent = HoneypotLimits.DefaultMaxConcurrent,
         TimeProvider? time = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        HoneypotStats? stats = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxConcurrent, 1);
         Sink = sink ?? NullHoneypotSink.Instance;
         SiteFactory = siteFactory ?? new DefaultHoneypotSiteFactory();
         MaxConcurrent = maxConcurrent;
         Time = time ?? TimeProvider.System;
+        Stats = stats ?? new HoneypotStats();
         _logger = logger;
     }
 
@@ -36,7 +38,8 @@ public sealed partial class HoneypotRuntime
 
     public IHoneypotSiteFactory SiteFactory { get; }
 
-    public HoneypotStats Stats { get; } = new();
+    /// <summary>The counters; a sink that counts its drops (<see cref="HoneypotStats.CountDropped"/>) is built over the same instance.</summary>
+    public HoneypotStats Stats { get; }
 
     /// <summary>The most trap answers generated at once.</summary>
     public int MaxConcurrent { get; }
