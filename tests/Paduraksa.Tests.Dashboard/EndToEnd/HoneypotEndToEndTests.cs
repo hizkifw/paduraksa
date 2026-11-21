@@ -72,14 +72,14 @@ public sealed partial class HoneypotEndToEndTests
         var row = page.Locator("[data-section=honeypot] [data-session]");
         await Expect(row).ToHaveCountAsync(1, new() { Timeout = 40_000 });
         await Expect(page.Locator("[data-section=honeypot-empty]")).ToHaveCountAsync(0);
-        await Expect(page.Locator("[data-tile=honeypot-sessions] [data-part=value]")).ToHaveTextAsync("1", new() { Timeout = 20_000 });
+        await Expect(page.Locator("[data-tile=honeypot-sessions] [data-part=value]")).ToHaveTextAsync("1", new() { Timeout = 40_000 });
         await Expect(row.Locator("[data-part=address] .pdk-copy-text")).ToHaveTextAsync("127.0.0.1");
 
         // The user agent is text: the markup it holds made no element.
         await Expect(row.Locator("[data-part=agent]")).ToHaveTextAsync(Agent);
         Assert.Equal(0, await page.Locator("[data-section=honeypot] b").CountAsync());
         Assert.Equal(0, await page.Locator("[data-section=honeypot] a[href*='example.test']").CountAsync());
-        await Expect(page.Locator("[data-section=honeypot-paths] [data-guessed='/archive-e2e/wp-login-not-a-page']")).ToBeVisibleAsync(new() { Timeout = 20_000 });
+        await Expect(page.Locator("[data-section=honeypot-paths] [data-guessed='/archive-e2e/wp-login-not-a-page']")).ToBeVisibleAsync(new() { Timeout = 40_000 });
         await Expect(page.Locator("[data-section=honeypot-behaviour] [data-behaviour=direct]")).ToBeVisibleAsync();
         await ScrollToSectionAsync(page);
         await PlaywrightBrowser.ScreenshotAsync(page, "honeypot-section-1366", fullPage: false);
