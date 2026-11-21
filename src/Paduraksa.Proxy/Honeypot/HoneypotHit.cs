@@ -104,7 +104,7 @@ public interface IHoneypotSink
     void RobotsFetched(HostId host, IpKey clientIp, string userAgent);
 }
 
-/// <summary>The sink until something records: it drops everything.</summary>
+/// <summary>The sink of a runtime that was given none, as in a compile with no recording: it drops everything.</summary>
 public sealed class NullHoneypotSink : IHoneypotSink
 {
     public static NullHoneypotSink Instance { get; } = new();

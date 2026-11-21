@@ -15709,6 +15709,438 @@
         },
         "security": [ ]
       }
+    },
+    "/api/v1/honeypot/summary": {
+      "get": {
+        "tags": [
+          "Honeypot"
+        ],
+        "summary": "Read what visitors did in the honeypot",
+        "description": "Sessions, requests and guessed URLs over a range, the behaviour matrix (how many sessions followed each kind of link, ran the page's script, fetched images, were shown, solved or passed the proof-of-work challenge, and read robots.txt first), and the user agents with the most requests, each with its bot class. The counts are exact. Shed and dropped are process counters since the server started, not per range. Sessions are written a few seconds after their requests.\n\nRequires the `metrics:read` permission.",
+        "operationId": "GetHoneypotSummary",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "description": "How far back to look: sessions whose latest request is within it.",
+            "schema": {
+              "enum": [
+                "hour",
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "default": "hour"
+            }
+          },
+          {
+            "name": "host",
+            "in": "query",
+            "description": "Only this host's honeypot: its ID (host_..., which may have been deleted since). All hosts if absent.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The honeypot over a range, for every host or for one (docs/design/waf.md \"Honeypot\", \"Recording\").",
+                  "$ref": "#/components/schemas/HoneypotSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `metrics:read` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "metrics:read"
+      }
+    },
+    "/api/v1/honeypot/sessions": {
+      "get": {
+        "tags": [
+          "Honeypot"
+        ],
+        "summary": "List honeypot sessions",
+        "description": "Newest first. A session is one visitor (host, client address in full and user agent) from its first request until 30 idle minutes pass. Every filter is optional, and a session must match all that are set.\n\nRequires the `metrics:read` permission.",
+        "operationId": "ListHoneypotSessions",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "description": "How far back to look: sessions whose latest request is within it.",
+            "schema": {
+              "enum": [
+                "hour",
+                "day",
+                "week",
+                "month"
+              ],
+              "type": "string",
+              "default": "hour"
+            }
+          },
+          {
+            "name": "host",
+            "in": "query",
+            "description": "Only this host's honeypot: its ID (host_..., which may have been deleted since). All hosts if absent.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Only sessions whose client address starts with this text (an address typed in full also matches its other spellings), or whose user agent or canary phrase contains it, ignoring case.",
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "How many items a page holds, 1 to 200 (default 50).",
+            "schema": {
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
+            "schema": {
+              "maxLength": 96,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "One page of a cursor-paginated list.",
+                  "$ref": "#/components/schemas/PageOfHoneypotSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `metrics:read` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "metrics:read"
+      }
+    },
+    "/api/v1/honeypot/sessions/{id}": {
+      "get": {
+        "tags": [
+          "Honeypot"
+        ],
+        "summary": "Get a honeypot session",
+        "description": "The session's counters. Its requests are at /sessions/{id}/requests.\n\nRequires the `metrics:read` permission.",
+        "operationId": "GetHoneypotSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "examples": [
+                "hps_0A1b2C3d4E5"
+              ],
+              "pattern": "^hps_[0-9A-Za-z]{11}$",
+              "type": "string",
+              "description": "One visitor's stretch of activity in a host's honeypot (host, client address and user agent, ended by 30 idle minutes). Int64Ordered: admin-only, append-only and high-volume, and its order is the order sessions began."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "One visitor's session in a host's honeypot: the host, the client address in full and the user agent, from the first request until 30 idle minutes pass (docs/design/waf.md \"Honeypot\"). The counters cover the whole session, so a session that began before the range of a query is counted in full. A session is written a few seconds after its requests, so the newest figures lag by about that.",
+                  "$ref": "#/components/schemas/HoneypotSession"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no such object.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `metrics:read` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "metrics:read"
+      }
+    },
+    "/api/v1/honeypot/sessions/{id}/requests": {
+      "get": {
+        "tags": [
+          "Honeypot"
+        ],
+        "summary": "List a honeypot session's requests",
+        "description": "Oldest first. The tables keep 30 days and the newest 1 000 000 requests, so a long session may have lost its earliest requests.\n\nRequires the `metrics:read` permission.",
+        "operationId": "ListHoneypotSessionRequests",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "examples": [
+                "hps_0A1b2C3d4E5"
+              ],
+              "pattern": "^hps_[0-9A-Za-z]{11}$",
+              "type": "string",
+              "description": "One visitor's stretch of activity in a host's honeypot (host, client address and user agent, ended by 30 idle minutes). Int64Ordered: admin-only, append-only and high-volume, and its order is the order sessions began."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "How many items a page holds, 1 to 200 (default 50).",
+            "schema": {
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The nextCursor of the previous page, to continue after it. The cursor is an opaque string that only the API that issued it understands.",
+            "schema": {
+              "maxLength": 96,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "One page of a cursor-paginated list.",
+                  "$ref": "#/components/schemas/PageOfHoneypotRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is malformed: a parameter, header or body is unusable (the problem says which).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "There is no such object.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks the `metrics:read` permission.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected error. The trace ID in the problem identifies it in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An error answer of the REST API: an RFC 9457 problem details object (`application/problem+json`). Every error the admin app answers under `/api` has this shape. `type`, `title`, `status`, `detail` and `traceId` are the standard members; the rest are extension members that appear when they apply.",
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [ ]
+          }
+        ],
+        "x-required-permission": "metrics:read"
+      }
     }
   },
   "components": {
@@ -20746,6 +21178,539 @@
         "additionalProperties": false,
         "description": "The most recent state change of an upstream or one of its destinations."
       },
+      "HoneypotBehaviour": {
+        "required": [
+          "links",
+          "ranJs",
+          "fetchedImages",
+          "challengesShown",
+          "challengesSolved",
+          "challengesPassed",
+          "readRobotsFirst"
+        ],
+        "type": "object",
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "description": "A kind of link and how many times it was followed or by how many sessions.",
+              "$ref": "#/components/schemas/HoneypotLinkCount"
+            },
+            "description": "For every kind of link, how many sessions followed one at least once."
+          },
+          "ranJs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions that made a request only a client that runs the page's script makes.",
+            "format": "int64"
+          },
+          "fetchedImages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions that fetched an image.",
+            "format": "int64"
+          },
+          "challengesShown": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions that were shown the proof-of-work challenge.",
+            "format": "int64"
+          },
+          "challengesSolved": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions that solved it.",
+            "format": "int64"
+          },
+          "challengesPassed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions served a page behind it on a valid cookie.",
+            "format": "int64"
+          },
+          "readRobotsFirst": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions whose visitor fetched robots.txt before its first request.",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "What the sessions of a range did, as the number of sessions that did it."
+      },
+      "HoneypotCounts": {
+        "required": [
+          "sessions",
+          "requests",
+          "pages",
+          "guessedUrls",
+          "shed",
+          "dropped"
+        ],
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions with a request in the range.",
+            "format": "int64"
+          },
+          "requests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Their requests (whole sessions: see HoneypotSession).",
+            "format": "int64"
+          },
+          "pages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Their requests for a page of the site.",
+            "format": "int64"
+          },
+          "guessedUrls": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Their requests for a URL that is no page.",
+            "format": "int64"
+          },
+          "shed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests the trap answered `503` because it was already generating its cap of answers, since the server started (not per range).",
+            "format": "int64"
+          },
+          "dropped": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests the recording had no room for, since the server started (not per range): not in any figure here.",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The sessions of a range, and what they did."
+      },
+      "HoneypotLinkCount": {
+        "required": [
+          "kind",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "How the link was published: `direct` (a URL no link carries: the index, a guessed URL, a landing), `normal`, `nofollow`, `ugc`, `sponsored`, `hidden` (an anchor hidden with CSS), `comment` (a URL in an HTML comment), `script` (a link that exists only after the page's script ran), `beacon` (a request the script makes on load), `sitemap`, `feed`, `noindexPage` (a link on a page marked noindex) or `image`."
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests that followed it, in a session; sessions that followed it, in the summary's behaviour.",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A kind of link and how many times it was followed or by how many sessions."
+      },
+      "HoneypotPathCount": {
+        "required": [
+          "path",
+          "pathTruncated",
+          "requests",
+          "lastSeen"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The canonical path, without the query string, at most 512 characters."
+          },
+          "pathTruncated": {
+            "type": "boolean",
+            "description": "The path was longer than that and Path is its beginning."
+          },
+          "requests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests for it in the range.",
+            "format": "int64"
+          },
+          "lastSeen": {
+            "type": "string",
+            "description": "The latest of them.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A path that was asked for and is no page of the trap, with how often."
+      },
+      "HoneypotRequest": {
+        "required": [
+          "id",
+          "time",
+          "entry",
+          "pageKind",
+          "linkKind",
+          "pageKey",
+          "parentKey",
+          "path",
+          "pathTruncated",
+          "status",
+          "proofOfWork",
+          "solveMilliseconds",
+          "protocol"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The request.",
+            "$ref": "#/components/schemas/HoneypotRequestId"
+          },
+          "time": {
+            "type": "string",
+            "description": "When it arrived.",
+            "format": "date-time"
+          },
+          "entry": {
+            "type": "string",
+            "description": "How it got in: `robots` (the host serves the robots.txt `Disallow` line, so a crawler that read it would not have come), `prefix` (the host's robots.txt passes through) or `rule` (a rule set's honeypot action answered a path outside the prefix)."
+          },
+          "pageKind": {
+            "type": "string",
+            "description": "What the URL named: `index`, `indexPage`, `post`, `category`, `tag`, `author`, `sitemap`, `feed`, `image`, `beacon`, `landing` or `notFound`. A verify request carries the page the visitor was sent back to."
+          },
+          "linkKind": {
+            "type": "string",
+            "description": "The kind of link the URL was published as, as in `kind`."
+          },
+          "pageKey": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The page's ID, the seed of its content: its kind in the bits above the 28 of the ID itself, so one number names one page across kinds. Called a key because the API's IDs are typed (`hps_...`) and this one is the trap's own number.",
+            "format": "int64"
+          },
+          "parentKey": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The key of the page whose link this URL is; 0 when none (the index is 0 too).",
+            "format": "int64"
+          },
+          "path": {
+            "type": "string",
+            "description": "The canonical path the gate matched on, without the query string: the trap's verify path for a verify request, and the path that was probed (`/wp-login.php`) for a landing page a rule set's honeypot action answered. At most 512 characters. It is what the client sent, so it may hold any characters."
+          },
+          "pathTruncated": {
+            "type": "boolean",
+            "description": "The path was longer than 512 characters and Path is its beginning."
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The status answered.",
+            "format": "int32"
+          },
+          "proofOfWork": {
+            "type": "string",
+            "description": "What the challenge did: `none` (the page wasn't behind one), `shown` (the challenge was answered instead of the page), `solved` (a verify request with a valid solution, status 303) or `passed` (the page served on a valid cookie)."
+          },
+          "solveMilliseconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "With `solved`: from the challenge's issue to its verification, to the second; else 0.",
+            "format": "int32"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "The HTTP version: `HTTP/1.1`, `HTTP/2`, `HTTP/3`."
+          },
+          "tlsVersion": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The negotiated TLS version (`tls12`, `tls13`); null on plain HTTP."
+          },
+          "accept": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The `Accept` header, cut to 256 characters."
+          },
+          "acceptLanguage": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The `Accept-Language` header, cut to 128 characters."
+          },
+          "secFetchSite": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The `Sec-Fetch-Site` header."
+          },
+          "secFetchMode": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The `Sec-Fetch-Mode` header."
+          },
+          "secFetchDest": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The `Sec-Fetch-Dest` header."
+          },
+          "secFetchUser": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The `Sec-Fetch-User` header."
+          },
+          "referer": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The `Referer` header, cut to 512 characters."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One request the trap answered, as the gate saw it, read as a page of a session's requests, oldest first."
+      },
+      "HoneypotRequestId": {
+        "examples": [
+          "hpr_0A1b2C3d4E5"
+        ],
+        "pattern": "^hpr_[0-9A-Za-z]{11}$",
+        "type": "string",
+        "description": "One request a honeypot answered, as the recording keeps it. Int64Ordered, like its session."
+      },
+      "HoneypotSession": {
+        "required": [
+          "id",
+          "host",
+          "clientIp",
+          "userAgent",
+          "botKind",
+          "botName",
+          "canary",
+          "startedAt",
+          "lastSeen",
+          "readRobotsFirst",
+          "requests",
+          "pages",
+          "guessedUrls",
+          "images",
+          "jsRuns",
+          "challengesShown",
+          "challengesSolved",
+          "challengesPassed",
+          "maxDepth",
+          "links"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "The session.",
+            "$ref": "#/components/schemas/HoneypotSessionId"
+          },
+          "host": {
+            "description": "The host whose trap it was (it may have been deleted since).",
+            "$ref": "#/components/schemas/HostId"
+          },
+          "clientIp": {
+            "type": "string",
+            "description": "The client address, in full: unlike the rest of the analytics, the honeypot keeps it."
+          },
+          "userAgent": {
+            "type": "string",
+            "description": "The `User-Agent`, cut to 512 characters; empty when the client sent none."
+          },
+          "botKind": {
+            "type": "string",
+            "description": "What kind of automated client the user agent names: `none`, `searchEngine`, `aiCrawler`, `monitor`, `socialPreview`, `scanner`, `library` or `unknown`."
+          },
+          "botName": {
+            "type": "string",
+            "description": "The bot's name (`GPTBot`, `curl`); empty when the agent isn't one."
+          },
+          "canary": {
+            "type": "string",
+            "description": "The visitor's canary phrase: two made-up words woven into the posts it was served. If they turn up in a search engine or a model's answer, they name this visitor. Empty when no page that carries one was served."
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "The first request.",
+            "format": "date-time"
+          },
+          "lastSeen": {
+            "type": "string",
+            "description": "The latest request.",
+            "format": "date-time"
+          },
+          "readRobotsFirst": {
+            "type": "boolean",
+            "description": "The visitor fetched robots.txt (up to a day) before its first request: a crawler that read the file and still came in."
+          },
+          "requests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests the trap answered for it.",
+            "format": "int32"
+          },
+          "pages": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests for a page of the site (the index, a post, a category, a tag, an author, an index page or a landing), including one answered with the challenge; not the sitemap, the feed, an image, the beacon, a URL that is no page, or the challenge's verify request.",
+            "format": "int32"
+          },
+          "guessedUrls": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests for a URL under the prefix that is no page: a token that doesn't verify, or any other path.",
+            "format": "int32"
+          },
+          "images": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests for an image.",
+            "format": "int32"
+          },
+          "jsRuns": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests that only a client that runs the page's script makes: the beacon and the script link.",
+            "format": "int32"
+          },
+          "challengesShown": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Requests answered with the proof-of-work challenge instead of the page.",
+            "format": "int32"
+          },
+          "challengesSolved": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Verify requests that carried a valid solution.",
+            "format": "int32"
+          },
+          "challengesPassed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Pages behind the challenge served on a valid cookie.",
+            "format": "int32"
+          },
+          "maxDepth": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The most links followed from the index to reach a page served to this session, counted from the parent pages it requested itself. A page whose parent it never requested is one link deep. 0 when it only had the index.",
+            "format": "int32"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "description": "A kind of link and how many times it was followed or by how many sessions.",
+              "$ref": "#/components/schemas/HoneypotLinkCount"
+            },
+            "description": "Requests by the kind of link they followed, for the kinds followed at least once. The verify request follows none."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One visitor's session in a host's honeypot: the host, the client address in full and the user agent, from the first request until 30 idle minutes pass (docs/design/waf.md \"Honeypot\"). The counters cover the whole session, so a session that began before the range of a query is counted in full. A session is written a few seconds after its requests, so the newest figures lag by about that."
+      },
+      "HoneypotSessionId": {
+        "examples": [
+          "hps_0A1b2C3d4E5"
+        ],
+        "pattern": "^hps_[0-9A-Za-z]{11}$",
+        "type": "string",
+        "description": "One visitor's stretch of activity in a host's honeypot (host, client address and user agent, ended by 30 idle minutes). Int64Ordered: admin-only, append-only and high-volume, and its order is the order sessions began."
+      },
       "HoneypotSettings": {
         "type": "object",
         "properties": {
@@ -20800,6 +21765,109 @@
         },
         "additionalProperties": false,
         "description": "A trap blog with no end that the host serves under one path prefix, for crawlers that ignore `robots.txt` or probe for weak spots. It only records what visitors do. There is no route override: the trap answers before route matching. Each field inherits on its own."
+      },
+      "HoneypotSummary": {
+        "required": [
+          "at",
+          "range",
+          "counts",
+          "behaviour",
+          "topUserAgents",
+          "topGuessedPaths"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When it was read.",
+            "format": "date-time"
+          },
+          "range": {
+            "description": "How far back it reaches: a session counts when its latest request is in the range.",
+            "$ref": "#/components/schemas/MetricsRange"
+          },
+          "counts": {
+            "description": "The headline figures.",
+            "$ref": "#/components/schemas/HoneypotCounts"
+          },
+          "behaviour": {
+            "description": "What the sessions did.",
+            "$ref": "#/components/schemas/HoneypotBehaviour"
+          },
+          "topUserAgents": {
+            "type": "array",
+            "items": {
+              "description": "A user agent among the sessions of a range.",
+              "$ref": "#/components/schemas/HoneypotUserAgent"
+            },
+            "description": "The user agents with the most requests, at most ten."
+          },
+          "topGuessedPaths": {
+            "type": "array",
+            "items": {
+              "description": "A path that was asked for and is no page of the trap, with how often.",
+              "$ref": "#/components/schemas/HoneypotPathCount"
+            },
+            "description": "The paths asked for most that are no page: a URL under the prefix that doesn't verify, and the paths a rule set's honeypot action answered with a landing page. At most ten, by requests and then by latest. Counted by request time within the range, not by session."
+          },
+          "host": {
+            "examples": [
+              "host_0A1b2C3d4E5f6G7h8I9j0K"
+            ],
+            "pattern": "^host_[0-9A-Za-z]{22}$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The host asked for; absent for every host."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The honeypot over a range, for every host or for one (docs/design/waf.md \"Honeypot\", \"Recording\")."
+      },
+      "HoneypotUserAgent": {
+        "required": [
+          "userAgent",
+          "botKind",
+          "botName",
+          "sessions",
+          "requests"
+        ],
+        "type": "object",
+        "properties": {
+          "userAgent": {
+            "type": "string",
+            "description": "The user agent, cut to 512 characters; empty for a client that sent none."
+          },
+          "botKind": {
+            "type": "string",
+            "description": "As in `botKind`."
+          },
+          "botName": {
+            "type": "string",
+            "description": "The bot's name, or empty when it isn't one."
+          },
+          "sessions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Sessions with it.",
+            "format": "int64"
+          },
+          "requests": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Their requests.",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A user agent among the sessions of a range."
       },
       "HostConfig": {
         "required": [
@@ -23139,6 +24207,56 @@
             "items": {
               "description": "A DNS provider as listed. No credential and no vault reference: the credential is named only by the internal row.",
               "$ref": "#/components/schemas/DnsProviderSummary"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfHoneypotRequest": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "description": "One request the trap answered, as the gate saw it, read as a page of a session's requests, oldest first.",
+              "$ref": "#/components/schemas/HoneypotRequest"
+            },
+            "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An opaque cursor to pass as `cursor` for the next page; null on the last page. Always written, so a client reads one shape everywhere."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One page of a cursor-paginated list."
+      },
+      "PageOfHoneypotSession": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "description": "One visitor's session in a host's honeypot: the host, the client address in full and the user agent, from the first request until 30 idle minutes pass (docs/design/waf.md \"Honeypot\"). The counters cover the whole session, so a session that began before the range of a query is counted in full. A session is written a few seconds after its requests, so the newest figures lag by about that.",
+              "$ref": "#/components/schemas/HoneypotSession"
             },
             "description": "The items, in the order the endpoint documents (newest first for history, ascending by ID for the rest)."
           },
@@ -27364,6 +28482,9 @@
     },
     {
       "name": "CA"
+    },
+    {
+      "name": "Honeypot"
     }
   ]
 }

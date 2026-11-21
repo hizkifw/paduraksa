@@ -108,6 +108,7 @@ internal sealed class SharedServices : IAsyncDisposable
         TwoFactor = Get<TwoFactorService>();
         Login = Get<LoginService>();
         ApiTokens = Get<ApiTokenService>();
+        HoneypotStore = Get<HoneypotStore>();
         Setup = Get<SetupService>();
         Permissions = Get<IPermissionEvaluator>();
     }
@@ -129,6 +130,9 @@ internal sealed class SharedServices : IAsyncDisposable
     public LoginService Login { get; }
 
     public ApiTokenService ApiTokens { get; }
+
+    /// <summary>The honeypot's sessions and requests: the recording job writes through it, and a test writes through it to see a request in the API without waiting for the job.</summary>
+    public HoneypotStore HoneypotStore { get; }
 
     /// <summary>First-run setup: whether an Owner exists, and the one-time setup token.</summary>
     public SetupService Setup { get; }

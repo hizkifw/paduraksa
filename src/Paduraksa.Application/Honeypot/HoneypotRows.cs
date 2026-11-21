@@ -84,7 +84,7 @@ internal static class HoneypotRows
             row.ClientIp,
             row.UserAgent,
             CamelCase(agent.Bot.ToString()),
-            agent.BotName,
+            agent.BotName ?? string.Empty,
             row.Canary,
             DateTimeOffset.FromUnixTimeMilliseconds(row.StartedAt),
             DateTimeOffset.FromUnixTimeMilliseconds(row.LastSeen),

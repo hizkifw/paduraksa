@@ -21,8 +21,8 @@ public sealed record HoneypotSessionFilter(MetricsRange Range, HostId? Host = nu
 /// <summary>A page of sessions, newest first. <paramref name="Next"/> is the last session of a page that has older ones after it.</summary>
 public sealed record HoneypotSessionPage(IReadOnlyList<HoneypotSession> Items, HoneypotSessionId? Next);
 
-/// <summary>A session with a page of its requests, oldest first. <paramref name="Next"/> is the last request of a page that has later ones after it.</summary>
-public sealed record HoneypotSessionRead(HoneypotSession Session, IReadOnlyList<HoneypotRequest> Requests, HoneypotRequestId? Next);
+/// <summary>A page of a session's requests, oldest first. <paramref name="Next"/> is the last request of a page that has later ones after it.</summary>
+public sealed record HoneypotRequestPage(IReadOnlyList<HoneypotRequest> Items, HoneypotRequestId? Next);
 
 /// <summary>
 /// The read side of the honeypot recording (docs/design/waf.md "Honeypot", "Recording") that the admin API shares: reads of the two tables, without authorization
@@ -61,7 +61,7 @@ public sealed class HoneypotService
         return await _contexts.UseAsync(async context =>
         {
             var sessions = Sessions(context, from, hostKey);
-            var totals = await sessions.GroupBy(static _ => 1).Select(static group => new
+            var totalRows = await sessions.GroupBy(static _ => 1).Select(static group => new
             {
                 Sessions = group.Count(),
                 Requests = group.Sum(static s => (long)s.Requests),
@@ -86,7 +86,9 @@ public sealed class HoneypotService
                 Feed = group.Count(static s => s.LinkFeed > 0),
                 NoIndexPage = group.Count(static s => s.LinkNoIndexPage > 0),
                 Image = group.Count(static s => s.LinkImage > 0),
-            }).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+            }).ToListAsync(cancellationToken).ConfigureAwait(false);
+            // One group at most, and none for no sessions.
+            var totals = totalRows.FirstOrDefault();
 
             var agents = await sessions.GroupBy(static s => s.UserAgent)
                 .Select(static group => new { UserAgent = group.Key, Sessions = group.Count(), Requests = group.Sum(static s => (long)s.Requests) })
@@ -126,11 +128,11 @@ public sealed class HoneypotService
             return new HoneypotSummary(
                 at,
                 range,
-                host,
                 new HoneypotCounts(totals?.Sessions ?? 0, totals?.Requests ?? 0, totals?.Pages ?? 0, totals?.GuessedUrls ?? 0, _stats.Shed, _stats.Dropped),
                 new HoneypotBehaviour(links, totals?.RanJs ?? 0, totals?.FetchedImages ?? 0, totals?.Shown ?? 0, totals?.Solved ?? 0, totals?.Passed ?? 0, totals?.Robots ?? 0),
                 [.. agents.Select(static agent => AgentOf(agent.UserAgent, agent.Sessions, agent.Requests))],
-                [.. paths.Select(static path => new HoneypotPathCount(path.Path, path.PathTruncated, path.Requests, DateTimeOffset.FromUnixTimeMilliseconds(path.LastSeen)))]);
+                [.. paths.Select(static path => new HoneypotPathCount(path.Path, path.PathTruncated, path.Requests, DateTimeOffset.FromUnixTimeMilliseconds(path.LastSeen)))],
+                host);
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -162,15 +164,25 @@ public sealed class HoneypotService
         }, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>One session and a page of its requests, oldest first; null when there is no such session (it may be past retention).</summary>
-    public async Task<HoneypotSessionRead?> ReadSessionAsync(HoneypotSessionId id, int limit, HoneypotRequestId? after, CancellationToken cancellationToken)
+    /// <summary>One session; null when there is none (it may be past retention).</summary>
+    public async Task<HoneypotSession?> ReadSessionAsync(HoneypotSessionId id, CancellationToken cancellationToken) =>
+        await _contexts.UseAsync(async context =>
+        {
+            var row = await context.HoneypotSessions.AsNoTracking().FirstOrDefaultAsync(session => session.Id == id, cancellationToken).ConfigureAwait(false);
+            return row is null ? null : HoneypotRows.ToSession(row);
+        }, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// A page of a session's requests, oldest first; <paramref name="after"/> is the last request of the previous page. Null when the session
+    /// isn't there. A session that is may have lost its earliest requests to the request cap.
+    /// </summary>
+    public async Task<HoneypotRequestPage?> ListRequestsAsync(HoneypotSessionId id, int limit, HoneypotRequestId? after, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, MaxPageSize);
         return await _contexts.UseAsync(async context =>
         {
-            var row = await context.HoneypotSessions.AsNoTracking().FirstOrDefaultAsync(session => session.Id == id, cancellationToken).ConfigureAwait(false);
-            if (row is null)
+            if (!await context.HoneypotSessions.AsNoTracking().AnyAsync(session => session.Id == id, cancellationToken).ConfigureAwait(false))
             {
                 return null;
             }
@@ -181,10 +193,11 @@ public sealed class HoneypotService
                 requests = requests.Where(request => request.Id > cursor);
             }
 
+            // One more than asked: whether it exists says whether later requests remain.
             var rows = await requests.OrderBy(request => request.Id).Take(limit + 1).ToListAsync(cancellationToken).ConfigureAwait(false);
             var more = rows.Count > limit;
             HoneypotRequest[] items = [.. rows.Take(limit).Select(HoneypotRows.ToRequest)];
-            return new HoneypotSessionRead(HoneypotRows.ToSession(row), items, more ? items[^1].Id : null);
+            return new HoneypotRequestPage(items, more ? items[^1].Id : null);
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -215,6 +228,6 @@ public sealed class HoneypotService
     private static HoneypotUserAgent AgentOf(string userAgent, int sessions, long requests)
     {
         var info = UserAgentClassifier.Classify(userAgent);
-        return new HoneypotUserAgent(userAgent, HoneypotRows.CamelCase(info.Bot.ToString()), info.BotName, sessions, requests);
+        return new HoneypotUserAgent(userAgent, HoneypotRows.CamelCase(info.Bot.ToString()), info.BotName ?? string.Empty, sessions, requests);
     }
 }

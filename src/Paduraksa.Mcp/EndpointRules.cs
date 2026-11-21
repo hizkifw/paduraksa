@@ -118,5 +118,6 @@ public static class EndpointRules
         new("GET", "/api/v1/ca", true, "the local CA's root certificate is public"),
         new("*", "/api/v1/config", true, "the configuration document, its export and import; every secret in it is a reference, and an import is a write that needs confirm"),
         new("GET", "/api/v1/metrics/overview", false, "the live overview; read-only"),
+        new("GET", "/api/v1/honeypot/sessions", true, "what visitors did in a honeypot, with their client addresses and canary phrases; neither is a secret, and a read changes nothing"),
     ];
 }

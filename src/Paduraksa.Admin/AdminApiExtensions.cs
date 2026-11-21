@@ -72,6 +72,7 @@ public static class AdminApiExtensions
         AnalyticsEndpoints.Map(api);
         SimulateEndpoints.Map(api);
         CaEndpoint.Map(api);
+        HoneypotEndpoints.Map(api);
         AdminOpenApi.Map(endpoints);
         if (endpoints.ServiceProvider.GetService(typeof(McpToolkit)) is not null)
         {

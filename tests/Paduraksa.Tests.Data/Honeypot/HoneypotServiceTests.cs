@@ -82,7 +82,7 @@ public sealed class HoneypotServiceTests
         var curl = summary.TopUserAgents[1];
         Assert.Equal((2L, 3L), (curl.Sessions, curl.Requests));
         Assert.Equal("none", summary.TopUserAgents[2].BotKind);
-        Assert.Null(summary.TopUserAgents[2].BotName);
+        Assert.Equal(string.Empty, summary.TopUserAgents[2].BotName);
     }
 
     [Fact]
@@ -266,21 +266,24 @@ public sealed class HoneypotServiceTests
     }
 
     [Fact]
-    public async Task ASessionAndItsRequestsAreReadOldestFirstAPageAtATime()
+    public async Task ASessionIsReadByItsIDAndItsRequestsOldestFirstAPageAtATime()
     {
         await using var rig = await BehavingAsync();
         var session = (await rig.Service.ListSessionsAsync(new HoneypotSessionFilter(MetricsRange.Hour, Query: "198.51.100.20"), 5, null, Ct)).Items.Single();
 
-        var first = await rig.Service.ReadSessionAsync(session.Id, 4, null, Ct);
-        var second = await rig.Service.ReadSessionAsync(session.Id, 4, first!.Next, Ct);
+        var read = await rig.Service.ReadSessionAsync(session.Id, Ct);
+        var first = await rig.Service.ListRequestsAsync(session.Id, 4, null, Ct);
+        var second = await rig.Service.ListRequestsAsync(session.Id, 4, first!.Next, Ct);
 
-        Assert.Equal(session.Id, first.Session.Id);
-        Assert.Equal(["index", "post", "post", "post"], first.Requests.Select(static r => r.PageKind));
-        Assert.Equal(["none", "none", "shown", "solved"], first.Requests.Select(static r => r.ProofOfWork));
+        // Lists compare by reference in a record, so the links are compared by value apart.
+        Assert.Equal(session with { Links = [] }, read! with { Links = [] });
+        Assert.Equal(session.Links, read.Links);
+        Assert.Equal(["index", "post", "post", "post"], first.Items.Select(static r => r.PageKind));
+        Assert.Equal(["none", "none", "shown", "solved"], first.Items.Select(static r => r.ProofOfWork));
         Assert.NotNull(first.Next);
-        Assert.Equal(["post", "beacon", "image"], second!.Requests.Select(static r => r.PageKind));
+        Assert.Equal(["post", "beacon", "image"], second!.Items.Select(static r => r.PageKind));
         Assert.Null(second.Next);
-        var solved = first.Requests[3];
+        var solved = first.Items[3];
         Assert.Equal((303, 3_000, "HTTP/2", "tls13"), (solved.Status, solved.SolveMilliseconds, solved.Protocol, solved.TlsVersion));
         Assert.Equal(("robots", "normal", 6L, 0L), (solved.Entry, solved.LinkKind, solved.PageKey, solved.ParentKey));
         Assert.Equal(("text/html", "en-US", "none", "navigate", "document", "?1", "https://example.test/"), (solved.Accept, solved.AcceptLanguage, solved.SecFetchSite, solved.SecFetchMode, solved.SecFetchDest, solved.SecFetchUser, solved.Referer));
@@ -289,10 +292,27 @@ public sealed class HoneypotServiceTests
     }
 
     [Fact]
-    public async Task ASessionNobodyKeptIsNotFound()
+    public async Task ASessionNobodyKeptHasNoRequestsEither()
     {
         await using var rig = await HoneypotRig.CreateAsync();
+        var id = HoneypotSessionId.New();
 
-        Assert.Null(await rig.Service.ReadSessionAsync(HoneypotSessionId.New(), 10, null, Ct));
+        Assert.Null(await rig.Service.ReadSessionAsync(id, Ct));
+        Assert.Null(await rig.Service.ListRequestsAsync(id, 10, null, Ct));
+    }
+
+    [Fact]
+    public async Task ASessionWhoseRequestsWerePrunedHasAnEmptyPage()
+    {
+        await using var rig = await HoneypotRig.CreateAsync();
+        await rig.RecordAsync(Hit(), Hit(id: 2, after: TimeSpan.FromSeconds(1)));
+        var session = (await rig.Service.ListSessionsAsync(new HoneypotSessionFilter(MetricsRange.Hour), 5, null, Ct)).Items.Single();
+        await rig.Store.PruneAsync(Start, new HoneypotRetention(TimeSpan.FromDays(30), MaxSessions: 100, MaxRequests: 0), Ct);
+
+        var page = await rig.Service.ListRequestsAsync(session.Id, 10, null, Ct);
+
+        Assert.Empty(page!.Items);
+        Assert.Null(page.Next);
+        Assert.NotNull(await rig.Service.ReadSessionAsync(session.Id, Ct));
     }
 }

@@ -69,7 +69,8 @@ public sealed class HoneypotJobAndPlanTests
 
         _ = await service.ReadSummaryAsync(MetricsRange.Day, null, Ct);
         _ = await service.ListSessionsAsync(new HoneypotSessionFilter(MetricsRange.Day, Host), 5, firstPage.Next, Ct);
-        _ = await service.ReadSessionAsync(firstPage.Items[0].Id, 10, null, Ct);
+        _ = await service.ReadSessionAsync(firstPage.Items[0].Id, Ct);
+        _ = await service.ListRequestsAsync(firstPage.Items[0].Id, 10, null, Ct);
         _ = await store.PruneAsync(Start, new HoneypotRetention(TimeSpan.FromDays(30), 10, 10), Ct);
 
         Assert.NotEmpty(capture.Statements);

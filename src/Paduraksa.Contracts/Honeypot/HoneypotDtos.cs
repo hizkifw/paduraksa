@@ -1,4 +1,3 @@
-using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Metrics;
 using Paduraksa.Core.Model;
 
@@ -19,7 +18,7 @@ public sealed record HoneypotLinkCount(string Kind, long Count);
 /// <param name="ClientIp">The client address, in full: unlike the rest of the analytics, the honeypot keeps it.</param>
 /// <param name="UserAgent">The <c>User-Agent</c>, cut to 512 characters; empty when the client sent none.</param>
 /// <param name="BotKind">What kind of automated client the user agent names: <c>none</c>, <c>searchEngine</c>, <c>aiCrawler</c>, <c>monitor</c>, <c>socialPreview</c>, <c>scanner</c>, <c>library</c> or <c>unknown</c>.</param>
-/// <param name="BotName">The bot's name (<c>GPTBot</c>, <c>curl</c>); null when the agent isn't one.</param>
+/// <param name="BotName">The bot's name (<c>GPTBot</c>, <c>curl</c>); empty when the agent isn't one.</param>
 /// <param name="Canary">The visitor's canary phrase: two made-up words woven into the posts it was served. If they turn up in a search engine or a model's answer, they name this visitor. Empty when no page that carries one was served.</param>
 /// <param name="StartedAt">The first request.</param>
 /// <param name="LastSeen">The latest request.</param>
@@ -40,7 +39,7 @@ public sealed record HoneypotSession(
     string ClientIp,
     string UserAgent,
     string BotKind,
-    string? BotName,
+    string BotName,
     string Canary,
     DateTimeOffset StartedAt,
     DateTimeOffset LastSeen,
@@ -56,7 +55,7 @@ public sealed record HoneypotSession(
     int MaxDepth,
     IReadOnlyList<HoneypotLinkCount> Links);
 
-/// <summary>One request the trap answered, as the gate saw it.</summary>
+/// <summary>One request the trap answered, as the gate saw it, read as a page of a session's requests, oldest first.</summary>
 /// <param name="Id">The request.</param>
 /// <param name="Time">When it arrived.</param>
 /// <param name="Entry">How it got in: <c>robots</c> (the host serves the robots.txt <c>Disallow</c> line, so a crawler that read it would not have come), <c>prefix</c> (the host's robots.txt passes through) or <c>rule</c> (a rule set's honeypot action answered a path outside the prefix).</param>
@@ -92,19 +91,14 @@ public sealed record HoneypotRequest(
     string ProofOfWork,
     int SolveMilliseconds,
     string Protocol,
-    string? TlsVersion,
-    string? Accept,
-    string? AcceptLanguage,
-    string? SecFetchSite,
-    string? SecFetchMode,
-    string? SecFetchDest,
-    string? SecFetchUser,
-    string? Referer);
-
-/// <summary>A session and its requests.</summary>
-/// <param name="Session">The session.</param>
-/// <param name="Requests">Its requests, oldest first, a page at a time. The tables keep 30 days and 1 000 000 requests, oldest first, so a long session may have lost its earliest ones.</param>
-public sealed record HoneypotSessionDetail(HoneypotSession Session, Page<HoneypotRequest> Requests);
+    string? TlsVersion = null,
+    string? Accept = null,
+    string? AcceptLanguage = null,
+    string? SecFetchSite = null,
+    string? SecFetchMode = null,
+    string? SecFetchDest = null,
+    string? SecFetchUser = null,
+    string? Referer = null);
 
 /// <summary>A path that was asked for and is no page of the trap, with how often.</summary>
 /// <param name="Path">The canonical path, without the query string, at most 512 characters.</param>
@@ -142,24 +136,24 @@ public sealed record HoneypotBehaviour(
 /// <summary>A user agent among the sessions of a range.</summary>
 /// <param name="UserAgent">The user agent, cut to 512 characters; empty for a client that sent none.</param>
 /// <param name="BotKind">As in <see cref="HoneypotSession.BotKind"/>.</param>
-/// <param name="BotName">The bot's name, or null when it isn't one.</param>
+/// <param name="BotName">The bot's name, or empty when it isn't one.</param>
 /// <param name="Sessions">Sessions with it.</param>
 /// <param name="Requests">Their requests.</param>
-public sealed record HoneypotUserAgent(string UserAgent, string BotKind, string? BotName, long Sessions, long Requests);
+public sealed record HoneypotUserAgent(string UserAgent, string BotKind, string BotName, long Sessions, long Requests);
 
 /// <summary>The honeypot over a range, for every host or for one (docs/design/waf.md "Honeypot", "Recording").</summary>
 /// <param name="At">When it was read.</param>
 /// <param name="Range">How far back it reaches: a session counts when its latest request is in the range.</param>
-/// <param name="Host">The host asked for; null for every host.</param>
 /// <param name="Counts">The headline figures.</param>
 /// <param name="Behaviour">What the sessions did.</param>
 /// <param name="TopUserAgents">The user agents with the most requests, at most ten.</param>
 /// <param name="TopGuessedPaths">The paths asked for most that are no page: a URL under the prefix that doesn't verify, and the paths a rule set's honeypot action answered with a landing page. At most ten, by requests and then by latest. Counted by request time within the range, not by session.</param>
+/// <param name="Host">The host asked for; absent for every host.</param>
 public sealed record HoneypotSummary(
     DateTimeOffset At,
     MetricsRange Range,
-    HostId? Host,
     HoneypotCounts Counts,
     HoneypotBehaviour Behaviour,
     IReadOnlyList<HoneypotUserAgent> TopUserAgents,
-    IReadOnlyList<HoneypotPathCount> TopGuessedPaths);
+    IReadOnlyList<HoneypotPathCount> TopGuessedPaths,
+    HostId? Host = null);

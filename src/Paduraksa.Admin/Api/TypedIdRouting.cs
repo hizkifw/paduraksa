@@ -48,6 +48,7 @@ internal static class TypedIdRouting
         Add<UserId>(options);
         Add<SessionId>(options);
         Add<ApiTokenId>(options);
+        Add<HoneypotSessionId>(options);
     }
 
     /// <summary>A typed ID from a string: the route constraint and the identity endpoints' optional query filters use this, so both refuse the empty ID too.</summary>

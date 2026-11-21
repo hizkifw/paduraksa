@@ -8,6 +8,7 @@ using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Drafts;
+using Paduraksa.Contracts.Honeypot;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Logging;
 using Paduraksa.Contracts.Metrics;
@@ -121,6 +122,10 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(SecurityOverview))]
 [JsonSerializable(typeof(MetricsOverview))]
 [JsonSerializable(typeof(AnalyticsOverview))]
+[JsonSerializable(typeof(HoneypotSummary))]
+[JsonSerializable(typeof(Page<HoneypotSession>))]
+[JsonSerializable(typeof(HoneypotSession))]
+[JsonSerializable(typeof(Page<HoneypotRequest>))]
 [JsonSerializable(typeof(CertificateSummary))]
 [JsonSerializable(typeof(Page<CertificateSummary>))]
 [JsonSerializable(typeof(CertificateDetail))]
