@@ -139,14 +139,15 @@ public sealed class HoneypotCompileTests
     }
 
     [Fact]
-    public void ABuildWithoutAGeneratorFailsTheCompileInsteadOfThrowing()
+    public void TheDefaultRuntimeBuildsTheGeneratorsSiteUnderItsDerivedPrefix()
     {
         var options = new HoneypotRig().Options with { Honeypot = new HoneypotRuntime() };
 
-        var result = SnapshotCompiler.Compile(Model(Host("a")), options);
+        var trap = Compiled(Compile(Model(Host("a")), options), "a").Honeypot!;
 
-        Assert.False(result.Succeeded);
-        Assert.Contains(result.Errors, e => e.Message.Contains("can't be built", StringComparison.Ordinal));
+        var site = Assert.IsType<HoneypotSite>(trap.Site);
+        Assert.Equal(trap.Prefix, site.Prefix);
+        Assert.Equal(HoneypotPageKind.Index, site.Resolve(trap.Prefix).Kind);
     }
 
     [Fact]
