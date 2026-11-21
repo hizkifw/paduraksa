@@ -89,6 +89,9 @@ internal sealed class FakeHoneypotSiteFactory : IHoneypotSiteFactory
 {
     public List<(byte[] Key, HoneypotSiteOptions Options)> Created { get; } = [];
 
+    /// <summary>Called by every site it makes as it renders, so a test can hold a render open.</summary>
+    public Action<HoneypotTarget>? OnRender { get; set; }
+
     public string DerivePrefix(ReadOnlySpan<byte> siteKey) => "/archive-" + Convert.ToHexStringLower(siteKey[..2]) + "/";
 
     public string DeriveSiteName(ReadOnlySpan<byte> siteKey) => "Blog " + Convert.ToHexStringLower(siteKey[..2]);
@@ -96,7 +99,7 @@ internal sealed class FakeHoneypotSiteFactory : IHoneypotSiteFactory
     public IHoneypotSite Create(ReadOnlySpan<byte> siteKey, HoneypotSiteOptions options)
     {
         Created.Add((siteKey.ToArray(), options));
-        return new FakeHoneypotSite(options.Prefix);
+        return new FakeHoneypotSite(options.Prefix) { OnRender = target => OnRender?.Invoke(target) };
     }
 }
 

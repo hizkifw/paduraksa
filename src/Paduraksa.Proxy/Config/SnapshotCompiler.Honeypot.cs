@@ -1,5 +1,6 @@
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
+using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Honeypot;
 
 namespace Paduraksa.Proxy.Config;
@@ -34,7 +35,7 @@ public static partial class SnapshotCompiler
                 // A prefix the operator wrote can still be answered, with the 503 a protected route gives; a derived one can't be known.
                 runtime.ReportKeyUnavailable();
                 return settings.Path is { } configured && HoneypotPrefix.Problem(configured) is null
-                    ? new CompiledHoneypot(configured, site: null, settings.NoIndex, settings.PowDifficulty, settings.PowShare, serveRobotsLine)
+                    ? new CompiledHoneypot(configured, site: null, settings.NoIndex, settings.PowDifficulty, settings.PowShare, serveRobotsLine, runtime, Options.ProofOfWork ?? ProofOfWorkRuntime.Unavailable)
                     : null;
             }
 
@@ -64,7 +65,7 @@ public static partial class SnapshotCompiler
                     return null;
                 }
 
-                return new CompiledHoneypot(prefix, site, settings.NoIndex, settings.PowDifficulty, settings.PowShare, serveRobotsLine);
+                return new CompiledHoneypot(prefix, site, settings.NoIndex, settings.PowDifficulty, settings.PowShare, serveRobotsLine, runtime, Options.ProofOfWork ?? ProofOfWorkRuntime.Unavailable);
             }
             catch (Exception ex) when (ex is NotSupportedException or ArgumentException or InvalidOperationException)
             {

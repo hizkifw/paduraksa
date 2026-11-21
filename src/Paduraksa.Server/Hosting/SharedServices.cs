@@ -25,6 +25,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
@@ -376,7 +377,9 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             var originPullCa = LoadOriginPullCa(options.Cloudflare.OriginPullCaFile);
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth, metrics, connections, options.Limits.ToLimits()));
+            // The trap's sink, factory, cap and counters: compiled hosts carry this one, and the recording that replaces the null sink is built from it.
+            var honeypot = builder.Add(new HoneypotRuntime(maxConcurrent: options.Honeypot.MaxConcurrent, time: timeProvider, logger: coreLoggers.CreateLogger("Paduraksa.Proxy.Honeypot")));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth, metrics, connections, options.Limits.ToLimits(), honeypot));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 

@@ -132,6 +132,9 @@ public sealed class GateRequestState : IGateFeature
     /// <summary>The last access-list verdict of a simulated request, for the trace's sentence; never set on a real one.</summary>
     internal AccessLists.AccessListOutcome AccessListOutcome { get; set; }
 
+    /// <summary>The request reached the trap through a rule set's honeypot action rather than the prefix.</summary>
+    internal bool HoneypotViaRule { get; set; }
+
     /// <summary>What the gate did, once a policy refused or the request was handed on; <see cref="GateOutcome.Unset"/> for the answers the end of the request classifies.</summary>
     internal GateOutcome Outcome { get; set; }
 
@@ -203,6 +206,7 @@ public sealed class GateRequestState : IGateFeature
         DeferredPolicy = null;
         AccessListOutcome = default;
         Outcome = GateOutcome.Unset;
+        HoneypotViaRule = false;
         Metrics = null;
         UpstreamDestinationKey = null;
         CountedBody = null;

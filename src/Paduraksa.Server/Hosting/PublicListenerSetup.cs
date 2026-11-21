@@ -3,6 +3,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
@@ -32,7 +33,8 @@ internal sealed class PublicListenerSetup
         ForwardAuthRuntime? forwardAuth = null,
         MetricsRegistry? metrics = null,
         ConnectionRuntime? connections = null,
-        ServerLimits? limits = null)
+        ServerLimits? limits = null,
+        HoneypotRuntime? honeypot = null)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -59,6 +61,7 @@ internal sealed class PublicListenerSetup
             AccessLists = accessLists,
             ForwardAuth = forwardAuth,
             Metrics = metrics,
+            Honeypot = honeypot,
         };
     }
 

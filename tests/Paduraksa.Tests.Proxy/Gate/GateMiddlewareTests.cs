@@ -41,6 +41,7 @@ public sealed class GateMiddlewareTests : IDisposable
                 ],
             },
             ProxyHost("narrow", "narrow.test", Route("narrow-api", "api", "/api")),
+            ProxyHost("trap", "trap.test", Route("trap-root", "web")) with { Honeypot = new HostHoneypotSpec { Enabled = true, Path = "/archive-k7f3/" } },
             ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true },
             new HostSpec { Id = TestIds.Host("old"), Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test", StatusCode = 308 } },
             new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
@@ -340,6 +341,36 @@ public sealed class GateMiddlewareTests : IDisposable
             "gate with non-canonical paths (stack and pooled buffers)");
         Assert.Equal(451, _gate.Decide(TestContexts.Create("app.test", "//blocked/x")).Response!.StatusCode);
         Assert.Equal(TestIds.Route("app-api").ToString(), Decided(_gate, TestContexts.Create("app.test", "/api;v=1/items")));
+    }
+
+    [Fact]
+    public void ADecisionAroundATrapDoesNotAllocate()
+    {
+        // A request the trap's prefix misses costs one compare, whatever its spelling; one that hits sets the handler's fields and nothing else.
+        DefaultHttpContext[] contexts =
+        [
+            TestContexts.Create("trap.test", "/api/items"),
+            TestContexts.Create("trap.test", "/archive-k7f3x/"),
+            TestContexts.Create("trap.test", "//archive-k7f3x//y"),
+            TestContexts.Create("trap.test", "/archive-k7f3/post-1/"),
+            TestContexts.Create("trap.test", "//archive-k7f3//post-1/"),
+            TestContexts.Create("trap.test", "/" + new string('a', 300) + "//x"),
+            TestContexts.Create("trap.test", "/archive-k7f3/" + new string('a', 300) + "//x"),
+        ];
+        AllocAssert.Zero(
+            (_gate, contexts),
+            static s =>
+            {
+                foreach (var context in s.contexts)
+                {
+                    _ = s._gate.Decide(context);
+                }
+            },
+            "gate around a trap host");
+        Assert.Equal(GateAction.Forward, _gate.Decide(contexts[0]).Action);
+        Assert.Equal(GateAction.Forward, _gate.Decide(contexts[1]).Action);
+        Assert.Equal(GateAction.Honeypot, _gate.Decide(contexts[3]).Action);
+        Assert.Equal(GateAction.Honeypot, _gate.Decide(contexts[4]).Action);
     }
 
     [Fact]

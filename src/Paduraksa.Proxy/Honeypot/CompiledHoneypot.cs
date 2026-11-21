@@ -9,9 +9,20 @@ namespace Paduraksa.Proxy.Honeypot;
 internal sealed class CompiledHoneypot
 {
     public CompiledHoneypot(
-        string prefix, IHoneypotSite? site, bool noIndex, int powDifficulty, int powShare, bool serveRobotsLine)
+        string prefix,
+        IHoneypotSite? site,
+        bool noIndex,
+        int powDifficulty,
+        int powShare,
+        bool serveRobotsLine,
+        HoneypotRuntime runtime,
+        ProofOfWorkRuntime proofOfWork)
     {
         ArgumentException.ThrowIfNullOrEmpty(prefix);
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(proofOfWork);
+        Runtime = runtime;
+        ProofOfWork = proofOfWork;
         Prefix = prefix;
         Site = site;
         NoIndex = noIndex;
@@ -24,6 +35,12 @@ internal sealed class CompiledHoneypot
 
     /// <summary>The path of the proof-of-work verify endpoint, under the prefix, so a trap token's cookie (whose path is the prefix) goes with it.</summary>
     public const string VerifyName = "verify";
+
+    /// <summary>The sink, the counters and the cap: the process's, carried here so the gate's decision needs no more than the host.</summary>
+    public HoneypotRuntime Runtime { get; }
+
+    /// <summary>The key, the clock and the process counters of the proof-of-work flow the trap's challenge shares.</summary>
+    public ProofOfWorkRuntime ProofOfWork { get; }
 
     /// <summary>The trap prefix: canonical, starting and ending with <c>/</c>.</summary>
     public string Prefix { get; }

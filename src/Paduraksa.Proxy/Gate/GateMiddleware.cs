@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
@@ -36,6 +37,9 @@ internal enum GateAction : byte
     /// <summary>A policy deferred its verdict (<see cref="GateRequestState.DeferredPolicy"/>): <see cref="GateMiddleware.InvokeAsync"/>
     /// awaits it, then resumes the chain after that policy. Only the production decision returns it, never a simulation.</summary>
     AwaitPolicy,
+
+    /// <summary>The host's trap answers: <see cref="GateMiddleware.FinishAsync"/> hands the request to the honeypot handler, which resolves the URL, renders the page and records the hit.</summary>
+    Honeypot,
 }
 
 /// <summary>The gate's synchronous verdict, 24 bytes: the action, the answer and its precomputed <c>Retry-After</c>.
@@ -53,6 +57,8 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
     public static GateDecision VerifyProofOfWork => new(GateAction.VerifyProofOfWork, null);
 
     public static GateDecision AwaitPolicy => new(GateAction.AwaitPolicy, null);
+
+    public static GateDecision Honeypot => new(GateAction.Honeypot, null);
 }
 
 /// <summary>
@@ -113,7 +119,7 @@ public sealed class GateMiddleware
 
             // The proxy's own answer for a known host carries its custom response rules (a forward gets them from the response
             // transform, after the upstream's headers are copied). A name no host serves gets none, as it gets no HSTS.
-            if (decision.Action is GateAction.Respond or GateAction.VerifyProofOfWork && state.Host is { } answering)
+            if (decision.Action is GateAction.Respond or GateAction.VerifyProofOfWork or GateAction.Honeypot && state.Host is { } answering)
             {
                 CompiledHeaders.ApplyResponse(context.Response.Headers, (state.Route?.Headers ?? answering.Headers).Response);
             }
@@ -125,6 +131,11 @@ public sealed class GateMiddleware
         if (decision.Action == GateAction.VerifyProofOfWork && state?.Host is { } verifyHost)
         {
             return ProofOfWorkEndpoint.HandleAsync(context, verifyHost, _proofOfWork);
+        }
+
+        if (decision.Action == GateAction.Honeypot && state?.Host is { Honeypot: not null } trapHost)
+        {
+            return HoneypotEndpoint.HandleAsync(context, trapHost, state);
         }
 
         return CompleteAsync(context, decision, next);
@@ -324,10 +335,30 @@ public sealed class GateMiddleware
         {
             var served = host.RobotsTxt is not null;
             tracer.RobotsTxt(host, served);
+
+            // Whether a visitor read the file before going into the trap is what its session says, so the sink hears of every fetch on a host with one.
+            if (!TTracer.IsSimulation && host.Honeypot is { } robotsTrap)
+            {
+                robotsTrap.Runtime.Sink.RobotsFetched(host.Id, state.ClientAddress, request.Headers.UserAgent.ToString());
+            }
+
             if (served)
             {
                 return GateDecision.Respond(host.RobotsTxt!);
             }
+        }
+
+        // After robots.txt, which a crawler should still read, and before maintenance, a fixed answer and route matching: the trap is
+        // the host's, whatever the upstream or the mode it is in. After the host chain, so an allow list or a rule set still applies
+        // inside it. One ordinal compare on the canonical path, so a request that misses costs nothing.
+        if (host.Honeypot is { } trap && HoneypotTargets.IsUnder(request.Path.Value.AsSpan(), trap.Prefix))
+        {
+            // The trap's own 404s and 503s are answers of the host, not a missing route or a snapshot that isn't ready; and the proxy's own
+            // pages are never compressed.
+            state.Outcome = GateOutcome.Answered;
+            state.ProxyAnswered = true;
+            state.HoneypotViaRule = false;
+            return GateDecision.Honeypot;
         }
 
         // After robots.txt, which a crawler should still read, and before every answer of the host's own and the route: a host in

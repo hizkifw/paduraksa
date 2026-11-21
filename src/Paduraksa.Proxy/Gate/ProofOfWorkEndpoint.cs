@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Paduraksa.Core.Text;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.ProxyProtocol;
@@ -36,17 +37,30 @@ internal static class ProofOfWorkEndpoint
             return;
         }
 
+        var settings = new ProofOfWorkVerification(
+            ProofOfWorkDomain.Gate, host.ProofOfWorkHostScope, host.ProofOfWork.Difficulty, host.ProofOfWork.TokenLifetimeHours, "/", null, runtime.Stats);
+        _ = await VerifyAsync(context, key, runtime.Time, settings).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads the posted form, checks the challenge and the work, and answers: <c>303</c> to the return target with the token cookie on
+    /// success, the same <c>303</c> without a cookie for an expired challenge, else <c>403</c> (or <c>413</c>). The browser check and the
+    /// trap run the same code over their own <paramref name="settings"/>.
+    /// </summary>
+    internal static async Task<ProofOfWorkVerifyResult> VerifyAsync(HttpContext context, IMacKey key, TimeProvider time, ProofOfWorkVerification settings)
+    {
+        var stats = settings.Stats;
         if (context.Request.ContentLength > MaxBodyBytes)
         {
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.BodyTooLarge).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
         if (!(context.Request.ContentType?.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase) ?? false))
         {
-            runtime.Stats.CountVerifyRejected();
+            stats?.CountVerifyRejected();
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.VerificationFailed).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
         var buffer = new byte[MaxBodyBytes + 1];
@@ -55,7 +69,7 @@ internal static class ProofOfWorkEndpoint
         if (total > MaxBodyBytes)
         {
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.BodyTooLarge).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
         Span<char> challenge = stackalloc char[ProofOfWorkChallenge.EncodedLength + 1];
@@ -63,70 +77,77 @@ internal static class ProofOfWorkEndpoint
         Span<char> returnTarget = stackalloc char[MaxBodyBytes + 1];
         if (!TryParseForm(buffer.AsSpan(0, total), challenge, out var challengeLength, solution, out var solutionLength, returnTarget, out var returnLength))
         {
-            runtime.Stats.CountVerifyRejected();
+            stats?.CountVerifyRejected();
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.VerificationFailed).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
         var state = context.Features.Get<IGateFeature>()?.State;
         var client = state?.ClientAddress ?? IpKey.Unspecified;
-        var now = runtime.Time.GetUtcNow().ToUnixTimeSeconds();
+        var now = time.GetUtcNow().ToUnixTimeSeconds();
         if (now is < 0 or > uint.MaxValue)
         {
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.Unavailable).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
         var valid = ProofOfWorkChallenge.TryValidate(
-            challenge[..challengeLength], key, host.ProofOfWorkHostScope, client, now, out _, out var difficulty, out var problem);
+            settings.Domain, challenge[..challengeLength], key, settings.HostScope, client, now, out var issuedAt, out var difficulty, out var problem);
         if (!valid)
         {
             if (problem == ProofOfWorkChallengeProblem.Expired)
             {
-                runtime.Stats.CountExpired();
-                Redirect(context, SanitizeReturn(returnTarget[..returnLength]));
-                return;
+                stats?.CountExpired();
+                Redirect(context, SanitizeReturn(returnTarget[..returnLength], settings.ReturnPrefix));
+                return ProofOfWorkVerifyResult.Rejected;
             }
 
-            runtime.Stats.CountVerifyRejected();
+            stats?.CountVerifyRejected();
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.VerificationFailed).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
-        if (difficulty < host.ProofOfWork.Difficulty
+        if (difficulty < settings.Difficulty
             || !ProofOfWorkChallenge.TryVerifySolution(challenge[..challengeLength], solution[..solutionLength], difficulty))
         {
-            runtime.Stats.CountVerifyRejected();
+            stats?.CountVerifyRejected();
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.VerificationFailed).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
-        var lifetime = (long)host.ProofOfWork.TokenLifetimeHours * 3600;
+        var lifetime = (long)settings.LifetimeHours * 3600;
         var expiresAt = now + lifetime;
         if (expiresAt > uint.MaxValue)
         {
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.Unavailable).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
         Span<char> token = stackalloc char[ProofOfWorkToken.EncodedLength];
-        if (!ProofOfWorkToken.TryEncode(key, host.ProofOfWorkHostScope, client, (uint)expiresAt, difficulty, token, out var tokenLength))
+        if (!ProofOfWorkToken.TryEncode(settings.Domain, key, settings.HostScope, client, (uint)expiresAt, difficulty, token, out var tokenLength))
         {
             await ResponseWriter.WriteAsync(context, ProofOfWorkResponses.Unavailable).ConfigureAwait(false);
-            return;
+            return ProofOfWorkVerifyResult.Rejected;
         }
 
-        runtime.Stats.CountSolved();
-        context.Response.Headers.SetCookie = Cookie(token[..tokenLength], lifetime, secure: state?.IsHttps == true);
-        Redirect(context, SanitizeReturn(returnTarget[..returnLength]));
+        stats?.CountSolved();
+        context.Response.Headers.SetCookie = Cookie(settings.Domain.CookieName, token[..tokenLength], lifetime, secure: state?.IsHttps == true, settings.CookiePath);
+        var location = SanitizeReturn(returnTarget[..returnLength], settings.ReturnPrefix);
+        Redirect(context, location);
+        return new ProofOfWorkVerifyResult(ProofOfWorkVerifyOutcome.Solved, issuedAt, location);
     }
 
     // Secure follows the trusted scheme (a TLS-terminating proxy counts), not the connection's own.
-    internal static string Cookie(ReadOnlySpan<char> token, long lifetimeSeconds, bool secure) => string.Concat(
-        ProofOfWorkToken.CookieName,
+    internal static string Cookie(ReadOnlySpan<char> token, long lifetimeSeconds, bool secure) =>
+        Cookie(ProofOfWorkToken.CookieName, token, lifetimeSeconds, secure, "/");
+
+    internal static string Cookie(string name, ReadOnlySpan<char> token, long lifetimeSeconds, bool secure, string path) => string.Concat(
+        name,
         "=",
         token.ToString(),
-        "; Path=/; HttpOnly; SameSite=Lax; Max-Age=",
+        "; Path=",
+        path,
+        "; HttpOnly; SameSite=Lax; Max-Age=",
         lifetimeSeconds.ToString(CultureInfo.InvariantCulture),
         secure ? "; Secure" : string.Empty);
 
@@ -134,7 +155,19 @@ internal static class ProofOfWorkEndpoint
     /// A local path only: starts with one <c>/</c>, not <c>//</c> or <c>/\</c> (both are read as another authority),
     /// has no control character or space, and stays visible ASCII so the <c>Location</c> header is unambiguous.
     /// </summary>
-    internal static string SanitizeReturn(ReadOnlySpan<char> value)
+    internal static string SanitizeReturn(ReadOnlySpan<char> value) => SanitizeReturn(value, null);
+
+    /// <summary>
+    /// <see cref="SanitizeReturn(ReadOnlySpan{char})"/>, and when <paramref name="prefix"/> is set the target also has to lie under it:
+    /// the trap sends a solver back into the trap, never out of it.
+    /// </summary>
+    internal static string SanitizeReturn(ReadOnlySpan<char> value, string? prefix)
+    {
+        var target = SanitizeLocal(value);
+        return prefix is null || target.StartsWith(prefix, StringComparison.Ordinal) ? target : prefix;
+    }
+
+    private static string SanitizeLocal(ReadOnlySpan<char> value)
     {
         if (value.IsEmpty || value[0] != '/' || (value.Length > 1 && value[1] is '/' or '\\')
             || value.IndexOfAny(AsciiChars.ControlOrSpace) >= 0)
@@ -308,4 +341,34 @@ internal static class ProofOfWorkEndpoint
         return char.IsAsciiHexDigit(high) && char.IsAsciiHexDigit(low)
             && byte.TryParse(pair, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out value);
     }
+}
+
+/// <summary>What one verify endpoint checks against: the flow's MAC domain, the host's scope, the least difficulty, how long a token lasts, and the cookie's path.</summary>
+/// <param name="Domain">Separates this flow's challenges and tokens from the other's.</param>
+/// <param name="HostScope">The host's 16 scope bytes.</param>
+/// <param name="Difficulty">The least difficulty a challenge may carry.</param>
+/// <param name="LifetimeHours">How long the cookie lasts.</param>
+/// <param name="CookiePath">The cookie's <c>Path</c> attribute.</param>
+/// <param name="ReturnPrefix">When set, a return target outside it is replaced by it.</param>
+/// <param name="Stats">The counters to move; null: none (the trap keeps its own account).</param>
+internal readonly record struct ProofOfWorkVerification(
+    ProofOfWorkDomain Domain, byte[] HostScope, int Difficulty, int LifetimeHours, string CookiePath, string? ReturnPrefix, ProofOfWorkStats? Stats);
+
+/// <summary>What a verify request came to.</summary>
+internal enum ProofOfWorkVerifyOutcome : byte
+{
+    /// <summary>Not a valid solution (or a challenge that expired, which is redirected without a cookie).</summary>
+    Rejected,
+
+    /// <summary>A valid solution: the cookie was set and the visitor redirected.</summary>
+    Solved,
+}
+
+/// <summary>The outcome of <see cref="ProofOfWorkEndpoint.VerifyAsync"/>; the rest is for a solved one.</summary>
+/// <param name="Outcome">What happened.</param>
+/// <param name="IssuedAt">When the solved challenge was issued, in unix seconds.</param>
+/// <param name="Return">Where the visitor was sent.</param>
+internal readonly record struct ProofOfWorkVerifyResult(ProofOfWorkVerifyOutcome Outcome, uint IssuedAt = 0, string? Return = null)
+{
+    public static ProofOfWorkVerifyResult Rejected => new(ProofOfWorkVerifyOutcome.Rejected);
 }

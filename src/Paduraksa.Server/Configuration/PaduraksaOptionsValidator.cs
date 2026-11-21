@@ -112,6 +112,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         ValidateAnalytics(options.Analytics, failures);
         ValidateNotifications(options.Notifications, failures);
         ValidateMcp(options.Mcp, failures);
+        ValidateHoneypot(options.Honeypot, failures);
         ValidateAccessLog(options, failures);
         foreach (var failure in (options.Limits ?? new()).ToLimits().Validate())
         {
@@ -364,6 +365,21 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         if (mcp is not null && (mcp.IdleTimeout < TimeSpan.FromSeconds(10) || mcp.IdleTimeout > TimeSpan.FromHours(24)))
         {
             failures.Add($"{Key}:IdleTimeout must be between 10 seconds and 24 hours.");
+        }
+    }
+
+    private static void ValidateHoneypot(PaduraksaHoneypotOptions? honeypot, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":Honeypot";
+        if (honeypot is null)
+        {
+            failures.Add($"{Key} must not be null.");
+            return;
+        }
+
+        if (honeypot.MaxConcurrent is < 1 or > 1024)
+        {
+            failures.Add($"{Key}:MaxConcurrent must be between 1 and 1024.");
         }
     }
 

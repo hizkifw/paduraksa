@@ -163,6 +163,10 @@ See [Behind Cloudflare](../guide/cloudflare.md).
 
 `Paduraksa__Mcp__Enabled` (default `false`) and `Paduraksa__Mcp__IdleTimeout` (default `00:10:00`). Both are also [server settings](../guide/server-settings.md): Settings, Server, Integrations, MCP turns it on live, with no restart. See [MCP](../automation/mcp.md).
 
+## Honeypot
+
+`Paduraksa__Honeypot__MaxConcurrent` (default `16`, 1 to 1024) caps the trap answers generated at once, across hosts. A request over the cap gets `503` with `Retry-After`. See [the honeypot](../guide/security.md#honeypot).
+
 ## Development switches
 
 `Paduraksa__Development__PlaceholderCertificate` and `Paduraksa__Development__AcmeInsecureHttp` exist for tests and development and should stay off.

@@ -63,6 +63,9 @@ internal sealed class PaduraksaOptions
     /// <summary>MCP: whether the admin port serves <c>/mcp</c>.</summary>
     public PaduraksaMcpOptions Mcp { get; set; } = new();
 
+    /// <summary>The honeypot: how many trap answers are generated at once.</summary>
+    public PaduraksaHoneypotOptions Honeypot { get; set; } = new();
+
     /// <summary>
     /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core). A third of it,
     /// at most 10 s, is kept for core's last flush; when the rest elapses, Kestrel aborts the remaining connections and admin
@@ -510,6 +513,16 @@ internal sealed class PaduraksaMcpOptions
     public TimeSpan IdleTimeout { get; set; } = TimeSpan.FromMinutes(10);
 }
 
+
+/// <summary>
+/// The honeypot (<c>Paduraksa:Honeypot</c>): a host's trap generates its pages on request, so how many are generated at once is capped,
+/// and a request over the cap is answered 503 with <c>Retry-After</c>.
+/// </summary>
+internal sealed class PaduraksaHoneypotOptions
+{
+    /// <summary>The most trap answers generated at once, across hosts (default 16; 1 to 1024). Generation is CPU work, so the cap keeps a crawler that fans out from taking the cores.</summary>
+    public int MaxConcurrent { get; set; } = Paduraksa.Core.Model.HoneypotLimits.DefaultMaxConcurrent;
+}
 
 /// <summary>
 /// Traffic analytics (<c>Paduraksa:Analytics</c>): computed in the access-log drain, so a host with its access log off is in neither. These set
