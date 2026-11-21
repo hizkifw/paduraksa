@@ -7,7 +7,9 @@ using System.Text.RegularExpressions;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Honeypot;
+using Paduraksa.Proxy.RuleSets;
 using Paduraksa.ProxyProtocol;
+using Paduraksa.Tests.Proxy.RuleSets;
 using Paduraksa.Tests.Proxy.Testing;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
@@ -155,6 +157,49 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
         Assert.Null(rig.Sink.Hits[^1].Referer);
         Assert.Equal(2, rig.Sink.Hits.Count);
         Assert.Equal(2, rig.Honeypot.Stats.Served);
+    }
+
+    [Fact]
+    public async Task AHitCarriesTheCanonicalPathWithoutTheQueryAndCutAtTheLimit()
+    {
+        var rig = new HoneypotRig();
+        await using var server = await StartAsync(Model(Host("trap")), rig);
+        using var client = ProxyTestServer.CreateClient();
+        var ct = TestContext.Current.CancellationToken;
+
+        using var plain = await client.SendAsync(server.Request("trap.test", Prefix + "nothing/?utm=1&x=%2F"), ct);
+        // A redundant spelling is the path the gate matched on: dot segments and doubled slashes are folded.
+        using var spelled = await client.SendAsync(server.Request("trap.test", Prefix + "a//b/../c/"), ct);
+        using var verify = await client.SendAsync(server.Request("trap.test", Prefix + "verify"), ct);
+        var long512 = new string('x', 600);
+        using var cut = await client.SendAsync(server.Request("trap.test", Prefix + long512), ct);
+
+        Assert.Equal([Prefix + "nothing/", Prefix + "a/c/", Prefix + "verify"], rig.Sink.Hits.Take(3).Select(static h => h.Path));
+        Assert.All(rig.Sink.Hits.Take(3), static h => Assert.False(h.PathTruncated));
+        var last = rig.Sink.Hits[^1];
+        Assert.Equal(HoneypotHit.MaxPathLength, last.Path.Length);
+        Assert.True(last.PathTruncated);
+        Assert.StartsWith(Prefix + "xxx", last.Path, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARulesLandingIsRecordedUnderThePathThatWasProbed()
+    {
+        var rig = new HoneypotRig();
+        var set = TestIds.RuleSet("scanners");
+        var model = Model(Host("rules") with { Policies = [new RuleSetPolicySpec(set)] }) with
+        {
+            RuleSets = [new RuleSetSpec { Id = set, Name = "scanners", Rules = [RuleSpecs.Rule(RuleAction.Honeypot, agents: ["sqlmap"])] }],
+        };
+        await using var server = await StartAsync(model, rig);
+        using var client = ProxyTestServer.CreateClient();
+
+        using var request = server.Request("rules.test", "/wp-login.php?redirect_to=%2F");
+        request.Headers.UserAgent.ParseAdd("sqlmap/1.7");
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        var hit = Assert.Single(rig.Sink.Hits);
+        Assert.Equal((HoneypotEntry.Rule, HoneypotPageKind.Landing, "/wp-login.php"), (hit.Entry, hit.PageKind, hit.Path));
     }
 
     [Fact]

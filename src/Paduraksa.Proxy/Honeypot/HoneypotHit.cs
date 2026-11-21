@@ -59,6 +59,8 @@ public enum HoneypotPowOutcome : byte
 /// <param name="SecFetchDest">The <c>Sec-Fetch-Dest</c> header, or null.</param>
 /// <param name="SecFetchUser">The <c>Sec-Fetch-User</c> header, or null.</param>
 /// <param name="Referer">The <c>Referer</c> header, or null.</param>
+/// <param name="Path">The canonical path the gate matched on, without the query string, cut at <see cref="MaxPathLength"/> characters. For a verify request it is the verify path, and for a rule's landing page it is the path that was probed.</param>
+/// <param name="PathTruncated">The path was longer than <see cref="MaxPathLength"/> and <paramref name="Path"/> is its beginning.</param>
 public readonly record struct HoneypotHit(
     DateTimeOffset Time,
     HostId Host,
@@ -81,7 +83,13 @@ public readonly record struct HoneypotHit(
     string? SecFetchMode,
     string? SecFetchDest,
     string? SecFetchUser,
-    string? Referer);
+    string? Referer,
+    string Path = "",
+    bool PathTruncated = false)
+{
+    /// <summary>The longest path a hit carries: a scanner's request can be as long as the server's limits allow, and a row shouldn't be.</summary>
+    public const int MaxPathLength = 512;
+}
 
 /// <summary>
 /// Where the gate reports what visitors do in the trap. Called from the request, so an implementation hands the work to a queue and

@@ -295,6 +295,7 @@ internal static class HoneypotEndpoint
     {
         var request = context.Request;
         var headers = request.Headers;
+        var path = RecordedPath(request, out var truncated);
         trap.Runtime.Sink.Record(new HoneypotHit(
             trap.Runtime.Time.GetUtcNow(),
             state.Host!.Id,
@@ -317,7 +318,24 @@ internal static class HoneypotEndpoint
             Header(headers["Sec-Fetch-Mode"]),
             Header(headers["Sec-Fetch-Dest"]),
             Header(headers["Sec-Fetch-User"]),
-            Header(headers.Referer)));
+            Header(headers.Referer),
+            path,
+            truncated));
+    }
+
+    /// <summary>The path the gate matched on, as it is recorded: cut before a surrogate pair rather than through it.</summary>
+    private static string RecordedPath(HttpRequest request, out bool truncated)
+    {
+        var path = request.Path.Value ?? "/";
+        var canonical = RoutePath.IsCanonical(path) ? path : RoutePath.Canonicalize(path);
+        truncated = canonical.Length > HoneypotHit.MaxPathLength;
+        if (!truncated)
+        {
+            return canonical;
+        }
+
+        var length = char.IsHighSurrogate(canonical[HoneypotHit.MaxPathLength - 1]) ? HoneypotHit.MaxPathLength - 1 : HoneypotHit.MaxPathLength;
+        return canonical[..length];
     }
 
     private static string? Header(StringValues value) => value.Count == 0 ? null : value.ToString();

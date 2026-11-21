@@ -824,6 +824,7 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
 
 - Every trap request becomes a `HoneypotHit`, handed to `IHoneypotSink.Record`, which must not block. The sink the recording stores behind a bounded channel; if the channel is full, the hit is dropped and counted (`HoneypotStats.CountDropped`). Each hit records:
   - time, host, full client IP and user agent
+  - the canonical path the gate matched on, without the query string, cut at 512 characters and marked if it was cut. For a verify request it is the verify path, and for a rule's landing page it is the path that was probed (`/wp-login.php`)
   - entry (`robots` when the host serves the `Disallow` line, `prefix` when it doesn't, `rule` for a rule set's action), page kind, link kind, page ID and parent ID
   - status, and the proof-of-work outcome (`shown`, `solved` with the solve time, `passed`)
   - protocol, TLS version, `Accept`, `Accept-Language`, the four `Sec-Fetch-*` headers and `Referer`
