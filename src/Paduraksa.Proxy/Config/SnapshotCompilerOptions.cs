@@ -1,6 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Tls;
@@ -63,6 +64,12 @@ public sealed record SnapshotCompilerOptions
     /// The same instance is what the public app's verify endpoint uses, so the policy and the endpoint always agree.
     /// </summary>
     public ProofOfWorkRuntime? ProofOfWork { get; init; }
+
+    /// <summary>
+    /// Where the trap sends its hits, how it builds a host's site, and its cap and counters; null: <see cref="HoneypotRuntime.Default"/>.
+    /// The trap's prefix and pages come from <see cref="ProofOfWork"/>'s key, so a runtime without one can't derive them.
+    /// </summary>
+    public HoneypotRuntime? Honeypot { get; init; }
 
     /// <summary>
     /// The process's rate-limit table and slot registry; null: <see cref="RateLimitRuntime.Default"/>, a table of its

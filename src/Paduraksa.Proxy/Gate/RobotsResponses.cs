@@ -18,6 +18,19 @@ internal static class RobotsResponses
     /// <summary>The answer a custom text gets: line endings normalised and a trailing newline ensured.</summary>
     public static PrecomputedResponse Custom(string text) => For(RobotsText.NormalizeCustom(text));
 
+    /// <summary>
+    /// The answer for a host with a trap: the mode's own text with the trap's prefix disallowed in every group. Encoded once per host at
+    /// compile time, so the bytes the gate writes stay precomputed.
+    /// </summary>
+    public static PrecomputedResponse WithTrap(RobotsMode mode, string? customText, string prefix) => For(RobotsText.WithDisallow(
+        mode switch
+        {
+            RobotsMode.DisallowAll => RobotsText.DisallowAll,
+            RobotsMode.BlockAiCrawlers => RobotsText.BlockAiCrawlers,
+            _ => RobotsText.NormalizeCustom(customText!),
+        },
+        prefix));
+
     private static PrecomputedResponse For(string text) =>
         PrecomputedResponse.Create(
             StatusCodes.Status200OK,

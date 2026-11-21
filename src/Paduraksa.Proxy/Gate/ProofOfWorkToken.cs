@@ -45,13 +45,15 @@ internal static class ProofOfWorkToken
     public const int ValueLength = 22;
     public const int EncodedLength = 30;
 
-    private static ReadOnlySpan<byte> Prefix => "paduraksa-pow-token-v1"u8;
-
     /// <summary>The longest cookie value the gate parses; a longer one is malformed.</summary>
     public const int MaxCookieLength = EncodedLength;
 
     /// <summary>Reads the cookie from the raw <c>Cookie</c> header, never through <c>Request.Cookies</c> (which allocates a dictionary).</summary>
-    internal static bool TryReadCookie(HttpRequest request, Span<char> value, out int length, out ProofOfWorkTokenProblem problem)
+    internal static bool TryReadCookie(HttpRequest request, Span<char> value, out int length, out ProofOfWorkTokenProblem problem) =>
+        TryReadCookie(request, CookieName, value, out length, out problem);
+
+    /// <inheritdoc cref="TryReadCookie(HttpRequest, Span{char}, out int, out ProofOfWorkTokenProblem)"/>
+    internal static bool TryReadCookie(HttpRequest request, string cookieName, Span<char> value, out int length, out ProofOfWorkTokenProblem problem)
     {
         value = value[..Math.Min(value.Length, MaxCookieLength + 1)];
         length = 0;
@@ -72,7 +74,7 @@ internal static class ProofOfWorkToken
                 var pair = semicolon < 0 ? rest : rest[..semicolon];
                 rest = semicolon < 0 ? default : rest[(semicolon + 1)..];
                 var equals = pair.IndexOf('=');
-                if (equals <= 0 || !pair[..equals].Trim().Equals(CookieName, StringComparison.Ordinal))
+                if (equals <= 0 || !pair[..equals].Trim().Equals(cookieName, StringComparison.Ordinal))
                 {
                     continue;
                 }
@@ -121,6 +123,20 @@ internal static class ProofOfWorkToken
         int requiredDifficulty,
         out uint expiresAt,
         out int difficulty,
+        out ProofOfWorkTokenProblem problem) =>
+        TryValidate(ProofOfWorkDomain.Gate, value, key, hostScope, client, nowSeconds, requiredDifficulty, out expiresAt, out difficulty, out problem);
+
+    /// <inheritdoc cref="TryValidate(ReadOnlySpan{char}, IMacKey, ReadOnlySpan{byte}, IpKey, long, int, out uint, out int, out ProofOfWorkTokenProblem)"/>
+    internal static bool TryValidate(
+        ProofOfWorkDomain domain,
+        ReadOnlySpan<char> value,
+        IMacKey key,
+        ReadOnlySpan<byte> hostScope,
+        IpKey client,
+        long nowSeconds,
+        int requiredDifficulty,
+        out uint expiresAt,
+        out int difficulty,
         out ProofOfWorkTokenProblem problem)
     {
         expiresAt = 0;
@@ -150,7 +166,7 @@ internal static class ProofOfWorkToken
         decoded[6..].CopyTo(tag);
 
         Span<byte> input = stackalloc byte[128];
-        var written = WriteMacInput(input, expiresAt, difficulty, hostScope, client);
+        var written = WriteMacInput(domain.Token, input, expiresAt, difficulty, hostScope, client);
         if (!key.VerifyTruncated(input[..written], tag))
         {
             problem = ProofOfWorkTokenProblem.BadTag;
@@ -181,6 +197,18 @@ internal static class ProofOfWorkToken
         uint expiresAt,
         int difficulty,
         Span<char> destination,
+        out int written) =>
+        TryEncode(ProofOfWorkDomain.Gate, key, hostScope, client, expiresAt, difficulty, destination, out written);
+
+    /// <inheritdoc cref="TryEncode(IMacKey, ReadOnlySpan{byte}, IpKey, uint, int, Span{char}, out int)"/>
+    internal static bool TryEncode(
+        ProofOfWorkDomain domain,
+        IMacKey key,
+        ReadOnlySpan<byte> hostScope,
+        IpKey client,
+        uint expiresAt,
+        int difficulty,
+        Span<char> destination,
         out int written)
     {
         Span<byte> value = stackalloc byte[ValueLength];
@@ -189,7 +217,7 @@ internal static class ProofOfWorkToken
         value[5] = (byte)difficulty;
 
         Span<byte> input = stackalloc byte[128];
-        var inputLength = WriteMacInput(input, expiresAt, difficulty, hostScope, client);
+        var inputLength = WriteMacInput(domain.Token, input, expiresAt, difficulty, hostScope, client);
         Span<byte> tag = stackalloc byte[64];
         var tagLength = key.Sign(input[..inputLength], tag);
         if (tagLength < TagLength)
@@ -203,11 +231,11 @@ internal static class ProofOfWorkToken
         return true;
     }
 
-    private static int WriteMacInput(Span<byte> destination, uint expiresAt, int difficulty, ReadOnlySpan<byte> hostScope, IpKey client)
+    private static int WriteMacInput(ReadOnlySpan<byte> prefix, Span<byte> destination, uint expiresAt, int difficulty, ReadOnlySpan<byte> hostScope, IpKey client)
     {
         var position = 0;
-        Prefix.CopyTo(destination);
-        position += Prefix.Length;
+        prefix.CopyTo(destination);
+        position += prefix.Length;
         destination[position++] = Version;
         BinaryPrimitives.WriteUInt32BigEndian(destination[position..], expiresAt);
         position += 4;

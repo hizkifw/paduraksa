@@ -72,6 +72,7 @@ public static partial class SnapshotCompiler
                 }
             }
 
+            var honeypot = CompileHoneypot(spec, where);
             var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors, AccessLists, RuleSets);
 
             // An admin host's answers and its app's own headers are the admin's: custom rules apply to proxy hosts only.
@@ -94,7 +95,7 @@ public static partial class SnapshotCompiler
                 _ => RejectRoutes(spec, where, Errors),
             };
             var fixedResponse = CompileFixedResponse(spec, where, Errors);
-            var robotsTxt = CompileRobots(spec.Robots, where, Errors);
+            var robotsTxt = CompileRobots(spec.Robots, honeypot?.Prefix, where, Errors);
             var errorPages = CompiledErrorPages.Compile(spec.ErrorPages);
             var maintenance = CompileMaintenance(this, spec, where, Errors);
 
@@ -176,6 +177,7 @@ public static partial class SnapshotCompiler
                 FixedResponse = fixedResponse,
                 RobotsTxt = robotsTxt,
                 RobotsMode = spec.Robots.Mode,
+                Honeypot = honeypot,
                 ErrorPages = errorPages,
                 Maintenance = maintenance,
                 RateLimit = hostRateLimit,
@@ -734,12 +736,18 @@ public static partial class SnapshotCompiler
     /// The host's <c>robots.txt</c> answer. Passthrough has none (the upstream's own file is served); the presets share
     /// one encoded answer each; a custom text is normalised and encoded here, once per host.
     /// </summary>
-    private static PrecomputedResponse? CompileRobots(HostRobotsSpec robots, CompileErrorSource where, List<CompileError> errors)
+    private static PrecomputedResponse? CompileRobots(HostRobotsSpec robots, string? trapPrefix, CompileErrorSource where, List<CompileError> errors)
     {
         if (!Enum.IsDefined(robots.Mode))
         {
             errors.Add(new(where, $"unknown robots.txt mode {robots.Mode}"));
             return null;
+        }
+
+        // A host with a trap tells every crawler to stay out of it, so a request under the prefix is one that ignored the file.
+        if (trapPrefix is not null && robots.Mode != RobotsMode.Passthrough && (robots.Mode != RobotsMode.Custom || !string.IsNullOrWhiteSpace(robots.CustomText)))
+        {
+            return RobotsResponses.WithTrap(robots.Mode, robots.CustomText, trapPrefix);
         }
 
         return robots.Mode switch

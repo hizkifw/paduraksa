@@ -45,13 +45,24 @@ internal static class ProofOfWorkChallenge
     /// <summary>The largest solution the page may post: a 20-digit counter, enough for any difficulty this build allows.</summary>
     public const int MaxSolutionLength = 20;
 
-    private static ReadOnlySpan<byte> Prefix => "paduraksa-pow-challenge-v1"u8;
-
     /// <summary>
     /// Signs a fresh challenge for this host and client. The caller passes the nonce buffer so a simulation can avoid
     /// touching the random source; production fills it with <see cref="RandomNumberGenerator.Fill(Span{byte})"/>.
     /// </summary>
     internal static bool TryCreate(
+        IMacKey key,
+        ReadOnlySpan<byte> hostScope,
+        IpKey client,
+        uint issuedAt,
+        int difficulty,
+        Span<byte> nonce,
+        Span<char> destination,
+        out int written) =>
+        TryCreate(ProofOfWorkDomain.Gate, key, hostScope, client, issuedAt, difficulty, nonce, destination, out written);
+
+    /// <inheritdoc cref="TryCreate(IMacKey, ReadOnlySpan{byte}, IpKey, uint, int, Span{byte}, Span{char}, out int)"/>
+    internal static bool TryCreate(
+        ProofOfWorkDomain domain,
         IMacKey key,
         ReadOnlySpan<byte> hostScope,
         IpKey client,
@@ -74,7 +85,7 @@ internal static class ProofOfWorkChallenge
         value[21] = (byte)difficulty;
 
         Span<byte> input = stackalloc byte[128];
-        var inputLength = WriteMacInput(input, issuedAt, value.Slice(5, 16), difficulty, hostScope, client);
+        var inputLength = WriteMacInput(domain.Challenge, input, issuedAt, value.Slice(5, 16), difficulty, hostScope, client);
         Span<byte> tag = stackalloc byte[64];
         var tagLength = key.Sign(input[..inputLength], tag);
         if (tagLength < TagLength)
@@ -89,6 +100,19 @@ internal static class ProofOfWorkChallenge
 
     /// <summary>Checks a posted challenge: its shape, its tag against this host and client, and its age.</summary>
     internal static bool TryValidate(
+        ReadOnlySpan<char> value,
+        IMacKey key,
+        ReadOnlySpan<byte> hostScope,
+        IpKey client,
+        long nowSeconds,
+        out uint issuedAt,
+        out int difficulty,
+        out ProofOfWorkChallengeProblem problem) =>
+        TryValidate(ProofOfWorkDomain.Gate, value, key, hostScope, client, nowSeconds, out issuedAt, out difficulty, out problem);
+
+    /// <inheritdoc cref="TryValidate(ReadOnlySpan{char}, IMacKey, ReadOnlySpan{byte}, IpKey, long, out uint, out int, out ProofOfWorkChallengeProblem)"/>
+    internal static bool TryValidate(
+        ProofOfWorkDomain domain,
         ReadOnlySpan<char> value,
         IMacKey key,
         ReadOnlySpan<byte> hostScope,
@@ -125,7 +149,7 @@ internal static class ProofOfWorkChallenge
         decoded[22..].CopyTo(tag);
 
         Span<byte> input = stackalloc byte[128];
-        var written = WriteMacInput(input, issuedAt, decoded.Slice(5, NonceLength), difficulty, hostScope, client);
+        var written = WriteMacInput(domain.Challenge, input, issuedAt, decoded.Slice(5, NonceLength), difficulty, hostScope, client);
         if (!key.VerifyTruncated(input[..written], tag))
         {
             problem = ProofOfWorkChallengeProblem.BadTag;
@@ -200,11 +224,11 @@ internal static class ProofOfWorkChallenge
     }
 
     private static int WriteMacInput(
-        Span<byte> destination, uint issuedAt, ReadOnlySpan<byte> nonce, int difficulty, ReadOnlySpan<byte> hostScope, IpKey client)
+        ReadOnlySpan<byte> prefix, Span<byte> destination, uint issuedAt, ReadOnlySpan<byte> nonce, int difficulty, ReadOnlySpan<byte> hostScope, IpKey client)
     {
         var position = 0;
-        Prefix.CopyTo(destination);
-        position += Prefix.Length;
+        prefix.CopyTo(destination);
+        position += prefix.Length;
         destination[position++] = Version;
         BinaryPrimitives.WriteUInt32BigEndian(destination[position..], issuedAt);
         position += 4;

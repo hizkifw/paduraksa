@@ -60,21 +60,45 @@ internal sealed class ProofOfWorkPage
         })();
         """;
 
-    private static readonly HtmlPageTemplate Template = HtmlPageTemplate.Create(
-        "Checking your browser", Body, Script, "worker-src blob:", allowForm: true, slots: ["challenge", "return", "difficulty"]);
+    private static readonly HtmlPageTemplate GateTemplate = CreateTemplate(ProofOfWorkTargets.VerifyPath);
 
+    private readonly HtmlPageTemplate _template;
     private readonly string _difficulty;
 
+    /// <summary>The browser check's page: it posts to the gate's own verify path.</summary>
     public ProofOfWorkPage(int difficulty)
+        : this(GateTemplate, difficulty)
     {
+    }
+
+    /// <summary>
+    /// A page that posts to <paramref name="verifyPath"/>, for the trap, which has a verify endpoint of its own. The path is written
+    /// into the markup as it is, so it has to be one the validator accepted (<see cref="Honeypot.HoneypotPrefix"/>).
+    /// </summary>
+    public ProofOfWorkPage(string verifyPath, int difficulty)
+        : this(CreateTemplate(verifyPath), difficulty)
+    {
+    }
+
+    private ProofOfWorkPage(HtmlPageTemplate template, int difficulty)
+    {
+        _template = template;
         _difficulty = difficulty.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    private static HtmlPageTemplate CreateTemplate(string verifyPath) => HtmlPageTemplate.Create(
+        "Checking your browser",
+        Body.Replace(ProofOfWorkTargets.VerifyPath, verifyPath, StringComparison.Ordinal),
+        Script,
+        "worker-src blob:",
+        allowForm: true,
+        slots: ["challenge", "return", "difficulty"]);
+
     /// <summary>The fixed headers the page carries: a strict CSP with the inline script's and style's hashes.</summary>
-    public static PrecomputedHeader[] SecurityHeaders => Template.SecurityHeaders;
+    public static PrecomputedHeader[] SecurityHeaders => GateTemplate.SecurityHeaders;
 
     /// <summary>The page's CSP value, for a test that recomputes the hashes from what the page really contains.</summary>
-    internal static string ContentSecurityPolicy => Template.ContentSecurityPolicy;
+    internal static string ContentSecurityPolicy => GateTemplate.ContentSecurityPolicy;
 
     internal static string ScriptText => Script;
 
@@ -83,6 +107,6 @@ internal sealed class ProofOfWorkPage
     /// <summary>Builds the page for one challenge and return target (the original path and query).</summary>
     public PrecomputedResponse Build(ReadOnlySpan<char> challenge, string returnTarget)
     {
-        return PrecomputedResponse.Page(StatusCodes.Status200OK, Template, challenge.ToString(), returnTarget, _difficulty);
+        return PrecomputedResponse.Page(StatusCodes.Status200OK, _template, challenge.ToString(), returnTarget, _difficulty);
     }
 }

@@ -68,6 +68,106 @@ public static class RobotsText
     }
 
     /// <summary>
+    /// <paramref name="text"/> (already in the form <see cref="NormalizeCustom"/> gives) with <c>Disallow: <paramref name="path"/></c> as the
+    /// last line of every group, so no crawler that reads the file is invited into the path. A file with no group gets one for every
+    /// crawler. A group is a run of <c>User-agent</c> lines and the rules after them; comments, blank lines and <c>Sitemap</c> lines
+    /// belong to none.
+    /// </summary>
+    public static string WithDisallow(string text, string path)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        var line = "Disallow: " + path + "\n";
+        var lines = text.Split('\n');
+
+        // The insertion points are the lines after a group's last member: found first, applied from the end so the positions hold.
+        List<int> after = [];
+        var inGroup = false;
+        var lastMember = -1;
+        var afterRules = false;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var directive = DirectiveOf(lines[i]);
+            if (directive.IsEmpty)
+            {
+                continue;
+            }
+
+            if (directive.Equals("sitemap", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (directive.Equals("user-agent", StringComparison.OrdinalIgnoreCase))
+            {
+                if (inGroup && afterRules)
+                {
+                    after.Add(lastMember);
+                    afterRules = false;
+                }
+
+                inGroup = true;
+            }
+            else
+            {
+                afterRules = inGroup;
+            }
+
+            lastMember = i;
+        }
+
+        if (inGroup)
+        {
+            after.Add(lastMember);
+        }
+
+        if (after.Count == 0)
+        {
+            var endsWithBlankLine = text.Length == 0 || text is "\n" || text.EndsWith("\n\n", StringComparison.Ordinal);
+            var separator = endsWithBlankLine ? string.Empty : "\n";
+            return string.Concat(text, separator, "User-agent: *\n", line);
+        }
+
+        var builder = new StringBuilder(text.Length + after.Count * line.Length);
+        var next = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            builder.Append(lines[i]);
+            if (i < lines.Length - 1)
+            {
+                builder.Append('\n');
+            }
+
+            if (next < after.Count && after[next] == i)
+            {
+                next++;
+                if (i == lines.Length - 1)
+                {
+                    builder.Append('\n');
+                }
+
+                builder.Append(line);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    // The name of a "name: value" line with comments and surrounding space removed; empty for a blank or comment line.
+    private static ReadOnlySpan<char> DirectiveOf(string line)
+    {
+        var text = line.AsSpan();
+        var hash = text.IndexOf('#');
+        if (hash >= 0)
+        {
+            text = text[..hash];
+        }
+
+        var colon = text.IndexOf(':');
+        return colon < 0 ? default : text[..colon].Trim();
+    }
+
+    /// <summary>
     /// True when the text has no control characters other than tab, carriage return and line feed. A <c>robots.txt</c> is
     /// plain text, and a NUL or another control character is either a mistake or an attempt to smuggle bytes into it.
     /// </summary>

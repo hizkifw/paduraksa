@@ -47,6 +47,9 @@ public sealed class CompiledHost
     /// <summary>The pages the host answers with in place of the built-in ones, and whether an upstream's error bodies give way to them.</summary>
     internal CompiledErrorPages ErrorPages { get; init; } = CompiledErrorPages.None;
 
+    /// <summary>The host's trap, or null when it serves none (off, an admin host, or no key to derive its prefix from).</summary>
+    internal Honeypot.CompiledHoneypot? Honeypot { get; init; }
+
     /// <summary>The host's maintenance mode, or null when it serves none (off, or an admin host).</summary>
     internal CompiledMaintenance? Maintenance { get; init; }
 
