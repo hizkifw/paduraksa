@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Revisions;
@@ -33,6 +34,7 @@ internal sealed partial class DashboardConfig(
     RequestSimulator simulator,
     UserService users,
     CloudflareRangeReport cloudflareRanges,
+    HoneypotDerivation honeypot,
     ILogger<DashboardConfig> logger) : IDashboardConfig
 {
     public ConfigStoreStatus Status => config.Status;
@@ -40,6 +42,8 @@ internal sealed partial class DashboardConfig(
     public IReadOnlyList<ConfigWarning> LiveWarnings => config.Warnings;
 
     public CloudflareRangeStatus CloudflareRanges => cloudflareRanges.Current;
+
+    public HoneypotNames? HoneypotNamesOf(HostId host) => honeypot.For(host);
 
     public Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default) => config.GetCurrentAsync(cancellationToken);
 

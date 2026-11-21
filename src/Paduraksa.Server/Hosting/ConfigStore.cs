@@ -69,6 +69,8 @@ internal static class ConfigStore
 
         var compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions, vault.PasswordCredentials));
 
+        builder.Add(new HoneypotDerivation(listeners.CompilerOptions));
+
         // The public app attaches YARP's live health when it starts (PublicApp); until then every destination is unknown.
         var health = builder.Add(new DeferredUpstreamHealth());
 

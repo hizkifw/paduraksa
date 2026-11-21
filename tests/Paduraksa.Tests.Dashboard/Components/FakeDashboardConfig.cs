@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Yaml;
@@ -57,6 +58,11 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
     public IReadOnlyList<ConfigWarning> LiveWarnings { get; set; } = [];
 
     public CloudflareRangeStatus CloudflareRanges { get; set; } = new(CloudflareRangeSource.BuiltIn, new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero), 22, 0, null);
+
+    /// <summary>What a trap with no configured path or name is called, by host; a host not here has no derived names (the key isn't open).</summary>
+    public Dictionary<HostId, HoneypotNames> DerivedTraps { get; } = [];
+
+    public HoneypotNames? HoneypotNamesOf(HostId host) => DerivedTraps.GetValueOrDefault(host);
 
     public Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult(new CurrentConfig(Document, Revision));
 

@@ -52,6 +52,21 @@ public sealed class HoneypotCompileTests
     }
 
     [Fact]
+    public void TheNamesTheDashboardShowsAreTheOnesTheCompilerDerives_AndNoneWithoutTheKey()
+    {
+        var rig = new HoneypotRig();
+        var snapshot = Compile(Model(Host("a")), rig.Options);
+
+        Assert.True(SnapshotCompiler.TryDeriveHoneypotNames(rig.Options, TestIds.Host("a"), out var prefix, out var siteName));
+        Assert.Equal(Compiled(snapshot, "a").Honeypot!.Prefix, prefix);
+        Assert.Equal(rig.Factory.Created.Single().Options.SiteName, siteName);
+
+        Assert.False(SnapshotCompiler.TryDeriveHoneypotNames(new HoneypotRig(withKey: false).Options, TestIds.Host("a"), out prefix, out siteName));
+        Assert.Empty(prefix);
+        Assert.Empty(siteName);
+    }
+
+    [Fact]
     public void AConfiguredPathAndNameWinOverTheDerivedOnes()
     {
         var rig = new HoneypotRig();

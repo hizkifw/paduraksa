@@ -1,4 +1,5 @@
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Drafts;
 using Paduraksa.Application.Yaml;
 using Paduraksa.Contracts.Certificates;
@@ -31,6 +32,9 @@ public interface IDashboardConfig
 
     /// <summary>The list of Cloudflare's edge ranges the proxy trusts in <c>CloudflareProxy</c> mode, and how its refresh is going.</summary>
     CloudflareRangeStatus CloudflareRanges { get; }
+
+    /// <summary>The path and title a host's trap gets when its settings name none; null while the key they come from isn't open.</summary>
+    HoneypotNames? HoneypotNamesOf(HostId host);
 
     /// <summary>The latest revision as it is live, with its revision: what the overview, the history and the simulator read.</summary>
     Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default);

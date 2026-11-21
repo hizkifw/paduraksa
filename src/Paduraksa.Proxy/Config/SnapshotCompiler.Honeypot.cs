@@ -79,6 +79,40 @@ public static partial class SnapshotCompiler
         }
     }
 
+    /// <summary>
+    /// The prefix and title a host with no configured ones gets, for the dashboard to show before a publish. It is what
+    /// the compiler derives, from the same key and factory; false when the proof-of-work key isn't open.
+    /// </summary>
+    public static bool TryDeriveHoneypotNames(SnapshotCompilerOptions options, HostId host, out string prefix, out string siteName)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        prefix = string.Empty;
+        siteName = string.Empty;
+        if (options.ProofOfWork?.Key is not { } key)
+        {
+            return false;
+        }
+
+        Span<byte> siteKey = stackalloc byte[64];
+        if (!TryDeriveSiteKey(key, host, siteKey, out var length) || length != 32)
+        {
+            return false;
+        }
+
+        siteKey = siteKey[..length];
+        try
+        {
+            var factory = (options.Honeypot ?? HoneypotRuntime.Default).SiteFactory;
+            prefix = factory.DerivePrefix(siteKey);
+            siteName = factory.DeriveSiteName(siteKey);
+            return true;
+        }
+        finally
+        {
+            siteKey.Clear();
+        }
+    }
+
     internal static bool TryDeriveSiteKey(IMacKey key, HostId host, Span<byte> destination, out int length)
     {
         Span<byte> input = stackalloc byte[SiteKeyPrefix.Length + 16];
