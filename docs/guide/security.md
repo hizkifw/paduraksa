@@ -220,7 +220,7 @@ The **Honeypot** setting (global defaults, a profile or a host; not per route) s
 | Site name | derived | The blog's title, derived like the path |
 | Share behind the browser check | 20 | Percent of trap pages that need a solved challenge, 0 to 100 |
 | Difficulty | 16 | Leading zero bits of those challenges, 8 to 28 |
-| No index | on | Sends `X-Robots-Tag: noindex, nofollow` on trap answers |
+| Noindex header | on | Sends `X-Robots-Tag: noindex, nofollow` on trap answers |
 
 A path starts and ends with `/`, has letters, digits and `- _ . ~` only, is at most 64 characters and can't contain `/.well-known/`.
 
