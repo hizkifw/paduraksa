@@ -4,7 +4,7 @@ using Paduraksa.Application.Honeypot;
 using Paduraksa.Contracts.Metrics;
 using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Tests.Data.Config;
-using static Paduraksa.Tests.Data.Honeypot.HoneypotRig;
+using static Paduraksa.Tests.Data.Honeypot.HoneypotRecordingRig;
 
 namespace Paduraksa.Tests.Data.Honeypot;
 
@@ -16,7 +16,7 @@ public sealed class HoneypotJobAndPlanTests
     [Fact]
     public async Task TheJobWritesAtOnceThenEveryIntervalAndOnceMoreWhenItStops()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         HoneypotRecordingJob job = new(rig.Store, HoneypotRetention.Default, rig.Time, NullLogger<HoneypotRecordingJob>.Instance);
         var first = Hit(id: 1);
         rig.Recorder.Record(in first);
@@ -46,7 +46,7 @@ public sealed class HoneypotJobAndPlanTests
     [Fact]
     public async Task AFailingWriteOrPruneIsReportedAndNeverThrows()
     {
-        await using var down = HoneypotRig.Down();
+        await using var down = HoneypotRecordingRig.Down();
         HoneypotRecordingJob job = new(down.Store, HoneypotRetention.Default, down.Time, NullLogger<HoneypotRecordingJob>.Instance);
         var hit = Hit();
         down.Recorder.Record(in hit);
@@ -60,7 +60,7 @@ public sealed class HoneypotJobAndPlanTests
     [Fact]
     public async Task NoReadOrDeleteWalksTheRequestsTableAndTheSummarySeeksItsRange()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(Enumerable.Range(0, 20).Select(i => Hit(agent: "agent-" + i, id: (ulong)i, after: TimeSpan.FromSeconds(i))).ToArray());
         PlanCapture capture = new();
         HoneypotService service = new(new CapturingFactory(rig.Database, capture), rig.Stats, rig.Time);
@@ -86,9 +86,9 @@ public sealed class HoneypotJobAndPlanTests
         }
     }
 
-    private static async Task<long> RequestsOf(HoneypotRig rig) => (long)(await rig.Database.ScalarAsync("SELECT count(*) FROM HoneypotRequests"))!;
+    private static async Task<long> RequestsOf(HoneypotRecordingRig rig) => (long)(await rig.Database.ScalarAsync("SELECT count(*) FROM HoneypotRequests"))!;
 
-    private static async Task WaitForRequestsAsync(HoneypotRig rig, long count)
+    private static async Task WaitForRequestsAsync(HoneypotRecordingRig rig, long count)
     {
         var waited = System.Diagnostics.Stopwatch.StartNew();
         while (await RequestsOf(rig) < count)

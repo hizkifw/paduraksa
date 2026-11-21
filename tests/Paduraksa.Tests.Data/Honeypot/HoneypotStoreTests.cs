@@ -1,7 +1,7 @@
 using Paduraksa.Application.Honeypot;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Honeypot;
-using static Paduraksa.Tests.Data.Honeypot.HoneypotRig;
+using static Paduraksa.Tests.Data.Honeypot.HoneypotRecordingRig;
 
 namespace Paduraksa.Tests.Data.Honeypot;
 
@@ -13,7 +13,7 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task ASessionAndItsRequestsAreStoredWithTheClientAddressInFull()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
 
         await rig.RecordAsync(
             Hit(page: HoneypotPageKind.Index, link: HoneypotLinkKind.Direct, id: 0),
@@ -38,7 +38,7 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task ASecondWriteOverwritesTheSessionsTotalsAndOnlyAddsRequests()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(Hit(id: 1));
 
         await rig.RecordAsync(Hit(id: 2, after: TimeSpan.FromMinutes(1)), Hit(id: 3, after: TimeSpan.FromMinutes(2), link: HoneypotLinkKind.Script));
@@ -52,7 +52,7 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task ABatchBiggerThanOneLookupIsWrittenWhole()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         var hits = Enumerable.Range(0, 1_300).Select(i => Hit(agent: "agent-" + i, id: (ulong)i)).ToArray();
         await rig.RecordAsync(hits);
 
@@ -66,14 +66,14 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task AFailedWriteIsKeptAndTheNextPassWritesIt()
     {
-        await using var down = HoneypotRig.Down();
+        await using var down = HoneypotRecordingRig.Down();
         var hit = Hit();
         down.Recorder.Record(in hit);
 
         await Assert.ThrowsAnyAsync<Exception>(() => down.Store.WritePendingAsync(Ct));
 
         Assert.Equal((1, 1), down.Recorder.Waiting);
-        await using var up = await HoneypotRig.CreateAsync();
+        await using var up = await HoneypotRecordingRig.CreateAsync();
         // The same batch, now to a database that works.
         var again = down.Recorder.Take();
         await up.Store.WriteAsync(again, Ct);
@@ -83,7 +83,7 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task RowsOlderThanRetentionAreDeletedBySessionsLastRequestAndByRequestTime()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(
             Hit(agent: "old", after: TimeSpan.FromDays(-40)),
             Hit(agent: "long", after: TimeSpan.FromDays(-1), id: 1),
@@ -104,7 +104,7 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task TheSessionCapRemovesTheOldestSessionsWithTheirRequests()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         for (var i = 0; i < 5; i++)
         {
             await rig.RecordAsync(Hit(agent: "agent-" + i, id: (ulong)i), Hit(agent: "agent-" + i, id: (ulong)(10 + i), after: TimeSpan.FromSeconds(1)));
@@ -122,7 +122,7 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task TheRequestCapRemovesTheOldestRequests()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(Enumerable.Range(0, 10).Select(i => Hit(id: (ulong)i, after: TimeSpan.FromSeconds(i))).ToArray());
 
         var pruned = await rig.Store.PruneAsync(Start, new HoneypotRetention(TimeSpan.FromDays(30), MaxSessions: 100, MaxRequests: 4), Ct);
@@ -136,7 +136,7 @@ public sealed class HoneypotStoreTests
     [Fact]
     public async Task APruneWithinTheCapsDeletesNothing()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(Hit(), Hit(id: 2, after: TimeSpan.FromSeconds(1)));
 
         Assert.Equal(new HoneypotPruned(0, 0), await rig.Store.PruneAsync(Start, HoneypotRetention.Default, Ct));

@@ -10,12 +10,12 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Data.Honeypot;
 
 /// <summary>A recorder, its store and read service over one migrated database, and a clock they share.</summary>
-internal sealed class HoneypotRig : IAsyncDisposable
+internal sealed class HoneypotRecordingRig : IAsyncDisposable
 {
     public static readonly DateTimeOffset Start = new(2026, 11, 21, 9, 0, 0, TimeSpan.Zero);
     public static readonly HostId Host = HostId.New();
 
-    private HoneypotRig(TestConfigDatabase database)
+    private HoneypotRecordingRig(TestConfigDatabase database)
     {
         Database = database;
         Time = new ManualTimeProvider(Start);
@@ -37,10 +37,10 @@ internal sealed class HoneypotRig : IAsyncDisposable
 
     public HoneypotService Service { get; }
 
-    public static async Task<HoneypotRig> CreateAsync() => new(await TestConfigDatabase.CreateAsync());
+    public static async Task<HoneypotRecordingRig> CreateAsync() => new(await TestConfigDatabase.CreateAsync());
 
     /// <summary>A rig whose database has no tables, so every write fails.</summary>
-    public static HoneypotRig Down() => new(TestConfigDatabase.Empty());
+    public static HoneypotRecordingRig Down() => new(TestConfigDatabase.Empty());
 
     public static HoneypotHit Hit(
         TimeSpan after = default,

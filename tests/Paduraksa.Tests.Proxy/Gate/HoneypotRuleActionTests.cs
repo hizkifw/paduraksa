@@ -25,7 +25,7 @@ public sealed class HoneypotRuleActionTests
     private static readonly RuleSetId Id = TestIds.RuleSet("scanners");
     private static readonly HostHoneypotSpec On = new() { Enabled = true, Path = "/archive-k7f3/" };
 
-    private readonly HoneypotRig _rig = new();
+    private readonly GateTrapRig _rig = new();
     private readonly RuleSetRuntime _runtime = new();
 
     private GateMiddleware Gate(bool hostChain, HostHoneypotSpec trap, params RuleSpec[] rules)
@@ -95,7 +95,7 @@ public sealed class HoneypotRuleActionTests
     [Fact]
     public void ATrapWhoseKeyIsMissingStillTakesTheRuleAndAnswersItWith503()
     {
-        var rig = new HoneypotRig(withKey: false);
+        var rig = new GateTrapRig(withKey: false);
         ProxyConfigModel model = new()
         {
             Upstreams = [Upstream("web", "http://127.0.0.1:1/")],

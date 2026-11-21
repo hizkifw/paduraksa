@@ -25,7 +25,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void AHostWithoutTheSwitchHasNoTrap()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var snapshot = Compile(Model(Host("a", HostHoneypotSpec.Off)), rig.Options);
 
         Assert.Null(Compiled(snapshot, "a").Honeypot);
@@ -35,7 +35,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void TheSiteKeyIsHmacOverThePrefixAndTheHostIdUnderTheProofOfWorkKey()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var snapshot = Compile(Model(Host("a"), Host("b")), rig.Options);
 
         var (key, options) = Assert.Single(rig.Factory.Created, c => c.Options.Prefix == Compiled(snapshot, "a").Honeypot!.Prefix);
@@ -47,21 +47,21 @@ public sealed class HoneypotCompileTests
 
         // A host's prefix is its own, and the same host keeps it across compiles.
         Assert.NotEqual(Compiled(snapshot, "a").Honeypot!.Prefix, Compiled(snapshot, "b").Honeypot!.Prefix);
-        var again = Compile(Model(Host("a"), Host("b")), new HoneypotRig().Options);
+        var again = Compile(Model(Host("a"), Host("b")), new GateTrapRig().Options);
         Assert.Equal(Compiled(snapshot, "a").Honeypot!.Prefix, Compiled(again, "a").Honeypot!.Prefix);
     }
 
     [Fact]
     public void TheNamesTheDashboardShowsAreTheOnesTheCompilerDerives_AndNoneWithoutTheKey()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var snapshot = Compile(Model(Host("a")), rig.Options);
 
         Assert.True(SnapshotCompiler.TryDeriveHoneypotNames(rig.Options, TestIds.Host("a"), out var prefix, out var siteName));
         Assert.Equal(Compiled(snapshot, "a").Honeypot!.Prefix, prefix);
         Assert.Equal(rig.Factory.Created.Single().Options.SiteName, siteName);
 
-        Assert.False(SnapshotCompiler.TryDeriveHoneypotNames(new HoneypotRig(withKey: false).Options, TestIds.Host("a"), out prefix, out siteName));
+        Assert.False(SnapshotCompiler.TryDeriveHoneypotNames(new GateTrapRig(withKey: false).Options, TestIds.Host("a"), out prefix, out siteName));
         Assert.Empty(prefix);
         Assert.Empty(siteName);
     }
@@ -69,7 +69,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void AConfiguredPathAndNameWinOverTheDerivedOnes()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var snapshot = Compile(Model(Host("a", On with { Path = "/notes/", SiteName = "Field Notes", PowShare = 0, PowDifficulty = 12, NoIndex = false })), rig.Options);
 
         var trap = Compiled(snapshot, "a").Honeypot!;
@@ -86,7 +86,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void ADisabledHostServesNoTrap()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
 
         var snapshot = Compile(Model(Host("a") with { Enabled = false }), rig.Options);
 
@@ -97,7 +97,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void AnAdminHostServesNoTrapWhateverItsSpecSays()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         HostSpec admin = new() { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, Https = true, ForceHttps = true, Honeypot = On };
 
         var snapshot = Compile(Model(admin), rig.Options with { AdminUpstream = true });
@@ -109,7 +109,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void WithoutTheKeyAConfiguredPathAnswersAndADerivedOneIsOff()
     {
-        var rig = new HoneypotRig(withKey: false);
+        var rig = new GateTrapRig(withKey: false);
         var snapshot = Compile(Model(Host("a", On with { Path = "/notes/" }), Host("b")), rig.Options);
 
         var configured = Compiled(snapshot, "a").Honeypot!;
@@ -125,7 +125,7 @@ public sealed class HoneypotCompileTests
     [InlineData("/.well-known/x/", ".well-known")]
     public void AnInvalidPathFailsTheCompile(string path, string reason)
     {
-        var result = SnapshotCompiler.Compile(Model(Host("a", On with { Path = path })), new HoneypotRig().Options);
+        var result = SnapshotCompiler.Compile(Model(Host("a", On with { Path = path })), new GateTrapRig().Options);
 
         Assert.False(result.Succeeded);
         Assert.Contains(result.Errors, e => e.Message.Contains(reason, StringComparison.Ordinal));
@@ -135,7 +135,7 @@ public sealed class HoneypotCompileTests
     public void ValuesOutOfBoundsFailTheCompile()
     {
         var result = SnapshotCompiler.Compile(
-            Model(Host("a", On with { PowShare = 101, PowDifficulty = 3, SiteName = " " })), new HoneypotRig().Options);
+            Model(Host("a", On with { PowShare = 101, PowDifficulty = 3, SiteName = " " })), new GateTrapRig().Options);
 
         Assert.False(result.Succeeded);
         Assert.Equal(3, result.Errors.Count(e => e.Message.StartsWith("the honeypot's", StringComparison.Ordinal)));
@@ -144,7 +144,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void ASiteThatDoesNotKeepThePrefixItWasMadeForFailsTheCompile()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var options = rig.Options with { Honeypot = new HoneypotRuntime(rig.Sink, new MisleadingFactory()) };
 
         var result = SnapshotCompiler.Compile(Model(Host("a", On with { Path = "/notes/" })), options);
@@ -156,7 +156,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void TheDefaultRuntimeBuildsTheGeneratorsSiteUnderItsDerivedPrefix()
     {
-        var options = new HoneypotRig().Options with { Honeypot = new HoneypotRuntime() };
+        var options = new GateTrapRig().Options with { Honeypot = new HoneypotRuntime() };
 
         var trap = Compiled(Compile(Model(Host("a")), options), "a").Honeypot!;
 
@@ -168,7 +168,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void RobotsTxtDisallowsThePrefixInEveryGroupOfEachMode()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var snapshot = Compile(
             Model(
                 Host("all"),
@@ -202,7 +202,7 @@ public sealed class HoneypotCompileTests
     public void TheAnalyticsReadTheServedFileSoATrapVisitIsABotIgnoringRobots(string userAgent)
     {
         // The drain parses the bytes the gate serves, so the trap line is what makes a request under the prefix count as ignoring robots.txt.
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var host = Compiled(Compile(Model(Host("ai", robots: new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers })), rig.Options), "ai");
 
         var rules = Paduraksa.Proxy.Analytics.RobotsRules.FromBody(host.RobotsTxt!.Body);
@@ -217,7 +217,7 @@ public sealed class HoneypotCompileTests
     [Fact]
     public void AHostWithoutATrapKeepsItsSharedRobotsAnswer()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var snapshot = Compile(Model(Host("a", HostHoneypotSpec.Off)), rig.Options);
 
         Assert.Same(RobotsResponses.DisallowAll, Compiled(snapshot, "a").RobotsTxt);

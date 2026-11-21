@@ -116,9 +116,9 @@ internal sealed class RecordingHoneypotSink : IHoneypotSink
 }
 
 /// <summary>The process-level pieces a trap test needs: an open proof-of-work key, a sink, a fake factory and the compiler options that carry them.</summary>
-internal sealed class HoneypotRig
+internal sealed class GateTrapRig
 {
-    public HoneypotRig(int maxConcurrent = HoneypotLimits.DefaultMaxConcurrent, bool withKey = true, TimeProvider? time = null)
+    public GateTrapRig(int maxConcurrent = HoneypotLimits.DefaultMaxConcurrent, bool withKey = true, TimeProvider? time = null)
     {
         Time = time ?? TimeProvider.System;
         ProofOfWork = new ProofOfWorkRuntime(Time);

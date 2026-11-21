@@ -25,7 +25,7 @@ public sealed class HoneypotSimulationTests
     private const string Prefix = "/archive-k7f3/";
     private static readonly IPAddress Client = IPAddress.Parse("192.0.2.1");
 
-    private readonly HoneypotRig _rig = new();
+    private readonly GateTrapRig _rig = new();
 
     private RuntimeSnapshot Snapshot(HostHoneypotSpec? trap = null, HostRobotsSpec? robots = null)
     {
@@ -164,7 +164,7 @@ public sealed class HoneypotSimulationTests
     [Fact]
     public void WithoutTheKeyTheTrapSays503()
     {
-        var rig = new HoneypotRig(withKey: false);
+        var rig = new GateTrapRig(withKey: false);
         ProxyConfigModel model = new()
         {
             Upstreams = [Upstream("web", "http://127.0.0.1:1/")],

@@ -26,7 +26,7 @@ public sealed class HoneypotGateTests : IDisposable
     private static readonly AccessListSpec Staff = TestAccessLists.Allow("staff", "10.0.0.5");
     private static readonly HostHoneypotSpec On = new() { Enabled = true, Path = Prefix };
 
-    private readonly HoneypotRig _rig = new();
+    private readonly GateTrapRig _rig = new();
     private readonly SnapshotStore _store = new();
     private readonly GateMiddleware _gate;
 

@@ -37,13 +37,13 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
             Robots = robots ?? new HostRobotsSpec { Mode = RobotsMode.DisallowAll },
         };
 
-    private static Task<ProxyTestServer> StartAsync(ProxyConfigModel model, HoneypotRig rig) =>
+    private static Task<ProxyTestServer> StartAsync(ProxyConfigModel model, GateTrapRig rig) =>
         ProxyTestServer.StartAsync(model, new ProxyTestServerOptions { ProofOfWork = rig.ProofOfWork, CompilerOptions = rig.Options });
 
     [Fact]
     public async Task APageIsAnsweredWithItsHeadersAndHeadGetsTheSameWithoutABody()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(
             Model(Host("trap") with { Headers = new HostHeadersSpec { Response = [new HeaderRuleSpec("X-Test", HeaderOperation.Set, "yes")] } }), rig);
         using var client = ProxyTestServer.CreateClient();
@@ -71,7 +71,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task APageThatIsNotThereIsA404WithTheSameHeadersAndNoIndexCanBeSwitchedOff()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(Model(Host("trap"), Host("open", On with { NoIndex = false })), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;
@@ -89,7 +89,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task AnythingOutsideThePrefixGoesToTheUpstreamAndOtherMethodsInsideAreRefused()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(Model(Host("trap")), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;
@@ -116,7 +116,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task TheSinkSeesWhatTheRequestShowedOfItsClient()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(
             Model(Host("trap"), Host("loose", robots: new HostRobotsSpec { Mode = RobotsMode.Passthrough })), rig);
         using var client = ProxyTestServer.CreateClient();
@@ -162,7 +162,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task AHitCarriesTheCanonicalPathWithoutTheQueryAndCutAtTheLimit()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(Model(Host("trap")), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;
@@ -185,7 +185,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task ARulesLandingIsRecordedUnderThePathThatWasProbed()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var set = TestIds.RuleSet("scanners");
         var model = Model(Host("rules") with { Policies = [new RuleSetPolicySpec(set)] }) with
         {
@@ -205,7 +205,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task RobotsFetchesOnATrapHostReachTheSink()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(Model(Host("trap"), Host("plain", HostHoneypotSpec.Off)), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;
@@ -224,7 +224,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task AnswersOverTheCapAreShedWithRetryAfterAndCounted()
     {
-        var rig = new HoneypotRig(maxConcurrent: 1);
+        var rig = new GateTrapRig(maxConcurrent: 1);
         using var entered = new SemaphoreSlim(0);
         using var release = new SemaphoreSlim(0);
         rig.Factory.OnRender = target =>
@@ -262,7 +262,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task ARulesHoneypotActionServesTheLandingForAnyMethodAndRecordsTheRuleAsTheEntry()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var set = TestIds.RuleSet("scanners");
         var model = Model(Host("trap") with { Policies = [new RuleSetPolicySpec(set)] }) with
         {
@@ -303,7 +303,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task WithoutTheKeyAConfiguredTrapAnswersTheUnavailablePageAndRecordsNoHit()
     {
-        var rig = new HoneypotRig(withKey: false);
+        var rig = new GateTrapRig(withKey: false);
         await using var server = await StartAsync(Model(Host("trap")), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;
@@ -318,7 +318,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task ThePowFlowShowsTheChallengeTakesTheSolutionSetsTheCookieAndPasses()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(Model(Host("trap")), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;
@@ -373,7 +373,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task AWrongSolutionIsRefusedAndAReturnOutsideThePrefixIsReplacedByIt()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(Model(Host("trap")), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;
@@ -400,7 +400,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [Fact]
     public async Task ATrapTokenPassesNothingOnTheRealSiteAndTheRealTokenPassesNothingInTheTrap()
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         var both = Host("both") with { ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = Difficulty, TokenLifetimeHours = 24 } };
         await using var server = await StartAsync(Model(both), rig);
         using var client = ProxyTestServer.CreateClient();
@@ -456,7 +456,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     [InlineData("POST", "verify", null)]
     public async Task TheSimulatorSaysWhatTheTrapAnswers(string method, string path, string? accept)
     {
-        var rig = new HoneypotRig();
+        var rig = new GateTrapRig();
         await using var server = await StartAsync(Model(Host("trap")), rig);
         using var client = ProxyTestServer.CreateClient();
         var ct = TestContext.Current.CancellationToken;

@@ -2,7 +2,7 @@ using Paduraksa.Application.Honeypot;
 using Paduraksa.Contracts.Metrics;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Honeypot;
-using static Paduraksa.Tests.Data.Honeypot.HoneypotRig;
+using static Paduraksa.Tests.Data.Honeypot.HoneypotRecordingRig;
 
 namespace Paduraksa.Tests.Data.Honeypot;
 
@@ -16,9 +16,9 @@ public sealed class HoneypotServiceTests
     private static string Second(int seconds) => seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Three visitors on one host and one on another, each doing something different.</summary>
-    private static async Task<HoneypotRig> BehavingAsync()
+    private static async Task<HoneypotRecordingRig> BehavingAsync()
     {
-        var rig = await HoneypotRig.CreateAsync();
+        var rig = await HoneypotRecordingRig.CreateAsync();
         // A crawler that read robots.txt, then followed a hidden link, ran the script, fetched an image and got through the challenge.
         rig.Recorder.RobotsFetched(Host, System.Net.IPAddress.Parse("198.51.100.20") is var ip ? Paduraksa.ProxyProtocol.IpKey.FromIPAddress(ip) : default, "GPTBot/1.2");
         await rig.RecordAsync(
@@ -88,7 +88,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task TheSummaryListsTheMostAskedForPathsThatAreNoPageWithTheirLatestRequest()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         static HoneypotHit Guess(string path, int seconds, string client = "192.0.2.7", HostId? host = null, HoneypotPageKind page = HoneypotPageKind.NotFound) =>
             Hit(client: client, host: host, page: page, link: HoneypotLinkKind.Direct, status: page == HoneypotPageKind.NotFound ? 404 : 200, path: path, after: TimeSpan.FromSeconds(seconds));
         await rig.RecordAsync(
@@ -115,7 +115,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task TheGuessedPathsAreOfTheRangeByRequestTimeAndAtMostTenWithATruncatedOneMarked()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         var hits = Enumerable.Range(0, 12).Select(i => Hit(agent: "a" + i, page: HoneypotPageKind.NotFound, link: HoneypotLinkKind.Direct, status: 404, path: "/p" + i, after: TimeSpan.FromSeconds(i))).ToList();
         hits.Add(Hit(agent: "a0", page: HoneypotPageKind.NotFound, status: 404, path: "/long", pathTruncated: true, after: TimeSpan.FromSeconds(30)));
         for (var i = 0; i < 3; i++)
@@ -151,7 +151,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task TheSummaryOfNothingIsZeroesAndEveryLinkKind()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
 
         var summary = await rig.Service.ReadSummaryAsync(MetricsRange.Month, null, Ct);
 
@@ -165,7 +165,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task ARangeCoversSessionsWhoseLatestRequestIsInIt()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(
             Hit(agent: "yesterday", after: TimeSpan.FromHours(-30)),
             Hit(agent: "last-week", after: TimeSpan.FromDays(-3)),
@@ -185,7 +185,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task TheListIsNewestFirstAndPagesByCursor()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         for (var i = 0; i < 5; i++)
         {
             await rig.RecordAsync(Hit(agent: "agent-" + Second(i), after: TimeSpan.FromSeconds(i)));
@@ -206,7 +206,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task AQueryMatchesAnAddressExactlyOrByPrefixAUserAgentSubstringOrACanary()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(
             Hit(client: "203.0.113.9", agent: "Alpha/1", canary: "amber falcon"),
             Hit(client: "203.0.113.90", agent: "Beta/2 (compatible; Scrapy)", canary: "quiet harbor"),
@@ -294,7 +294,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task ASessionNobodyKeptHasNoRequestsEither()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         var id = HoneypotSessionId.New();
 
         Assert.Null(await rig.Service.ReadSessionAsync(id, Ct));
@@ -304,7 +304,7 @@ public sealed class HoneypotServiceTests
     [Fact]
     public async Task ASessionWhoseRequestsWerePrunedHasAnEmptyPage()
     {
-        await using var rig = await HoneypotRig.CreateAsync();
+        await using var rig = await HoneypotRecordingRig.CreateAsync();
         await rig.RecordAsync(Hit(), Hit(id: 2, after: TimeSpan.FromSeconds(1)));
         var session = (await rig.Service.ListSessionsAsync(new HoneypotSessionFilter(MetricsRange.Hour), 5, null, Ct)).Items.Single();
         await rig.Store.PruneAsync(Start, new HoneypotRetention(TimeSpan.FromDays(30), MaxSessions: 100, MaxRequests: 0), Ct);
