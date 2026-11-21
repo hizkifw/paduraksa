@@ -349,6 +349,7 @@ Detail: [design/milestones.md](design/milestones.md).
 **Open items inside done milestones:** a local country database, bcrypt `htpasswd` import, native OIDC, a forward-auth trace that makes the real call, a warning for a rule no request can reach, per-route error pages, local CA root renewal, the browser H3 upgrade test.
 
 **Later:**
+- **Honeypot, phase 2:** a tarpit, fake forms and canary credentials, a ban or a harder proof of work after N trap pages, fingerprint columns, trap links in the real site's HTML, and raster images. Phase 1 (observe only) is built; see `docs/design/waf.md` "Honeypot".
 - **Response caching** per host and route: RFC 9111 semantics, memory with an optional disk tier, cache keys and bypass rules, stale-while-revalidate, purge from the dashboard and API, and hit and miss figures in the metrics.
 - **Browser fingerprinting for the proof-of-work gate:** TLS, HTTP/2 and in-page fingerprints with behaviour scoring, so a crawler fleet running one setup through residential proxies gets harder challenges, a reload check or a block.
 - **Blocklists and bans:**

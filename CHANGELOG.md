@@ -24,6 +24,12 @@ Section numbers written as `(§7.4)` in the entries below refer to the numbering
 
 ## Unreleased
 
+- **Honeypot:** a per-host trap for crawlers that ignore robots.txt or probe for weak spots. It only observes; nothing it records refuses or slows a client. See `docs/design/waf.md` "Honeypot".
+  - **Ways in:** a managed robots.txt adds `Disallow: <prefix>` to every group, and a rule set's new `honeypot` action answers a matching request with a landing page that leads into the trap. On a host without a trap the action is a 403.
+  - **The site:** a blog with no end, derived from a per-host key and the URL, so it keeps no state. Posts, categories, tags, authors, pagination, a sitemap, a feed and SVG images, in English-like gibberish. Every link carries its kind in its token (normal, nofollow, ugc, sponsored, hidden, in a comment, script-only, beacon, sitemap- or feed-only, on a noindex page, image), so a request shows which link a crawler followed. A share of pages sits behind a proof-of-work challenge of the trap's own. Each visitor gets a canary phrase in the text.
+  - **Recording:** sessions per host, client IP and user agent, with the link kinds followed, depth, JS, images, challenge outcomes and whether robots.txt was read first; each request with its path. Full client IPs are kept, 30 days, at most 100k sessions and 1M requests. `GET /api/v1/honeypot/summary`, `/sessions`, `/sessions/{id}` and `/sessions/{id}/requests` (`metrics:read`).
+  - **Dashboard:** a Honeypot section in host settings, profiles and defaults; the action in the rule-set editor; Analytics, Security, Honeypot with the behaviour of each session and its request timeline.
+  - **Limits:** `Paduraksa:Honeypot:MaxConcurrent` (16) caps pages generated at once; above it the trap answers 503. Requests outside the trap still allocate 0 B.
 - **Dashboard:** the live tiles (Overview, Security overview) draw the last hour behind the figure, filling the tile with a fading area. Hovering the chart shows the hovered step's value and time in the figure's place.
 - **Security overview:** the admin host's access list no longer shows as turned off on its route while the internal admin listener is up.
 - **Dashboard:** the password-strength meters on setup, My account and the backup page show their bar again. A delete refused because the object is in use reads "Used by 2 hosts and 1 route. Pick another ... first.", and every count on the dashboard pairs its number and noun the same way.
