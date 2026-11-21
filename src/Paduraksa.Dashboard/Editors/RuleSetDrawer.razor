@@ -1,4 +1,5 @@
 @inherits NamedObjectDrawer<RuleSetEditModel, RuleSetConfig>
+@using Paduraksa.Application.Compilation
 
 @* A rule set in a drawer: a name and the rules in the order they are tried, each "When [path] [methods] [user agent] then [action]". On its
    own it goes through Review changes; opened from a host's form it is handed back, to be applied with the host in one revision. Its ID is
@@ -150,6 +151,11 @@
                         </ol>
                     }
 
+                    @if (HostsWithoutTrap is { Count: > 0 } bare && Model.Rules.Any(rule => rule.Action == RuleAction.Honeypot))
+                    {
+                        <MudText Typo="Typo.caption" Class="pdk-muted" data-section="honeypot-no-trap">Honeypot answers 403 on a host without a trap: @Wording.List(bare).</MudText>
+                    }
+
                     @if (MayWrite)
                     {
                         <div>
@@ -183,6 +189,35 @@
 
     private ReferenceUsage Usage =>
         Model is null || Document is null || Model.IsNew ? ReferenceUsage.None : ReferenceUsage.Find(Document, s => s.RuleSet?.RuleSetId == Model.Id);
+
+    /// <summary>The hosts that apply this set, by route or layer, that have no trap to answer a honeypot rule with: the rule is a deny there.</summary>
+    private IReadOnlyList<string> HostsWithoutTrap
+    {
+        get
+        {
+            if (Document is null)
+            {
+                return [];
+            }
+
+            return [.. Usage.Hosts.Concat(Usage.Routes.Select(route => route.Host))
+                .DistinctBy(host => host.Id)
+                .Where(host => host.Enabled && !HasTrap(Document, host))
+                .Select(ChangeView.HostTitle)
+                .Order(StringComparer.OrdinalIgnoreCase)];
+        }
+    }
+
+    private static bool HasTrap(ConfigDocument document, HostConfig host)
+    {
+        if (host.Kind == HostKind.Admin)
+        {
+            return false;
+        }
+
+        var profile = host.ProfileId is { } profileId ? document.Profiles.FirstOrDefault(p => p.Id == profileId) : null;
+        return HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, document.Settings.Defaults, profile?.Settings, host.Settings).Honeypot?.Enabled == true;
+    }
 
     protected override string LoadFailureMessage => "Couldn't load the rule-set form.";
 

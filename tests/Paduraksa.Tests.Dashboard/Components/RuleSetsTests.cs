@@ -9,6 +9,7 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
+using Paduraksa.Dashboard.Config;
 using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Pages;
 
@@ -200,6 +201,77 @@ public sealed class RuleSetsTests
         Assert.Equal((stored.Id, 4L), (edit.Id, edit.Version));
         Assert.Equal(["/admin", "/health"], edit.Rules.Select(rule => rule.Match.Path!.Pattern));
         Assert.Equal([RuleAction.Deny, RuleAction.Allow], edit.Rules.Select(rule => rule.Action));
+    }
+
+    [Fact]
+    public async Task TheHoneypotAction_IsOffered_SentAsChosen_AndSummarisedByItsWord()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument();
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<RuleSets>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=rule-set] input[data-field=name]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=rule-set] input[data-field=name]", "Lure scrapers");
+        await drawers.Find("[data-action=add-rule]").ClickAsync(new());
+        await ChooseKindAsync(drawers, 0, RulePathKind.Prefix);
+        await TypeAsync(drawers, "[data-drawer=rule-set] input[data-field=pattern-0]", "/wp-admin");
+        await ChooseActionAsync(drawers, 0, RuleAction.Honeypot);
+
+        _ = drawers.Find("form[data-drawer=rule-set]").SubmitAsync();
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+
+        var rule = Assert.Single(Assert.IsType<UpsertRuleSetCommand>(config.Executed[0]).RuleSet.Rules);
+        Assert.Equal(RuleAction.Honeypot, rule.Action);
+        Assert.Equal("Honeypot (a page of the trap)", RuleSetText.ActionLabel(RuleAction.Honeypot));
+        Assert.Equal("1 rule: honeypot", RuleSetText.Summary(new RuleSetConfig(RuleSetId.New(), "Lure", Rules: [rule])));
+        Assert.Equal("Honeypot when path starts with /wp-admin", RuleSetText.Describe(rule));
+    }
+
+    [Fact]
+    public async Task AHoneypotRuleSaysWhichHostsUsingTheSetHaveNoTrapAndAnswer403()
+    {
+        var lure = new RuleSetConfig(RuleSetId.New(), "Lure", Version: 3, Rules: [new RuleConfig(RuleAction.Honeypot, new RuleMatchConfig(new RulePathConfig(RulePathKind.Prefix, "/wp-admin")))]);
+        var bare = new HostConfig(HostId.New(), ["bare.test"], Settings: new HostSettings { RuleSet = Use(lure.Id) });
+        var trapped = new HostConfig(HostId.New(), ["trapped.test"], Settings: new HostSettings { RuleSet = Use(lure.Id), Honeypot = new HoneypotSettings { Enabled = true } });
+        var off = new HostConfig(HostId.New(), ["off.test"], Enabled: false, Settings: new HostSettings { RuleSet = Use(lure.Id) });
+        var viaProfile = new ProfileConfig(ProfileId.New(), "Traps", Settings: new HostSettings { Honeypot = new HoneypotSettings { Enabled = true } });
+        var profiled = new HostConfig(HostId.New(), ["profiled.test"], ProfileId: viaProfile.Id, Settings: new HostSettings { RuleSet = Use(lure.Id) });
+        var byRoute = new HostConfig(
+            HostId.New(), ["route.test"], Routes: [new RouteConfig(RouteId.New(), UpstreamId.New(), Path: "/x", Settings: new RouteSettings { RuleSet = Use(lure.Id) })]);
+
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument(RuleSets: [lure], Profiles: [viaProfile], Hosts: [bare, trapped, off, profiled, byRoute]);
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<RuleSets>(parameters => parameters.Add(p => p.Key, lure.Id.ToString()));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-rule]").Count == 1);
+
+        // A host with a trap (its own or its profile's) and a disabled host are left out; a route's host counts.
+        Assert.Equal("Honeypot answers 403 on a host without a trap: bare.test and route.test.", drawers.Find("[data-section=honeypot-no-trap]").TextContent.Trim());
+
+        // The note follows the editor: without a honeypot rule it has nothing to say.
+        await ChooseActionAsync(drawers, 0, RuleAction.Deny);
+        Assert.Empty(drawers.FindAll("[data-section=honeypot-no-trap]"));
+    }
+
+    [Fact]
+    public async Task AHoneypotRuleSaysNothingWhenEveryHostUsingTheSetHasATrap()
+    {
+        var lure = new RuleSetConfig(RuleSetId.New(), "Lure", Version: 3, Rules: [new RuleConfig(RuleAction.Honeypot, new RuleMatchConfig(new RulePathConfig(RulePathKind.Prefix, "/wp-admin")))]);
+        var trapped = new HostConfig(HostId.New(), ["trapped.test"], Settings: new HostSettings { RuleSet = Use(lure.Id), Honeypot = new HoneypotSettings { Enabled = true } });
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument(RuleSets: [lure], Hosts: [trapped]);
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<RuleSets>(parameters => parameters.Add(p => p.Key, lure.Id.ToString()));
+
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-rule]").Count == 1);
+
+        Assert.Empty(drawers.FindAll("[data-section=honeypot-no-trap]"));
     }
 
     [Fact]
