@@ -23,6 +23,11 @@ public partial class HoneypotSiteBenchmarks
     private HoneypotTarget _index;
     private HoneypotTarget _sitemap;
     private HoneypotTarget _feed;
+    private HoneypotTarget _category;
+    private HoneypotTarget _image;
+    private HoneypotTarget _notFound;
+    private HoneypotTarget _landing;
+    private readonly byte[] _clientIp = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 203, 0, 113, 9];
     private string _validPath = null!;
     private string _garbagePath = null!;
     private string _tamperedPath = null!;
@@ -47,21 +52,33 @@ public partial class HoneypotSiteBenchmarks
         foreach (Match link in Href().Matches(html))
         {
             var target = _site.Resolve(link.Groups[1].Value);
-            if (target.Kind == HoneypotPageKind.Post)
+            if (target.Kind == HoneypotPageKind.Post && _validPath is null)
             {
                 _post = target;
                 _validPath = link.Groups[1].Value;
-                break;
+            }
+            else if (target.Kind == HoneypotPageKind.Category && _category.Kind != HoneypotPageKind.Category)
+            {
+                _category = target;
+            }
+            else if (target.Kind == HoneypotPageKind.Image && _image.Kind != HoneypotPageKind.Image)
+            {
+                _image = target;
             }
         }
+
+        _landing = _site.Landing("/wp-login.php");
 
         _garbagePath = string.Concat(_validPath.AsSpan(0, _validPath.Length - 2), _validPath[^2] == 'a' ? "b" : "a", "/");
         var slugAt = _validPath.LastIndexOf('/', _validPath.Length - 2) + 1;
         _tamperedPath = string.Concat(_validPath.AsSpan(0, slugAt), _validPath[slugAt] == 'a' ? "b" : "a", _validPath.AsSpan(slugAt + 1));
+        _notFound = _site.Resolve(_garbagePath);
         if (_post.Kind != HoneypotPageKind.Post
             || _site.Resolve(_validPath) != _post
             || _site.Resolve(_garbagePath).Kind != HoneypotPageKind.NotFound
-            || _site.Resolve(_tamperedPath).Kind != HoneypotPageKind.NotFound)
+            || _site.Resolve(_tamperedPath).Kind != HoneypotPageKind.NotFound
+            || _category.Kind != HoneypotPageKind.Category
+            || _image.Kind != HoneypotPageKind.Image)
         {
             throw new InvalidOperationException("The benchmark's pages did not resolve as expected.");
         }
@@ -80,6 +97,21 @@ public partial class HoneypotSiteBenchmarks
     public HoneypotRender Feed() => Render(_feed);
 
     [Benchmark]
+    public HoneypotRender Category() => Render(_category);
+
+    [Benchmark]
+    public HoneypotRender Image() => Render(_image);
+
+    [Benchmark]
+    public HoneypotRender NotFound() => Render(_notFound);
+
+    [Benchmark]
+    public HoneypotRender Landing() => Render(_landing);
+
+    [Benchmark]
+    public string Canary() => _site.Canary(_clientIp, "Mozilla/5.0 (compatible; ExampleBot/2.1; +https://example.test/bot)");
+
+    [Benchmark]
     public HoneypotTarget ResolveValidToken() => _site.Resolve(_validPath);
 
     [Benchmark]
@@ -94,6 +126,6 @@ public partial class HoneypotSiteBenchmarks
         return _site.Render(target, "fox trot", _writer);
     }
 
-    [GeneratedRegex("href=\"([^\"]+)\"")]
+    [GeneratedRegex("(?:href|src)=\"([^\"]+)\"")]
     private static partial Regex Href();
 }

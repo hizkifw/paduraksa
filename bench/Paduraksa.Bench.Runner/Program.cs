@@ -16,6 +16,7 @@
 //   rewrite.test        one route, /app stripped and /api put in front (Location mapping at its default, on)
 //   rewrite-redirect.test  the same route, for an upstream that redirects into /api/
 //   ws.test             like bench.test, but its upstream is the WebSocket echo server (--websocket-upstream)
+//   honeypot.test       like bench.test, with a trap at /trap/ and no page behind a challenge: the gate renders every page
 //
 // Configuration and logging are production's: the shipped appsettings.json (copied from Paduraksa.Server) plus the
 // listener ports, a throwaway data directory (deleted on exit) and HTTP/3 off (the scenarios are TCP only; an H3
@@ -156,6 +157,10 @@ ConfigDocument document = new(
             HostId.New(), ["rewrite-redirect.test"], Certificate: placeholderCertificate,
             Routes: [new RouteConfig(RouteId.New(), benchUpstreamId, Path: "/app", Rewrite: new PathRewriteConfig(StripPrefix: true, AddPrefix: "/api"))]),
         new HostConfig(HostId.New(), ["ws.test"], Certificate: placeholderCertificate, Routes: [new RouteConfig(RouteId.New(), echoUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["honeypot.test"], Certificate: placeholderCertificate,
+            Settings: new HostSettings { Honeypot = new HoneypotSettings { Enabled = true, Path = "/trap/", PowShare = 0 } },
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
     ]);
 
 var dataDirectory = Path.Combine(Path.GetTempPath(), "paduraksa-bench-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
