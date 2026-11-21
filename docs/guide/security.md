@@ -224,10 +224,12 @@ The **Honeypot** setting (global defaults, a profile or a host; not per route) s
 
 A path starts and ends with `/`, has letters, digits and `- _ . ~` only, is at most 64 characters and can't contain `/.well-known/`.
 
+In the dashboard, the settings of a host, a profile and the global defaults have a Honeypot section. An empty path and name show the derived ones as placeholders. On a host, **Open trap** opens the path in a new tab.
+
 There are two ways into the trap:
 
 - **robots.txt.** If the host serves a managed `robots.txt`, a `Disallow:` line for the prefix is added to every group. A request under the prefix then came from a crawler that didn't read the file, or ignored it.
-- **A rule.** The **Honeypot** action of a [rule set](#rule-sets) answers a matching request, on any path, with a page of the trap. Under the prefix too: a visitor the rule matches gets that page there and never passes the trap's challenge.
+- **A rule.** The **Honeypot** action of a [rule set](#rule-sets) answers a matching request, on any path, with a page of the trap. Under the prefix too: a visitor the rule matches gets that page there and never passes the trap's challenge. The rule set's editor lists the hosts that use the set and have no trap.
 
 How it answers:
 

@@ -524,6 +524,7 @@ The one exception is a **regex**.
 - `/api/v1/rule-sets` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with `config.rule_set.*` audit actions. `GET /rule-sets/presets` lists the presets, and `GET /rule-sets/{id}` also reads one. A delete of a set a host still resolves to is refused.
 - The dashboard has Security > **Rule sets**: the sets with what their rules do and who applies them, and the presets read-only under them with "Create from preset" (`/rule-sets/new?copy=...`).
 - The drawer's rules read "When [path] [methods] [user agent] then [action]", with add, move and remove, and the real validator's messages at the fields.
+- The action select offers Honeypot beside Deny, Drop and Allow. If the set has a honeypot rule and an enabled host that applies it (by its layers or a route) has no trap, the drawer says one line: "Honeypot answers 403 on a host without a trap: app.example.com." A new set has no users, so it says nothing.
 - The settings of a host, profile, the defaults and a route pick a set by name in the Access section: inherit, none, a set, a preset, or a staged "New rule set..." that goes in with the host in one revision.
 
 **Gaps.**
@@ -843,6 +844,14 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
   - `GET /api/v1/honeypot/summary?range=` gives the counts, the behaviour matrix (sessions that followed each link kind, ran JS, fetched images, solved a challenge) and the top user agents.
   - `GET /api/v1/honeypot/sessions?range=&host=&q=` is a paged list. `q` matches an IP, a user agent substring or a canary phrase.
   - `GET /api/v1/honeypot/sessions/{id}` gives a session and its requests.
+
+### Dashboard
+
+- **The host setting** is a Honeypot section of the host settings, shared by the global defaults, a profile and a host: on or off, path, site name, share behind proof of work, difficulty and the noindex header, each with an inherit choice (a text field inherits when empty).
+  - An empty path or name shows what it would be as its placeholder: the layer below's, else the derived one. A derived one comes from `HoneypotDerivation` (Application), which asks `SnapshotCompiler.TryDeriveHoneypotNames` (the compiler's own derivation, with the same key and factory). The host drawer shows it; a profile and the defaults say "Derived from the host".
+  - **Open trap** sits in the path row of a saved host with the trap on and a name that isn't a wildcard: the first plain hostname, over HTTPS unless the host has no certificate.
+  - An admin host's form leaves the section out.
+  - The errors and warnings of `host.honeypot.*` show at their rows and in the review, with the labels in `FieldLabels`.
 
 ## Error pages
 

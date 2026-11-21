@@ -509,6 +509,12 @@ What a person asks ("how is it doing now", "how did it do over a week") has one 
 - The validator's errors show at the field they are about. The group shows the rows that apply: inheriting "on" shows them, an explicit Off hides the preload pair, and **Remembered for** also shows when the layer sets an age with the switch off, so a number the validator refuses has a field to appear at.
 - Cards and profile summaries say "HSTS: 1 year, subdomains, preload", "HSTS when on: ..." when the switch is left to the layer below, or "HSTS off".
 
+**Honeypot group:** a switch ("Inherit (off)", On, Off) and its rows: **Path** and **Site name** (text fields that inherit when empty), **Behind proof of work** (a count, percent), **Difficulty** (8 to 28 bits, as the browser check's) and **Noindex header**.
+- A text field's placeholder is what an empty one means: the layer below's value, else the host's derived one (`IDashboardConfig.HoneypotNamesOf`, which the host drawer passes down as `DerivedTrap`), else "Derived from the host" for a profile and the defaults.
+- **Open trap** is a link in the path row, with `TrapOrigin` from the host form: shown for a saved host whose trap resolves to on, with the first hostname that has no `*`, over HTTPS unless the certificate is none.
+- `ShowHoneypot` is false for an admin host, which can't have a trap.
+- The summary says "Honeypot on (/notes/, 40% behind proof of work)", "Honeypot off" or "Honeypot when on (...)".
+
 **Server header group:** a select with "Inherit (...)" naming the inherited mode in words, then `Paduraksa (no version)`, `Custom value`, `The upstream's header` and `Remove`. A **Custom value** field appears for the custom mode, and also when the layer already sets a value or the validator refuses one. The one helper line says that hiding the upstream's header stops it advertising its software and version. Summaries say "Server header: Paduraksa", "Server header: edge/1.0", "Server header: the upstream's header" or "Server header: none"; a value without a mode says "Server header value: ...".
 
 ## Drafts
