@@ -56,6 +56,7 @@ public static class RuleSetText
     {
         RuleAction.Deny => "deny",
         RuleAction.Drop => "drop",
+        RuleAction.Honeypot => "honeypot",
         _ => "allow",
     };
 
@@ -64,6 +65,7 @@ public static class RuleSetText
     {
         RuleAction.Deny => "Deny (403 page)",
         RuleAction.Drop => "Drop the connection",
+        RuleAction.Honeypot => "Honeypot (a page of the trap)",
         _ => "Allow (skip the later rules)",
     };
 

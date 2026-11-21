@@ -11,6 +11,7 @@ public sealed class RuleSetCounters
     private long _denied;
     private long _dropped;
     private long _allowed;
+    private long _honeypotted;
     private long _timeouts;
 
     public long Denied => Interlocked.Read(ref _denied);
@@ -19,6 +20,9 @@ public sealed class RuleSetCounters
 
     /// <summary>Requests an <see cref="RuleAction.Allow"/> rule took out of the set's later rules.</summary>
     public long Allowed => Interlocked.Read(ref _allowed);
+
+    /// <summary>Requests a honeypot rule sent to the host's trap. A rule on a host without one counts as a denial.</summary>
+    public long Honeypotted => Interlocked.Read(ref _honeypotted);
 
     /// <summary>Regex matches that ran past their timeout and were decided by the rule's action instead.</summary>
     public long Timeouts => Interlocked.Read(ref _timeouts);
@@ -34,6 +38,9 @@ public sealed class RuleSetCounters
                 break;
             case RuleAction.Drop:
                 Interlocked.Increment(ref _dropped);
+                break;
+            case RuleAction.Honeypot:
+                Interlocked.Increment(ref _honeypotted);
                 break;
             default:
                 Interlocked.Increment(ref _allowed);

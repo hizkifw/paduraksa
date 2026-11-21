@@ -73,7 +73,7 @@ public static partial class SnapshotCompiler
             }
 
             var honeypot = CompileHoneypot(spec, where);
-            var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors, AccessLists, RuleSets);
+            var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors, AccessLists, RuleSets, honeypot is not null);
 
             // An admin host's answers and its app's own headers are the admin's: custom rules apply to proxy hosts only.
             var hostHeaders = spec.Kind == HostKind.Admin ? CompiledHeaders.None : HeadersOf(spec.Headers, where);
@@ -91,7 +91,7 @@ public static partial class SnapshotCompiler
             var routes = spec.Kind switch
             {
                 HostKind.Admin => CompileAdminRoute(spec, where, hostRateLimit, AccessListOf(spec.AccessList.Effective)),
-                HostKind.Proxy => CompileRoutes(spec, where, rateLimitCache, hostRateLimit, spec.RateLimit.EffectivePolicyId),
+                HostKind.Proxy => CompileRoutes(spec, where, rateLimitCache, hostRateLimit, spec.RateLimit.EffectivePolicyId, honeypot is not null),
                 _ => RejectRoutes(spec, where, Errors),
             };
             var fixedResponse = CompileFixedResponse(spec, where, Errors);
@@ -316,7 +316,8 @@ public static partial class SnapshotCompiler
             CompileErrorSource where,
             Dictionary<RateLimitPolicyId, RateLimitPolicy>? rateLimits,
             RateLimitPolicy? hostRateLimit,
-            RateLimitPolicyId? hostRateLimitId)
+            RateLimitPolicyId? hostRateLimitId,
+            bool hostHasTrap)
         {
             var specs = host.Routes ?? [];
             if (specs.Count == 0)
@@ -391,7 +392,7 @@ public static partial class SnapshotCompiler
                 }
 
                 // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
-                var own = CompilePolicies(spec.Policies ?? [], routeWhere, Errors, AccessLists, RuleSets);
+                var own = CompilePolicies(spec.Policies ?? [], routeWhere, Errors, AccessLists, RuleSets, hostHasTrap);
 
                 // After the access policies and before proof of work: a client already over its budget gets the 429, not a
                 // challenge page. A route that resolves to the host's policy shares its pair's buckets; another policy gets

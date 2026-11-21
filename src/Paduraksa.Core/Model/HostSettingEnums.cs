@@ -123,6 +123,9 @@ public enum RuleAction
 
     /// <summary>Stop looking at this set's later rules and let the request go on: the exception a later deny can't reach.</summary>
     Allow,
+
+    /// <summary>Answer 200 with a page of the host's trap blog for the requested path, so a crawler that follows its links ends up in the trap. A host without a trap treats it as deny.</summary>
+    Honeypot,
 }
 
 /// <summary>How a rule's path condition reads its pattern. All four compare the canonical matching path ignoring ASCII case.</summary>

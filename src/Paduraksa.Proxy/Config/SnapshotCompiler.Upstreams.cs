@@ -235,18 +235,20 @@ public static partial class SnapshotCompiler
         return true;
     }
 
-    private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists, RuleSetBinding ruleSets)
+    private static IRequestPolicy[] CompilePolicies(
+        IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists, RuleSetBinding ruleSets, bool hostHasTrap)
     {
         var policies = new IRequestPolicy[specs.Count];
         for (var i = 0; i < specs.Count; i++)
         {
-            policies[i] = CompilePolicy(specs[i], where, errors, accessLists, ruleSets);
+            policies[i] = CompilePolicy(specs[i], where, errors, accessLists, ruleSets, hostHasTrap);
         }
 
         return policies;
     }
 
-    private static IRequestPolicy CompilePolicy(PolicySpec spec, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists, RuleSetBinding ruleSets)
+    private static IRequestPolicy CompilePolicy(
+        PolicySpec spec, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists, RuleSetBinding ruleSets, bool hostHasTrap)
     {
         switch (spec)
         {
@@ -274,7 +276,7 @@ public static partial class SnapshotCompiler
                 errors.Add(new(where, "a union of access lists names one that doesn't exist, or none"));
                 break;
             case RuleSetPolicySpec ruleSet when ruleSets.Sets.TryGetValue(ruleSet.RuleSet, out var compiled):
-                return new RuleSetPolicy(compiled, ruleSet.RouteOverride);
+                return new RuleSetPolicy(compiled, ruleSet.RouteOverride, hostHasTrap);
             case RuleSetPolicySpec ruleSet:
                 errors.Add(new(where, $"rule set '{ruleSet.RuleSet}' doesn't exist or didn't compile"));
                 break;

@@ -33,12 +33,17 @@ public sealed class RuleSetPolicy : IRequestPolicy, IPolicyTraceFacts
 
     private readonly CompiledRuleSet _set;
     private readonly bool _routeOverride;
+    private readonly bool _hostHasTrap;
 
-    internal RuleSetPolicy(CompiledRuleSet set, bool routeOverride = false)
+    /// <param name="set">The compiled rules.</param>
+    /// <param name="routeOverride">The route names this set itself (the trace says so).</param>
+    /// <param name="hostHasTrap">The host this policy belongs to serves a trap. Decided at compile time, so a rule's honeypot action never looks at the host per request: without a trap it is a deny.</param>
+    internal RuleSetPolicy(CompiledRuleSet set, bool routeOverride = false, bool hostHasTrap = false)
     {
         ArgumentNullException.ThrowIfNull(set);
         _set = set;
         _routeOverride = routeOverride;
+        _hostHasTrap = hostHasTrap;
     }
 
     /// <summary>The set this policy applies, for the security overview.</summary>
@@ -58,7 +63,7 @@ public sealed class RuleSetPolicy : IRequestPolicy, IPolicyTraceFacts
             return PolicyDecision.Continue;
         }
 
-        var action = _set.ActionOf(rule);
+        var action = EffectiveAction(rule);
         if (!request.IsSimulation)
         {
             _set.Counters.Count(action);
@@ -68,6 +73,7 @@ public sealed class RuleSetPolicy : IRequestPolicy, IPolicyTraceFacts
         {
             RuleAction.Deny => Denied,
             RuleAction.Drop => PolicyDecision.Drop,
+            RuleAction.Honeypot => PolicyDecision.Honeypot,
             _ => PolicyDecision.Continue,
         };
     }
@@ -103,6 +109,8 @@ public sealed class RuleSetPolicy : IRequestPolicy, IPolicyTraceFacts
             {
                 RuleAction.Deny => "refuses it with 403",
                 RuleAction.Drop => "drops it",
+                RuleAction.Honeypot when _hostHasTrap => "answers it with a page of the host's trap",
+                RuleAction.Honeypot => "refuses it with 403, because the host has no trap to answer with",
                 _ => "allows it, so the set's later rules are skipped",
             });
     }
@@ -131,8 +139,17 @@ public sealed class RuleSetPolicy : IRequestPolicy, IPolicyTraceFacts
 
         facts.Add(new("rule", (rule + 1).ToString(CultureInfo.InvariantCulture)));
         facts.Add(new("matched", Describe(http, rule)));
-        facts.Add(new("action", _set.ActionOf(rule) switch { RuleAction.Deny => "deny", RuleAction.Drop => "drop", _ => "allow" }));
+        var configured = _set.ActionOf(rule);
+        facts.Add(new("action", configured switch { RuleAction.Deny => "deny", RuleAction.Drop => "drop", RuleAction.Honeypot => "honeypot", _ => "allow" }));
+        if (configured == RuleAction.Honeypot)
+        {
+            facts.Add(new("trap", _hostHasTrap ? "yes" : "none"));
+        }
     }
+
+    // A honeypot rule on a host without a trap is the deny the validator's warning says it is, decided at compile time.
+    private RuleAction EffectiveAction(int rule) =>
+        _set.ActionOf(rule) is RuleAction.Honeypot && !_hostHasTrap ? RuleAction.Deny : _set.ActionOf(rule);
 
     private int Match(HttpRequest http)
     {

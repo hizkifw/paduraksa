@@ -215,6 +215,47 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     }
 
     [Fact]
+    public async Task ARulesHoneypotActionServesTheLandingForAnyMethodAndRecordsTheRuleAsTheEntry()
+    {
+        var rig = new HoneypotRig();
+        var set = TestIds.RuleSet("scanners");
+        var model = Model(Host("trap") with { Policies = [new RuleSetPolicySpec(set)] }) with
+        {
+            RuleSets = [new RuleSetSpec { Id = set, Name = "scanners", Rules = [new RuleSpec { Action = RuleAction.Honeypot, UserAgentContains = ["sqlmap"] }] }],
+        };
+        await using var server = await StartAsync(model, rig);
+        using var client = ProxyTestServer.CreateClient();
+        var ct = TestContext.Current.CancellationToken;
+
+        using var get = server.Request("trap.test", "/wp-login.php?x=1");
+        get.Headers.UserAgent.ParseAdd("sqlmap/1.7");
+        using var landing = await client.SendAsync(get, ct);
+        Assert.Equal(HttpStatusCode.OK, landing.StatusCode);
+        Assert.Contains("Landing 5 canary=", await landing.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.Equal("noindex, nofollow", landing.Headers.GetValues("X-Robots-Tag").Single());
+
+        using var post = server.Request("trap.test", "/xmlrpc.php", HttpMethod.Post);
+        post.Headers.UserAgent.ParseAdd("sqlmap/1.7");
+        post.Content = new StringContent("<methodCall/>");
+        using var posted = await client.SendAsync(post, ct);
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        using var head = server.Request("trap.test", "/", HttpMethod.Head);
+        head.Headers.UserAgent.ParseAdd("sqlmap/1.7");
+        using var headed = await client.SendAsync(head, ct);
+        Assert.Equal(HttpStatusCode.OK, headed.StatusCode);
+        Assert.Empty(await headed.Content.ReadAsByteArrayAsync(ct));
+
+        Assert.Equal(3, rig.Sink.Hits.Count);
+        Assert.All(rig.Sink.Hits, hit => Assert.Equal((HoneypotEntry.Rule, HoneypotPageKind.Landing, 200), (hit.Entry, hit.PageKind, hit.Status)));
+
+        // Anyone else is an ordinary request.
+        using var other = await client.SendAsync(server.Request("trap.test", "/wp-login.php"), ct);
+        Assert.DoesNotContain("canary=", await other.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.Equal(3, rig.Sink.Hits.Count);
+    }
+
+    [Fact]
     public async Task WithoutTheKeyAConfiguredTrapAnswers503ThePageForAChallengeGives()
     {
         var rig = new HoneypotRig(withKey: false);

@@ -17,6 +17,9 @@ public enum PolicyAction : byte
     /// <summary>The verdict needs asynchronous work: the gate calls <see cref="IDeferredPolicy.CompleteAsync"/> and, if that
     /// continues, resumes the chain after this policy. Never returned for a simulation.</summary>
     Defer,
+
+    /// <summary>Answer with a page of the host's trap: the gate hands the request to the honeypot handler, which renders the landing page.</summary>
+    Honeypot,
 }
 
 /// <summary>A policy's verdict, 24 bytes: two references and the action. The second reference is the precomputed
@@ -45,6 +48,8 @@ public readonly struct PolicyDecision : IEquatable<PolicyDecision>
     public static PolicyDecision Drop => new(PolicyAction.Drop, null, null);
 
     public static PolicyDecision Defer => new(PolicyAction.Defer, null, null);
+
+    public static PolicyDecision Honeypot => new(PolicyAction.Honeypot, null, null);
 
     public static PolicyDecision Respond(PrecomputedResponse response) => Respond(response, null);
 

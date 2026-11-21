@@ -24665,7 +24665,8 @@
         "enum": [
           "deny",
           "drop",
-          "allow"
+          "allow",
+          "honeypot"
         ],
         "type": "string",
         "description": "What a rule set does with a request its rule matches."

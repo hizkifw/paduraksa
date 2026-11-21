@@ -551,6 +551,14 @@ public sealed class GateMiddleware
                     view.State.Outcome = policy.Outcome;
                     decision = GateDecision.Respond(verdict.Response!, verdict.RetryAfter);
                     return true;
+                case PolicyAction.Honeypot:
+                    // As the prefix: the trap's answers are the host's own, and its pages are never compressed. The handler tells the rule's
+                    // entry from the prefix's by this flag.
+                    view.State.Outcome = GateOutcome.Answered;
+                    view.State.ProxyAnswered = true;
+                    view.State.HoneypotViaRule = true;
+                    decision = GateDecision.Honeypot;
+                    return true;
                 case PolicyAction.Defer:
                     var state = view.State;
                     state.DeferredPolicy = (IDeferredPolicy)policy;

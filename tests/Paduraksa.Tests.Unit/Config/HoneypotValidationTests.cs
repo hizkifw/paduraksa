@@ -102,6 +102,37 @@ public sealed class HoneypotValidationTests
         Assert.DoesNotContain(ConfigValidator.Validate(document), e => e.Code == HostHoneypotAdminHost);
     }
 
+    [Fact]
+    public void ARuleSetMayAnswerWithTheHoneypotAndTheActionRoundTripsAsItsName()
+    {
+        var document = Valid() with
+        {
+            RuleSets = [new RuleSetConfig(Id<RuleSetId>(7), "scanners", Rules: [new RuleConfig(RuleAction.Honeypot, new RuleMatchConfig(UserAgent: new RuleUserAgentConfig(["sqlmap"])))])],
+        };
+
+        Assert.Empty(ConfigValidator.Validate(document));
+
+        var json = System.Text.Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document));
+        Assert.Contains("\"action\":\"honeypot\"", json, StringComparison.Ordinal);
+        Assert.True(CanonicalConfigJson.TryDeserialize(System.Text.Encoding.UTF8.GetBytes(json), out var back, out _));
+        Assert.Equal(RuleAction.Honeypot, back!.RuleSets.Single().Rules.Single().Action);
+    }
+
+    [Fact]
+    public void TheSettingRoundTripsThroughTheCanonicalDocumentAndAnEmptyOneIsAbsent()
+    {
+        var document = Valid() with
+        {
+            Settings = Valid().Settings with { Defaults = new HostSettings { Honeypot = new HoneypotSettings { Enabled = true, Path = "/archive-k7f3/", NoIndex = false } } },
+        };
+
+        var json = System.Text.Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document));
+
+        Assert.Contains("\"honeypot\":{\"enabled\":true,\"path\":\"/archive-k7f3/\",\"noIndex\":false}", json, StringComparison.Ordinal);
+        var empty = Valid() with { Settings = Valid().Settings with { Defaults = new HostSettings { Honeypot = new HoneypotSettings() } } };
+        Assert.DoesNotContain("honeypot", System.Text.Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(empty)), StringComparison.Ordinal);
+    }
+
     private static IEnumerable<(string Path, string Code)> Errors(HoneypotSettings honeypot)
     {
         var document = Valid();
