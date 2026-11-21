@@ -126,11 +126,17 @@ internal ref partial struct PageRenderer
             _o.Write("\">Newer posts</a>"u8);
         }
 
-        _o.Write("<a href=\""u8);
-        _o.Write(_site.PrefixBytes);
-        _o.Write("page/"u8);
-        _o.WriteInt(page + 1);
-        _o.Write("/\">Older posts</a></nav>"u8);
+        // The last page Resolve accepts links no further: a link to the next would resolve as a guessed URL.
+        if (page < HoneypotSite.MaxIndexPage)
+        {
+            _o.Write("<a href=\""u8);
+            _o.Write(_site.PrefixBytes);
+            _o.Write("page/"u8);
+            _o.WriteInt(page + 1);
+            _o.Write("/\">Older posts</a>"u8);
+        }
+
+        _o.Write("</nav>"u8);
         End();
         return Done(null);
     }

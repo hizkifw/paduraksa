@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- The backup-archive and certificate-import targets check the vault against a second reading of its formats (AES-GCM chunks, certificate hashes) and build their seed
-         certificates and archives, which takes the key-material APIs that BannedSymbols.KeyMaterial.txt bans outside the vault and its tests. No other target uses them. -->
+         certificates and archives, and the honeypot-site target checks token tags with its own HMAC. These take the key-material APIs that BannedSymbols.KeyMaterial.txt
+         bans outside the vault and its tests. -->
     <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
   </PropertyGroup>
   <ItemGroup>

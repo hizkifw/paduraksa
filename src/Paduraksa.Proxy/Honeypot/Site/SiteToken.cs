@@ -128,8 +128,10 @@ internal static class SiteToken
         input[3] = (byte)parentKind;
         BinaryPrimitives.WriteUInt32LittleEndian(input[4..], local);
         BinaryPrimitives.WriteUInt32LittleEndian(input[8..], parentLocal);
-        var length = Math.Min(tail.Length, MaxTail);
-        tail[..length].CopyTo(input[12..]);
+        // Resolve refuses a longer tail, so a URL built from one would be dead.
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(tail.Length, MaxTail);
+        var length = tail.Length;
+        tail.CopyTo(input[12..]);
 
         Span<byte> mac = stackalloc byte[SiteKeys.MacLength];
         SiteKeys.Mac(key, input[..(12 + length)], mac);

@@ -553,7 +553,10 @@ public sealed partial class HoneypotSiteTests
         var third = SiteCrawl.Page(site, site.Prefix + "page/3/");
         Assert.Contains($"href=\"{site.Prefix}page/2/\">Newer", third.Body, StringComparison.Ordinal);
         Assert.NotEqual(first.Links.Select(l => l.Url).Order(), third.Links.Select(l => l.Url).Order());
-        Assert.Equal(HoneypotPageKind.IndexPage, site.Resolve(site.Prefix + "page/99999/").Kind);
+        var last = SiteCrawl.Page(site, site.Prefix + "page/99999/");
+        Assert.Equal(HoneypotPageKind.IndexPage, last.Target.Kind);
+        Assert.DoesNotContain("page/100000/", last.Body, StringComparison.Ordinal);
+        Assert.All(last.Links.Where(l => l.Url.StartsWith(site.Prefix, StringComparison.Ordinal)), l => Assert.NotEqual(HoneypotPageKind.NotFound, site.Resolve(l.Url).Kind));
     }
 
     [Fact]

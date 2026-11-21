@@ -13,7 +13,7 @@ public sealed class HoneypotSite : IHoneypotSite
     /// <summary>Resolve refuses a longer path at once. The longest URL the site makes is about a hundred and fifty characters.</summary>
     private const int MaxPathLength = 256;
 
-    private const int MaxIndexPage = 99_999;
+    internal const int MaxIndexPage = 99_999;
     private const string Base32 = "abcdefghijklmnopqrstuvwxyz234567";
 
     private readonly byte[] _key;
