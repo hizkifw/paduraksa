@@ -71,6 +71,9 @@ public static class HostSettingsEdit
     public static HostSettings WithHeaders(HostSettings settings, Func<HeadersSettings, HeadersSettings> change) =>
         Edit(settings, s => s.Headers, change, (s, record) => s with { Headers = record });
 
+    public static HostSettings WithHoneypot(HostSettings settings, Func<HoneypotSettings, HoneypotSettings> change) =>
+        Edit(settings, s => s.Honeypot, change, (s, record) => s with { Honeypot = record });
+
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
     /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
@@ -125,7 +128,50 @@ public static class SettingsSummary
         static (settings, document) => settings.Maintenance is { } maintenance ? MaintenanceText(maintenance, document) : null,
         static (settings, _) => settings.Headers is { } headers ? HeadersText(headers) : null,
         static (settings, _) => settings.Compression?.Enabled is { } compressed ? (compressed ? "Compression on" : "Compression off") : null,
+        static (settings, _) => settings.Honeypot is { } honeypot ? HoneypotText(honeypot) : null,
     ];
+
+    private static string? HoneypotText(HoneypotSettings honeypot)
+    {
+        if (honeypot.SetsNothing)
+        {
+            return null;
+        }
+
+        List<string> parts = [];
+        if (honeypot.Path is { } path)
+        {
+            parts.Add(path);
+        }
+
+        if (honeypot.SiteName is { } name)
+        {
+            parts.Add($"named \"{Shorten(name, 40)}\"");
+        }
+
+        if (honeypot.PowShare is { } share)
+        {
+            parts.Add($"{share.ToString(System.Globalization.CultureInfo.InvariantCulture)}% behind proof of work");
+        }
+
+        if (honeypot.PowDifficulty is { } bits)
+        {
+            parts.Add($"{bits.ToString(System.Globalization.CultureInfo.InvariantCulture)} bits");
+        }
+
+        if (honeypot.NoIndex is { } noIndex)
+        {
+            parts.Add(noIndex ? "noindex" : "indexable");
+        }
+
+        var details = parts.Count == 0 ? string.Empty : $" ({string.Join(", ", parts)})";
+        return honeypot.Enabled switch
+        {
+            true => $"Honeypot on{details}",
+            false => "Honeypot off",
+            _ => $"Honeypot when on{details}",
+        };
+    }
 
     private static string? HeadersText(HeadersSettings headers)
     {

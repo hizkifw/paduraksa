@@ -116,6 +116,11 @@ public static class FieldLabels
         ["connections"] = "Connections",
         ["maxConnectionsPerIp"] = "Connections per address",
         ["denyListId"] = "Connection deny list",
+        ["honeypot"] = "Honeypot",
+        ["siteName"] = "Site name",
+        ["powShare"] = "Share behind proof of work",
+        ["powDifficulty"] = "Proof-of-work difficulty",
+        ["noIndex"] = "Noindex header",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     private static readonly FrozenDictionary<string, string> Values = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -134,6 +139,7 @@ public static class FieldLabels
         ["deny"] = "Deny",
         ["drop"] = "Drop",
         ["allow"] = "Allow",
+        ["honeypot"] = "Honeypot",
         ["tls12"] = "TLS 1.2",
         ["tls13"] = "TLS 1.3",
         ["http2AndHttp11"] = "HTTP/2 and HTTP/1.1",

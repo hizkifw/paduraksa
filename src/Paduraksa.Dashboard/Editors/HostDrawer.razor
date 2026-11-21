@@ -56,7 +56,7 @@
                       RateLimits="DraftDocument.RateLimitPolicies" StagedRateLimits="StagedRateLimitIds"
                       AccessLists="DraftDocument.AccessLists" StagedAccessLists="StagedAccessListIds" RuleSets="DraftDocument.RuleSets" StagedRuleSets="StagedRuleSetIds"
                       AuthProviders="DraftDocument.AuthProviders" StagedAuthProviders="StagedAuthProviderIds"
-                      Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" ProxyMode="DraftDocument.Settings.TrustedProxies.Mode" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
+                      Certificates="_certificates" DerivedTrap="@Config.HoneypotNamesOf(Model.Id)" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" ProxyMode="DraftDocument.Settings.TrustedProxies.Mode" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
                       OnChanged="Changed"
                       OnNewUpstream="@(MayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
                       OnEditUpstream="EventCallback.Factory.Create<UpstreamId>(this, EditUpstreamAsync)"

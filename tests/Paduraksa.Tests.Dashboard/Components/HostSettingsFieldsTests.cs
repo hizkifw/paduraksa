@@ -61,6 +61,7 @@ public sealed class HostSettingsFieldsTests
             ReplaceUpstream = UpstreamErrorReplacement.Html,
         },
         Maintenance = new MaintenanceSettings { Enabled = true, Status = 200, RetryAfterSeconds = 600, BypassAccessListId = SampleList },
+        Honeypot = new HoneypotSettings { Enabled = true, Path = "/archive/", SiteName = "Field Notes", PowShare = 30, PowDifficulty = 14, NoIndex = false },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -439,6 +440,56 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/compression/minimumSize",
             ShowsAtField = true,
         },
+        SelectRow("honeypot.enabled", "honeypot-enabled", "/honeypot/enabled", "Honeypot", false,
+            new HostSettings { Honeypot = new HoneypotSettings { Enabled = false } }, "Inherit (on)") with { ValidatorPath = "/honeypot/enabled", ShowsAtField = true },
+        // The path and the name have no inherit choice: an empty field inherits, and its placeholder says what.
+        new(
+            "honeypot.path",
+            "honeypot-path",
+            "/honeypot/path",
+            new HostSettings(),
+            (fields, _) => Input(fields, "honeypot-path", "/notes/"),
+            new HostSettings { Honeypot = new HoneypotSettings { Path = "/notes/" } },
+            (fields, _) => Input(fields, "honeypot-path", string.Empty),
+            new HostSettings(),
+            InheritText: null)
+        {
+            ValidatorPath = "/honeypot/path",
+            ShowsAtField = true,
+        },
+        new(
+            "honeypot.siteName",
+            "honeypot-site-name",
+            "/honeypot/siteName",
+            new HostSettings(),
+            (fields, _) => Input(fields, "honeypot-site-name", "Garden Notes"),
+            new HostSettings { Honeypot = new HoneypotSettings { SiteName = "Garden Notes" } },
+            (fields, _) => Input(fields, "honeypot-site-name", string.Empty),
+            new HostSettings(),
+            InheritText: null)
+        {
+            ValidatorPath = "/honeypot/siteName",
+            ShowsAtField = true,
+        },
+        new(
+            "honeypot.powShare",
+            "honeypot-pow-share",
+            "/honeypot/powShare",
+            new HostSettings(),
+            (fields, _) => SetCount(fields, "Share behind proof of work (%)", 50),
+            new HostSettings { Honeypot = new HoneypotSettings { PowShare = 50 } },
+            (fields, _) => SetCount(fields, "Share behind proof of work (%)", null),
+            new HostSettings(),
+            "Inherit (30)")
+        {
+            ValidatorPath = "/honeypot/powShare",
+            ShowsAtField = true,
+        },
+        SelectRow("honeypot.powDifficulty", "honeypot-pow-difficulty", "/honeypot/powDifficulty", "Trap difficulty", 20,
+            new HostSettings { Honeypot = new HoneypotSettings { PowDifficulty = 20 } }, "Inherit (14 bits") with { ValidatorPath = "/honeypot/powDifficulty", ShowsAtField = true },
+        // Group key: the validator has no rule for the header.
+        SelectRow("honeypot.noIndex", "honeypot-noindex", "/honeypot/noIndex", "Noindex header", true,
+            new HostSettings { Honeypot = new HoneypotSettings { NoIndex = true } }, "Inherit (off)") with { GroupKey = true },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -709,12 +760,6 @@ public sealed class HostSettingsFieldsTests
         List<string> contract = [];
         foreach (var property in typeof(HostSettings).GetProperties())
         {
-            // The honeypot card comes with the honeypot dashboard branch, which adds its rows and drops this line.
-            if (property.Name == nameof(HostSettings.Honeypot))
-            {
-                continue;
-            }
-
             if (typeof(ISettingsLayer).IsAssignableFrom(property.PropertyType))
             {
                 foreach (var nested in property.PropertyType.GetProperties().Where(p => p.Name != nameof(ISettingsLayer.SetsNothing)))

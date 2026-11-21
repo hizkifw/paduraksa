@@ -194,6 +194,62 @@
             <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
         </InheritSelect>
 
+        @if (ShowHoneypot)
+        {
+            <h4 class="pdk-setting-section">Honeypot</h4>
+
+            <InheritSelect T="bool" Value="_current.Honeypot?.Enabled" ValueChanged="@(value => Update(WithHoneypot(honeypot => honeypot with { Enabled = value }), "/honeypot/enabled"))"
+                           Inherited="@Resolved.Honeypot!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                           Title="Honeypot" Help="A blog with no end for crawlers that ignore robots.txt. It only records visits."
+                           Label="Honeypot" Field="honeypot-enabled" Error="@E("/honeypot/enabled")" ReadOnly="@ReadOnly">
+                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+            </InheritSelect>
+
+            <div class="pdk-setting-children">
+                <SettingRow Title="Path" HelpContent="@TrapPathHelp">
+                    <MudTextField T="string" Value="@(_current.Honeypot?.Path ?? string.Empty)"
+                                  ValueChanged="@(value => Update(WithHoneypot(honeypot => honeypot with { Path = string.IsNullOrEmpty(value) ? null : value }), "/honeypot/path"))"
+                                  Label="Path" Placeholder="@TrapPathPlaceholder" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="64"
+                                  Class="pdk-setting-control pdk-mono-input" Error="@(E("/honeypot/path") is not null)" ErrorText="@E("/honeypot/path")"
+                                  spellcheck="false" autocomplete="off" data-field="honeypot-path" />
+                </SettingRow>
+
+                <SettingRow Title="Site name" Help="The blog's title. If left empty, one is derived for the host.">
+                    <MudTextField T="string" Value="@(_current.Honeypot?.SiteName ?? string.Empty)"
+                                  ValueChanged="@(value => Update(WithHoneypot(honeypot => honeypot with { SiteName = string.IsNullOrEmpty(value) ? null : value }), "/honeypot/siteName"))"
+                                  Label="Site name" Placeholder="@TrapSiteNamePlaceholder" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="80"
+                                  Class="pdk-setting-control" Error="@(E("/honeypot/siteName") is not null)" ErrorText="@E("/honeypot/siteName")"
+                                  autocomplete="off" data-field="honeypot-site-name" />
+                </SettingRow>
+
+                <SettingRow Title="Behind proof of work" Help="Percent of posts, categories, tags and authors that need a solved proof of work, from 0 to 100.">
+                    <CountField Value="_current.Honeypot?.PowShare" ValueChanged="@(value => Update(WithHoneypot(honeypot => honeypot with { PowShare = value }), "/honeypot/powShare"))"
+                                Inherited="@Resolved.Honeypot!.PowShare!.Value" InheritWord="@InheritWord" Label="Share behind proof of work (%)" Field="honeypot-pow-share"
+                                Error="@E("/honeypot/powShare")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+                </SettingRow>
+
+                <InheritSelect T="int" Value="_current.Honeypot?.PowDifficulty" ValueChanged="@(value => Update(WithHoneypot(honeypot => honeypot with { PowDifficulty = value }), "/honeypot/powDifficulty"))"
+                               Inherited="@Resolved.Honeypot!.PowDifficulty!.Value" Format="@(value => $"{value} bits ({SettingsSummary.DifficultyText(value)})")" InheritWord="@InheritWord"
+                               Title="Difficulty" Help="Leading zero bits a solution needs, as for the browser check."
+                               Label="Trap difficulty" Field="honeypot-pow-difficulty" Error="@E("/honeypot/powDifficulty")" ReadOnly="@ReadOnly">
+                    @for (var bits = 8; bits <= 28; bits++)
+                    {
+                        var value = bits;
+                        <MudSelectItem T="int?" Value="value">@value bits (@SettingsSummary.DifficultyText(value))</MudSelectItem>
+                    }
+                </InheritSelect>
+
+                <InheritSelect T="bool" Value="_current.Honeypot?.NoIndex" ValueChanged="@(value => Update(WithHoneypot(honeypot => honeypot with { NoIndex = value }), "/honeypot/noIndex"))"
+                               Inherited="@Resolved.Honeypot!.NoIndex!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                               Title="Noindex header" Help="Sends X-Robots-Tag: noindex, nofollow on trap pages, so a search engine that reaches the trap keeps it out of results."
+                               Label="Noindex header" Field="honeypot-noindex" Error="@E("/honeypot/noIndex")" ReadOnly="@ReadOnly">
+                    <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+                </InheritSelect>
+            </div>
+        }
+
         <h4 class="pdk-setting-section">Request limits</h4>
 
         <SettingRow Title="Body size" Help="Refused with 413 above this: at once when the request declares its size, mid-upload when it doesn't. A route can set its own.">
@@ -420,6 +476,20 @@
     [Parameter]
     public bool ForceHttpsDisabled { get; set; }
 
+    /// <summary>False leaves out the honeypot (the admin host, whose paths a trap would answer).</summary>
+    [Parameter]
+    public bool ShowHoneypot { get; set; } = true;
+
+    /// <summary>The path and title the host's trap gets when its settings name none; null for a layer that isn't one host (a profile, the
+    /// defaults), or while the key they come from isn't open.</summary>
+    [Parameter]
+    public HoneypotNames? DerivedTrap { get; set; }
+
+    /// <summary>The scheme and name the host's trap can be opened at (<c>https://app.example.com</c>); null when the host can't be opened
+    /// from here: a new one, a wildcard name, a layer that isn't one host.</summary>
+    [Parameter]
+    public string? TrapOrigin { get; set; }
+
     /// <summary>Rows before the settings, in the same layout.</summary>
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
@@ -522,6 +592,21 @@
     private RenderFragment PreloadHelp => @<text>Asks the browser vendors to ship the host as HTTPS-only (<code>preload</code>). Needs every subdomain and
         a year, and is hard to undo: browsers that ship the list keep refusing plain HTTP.</text>;
 
+    private bool TrapOn => _current.Honeypot?.Enabled ?? Resolved.Honeypot?.Enabled ?? false;
+
+    /// <summary>The path the trap is served under: this layer's, the one below's, else the derived one.</summary>
+    private string? EffectiveTrapPath => _current.Honeypot?.Path ?? Resolved.Honeypot?.Path ?? DerivedTrap?.Prefix;
+
+    private string TrapPathPlaceholder => Resolved.Honeypot?.Path ?? DerivedTrap?.Prefix ?? "Derived from the host";
+
+    private string TrapSiteNamePlaceholder => Resolved.Honeypot?.SiteName ?? DerivedTrap?.SiteName ?? "Derived from the host";
+
+    private RenderFragment TrapPathHelp => @<text>Where the trap is served. If left empty, the host gets a path of its own.
+        @if (TrapOrigin is not null && TrapOn && EffectiveTrapPath is { } path)
+        {
+            <a class="pdk-ref-link" href="@(TrapOrigin + path)" target="_blank" rel="noopener noreferrer" data-action="open-trap">Open trap</a>
+        }</text>;
+
     private HostSettings WithTls(Func<TlsSettings, TlsSettings> change) => HostSettingsEdit.WithTls(_current, change);
 
     private HostSettings WithHsts(Func<HstsSettings, HstsSettings> change) => HostSettingsEdit.WithHsts(_current, change);
@@ -543,6 +628,8 @@
     private HostSettings WithCompression(Func<CompressionSettings, CompressionSettings> change) => HostSettingsEdit.WithCompression(_current, change);
 
     private HostSettings WithHeaders(Func<HeadersSettings, HeadersSettings> change) => HostSettingsEdit.WithHeaders(_current, change);
+
+    private HostSettings WithHoneypot(Func<HoneypotSettings, HoneypotSettings> change) => HostSettingsEdit.WithHoneypot(_current, change);
 
     /// <summary>The statuses with a page, each with the one line that says what makes the gate or the upstream answer it.</summary>
     private static readonly (int Key, string Help)[] ErrorPageRows =

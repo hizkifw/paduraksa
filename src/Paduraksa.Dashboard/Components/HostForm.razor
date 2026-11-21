@@ -269,7 +269,8 @@
 
     <FormSection Title="Settings" Description="Each setting uses the host's own value if it has one, otherwise the profile's, then the global default." Name="settings">
         <HostSettingsFields Settings="Model.Settings" SettingsChanged="@(settings => Model.Settings = settings)" Inherited="Inherited" InheritWord="Inherit" PathPrefix="/settings" Errors="Errors"
-                            ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)" ProxyMode="ProxyMode"
+                            ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)" ShowHoneypot="@(Model.Kind != HostKind.Admin)"
+                            DerivedTrap="DerivedTrap" TrapOrigin="@TrapOrigin" ProxyMode="ProxyMode"
                             ForceHttpsDisabled="@(Model.CertificateMode == CertificateBindingMode.None)" OnChanged="TouchAsync"
                             Policies="RateLimits" StagedRateLimits="StagedRateLimits"
                             OnNewRateLimit="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(null)) : default)"
@@ -387,6 +388,10 @@
     [Parameter]
     public HostSettings Defaults { get; set; } = new();
 
+    /// <summary>The path and title this host's trap gets when its settings name none; null while the key they come from isn't open.</summary>
+    [Parameter]
+    public HoneypotNames? DerivedTrap { get; set; }
+
     /// <summary>The global client-address mode, which the Cloudflare settings need; null when the caller can't say.</summary>
     [Parameter]
     public TrustedProxyMode? ProxyMode { get; set; }
@@ -474,6 +479,13 @@
 
     private AuthProviderSettings HostAuthProvider =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).AuthProvider ?? new AuthProviderSettings();
+
+    /// <summary>Where the trap can be opened: the host's first plain name, over HTTPS when it has a certificate. Null for a new host (nothing serves
+    /// it yet) and a host with only wildcard names.</summary>
+    private string? TrapOrigin =>
+        Model.IsNew || Model.Names.Select(name => name.Value.Trim()).FirstOrDefault(name => name.Length > 0 && !name.Contains('*', StringComparison.Ordinal)) is not { } hostname
+            ? null
+            : $"{(Model.CertificateMode == CertificateBindingMode.None ? "http" : "https")}://{hostname}";
 
     private bool InheritedForceHttps => Inherited.ForceHttps == true;
 
