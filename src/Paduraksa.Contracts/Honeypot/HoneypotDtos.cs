@@ -19,7 +19,7 @@ public sealed record HoneypotLinkCount(string Kind, long Count);
 /// <param name="UserAgent">The <c>User-Agent</c>, cut to 512 characters; empty when the client sent none.</param>
 /// <param name="BotKind">What kind of automated client the user agent names: <c>none</c>, <c>searchEngine</c>, <c>aiCrawler</c>, <c>monitor</c>, <c>socialPreview</c>, <c>scanner</c>, <c>library</c> or <c>unknown</c>.</param>
 /// <param name="BotName">The bot's name (<c>GPTBot</c>, <c>curl</c>); empty when the agent isn't one.</param>
-/// <param name="Canary">The visitor's canary phrase: two made-up words woven into the posts it was served. If they turn up in a search engine or a model's answer, they name this visitor. Empty when no page that carries one was served.</param>
+/// <param name="Canary">The visitor's canary phrase: two made-up words woven into the posts it was served. If they turn up in a search engine or a model's answer, they name this visitor.</param>
 /// <param name="StartedAt">The first request.</param>
 /// <param name="LastSeen">The latest request.</param>
 /// <param name="ReadRobotsFirst">The visitor fetched robots.txt (up to a day) before its first request: a crawler that read the file and still came in.</param>

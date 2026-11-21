@@ -357,7 +357,6 @@ public sealed class GateMiddleware
             // pages are never compressed.
             state.Outcome = GateOutcome.Answered;
             state.ProxyAnswered = true;
-            state.HoneypotViaRule = false;
             tracer.Honeypot(context, host);
             return GateDecision.Honeypot;
         }

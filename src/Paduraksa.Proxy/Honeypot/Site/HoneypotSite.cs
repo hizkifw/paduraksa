@@ -11,7 +11,13 @@ namespace Paduraksa.Proxy.Honeypot;
 public sealed class HoneypotSite : IHoneypotSite
 {
     /// <summary>Resolve refuses a longer path at once. The longest URL the site makes is about a hundred and fifty characters.</summary>
-    private const int MaxPathLength = 256;
+    private const int MaxResolveLength = 256;
+
+    /// <summary>
+    /// How much of a probe's path <see cref="Landing"/> hashes: it is any path the client sent (the gate's limits allow far more than
+    /// the site makes), so the walk over it is bounded. Probes that agree on this many characters share a landing page.
+    /// </summary>
+    private const int MaxLandingHashLength = MaxResolveLength * 8;
 
     internal const int MaxIndexPage = 99_999;
     private const string Base32 = "abcdefghijklmnopqrstuvwxyz234567";
@@ -30,9 +36,9 @@ public sealed class HoneypotSite : IHoneypotSite
             throw new ArgumentException($"The site key is {SiteKeys.KeyLength} bytes.", nameof(siteKey));
         }
 
-        if (!IsCanonicalPrefix(options.Prefix))
+        if (HoneypotPrefix.Problem(options.Prefix) is { } problem)
         {
-            throw new ArgumentException("The prefix starts and ends with '/' and holds only letters, digits and . _ ~ - /.", nameof(options));
+            throw new ArgumentException(problem, nameof(options));
         }
 
         ArgumentOutOfRangeException.ThrowIfNegative(options.PowShare);
@@ -58,7 +64,7 @@ public sealed class HoneypotSite : IHoneypotSite
         TagNames = Pick(Lexicon.Nouns, 24, ref cast);
         TagSlugs = TagNames;
         AuthorNames = BuildAuthors(4, ref cast);
-        AuthorSlugs = SlugsOf(AuthorNames);
+        AuthorSlugs = Lowered(AuthorNames);
         Theme = Theming.Build(accent);
     }
 
@@ -114,7 +120,7 @@ public sealed class HoneypotSite : IHoneypotSite
 
     public HoneypotTarget Resolve(ReadOnlySpan<char> canonicalPath)
     {
-        if (!canonicalPath.StartsWith(Prefix, StringComparison.Ordinal) || canonicalPath.Length - Prefix.Length > MaxPathLength)
+        if (!canonicalPath.StartsWith(Prefix, StringComparison.Ordinal) || canonicalPath.Length - Prefix.Length > MaxResolveLength)
         {
             return NotFound;
         }
@@ -178,7 +184,7 @@ public sealed class HoneypotSite : IHoneypotSite
     {
         // FNV-1a over the path, case-blind: a probe for /Wp-Login.php and /wp-login.php meets the same page.
         var hash = 14695981039346656037UL;
-        foreach (var c in canonicalPath[..Math.Min(canonicalPath.Length, MaxPathLength * 8)])
+        foreach (var c in canonicalPath[..Math.Min(canonicalPath.Length, MaxLandingHashLength)])
         {
             hash = (hash ^ (c is >= 'A' and <= 'Z' ? (ulong)(c + 32) : c)) * 1099511628211UL;
         }
@@ -233,24 +239,6 @@ public sealed class HoneypotSite : IHoneypotSite
         && SiteRandom.Mix(packed ^ _noIndexSalt) % 10 == 0;
 
     private static HoneypotTarget NotFound { get; } = new(HoneypotPageKind.NotFound, HoneypotLinkKind.Direct, Pack(HoneypotPageKind.NotFound, 0), 0, false);
-
-    private static bool IsCanonicalPrefix(string prefix)
-    {
-        if (prefix.Length < 3 || prefix[0] != '/' || prefix[^1] != '/')
-        {
-            return false;
-        }
-
-        foreach (var c in prefix)
-        {
-            if (!(c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '/' or '.' or '_' or '~' or '-'))
-            {
-                return false;
-            }
-        }
-
-        return !prefix.Contains("//", StringComparison.Ordinal);
-    }
 
     private static bool IsDigits(ReadOnlySpan<char> text)
     {
@@ -377,6 +365,4 @@ public sealed class HoneypotSite : IHoneypotSite
         Span<byte> slug = stackalloc byte[PostFacts.TitleMax];
         return slug[..PostFacts.Slugify(name, slug)].ToArray();
     }
-
-    private static byte[][] SlugsOf(byte[][] names) => Lowered(names);
 }

@@ -1,3 +1,4 @@
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.Honeypot;
@@ -18,9 +19,9 @@ public static class HoneypotPrefix
             return "the trap path must start and end with '/' and name at least one segment, such as /archive-k7f3/";
         }
 
-        if (path.Length > Paduraksa.Core.Model.HoneypotLimits.MaxPathLength)
+        if (path.Length > HoneypotLimits.MaxPathLength)
         {
-            return $"the trap path can't be longer than {Paduraksa.Core.Model.HoneypotLimits.MaxPathLength} characters";
+            return $"the trap path can't be longer than {HoneypotLimits.MaxPathLength} characters";
         }
 
         foreach (var c in path)

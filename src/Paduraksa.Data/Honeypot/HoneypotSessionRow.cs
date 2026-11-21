@@ -23,7 +23,7 @@ internal sealed class HoneypotSessionRow
     /// <summary>The <c>User-Agent</c>, cut to a fixed length; empty when the client sent none.</summary>
     public string UserAgent { get; set; } = "";
 
-    /// <summary>The visitor's canary phrase; empty if the session never was served a page that carries one.</summary>
+    /// <summary>The visitor's canary phrase.</summary>
     public string Canary { get; set; } = "";
 
     /// <summary>The first request, as Unix milliseconds.</summary>

@@ -148,8 +148,11 @@ public sealed class RuleSetPolicy : IRequestPolicy, IPolicyTraceFacts
     }
 
     // A honeypot rule on a host without a trap is the deny the validator's warning says it is, decided at compile time.
-    private RuleAction EffectiveAction(int rule) =>
-        _set.ActionOf(rule) is RuleAction.Honeypot && !_hostHasTrap ? RuleAction.Deny : _set.ActionOf(rule);
+    private RuleAction EffectiveAction(int rule)
+    {
+        var action = _set.ActionOf(rule);
+        return action is RuleAction.Honeypot && !_hostHasTrap ? RuleAction.Deny : action;
+    }
 
     private int Match(HttpRequest http)
     {
