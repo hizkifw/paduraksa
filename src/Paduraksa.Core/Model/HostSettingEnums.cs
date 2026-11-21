@@ -291,6 +291,24 @@ public static class HoneypotLimits
     /// <summary>The longest blog title, in characters.</summary>
     public const int MaxSiteNameLength = 80;
 
+    /// <summary>Where the recording cuts what a client sent, in characters, so one request can't make a row of any size. The proxy cuts and the tables hold the same lengths.</summary>
+    public const int RecordedUserAgentLength = 512;
+
+    public const int RecordedCanaryLength = 64;
+
+    public const int RecordedAcceptLength = 256;
+
+    public const int RecordedAcceptLanguageLength = 128;
+
+    public const int RecordedSecFetchLength = 32;
+
+    public const int RecordedRefererLength = 512;
+
+    public const int RecordedProtocolLength = 16;
+
+    /// <summary>The longest path a hit carries: a scanner's request can be as long as the server's limits allow, and a row shouldn't be.</summary>
+    public const int RecordedPathLength = 512;
+
     /// <summary>The server option that caps trap answers generated at once (<c>Paduraksa:Honeypot:MaxConcurrent</c>).</summary>
     public const int DefaultMaxConcurrent = 16;
 }

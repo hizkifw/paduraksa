@@ -291,13 +291,13 @@ public sealed class HoneypotRecorderTests
 
         var batch = recorder.Take();
 
-        Assert.Equal(HoneypotRecorder.UserAgentLength, Only(batch).UserAgent.Length);
+        Assert.Equal(HoneypotLimits.RecordedUserAgentLength, Only(batch).UserAgent.Length);
         var request = Assert.Single(batch.Requests).Hit;
-        Assert.Equal(HoneypotRecorder.UserAgentLength, request.UserAgent.Length);
-        Assert.Equal(HoneypotRecorder.RefererLength, request.Referer!.Length);
-        Assert.Equal(HoneypotRecorder.AcceptLength, request.Accept!.Length);
-        Assert.Equal(HoneypotRecorder.AcceptLanguageLength, request.AcceptLanguage!.Length);
-        Assert.Equal(HoneypotRecorder.SecFetchLength, request.SecFetchMode!.Length);
+        Assert.Equal(HoneypotLimits.RecordedUserAgentLength, request.UserAgent.Length);
+        Assert.Equal(HoneypotLimits.RecordedRefererLength, request.Referer!.Length);
+        Assert.Equal(HoneypotLimits.RecordedAcceptLength, request.Accept!.Length);
+        Assert.Equal(HoneypotLimits.RecordedAcceptLanguageLength, request.AcceptLanguage!.Length);
+        Assert.Equal(HoneypotLimits.RecordedSecFetchLength, request.SecFetchMode!.Length);
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public sealed class HoneypotRecorderTests
 
         Assert.Equal(("/wp-login.php", false), (requests[0].Path, requests[0].PathTruncated));
         Assert.True(requests[1].PathTruncated);
-        Assert.Equal((HoneypotHit.MaxPathLength, true), (requests[2].Path.Length, requests[2].PathTruncated));
+        Assert.Equal((HoneypotLimits.RecordedPathLength, true), (requests[2].Path.Length, requests[2].PathTruncated));
     }
 
     [Fact]

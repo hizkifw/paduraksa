@@ -92,8 +92,8 @@ internal sealed class HoneypotSessionRowConfiguration : IEntityTypeConfiguration
         builder.ToTable("HoneypotSessions");
         builder.Property(row => row.HostKey).HasMaxLength(64);
         builder.Property(row => row.ClientIp).HasMaxLength(45);
-        builder.Property(row => row.UserAgent).HasMaxLength(HoneypotRowLimits.UserAgentLength);
-        builder.Property(row => row.Canary).HasMaxLength(HoneypotRowLimits.CanaryLength);
+        builder.Property(row => row.UserAgent).HasMaxLength(HoneypotLimits.RecordedUserAgentLength);
+        builder.Property(row => row.Canary).HasMaxLength(HoneypotLimits.RecordedCanaryLength);
 
         // The range filter, the list's newest-first walk after it and retention all walk sessions by their last request.
         builder.HasIndex(row => row.LastSeen);

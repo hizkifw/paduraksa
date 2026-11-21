@@ -10,7 +10,7 @@ namespace Paduraksa.Proxy.Honeypot;
 /// <param name="Id">The session.</param>
 /// <param name="Host">The host whose trap it is.</param>
 /// <param name="ClientIp">The client address in full.</param>
-/// <param name="UserAgent">The user agent, cut to <see cref="HoneypotRecorder.UserAgentLength"/>.</param>
+/// <param name="UserAgent">The user agent, cut to <see cref="HoneypotLimits.RecordedUserAgentLength"/>.</param>
 /// <param name="Canary">The visitor's canary phrase; empty until a hit carried one.</param>
 /// <param name="StartedAt">The first request.</param>
 /// <param name="LastSeen">The latest request.</param>

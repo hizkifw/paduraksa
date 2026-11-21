@@ -177,7 +177,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
         Assert.Equal([Prefix + "nothing/", Prefix + "a/c/", Prefix + "verify"], rig.Sink.Hits.Take(3).Select(static h => h.Path));
         Assert.All(rig.Sink.Hits.Take(3), static h => Assert.False(h.PathTruncated));
         var last = rig.Sink.Hits[^1];
-        Assert.Equal(HoneypotHit.MaxPathLength, last.Path.Length);
+        Assert.Equal(HoneypotLimits.RecordedPathLength, last.Path.Length);
         Assert.True(last.PathTruncated);
         Assert.StartsWith(Prefix + "xxx", last.Path, StringComparison.Ordinal);
     }

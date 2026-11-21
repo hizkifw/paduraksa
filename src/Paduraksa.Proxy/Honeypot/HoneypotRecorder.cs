@@ -18,7 +18,7 @@ namespace Paduraksa.Proxy.Honeypot;
 /// fetches remembered and the rows waiting to be written all have a cap. At a cap the least recently seen session ends early (a later request
 /// from it starts a new one), a session stops remembering new pages (their children count one link from something unseen), and the oldest
 /// robots.txt fetch is forgotten.</para>
-/// <para><b>Sessions.</b> Keyed by host, full client address and user agent (cut to <see cref="UserAgentLength"/>). A request that finds the session
+/// <para><b>Sessions.</b> Keyed by host, full client address and user agent (cut to <see cref="HoneypotLimits.RecordedUserAgentLength"/>). A request that finds the session
 /// idle for <see cref="IdleTimeout"/> or more begins a new one, so a visitor that comes back a day later is a second session. A restart ends every session.</para>
 /// </remarks>
 public sealed class HoneypotRecorder : IHoneypotSink
@@ -35,15 +35,6 @@ public sealed class HoneypotRecorder : IHoneypotSink
     public const int MaxPagesPerSession = 256;
     public const int MaxWaitingRequests = 200_000;
     public const int MaxWaitingSessions = 100_000;
-
-    /// <summary>Cuts, in characters, of what a client sent: the same lengths the tables hold.</summary>
-    public const int UserAgentLength = 512;
-    public const int CanaryLength = 64;
-    public const int AcceptLength = 256;
-    public const int AcceptLanguageLength = 128;
-    public const int SecFetchLength = 32;
-    public const int RefererLength = 512;
-    public const int ProtocolLength = 16;
 
     private static readonly int LinkKinds = Enum.GetValues<HoneypotLinkKind>().Length;
 
@@ -182,7 +173,7 @@ public sealed class HoneypotRecorder : IHoneypotSink
 
     private void RememberRobots(HoneypotHit fetch)
     {
-        SessionKey key = new(fetch.Host, fetch.ClientIp, Cut(fetch.UserAgent, UserAgentLength)!);
+        SessionKey key = new(fetch.Host, fetch.ClientIp, Cut(fetch.UserAgent, HoneypotLimits.RecordedUserAgentLength)!);
         _robots[key] = fetch.Time;
         _robotsOrder.Enqueue((key, fetch.Time));
         while (_robotsOrder.Count > 0 && (_robotsOrder.Count > MaxRememberedRobotsFetches || fetch.Time - _robotsOrder.Peek().At > RobotsMemory))
@@ -306,18 +297,18 @@ public sealed class HoneypotRecorder : IHoneypotSink
 
     private static HoneypotHit Trimmed(HoneypotHit hit) => hit with
     {
-        UserAgent = Cut(hit.UserAgent, UserAgentLength)!,
-        Canary = Cut(hit.Canary, CanaryLength)!,
-        Protocol = Cut(hit.Protocol, ProtocolLength)!,
-        Accept = Cut(hit.Accept, AcceptLength),
-        AcceptLanguage = Cut(hit.AcceptLanguage, AcceptLanguageLength),
-        SecFetchSite = Cut(hit.SecFetchSite, SecFetchLength),
-        SecFetchMode = Cut(hit.SecFetchMode, SecFetchLength),
-        SecFetchDest = Cut(hit.SecFetchDest, SecFetchLength),
-        SecFetchUser = Cut(hit.SecFetchUser, SecFetchLength),
-        Referer = Cut(hit.Referer, RefererLength),
-        Path = Cut(hit.Path, HoneypotHit.MaxPathLength)!,
-        PathTruncated = hit.PathTruncated || hit.Path.Length > HoneypotHit.MaxPathLength,
+        UserAgent = Cut(hit.UserAgent, HoneypotLimits.RecordedUserAgentLength)!,
+        Canary = Cut(hit.Canary, HoneypotLimits.RecordedCanaryLength)!,
+        Protocol = Cut(hit.Protocol, HoneypotLimits.RecordedProtocolLength)!,
+        Accept = Cut(hit.Accept, HoneypotLimits.RecordedAcceptLength),
+        AcceptLanguage = Cut(hit.AcceptLanguage, HoneypotLimits.RecordedAcceptLanguageLength),
+        SecFetchSite = Cut(hit.SecFetchSite, HoneypotLimits.RecordedSecFetchLength),
+        SecFetchMode = Cut(hit.SecFetchMode, HoneypotLimits.RecordedSecFetchLength),
+        SecFetchDest = Cut(hit.SecFetchDest, HoneypotLimits.RecordedSecFetchLength),
+        SecFetchUser = Cut(hit.SecFetchUser, HoneypotLimits.RecordedSecFetchLength),
+        Referer = Cut(hit.Referer, HoneypotLimits.RecordedRefererLength),
+        Path = Cut(hit.Path, HoneypotLimits.RecordedPathLength)!,
+        PathTruncated = hit.PathTruncated || hit.Path.Length > HoneypotLimits.RecordedPathLength,
     };
 
     private static string? Cut(string? value, int length) => value is not null && value.Length > length ? value[..length] : value;

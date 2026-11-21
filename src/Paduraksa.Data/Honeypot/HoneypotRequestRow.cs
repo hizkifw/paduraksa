@@ -5,19 +5,6 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Data.Honeypot;
 
-/// <summary>Where the recording cuts what a client sent, so one request can't make a row of any size.</summary>
-internal static class HoneypotRowLimits
-{
-    public const int UserAgentLength = 512;
-    public const int CanaryLength = 64;
-    public const int AcceptLength = 256;
-    public const int AcceptLanguageLength = 128;
-    public const int SecFetchLength = 32;
-    public const int RefererLength = 512;
-    public const int ProtocolLength = 16;
-    public const int PathLength = 512;
-}
-
 /// <summary>
 /// One request the honeypot answered, as the gate reported it (docs/design/waf.md "Honeypot", "Recording"). The kinds are the numbers of the
 /// proxy's enums (<c>HoneypotEntry</c>, <c>HoneypotPageKind</c>, <c>HoneypotLinkKind</c>, <c>HoneypotPowOutcome</c>), which the application layer names.
@@ -72,7 +59,7 @@ internal sealed class HoneypotRequestRow
     /// <summary>The canonical path the gate matched on, without the query string; the trap's verify path for a verify request, and the probed path for a rule's landing page.</summary>
     public string Path { get; set; } = "";
 
-    /// <summary>The path was longer than <see cref="HoneypotRowLimits.PathLength"/> and <see cref="Path"/> is its beginning.</summary>
+    /// <summary>The path was longer than <see cref="HoneypotLimits.RecordedPathLength"/> and <see cref="Path"/> is its beginning.</summary>
     public bool PathTruncated { get; set; }
 }
 
@@ -81,15 +68,15 @@ internal sealed class HoneypotRequestRowConfiguration : IEntityTypeConfiguration
     public void Configure(EntityTypeBuilder<HoneypotRequestRow> builder)
     {
         builder.ToTable("HoneypotRequests");
-        builder.Property(row => row.Protocol).HasMaxLength(HoneypotRowLimits.ProtocolLength);
-        builder.Property(row => row.Accept).HasMaxLength(HoneypotRowLimits.AcceptLength);
-        builder.Property(row => row.AcceptLanguage).HasMaxLength(HoneypotRowLimits.AcceptLanguageLength);
-        builder.Property(row => row.SecFetchSite).HasMaxLength(HoneypotRowLimits.SecFetchLength);
-        builder.Property(row => row.SecFetchMode).HasMaxLength(HoneypotRowLimits.SecFetchLength);
-        builder.Property(row => row.SecFetchDest).HasMaxLength(HoneypotRowLimits.SecFetchLength);
-        builder.Property(row => row.SecFetchUser).HasMaxLength(HoneypotRowLimits.SecFetchLength);
-        builder.Property(row => row.Referer).HasMaxLength(HoneypotRowLimits.RefererLength);
-        builder.Property(row => row.Path).HasMaxLength(HoneypotRowLimits.PathLength);
+        builder.Property(row => row.Protocol).HasMaxLength(HoneypotLimits.RecordedProtocolLength);
+        builder.Property(row => row.Accept).HasMaxLength(HoneypotLimits.RecordedAcceptLength);
+        builder.Property(row => row.AcceptLanguage).HasMaxLength(HoneypotLimits.RecordedAcceptLanguageLength);
+        builder.Property(row => row.SecFetchSite).HasMaxLength(HoneypotLimits.RecordedSecFetchLength);
+        builder.Property(row => row.SecFetchMode).HasMaxLength(HoneypotLimits.RecordedSecFetchLength);
+        builder.Property(row => row.SecFetchDest).HasMaxLength(HoneypotLimits.RecordedSecFetchLength);
+        builder.Property(row => row.SecFetchUser).HasMaxLength(HoneypotLimits.RecordedSecFetchLength);
+        builder.Property(row => row.Referer).HasMaxLength(HoneypotLimits.RecordedRefererLength);
+        builder.Property(row => row.Path).HasMaxLength(HoneypotLimits.RecordedPathLength);
 
         // A session's requests in order, and the cap's oldest-first delete by the session it removes.
         builder.HasIndex(row => new { row.SessionId, row.Id });

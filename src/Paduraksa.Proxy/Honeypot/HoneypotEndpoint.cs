@@ -328,13 +328,13 @@ internal static class HoneypotEndpoint
     {
         var path = request.Path.Value ?? "/";
         var canonical = RoutePath.IsCanonical(path) ? path : RoutePath.Canonicalize(path);
-        truncated = canonical.Length > HoneypotHit.MaxPathLength;
+        truncated = canonical.Length > HoneypotLimits.RecordedPathLength;
         if (!truncated)
         {
             return canonical;
         }
 
-        var length = char.IsHighSurrogate(canonical[HoneypotHit.MaxPathLength - 1]) ? HoneypotHit.MaxPathLength - 1 : HoneypotHit.MaxPathLength;
+        var length = char.IsHighSurrogate(canonical[HoneypotLimits.RecordedPathLength - 1]) ? HoneypotLimits.RecordedPathLength - 1 : HoneypotLimits.RecordedPathLength;
         return canonical[..length];
     }
 
