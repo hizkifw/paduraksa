@@ -872,6 +872,8 @@ internal static class TraceNames
         };
     }
 
+    public static string Of(HoneypotLinkKind kind) => HoneypotWireNames.Link(kind);
+
     public static string Of(SslProtocols protocols) => protocols switch
     {
         SslProtocols.Tls12 => "tls1.2",

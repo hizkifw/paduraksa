@@ -89,7 +89,7 @@ public sealed partial class HoneypotRecordingJob(HoneypotStore store, HoneypotRe
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Writing the honeypot's sessions failed; they are kept in memory and written at the next interval.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Writing the honeypot's sessions and requests failed; they are kept in memory and written at the next interval.")]
     private static partial void LogWriteFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Deleted {Sessions} honeypot session(s) and {Requests} request(s) past retention or over the caps.")]

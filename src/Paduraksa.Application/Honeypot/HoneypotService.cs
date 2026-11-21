@@ -174,7 +174,7 @@ public sealed class HoneypotService
 
     /// <summary>
     /// A page of a session's requests, oldest first; <paramref name="after"/> is the last request of the previous page. Null when the session
-    /// isn't there. A session that is may have lost its earliest requests to the request cap.
+    /// isn't there. A session that is there may have lost its earliest requests to the request cap.
     /// </summary>
     public async Task<HoneypotRequestPage?> ListRequestsAsync(HoneypotSessionId id, int limit, HoneypotRequestId? after, CancellationToken cancellationToken)
     {

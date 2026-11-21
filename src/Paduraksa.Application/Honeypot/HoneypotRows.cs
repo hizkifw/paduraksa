@@ -124,15 +124,9 @@ internal static class HoneypotRows
         row.SecFetchUser,
         row.Referer);
 
-    /// <summary>The kind as the API names it: the enum's name in camel case, except where the design names it otherwise (<c>nofollow</c>, <c>noindexPage</c>).</summary>
-    public static string LinkName(HoneypotLinkKind kind) => kind switch
-    {
-        HoneypotLinkKind.NoFollow => "nofollow",
-        HoneypotLinkKind.NoIndexPage => "noindexPage",
-        _ => CamelCase(kind.ToString()),
-    };
+    public static string LinkName(HoneypotLinkKind kind) => HoneypotWireNames.Link(kind);
 
-    public static string CamelCase(string name) => char.ToLowerInvariant(name[0]) + name[1..];
+    public static string CamelCase(string name) => HoneypotWireNames.CamelCase(name);
 
     private static int LinkOf(HoneypotSessionRow row, HoneypotLinkKind kind) => kind switch
     {

@@ -89,7 +89,7 @@ public static class ConfigWarningCodes
     /// as they are for API clients.</summary>
     public const string ErrorPagesReplaceAdminIgnored = "errorPages.replaceUpstream.adminIgnored";
 
-    /// <summary>A host that inherits a trap from a layer is an admin host, which never serves one, so a layer that turns it on for every host can't take the dashboard's paths.</summary>
+    /// <summary>A host that inherits a trap from a layer is an admin host, which never serves one: it would answer paths the dashboard uses.</summary>
     public const string HoneypotAdminIgnored = "host.honeypot.adminIgnored";
 
     /// <summary>A route's path lies under the host's trap prefix, so the trap answers it and the route never sees those requests.</summary>

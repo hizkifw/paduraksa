@@ -301,7 +301,7 @@ public sealed partial class HoneypotEndToEndTests(TestUpstream upstream) : IClas
     }
 
     [Fact]
-    public async Task WithoutTheKeyAConfiguredTrapAnswers503ThePageForAChallengeGives()
+    public async Task WithoutTheKeyAConfiguredTrapAnswersTheUnavailablePageAndRecordsNoHit()
     {
         var rig = new HoneypotRig(withKey: false);
         await using var server = await StartAsync(Model(Host("trap")), rig);

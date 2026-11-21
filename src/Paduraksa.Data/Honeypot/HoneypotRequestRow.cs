@@ -34,7 +34,7 @@ internal sealed class HoneypotRequestRow
 
     public int Pow { get; set; }
 
-    /// <summary>With a solved challenge, the seconds from the challenge's issue to its verification, in milliseconds.</summary>
+    /// <summary>With a solved challenge, the time from the challenge's issue to its verification, in milliseconds (a whole number of seconds).</summary>
     public int SolveMilliseconds { get; set; }
 
     public string Protocol { get; set; } = "";

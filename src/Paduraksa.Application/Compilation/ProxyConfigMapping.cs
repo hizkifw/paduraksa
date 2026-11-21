@@ -417,7 +417,7 @@ public static class ProxyConfigMapping
         if (host.Kind == HostKind.Admin)
         {
             Warn(warnings, where, "/settings/honeypot/enabled", ConfigWarningCodes.HoneypotAdminIgnored,
-                "an admin host never serves a trap, so a layer that turns it on for every host can't take the dashboard's paths; the setting is ignored here");
+                "an admin host never serves a trap: one would answer paths the dashboard uses; the setting is ignored here");
             return HostHoneypotSpec.Off;
         }
 
