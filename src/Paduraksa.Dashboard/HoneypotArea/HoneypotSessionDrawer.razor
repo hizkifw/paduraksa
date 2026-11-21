@@ -102,6 +102,11 @@
                         <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="MoreAsync" Disabled="_busy" data-action="more-requests">Load more</MudButton>
                     </div>
                 }
+                else if (_requests.Count < Session.Requests)
+                {
+                    @* A session keeps rows for its first requests only, and retention removes the oldest; the counters above count them all. *@
+                    <MudText Typo="Typo.body2" Class="pdk-muted pdk-honeypot-more" data-part="rows-kept">@Fmt.Count(_requests.Count) of @Fmt.Count(Session.Requests) requests are kept.</MudText>
+                }
             }
         </div>
     </ChildContent>

@@ -225,7 +225,7 @@ public sealed class HoneypotStatisticsTests
         var (context, _) = Start();
         await using var _1 = context;
         context.Honeypot.Summary = Summary();
-        var session = FakeDashboardHoneypot.Session(host: Trapped, agent: "<em>Crawler</em>/2", botKind: "library", botName: "curl") with { Canary = "quiet harbour" };
+        var session = FakeDashboardHoneypot.Session(host: Trapped, agent: "<em>Crawler</em>/2", botKind: "library", botName: "curl") with { Canary = "quiet harbour", Requests = 3 };
         context.Honeypot.Sessions.Add(session);
         context.Honeypot.Requests[session.Id] =
         [
@@ -257,6 +257,30 @@ public sealed class HoneypotStatisticsTests
         Assert.Equal("+58.5 s", rows[2].QuerySelector("[data-part=gap]")!.TextContent);
         Assert.Null(rows[0].QuerySelector("[data-part=gap]"));
         Assert.Empty(drawers.FindAll("[data-action=more-requests]"));
+        Assert.Empty(drawers.FindAll("[data-part=rows-kept]"));
+    }
+
+    [Fact]
+    public async Task ASessionWithMoreRequestsThanRowsSaysHowManyAreKept()
+    {
+        var (context, _) = Start();
+        await using var _1 = context;
+        context.Honeypot.Summary = Summary();
+        var session = FakeDashboardHoneypot.Session(host: Trapped) with { Requests = 12_000 };
+        context.Honeypot.Sessions.Add(session);
+        context.Honeypot.Requests[session.Id] =
+        [
+            FakeDashboardHoneypot.Request(Now.AddMinutes(-20), "/archive-k7f3/"),
+            FakeDashboardHoneypot.Request(Now.AddMinutes(-19), "/archive-k7f3/2024/07/a-b/", pageKind: "post", linkKind: "normal"),
+        ];
+        var drawers = context.Render<DrawerHost>();
+        var page = Render(context);
+        await page.WaitForStateAsync(() => page.FindAll("[data-session]").Count == 1);
+
+        await page.Find("[data-session] [data-action=open-session]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-request]").Count == 2);
+
+        Assert.Equal("2 of 12,000 requests are kept.", drawers.Find("[data-part=rows-kept]").TextContent);
     }
 
     [Fact]
