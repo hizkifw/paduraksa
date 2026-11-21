@@ -259,7 +259,6 @@ Each request the trap answers is recorded, with the client address in full. That
 - **Guessed paths.** The path is recorded without its query string, up to 512 characters. The summary lists the paths asked for most that are no page, including the paths a rule's Honeypot action answered, such as `/wp-login.php`.
 - **Under load.** If the recording can't keep up, it drops requests and counts them. The summary shows the count since the server started, with the number of requests the trap shed over its cap.
 
-
 ## The Security overview
 
 **Security overview** (Security) shows what protects each host and whether it is working.

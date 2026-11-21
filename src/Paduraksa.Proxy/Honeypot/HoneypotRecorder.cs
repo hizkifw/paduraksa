@@ -286,9 +286,20 @@ public sealed class HoneypotRecorder : IHoneypotSink
             var records = new HoneypotSessionRecord[_waitingSessions.Count];
             _waitingSessions.Values.CopyTo(records, 0);
             Array.Sort(records, static (a, b) => a.StartedAt.CompareTo(b.StartedAt));
-            for (var i = 0; i < _waitingSessions.Count - MaxWaitingSessions + (MaxWaitingSessions / 16); i++)
+            var drop = records.Length - MaxWaitingSessions + (MaxWaitingSessions / 16);
+            HashSet<HoneypotSessionId> dropped = new(drop);
+            for (var i = 0; i < drop; i++)
             {
                 _waitingSessions.Remove(records[i].Id);
+                dropped.Add(records[i].Id);
+            }
+
+            // Their requests go too: requests name their session without a foreign key, so rows written without one would
+            // be shown by no endpoint and still count against the request cap.
+            var removed = _waitingRequests.RemoveAll(r => dropped.Contains(r.SessionId));
+            for (var i = 0; i < removed; i++)
+            {
+                _stats.CountDropped();
             }
         }
     }
