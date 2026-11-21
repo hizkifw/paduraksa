@@ -21,6 +21,7 @@ Coverage-guided fuzzing of the byte-level parsers that read raw attacker input (
 | `cloudflare-ranges` | Cloudflare's edge list as the refresh job fetches it (the JSON answer, the two text ones, the size cap): the list is accepted only when an independent reading of the list rules accepts it, whole, and a refusal is short and printable |
 | `backup-archive` | a backup archive up to the passphrase check: the header table, the cost caps, the chunk framing and authentication against an independent AES-GCM reading, a bounded allocation; and the manifest, which a backup's author can write as they like |
 | `certificate-import` | an uploaded PEM or PKCS#12 certificate and key through the vault's import on a real vault: only its own exception, bounded time and memory, the same verdict twice, the leaf one of the PEM's certificates, no key in what comes back |
+| `honeypot-site` | the trap site: a path under the prefix against an independent reading of the URL scheme and the token layout (base32 in a `BigInteger`, the tag from `HMACSHA256`), the canary for any IP and user agent, and rendering any target (an unknown kind, any IDs) with any canary |
 
 Properties checked on every input: no exception; the same verdict for the same bytes; 0 B where the path promises it; and, per target, a differential
 against an independent reading of the same bytes (see each target's remarks).

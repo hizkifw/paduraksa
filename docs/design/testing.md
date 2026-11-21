@@ -8,7 +8,7 @@ For contributors: what each kind of test covers, how the suites are shaped, and 
 - Architecture tests (ArchUnitNET) enforce the project dependency graph, the typed-ID and DTO rules, internal-only vault types and the hot-path namespace bans.
 - Every gate and response path has a 0 B allocation assertion. Benchmarks and a one-hour soak guard the rest of the budget.
 - Property tests (CsCheck) check the parsers, matchers and the config pipeline against slow, obvious models. Seeds are derived, so a run is the same every time.
-- Seventeen coverage-guided fuzz targets (SharpFuzz and libFuzzer) run nightly. Committed corpora replay on every commit.
+- Eighteen coverage-guided fuzz targets (SharpFuzz and libFuzzer) run nightly. Committed corpora replay on every commit.
 - CI requires the capabilities a test needs (Chromium, libmsquic, Docker for Pebble) instead of skipping without them.
 - A sleep in a test must be one of a few allowed kinds. The rule is in [development.md](../development.md).
 - Code: `tests/`, `fuzz/`, `bench/`, `tests/Shared/Property.cs`, `tests/Shared/Requirements.cs`.
@@ -222,6 +222,7 @@ Each property and harness was shown to fail by breaking the code it checks.
 | `cloudflare-ranges` | The real `CloudflareRangeFetcher` over a handler that answers with the input. A list is accepted exactly when an independent reading of the list rules accepts the first source that gives one. A refusal is one short printable line. |
 | `backup-archive` | The header and chunk reader up to the passphrase check, under a fixed key (the Argon2 derivation is not run, because a header may ask for up to a gigabyte). Only `BackupException` escapes, with the reason a second reading of the rules gives. |
 | `certificate-import` | The vault's `ICertificateImport` over a scratch directory. Only `CertificateImportException` escapes, the same upload gives the same verdict, an import takes under 30 s and 512 MiB, a refusal never repeats the password, and the public chain holds no key. |
+| `honeypot-site` | `HoneypotSite.Resolve` equals an independent reading of the URL scheme and the token layout (base32 in a `BigInteger`, the tag from `HMACSHA256`) for any path under the prefix, in bounded time. The canary is two lower-case words, the same each time. Any target and canary render to the same bytes twice, and the canary's other characters change nothing. |
 
 `Paduraksa.TypedIds` is on the instrumented list too; without it the run sees no features (a blind run ends at 2, an instrumented one starts above 200). The target declares its own test IDs, so it doesn't depend on Paduraksa's model. Its first 30-minute run (four passes of 450 s, one process) made 132 million inputs at about 74,000 per second, reached 260 features within the first minute and found no crash and no disagreement. A second run on 20 cores (`--jobs 20 --nice 19`, 30 minutes) made 1.4 billion inputs (about 780,000 per second across the workers), found no crash and added one input. The corpus is 65 files. A bound moved by one in the codec (the 128-bit overflow check, the 63-bit limit, the digit range) fails the seeds, so the edges are in the corpus.
 
@@ -235,7 +236,7 @@ Each property and harness was shown to fail by breaking the code it checks.
 - `tests/Paduraksa.Tests.Fuzz` replays every committed input through its target on every commit, with no libFuzzer and no instrumented assembly, so a corpus regression fails CI.
 - A crash is copied into `regressions/`, fixed, and gets a unit test beside the code.
 - `scripts/fuzz.sh [--time S] [--target T] [--jobs N] [--nice N] [--merge] [--replay] [--list]` publishes the harness, instruments, runs libFuzzer per target for the time box, and fails on a crash or an error. `--jobs N` runs one target in N processes that share its corpus (libFuzzer's `-fork=N`); `--nice N` runs libFuzzer at that niceness.
-- `.github/workflows/fuzz.yml` (`workflow_dispatch` and a nightly schedule, never push or pull request) runs every target (15 minutes each by default) and the property tests 50 times deeper. It uploads crash inputs, logs and the grown corpus. It runs the 17 targets one after another, so its timeout is 300 minutes, and `FuzzWorkflowTests` fails when a target is added without raising it.
+- `.github/workflows/fuzz.yml` (`workflow_dispatch` and a nightly schedule, never push or pull request) runs every target (15 minutes each by default) and the property tests 50 times deeper. It uploads crash inputs, logs and the grown corpus. It runs the 18 targets one after another, so its timeout is 300 minutes, and `FuzzWorkflowTests` fails when a target is added without raising it.
 - The release run is `scripts/fuzz.sh --time 3600 --merge`. The one before v0.1 was two parallel hours on each target.
 
 ### The `mcp-sandbox` target

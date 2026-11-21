@@ -23,6 +23,7 @@ public static class FuzzTargets
         CloudflareRangesTarget.Target,
         BackupArchiveTarget.Target,
         CertificateImportTarget.Target,
+        HoneypotSiteTarget.Target,
     ];
 
     public static FuzzTarget Get(string name) =>
