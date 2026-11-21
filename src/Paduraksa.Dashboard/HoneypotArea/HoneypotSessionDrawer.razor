@@ -72,20 +72,25 @@
                 <div class="pdk-traffic-scroll">
                     <table class="pdk-traffic-table pdk-honeypot-table pdk-honeypot-timeline" data-part="timeline">
                         <thead>
-                            <tr><th scope="col">Time</th><th scope="col" class="pdk-left">Path</th><th scope="col" class="pdk-left">Page</th><th scope="col" class="pdk-left">Link</th><th scope="col">Status</th><th scope="col" class="pdk-left">Proof of work</th><th scope="col">Gap</th></tr>
+                            <tr><th scope="col">Time</th><th scope="col" class="pdk-left">Path</th><th scope="col" class="pdk-left">Page</th><th scope="col" class="pdk-left">Link</th><th scope="col">Status</th><th scope="col" class="pdk-left">Proof of work</th></tr>
                         </thead>
                         <tbody>
                             @for (var i = 0; i < _requests.Count; i++)
                             {
                                 var request = _requests[i];
                                 <tr data-request="@request.Id">
-                                    <th scope="row" title="@Fmt.Stamp(request.Time)">@Fmt.Clock(request.Time)</th>
+                                    <th scope="row" title="@Fmt.Stamp(request.Time)">
+                                        @Fmt.Clock(request.Time)
+                                        @if (i > 0)
+                                        {
+                                            <span class="pdk-muted pdk-honeypot-gap" data-part="gap">+@Fmt.Duration((request.Time - _requests[i - 1].Time).TotalMilliseconds)</span>
+                                        }
+                                    </th>
                                     <td class="pdk-left pdk-honeypot-text pdk-mono" title="@HoneypotText.PathTitle(request.Path, request.PathTruncated)"><span data-part="path">@HoneypotText.Path(request.Path, request.PathTruncated)</span></td>
                                     <td class="pdk-left" title="Entry: @HoneypotText.Entry(request.Entry)">@HoneypotText.PageKind(request.PageKind)</td>
                                     <td class="pdk-left">@HoneypotText.LinkKind(request.LinkKind)</td>
                                     <td>@request.Status</td>
                                     <td class="pdk-left">@HoneypotText.ProofOfWork(request)</td>
-                                    <td>@(i == 0 ? "-" : "+" + Fmt.Duration((request.Time - _requests[i - 1].Time).TotalMilliseconds))</td>
                                 </tr>
                             }
                         </tbody>

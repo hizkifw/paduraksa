@@ -136,10 +136,10 @@ public sealed class HoneypotStatisticsTests
         Assert.NotNull(row.QuerySelector("[data-part=canary] [data-action=copy-canary]"));
         Assert.Contains("GPTBot, AI crawler", row.QuerySelector("[data-part=bot]")!.TextContent, StringComparison.Ordinal);
         Assert.Equal("GPTBot/1.1", row.QuerySelector("[data-part=agent]")!.TextContent);
-        var cells = row.QuerySelectorAll("td").Select(cell => cell.TextContent.Trim()).ToList();
-        // Address, user agent, robots.txt first, pages, depth, JS, images, proof of work, canary.
-        Assert.Equal(["Yes", "7", "5", "2", "4", "Solved"], [cells[2], cells[3], cells[4], cells[5], cells[6], cells[7]]);
-        Assert.Equal("Shown 3, solved 1, passed 2", row.QuerySelectorAll("td")[7].GetAttribute("title"));
+        Assert.Equal("7, depth 5", row.QuerySelector("[data-part=pages]")!.TextContent.Trim());
+        var did = row.QuerySelectorAll("[data-part=did] .pdk-tag").Select(tag => tag.TextContent.Trim()).ToList();
+        Assert.Equal(["robots.txt", "JS", "Images", "PoW solved"], did);
+        Assert.Equal("Shown 3, solved 1, passed 2", row.QuerySelectorAll("[data-part=did] .pdk-tag")[3].GetAttribute("title"));
     }
 
     [Fact]
@@ -247,10 +247,10 @@ public sealed class HoneypotStatisticsTests
         Assert.Contains("/archive-k7f3/2024/07/a-b/", rows[1].TextContent, StringComparison.Ordinal);
         Assert.Contains("Hidden link", rows[1].TextContent, StringComparison.Ordinal);
         Assert.Contains("Shown", rows[1].TextContent, StringComparison.Ordinal);
-        Assert.Contains("+1.5 s", rows[1].TextContent, StringComparison.Ordinal);
+        Assert.Equal("+1.5 s", rows[1].QuerySelector("[data-part=gap]")!.TextContent);
         Assert.Contains("Landing", rows[2].TextContent, StringComparison.Ordinal);
-        Assert.Contains("+58.5 s", rows[2].TextContent, StringComparison.Ordinal);
-        Assert.EndsWith("-", rows[0].QuerySelectorAll("td")[^1].TextContent.Trim(), StringComparison.Ordinal);
+        Assert.Equal("+58.5 s", rows[2].QuerySelector("[data-part=gap]")!.TextContent);
+        Assert.Null(rows[0].QuerySelector("[data-part=gap]"));
         Assert.Empty(drawers.FindAll("[data-action=more-requests]"));
     }
 
@@ -283,7 +283,7 @@ public sealed class HoneypotStatisticsTests
 
         Assert.Empty(drawers.FindAll("[data-action=more-requests]"));
         Assert.Equal(requests[HoneypotText.PageSize - 1].Id, context.Honeypot.RequestReads[^1].After);
-        Assert.Contains("+1 s", drawers.FindAll("[data-request]")[HoneypotText.PageSize].TextContent, StringComparison.Ordinal);
+        Assert.Equal("+1 s", drawers.FindAll("[data-request]")[HoneypotText.PageSize].QuerySelector("[data-part=gap]")!.TextContent);
     }
 
     [Fact]

@@ -84,6 +84,9 @@ public sealed partial class HoneypotEndToEndTests
         await ScrollToSectionAsync(page);
         await PlaywrightBrowser.ScreenshotAsync(page, "honeypot-section-1366", fullPage: false);
 
+        // At a desktop width the sessions table fits its card: nothing is clipped, nothing scrolls.
+        await ExpectNoClippingAsync(page, "[data-section=honeypot] .pdk-honeypot-sessions");
+
         // The search narrows the table.
         await page.Locator("input[data-field=honeypot-search]").FillAsync("no such visitor");
         await Expect(row).ToHaveCountAsync(0, new() { Timeout = 15_000 });
@@ -102,8 +105,16 @@ public sealed partial class HoneypotEndToEndTests
         await Expect(requests.Nth(2)).ToContainTextAsync("404");
         await Expect(page.Locator($"{Top} [data-part=agent] .pdk-copy-text")).ToHaveTextAsync(Agent);
         await PlaywrightBrowser.ScreenshotAsync(page, "honeypot-drawer-1366", fullPage: false);
+        await ExpectNoClippingAsync(page, $"{Top} .pdk-honeypot-timeline");
 
         Assert.Empty(problems);
+    }
+
+    /// <summary>The table's scroll box has nothing to scroll to: its widest row fits the card or the drawer it sits in.</summary>
+    private static async Task ExpectNoClippingAsync(IPage page, string table)
+    {
+        var (content, visible) = await page.Locator(table).EvaluateAsync<int[]>("el => { const box = el.closest('.pdk-traffic-scroll'); return [box.scrollWidth, box.clientWidth]; }") is [var a, var b] ? (a, b) : (0, 0);
+        Assert.True(content <= visible, $"{table} is {content} px wide in a {visible} px box.");
     }
 
     private static async Task ScrollToSectionAsync(IPage page) =>

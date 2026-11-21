@@ -45,8 +45,8 @@
                 <table class="pdk-traffic-table pdk-honeypot-table pdk-honeypot-sessions">
                     <thead>
                         <tr>
-                            <th scope="col">Last seen</th><th scope="col" class="pdk-left">Address</th><th scope="col" class="pdk-left">User agent</th><th scope="col">robots.txt first</th><th scope="col">Pages</th>
-                            <th scope="col">Depth</th><th scope="col">JS</th><th scope="col">Images</th><th scope="col">Proof of work</th><th scope="col" class="pdk-left">Canary</th>
+                            <th scope="col">Last seen</th><th scope="col" class="pdk-left">Address</th><th scope="col" class="pdk-left">User agent</th><th scope="col" class="pdk-left">Pages</th>
+                            <th scope="col" class="pdk-left">Did</th><th scope="col" class="pdk-left">Canary</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -64,12 +64,22 @@
                                     }
                                     <span class="pdk-mono" data-part="agent">@HoneypotText.UserAgent(session.UserAgent)</span>
                                 </td>
-                                <td>@(session.ReadRobotsFirst ? "Yes" : "-")</td>
-                                <td>@Fmt.Count(session.Pages)</td>
-                                <td>@Fmt.Count(session.MaxDepth)</td>
-                                <td>@Fmt.Count(session.JsRuns)</td>
-                                <td>@Fmt.Count(session.Images)</td>
-                                <td title="@HoneypotText.ProofOfWorkDetail(session)">@HoneypotText.ProofOfWork(session)</td>
+                                <td class="pdk-left" data-part="pages" title="@Fmt.Count(session.Requests) requests, @Fmt.Count(session.GuessedUrls) guessed URLs">@Fmt.Count(session.Pages), depth @Fmt.Count(session.MaxDepth)</td>
+                                <td class="pdk-left" data-part="did">
+                                    @if (HoneypotText.Did(session) is { Count: > 0 } did)
+                                    {
+                                        <span class="pdk-honeypot-did">
+                                            @foreach (var (label, detail) in did)
+                                            {
+                                                <span class="pdk-tag" title="@detail">@label</span>
+                                            }
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="pdk-muted">-</span>
+                                    }
+                                </td>
                                 <td class="pdk-left" @onclick:stopPropagation="true">
                                     @if (session.Canary.Length > 0)
                                     {

@@ -314,16 +314,47 @@
 }
 
 .pdk-honeypot-sessions .pdk-honeypot-text {
-    max-width: 220px;
+    max-width: 240px;
 }
 
+.pdk-honeypot-did {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* The timeline fits the drawer: the page and the link may wrap, and the gap since the previous request sits beside the time. */
 .pdk-honeypot-timeline .pdk-honeypot-text {
-    max-width: 240px;
+    max-width: 180px;
+}
+
+.pdk-honeypot-timeline td.pdk-left:not(.pdk-honeypot-text) {
+    white-space: normal;
+}
+
+.pdk-honeypot-timeline th:first-child {
+    max-width: none;
+}
+
+.pdk-honeypot-gap {
+    margin-left: 6px;
+    font-size: 0.75rem;
+    font-weight: 400;
 }
 
 @media (max-width: 600px) {
     .pdk-honeypot-table .pdk-honeypot-text {
         max-width: 200px;
+    }
+
+    /* On a phone the gap goes under the time, so neither is cut. */
+    .pdk-honeypot-timeline th:first-child {
+        max-width: none;
+    }
+
+    .pdk-honeypot-gap {
+        display: block;
+        margin-left: 0;
     }
 
     .pdk-honeypot-search.mud-input-control {

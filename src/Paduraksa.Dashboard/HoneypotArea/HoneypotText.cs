@@ -85,4 +85,31 @@ public static class HoneypotText
 
     /// <summary>A path for a tooltip: the whole of what was kept, and that it was cut.</summary>
     public static string PathTitle(string path, bool truncated) => truncated ? "Cut at 512 characters: " + path : path;
+
+    /// <summary>What a session did beyond reading pages, as short tags with their detail for a tooltip: read robots.txt first, ran the page's script, fetched images and the furthest the challenge got.</summary>
+    public static IReadOnlyList<(string Label, string Detail)> Did(HoneypotSession session)
+    {
+        List<(string, string)> did = [];
+        if (session.ReadRobotsFirst)
+        {
+            did.Add(("robots.txt", "Read robots.txt before its first request"));
+        }
+
+        if (session.JsRuns > 0)
+        {
+            did.Add(("JS", $"{session.JsRuns} requests only a client that runs the page's script makes"));
+        }
+
+        if (session.Images > 0)
+        {
+            did.Add(("Images", $"{session.Images} image requests"));
+        }
+
+        if (ProofOfWork(session) is not "-" and var pow)
+        {
+            did.Add(($"PoW {pow.ToLowerInvariant()}", ProofOfWorkDetail(session)));
+        }
+
+        return did;
+    }
 }
