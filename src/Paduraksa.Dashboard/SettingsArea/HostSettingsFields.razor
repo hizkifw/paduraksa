@@ -232,7 +232,7 @@
                 <InheritSelect T="int" Value="_current.Honeypot?.PowDifficulty" ValueChanged="@(value => Update(WithHoneypot(honeypot => honeypot with { PowDifficulty = value }), "/honeypot/powDifficulty"))"
                                Inherited="@Resolved.Honeypot!.PowDifficulty!.Value" Format="@(value => $"{value} bits ({SettingsSummary.DifficultyText(value)})")" InheritWord="@InheritWord"
                                Title="Difficulty" Help="Leading zero bits a solution needs, as for the browser check."
-                               Label="Trap difficulty" Field="honeypot-pow-difficulty" Error="@E("/honeypot/powDifficulty")" ReadOnly="@ReadOnly">
+                               Label="Proof-of-work difficulty" Field="honeypot-pow-difficulty" Error="@E("/honeypot/powDifficulty")" ReadOnly="@ReadOnly">
                     @for (var bits = 8; bits <= 28; bits++)
                     {
                         var value = bits;

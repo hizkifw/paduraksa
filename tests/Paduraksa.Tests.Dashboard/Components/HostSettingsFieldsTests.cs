@@ -485,7 +485,7 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/honeypot/powShare",
             ShowsAtField = true,
         },
-        SelectRow("honeypot.powDifficulty", "honeypot-pow-difficulty", "/honeypot/powDifficulty", "Trap difficulty", 20,
+        SelectRow("honeypot.powDifficulty", "honeypot-pow-difficulty", "/honeypot/powDifficulty", "Proof-of-work difficulty", 20,
             new HostSettings { Honeypot = new HoneypotSettings { PowDifficulty = 20 } }, "Inherit (14 bits") with { ValidatorPath = "/honeypot/powDifficulty", ShowsAtField = true },
         // Group key: the validator has no rule for the header.
         SelectRow("honeypot.noIndex", "honeypot-noindex", "/honeypot/noIndex", "Noindex header", true,
