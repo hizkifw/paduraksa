@@ -9,6 +9,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Drafts;
+using Paduraksa.Application.Honeypot;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
@@ -377,8 +378,11 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             var originPullCa = LoadOriginPullCa(options.Cloudflare.OriginPullCaFile);
-            // The trap's sink, factory, cap and counters: compiled hosts carry this one, and the recording that replaces the null sink is built from it.
-            var honeypot = builder.Add(new HoneypotRuntime(maxConcurrent: options.Honeypot.MaxConcurrent, time: timeProvider, logger: coreLoggers.CreateLogger("Paduraksa.Proxy.Honeypot")));
+            // The trap's sink, factory, cap and counters: compiled hosts carry this one. The sink is the recording's queue, drained by the honeypot job
+            // (core host), and it counts what it can't hold in the runtime's counters.
+            var honeypotStats = builder.Add(new HoneypotStats());
+            var honeypotRecorder = builder.Add(new HoneypotRecorder(honeypotStats, timeProvider));
+            var honeypot = builder.Add(new HoneypotRuntime(honeypotRecorder, maxConcurrent: options.Honeypot.MaxConcurrent, time: timeProvider, logger: coreLoggers.CreateLogger("Paduraksa.Proxy.Honeypot"), stats: honeypotStats));
             var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth, metrics, connections, options.Limits.ToLimits(), honeypot));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
@@ -406,7 +410,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.AddOwnedElsewhere(vault.Catalog);
             builder.AddOwnedElsewhere(vault.PasswordCredentials);
             var configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, settingsBindings.Identity, timeProvider, proofOfWork, settingsBindings.Notifications, analyticsBacklog, coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, settingsBindings.Identity, timeProvider, proofOfWork, settingsBindings.Notifications, analyticsBacklog, honeypotRecorder, honeypotStats, coreLoggers);
             serverSettings.Follow(configStore.Config);
 
             // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
@@ -419,6 +423,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
             builder.Add(new MetricRollupJob(sampler, rollupStore, configStore.SecurityRollups, settingsBindings.MetricRollups, timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
             builder.Add(new DraftExpiryJob(configStore.Drafts, timeProvider, coreLoggers.CreateLogger<DraftExpiryJob>()));
+            builder.Add(new HoneypotRecordingJob(configStore.HoneypotStore, HoneypotRetention.Default, timeProvider, coreLoggers.CreateLogger<HoneypotRecordingJob>()));
             builder.Add(new AnalyticsRollupJob(configStore.AnalyticsRollups, settingsBindings.Analytics, timeProvider, coreLoggers.CreateLogger<AnalyticsRollupJob>()));
             var peerGone = builder.Add(new PeerGoneLogFilter());
             var processCounters = builder.Add(new ProcessCounters(

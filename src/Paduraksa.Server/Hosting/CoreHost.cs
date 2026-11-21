@@ -1,6 +1,7 @@
 using Paduraksa.Application.Analytics;
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Drafts;
+using Paduraksa.Application.Honeypot;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.Metrics;
@@ -57,6 +58,8 @@ internal static class CoreHost
         // The analytics job persists the buckets the drain closes. Hosted services stop in reverse order, so it is registered before the drain
         // and stops after it: the bucket the drain closes on its way out is in the backlog when the job's last write runs.
         builder.Services.AddHostedService(static services => services.GetRequiredService<AnalyticsRollupJob>());
+        // The honeypot's recording job folds the trap's queue into sessions and writes them; it stops after the public host has drained, so its last write carries the final requests.
+        builder.Services.AddHostedService(static services => services.GetRequiredService<HoneypotRecordingJob>());
         // The access log's one reader: it formats the ring's entries into the sink, and flushes on shutdown.
         builder.Services.AddHostedService<AccessLogDrainService>();
         // Drafts nobody has touched for 30 days are dropped, with the vault values bound to them (after ConfigStartup, which migrates the database).

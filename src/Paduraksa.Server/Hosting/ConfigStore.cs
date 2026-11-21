@@ -6,6 +6,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Drafts;
+using Paduraksa.Application.Honeypot;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Metrics;
@@ -18,6 +19,7 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Analytics;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
@@ -62,6 +64,8 @@ internal static class ConfigStore
         ProofOfWorkRuntime proofOfWork,
         LiveOptions<NotificationOptions> notificationOptions,
         AnalyticsBacklog analyticsBacklog,
+        HoneypotRecorder honeypotRecorder,
+        HoneypotStats honeypotStats,
         ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -104,6 +108,9 @@ internal static class ConfigStore
             .AddPaduraksaMetricRollups()
             .AddSingleton(analyticsBacklog)
             .AddPaduraksaAnalyticsRollups()
+            .AddSingleton(honeypotRecorder)
+            .AddSingleton(honeypotStats)
+            .AddPaduraksaHoneypotRecording()
             .AddPaduraksaNotifications(notificationOptions);
         if (placeholderEnabled)
         {
@@ -138,6 +145,8 @@ internal static class ConfigStore
         var rollups = builder.AddOwnedElsewhere(container.GetRequiredService<MetricRollupStore>());
         var securityRollups = builder.AddOwnedElsewhere(container.GetRequiredService<SecurityRollupStore>());
         var analyticsRollups = builder.AddOwnedElsewhere(container.GetRequiredService<AnalyticsRollupStore>());
+        var honeypotStore = builder.AddOwnedElsewhere(container.GetRequiredService<HoneypotStore>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<HoneypotService>());
 
         // The notification system: the dispatcher is also the one INotificationEvents that every producer (sign-in, ACME, the watchers) publishes to.
         // The hosted services (the dispatcher, the health watcher, the expiry monitor) are started by the core host.
@@ -148,7 +157,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<UpstreamHealthBoard>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<NotificationHistoryService>());
-        return new ConfigStoreServices(contexts, config, drafts, certificates, operations, setup, permissions, rollups, securityRollups, analyticsRollups, events, container.GetRequiredService<NotificationStats>());
+        return new ConfigStoreServices(contexts, config, drafts, certificates, operations, setup, permissions, rollups, securityRollups, analyticsRollups, honeypotStore, events, container.GetRequiredService<NotificationStats>());
     }
 }
 
@@ -163,6 +172,7 @@ internal static class ConfigStore
 /// <param name="MetricRollups">The one-minute metric rollups' store.</param>
 /// <param name="SecurityRollups">The one-minute security rollups' store.</param>
 /// <param name="AnalyticsRollups">The traffic analytics' rollup store.</param>
+/// <param name="HoneypotStore">The honeypot's sessions and requests.</param>
 /// <param name="Events">Where producers publish notification events.</param>
 /// <param name="NotificationStats">The notification outbox's figures, for <c>/metrics</c>.</param>
 internal sealed record ConfigStoreServices(
@@ -176,5 +186,6 @@ internal sealed record ConfigStoreServices(
     MetricRollupStore MetricRollups,
     SecurityRollupStore SecurityRollups,
     AnalyticsRollupStore AnalyticsRollups,
+    HoneypotStore HoneypotStore,
     INotificationEvents Events,
     NotificationStats NotificationStats);
