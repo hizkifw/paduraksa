@@ -1,5 +1,4 @@
 @inherits NamedObjectDrawer<RuleSetEditModel, RuleSetConfig>
-@using Paduraksa.Application.Compilation
 
 @* A rule set in a drawer: a name and the rules in the order they are tried, each "When [path] [methods] [user agent] then [action]". On its
    own it goes through Review changes; opened from a host's form it is handed back, to be applied with the host in one revision. Its ID is
@@ -202,21 +201,10 @@
 
             return [.. Usage.Hosts.Concat(Usage.Routes.Select(route => route.Host))
                 .DistinctBy(host => host.Id)
-                .Where(host => host.Enabled && !HasTrap(Document, host))
+                .Where(host => host.Enabled && !HostTraps.Has(Document, host))
                 .Select(ChangeView.HostTitle)
                 .Order(StringComparer.OrdinalIgnoreCase)];
         }
-    }
-
-    private static bool HasTrap(ConfigDocument document, HostConfig host)
-    {
-        if (host.Kind == HostKind.Admin)
-        {
-            return false;
-        }
-
-        var profile = host.ProfileId is { } profileId ? document.Profiles.FirstOrDefault(p => p.Id == profileId) : null;
-        return HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, document.Settings.Defaults, profile?.Settings, host.Settings).Honeypot?.Enabled == true;
     }
 
     protected override string LoadFailureMessage => "Couldn't load the rule-set form.";
