@@ -34,7 +34,7 @@ Contents:
 | Geo blocking | **`CF-IPCountry` only**, as country rules of an access list: a two-letter code from a trusted Cloudflare peer, compiled per list into a bitset (676 letter pairs plus Tor and unknown), one bit test per request. See [Country rules](#country-rules). A local country database is **not built**. |
 | Rate limiting | A fixed-size, open-addressed token-bucket table. Policies per host or route: requests per second, minute or hour plus a burst, keyed by IP, IP+path or header. Returns 429 with `Retry-After`. See [Rate limiting](#rate-limiting). |
 | Request size limits | `IHttpMaxRequestBodySizeFeature` per host or route. Header count and size and URL length are checked cheaply in the gate. Kestrel's limits act as the outer bound. See [Request limits](#request-limits). |
-| Rule sets | A named object (`rs_`): an ordered list of rules with path, method and user-agent conditions and an action (deny, drop, allow). Presets are built in. See [Rule sets](#rule-sets). |
+| Rule sets | A named object (`rs_`): an ordered list of rules with path, method and user-agent conditions and an action (deny, drop, allow, honeypot). Presets are built in. See [Rule sets](#rule-sets). |
 | Forward-auth | A named object (`authp_`): an endpoint that every request to a host or route naming it is checked against before it is forwarded. See [Forward-auth](#forward-auth). |
 | Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page, solved by pure-JS SHA-256 workers. The verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. See [Proof of work](#proof-of-work). |
 | Robots.txt | Per host: passthrough or managed (preset: disallow all, block AI crawlers, or custom text). Served from pre-encoded bytes. |
@@ -163,6 +163,7 @@ It protects a route from clients that will not do work: a browser solves a small
   - An expired challenge gets the same `303` without a cookie (a fresh challenge follows).
   - Anything else is `403`.
 - **The valid-token path** reads the cookie from the `Cookie` header span into `stackalloc` buffers and verifies with `IMacKey`. It allocates 0 B (`GateMiddleware.Decide` allocation test).
+- **The trap reuses all of this** for its own challenge: the page, the solver, the challenge and the token, over a separate MAC domain and cookie (see [Honeypot](#honeypot)).
 - **The page's CSP:** `default-src 'none'; script-src 'sha256-...'; style-src 'sha256-...'; worker-src blob:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`. The hashes are computed once from the inline script and style. `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff` ride along, and the host's response headers apply as on any gate answer.
 
 ### Exemptions and failure
@@ -428,7 +429,7 @@ A rule has a `match` and an `action`.
   - `methods`: a set, upper case;
   - `userAgent`: `contains` (case-insensitive substrings) and `empty`, which also takes a missing or blank user agent.
 - A rule needs at least one condition, because one with none would match every request. Every condition it states has to hold.
-- `action` is `deny` (403 and the built-in page), `drop` (abort, no answer) or `allow`.
+- `action` is `deny` (403 and the built-in page), `drop` (abort, no answer), `allow` or `honeypot` (a page of the host's trap, see [Honeypot](#honeypot); a deny on a host with no trap).
 - The first rule a request matches decides. An allow carves an exception out of the denies after it: it ends the set, and the rest of the chain still runs. If no rule matches, the request goes on.
 - `HostSettings.RuleSet` and `RouteSettings.RuleSet` are one nested record, `{ enabled, ruleSetId }`, merged field by field through defaults, profile, host and route like the access list's.
 
@@ -508,13 +509,13 @@ The one exception is a **regex**.
 
 ### Counters and the overview
 
-- `RuleSetCounters` (denied, dropped, allowed, regex timeouts) are process-lifetime `Interlocked` longs per set, kept by `RuleSetRuntime` and carried by the compiled set. They survive a publish, and a simulation counts nothing.
+- `RuleSetCounters` (denied, dropped, allowed, honeypotted, regex timeouts) are process-lifetime `Interlocked` longs per set, kept by `RuleSetRuntime` and carried by the compiled set. They survive a publish, and a simulation counts nothing.
 - The sampler keeps them as a series per set (by its ID), so counts outlive a restart; a deleted set's rows stay until retention.
 - The security overview has a **Rules** column: the set a host applies (a document set links to its page, a preset to the list that shows the presets), what it refused or dropped in the last 24 hours, and the routes that apply another set, a preset or none. There is no rule card: rules are a reason in the refusals chart.
 
 ### Simulator
 
-- The policy's step names the set, the rule (counted from 1, as the dashboard numbers them), what matched (`path starts with /admin, method POST`, `user agent contains 'sqlmap'`, `no user agent`) and the action, as a sentence and as facts (`ruleSet`, `rule`, `matched`, `action`). It also says when no rule matched or when robots.txt is exempt.
+- The policy's step names the set, the rule (counted from 1, as the dashboard numbers them), what matched (`path starts with /admin, method POST`, `user agent contains 'sqlmap'`, `no user agent`) and the action, as a sentence and as facts (`ruleSet`, `rule`, `matched`, `action`). It also says when no rule matched or when robots.txt is exempt. A honeypot action adds a `trap` fact (`yes` or `none`) and hands on to the trap's own step; with no trap its sentence says the request is refused with 403.
 - `RuleSetSimulationTests` put a matrix of paths (non-canonical spellings included), methods and user agents through the simulator and the real gate and compare the outcomes.
 - The lock-out guard sends the caller's own `User-Agent` in its probe (`AdminRequestFacts.UserAgent`). The guard catches a rule set that refuses the caller on a proxied admin host, and does not catch one that refuses only other agents.
 
@@ -743,25 +744,44 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
 | `PowDifficulty` | 16 | Leading zero bits for those challenges, in the gate's range. |
 | `NoIndex` | on | Send `X-Robots-Tag: noindex, nofollow` on trap answers, so a search engine that reaches the trap through a leaked link keeps it out of results. |
 
-- **Validation:**
-  - The path must be canonical, start and end with `/`, and contain no `/.well-known/` (`host.honeypot.path.invalid`).
-  - The trap shadows the routes under its prefix. If a route's path is under the prefix, the review warns about it (`host.honeypot.path.shadowsRoute`).
-  - An admin host can't have a trap.
+- **Validation** (at the layer that sets the value):
+  - The path (`host.honeypot.path.invalid`) starts and ends with `/`, names at least one segment, is canonical, is at most 64 characters, holds only letters, digits and `- _ . ~` between its slashes, and contains no `/.well-known/` (the gate's own endpoints live there).
+  - The site name (`host.honeypot.siteName.invalid`) is 1 to 80 characters without control characters.
+  - The share and the difficulty (`host.honeypot.powShare.invalid`, `host.honeypot.powDifficulty.invalid`) are 0 to 100 and 8 to 28, as the browser check's.
+  - `HoneypotPrefix.Problem` (in `Paduraksa.Proxy`) is the one definition of a valid prefix. The validator and the snapshot compiler's backstop both call it.
+  - The trap shadows the routes under its prefix. If a route's path is under a prefix the operator wrote, the review warns about it (`host.honeypot.path.shadowsRoute`). A derived prefix can't be compared there, because it comes from a key only the compiler holds.
+  - An admin host can't have a trap, because it would answer paths the dashboard uses. A host whose own settings turn it on is refused (`host.honeypot.adminHost`). A layer that turns it on for every host is ignored for the admin host, with a warning (`host.honeypot.adminIgnored`), as maintenance mode is, so one global switch doesn't make the document invalid.
 - **Warning:** if a host has a trap on but robots.txt passes through to the upstream, nothing adds the `Disallow` line, so only the rule action leads into the trap (`host.honeypot.robotsPassthrough`).
-- **Server option:** `Paduraksa:Honeypot:MaxConcurrent` (default 16) caps the trap answers being generated at once. Above the cap, the trap answers `503` with `Retry-After`, and the request is recorded as shed.
+- **Server option:** `Paduraksa:Honeypot:MaxConcurrent` (default 16, 1 to 1024, validated at startup like the other `Paduraksa` options) caps the trap answers being generated at once, across hosts. Above the cap, the trap answers `503` with `Retry-After: 5`, and the request is counted as shed.
+- **The key.**
+  - The site key is derived at compile time under the proof-of-work key, which the core host opens before the first config is compiled.
+  - If that key can't be opened, a trap with a configured path answers `503` (the browser check's page) and a trap with a derived path is off, since its prefix is unknown. One Error is logged per process.
+  - Rotating the key changes a derived prefix and every page on the next publish. A configured path stays.
 
 ### Ways in
 
-1. **robots.txt.** If the host serves a managed robots.txt, `Disallow: <prefix>` is added to every group, and a `User-agent: *` group is added if the file has none. The line is added once at compile time, so the bytes stay precomputed. Any request into the prefix then breaks robots.txt.
-2. **The rule action.** `RuleAction.Honeypot` sits beside deny, drop and allow. A matching request gets a landing page for the requested path: a blog page whose links lead into the prefix, answered with `200`. If the host has no trap, the rule set is compiled with the action as deny, and the simulator says so.
+1. **robots.txt.** If the host serves a managed robots.txt, `Disallow: <prefix>` is added as the last line of every group (`RobotsText.WithDisallow`), and a `User-agent: *` group is added if the file has none. The line is added once at compile time, so the bytes stay precomputed. Any request into the prefix then breaks robots.txt.
+   - The analytics' "bots ignoring robots.txt" parse the served bytes, so a trap visit counts there with no change to them.
+   - The host's stored robots text is not touched; only the compiled answer has the line.
+2. **The rule action.** `RuleAction.Honeypot` (`honeypot` in the document) sits beside deny, drop and allow. A matching request gets the landing page for the requested path: a blog page whose links lead into the prefix, answered with `200` to any method.
+   - The landing sits outside the prefix, where no cookie of the trap reaches, so it is never put behind the challenge.
+   - If the host has no trap, the rule is compiled as a deny, for the host's chain and a route's alike. The decision is made at compile time (`RuleSetPolicy` takes whether the host has a trap), so a request never looks at the host for it. The rule's step in the simulator says so.
+   - `RuleSetCounters.Honeypotted` counts the rule's matches. A rule on a host with no trap counts as a denial. The security overview and its API don't show it.
 
 ### Where it answers
 
-- The gate answers the prefix after robots.txt and before maintenance mode, a fixed answer and route matching. The host's chain runs first, so an access list or a rule set still applies inside the trap.
-- The prefix check is one ordinal prefix compare on the canonical path. It allocates 0 B, so requests outside the trap cost nothing (`GateMiddleware.Decide` allocation test).
+- The gate answers the prefix after robots.txt and before maintenance mode, a fixed answer and route matching. The host's chain, the request limits and the HTTPS redirect run first, so an access list or a rule set still applies inside the trap and plain HTTP is redirected first.
+- A Redirect or Respond host can carry a trap, like a managed robots.txt.
+- The prefix check is one ordinal prefix compare on the canonical path, so a spelling such as `//archive-k7f3//post-1/` is under the prefix. Case counts, unlike route matching: `/ARCHIVE-K7F3/` is a request for the host's routes. It allocates 0 B, so requests outside the trap cost nothing (`GateMiddleware.Decide` allocation test, with a trap host).
 - Generating a trap answer allocates, which is acceptable because only trap traffic pays for it.
-- `GateAction.Honeypot` hands the request to the honeypot handler, which runs async like the proof-of-work verify endpoint.
-- The simulator reports a `honeypot` step: the entry (prefix or rule), the page kind, and whether it would be challenged.
+- `GateAction.Honeypot` hands the request to `HoneypotEndpoint`, which runs async like the proof-of-work verify endpoint. The decision marks the request as answered by the host (`GateOutcome.Answered`, not a missing route, and never compressed).
+- **What the handler answers:**
+  - `GET` and `HEAD` get the page from the site, rendered into a pooled buffer: its status, `Content-Type`, `Content-Length`, `Last-Modified` and, if `NoIndex` is on, `X-Robots-Tag: noindex, nofollow`. The host's response headers apply as on any gate answer. `HEAD` writes no body.
+  - Another method gets `405` with `Allow: GET, HEAD`. The trap's own `POST` to its verify path is the exception.
+  - A page behind the challenge gets the challenge page, or the browser check's `403` for a client that doesn't accept `text/html`.
+  - Over the cap, `503` with `Retry-After: 5`; the site is never asked and no hit is recorded.
+- The simulator reports a `honeypot` step: the entry (`robots`, `prefix` or `rule`), the prefix, the page kind and link kind, whether it would be challenged and the status. `HoneypotEndpoint.Plan` works that out without answering, and a test compares its status with a real answer for each kind. A simulation records no hit, counts nothing and tells the sink nothing.
+- The gate carries the trap's runtime (sink, counters, cap) on the compiled host, so the decision needs nothing but the host.
 
 ### The site
 
@@ -792,18 +812,25 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
 | `image` | An `<img>` pointing at a generated SVG. |
 
 - **Proof of work.** `PowShare` percent of the posts, categories, tags and authors, chosen by page ID, need a solved challenge. The index, pagination, landing pages, the 404, the sitemap, the feed, images and the beacon never do.
-  - The page and the JS solver are the gate's, so the trap tests the real thing.
-  - The challenge tag uses a `paduraksa-honeypot-pow-v1` prefix. The trap has its own verify path and its own cookie. A token solved in the trap therefore passes nothing on the real site, and the real site's token passes nothing in the trap.
+  - The page and the JS solver are the gate's, so the trap tests the real thing. `ProofOfWorkPage` takes the verify path, and `ProofOfWorkEndpoint.VerifyAsync`, the challenge and the token take a `ProofOfWorkDomain`.
+  - The domain is what keeps the two flows apart: the MAC prefixes (`paduraksa-honeypot-pow-v1/challenge` and `/token` for the trap) and the cookie's name. Both sign under the same key, so a token solved in the trap fails the tag on the real site, and the real site's fails in the trap. `HoneypotProofOfWorkTests` and an end-to-end test check both directions.
+  - The verify path is `<prefix>verify`, and a `GET` there is a URL that is no page. The cookie is `reader_token`, so it names neither the product nor the check. It is `HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS, with `Path=<prefix>`, and lasts 24 hours.
+  - A solved challenge redirects (`303`) to the `return` target. A target outside the prefix is replaced by the prefix, so a solver is sent back into the trap, never out of it.
+  - The challenge page carries the same footer and logo as the browser check's, so a crawler that reaches it can tell what runs the site. A page of the trap's own is left for later.
 - **The canary phrase.** Each visitor (host, IP, user agent) gets a made-up two-word phrase, derived with HMAC from the site key, inside the post text, as one added sentence. The phrase is stored with the session. If it later appears in a search engine or a model's answer, it names the visitor that scraped the page.
 
 ### Recording
 
-- Every trap request becomes a `HoneypotHit`, written to a bounded channel. If the channel is full, the hit is dropped and counted. Each hit records:
+- Every trap request becomes a `HoneypotHit`, handed to `IHoneypotSink.Record`, which must not block. The sink the recording stores behind a bounded channel; if the channel is full, the hit is dropped and counted (`HoneypotStats.CountDropped`). Each hit records:
   - time, host, full client IP and user agent
-  - entry (`robots`, `prefix` or `rule`), page kind, link kind, page ID and parent ID
+  - entry (`robots` when the host serves the `Disallow` line, `prefix` when it doesn't, `rule` for a rule set's action), page kind, link kind, page ID and parent ID
   - status, and the proof-of-work outcome (`shown`, `solved` with the solve time, `passed`)
-  - protocol, TLS version, `Accept`, `Accept-Language`, the `Sec-Fetch-*` headers and `Referer`
-- On a host with a trap on, robots.txt fetches are recorded too. That shows whether a visitor read the file before going in.
+  - protocol, TLS version, `Accept`, `Accept-Language`, the four `Sec-Fetch-*` headers and `Referer`
+  - the visitor's canary phrase
+- The proof-of-work outcomes: `shown` is the challenge answered instead of the page (and the `403` for a client that can't solve it); `solved` is the verify request, with the status `303`, the page the visitor was sent back to and the time from the challenge's issue, to the second; `passed` is a page behind the challenge served on a valid cookie.
+- A request over the cap isn't recorded; `HoneypotStats` counts it as shed. It also counts the answers served.
+- On a host with a trap on, robots.txt fetches are reported too (`RobotsFetched`), whether the host serves the file or the upstream does. That shows whether a visitor read the file before going in. A simulation reports nothing.
+- Until the recording exists, `NullHoneypotSink` drops everything.
 - **Sessions** are keyed by host, IP and user agent, and end after 30 idle minutes. A session keeps counters:
   - requests, pages and guessed URLs
   - each link kind followed

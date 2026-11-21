@@ -10,6 +10,7 @@ Paduraksa's protections are named objects. Define one once, then attach it to ho
 | [Auth providers](#sign-in-with-your-identity-provider) | Security, *Auth providers* | Forward-auth to authentik, Authelia, oauth2-proxy or your own endpoint |
 | [Browser check](#browser-check-proof-of-work) | A host setting | A proof of work a plain scraper does not pass |
 | [robots.txt](#robotstxt) | A host setting | A managed file for crawlers |
+| [Honeypot](#honeypot) | A host setting, and a rule action | A trap for crawlers that ignore `robots.txt` |
 
 Connection floods, slow clients, request sizes and client addresses are on [Connections, limits and client addresses](connections-and-limits.md). Cloudflare's origin lockdown is on [Behind Cloudflare](cloudflare.md).
 
@@ -19,7 +20,7 @@ For a request to a proxy host, the gate runs in this order, and stops at the fir
 
 1. The connection stage, before TLS: the per-address cap and the deny list.
 2. The host's address and country rules. A denied address is dropped or refused here and learns nothing about the host.
-3. Request limits (`414`, `431`), then the HTTPS redirect, then `robots.txt` and the answers of Redirect and Respond hosts.
+3. Request limits (`414`, `431`), then the HTTPS redirect, then `robots.txt`, then the honeypot, then the answers of Redirect and Respond hosts.
 4. Rule sets, then the route's access list (addresses, then passwords), then the rate limit, then sign-in, then the browser check.
 
 - A rule set runs before the access list that asks for passwords, so a refused request costs no password check or rate-limit token.
@@ -104,6 +105,7 @@ Actions:
 - **Deny:** `403` with the built-in page.
 - **Drop:** abort the connection with no answer.
 - **Allow:** carves an exception out of the denies after it. An allow ends the set, but the rest of the chain still runs.
+- **Honeypot:** answers with a page of the host's [honeypot](#honeypot). On a host without one, the rule is a deny.
 
 The first rule a request matches decides. A request that matches no rule goes on.
 
@@ -206,6 +208,42 @@ The **robots.txt** setting (global defaults, a profile or a host; not per route)
 It is sent with `Cache-Control: max-age=3600`, so crawlers pick up a change within the hour. It is answered after the host's access rules and the HTTPS redirect, and before route matching, so a Redirect or Respond host can carry one too.
 
 [Analytics](observability.md#analytics) lists the bots that ignore it.
+
+## Honeypot
+
+The **Honeypot** setting (global defaults, a profile or a host; not per route) serves a trap on a host: a blog with no end, for crawlers that ignore `robots.txt` or probe for weak spots. It only observes. Nothing it sees refuses, bans or slows a client.
+
+| Field | Built-in | Meaning |
+|---|---|---|
+| Enabled | off | Serve the trap on the host |
+| Path | derived | The prefix of the trap, such as `/archive-k7f3/`. If unset, each host derives its own from its ID and the browser check's key, so the prefix is stable and names nothing about Paduraksa |
+| Site name | derived | The blog's title, derived like the path |
+| Share behind the browser check | 20 | Percent of trap pages that need a solved challenge, 0 to 100 |
+| Difficulty | 16 | Leading zero bits of those challenges, 8 to 28 |
+| No index | on | Sends `X-Robots-Tag: noindex, nofollow` on trap answers |
+
+A path starts and ends with `/`, has letters, digits and `- _ . ~` only, is at most 64 characters and can't contain `/.well-known/`.
+
+There are two ways into the trap:
+
+- **robots.txt.** If the host serves a managed `robots.txt`, a `Disallow:` line for the prefix is added to every group. A request under the prefix then came from a crawler that didn't read the file, or ignored it.
+- **A rule.** The **Honeypot** action of a [rule set](#rule-sets) answers a matching request, on any path, with a page of the trap.
+
+How it answers:
+
+- A request under the prefix is answered after `robots.txt` and before maintenance mode, a Redirect or Respond host's answer and the routes. The host's access list and rules, the request limits and the HTTPS redirect come first.
+- The prefix is compared with the path's canonical spelling, and case counts. A path such as `/archive-k7f3x/` isn't under `/archive-k7f3/`.
+- `GET` and `HEAD` get a page. Any other method gets `405`, except the `POST` of the trap's own browser check.
+- The browser check of a trap page is the same page and solver as the [browser check](#browser-check-proof-of-work). Its cookie is separate and scoped to the prefix, so solving one passes nothing on the other.
+- `Paduraksa__Honeypot__MaxConcurrent` (default 16) caps the pages generated at once. Over the cap, the trap answers `503` with `Retry-After`.
+- If the signing key can't be opened, a trap with a path of its own answers `503`, and one with a derived path is off.
+
+The review warns when:
+
+- a host has the trap on but passes `robots.txt` through, because nothing then adds the `Disallow:` line;
+- a route's path is under the prefix, because the trap answers it and the route never sees those requests.
+
+An admin host can't have a trap. The request simulator shows a **Honeypot** step with the entry, the page, whether it is behind the browser check, and the status.
 
 ## The Security overview
 

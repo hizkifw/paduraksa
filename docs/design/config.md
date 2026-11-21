@@ -204,11 +204,11 @@ One merge owns the layers for every consumer: `HostSettingsLayers` in `Paduraksa
 - The dashboard's fields merge `BuiltIn` under what they inherit the same way, so a form cannot promise a value the proxy would not apply. It shows where each value comes from ("inherited from Global", "from profile *LAN only*") with "override here" and "reset to inherited".
 - `BuiltIn` is the one place a built-in default is stated.
 
-**Nested records** merge field by field: `Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`, `RuleSet`, `Headers` and `Compression`. `Headers` merges rule by rule, keyed on the header name (see "Custom headers" in [hot-path.md](hot-path.md)).
+**Nested records** merge field by field: `Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`, `RuleSet`, `Headers`, `Compression` and `Honeypot`. `Headers` merges rule by rule, keyed on the header name (see "Custom headers" in [hot-path.md](hot-path.md)).
 - A layer lifts an inherited rate limit, access list or rule set with `enabled: false`. Everything else is a plain override.
 - If a nested record sets none of its fields, it is no record at all. Canonical JSON writes no key for it, so a stored revision keeps its bytes and hash. `ISettingsLayer.SetsNothing`, stated by each record, is the one rule.
 
-**The fields:** force HTTPS, TLS (minimum version, TCP protocols, HTTP/3), HSTS, access log, request ID propagation, the `Server` header, proof of work, rate limit, `robots.txt`, Cloudflare (origin lockdown, Authenticated Origin Pulls), access list, request limits, rule set, auth provider, error pages, maintenance mode, custom request and response headers, and compression.
+**The fields:** force HTTPS, TLS (minimum version, TCP protocols, HTTP/3), HSTS, access log, request ID propagation, the `Server` header, proof of work, rate limit, `robots.txt`, Cloudflare (origin lockdown, Authenticated Origin Pulls), access list, request limits, rule set, auth provider, error pages, maintenance mode, custom request and response headers, compression, and the honeypot (switch, path, site name, share and difficulty of the proof of work, noindex).
 
 Not layered settings:
 - Path rewriting is a route's own, `RouteConfig.Rewrite` (see "Path rewrite" in [hot-path.md](hot-path.md)).

@@ -134,11 +134,12 @@ The gate is first in the pipeline. It runs these steps in order:
     - The host's body limit was put on the request when the host was found.
 11. **HTTP-to-HTTPS redirect,** from precomputed bytes.
 12. **Managed `robots.txt`** (GET/HEAD only), from precomputed bytes. It comes after the allow list and the plain-HTTP redirect, but before the fixed answer below and before route matching, so a Redirect or Respond host can carry one and the route chain never sees the file.
-13. **Redirect and Respond hosts,** from precomputed bytes.
-14. **Route resolution.** The per-host list, most specific first, on the canonical matching view of the path (see [config.md](config.md)). 404 if none matches.
-15. **Route policy chain** (stage D): the route's own policies only.
-16. **Declared body.** A `Content-Length` over the route's (else the host's) limit is 413, after the route's own chain and before anything reads the body.
-17. **Endpoint.** `HttpContext.SetEndpoint(YARP Endpoint from the same snapshot)`, so the later `UseRouting` skips matching.
+13. **Honeypot.** A host with a trap compares the canonical path with its prefix, ordinally and in place, for 0 B on a miss. A hit goes to the async honeypot handler, which allocates; only trap traffic pays for it (see [waf.md](waf.md#honeypot)).
+14. **Redirect and Respond hosts,** from precomputed bytes.
+15. **Route resolution.** The per-host list, most specific first, on the canonical matching view of the path (see [config.md](config.md)). 404 if none matches.
+16. **Route policy chain** (stage D): the route's own policies only.
+17. **Declared body.** A `Content-Length` over the route's (else the host's) limit is 413, after the route's own chain and before anything reads the body.
+18. **Endpoint.** `HttpContext.SetEndpoint(YARP Endpoint from the same snapshot)`, so the later `UseRouting` skips matching.
 
 ### D. Policy chains
 
@@ -148,7 +149,7 @@ The order:
 1. **AccessList** (IP and country allow/deny, then basic auth). The host chain only refuses by address and country.
 2. **RuleSet** (path, method and user-agent rules). It comes after the host chain's address-only list policy and before a route's list that has users, address checks included (see [waf.md](waf.md)).
 3. **RateLimit.**
-4. *RequestLimits is not a policy.* The gate checks it (steps 10 and 16 above).
+4. *RequestLimits is not a policy.* The gate checks it (steps 10 and 17 above).
 5. **Robots.**
 6. **Auth** (forward-auth, OIDC later).
 7. **ProofOfWork.**

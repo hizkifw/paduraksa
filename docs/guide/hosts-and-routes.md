@@ -175,6 +175,7 @@ The settings a host can carry:
 | Maintenance mode | off |
 | Custom headers | none |
 | Compression | off. Once on: from 1 KiB |
+| Honeypot | off. Once on: a derived path and name, 20 % of pages behind the browser check at 16 bits, `noindex` on. See [Honeypot](security.md#honeypot) |
 
 ### HTTPS and HSTS
 
