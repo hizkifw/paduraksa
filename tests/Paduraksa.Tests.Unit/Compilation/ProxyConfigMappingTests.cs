@@ -746,6 +746,63 @@ public sealed class ProxyConfigMappingTests
     }
 
     [Fact]
+    public void TheTrapResolvesPerHostAndWarnsWhereItCannotWork()
+    {
+        HostSettings trap = new()
+        {
+            Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
+            Honeypot = new HoneypotSettings { Enabled = true, PowShare = 50, PowDifficulty = 12, NoIndex = false },
+        };
+        var mapped = TestMapping.Map(Document(trap, null, null), Revision, CertificateInventory.Empty);
+        var host = Assert.Single(mapped.Model.Hosts);
+        Assert.Equal(new HostHoneypotSpec { Enabled = true, Path = null, SiteName = null, PowShare = 50, PowDifficulty = 12, NoIndex = false }, host.Honeypot);
+        Assert.DoesNotContain(mapped.Warnings, w => w.Code.StartsWith("host.honeypot.", StringComparison.Ordinal));
+
+        // Off is the built-in default, and a layer that sets only the switch keeps the rest.
+        Assert.Equal(HostHoneypotSpec.Off, Assert.Single(TestMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Model.Hosts).Honeypot);
+
+        // Nothing adds the Disallow line when robots.txt passes through, so only a rule set leads in.
+        var passthrough = TestMapping.Map(Document(null, null, new HostSettings { Honeypot = new HoneypotSettings { Enabled = true } }), Revision, CertificateInventory.Empty);
+        var warning = Assert.Single(passthrough.Warnings, w => w.Code == ConfigWarningCodes.HoneypotRobotsPassthrough);
+        Assert.Equal(CompileErrorSource.Host(AppHost), warning.Source);
+
+        // A route the prefix covers never sees its requests. A derived prefix can't be compared here, only one the operator wrote.
+        var shadowed = TestMapping.Map(
+            Document(null, null, trap) with
+            {
+                Hosts = [new HostConfig(AppHost, ["app.example.com"], Settings: trap with { Honeypot = new HoneypotSettings { Enabled = true, Path = "/blog/" } }, Routes: [new RouteConfig(RootRoute, AppUpstream), new RouteConfig(ApiRoute, AppUpstream, Path: "/blog/api")])],
+            },
+            Revision,
+            CertificateInventory.Empty);
+        Assert.Single(shadowed.Warnings, w => w.Code == ConfigWarningCodes.HoneypotShadowsRoute);
+        Assert.DoesNotContain(TestMapping.Map(Document(null, null, trap), Revision, CertificateInventory.Empty).Warnings, w => w.Code == ConfigWarningCodes.HoneypotShadowsRoute);
+
+        // A disabled host serves nothing, so nothing warns about it.
+        Assert.DoesNotContain(
+            TestMapping.Map(
+                Document(null, null, new HostSettings { Honeypot = new HoneypotSettings { Enabled = true } }) with
+                {
+                    Hosts = [new HostConfig(AppHost, ["app.example.com"], Enabled: false, Settings: new HostSettings { Honeypot = new HoneypotSettings { Enabled = true } }, Routes: [new RouteConfig(RootRoute, AppUpstream)])],
+                },
+                Revision,
+                CertificateInventory.Empty).Warnings,
+            w => w.Code.StartsWith("host.honeypot.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnAdminHostNeverServesATrapAThatLayerTurnedOn()
+    {
+        var document = new ConfigDocument(
+            Settings: new GlobalSettings(Defaults: new HostSettings { Honeypot = new HoneypotSettings { Enabled = true } }),
+            Hosts: [new HostConfig(AppHost, ["admin.example.com"], Kind: HostKind.Admin)]);
+
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
+
+        Assert.Equal(HostHoneypotSpec.Off, Assert.Single(mapped.Model.Hosts).Honeypot);
+        Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.HoneypotAdminIgnored);
+    }
+
+    [Fact]
     public void RequestLimitsResolvePerHostAndARouteOverridesOnlyTheBodyLimit()
     {
         HostSettings limits = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16384, MaxUrlLength = 2048 } };

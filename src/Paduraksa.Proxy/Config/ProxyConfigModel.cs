@@ -427,6 +427,9 @@ public sealed record HostSpec
     /// <summary>Response compression.</summary>
     public HostCompressionSpec Compression { get; init; } = HostCompressionSpec.Off;
 
+    /// <summary>The trap; an admin host never serves one.</summary>
+    public HostHoneypotSpec Honeypot { get; init; } = HostHoneypotSpec.Off;
+
     /// <summary>Proxy hosts only; listed in the order the host evaluates them: exact first, then the longest prefix,
     /// then <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];
@@ -451,6 +454,27 @@ public sealed record HostCompressionSpec
 
     /// <summary>The smallest declared body compressed, in bytes.</summary>
     public int MinimumSize { get; init; } = CompressionBounds.DefaultMinimumSize;
+}
+
+/// <summary>The trap as it resolved across the layers; the compiler derives a missing path and name from the host's ID.</summary>
+public sealed record HostHoneypotSpec
+{
+    /// <summary>Off, the built-in default.</summary>
+    public static HostHoneypotSpec Off { get; } = new();
+
+    public bool Enabled { get; init; }
+
+    /// <summary>The configured prefix; null: derived.</summary>
+    public string? Path { get; init; }
+
+    /// <summary>The configured blog title; null: derived.</summary>
+    public string? SiteName { get; init; }
+
+    public int PowShare { get; init; } = HoneypotLimits.DefaultPowShare;
+
+    public int PowDifficulty { get; init; } = ProofOfWorkLimits.DefaultDifficulty;
+
+    public bool NoIndex { get; init; } = true;
 }
 
 /// <summary>One custom header rule as the compiler takes it; the compiler checks the name and value again.</summary>

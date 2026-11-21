@@ -236,6 +236,7 @@ public static class ProxyConfigMapping
 
         AddCloudflareWarnings(host, effective.Cloudflare, proxyMode, where, warnings);
         var maintenance = MaintenanceOf(host, effective.Maintenance, accessLists, where, warnings);
+        var honeypot = HoneypotOf(host, effective, where, warnings);
 
         var (hostChain, routeChains) = AccessListChains(host, effective, accessLists);
         AddRuleSets(host, effective, accessLists, ref hostChain, routeChains);
@@ -343,6 +344,7 @@ public static class ProxyConfigMapping
             Cloudflare = effective.Cloudflare,
             Headers = effective.Headers,
             Compression = effective.Compression,
+            Honeypot = honeypot,
             ErrorPages = ErrorPagesOf(host, effective.ErrorPages, where, warnings),
             Maintenance = maintenance,
             Routes = routes,
@@ -394,6 +396,47 @@ public static class ProxyConfigMapping
         {
             Warn(warnings, where, "/settings/maintenance/bypassAccessListId", ConfigWarningCodes.MaintenanceBypassNoAllowRules,
                 $"the bypass access list '{list.Name}' has no allowed address or country, so no request bypasses maintenance");
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// The trap a host serves: an admin host never does, however a layer above it asked. The warnings are said at the host that
+    /// would carry the trap, wherever the layer that set it is. A derived prefix can't be compared with the routes here (it comes
+    /// from a key the compiler holds), so only a prefix the operator wrote is.
+    /// </summary>
+    private static HostHoneypotSpec HoneypotOf(HostConfig host, EffectiveHostSettings effective, CompileErrorSource where, List<MappedWarning> warnings)
+    {
+        var resolved = effective.Honeypot;
+        if (!host.Enabled || !resolved.Enabled)
+        {
+            return resolved;
+        }
+
+        if (host.Kind == HostKind.Admin)
+        {
+            Warn(warnings, where, "/settings/honeypot/enabled", ConfigWarningCodes.HoneypotAdminIgnored,
+                "an admin host never serves a trap, so a layer that turns it on for every host can't take the dashboard's paths; the setting is ignored here");
+            return HostHoneypotSpec.Off;
+        }
+
+        if (effective.Robots.Mode == RobotsMode.Passthrough)
+        {
+            Warn(warnings, where, "/settings/honeypot/enabled", ConfigWarningCodes.HoneypotRobotsPassthrough,
+                "the trap is on, but robots.txt passes through to the upstream, so nothing adds its Disallow line; only a rule set's honeypot action leads into the trap");
+        }
+
+        if (resolved.Path is { } prefix)
+        {
+            foreach (var route in host.Routes)
+            {
+                if (route.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    Warn(warnings, where, "/settings/honeypot/path", ConfigWarningCodes.HoneypotShadowsRoute,
+                        $"the route {route.Id} at {route.Path} lies under the trap path {prefix}, so the trap answers it and the route never sees those requests");
+                }
+            }
         }
 
         return resolved;

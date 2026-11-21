@@ -107,6 +107,11 @@ public static class ConfigErrorCodes
     public const string MaintenanceStatusInvalid = "maintenance.status.invalid";
     public const string MaintenanceRetryAfterInvalid = "maintenance.retryAfterSeconds.invalid";
     public const string HostMaintenanceBypassUnknown = "host.maintenance.bypassUnknown";
+    public const string HostHoneypotPathInvalid = "host.honeypot.path.invalid";
+    public const string HostHoneypotSiteNameInvalid = "host.honeypot.siteName.invalid";
+    public const string HostHoneypotPowShareInvalid = "host.honeypot.powShare.invalid";
+    public const string HostHoneypotPowDifficultyInvalid = "host.honeypot.powDifficulty.invalid";
+    public const string HostHoneypotAdminHost = "host.honeypot.adminHost";
     public const string TrustedProxiesProxiesRequired = "trustedProxies.proxies.required";
     public const string TrustedProxiesProxiesUnexpected = "trustedProxies.proxies.unexpected";
     public const string TrustedProxiesHeaderInvalid = "trustedProxies.header.invalid";

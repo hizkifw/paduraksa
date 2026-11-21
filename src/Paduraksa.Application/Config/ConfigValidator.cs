@@ -6,6 +6,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Text;
+using Paduraksa.Proxy.Honeypot;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using Paduraksa.TypedIds;
@@ -579,6 +580,13 @@ public static class ConfigValidator
             {
                 Add($"{path}/certificate/mode", HostAdminHttpsRequired, "an admin host is served over HTTPS: it can't use certificate mode none");
             }
+
+            // Only the host's own setting is refused: a layer that turns the trap on for every host would otherwise make the whole
+            // document invalid for the one host that can't have it (the mapping ignores it there and warns).
+            if (host.Settings?.Honeypot?.Enabled == true)
+            {
+                Add($"{path}/settings/honeypot/enabled", HostHoneypotAdminHost, "an admin host can't have a trap: it would answer paths the dashboard uses");
+            }
         }
 
         private void CheckHostHeader(UpstreamHostHeaderConfig hostHeader, string path)
@@ -810,6 +818,36 @@ public static class ConfigValidator
             if (settings.Compression?.MinimumSize is { } smallest && smallest is < 0 or > CompressionBounds.MaxMinimumSize)
             {
                 Add($"{path}/compression/minimumSize", CompressionMinimumSizeInvalid, $"the minimum size is 0 to {CompressionBounds.MaxMinimumSize} bytes (1 MiB), got {smallest}");
+            }
+
+            if (settings.Honeypot is { } honeypot)
+            {
+                CheckHoneypot(honeypot, $"{path}/honeypot");
+            }
+        }
+
+        /// <summary>The trap's values where a layer sets them. Whether a host may have one is the host's rule (an admin host may not).</summary>
+        private void CheckHoneypot(HoneypotSettings settings, string path)
+        {
+            if (settings.Path is { } trapPath && HoneypotPrefix.Problem(trapPath) is { } problem)
+            {
+                Add($"{path}/path", HostHoneypotPathInvalid, problem);
+            }
+
+            if (settings.SiteName is { } name
+                && (string.IsNullOrWhiteSpace(name) || name.Length > HoneypotLimits.MaxSiteNameLength || name.Any(char.IsControl)))
+            {
+                Add($"{path}/siteName", HostHoneypotSiteNameInvalid, $"the blog's title is 1 to {HoneypotLimits.MaxSiteNameLength} characters without control characters");
+            }
+
+            if (settings.PowShare is { } share && share is < HoneypotLimits.MinPowShare or > HoneypotLimits.MaxPowShare)
+            {
+                Add($"{path}/powShare", HostHoneypotPowShareInvalid, $"the share of pages behind a challenge is {HoneypotLimits.MinPowShare} to {HoneypotLimits.MaxPowShare} percent, got {share}");
+            }
+
+            if (settings.PowDifficulty is { } difficulty && difficulty is < ProofOfWorkLimits.MinDifficulty or > ProofOfWorkLimits.MaxDifficulty)
+            {
+                Add($"{path}/powDifficulty", HostHoneypotPowDifficultyInvalid, $"the challenge difficulty is {ProofOfWorkLimits.MinDifficulty} to {ProofOfWorkLimits.MaxDifficulty} bits, got {difficulty}");
             }
         }
 

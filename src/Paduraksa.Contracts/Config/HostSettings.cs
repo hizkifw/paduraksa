@@ -7,7 +7,7 @@ namespace Paduraksa.Contracts.Config;
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
-/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>, <see cref="RuleSet"/>, <see cref="AuthProvider"/>, <see cref="ErrorPages"/>, <see cref="Maintenance"/>, <see cref="Headers"/>, <see cref="Compression"/>) merge field by field.
+/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>, <see cref="RuleSet"/>, <see cref="AuthProvider"/>, <see cref="ErrorPages"/>, <see cref="Maintenance"/>, <see cref="Headers"/>, <see cref="Compression"/>, <see cref="Honeypot"/>) merge field by field.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents don't set it.</remarks>
 public sealed record HostSettings
@@ -73,6 +73,9 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: off.</summary>
     public CompressionSettings? Compression { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: off.</summary>
+    public HoneypotSettings? Honeypot { get; init; }
 }
 
 /// <summary>
@@ -146,6 +149,38 @@ public sealed record CompressionSettings : ISettingsLayer
 
     [JsonIgnore]
     public bool SetsNothing => Enabled is null && MinimumSize is null;
+}
+
+/// <summary>
+/// A trap blog with no end that the host serves under one path prefix, for crawlers that ignore <c>robots.txt</c> or probe for weak
+/// spots. It only records what visitors do. There is no route override: the trap answers before route matching. Each field
+/// inherits on its own.
+/// </summary>
+public sealed record HoneypotSettings : ISettingsLayer
+{
+    /// <summary>Serve the trap on the host. Built-in default: off.</summary>
+    public bool? Enabled { get; init; }
+
+    /// <summary>
+    /// The trap prefix, such as <c>/archive-k7f3/</c>: canonical, starting and ending with <c>/</c>. Built-in default: derived from the
+    /// host's ID, so every host gets its own stable prefix that names nothing about Paduraksa.
+    /// </summary>
+    public string? Path { get; init; }
+
+    /// <summary>The blog's title. Built-in default: derived from the host's ID like the path.</summary>
+    public string? SiteName { get; init; }
+
+    /// <summary>Percent of trap pages behind a proof-of-work challenge, 0 to 100. Built-in default: 20.</summary>
+    public int? PowShare { get; init; }
+
+    /// <summary>Leading zero bits for those challenges, 8 to 28 as the browser check's. Built-in default: 16.</summary>
+    public int? PowDifficulty { get; init; }
+
+    /// <summary>Send <c>X-Robots-Tag: noindex, nofollow</c> on trap answers, so a search engine that reaches the trap through a leaked link keeps it out of results. Built-in default: on.</summary>
+    public bool? NoIndex { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => Enabled is null && Path is null && SiteName is null && PowShare is null && PowDifficulty is null && NoIndex is null;
 }
 
 /// <summary>TLS settings; each field inherits on its own. If a layer sets none, it counts as no layer.</summary>

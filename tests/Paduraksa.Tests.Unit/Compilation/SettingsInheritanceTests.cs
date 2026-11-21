@@ -359,6 +359,54 @@ public sealed class SettingsInheritanceTests
             BuiltIn: "1024",
             First: "0",
             Second: "4096"),
+        new(
+            "honeypot.enabled",
+            static s => s.Honeypot?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { Honeypot = new HoneypotSettings { Enabled = bool.Parse(v) } },
+            static h => h.Honeypot.Enabled ? "true" : "false",
+            BuiltIn: "false",
+            First: "true",
+            Second: "false"),
+        new(
+            "honeypot.path",
+            static s => s.Honeypot?.Path,
+            static v => new HostSettings { Honeypot = new HoneypotSettings { Path = v } },
+            static h => h.Honeypot.Path,
+            BuiltIn: null,
+            First: "/archive-one/",
+            Second: "/archive-two/"),
+        new(
+            "honeypot.siteName",
+            static s => s.Honeypot?.SiteName,
+            static v => new HostSettings { Honeypot = new HoneypotSettings { SiteName = v } },
+            static h => h.Honeypot.SiteName,
+            BuiltIn: null,
+            First: "The Daily Post",
+            Second: "Field Notes"),
+        new(
+            "honeypot.powShare",
+            static s => s.Honeypot?.PowShare?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { Honeypot = new HoneypotSettings { PowShare = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.Honeypot.PowShare.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "20",
+            First: "0",
+            Second: "100"),
+        new(
+            "honeypot.powDifficulty",
+            static s => s.Honeypot?.PowDifficulty?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { Honeypot = new HoneypotSettings { PowDifficulty = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.Honeypot.PowDifficulty.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "16",
+            First: "20",
+            Second: "8"),
+        new(
+            "honeypot.noIndex",
+            static s => s.Honeypot?.NoIndex?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { Honeypot = new HoneypotSettings { NoIndex = bool.Parse(v) } },
+            static h => h.Honeypot.NoIndex ? "true" : "false",
+            BuiltIn: "true",
+            First: "false",
+            Second: "true"),
     ];
 
     /// <summary>One row per page: a message whose heading is the sample, so each status's layer shows in what the host carries.</summary>
@@ -640,6 +688,11 @@ public sealed class SettingsInheritanceTests
         new("maintenance", Defaults: ["maintenance.enabled"], Profile: ["maintenance.status", "maintenance.retryAfterSeconds"], Host: ["maintenance.bypassAccessListId"]),
         new("headers", Defaults: ["headers.request"], Profile: [], Host: ["headers.response"]),
         new("compression", Defaults: ["compression.enabled"], Profile: [], Host: ["compression.minimumSize"]),
+        new(
+            "honeypot",
+            Defaults: ["honeypot.enabled", "honeypot.noIndex"],
+            Profile: ["honeypot.powShare", "honeypot.powDifficulty"],
+            Host: ["honeypot.path", "honeypot.siteName"]),
     ];
 
     /// <summary>

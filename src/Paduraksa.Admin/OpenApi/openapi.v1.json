@@ -20626,7 +20626,7 @@
             "description": "The certificate served when the SNI matches no host or is absent, and to hosts whose binding resolves to no certificate of their own. Null: such handshakes are rejected."
           },
           "defaults": {
-            "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`) merge field by field.",
+            "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`, `honeypot`) merge field by field.",
             "$ref": "#/components/schemas/HostSettings"
           },
           "trustedProxies": {
@@ -20746,6 +20746,61 @@
         "additionalProperties": false,
         "description": "The most recent state change of an upstream or one of its destinations."
       },
+      "HoneypotSettings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "null",
+              "boolean"
+            ],
+            "description": "Serve the trap on the host. Built-in default: off."
+          },
+          "path": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The trap prefix, such as `/archive-k7f3/`: canonical, starting and ending with `/`. Built-in default: derived from the host's ID, so every host gets its own stable prefix that names nothing about Paduraksa."
+          },
+          "siteName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The blog's title. Built-in default: derived from the host's ID like the path."
+          },
+          "powShare": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "description": "Percent of trap pages behind a proof-of-work challenge, 0 to 100. Built-in default: 20.",
+            "format": "int32"
+          },
+          "powDifficulty": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "description": "Leading zero bits for those challenges, 8 to 28 as the browser check's. Built-in default: 16.",
+            "format": "int32"
+          },
+          "noIndex": {
+            "type": [
+              "null",
+              "boolean"
+            ],
+            "description": "Send `X-Robots-Tag: noindex, nofollow` on trap answers, so a search engine that reaches the trap through a leaked link keeps it out of results. Built-in default: on."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A trap blog with no end that the host serves under one path prefix, for crawlers that ignore `robots.txt` or probe for weak spots. It only records what visitors do. There is no route override: the trap answers before route matching. Each field inherits on its own."
+      },
       "HostConfig": {
         "required": [
           "id",
@@ -20835,7 +20890,7 @@
             "$ref": "#/components/schemas/CertificateBinding"
           },
           "settings": {
-            "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`) merge field by field.",
+            "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`, `honeypot`) merge field by field.",
             "$ref": "#/components/schemas/HostSettings"
           },
           "routes": {
@@ -21147,10 +21202,21 @@
                 "$ref": "#/components/schemas/CompressionSettings"
               }
             ]
+          },
+          "honeypot": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Merged field by field with the layers below. Built-in default: off.",
+                "$ref": "#/components/schemas/HoneypotSettings"
+              }
+            ]
           }
         },
         "additionalProperties": false,
-        "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`) merge field by field."
+        "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`, `honeypot`) merge field by field."
       },
       "HostTraffic": {
         "required": [
@@ -23450,7 +23516,7 @@
             "description": "Free text."
           },
           "settings": {
-            "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`) merge field by field.",
+            "description": "One layer of host settings. Every field is nullable and null (absent in JSON) means *inherit*: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings (`tls`, `hsts`, `serverHeader`, `proofOfWork`, `rateLimit`, `robots`, `cloudflare`, `accessList`, `requestLimits`, `ruleSet`, `authProvider`, `errorPages`, `maintenance`, `headers`, `compression`, `honeypot`) merge field by field.",
             "$ref": "#/components/schemas/HostSettings"
           }
         },

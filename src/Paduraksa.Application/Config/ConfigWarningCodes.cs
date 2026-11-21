@@ -89,6 +89,15 @@ public static class ConfigWarningCodes
     /// as they are for API clients.</summary>
     public const string ErrorPagesReplaceAdminIgnored = "errorPages.replaceUpstream.adminIgnored";
 
+    /// <summary>A host that inherits a trap from a layer is an admin host, which never serves one, so a layer that turns it on for every host can't take the dashboard's paths.</summary>
+    public const string HoneypotAdminIgnored = "host.honeypot.adminIgnored";
+
+    /// <summary>A route's path lies under the host's trap prefix, so the trap answers it and the route never sees those requests.</summary>
+    public const string HoneypotShadowsRoute = "host.honeypot.path.shadowsRoute";
+
+    /// <summary>A host has the trap on while its robots.txt passes through to the upstream: nothing adds the Disallow line, so only a rule set's honeypot action leads into the trap.</summary>
+    public const string HoneypotRobotsPassthrough = "host.honeypot.robotsPassthrough";
+
     /// <summary>Maintenance mode names a bypass access list with no allowed address or country, so nobody can bypass it.</summary>
     public const string MaintenanceBypassNoAllowRules = "maintenance.bypass.noAllowRules";
 }

@@ -514,6 +514,7 @@ public static class CanonicalConfigJson
             Maintenance = DropIfNothingSet(settings.Maintenance),
             Headers = Canonical(settings.Headers),
             Compression = DropIfNothingSet(settings.Compression),
+            Honeypot = DropIfNothingSet(settings.Honeypot),
         };
     }
 

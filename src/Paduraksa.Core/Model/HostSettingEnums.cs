@@ -272,6 +272,26 @@ public static class ProofOfWorkLimits
     public const int DefaultTokenLifetimeHours = 168;
 }
 
+/// <summary>The bounds of the honeypot settings, shared by the validator, the compiler and the proxy.</summary>
+public static class HoneypotLimits
+{
+    /// <summary>The built-in share of trap pages behind a proof-of-work challenge, in percent.</summary>
+    public const int DefaultPowShare = 20;
+
+    public const int MinPowShare = 0;
+
+    public const int MaxPowShare = 100;
+
+    /// <summary>The longest trap prefix, in characters. A link carries it on every page, so a long one only bloats them.</summary>
+    public const int MaxPathLength = 64;
+
+    /// <summary>The longest blog title, in characters.</summary>
+    public const int MaxSiteNameLength = 80;
+
+    /// <summary>The server option that caps trap answers generated at once (<c>Paduraksa:Honeypot:MaxConcurrent</c>).</summary>
+    public const int DefaultMaxConcurrent = 16;
+}
+
 /// <summary>What a custom header rule does to its header.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<HeaderOperation>))]
 public enum HeaderOperation : byte

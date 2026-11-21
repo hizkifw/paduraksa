@@ -18,7 +18,7 @@ namespace Paduraksa.Application.Compilation;
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
-/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>, <see cref="HostSettings.RuleSet"/>, <see cref="HostSettings.AuthProvider"/>, <see cref="HostSettings.ErrorPages"/>, <see cref="HostSettings.Maintenance"/>) merge field by field and stay absent when
+/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>, <see cref="HostSettings.RuleSet"/>, <see cref="HostSettings.AuthProvider"/>, <see cref="HostSettings.ErrorPages"/>, <see cref="HostSettings.Maintenance"/>, <see cref="HostSettings.Honeypot"/>) merge field by field and stay absent when
 /// neither layer sets a field of theirs. Everything else is a plain override.</para>
 /// </remarks>
 public static class HostSettingsLayers
@@ -56,6 +56,10 @@ public static class HostSettingsLayers
     private const int BuiltInMaintenanceRetryAfterSeconds = 0;
     private const bool BuiltInCompressionEnabled = false;
     private const int BuiltInCompressionMinimumSize = CompressionBounds.DefaultMinimumSize;
+    private const bool BuiltInHoneypotEnabled = false;
+    private const int BuiltInHoneypotPowShare = HoneypotLimits.DefaultPowShare;
+    private const int BuiltInHoneypotPowDifficulty = ProofOfWorkLimits.DefaultDifficulty;
+    private const bool BuiltInHoneypotNoIndex = true;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -93,6 +97,15 @@ public static class HostSettingsLayers
             RetryAfterSeconds = BuiltInMaintenanceRetryAfterSeconds,
         },
         Compression = new CompressionSettings { Enabled = BuiltInCompressionEnabled, MinimumSize = BuiltInCompressionMinimumSize },
+
+        // No built-in path or name: a host with none derives its own from its ID.
+        Honeypot = new HoneypotSettings
+        {
+            Enabled = BuiltInHoneypotEnabled,
+            PowShare = BuiltInHoneypotPowShare,
+            PowDifficulty = BuiltInHoneypotPowDifficulty,
+            NoIndex = BuiltInHoneypotNoIndex,
+        },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -168,6 +181,15 @@ public static class HostSettingsLayers
             }),
             Headers = Merge(lower.Headers, upper.Headers),
             Compression = Nested(lower.Compression, upper.Compression, static (l, u) => new CompressionSettings { Enabled = u.Enabled ?? l?.Enabled, MinimumSize = u.MinimumSize ?? l?.MinimumSize }),
+            Honeypot = Nested(lower.Honeypot, upper.Honeypot, static (l, u) => new HoneypotSettings
+            {
+                Enabled = u.Enabled ?? l?.Enabled,
+                Path = u.Path ?? l?.Path,
+                SiteName = u.SiteName ?? l?.SiteName,
+                PowShare = u.PowShare ?? l?.PowShare,
+                PowDifficulty = u.PowDifficulty ?? l?.PowDifficulty,
+                NoIndex = u.NoIndex ?? l?.NoIndex,
+            }),
         };
     }
 
@@ -415,6 +437,7 @@ public static class HostSettingsLayers
         var maintenance = settings.Maintenance ?? new MaintenanceSettings();
         var headers = HeadersSpec(settings.Headers);
         var compression = settings.Compression ?? new CompressionSettings();
+        var honeypot = settings.Honeypot ?? new HoneypotSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -501,6 +524,15 @@ public static class HostSettingsLayers
             {
                 Enabled = compression.Enabled ?? BuiltInCompressionEnabled,
                 MinimumSize = compression.MinimumSize ?? BuiltInCompressionMinimumSize,
+            },
+            new HostHoneypotSpec
+            {
+                Enabled = honeypot.Enabled ?? BuiltInHoneypotEnabled,
+                Path = honeypot.Path,
+                SiteName = honeypot.SiteName,
+                PowShare = honeypot.PowShare ?? BuiltInHoneypotPowShare,
+                PowDifficulty = honeypot.PowDifficulty ?? BuiltInHoneypotPowDifficulty,
+                NoIndex = honeypot.NoIndex ?? BuiltInHoneypotNoIndex,
             });
     }
 
@@ -599,6 +631,7 @@ public enum SettingsLayer
 /// <param name="Maintenance">Maintenance mode as it resolved.</param>
 /// <param name="Headers">The custom request and response header rules.</param>
 /// <param name="Compression">Response compression as it resolved.</param>
+/// <param name="Honeypot">The trap as it resolved.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -617,4 +650,5 @@ internal sealed record EffectiveHostSettings(
     HostErrorPagesSpec ErrorPages,
     HostMaintenanceSpec Maintenance,
     HostHeadersSpec Headers,
-    HostCompressionSpec Compression);
+    HostCompressionSpec Compression,
+    HostHoneypotSpec Honeypot);
