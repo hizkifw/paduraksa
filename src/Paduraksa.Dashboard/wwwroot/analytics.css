@@ -194,3 +194,139 @@
     grid-template-columns: 1fr;
     margin-top: 8px;
 }
+
+/* The honeypot section of the Security tab. What a visitor sent (a user agent, a path, a canary) is text of any length and any characters:
+   a cell cuts it to a line with the whole of it on hover, and the drawer wraps it. */
+.pdk-honeypot .pdk-sec-tiles {
+    margin-bottom: 16px;
+}
+
+.pdk-honeypot .pdk-analytics-tables {
+    margin-bottom: 16px;
+}
+
+.pdk-honeypot-table th,
+.pdk-honeypot-table td {
+    padding: 8px 12px;
+}
+
+.pdk-honeypot-table td.pdk-left,
+.pdk-honeypot-table th.pdk-left {
+    text-align: left;
+}
+
+.pdk-honeypot-table .pdk-honeypot-text {
+    max-width: 320px;
+    overflow: hidden;
+    font-weight: 400;
+    text-align: left;
+    text-overflow: ellipsis;
+}
+
+.pdk-honeypot-table th.pdk-honeypot-text {
+    font-weight: 400;
+}
+
+.pdk-honeypot-text .pdk-tag {
+    margin-right: 6px;
+}
+
+.pdk-honeypot-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+
+.pdk-honeypot-search.mud-input-control {
+    flex: 0 1 320px;
+    min-width: 200px;
+}
+
+.pdk-honeypot-search.mud-input-control,
+.pdk-honeypot-search.mud-input-control > .mud-input-control-input-container {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.pdk-honeypot-row {
+    cursor: pointer;
+}
+
+.pdk-honeypot-row:hover {
+    background: var(--pdk-surface-2);
+}
+
+.pdk-honeypot-open {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pdk-honeypot-open:hover {
+    text-decoration: underline;
+}
+
+.pdk-honeypot-open:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+/* An address or a canary in a row is the shared copy box, made a line tall. A cell shrinks the box (it may be narrower than its text), so the box
+   keeps the width of its text and the copy button sits beside it, not over it. */
+.pdk-honeypot-table .pdk-copy {
+    width: max-content;
+    min-width: max-content;
+}
+
+.pdk-honeypot-table .pdk-copy-text {
+    padding: 2px 34px 2px 8px;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.pdk-honeypot-table .pdk-copy-box .pdk-copy-button {
+    top: -3px;
+    right: 0;
+}
+
+.pdk-honeypot-more {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-honeypot-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pdk-honeypot-timeline-title {
+    margin: 20px 0 8px;
+}
+
+.pdk-honeypot-sessions .pdk-honeypot-text {
+    max-width: 220px;
+}
+
+.pdk-honeypot-timeline .pdk-honeypot-text {
+    max-width: 240px;
+}
+
+@media (max-width: 600px) {
+    .pdk-honeypot-table .pdk-honeypot-text {
+        max-width: 200px;
+    }
+
+    .pdk-honeypot-search.mud-input-control {
+        flex: 1 1 100%;
+    }
+}

@@ -106,6 +106,19 @@ public abstract class StatisticsTab<TKey, TOverview> : ComponentBase, IAsyncDisp
         _wasVisible = Visible;
     }
 
+    /// <summary>What is asked for changed without a parameter changing (a search box): drops the figures and reads again. Nothing before the tab started.</summary>
+    protected async Task AskAgainAsync()
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        Overview = null;
+        StateHasChanged();
+        await LoadAsync();
+    }
+
     private async Task StartAsync()
     {
         if (!await BeginAsync())

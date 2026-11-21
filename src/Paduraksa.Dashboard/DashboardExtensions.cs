@@ -67,6 +67,7 @@ public static class DashboardExtensions
         services.AddScoped<DisplayFormat>();
         services.AddScoped<DashboardBrowser>();
         services.TryAddScoped<IDashboardConfig, DashboardConfig>();
+        services.TryAddScoped<HoneypotArea.IDashboardHoneypot, HoneypotArea.DashboardHoneypot>();
         services.AddScoped<ConfigUndo>();
         services.AddScoped<DraftState>();
         services.AddScoped<ReviewedDraft>();

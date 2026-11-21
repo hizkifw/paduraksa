@@ -1,0 +1,209 @@
+@inherits StatisticsTab<(MetricsRange Range, string Query), HoneypotSessions.SessionList>
+@using Paduraksa.Application.Honeypot
+@using Paduraksa.Contracts.Honeypot
+@using Paduraksa.Contracts.Metrics
+@inject IDashboardHoneypot Honeypot
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject DisplayFormat Fmt
+@* The sessions of the range, newest first, with a search over the address, the user agent and the canary phrase. A row opens the session's
+   drawer. The newest page is read again on every poll and the older pages a person asked for stay, so a long look is not reset under them.
+   What a visitor sent (the user agent, the canary) is drawn as text only, cut to the cell with the whole of it on hover. *@
+
+<MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="@(Overview is null ? null : "honeypot-sessions-card")" data-pending="@(Overview is null ? "honeypot-sessions-card" : null)"
+          aria-busy="@(Overview is null ? "true" : null)">
+    <div class="pdk-card-head pdk-card-head-padded pdk-honeypot-head">
+        <MudText Typo="Typo.subtitle1" HtmlTag="h3">Sessions</MudText>
+        <MudTextField T="string" Value="_text" ValueChanged="SearchAsync" Immediate="true" DebounceInterval="400" Placeholder="Address, user agent or canary" Label="Search"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" MaxLength="@HoneypotService.MaxQueryLength" Class="pdk-honeypot-search"
+                      spellcheck="false" autocomplete="off" data-field="honeypot-search" />
+    </div>
+    @if (Failed)
+    {
+        <LoadFailedAlert What="The sessions" OnRetry="() => AskAgainAsync()" Class="m-3" data-part="honeypot-sessions-failed" />
+    }
+    else if (Overview is null)
+    {
+        <div class="pdk-stats-body pdk-stats-body-table pdk-stats-body-pending" aria-hidden="true">
+            @for (var i = 0; i < 5; i++)
+            {
+                <span class="pdk-pending">Loading</span>
+            }
+        </div>
+    }
+    else if (_items.Count == 0)
+    {
+        <div class="pdk-stats-body pdk-stats-body-table">
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Pets" Title="@(_applied.Length == 0 ? "No session in this range" : "No session matches")" />
+        </div>
+    }
+    else
+    {
+        <div class="pdk-stats-body pdk-stats-body-table">
+            <div class="pdk-traffic-scroll">
+                <table class="pdk-traffic-table pdk-honeypot-table pdk-honeypot-sessions">
+                    <thead>
+                        <tr>
+                            <th scope="col">Last seen</th><th scope="col" class="pdk-left">Address</th><th scope="col" class="pdk-left">User agent</th><th scope="col">robots.txt first</th><th scope="col">Pages</th>
+                            <th scope="col">Depth</th><th scope="col">JS</th><th scope="col">Images</th><th scope="col">Proof of work</th><th scope="col" class="pdk-left">Canary</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var session in _items)
+                        {
+                            <tr class="pdk-honeypot-row" data-session="@session.Id" @onclick="() => Open(session)">
+                                <th scope="row">
+                                    <button type="button" class="pdk-honeypot-open" @onclick="() => Open(session)" @onclick:stopPropagation="true" title="@Fmt.Exact(session.LastSeen)" data-action="open-session">@Fmt.Ago(session.LastSeen, _now)</button>
+                                </th>
+                                <td class="pdk-left" @onclick:stopPropagation="true"><CopyableCode Value="@session.ClientIp" Label="@null" CopyAction="copy-address" data-part="address" /></td>
+                                <td class="pdk-left pdk-honeypot-text" title="@HoneypotText.UserAgent(session.UserAgent)">
+                                    @if (HoneypotText.Bot(session.BotKind, session.BotName) is { } bot)
+                                    {
+                                        <span class="pdk-tag" data-part="bot">@bot</span>
+                                    }
+                                    <span class="pdk-mono" data-part="agent">@HoneypotText.UserAgent(session.UserAgent)</span>
+                                </td>
+                                <td>@(session.ReadRobotsFirst ? "Yes" : "-")</td>
+                                <td>@Fmt.Count(session.Pages)</td>
+                                <td>@Fmt.Count(session.MaxDepth)</td>
+                                <td>@Fmt.Count(session.JsRuns)</td>
+                                <td>@Fmt.Count(session.Images)</td>
+                                <td title="@HoneypotText.ProofOfWorkDetail(session)">@HoneypotText.ProofOfWork(session)</td>
+                                <td class="pdk-left" @onclick:stopPropagation="true">
+                                    @if (session.Canary.Length > 0)
+                                    {
+                                        <CopyableCode Value="@session.Canary" CopyAction="copy-canary" data-part="canary" />
+                                    }
+                                    else
+                                    {
+                                        <span class="pdk-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_next is not null)
+            {
+                <div class="pdk-honeypot-more">
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="MoreAsync" Disabled="_loadingMore" data-action="more-sessions">Load more</MudButton>
+                </div>
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    /// <summary>The newest page of the sessions asked for.</summary>
+    public sealed record SessionList(HoneypotSessionPage Page, DateTimeOffset At);
+
+    private IReadOnlyList<HoneypotSession> _items = [];
+    private HoneypotSessionId? _next;
+    private (MetricsRange, string)? _shaped;
+    private DateTimeOffset _now;
+    private bool _loadingMore;
+    private string _text = string.Empty;
+    private string _applied = string.Empty;
+    private IReadOnlyDictionary<HostId, string> _hosts = new Dictionary<HostId, string>();
+
+    protected override (MetricsRange Range, string Query) CurrentKey => (Range, _applied);
+
+    protected override TimeSpan DefaultPollInterval => TimeSpan.FromSeconds(5);
+
+    protected override int LongRangeEvery => 6;
+
+    protected override async Task<SessionList> ReadAsync((MetricsRange Range, string Query) key, CancellationToken cancellationToken)
+    {
+        var page = await Honeypot.ListSessionsAsync(new HoneypotSessionFilter(key.Range, null, key.Query.Length == 0 ? null : key.Query), HoneypotText.PageSize, null, cancellationToken);
+        return new SessionList(page, DateTimeOffset.UtcNow);
+    }
+
+    protected override async Task<bool> BeginAsync()
+    {
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return false;
+        }
+
+        Denied = !user.Has(Permission.MetricsRead);
+        if (!Denied && user.Has(Permission.ConfigRead))
+        {
+            try
+            {
+                _hosts = (await Config.GetCurrentAsync()).Document.Hosts.Where(host => host.Names.Count > 0).ToDictionary(host => host.Id, host => host.Names[0]);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+            {
+                // Without the config a session names its host by ID.
+            }
+        }
+
+        return !Denied;
+    }
+
+    protected override void Shape(SessionList list)
+    {
+        _now = list.At;
+        var first = list.Page.Items;
+        if (_shaped is not { } shaped || shaped != CurrentKey)
+        {
+            _items = [];
+            _next = null;
+            _shaped = CurrentKey;
+        }
+
+        // The older pages a person asked for stay under the newest one. What moved into the newest page is not shown twice, and what
+        // the newest page no longer reaches (new sessions pushed it down) stays where it was, so nothing drops out of the middle.
+        if (first.Count > 0 && list.Page.Next is not null)
+        {
+            var oldest = first[^1].Id;
+            var kept = _items.Where(session => session.Id < oldest).ToList();
+            _next = kept.Count > 0 ? _next : list.Page.Next;
+            _items = [.. first, .. kept];
+        }
+        else
+        {
+            _items = first;
+            _next = null;
+        }
+    }
+
+    private async Task SearchAsync(string? text)
+    {
+        _text = text ?? string.Empty;
+        var applied = _text.Trim();
+        if (applied == _applied)
+        {
+            return;
+        }
+
+        _applied = applied;
+        await AskAgainAsync();
+    }
+
+    private async Task MoreAsync()
+    {
+        if (_next is not { } after || _loadingMore)
+        {
+            return;
+        }
+
+        _loadingMore = true;
+        try
+        {
+            var page = await Honeypot.ListSessionsAsync(new HoneypotSessionFilter(Range, null, _applied.Length == 0 ? null : _applied), HoneypotText.PageSize, after, CancellationToken.None);
+            _items = [.. _items, .. page.Items];
+            _next = page.Next;
+        }
+        finally
+        {
+            _loadingMore = false;
+        }
+    }
+
+    private void Open(HoneypotSession session) =>
+        Drawers.Push<HoneypotSessionDrawer>(HoneypotSessionDrawer.For(session, _hosts.GetValueOrDefault(session.Host)), DrawerWidth.Wide);
+}

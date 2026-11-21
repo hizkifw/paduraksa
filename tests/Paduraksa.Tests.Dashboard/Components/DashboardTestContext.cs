@@ -33,9 +33,15 @@ internal sealed class DashboardTestContext : BunitContext
         Services.AddScoped<DisplayFormat>();
         Services.AddScoped<DrawerStack>();
         Services.AddScoped<DashboardBrowser>();
+        Honeypot = new FakeDashboardHoneypot();
+        Services.AddSingleton(Honeypot);
+        Services.AddSingleton<Paduraksa.Dashboard.HoneypotArea.IDashboardHoneypot>(Honeypot);
         // The values in force of the server settings: none from the environment unless a test registers its own.
         Services.AddSingleton(new Paduraksa.Application.Settings.ServerSettingsState(new Dictionary<string, string>()));
     }
+
+    /// <summary>The honeypot's recorded data as the Analytics Security tab reads it: empty until a test fills it.</summary>
+    public FakeDashboardHoneypot Honeypot { get; }
 
     /// <summary>A cascading authentication state for <paramref name="user"/> (anonymous when null).</summary>
     public static Task<AuthenticationState> StateOf(ClaimsPrincipal? user) =>

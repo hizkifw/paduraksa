@@ -1,0 +1,185 @@
+@inherits StatisticsTab<MetricsRange, HoneypotSummary>
+@using Paduraksa.Contracts.Analytics
+@using Paduraksa.Contracts.Honeypot
+@using Paduraksa.Contracts.Metrics
+@using Paduraksa.Dashboard.Pages
+@inject IDashboardHoneypot Honeypot
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject DisplayFormat Fmt
+@* What visitors did in the honeypot over the range: the figures, what the sessions did, the user agents and the paths that were no page, and
+   the sessions themselves. The host page owns the range and the tab's visibility; this reads, polls and draws. Every user agent, path and
+   canary here is what a visitor sent: it is only ever drawn as text. *@
+
+<section class="pdk-honeypot" data-section="honeypot" aria-labelledby="pdk-analytics-honeypot">
+    <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-analytics-honeypot" Class="pdk-section-heading">Honeypot</MudText>
+    @if (Failed)
+    {
+        <LoadFailedAlert What="The honeypot" OnRetry="() => LoadAsync()" Class="mb-4" data-part="honeypot-failed" />
+    }
+    else if (_noTrap && Overview is { Counts.Sessions: 0 })
+    {
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="honeypot-empty">
+            <MudText Typo="Typo.body2">No host has a honeypot. Turn one on in the settings of a host, under <a class="pdk-ref-link" href="@DashboardRoutes.Hosts" data-link="hosts">Hosts</a>.</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        // One markup for both states (a skeleton is this frame with placeholders), so the section keeps its size when the figures arrive.
+        var summary = Overview;
+        var pending = summary is null;
+        var counts = summary?.Counts;
+        <div class="pdk-sec-tiles" data-part="honeypot-tiles">
+            <SecurityTile Name="honeypot-sessions" Label="Sessions" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Count(counts!.Sessions))" Detail="per address and user agent" />
+            <SecurityTile Name="honeypot-requests" Label="Requests" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Count(counts!.Requests))"
+                          Detail="@(pending ? null : $"{Fmt.Count(counts!.Pages)} pages")" />
+            <SecurityTile Name="honeypot-guessed" Label="Guessed URLs" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Count(counts!.GuessedUrls))" Detail="not a page of the trap" />
+            <SecurityTile Name="honeypot-shed" Label="Shed" Pending="@pending" Value="@(pending ? string.Empty : Fmt.Count(counts!.Shed))"
+                          Detail="@(pending ? null : counts!.Dropped > 0 ? $"answered 503, {Fmt.Count(counts.Dropped)} not recorded" : "answered 503, since start")" />
+        </div>
+
+        <div class="pdk-home-grid pdk-analytics-tables">
+            <StatsCard Name="honeypot-behaviour" Title="Behaviour" Table="true" Pending="@pending">
+                @if (_behaviour.Count == 0)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Pets" Title="No session did anything yet" />
+                }
+                else
+                {
+                    <div class="pdk-traffic-scroll">
+                        <table class="pdk-traffic-table">
+                            <thead><tr><th scope="col">Behaviour</th><th scope="col">Sessions</th><th scope="col">Share</th></tr></thead>
+                            <tbody>
+                                @foreach (var row in _behaviour)
+                                {
+                                    <tr data-behaviour="@row.Name">
+                                        <th scope="row">@row.Label</th>
+                                        <td>@Fmt.Count(row.Sessions)</td>
+                                        <td>@Fmt.Share(row.Sessions, counts!.Sessions)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </StatsCard>
+            <StatsCard Name="honeypot-agents" Title="Top user agents" Table="true" Pending="@pending">
+                @if (summary!.TopUserAgents.Count == 0)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Devices" Title="No user agents in this range" />
+                }
+                else
+                {
+                    <div class="pdk-traffic-scroll">
+                        <table class="pdk-traffic-table pdk-honeypot-table">
+                            <thead><tr><th scope="col" class="pdk-left">User agent</th><th scope="col">Sessions</th><th scope="col">Requests</th></tr></thead>
+                            <tbody>
+                                @foreach (var agent in summary!.TopUserAgents)
+                                {
+                                    <tr data-agent="@agent.UserAgent">
+                                        <th scope="row" class="pdk-honeypot-text" title="@HoneypotText.UserAgent(agent.UserAgent)">
+                                            @if (HoneypotText.Bot(agent.BotKind, agent.BotName) is { } bot)
+                                            {
+                                                <span class="pdk-tag" data-part="bot">@bot</span>
+                                            }
+                                            <span class="pdk-mono" data-part="text">@HoneypotText.UserAgent(agent.UserAgent)</span>
+                                        </th>
+                                        <td>@Fmt.Count(agent.Sessions)</td>
+                                        <td>@Fmt.Count(agent.Requests)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </StatsCard>
+            <StatsCard Name="honeypot-paths" Title="Guessed paths" Table="true" Pending="@pending">
+                @if (summary!.TopGuessedPaths.Count == 0)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Route" Title="No path was asked for that is no page" />
+                }
+                else
+                {
+                    <div class="pdk-traffic-scroll">
+                        <table class="pdk-traffic-table pdk-honeypot-table">
+                            <thead><tr><th scope="col">Path</th><th scope="col">Requests</th><th scope="col">Last seen</th></tr></thead>
+                            <tbody>
+                                @foreach (var path in summary!.TopGuessedPaths)
+                                {
+                                    <tr data-guessed="@path.Path">
+                                        <th scope="row" class="pdk-honeypot-text pdk-mono" title="@HoneypotText.PathTitle(path.Path, path.PathTruncated)">
+                                            <span data-part="text">@HoneypotText.Path(path.Path, path.PathTruncated)</span>
+                                        </th>
+                                        <td>@Fmt.Count(path.Requests)</td>
+                                        <td title="@Fmt.Exact(path.LastSeen)">@Fmt.Ago(path.LastSeen, summary.At)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </StatsCard>
+        </div>
+
+        <HoneypotSessions Hold="@(Hold || pending)" Range="Range" Visible="Visible" PollInterval="PollInterval" />
+    }
+</section>
+
+@code {
+    private sealed record BehaviourRow(string Name, string Label, long Sessions);
+
+    private IReadOnlyList<BehaviourRow> _behaviour = [];
+    private bool _noTrap;
+
+    protected override MetricsRange CurrentKey => Range;
+
+    // The sessions are written every five seconds; a read twice as often shows each write at once.
+    protected override TimeSpan DefaultPollInterval => TimeSpan.FromSeconds(5);
+
+    // The summary of a longer range reads a table of requests: a tenth as often.
+    protected override int LongRangeEvery => 6;
+
+    protected override Task<HoneypotSummary> ReadAsync(MetricsRange key, CancellationToken cancellationToken) => Honeypot.ReadSummaryAsync(key, null, cancellationToken);
+
+    protected override async Task<bool> BeginAsync()
+    {
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return false;
+        }
+
+        Denied = !user.Has(Permission.MetricsRead);
+        if (!Denied && user.Has(Permission.ConfigRead))
+        {
+            try
+            {
+                _noTrap = !HostTraps.Any((await Config.GetCurrentAsync()).Document);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+            {
+                // Without the config nothing says there is no trap, so the section shows what was recorded.
+            }
+        }
+
+        return !Denied;
+    }
+
+    protected override void Shape(HoneypotSummary summary)
+    {
+        List<BehaviourRow> rows = [];
+        foreach (var link in summary.Behaviour.Links)
+        {
+            rows.Add(new BehaviourRow(link.Kind, HoneypotText.LinkKind(link.Kind), link.Count));
+        }
+
+        var behaviour = summary.Behaviour;
+        rows.Add(new BehaviourRow("js", "Ran the page's script", behaviour.RanJs));
+        rows.Add(new BehaviourRow("images", "Fetched images", behaviour.FetchedImages));
+        rows.Add(new BehaviourRow("challenge-shown", "Shown the challenge", behaviour.ChallengesShown));
+        rows.Add(new BehaviourRow("challenge-solved", "Solved it", behaviour.ChallengesSolved));
+        rows.Add(new BehaviourRow("challenge-passed", "Passed a page behind it", behaviour.ChallengesPassed));
+        rows.Add(new BehaviourRow("robots-first", "Read robots.txt first", behaviour.ReadRobotsFirst));
+        _behaviour = [.. rows.Where(static row => row.Sessions > 0)];
+    }
+}

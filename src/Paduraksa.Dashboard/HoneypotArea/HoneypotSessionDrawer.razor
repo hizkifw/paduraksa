@@ -1,0 +1,180 @@
+@using Paduraksa.Contracts.Honeypot
+@inject IDashboardHoneypot Honeypot
+@inject DashboardCaller Caller
+@inject DisplayFormat Fmt
+@* One honeypot session: what it did, and its requests in order, a page at a time. The user agent, the canary and every path are what the
+   visitor sent. They are text, never markup and never a link, and a long one wraps or is cut to its cell with the whole of it on hover. *@
+<DrawerShell Title="@Session.ClientIp" Subtitle="@HostName" Icon="@Icons.Material.Outlined.Pets" Name="honeypot-session">
+    <ChildContent>
+        <div class="pdk-tail-entry" data-detail="@Session.Id">
+            <div class="pdk-detail-chips">
+                @if (HoneypotText.Bot(Session.BotKind, Session.BotName) is { } bot)
+                {
+                    <StatusChip Tone="Tone.Warning" Text="@bot" Name="bot" />
+                }
+                @if (Session.ReadRobotsFirst)
+                {
+                    <StatusChip Tone="Tone.Default" Text="Read robots.txt first" Name="robots-first" />
+                }
+                @if (Session.ChallengesSolved > 0)
+                {
+                    <StatusChip Tone="Tone.Default" Text="Solved the challenge" Name="solved" />
+                }
+            </div>
+            <dl class="pdk-tail-facts" data-part="facts">
+                <dt>Address</dt><dd><CopyableCode Value="@Session.ClientIp" CopyAction="copy-address" data-part="address" /></dd>
+                <dt>User agent</dt><dd><CopyableCode Value="@HoneypotText.UserAgent(Session.UserAgent)" CopyAction="copy-agent" data-part="agent" /></dd>
+                @if (Session.Canary.Length > 0)
+                {
+                    <dt>Canary</dt><dd><CopyableCode Value="@Session.Canary" CopyAction="copy-canary" data-part="canary" /></dd>
+                }
+                <dt>Host</dt><dd>@(HostName ?? Session.Host.ToString())</dd>
+                <dt>First request</dt><dd>@Fmt.DateTime(Session.StartedAt)</dd>
+                <dt>Last request</dt><dd>@Fmt.DateTime(Session.LastSeen)</dd>
+                <dt>Requests</dt><dd>@Fmt.Count(Session.Requests)</dd>
+                <dt>Pages</dt><dd>@Fmt.Count(Session.Pages)</dd>
+                <dt>Guessed URLs</dt><dd>@Fmt.Count(Session.GuessedUrls)</dd>
+                <dt>Images</dt><dd>@Fmt.Count(Session.Images)</dd>
+                <dt>Script requests</dt><dd>@Fmt.Count(Session.JsRuns)</dd>
+                <dt>Depth</dt><dd>@Wording.Plural(Session.MaxDepth, "link", "links") from the index</dd>
+                <dt>Proof of work</dt><dd>@HoneypotText.ProofOfWorkDetail(Session)</dd>
+                @if (Session.Links.Count > 0)
+                {
+                    <dt>Links followed</dt>
+                    <dd class="pdk-honeypot-links" data-part="links">
+                        @foreach (var link in Session.Links)
+                        {
+                            <span class="pdk-tag" data-link-kind="@link.Kind">@HoneypotText.LinkKind(link.Kind) @Fmt.Count(link.Count)</span>
+                        }
+                    </dd>
+                }
+            </dl>
+
+            <MudText Typo="Typo.subtitle1" HtmlTag="h3" Class="pdk-honeypot-timeline-title">Requests</MudText>
+            @if (_failed)
+            {
+                <LoadFailedAlert What="The requests" OnRetry="() => LoadAsync()" data-part="requests-failed" />
+            }
+            else if (_gone)
+            {
+                <MudText Typo="Typo.body2" Class="pdk-muted" data-part="gone">This session is past retention.</MudText>
+            }
+            else if (_loaded && _requests.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="pdk-muted" data-part="no-requests">No request is kept for this session.</MudText>
+            }
+            else if (!_loaded)
+            {
+                <div aria-busy="true"><span class="pdk-pending">Loading</span></div>
+            }
+            else
+            {
+                <div class="pdk-traffic-scroll">
+                    <table class="pdk-traffic-table pdk-honeypot-table pdk-honeypot-timeline" data-part="timeline">
+                        <thead>
+                            <tr><th scope="col">Time</th><th scope="col" class="pdk-left">Path</th><th scope="col" class="pdk-left">Page</th><th scope="col" class="pdk-left">Link</th><th scope="col">Status</th><th scope="col" class="pdk-left">Proof of work</th><th scope="col">Gap</th></tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < _requests.Count; i++)
+                            {
+                                var request = _requests[i];
+                                <tr data-request="@request.Id">
+                                    <th scope="row" title="@Fmt.Stamp(request.Time)">@Fmt.Clock(request.Time)</th>
+                                    <td class="pdk-left pdk-honeypot-text pdk-mono" title="@HoneypotText.PathTitle(request.Path, request.PathTruncated)"><span data-part="path">@HoneypotText.Path(request.Path, request.PathTruncated)</span></td>
+                                    <td class="pdk-left" title="Entry: @HoneypotText.Entry(request.Entry)">@HoneypotText.PageKind(request.PageKind)</td>
+                                    <td class="pdk-left">@HoneypotText.LinkKind(request.LinkKind)</td>
+                                    <td>@request.Status</td>
+                                    <td class="pdk-left">@HoneypotText.ProofOfWork(request)</td>
+                                    <td>@(i == 0 ? "-" : "+" + Fmt.Duration((request.Time - _requests[i - 1].Time).TotalMilliseconds))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (_next is not null)
+                {
+                    <div class="pdk-honeypot-more">
+                        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="MoreAsync" Disabled="_busy" data-action="more-requests">Load more</MudButton>
+                    </div>
+                }
+            }
+        </div>
+    </ChildContent>
+</DrawerShell>
+
+@code {
+    private readonly List<HoneypotRequest> _requests = [];
+    private HoneypotRequestId? _next;
+    private bool _loaded;
+    private bool _failed;
+    private bool _gone;
+    private bool _busy;
+
+    /// <summary>The session as the list read it; its requests are read here.</summary>
+    [Parameter, EditorRequired]
+    public HoneypotSession Session { get; set; } = default!;
+
+    /// <summary>The host's name; null when the viewer can't read the config or the host was deleted.</summary>
+    [Parameter]
+    public string? HostName { get; set; }
+
+    public static IReadOnlyDictionary<string, object?> For(HoneypotSession session, string? hostName) =>
+        new Dictionary<string, object?> { [nameof(Session)] = session, [nameof(HostName)] = hostName };
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        if (!await Caller.MayAsync(Permission.MetricsRead))
+        {
+            _gone = true;
+            _loaded = true;
+            return;
+        }
+
+        try
+        {
+            var page = await Honeypot.ListRequestsAsync(Session.Id, HoneypotText.PageSize, null);
+            _requests.Clear();
+            _gone = page is null;
+            if (page is not null)
+            {
+                _requests.AddRange(page.Items);
+                _next = page.Next;
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Microsoft.EntityFrameworkCore.DbUpdateException)
+        {
+            _failed = true;
+        }
+
+        _loaded = true;
+    }
+
+    private async Task MoreAsync()
+    {
+        if (_next is not { } after || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var page = await Honeypot.ListRequestsAsync(Session.Id, HoneypotText.PageSize, after);
+            if (page is null)
+            {
+                _gone = true;
+                return;
+            }
+
+            _requests.AddRange(page.Items);
+            _next = page.Next;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

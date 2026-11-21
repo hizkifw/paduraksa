@@ -3,6 +3,7 @@
 @using Paduraksa.Contracts.Config
 @using Paduraksa.Contracts.Metrics
 @using Paduraksa.Dashboard.Components
+@using Paduraksa.Dashboard.HoneypotArea
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
 @inject IJSRuntime JS
@@ -55,6 +56,7 @@ else
             break;
         case AnalyticsTab.Security:
             <SecurityStatistics Hold="@(!_started)" Range="CurrentRange" Visible="_visible" PollInterval="SecurityPollInterval" />
+            <HoneypotStatistics Hold="@(!_started)" Range="CurrentRange" Visible="_visible" PollInterval="HoneypotPollInterval" />
             break;
         default:
             <TrafficStatistics Hold="@(!_started)" Range="CurrentRange" Visible="_visible" PollInterval="TrafficPollInterval" />
@@ -95,6 +97,10 @@ else
     /// <summary>How often the security tab reads the hour. A test shortens it.</summary>
     [Parameter]
     public TimeSpan SecurityPollInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>How often the honeypot section reads its summary and newest sessions. A test shortens it.</summary>
+    [Parameter]
+    public TimeSpan HoneypotPollInterval { get; set; } = TimeSpan.FromSeconds(5);
 
     private AnalyticsTab Current => AnalyticsView.ParseTab(TabQuery);
 
