@@ -23,6 +23,7 @@ For contributors: how the proxy records what it does, without slowing a request,
 - [Metrics](#metrics)
 - [The live tail](#the-live-tail)
 - [Traffic analytics](#traffic-analytics)
+- [Honeypot recording](#honeypot-recording)
 - [Health state and notifications](#health-state-and-notifications)
 - [Durable delivery and history](#durable-delivery-and-history)
 
@@ -733,6 +734,17 @@ End to end (`run-baseline.sh`, h1 and h2-tls, three alternating rounds against t
 - Geo and a country map (after v0.1, needing a local country database).
 - Protection-over-time series (the gate's refusals by kind per step).
 - Top client IPs. They need a place to keep addresses, against the privacy rule above, so they would be a separate, opt-in decision.
+
+## Honeypot recording
+
+The honeypot ([waf.md](waf.md#honeypot)) records what visitors do in the trap, apart from the access log and the analytics. A session needs the full client address, which analytics leave out, and fields the access log doesn't have.
+
+- **Its own queue.** `HoneypotRecorder` is the trap's `IHoneypotSink`: a bounded `Channel` the request writes one struct into, 0 B beyond the hit's own strings. A full queue drops the hit and counts it in `HoneypotStats`.
+- **Its own job.** `HoneypotRecordingJob` (core host, registered beside the analytics job) is the queue's only reader. Every 5 seconds it folds the queue into sessions and writes them. It prunes every 10 minutes and writes once more at shutdown.
+- **Bounded in memory.** Active sessions (10 000), the pages a session remembers for its depth (256), the robots.txt fetches remembered (50 000) and the rows waiting for a database that is down (200 000 requests, 100 000 sessions) all have a cap, and the oldest go first.
+- **Two tables** in the config database, `HoneypotSessions` (`hps_`) and `HoneypotRequests` (`hpr_`), Int64Ordered like the rollups and keyed by the host's typed-ID text. A session is one row of running totals that a write replaces.
+- **Retention is fixed:** 30 days, 100 000 sessions and 1 000 000 requests, oldest first. It isn't a server setting.
+- **Client addresses are stored in full**, so a backup, which holds the whole config database, holds them too.
 
 ## Health state and notifications
 

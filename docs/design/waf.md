@@ -822,7 +822,7 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
 
 ### Recording
 
-- Every trap request becomes a `HoneypotHit`, handed to `IHoneypotSink.Record`, which must not block. The sink the recording stores behind a bounded channel; if the channel is full, the hit is dropped and counted (`HoneypotStats.CountDropped`). Each hit records:
+- Every trap request becomes a `HoneypotHit`, handed to `IHoneypotSink.Record`, which must not block. Each hit records:
   - time, host, full client IP and user agent
   - the canonical path the gate matched on, without the query string, cut at 512 characters and marked if it was cut. For a verify request it is the verify path, and for a rule's landing page it is the path that was probed (`/wp-login.php`)
   - entry (`robots` when the host serves the `Disallow` line, `prefix` when it doesn't, `rule` for a rule set's action), page kind, link kind, page ID and parent ID
@@ -832,19 +832,52 @@ A trap site that has no end, for crawlers that ignore robots.txt or probe for we
 - The proof-of-work outcomes: `shown` is the challenge answered instead of the page (and the `403` for a client that can't solve it); `solved` is the verify request, with the status `303`, the page the visitor was sent back to and the time from the challenge's issue, to the second; `passed` is a page behind the challenge served on a valid cookie.
 - A request over the cap isn't recorded; `HoneypotStats` counts it as shed. It also counts the answers served.
 - On a host with a trap on, robots.txt fetches are reported too (`RobotsFetched`), whether the host serves the file or the upstream does. That shows whether a visitor read the file before going in. A simulation reports nothing.
-- Until the recording exists, `NullHoneypotSink` drops everything.
-- **Sessions** are keyed by host, IP and user agent, and end after 30 idle minutes. A session keeps counters:
-  - requests, pages and guessed URLs
-  - each link kind followed
-  - images fetched, and JS run (a beacon or a script link)
-  - challenges shown, solved and passed
-  - the deepest page reached, from parent IDs within the session
-- The tables keep 30 days, capped at 100k sessions and 1M requests, oldest first.
-- **Client IPs are stored in full here, unlike in the rest of analytics.** Trap visitors are crawlers that ignored robots.txt or probed, and the IP is what the operator studies.
-- **The API** (analytics read permission):
-  - `GET /api/v1/honeypot/summary?range=` gives the counts, the behaviour matrix (sessions that followed each link kind, ran JS, fetched images, solved a challenge) and the top user agents.
-  - `GET /api/v1/honeypot/sessions?range=&host=&q=` is a paged list. `q` matches an IP, a user agent substring or a canary phrase.
-  - `GET /api/v1/honeypot/sessions/{id}` gives a session and its requests.
+
+#### The sink
+
+- `HoneypotRecorder` is the sink. `Record` and `RobotsFetched` write one struct into a bounded `Channel` (8192 entries) and return, with no lock and no allocation beyond the hit's own strings (an allocation test covers both calls).
+- If the queue is full, the hit is dropped and counted (`HoneypotStats.CountDropped`). A robots.txt fetch that finds it full is lost without a count, because it only decides one flag.
+- `HoneypotRecordingJob` (a hosted service of the core host, registered beside the analytics job) is the only reader. Every 5 seconds it calls `HoneypotRecorder.Drain` (queue to sessions) and `HoneypotStore.WritePendingAsync` (sessions to the database), and every 10 minutes it prunes. It writes once more when the host stops.
+- A write that fails puts its batch back with the recorder, ahead of what came in meanwhile, and the next pass writes it. What waits is bounded (200 000 requests and 100 000 sessions). Over the bound, the oldest go and the lost requests count as dropped, so a database that stays down costs rows and never memory.
+
+#### Sessions
+
+- A session is keyed by host, full client IP and user agent (cut at 512 characters). A request that finds the session idle for 30 minutes or more starts a new one, so a visitor that returns the next day has a second session. A restart ends every session.
+- The recorder keeps at most 10 000 active sessions. Over that, the least recently seen end early, and a later request from one starts a new session. A session remembers at most 256 pages for its depth (below).
+- Each session is stored as one row with running totals. A write replaces the totals, so a session is rewritten as it grows. The row has:
+  - `requests`, `pages`, `guessedUrls`: every request; requests for a page of the site (the index, posts, categories, tags, authors, index pages and landings) including one answered with the challenge, but not the sitemap, the feed, an image, the beacon, a URL that is no page or the verify request; requests for a URL that is no page
+  - one counter per link kind, counting requests that followed it. The verify request follows no link: it carries the page the visitor was sent back to, and counts only as a solved challenge
+  - `images`, and `jsRuns` (the beacon, and the script link: the requests only a client that runs the page's script makes)
+  - `challengesShown`, `challengesSolved`, `challengesPassed`
+  - `maxDepth`, the most links followed from the index to reach a page that was served to the session
+  - `readRobotsFirst`, and the canary phrase
+- **Depth** comes from the parent IDs of the pages the session was served. The index is 0. A page whose parent the session was served is one deeper than the parent. A page whose parent it wasn't served, or no longer remembers, is 1. A page behind a challenge that was only shown isn't served, so it has no children to measure. A guessed URL has no depth.
+- **Read robots.txt first.** The recorder remembers the robots.txt fetches of the last 24 hours, up to 50 000 (host, IP and user agent, oldest forgotten first). A session that starts after a fetch with the same three has the flag. A fetch during a session doesn't set it.
+
+#### Storage
+
+- Two tables in the config database, with a migration (`HoneypotRecording`): `HoneypotSessions` (`hps_`) and `HoneypotRequests` (`hpr_`), both Int64Ordered, so an ID orders by when the session or request began. A request names its session without a foreign key, so deleting is one statement.
+- A session's link counters are columns, one per link kind, so the summary asks the table how many sessions followed one. The kinds in a request row (entry, page kind, link kind, proof-of-work outcome) are the proxy's enum numbers, and the application layer names them for the API.
+- Indexes: `(LastSeen)` for sessions, `(SessionId, Id)` and `(Time)` for requests. Reads and deletes use them, and a plan test pins that no read walks the requests table.
+- What a client sends is cut before it is stored: user agent 512 characters, `Referer` 512, `Accept` 256, `Accept-Language` 128, each `Sec-Fetch-*` 32, the path 512 (a longer path is cut and the row says so).
+- **Retention** is fixed: 30 days (a session by its last request, a request by its time), at most 100 000 sessions and 1 000 000 requests. A prune runs every 10 minutes: age first, then the oldest sessions over their cap with their requests, then the oldest requests over theirs. There is no server setting for it.
+- **Client IPs are stored in full here, unlike in the rest of analytics.** Trap visitors are crawlers that ignored robots.txt or probed, and the IP is what the operator studies. A backup holds the config database whole, so it holds these too.
+
+#### The API
+
+All four endpoints need the `metrics:read` permission, which every role holds, like the rest of analytics. They read the stored rows, so a request shows after the next write (up to 5 seconds). The sessions are in `Paduraksa.Contracts.Honeypot`, with the contract documented on each field.
+
+- `GET /api/v1/honeypot/summary?range=&host=` (`range` is `hour`, `day`, `week` or `month`, default `hour`):
+  - `counts`: sessions, requests, pages and guessed URLs of the range, and `shed` and `dropped`, which are process counters since the server started
+  - `behaviour`: how many sessions followed each link kind (all thirteen are listed), ran JS, fetched images, were shown, solved and passed the challenge, and read robots.txt first
+  - `topUserAgents`: the ten with the most requests, each with its bot class and name from the analytics `UserAgentClassifier`
+  - `topGuessedPaths`: the ten paths asked for most that are no page (a URL under the prefix that doesn't verify, and the paths a rule set's honeypot action answered with a landing page, such as `/wp-login.php`), each with its request count and latest request. These are counted by request time within the range, not by session
+  - A session is in a range if its latest request is. Its counters cover the whole session, so one that began before the range is counted in full.
+  - The paths read the requests table by its time index, and with `host` also look each request's session up. A month on a full table (1 000 000 requests) is the most expensive read here.
+- `GET /api/v1/honeypot/sessions?range=&host=&q=&limit=&cursor=` is a page of sessions, newest first, by the cursor of the session ID. `q` (at most 128 characters) matches the client IP by prefix (and an address typed in another spelling by equality), or a user agent or canary phrase that contains it, ignoring case. The pattern characters `%` and `_` are plain text.
+- `GET /api/v1/honeypot/sessions/{id}` is one session. A session that has been pruned is a `404`.
+- `GET /api/v1/honeypot/sessions/{id}/requests?limit=&cursor=` is a page of the session's requests, each with its path, oldest first, by the cursor of the request ID. It is a separate endpoint because a crawler's session can hold many thousands of requests, and the API's convention is that whatever pages answers a `Page`. A pruned session is a `404`, and a session that lost all its requests to the cap is an empty page.
+- The list reads sessions in ID order and stops at its page. That is the cheaper plan for the ranges that reach the newest sessions, and a range with few matches reads the table.
 
 ### Dashboard
 

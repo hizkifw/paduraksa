@@ -31,7 +31,7 @@ A script authenticates with an **API token**: `Authorization: Bearer pdk_...`. C
 | `vault:manage` | Secrets in the vault: store, replace, delete, never read |
 | `simulate` | The request simulator |
 | `logs:read` | The log files and the live tail |
-| `metrics:read` | Counters, analytics and the Prometheus endpoint. Every role holds it |
+| `metrics:read` | Counters, analytics, the honeypot's sessions and the Prometheus endpoint. Every role holds it |
 | `backup:create` | A full backup. The Owner only |
 
 Roles are sets of these scopes:

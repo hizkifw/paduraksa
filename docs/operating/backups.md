@@ -6,7 +6,7 @@ Do not copy the files of a running server: SQLite keeps part of the database in 
 
 `paduraksa backup` writes **one file that holds everything**:
 
-- the config database;
+- the config database, which includes the honeypot's sessions with their client addresses;
 - the vault (certificate keys, ACME and DNS secrets, TOTP secrets);
 - the last-known-good config.
 

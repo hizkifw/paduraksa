@@ -247,6 +247,19 @@ The review warns when:
 
 An admin host can't have a trap. The request simulator shows a **Honeypot** step with the entry, the page, whether it is behind the browser check, and the status.
 
+### What the trap records
+
+Each request the trap answers is recorded, with the client address in full. That includes the path, the user agent, the page and the kind of link the visitor followed, the status, the browser check's outcome, and the `Accept`, `Sec-Fetch-*` and `Referer` headers.
+
+- **A session** is one visitor: a host, a client address and a user agent. It ends after 30 idle minutes. It counts the requests, pages and guessed URLs, each kind of link followed, images fetched, script run, the browser check's outcome and the deepest page reached. It also says whether the visitor read `robots.txt` before its first request, and has the visitor's **canary phrase**: two made-up words woven into the posts it was served. If they later appear in a search engine or an AI model's answer, they name the visitor that scraped the page.
+- **Where to read it.** The API has `GET /api/v1/honeypot/summary` (counts, what the sessions did, the busiest user agents and the most guessed paths), `GET /api/v1/honeypot/sessions` (a list that `q` narrows by address, user agent or canary phrase), `GET /api/v1/honeypot/sessions/{id}` (one session) and `GET /api/v1/honeypot/sessions/{id}/requests` (its requests, a page at a time). They need the `metrics:read` scope.
+- **Retention.** 30 days, the newest 100 000 sessions and the newest 1 000 000 requests. It isn't a setting.
+- **Sessions appear a few seconds after the request.** A restart ends the sessions in progress.
+- **Client addresses are kept in full**, unlike in [analytics](observability.md#analytics). A backup includes them.
+- **Guessed paths.** The path is recorded without its query string, up to 512 characters. The summary lists the paths asked for most that are no page, including the paths a rule's Honeypot action answered, such as `/wp-login.php`.
+- **Under load.** If the recording can't keep up, it drops requests and counts them. The summary shows the count since the server started, with the number of requests the trap shed over its cap.
+
+
 ## The Security overview
 
 **Security overview** (Security) shows what protects each host and whether it is working.
