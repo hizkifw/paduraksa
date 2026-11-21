@@ -43,7 +43,9 @@ public sealed partial class HoneypotRuntime
 
     public TimeProvider Time { get; }
 
-    /// <summary>Takes one of the <see cref="MaxConcurrent"/> places; false when none is free. A taker that got true calls <see cref="Exit"/>.</summary>
+    /// <summary>Takes one of the <see cref="MaxConcurrent"/> places; false when none is free. A taker that got true calls <see cref="Exit"/>.
+    /// The handler releases its place once the page is rendered, before the body is written: the cap bounds generation, the CPU cost,
+    /// and a slow reader holds no place.</summary>
     internal bool TryEnter()
     {
         if (Interlocked.Increment(ref _inFlight) <= MaxConcurrent)

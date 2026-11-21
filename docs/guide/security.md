@@ -227,7 +227,7 @@ A path starts and ends with `/`, has letters, digits and `- _ . ~` only, is at m
 There are two ways into the trap:
 
 - **robots.txt.** If the host serves a managed `robots.txt`, a `Disallow:` line for the prefix is added to every group. A request under the prefix then came from a crawler that didn't read the file, or ignored it.
-- **A rule.** The **Honeypot** action of a [rule set](#rule-sets) answers a matching request, on any path, with a page of the trap.
+- **A rule.** The **Honeypot** action of a [rule set](#rule-sets) answers a matching request, on any path, with a page of the trap. Under the prefix too: a visitor the rule matches gets that page there and never passes the trap's challenge.
 
 How it answers:
 

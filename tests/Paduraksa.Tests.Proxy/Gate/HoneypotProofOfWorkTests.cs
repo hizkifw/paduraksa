@@ -98,6 +98,11 @@ public sealed class HoneypotProofOfWorkTests
     [InlineData("/elsewhere/", "/archive-k7f3/", "/archive-k7f3/")]
     [InlineData("//evil.example/", "/archive-k7f3/", "/archive-k7f3/")]
     [InlineData("https://evil.example/", "/archive-k7f3/", "/archive-k7f3/")]
+    [InlineData("/archive-k7f3/../../admin", "/archive-k7f3/", "/archive-k7f3/")]
+    [InlineData("/archive-k7f3/x/../..//admin/", "/archive-k7f3/", "/archive-k7f3/")]
+    [InlineData("/archive-k7f3/%2e%2e/admin", "/archive-k7f3/", "/archive-k7f3/")]
+    [InlineData("/archive-k7f3/..%2Fadmin", "/archive-k7f3/", "/archive-k7f3/")]
+    [InlineData("/archive-k7f3/post-1/?next=/../admin", "/archive-k7f3/", "/archive-k7f3/post-1/?next=/../admin")]
     [InlineData("/elsewhere/", null, "/elsewhere/")]
     public void ASolverIsSentBackIntoTheTrapNeverOutOfIt(string target, string? prefix, string expected)
     {

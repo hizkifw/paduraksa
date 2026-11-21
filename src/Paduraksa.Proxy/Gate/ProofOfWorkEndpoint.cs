@@ -164,7 +164,16 @@ internal static class ProofOfWorkEndpoint
     internal static string SanitizeReturn(ReadOnlySpan<char> value, string? prefix)
     {
         var target = SanitizeLocal(value);
-        return prefix is null || target.StartsWith(prefix, StringComparison.Ordinal) ? target : prefix;
+        if (prefix is null)
+        {
+            return target;
+        }
+
+        // The path has to be its own canonical view: a client resolves dot segments and %2F before it follows the 303,
+        // so "/<prefix>/../admin" starts with the prefix and still leads out of the trap.
+        var query = target.IndexOf('?', StringComparison.Ordinal);
+        var path = query < 0 ? target.AsSpan() : target.AsSpan(0, query);
+        return path.StartsWith(prefix, StringComparison.Ordinal) && RoutePath.IsCanonical(path) ? target : prefix;
     }
 
     private static string SanitizeLocal(ReadOnlySpan<char> value)
